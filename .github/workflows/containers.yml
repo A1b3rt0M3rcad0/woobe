@@ -207,3 +207,47 @@ jobs:
       - name: Cleanup Docker access
         if: always()
         run: bash scripts/ci/cleanup_docker_access.sh
+
+  release-multiarch-build:
+    name: Release-equivalent multi-arch build
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      DOCKER_BUILD_RECORD_UPLOAD: "false"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build Core API for release architectures
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: api
+          platforms: linux/amd64,linux/arm64
+          push: false
+
+      - name: Build Core Workers for release architectures
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: workers
+          platforms: linux/amd64,linux/arm64
+          push: false
+
+      - name: Build Core Frontend for release architectures
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: packages/woobe-frontend/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: false
+
+      - name: Build Core Embed for release architectures
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: packages/woobe-embed/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: false
