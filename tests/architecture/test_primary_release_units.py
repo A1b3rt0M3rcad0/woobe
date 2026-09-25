@@ -166,6 +166,8 @@ def test_validated_release_candidate_finalizes_release_automatically() -> None:
     assert "finalize_release:" in candidate
     assert "expected_version:" in candidate
     assert "inputs.finalize_release == true" in candidate
+    assert "group: release-candidate-${{ inputs.ref || github.sha }}" in candidate
+    assert "cancel-in-progress: true" in candidate
 
     assert "push:\n    tags:\n      - \"v*\"" in release
     assert "Immutable release image already exists with a different digest" in release
@@ -173,6 +175,7 @@ def test_validated_release_candidate_finalizes_release_automatically() -> None:
     assert "gh release create" in release
     assert "--generate-notes" in release
     assert "Remove completed release branch" in release
+    assert "group: publish-woobe-${{ github.ref_name }}" in release
 
 
 def test_release_orchestrator_requires_exact_green_head_before_merge() -> None:
@@ -199,6 +202,7 @@ def test_release_orchestrator_requires_exact_green_head_before_merge() -> None:
     assert "--match-head-commit" in orchestrator
     assert "Nothing was merged, tagged, or published." in orchestrator
     assert "Release gate passed" in orchestrator
+    compile(orchestrator, "scripts/release/orchestrate_release_pr.py", "exec")
 
     assert 'AUTHOR_LOGIN: ${{ steps.pr.outputs.author_login }}' in cla
     assert 'HEAD_REPO: ${{ steps.pr.outputs.head_repo }}' in cla
