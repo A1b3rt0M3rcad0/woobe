@@ -3,6 +3,7 @@ import { Maximize2 } from 'lucide-react'
 
 import { Button } from '@/components/ui/Button'
 import type { ChatSurfaceAppearance } from '@/features/chat-surfaces/types'
+import { RUNTIME_CHAT_EMBED_ORIGIN } from '@/lib/runtime-config'
 
 export function ChatSurfaceAppearancePreview({
   appearance,
