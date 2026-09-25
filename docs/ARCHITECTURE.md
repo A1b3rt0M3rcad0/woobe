@@ -45,6 +45,8 @@ tests/                            # repository and cross-system validation
 └── e2e/
 ```
 
+Woobe has five primary release units: `woobe-core`, `woobe-api`, `woobe-workers`, `woobe-frontend` and `woobe-embed`. API, Workers, Web and ChatSurface are independently deployable process/browser artifacts. Core is the shared Python domain/runtime package and migration owner rather than a standalone long-running process. `woobe-runtime-client` and `woobe-ui` are build-time shared browser libraries, not deployment units.
+
 `woobe-core` is the transport-neutral product Core. Each bounded context owns its domain, application, infrastructure, presentation contracts and composition. FastAPI, Starlette, HTTP routes, middleware and HTTP response semantics are excluded from Core.
 
 `woobe-api` is the real HTTP host and owns process-level HTTP composition. It may consume each bounded context only through that module's explicit `entrypoint.py`; persistence and repository access remain behind Core capabilities. `woobe-workers` owns process-level worker composition and consumes `entrypoint.py` or the intentionally narrow `background_boundary.py`. Core must not import either process package.
