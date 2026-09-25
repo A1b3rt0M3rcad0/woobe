@@ -29,7 +29,7 @@ class ProviderModelDiscoveryError(RuntimeError):
 def _json_get(url: str, api_key: str, *, timeout: int = 20) -> dict[str, Any]:
     headers = {
         "Accept": "application/json",
-        "User-Agent": "Woobe/0.12.0",
+        "User-Agent": "Woobe/0.13.0",
     }
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
