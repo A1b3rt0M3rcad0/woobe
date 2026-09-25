@@ -15,7 +15,7 @@ RUN npm run test && npm run typecheck && npm run build
 
 FROM nginxinc/nginx-unprivileged:${NGINX_VERSION}-alpine AS runtime
 
-LABEL org.opencontainers.image.title="Woobe Core ChatSurface" \
+LABEL org.opencontainers.image.title="Woobe Core Embed" \
       org.opencontainers.image.description="Woobe Core browser-facing ChatSurface artifact" \
       org.opencontainers.image.licenses="LicenseRef-Woobe-Core-Sustainable-Use-1.0" \
       org.opencontainers.image.source="https://github.com/A1b3rt0M3rcad0/woobe"
