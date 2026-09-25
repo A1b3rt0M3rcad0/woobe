@@ -37,8 +37,8 @@ WOOBE_ACCESS_COOKIE_SECURE=true
 WOOBE_REFRESH_COOKIE_SECURE=true
 WOOBE_CORS_ORIGINS=https://app.example.com,https://chat.example.com
 WOOBE_TRUSTED_HOSTS=api.example.com
-VITE_API_URL=https://api.example.com
-VITE_CHAT_EMBED_URL=https://chat.example.com
+WOOBE_PUBLIC_API_URL=https://api.example.com
+WOOBE_PUBLIC_CHAT_EMBED_URL=https://chat.example.com
 VITE_WOOBE_EDITION=core
 ```
 
