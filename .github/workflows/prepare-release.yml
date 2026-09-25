@@ -1,4 +1,4 @@
-name: Prepare Woobe release
+name: Release Woobe
 
 on:
   workflow_dispatch:
@@ -13,12 +13,13 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: prepare-woobe-release
+  group: release-woobe
   cancel-in-progress: false
 
 jobs:
-  prepare:
+  release:
     runs-on: ubuntu-latest
+    timeout-minutes: 240
     steps:
       - uses: actions/checkout@v4
         with:
@@ -123,11 +124,10 @@ jobs:
           git commit -m "chore(release): prepare Woobe v${{ steps.target.outputs.version }}"
           git push origin "${{ steps.target.outputs.branch }}"
 
-      - name: Open draft release pull request
+      - name: Open release pull request
         id: pr
         env:
           GH_TOKEN: ${{ secrets.WOOBE_RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
-          WOOBE_RELEASE_TOKEN_PRESENT: ${{ secrets.WOOBE_RELEASE_TOKEN != '' }}
           VERSION: ${{ steps.target.outputs.version }}
           BRANCH: ${{ steps.target.outputs.branch }}
         shell: bash
@@ -145,20 +145,20 @@ jobs:
 
           Woobe v{version}
 
-          ## Automated preparation
+          ## Automated release contract
 
-          - canonical `VERSION` updated to `{version}`;
-          - all Python and browser package manifests synchronized;
-          - exact `woobe-core=={version}` dependencies synchronized;
-          - npm and uv lockfile version metadata synchronized;
-          - FastAPI and MCP client runtime version metadata synchronized;
-          - repository version-consistency contract validated.
+          This PR was created by the Woobe release orchestrator after synchronizing the canonical platform version and all release-bearing mirrors.
 
-          ## Before merge
+          The release gate now owns this PR:
 
-          Review and update `CHANGELOG.md`, public documentation, migration notes and release notes as required by `RELEASING.md`. Keep this PR in Draft until the release contents are final.
+          - required CI must pass for the exact PR HEAD;
+          - only deterministic release-preparation files are allowed;
+          - if `master` advances, the release branch is refreshed and CI must pass again;
+          - CI failure leaves the PR open and publishes nothing;
+          - a fully green, stable release HEAD is merged automatically;
+          - candidate build, smoke, immutable tagging, image promotion, post-publish smoke, GitHub Release creation and branch cleanup continue automatically after merge.
 
-          After merge, the change to `VERSION` automatically triggers immutable candidate build, multi-architecture verification, smoke validation, immutable Git tagging, exact image promotion, post-publish smoke, GitHub Release creation and release-branch cleanup. The merge commit message is not part of release identity.
+          Product code, migration notes, documentation and changelog changes belong in normal development PRs before starting this release. Do not add unrelated changes to this release PR.
           """)
           Path(os.environ["RUNNER_TEMP"], "release-pr.md").write_text(body, encoding="utf-8")
           PY
@@ -167,57 +167,53 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --base master \
             --head "$BRANCH" \
-            --draft \
             --title "chore(release): prepare Woobe v${VERSION}" \
             --body-file "$RUNNER_TEMP/release-pr.md"
           then
             echo "::warning::Pull-request creation failed; removing orphan release branch $BRANCH."
             git push origin --delete "$BRANCH" >/dev/null 2>&1 || true
-            echo "::error::Unable to create the release pull request. In Settings > Actions > General > Workflow permissions, enable 'Allow GitHub Actions to create and approve pull requests', or configure a WOOBE_RELEASE_TOKEN secret with Contents, Pull requests and Actions write access."
+            echo "::error::Unable to create the release pull request. Enable GitHub Actions pull-request creation or configure WOOBE_RELEASE_TOKEN."
             exit 1
           fi
 
           pr_number="$(gh pr view "$BRANCH" --repo "$GITHUB_REPOSITORY" --json number --jq .number)"
           echo "number=$pr_number" >> "$GITHUB_OUTPUT"
 
-      - name: Dispatch release-branch validation
+      - name: Wait for release CI and merge exact validated head
+        id: gate
         env:
           GH_TOKEN: ${{ secrets.WOOBE_RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
-          WOOBE_RELEASE_TOKEN_PRESENT: ${{ secrets.WOOBE_RELEASE_TOKEN != '' }}
-          BRANCH: ${{ steps.target.outputs.branch }}
-          PR_NUMBER: ${{ steps.pr.outputs.number }}
+        run: |
+          python scripts/release/orchestrate_release_pr.py \
+            --repo "$GITHUB_REPOSITORY" \
+            --pr "${{ steps.pr.outputs.number }}" \
+            --version "${{ steps.target.outputs.version }}" \
+            --branch "${{ steps.target.outputs.branch }}" \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Start exact release finalization
+        env:
+          GH_TOKEN: ${{ secrets.WOOBE_RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.target.outputs.version }}
+          MERGE_SHA: ${{ steps.gate.outputs.merge_sha }}
         shell: bash
         run: |
           set -euo pipefail
-
-          if [[ "$WOOBE_RELEASE_TOKEN_PRESENT" == "true" ]]; then
-            echo "Dedicated release token created the PR; normal pull_request workflows will run automatically."
-            exit 0
-          fi
-
-          for workflow in \
-            tests.yml \
-            frontend.yml \
-            package-build.yml \
-            acceptance.yml \
-            quality-gate.yml \
-            containers.yml \
-            security.yml
-          do
-            gh workflow run "$workflow" --repo "$GITHUB_REPOSITORY" --ref "$BRANCH"
-          done
-          gh workflow run cla.yml \
+          gh workflow run release-candidate.yml \
             --repo "$GITHUB_REPOSITORY" \
-            --ref "$BRANCH" \
-            -f pr_number="$PR_NUMBER"
+            --ref master \
+            -f ref="$MERGE_SHA" \
+            -f expected_version="$VERSION" \
+            -f finalize_release=true
 
-      - name: Release preparation summary
+      - name: Release orchestration summary
         run: |
           {
             echo "### Woobe v${{ steps.target.outputs.version }}"
             echo
-            echo "Release branch: `${{ steps.target.outputs.branch }}`"
-            echo "Draft PR: #${{ steps.pr.outputs.number }}"
+            echo "Release PR: #${{ steps.pr.outputs.number }}"
+            echo "Validated PR HEAD: `${{ steps.gate.outputs.validated_head_sha }}`"
+            echo "Merge commit: `${{ steps.gate.outputs.merge_sha }}`"
             echo
-            echo "Release-branch CI validation is attached to the generated Draft PR."
+            echo "All required pre-merge CI passed. The PR was merged automatically and exact release finalization was dispatched."
           } >> "$GITHUB_STEP_SUMMARY"
