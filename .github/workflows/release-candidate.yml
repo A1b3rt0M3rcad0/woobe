@@ -271,3 +271,65 @@ jobs:
       - name: Tear down
         if: always()
         run: docker compose -f compose.yaml -f docker/ci/compose.release-images.yml down -v --remove-orphans || true
+
+
+  finalize-release:
+    needs: [detect, metadata, smoke]
+    if: ${{ github.event_name == 'push' && needs.detect.outputs.should_build == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.detect.outputs.source_ref }}
+          fetch-depth: 0
+
+      - name: Create immutable release tag
+        id: tag
+        shell: bash
+        env:
+          VERSION: ${{ needs.metadata.outputs.version }}
+          REVISION: ${{ needs.metadata.outputs.revision }}
+        run: |
+          set -euo pipefail
+          tag="v$VERSION"
+          git fetch --force --tags origin
+
+          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null 2>&1; then
+            git fetch --force origin "refs/tags/$tag:refs/tags/$tag"
+            tagged_revision="$(git rev-parse "$tag^{commit}")"
+            test "$tagged_revision" = "$REVISION"
+            echo "Tag $tag already exists on the validated release commit."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag -a "$tag" "$REVISION" -m "Woobe $tag"
+            git push origin "refs/tags/$tag"
+          fi
+
+          echo "name=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Dispatch exact release publication
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.tag.outputs.name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh workflow run release.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref "$TAG"
+
+      - name: Finalization summary
+        run: |
+          {
+            echo "### Release candidate validated"
+            echo
+            echo "Version: `${{ needs.metadata.outputs.version }}`"
+            echo "Revision: `${{ needs.metadata.outputs.revision }}`"
+            echo "Tag: `${{ steps.tag.outputs.name }}`"
+            echo
+            echo "Exact release publication was dispatched automatically."
+          } >> "$GITHUB_STEP_SUMMARY"
