@@ -10,6 +10,23 @@ def read(path: str) -> str:
     return (ROOT / path).read_text(encoding="utf-8")
 
 
+def _dockerfile_instructions(content: str) -> list[str]:
+    instructions: list[str] = []
+    current: list[str] = []
+    for raw_line in content.splitlines():
+        stripped = raw_line.strip()
+        if not current and (not stripped or stripped.startswith("#")):
+            continue
+        current.append(stripped.rstrip("\\").strip())
+        if raw_line.rstrip().endswith("\\"):
+            continue
+        instructions.append(" ".join(part for part in current if part))
+        current = []
+    if current:
+        instructions.append(" ".join(part for part in current if part))
+    return instructions
+
+
 def manifest_keys(environment: str) -> set[str]:
     keys: set[str] = set()
     for raw_line in environment.splitlines():
@@ -158,12 +175,22 @@ def test_browser_image_builds_do_not_execute_test_suites() -> None:
     frontend = read("packages/woobe-frontend/Dockerfile")
     embed = read("packages/woobe-embed/Dockerfile")
 
-    assert "RUN npm run build" in frontend.splitlines()
-    assert "npm run test:run" not in frontend
-    assert "RUN npm run build" in embed.splitlines()
-    assert "npm run test" not in embed
-    assert "npm run typecheck" not in embed
-    assert r"\nRUN npm run build" not in embed
+    frontend_runs = [
+        instruction
+        for instruction in _dockerfile_instructions(frontend)
+        if instruction.startswith("RUN ")
+    ]
+    embed_runs = [
+        instruction
+        for instruction in _dockerfile_instructions(embed)
+        if instruction.startswith("RUN ")
+    ]
+
+    assert any("npm run build" in instruction for instruction in frontend_runs)
+    assert all("npm run test:run" not in instruction for instruction in frontend_runs)
+    assert any("npm run build" in instruction for instruction in embed_runs)
+    assert all("npm run test" not in instruction for instruction in embed_runs)
+    assert all("npm run typecheck" not in instruction for instruction in embed_runs)
 
 
 def test_runtime_security_matrix_covers_private_resource_families() -> None:
