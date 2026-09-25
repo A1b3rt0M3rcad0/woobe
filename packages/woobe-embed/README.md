@@ -16,6 +16,12 @@ npm run build
 
 The supported Core deployment exposes this artifact through the `chat-embed` service in root `compose.yaml`.
 
+## Published container
+
+The deployable image is `ghcr.io/a1b3rt0m3rcad0/woobe-embed:<VERSION>` and exposes port `8080`. The static container currently needs no environment variables. For self-hosted embedding, pass the API origin explicitly through `apiBaseUrl` when mounting the ChatSurface.
+
+See [`docs/runbooks/container-packages.md`](../../docs/runbooks/container-packages.md) for pull, health-check and browser integration examples.
+
 ## External Context
 
 The Embed can attach request-side `external_context` values to each ChatSurface message. The values are validated by the External Context contract frozen into the pinned Agent or Network Release.
