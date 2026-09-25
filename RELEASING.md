@@ -632,21 +632,21 @@ The current release workflow is:
 
 It accepts the Semantic Version without the `v` prefix and publishes versioned Core images.
 
+The published Web image is deployment-neutral. Public API and ChatSurface endpoints are supplied when the container starts through `WOOBE_PUBLIC_API_URL` and `WOOBE_PUBLIC_CHAT_EMBED_URL`; they are not baked into the release image.
+
 Run the workflow against the exact release tag/ref, not against a later `master` commit.
 
 With GitHub CLI, the intended shape is:
 
 ```bash
-VERSION=0.2.0
+VERSION=0.13.0
 
 gh workflow run release.yml \
   --ref "v$VERSION" \
-  -f version="$VERSION" \
-  -f public_api_url="<PUBLIC_API_URL>" \
-  -f public_chat_embed_url="<PUBLIC_CHAT_EMBED_URL>"
+  -f version="$VERSION"
 ```
 
-Verify the resulting artifacts correspond to the release commit and expected version.
+Verify the resulting artifacts correspond to the release commit and expected version. Then verify the Web image can be started with deployment-specific runtime endpoints without rebuilding it.
 
 Current Core image names are:
 
