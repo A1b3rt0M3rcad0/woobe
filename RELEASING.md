@@ -397,6 +397,15 @@ Run any additional package, architecture, E2E, acceptance, security and containe
 
 ### Container/release artifact validation
 
+Validate package artifacts before container publication:
+
+- `woobe-core`, `woobe-api` and `woobe-workers` build wheel and source distributions;
+- clean environments can install the exact local Core + API and Core + Workers artifacts without source-tree path coupling;
+- Frontend and Embed produce production bundles from clean dependency installs;
+- all release-bearing package manifests agree on the platform version.
+
+The per-PR `Package Build` workflow enforces this contract continuously.
+
 Validate the exact images intended for publication:
 
 - successful multi-architecture build where supported;
