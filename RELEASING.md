@@ -435,6 +435,8 @@ Validate package artifacts before container publication:
 
 The per-PR `Package Build` workflow enforces this contract continuously.
 
+Optional short-lived CI evidence uploads are disabled by default so GitHub Actions artifact quota cannot block or noisily degrade the normal validation path. Set repository variable `WOOBE_UPLOAD_CI_ARTIFACTS=true` only when those diagnostic artifacts are explicitly needed. Release correctness does not depend on Actions artifact storage; the final release manifest is attached to the GitHub Release itself.
+
 Validate the exact images intended for publication:
 
 - successful multi-architecture build where supported;
