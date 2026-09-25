@@ -4,7 +4,6 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Semantic version without v prefix, for example 0.15.0
         required: true
         type: string
 
@@ -94,6 +93,7 @@ jobs:
         id: pr
         env:
           GH_TOKEN: ${{ secrets.WOOBE_RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          WOOBE_RELEASE_TOKEN_PRESENT: ${{ secrets.WOOBE_RELEASE_TOKEN != '' }}
           VERSION: ${{ steps.target.outputs.version }}
           BRANCH: ${{ steps.target.outputs.branch }}
         shell: bash
@@ -102,10 +102,12 @@ jobs:
 
           python - <<'PY'
           import os
+          import textwrap
           from pathlib import Path
 
           version = os.environ["VERSION"]
-          body = f"""## Target
+          body = textwrap.dedent(f"""\
+          ## Target
 
           Woobe v{version}
 
@@ -123,7 +125,7 @@ jobs:
           Review and update `CHANGELOG.md`, public documentation, migration notes and release notes as required by `RELEASING.md`. Keep this PR in Draft until the release contents are final.
 
           After merge, the change to `VERSION` automatically triggers immutable release-candidate image build and smoke validation. The merge commit message is not part of release identity.
-          """
+          """)
           Path(os.environ["RUNNER_TEMP"], "release-pr.md").write_text(body, encoding="utf-8")
           PY
 
@@ -135,6 +137,8 @@ jobs:
             --title "chore(release): prepare Woobe v${VERSION}" \
             --body-file "$RUNNER_TEMP/release-pr.md"
           then
+            echo "::warning::Pull-request creation failed; removing orphan release branch $BRANCH."
+            git push origin --delete "$BRANCH" >/dev/null 2>&1 || true
             echo "::error::Unable to create the release pull request. In Settings > Actions > General > Workflow permissions, enable 'Allow GitHub Actions to create and approve pull requests', or configure a WOOBE_RELEASE_TOKEN secret with Contents, Pull requests and Actions write access."
             exit 1
           fi
@@ -145,11 +149,18 @@ jobs:
       - name: Dispatch release-branch validation
         env:
           GH_TOKEN: ${{ secrets.WOOBE_RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          WOOBE_RELEASE_TOKEN_PRESENT: ${{ secrets.WOOBE_RELEASE_TOKEN != '' }}
           BRANCH: ${{ steps.target.outputs.branch }}
           PR_NUMBER: ${{ steps.pr.outputs.number }}
         shell: bash
         run: |
           set -euo pipefail
+
+          if [[ "$WOOBE_RELEASE_TOKEN_PRESENT" == "true" ]]; then
+            echo "Dedicated release token created the PR; normal pull_request workflows will run automatically."
+            exit 0
+          fi
+
           for workflow in \
             tests.yml \
             frontend.yml \
