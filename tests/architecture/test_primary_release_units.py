@@ -135,16 +135,19 @@ def test_release_identity_uses_canonical_version_not_commit_subject() -> None:
     assert "inputs.version" not in release
     assert "git log -1 --format=%s" not in release
 
+    assert "name: Release Woobe" in prepare
     assert "scripts/release/set_platform_version.py" in prepare
     assert "gh pr create" in prepare
+    assert "--draft" not in prepare
     assert "WOOBE_RELEASE_TOKEN" in prepare
     assert "textwrap.dedent" in prepare
     assert "<<EOF" not in prepare
     assert "git push origin --delete" in prepare
     assert "Unable to create the release pull request" in prepare
-    assert "Dispatch release-branch validation" in prepare
-    assert "workflow run cla.yml" in prepare
-    assert "WOOBE_RELEASE_TOKEN_PRESENT" in prepare
+    assert "orchestrate_release_pr.py" in prepare
+    assert "Start exact release finalization" in prepare
+    assert "finalize_release=true" in prepare
+    assert "expected_version=" in prepare
     assert "target {version} must be newer than latest published release" in prepare
 
 
@@ -160,7 +163,9 @@ def test_validated_release_candidate_finalizes_release_automatically() -> None:
     assert "Create immutable release tag" in candidate
     assert "git tag -a" in candidate
     assert "gh workflow run release.yml" in candidate
-    assert "github.event_name == 'push'" in candidate
+    assert "finalize_release:" in candidate
+    assert "expected_version:" in candidate
+    assert "inputs.finalize_release == true" in candidate
 
     assert "push:\n    tags:\n      - \"v*\"" in release
     assert "Immutable release image already exists with a different digest" in release
@@ -168,6 +173,38 @@ def test_validated_release_candidate_finalizes_release_automatically() -> None:
     assert "gh release create" in release
     assert "--generate-notes" in release
     assert "Remove completed release branch" in release
+
+
+def test_release_orchestrator_requires_exact_green_head_before_merge() -> None:
+    orchestrator = (ROOT / "scripts/release/orchestrate_release_pr.py").read_text(
+        encoding="utf-8"
+    )
+    cla = (ROOT / ".github/workflows/cla.yml").read_text(encoding="utf-8")
+
+    for workflow in (
+        "Backend test suite",
+        "Frontend test and build",
+        "Package Build",
+        "Acceptance",
+        "Quality Gate",
+        "Container quality",
+        "Security audit",
+        "CLA acceptance",
+    ):
+        assert workflow in orchestrator
+
+    assert "ALLOWED_RELEASE_PATHS" in orchestrator
+    assert "check_package_versions.py" in orchestrator
+    assert "merge-base" in orchestrator
+    assert "--match-head-commit" in orchestrator
+    assert "Nothing was merged, tagged, or published." in orchestrator
+    assert "Release gate passed" in orchestrator
+
+    assert 'AUTHOR_LOGIN: ${{ steps.pr.outputs.author_login }}' in cla
+    assert 'HEAD_REPO: ${{ steps.pr.outputs.head_repo }}' in cla
+    assert 'HEAD_REF: ${{ steps.pr.outputs.head_ref }}' in cla
+    assert '"$AUTHOR_LOGIN" == "github-actions[bot]"' in cla
+    assert '"$HEAD_REF" == release/*' in cla
 
 
 def test_platform_version_sync_script_covers_release_mirrors() -> None:
