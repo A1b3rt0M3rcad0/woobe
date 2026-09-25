@@ -58,6 +58,16 @@ jobs:
       revision: ${{ steps.meta.outputs.revision }}
       candidate_tag: ${{ steps.meta.outputs.candidate_tag }}
     steps:
+      - name: Require canonical manual workflow source
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF" != "refs/heads/master" ]]; then
+            echo "::error::Manual candidate validation must be dispatched from master; got $GITHUB_REF."
+            exit 1
+          fi
+
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           ref: ${{ inputs.ref }}
