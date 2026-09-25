@@ -158,11 +158,12 @@ def test_browser_image_builds_do_not_execute_test_suites() -> None:
     frontend = read("packages/woobe-frontend/Dockerfile")
     embed = read("packages/woobe-embed/Dockerfile")
 
-    assert "npm run build" in frontend
+    assert "RUN npm run build" in frontend.splitlines()
     assert "npm run test:run" not in frontend
-    assert "npm run build" in embed
+    assert "RUN npm run build" in embed.splitlines()
     assert "npm run test" not in embed
     assert "npm run typecheck" not in embed
+    assert r"\nRUN npm run build" not in embed
 
 
 def test_runtime_security_matrix_covers_private_resource_families() -> None:
