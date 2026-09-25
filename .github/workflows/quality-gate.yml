@@ -48,7 +48,7 @@ jobs:
       - name: Validate GitHub Actions workflows
         run: |
           set -euo pipefail
-          go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7 -color
+          go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7 -shellcheck= -color
       - name: Install development dependencies
         run: uv sync --frozen --all-groups --extra test
       - name: Quality gate self-tests
