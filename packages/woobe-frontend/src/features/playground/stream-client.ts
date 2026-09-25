@@ -1,5 +1,6 @@
 import { skillActivityLabel } from '@/features/skills/operations'
-import { API_BASE_URL, ensureCsrfToken, getCsrfHeaders, refreshAuthSession } from '@/lib/api/client'
+import { ensureCsrfToken, getCsrfHeaders, refreshAuthSession } from '@/lib/api/client'
+import { RUNTIME_API_URL } from '@/lib/runtime-config'
 import {
   RUNTIME_STREAM_MAX_ATTEMPTS,
   RuntimeStreamGapError,
@@ -26,7 +27,7 @@ import type {
   UsageInfo,
 } from './types'
 
-const BASE_URL = API_BASE_URL
+const BASE_URL = RUNTIME_API_URL
 const FINAL_PHASES = new Set([
   'response_generation',
   'capability_response_generation',
