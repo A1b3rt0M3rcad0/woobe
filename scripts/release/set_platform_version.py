@@ -8,9 +8,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 SEMVER = re.compile(
-    r"^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
-    r"(?:-([0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*))?"
-    r"(?:\\+([0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*))?$"
+    r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)"
+    r"(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?"
+    r"(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$"
 )
 
 
@@ -54,8 +54,8 @@ def _set_package_lock(path: str, version: str) -> None:
 
 def _set_uv_lock(version: str) -> None:
     path = "uv.lock"
-    pattern = r'(\\[\\[package\\]\\]\\nname = "woobe"\\nversion = ")[^"]+(")'
-    _replace_once(path, pattern, rf"\\g<1>{version}\\2")
+    pattern = r'(\[\[package\]\]\nname = "woobe"\nversion = ")[^"]+(")'
+    _replace_once(path, pattern, rf"\g<1>{version}\2")
 
 
 def synchronize(version: str) -> None:
@@ -105,8 +105,8 @@ def synchronize(version: str) -> None:
     ):
         _replace_all(
             path,
-            r'("clientInfo": \\{"name": "Woobe", "version": ")[^"]+("})',
-            rf"\\g<1>{version}\\2",
+            r'("clientInfo": \{"name": "Woobe", "version": ")[^"]+("})',
+            rf"\g<1>{version}\2",
         )
 
 
