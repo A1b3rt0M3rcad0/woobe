@@ -1,6 +1,8 @@
 import { ApiError, UnauthorizedError } from './errors'
+import { RUNTIME_API_URL } from '../runtime-config'
 
-export const API_BASE_URL = RUNTIME_API_URL\nconst AUTH_REFRESH_PATH = '/identity/auth/refresh'
+export const API_BASE_URL = RUNTIME_API_URL
+const AUTH_REFRESH_PATH = '/identity/auth/refresh'
 const AUTH_CSRF_PATH = '/identity/auth/csrf'
 const AUTH_PUBLIC_PATHS = new Set([
   '/identity/auth/login',
