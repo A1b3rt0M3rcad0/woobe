@@ -26,8 +26,8 @@ permissions:
   packages: write
 
 concurrency:
-  group: release-candidate-${{ github.sha }}-${{ inputs.ref || 'push' }}
-  cancel-in-progress: false
+  group: release-candidate-${{ inputs.ref || github.sha }}
+  cancel-in-progress: true
 
 jobs:
   detect:
