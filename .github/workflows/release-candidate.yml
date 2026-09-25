@@ -280,11 +280,52 @@ jobs:
     permissions:
       actions: write
       contents: write
+      packages: read
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.detect.outputs.source_ref }}
           fetch-depth: 0
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Preflight immutable version tags
+        shell: bash
+        env:
+          VERSION: ${{ needs.metadata.outputs.version }}
+          REVISION: ${{ needs.metadata.outputs.revision }}
+          OWNER: ${{ needs.metadata.outputs.owner }}
+        run: |
+          set -euo pipefail
+
+          digest_of() {
+            docker buildx imagetools inspect "$1" | awk '$1 == "Digest:" { print $2; exit }'
+          }
+
+          candidate_tag="sha-$REVISION"
+          for unit in api workers frontend embed; do
+            repository="ghcr.io/$OWNER/woobe-$unit"
+            candidate_ref="$repository:$candidate_tag"
+            version_ref="$repository:$VERSION"
+            candidate_digest="$(digest_of "$candidate_ref")"
+            test -n "$candidate_digest"
+
+            if docker buildx imagetools inspect "$version_ref" >/dev/null 2>&1; then
+              version_digest="$(digest_of "$version_ref")"
+              if [[ "$version_digest" != "$candidate_digest" ]]; then
+                echo "Version $VERSION is already occupied by a different immutable GHCR artifact: $version_ref" >&2
+                echo "existing=$version_digest candidate=$candidate_digest" >&2
+                exit 1
+              fi
+              echo "$unit: existing version tag already matches the validated candidate."
+            fi
+          done
 
       - name: Create immutable release tag
         id: tag
