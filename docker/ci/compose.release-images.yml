@@ -1,0 +1,22 @@
+# CI/release override that forces the application services to consume
+# prebuilt images. Always combine this file with the root compose.yaml.
+services:
+  migrate:
+    image: ${WOOBE_API_IMAGE:?WOOBE_API_IMAGE is required}
+    pull_policy: never
+
+  api:
+    image: ${WOOBE_API_IMAGE:?WOOBE_API_IMAGE is required}
+    pull_policy: never
+
+  workers:
+    image: ${WOOBE_WORKERS_IMAGE:?WOOBE_WORKERS_IMAGE is required}
+    pull_policy: never
+
+  web:
+    image: ${WOOBE_FRONTEND_IMAGE:?WOOBE_FRONTEND_IMAGE is required}
+    pull_policy: never
+
+  chat-embed:
+    image: ${WOOBE_EMBED_IMAGE:?WOOBE_EMBED_IMAGE is required}
+    pull_policy: never
