@@ -1,0 +1,167 @@
+name: Prepare Woobe release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Semantic version without v prefix, for example 0.15.0
+        required: true
+        type: string
+
+permissions:
+  actions: write
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: prepare-woobe-release
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Validate target version
+        id: target
+        shell: bash
+        env:
+          TARGET_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          python - "$TARGET_VERSION" <<'PY'
+          import re
+          import sys
+
+          version = sys.argv[1]
+          pattern = re.compile(
+              r"^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+              r"(?:-([0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*))?"
+              r"(?:\\+([0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*))?$"
+          )
+          if not pattern.fullmatch(version):
+              raise SystemExit(f"invalid Semantic Version: {version}")
+          PY
+
+          current="$(tr -d '[:space:]' < VERSION)"
+          test "$TARGET_VERSION" != "$current"
+
+          if git rev-parse -q --verify "refs/tags/v$TARGET_VERSION" >/dev/null; then
+            echo "Tag v$TARGET_VERSION already exists" >&2
+            exit 1
+          fi
+
+          branch="release/$TARGET_VERSION"
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
+            echo "Branch $branch already exists" >&2
+            exit 1
+          fi
+
+          echo "version=$TARGET_VERSION" >> "$GITHUB_OUTPUT"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+
+      - name: Synchronize platform version
+        run: |
+          set -euo pipefail
+          python scripts/release/set_platform_version.py "${{ steps.target.outputs.version }}"
+          python scripts/ci/check_package_versions.py
+          git diff --check
+          if git diff --quiet; then
+            echo "Release preparation produced no changes" >&2
+            exit 1
+          fi
+
+      - name: Create release branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "${{ steps.target.outputs.branch }}"
+          git add VERSION pyproject.toml uv.lock packages
+          git commit -m "chore(release): prepare Woobe v${{ steps.target.outputs.version }}"
+          git push origin "${{ steps.target.outputs.branch }}"
+
+      - name: Open draft release pull request
+        id: pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.target.outputs.version }}
+          BRANCH: ${{ steps.target.outputs.branch }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/release-pr.md" <<EOF
+          ## Target
+
+          Woobe v${VERSION}
+
+          ## Automated preparation
+
+          - canonical `VERSION` updated to `${VERSION}`;
+          - all Python and browser package manifests synchronized;
+          - exact `woobe-core==${VERSION}` dependencies synchronized;
+          - npm and uv lockfile version metadata synchronized;
+          - FastAPI and MCP client runtime version metadata synchronized;
+          - repository version-consistency contract validated.
+
+          ## Before merge
+
+          Review and update `CHANGELOG.md`, public documentation, migration notes and release notes as required by `RELEASING.md`. Keep this PR in Draft until the release contents are final.
+
+          After merge, the change to `VERSION` automatically triggers immutable release-candidate image build and smoke validation. The merge commit message is not part of release identity.
+          EOF
+
+          gh pr create \
+            --repo "$GITHUB_REPOSITORY" \
+            --base master \
+            --head "$BRANCH" \
+            --draft \
+            --title "chore(release): prepare Woobe v${VERSION}" \
+            --body-file "$RUNNER_TEMP/release-pr.md"
+
+          pr_number="$(gh pr view "$BRANCH" --repo "$GITHUB_REPOSITORY" --json number --jq .number)"
+          echo "number=$pr_number" >> "$GITHUB_OUTPUT"
+
+      - name: Dispatch release-branch validation
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: ${{ steps.target.outputs.branch }}
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for workflow in \
+            tests.yml \
+            frontend.yml \
+            package-build.yml \
+            acceptance.yml \
+            quality-gate.yml \
+            containers.yml \
+            security.yml
+          do
+            gh workflow run "$workflow" --repo "$GITHUB_REPOSITORY" --ref "$BRANCH"
+          done
+          gh workflow run cla.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref "$BRANCH" \
+            -f pr_number="$PR_NUMBER"
+
+      - name: Release preparation summary
+        run: |
+          {
+            echo "### Woobe v${{ steps.target.outputs.version }}"
+            echo
+            echo "Release branch: `${{ steps.target.outputs.branch }}`"
+            echo "Draft PR: #${{ steps.pr.outputs.number }}"
+            echo
+            echo "CI workflows were explicitly dispatched because repository writes made with GITHUB_TOKEN do not recursively trigger ordinary pull_request workflows."
+          } >> "$GITHUB_STEP_SUMMARY"
