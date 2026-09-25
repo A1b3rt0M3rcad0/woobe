@@ -2,6 +2,35 @@ name: Publish Woobe Core images
 run-name: Publish Woobe ${{ inputs.version }} @ ${{ inputs.revision }} / ${{ inputs.orchestration_id }}
 
 on:
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+      revision:
+        required: true
+        type: string
+      validation_id:
+        required: true
+        type: string
+      api_digest:
+        required: true
+        type: string
+      workers_digest:
+        required: true
+        type: string
+      frontend_digest:
+        required: true
+        type: string
+      embed_digest:
+        required: true
+        type: string
+      orchestration_id:
+        required: true
+        type: string
+    outputs:
+      release_url:
+        value: ${{ jobs.github-release.outputs.release_url }}
   workflow_dispatch:
     inputs:
       version:
@@ -12,17 +41,28 @@ on:
         description: Exact validated merge commit SHA.
         required: true
         type: string
-      candidate_run_id:
-        description: Successful Release candidate images run that produced the manifest.
+      validation_id:
+        description: Candidate validation identity.
+        required: true
+        type: string
+      api_digest:
+        required: true
+        type: string
+      workers_digest:
+        required: true
+        type: string
+      frontend_digest:
+        required: true
+        type: string
+      embed_digest:
         required: true
         type: string
       orchestration_id:
-        description: Parent Release Woobe run ID used to identify this exact child run.
+        description: Correlation identity for manual/recovery publication.
         required: true
         type: string
 
 permissions:
-  actions: read
   contents: write
   packages: write
 
@@ -38,7 +78,6 @@ jobs:
       owner: ${{ steps.meta.outputs.owner }}
       revision: ${{ steps.meta.outputs.revision }}
       version: ${{ steps.meta.outputs.version }}
-      candidate_run_id: ${{ steps.meta.outputs.candidate_run_id }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
@@ -55,7 +94,6 @@ jobs:
         env:
           EXPECTED_VERSION: ${{ inputs.version }}
           EXPECTED_REVISION: ${{ inputs.revision }}
-          CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
         run: |
           set -euo pipefail
           version="$(tr -d '[:space:]' < VERSION)"
@@ -81,7 +119,6 @@ jobs:
           echo "owner=$owner" >> "$GITHUB_OUTPUT"
           echo "revision=$revision" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "candidate_run_id=$CANDIDATE_RUN_ID" >> "$GITHUB_OUTPUT"
 
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
@@ -90,70 +127,33 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Download validated candidate manifest
+      - name: Validate candidate digest inputs
+        shell: bash
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CANDIDATE_RUN_ID: ${{ steps.meta.outputs.candidate_run_id }}
+          API_DIGEST: ${{ inputs.api_digest }}
+          WORKERS_DIGEST: ${{ inputs.workers_digest }}
+          FRONTEND_DIGEST: ${{ inputs.frontend_digest }}
+          EMBED_DIGEST: ${{ inputs.embed_digest }}
+          VALIDATION_ID: ${{ inputs.validation_id }}
         run: |
           set -euo pipefail
-          destination="$RUNNER_TEMP/release-manifest"
-          mkdir -p "$destination"
-          gh run download "$CANDIDATE_RUN_ID" \
-            --repo "$GITHUB_REPOSITORY" \
-            --name "woobe-release-manifest-$CANDIDATE_RUN_ID" \
-            --dir "$destination"
-          test -s "$destination/release-manifest.json"
-
-      - name: Verify candidate manifest contract
-        id: manifest
-        env:
-          MANIFEST: ${{ runner.temp }}/release-manifest/release-manifest.json
-          EXPECTED_VERSION: ${{ steps.meta.outputs.version }}
-          EXPECTED_REVISION: ${{ steps.meta.outputs.revision }}
-          EXPECTED_RUN_ID: ${{ steps.meta.outputs.candidate_run_id }}
-          EXPECTED_OWNER: ${{ steps.meta.outputs.owner }}
-        run: |
-          python - <<'PY'
-          import json
-          import os
-          from pathlib import Path
-
-          manifest = json.loads(Path(os.environ["MANIFEST"]).read_text(encoding="utf-8"))
-          expected = {
-              "version": os.environ["EXPECTED_VERSION"],
-              "revision": os.environ["EXPECTED_REVISION"],
-              "candidate_run_id": os.environ["EXPECTED_RUN_ID"],
-              "owner": os.environ["EXPECTED_OWNER"],
-          }
-          for key, value in expected.items():
-              actual = str(manifest.get(key, ""))
-              if actual != value:
-                  raise SystemExit(f"release manifest {key}={actual!r}; expected {value!r}")
-
-          if manifest.get("platforms") != ["linux/amd64", "linux/arm64"]:
-              raise SystemExit(f"unexpected manifest platforms: {manifest.get('platforms')!r}")
-
-          images = manifest.get("images") or {}
-          required = ("api", "workers", "frontend", "embed")
-          for unit in required:
-              digest = images.get(unit)
-              if not isinstance(digest, str) or not digest.startswith("sha256:"):
-                  raise SystemExit(f"missing or invalid digest for {unit}: {digest!r}")
-
-          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
-              for unit in required:
-                  handle.write(f"{unit}_digest={images[unit]}\n")
-          PY
+          test -n "$VALIDATION_ID"
+          for value in "$API_DIGEST" "$WORKERS_DIGEST" "$FRONTEND_DIGEST" "$EMBED_DIGEST"; do
+            [[ "$value" =~ ^sha256:[0-9a-f]{64}$ ]] || {
+              echo "::error::Invalid candidate digest: $value"
+              exit 1
+            }
+          done
 
       - name: Verify exact validated candidate manifests
         shell: bash
         env:
           OWNER: ${{ steps.meta.outputs.owner }}
           REVISION: ${{ steps.meta.outputs.revision }}
-          API_DIGEST: ${{ steps.manifest.outputs.api_digest }}
-          WORKERS_DIGEST: ${{ steps.manifest.outputs.workers_digest }}
-          FRONTEND_DIGEST: ${{ steps.manifest.outputs.frontend_digest }}
-          EMBED_DIGEST: ${{ steps.manifest.outputs.embed_digest }}
+          API_DIGEST: ${{ inputs.api_digest }}
+          WORKERS_DIGEST: ${{ inputs.workers_digest }}
+          FRONTEND_DIGEST: ${{ inputs.frontend_digest }}
+          EMBED_DIGEST: ${{ inputs.embed_digest }}
         run: |
           set -euo pipefail
 
@@ -206,30 +206,12 @@ jobs:
         env:
           OWNER: ${{ steps.meta.outputs.owner }}
           VERSION: ${{ steps.meta.outputs.version }}
-          API_DIGEST: ${{ steps.manifest.outputs.api_digest }}
-          WORKERS_DIGEST: ${{ steps.manifest.outputs.workers_digest }}
-          FRONTEND_DIGEST: ${{ steps.manifest.outputs.frontend_digest }}
-          EMBED_DIGEST: ${{ steps.manifest.outputs.embed_digest }}
+          API_DIGEST: ${{ inputs.api_digest }}
+          WORKERS_DIGEST: ${{ inputs.workers_digest }}
+          FRONTEND_DIGEST: ${{ inputs.frontend_digest }}
+          EMBED_DIGEST: ${{ inputs.embed_digest }}
         run: |
           set -euo pipefail
-
-          inspect_with_retry() {
-            local ref="$1"
-            local output=""
-            local delay=2
-            for attempt in 1 2 3 4 5; do
-              if output="$(docker buildx imagetools inspect "$ref" 2>&1)"; then
-                printf '%s\n' "$output"
-                return 0
-              fi
-              if [[ "$attempt" != 5 ]]; then
-                echo "::warning::Unable to inspect $ref (attempt $attempt/5): $output" >&2
-                sleep "$delay"
-                delay=$((delay * 2))
-              fi
-            done
-            return 1
-          }
 
           expected_digest() {
             case "$1" in
@@ -241,12 +223,62 @@ jobs:
             esac
           }
 
+          probe_target() {
+            local ref="$1"
+            local output=""
+            local delay=2
+
+            for attempt in 1 2 3 4 5; do
+              if output="$(docker buildx imagetools inspect "$ref" 2>&1)"; then
+                printf '%s\n' "$output"
+                return 0
+              fi
+
+              if grep -Eqi '(manifest unknown|no such manifest|not found)' <<<"$output"; then
+                return 3
+              fi
+
+              echo "::warning::Release tag lookup failed for $ref (attempt $attempt/5): $output" >&2
+              if [[ "$attempt" != 5 ]]; then
+                sleep "$delay"
+                delay=$((delay * 2))
+              fi
+            done
+
+            echo "::error::Unable to determine registry state for release ref: $ref" >&2
+            return 1
+          }
+
+          inspect_strict() {
+            local ref="$1"
+            local output=""
+            local delay=2
+            for attempt in 1 2 3 4 5; do
+              if output="$(docker buildx imagetools inspect "$ref" 2>&1)"; then
+                printf '%s\n' "$output"
+                return 0
+              fi
+              echo "::warning::Unable to verify $ref after promotion (attempt $attempt/5): $output" >&2
+              if [[ "$attempt" != 5 ]]; then
+                sleep "$delay"
+                delay=$((delay * 2))
+              fi
+            done
+            echo "::error::Unable to verify published release image: $ref" >&2
+            return 1
+          }
+
           for unit in api workers frontend embed; do
             repository="ghcr.io/$OWNER/woobe-$unit"
             target_ref="$repository:$VERSION"
             digest="$(expected_digest "$unit")"
 
-            if existing="$(inspect_with_retry "$target_ref")"; then
+            set +e
+            existing="$(probe_target "$target_ref")"
+            state=$?
+            set -e
+
+            if [[ "$state" == 0 ]]; then
               target_digest="$(awk '$1 == "Digest:" { print $2; exit }' <<<"$existing")"
               if [[ "$target_digest" != "$digest" ]]; then
                 echo "::error::Immutable release image already exists with a different digest: $target_ref"
@@ -257,13 +289,15 @@ jobs:
               continue
             fi
 
+            if [[ "$state" != 3 ]]; then
+              echo "::error::Registry state is unknown for $target_ref; refusing to publish."
+              exit 1
+            fi
+
             echo "Promoting $repository@$digest -> $target_ref"
             docker buildx imagetools create --tag "$target_ref" "$repository@$digest"
 
-            verified="$(inspect_with_retry "$target_ref")" || {
-              echo "::error::Published release image could not be read back: $target_ref"
-              exit 1
-            }
+            verified="$(inspect_strict "$target_ref")"
             target_digest="$(awk '$1 == "Digest:" { print $2; exit }' <<<"$verified")"
             test "$target_digest" = "$digest"
             echo "$unit: $target_digest"
@@ -274,7 +308,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
-      COMPOSE_PROJECT_NAME: woobe-release-${{ github.run_id }}
+      COMPOSE_PROJECT_NAME: woobe-release-${{ github.run_id }}-${{ github.run_attempt }}
       WOOBE_API_IMAGE: ghcr.io/${{ needs.publish.outputs.owner }}/woobe-api:${{ needs.publish.outputs.version }}
       WOOBE_WORKERS_IMAGE: ghcr.io/${{ needs.publish.outputs.owner }}/woobe-workers:${{ needs.publish.outputs.version }}
       WOOBE_FRONTEND_IMAGE: ghcr.io/${{ needs.publish.outputs.owner }}/woobe-frontend:${{ needs.publish.outputs.version }}
@@ -350,13 +384,51 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: write
+    outputs:
+      release_url: ${{ steps.release.outputs.release_url }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           ref: ${{ needs.publish.outputs.revision }}
           fetch-depth: 0
 
-      - name: Publish GitHub Release
+      - name: Write permanent release manifest
+        env:
+          VERSION: ${{ needs.publish.outputs.version }}
+          REVISION: ${{ needs.publish.outputs.revision }}
+          VALIDATION_ID: ${{ inputs.validation_id }}
+          API_DIGEST: ${{ inputs.api_digest }}
+          WORKERS_DIGEST: ${{ inputs.workers_digest }}
+          FRONTEND_DIGEST: ${{ inputs.frontend_digest }}
+          EMBED_DIGEST: ${{ inputs.embed_digest }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          payload = {
+              "schema_version": 1,
+              "version": os.environ["VERSION"],
+              "revision": os.environ["REVISION"],
+              "validation_id": os.environ["VALIDATION_ID"],
+              "repository": os.environ["GITHUB_REPOSITORY"],
+              "platforms": ["linux/amd64", "linux/arm64"],
+              "images": {
+                  "api": os.environ["API_DIGEST"],
+                  "workers": os.environ["WORKERS_DIGEST"],
+                  "frontend": os.environ["FRONTEND_DIGEST"],
+                  "embed": os.environ["EMBED_DIGEST"],
+              },
+          }
+          Path("release-manifest.json").write_text(
+              json.dumps(payload, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Publish GitHub Release and permanent manifest
+        id: release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ needs.publish.outputs.version }}
@@ -365,14 +437,27 @@ jobs:
           set -euo pipefail
           tag="v$VERSION"
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "GitHub Release $tag already exists; preserving the existing immutable release record."
+            assets="$(gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name')"
+            if grep -Fxq 'release-manifest.json' <<<"$assets"; then
+              temp="$RUNNER_TEMP/existing-release-manifest"
+              mkdir -p "$temp"
+              gh release download "$tag" --repo "$GITHUB_REPOSITORY" --pattern release-manifest.json --dir "$temp"
+              cmp --silent release-manifest.json "$temp/release-manifest.json" || {
+                echo "::error::Existing release-manifest.json differs from the validated release state."
+                exit 1
+              }
+            else
+              gh release upload "$tag" release-manifest.json --repo "$GITHUB_REPOSITORY"
+            fi
           else
-            gh release create "$tag" \
+            gh release create "$tag" release-manifest.json \
               --repo "$GITHUB_REPOSITORY" \
               --verify-tag \
               --title "Woobe $tag" \
               --generate-notes
           fi
+          release_url="$(gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json url --jq .url)"
+          echo "release_url=$release_url" >> "$GITHUB_OUTPUT"
 
       - name: Remove completed release branch
         env:
@@ -388,14 +473,20 @@ jobs:
           fi
 
       - name: Release summary
+        env:
+          VERSION: ${{ needs.publish.outputs.version }}
+          REVISION: ${{ needs.publish.outputs.revision }}
+          VALIDATION_ID: ${{ inputs.validation_id }}
+          RELEASE_URL: ${{ steps.release.outputs.release_url }}
+        shell: bash
         run: |
           {
-            echo "### Woobe v${{ needs.publish.outputs.version }} published"
-            echo
-            echo "Revision: `${{ needs.publish.outputs.revision }}`"
-            echo "Candidate run: `${{ needs.publish.outputs.candidate_run_id }}`"
-            echo "Git tag: `v${{ needs.publish.outputs.version }}`"
-            echo "GitHub Release: published"
+            printf '### Woobe v%s published\n\n' "$VERSION"
+            printf 'Revision: `%s`\n' "$REVISION"
+            printf 'Candidate validation: `%s`\n' "$VALIDATION_ID"
+            printf 'Git tag: `v%s`\n' "$VERSION"
+            printf 'GitHub Release: %s\n' "$RELEASE_URL"
             echo "Core images: promoted from the exact validated candidate digests"
             echo "Post-publish smoke: passed"
+            echo "Permanent manifest: release-manifest.json"
           } >> "$GITHUB_STEP_SUMMARY"
