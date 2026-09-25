@@ -126,6 +126,7 @@ def test_release_identity_uses_canonical_version_not_commit_subject() -> None:
     assert (ROOT / "VERSION").read_text(encoding="utf-8").strip()
     assert "Detect platform release transition" not in candidate
     assert "push:\n    branches: [master]" not in candidate
+    assert "workflow_call:" in candidate
     assert "workflow_dispatch:" in candidate
     assert "python scripts/ci/check_package_versions.py" in candidate
     assert 'version="$(tr -d \'[:space:]\' < VERSION)"' in candidate
@@ -133,8 +134,10 @@ def test_release_identity_uses_canonical_version_not_commit_subject() -> None:
     assert "startsWith(github.event.head_commit.message" not in candidate
 
     assert "push:\n    tags:" not in release
+    assert "workflow_call:" in release
     assert "workflow_dispatch:" in release
-    assert "candidate_run_id:" in release
+    assert "validation_id:" in release
+    assert "api_digest:" in release
     assert 'test "$revision" = "$EXPECTED_REVISION"' in release
     assert 'git rev-parse "$tag^{commit}"' in release
     assert "git log -1 --format=%s" not in release
@@ -149,11 +152,11 @@ def test_release_identity_uses_canonical_version_not_commit_subject() -> None:
     assert "git push origin --delete" in release
     assert "Unable to create the release pull request" in prepare
     assert "orchestrate_release_pr.py" in prepare
-    assert "Build and validate exact release candidate" in prepare
-    assert "Publish exact validated release" in prepare
-    assert "dispatch_and_wait.py" in prepare
+    assert "uses: ./.github/workflows/release-candidate.yml" in prepare
+    assert "uses: ./.github/workflows/release.yml" in prepare
+    assert "dispatch_and_wait.py" not in prepare
     assert "resume_finalization" in prepare
-    assert "expected_version=$VERSION" in prepare
+    assert "expected_version: ${{ needs.prepare.outputs.version }}" in prepare
     assert "target {version} must be newer than latest published release" in prepare
 
 
@@ -168,29 +171,33 @@ def test_validated_release_candidate_is_bound_to_one_orchestrated_publication() 
 
     assert "finalize-release:" not in candidate
     assert "push:\n    branches: [master]" not in candidate
-    assert "orchestration_id:" in candidate
-    assert "manifest:" in candidate
-    assert "release-manifest.json" in candidate
-    assert "woobe-release-manifest-" in candidate
+    assert "workflow_call:" in candidate
+    assert "validation_id:" in candidate
+    assert "api_digest:" in candidate
+    assert "actions/upload-artifact" not in candidate
     assert "group: release-candidate-${{ inputs.ref }}" in candidate
     assert "cancel-in-progress: false" in candidate
 
     assert "push:\n    tags:" not in release
-    assert "candidate_run_id:" in release
-    assert "Download validated candidate manifest" in release
-    assert "Verify candidate manifest contract" in release
+    assert "workflow_call:" in release
+    assert "validation_id:" in release
+    assert "api_digest:" in release
     assert "Promote exact validated digests to release version" in release
+    assert "Registry state is unknown" in release
     assert "Immutable release image already exists with a different digest" in release
-    assert "github-release:" in release
+    assert "release-manifest.json" in release
     assert "gh release create" in release
     assert "--generate-notes" in release
     assert "Remove completed release branch" in release
     assert "group: publish-woobe-${{ inputs.version }}" in release
     assert "cancel-in-progress: false" in release
 
+    assert "uses: ./.github/workflows/release-candidate.yml" in prepare
+    assert "uses: ./.github/workflows/release.yml" in prepare
     assert "Create or verify immutable release tag" in prepare
-    assert "Build and validate exact release candidate" in prepare
-    assert "Publish exact validated release" in prepare
+    assert "Verify completed release recovery" in prepare
+    assert "Complete pending release branch cleanup" in prepare
+    assert "${{ github.run_id }}-${{ github.run_attempt }}" in prepare
     assert "Release Woobe v${{ inputs.version }}" in prepare
 
 
@@ -204,6 +211,8 @@ def test_release_workflows_pin_hosted_runner_and_action_commits() -> None:
         assert "ubuntu-latest" not in workflow
         assert "ubuntu-24.04" in workflow
         for action in re.findall(r"uses:\s+([^\s#]+)", workflow):
+            if action.startswith("./"):
+                continue
             assert re.search(r"@[0-9a-f]{40}$", action), (relative, action)
 
 
@@ -280,11 +289,12 @@ def test_container_ci_reproduces_release_candidate_multiarch_contract() -> None:
     )
 
     assert "release-multiarch-build:" in containers
-    assert "runs-on: ubuntu-latest" in containers
+    assert "runs-on: ubuntu-latest" not in containers
+    assert "runs-on: ubuntu-24.04" in containers
     assert containers.count("platforms: linux/amd64,linux/arm64") == 4
     assert containers.count("push: false") == 4
-    assert "docker/setup-qemu-action@v3" in containers
-    assert "docker/setup-buildx-action@v3" in containers
+    assert "docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1" in containers
+    assert "docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069" in containers
 
     for token in (
         "target: api",
@@ -301,13 +311,41 @@ def test_release_candidate_sha_tags_are_reused_not_overwritten() -> None:
         encoding="utf-8"
     )
 
-    assert "Check immutable candidate existence" in candidate
-    assert "steps.candidate.outputs.exists != 'true'" in candidate
+    assert "Probe immutable candidate" in candidate
+    assert "steps.candidate.outputs.state == 'missing'" in candidate
+    assert "Candidate lookup failed" in candidate
+    assert "Unable to determine whether immutable candidate exists" in candidate
+    assert "manifest unknown|no such manifest|not found" in candidate
     assert "Verify immutable candidate identity" in candidate
     assert "org.opencontainers.image.revision" in candidate
     assert "org.opencontainers.image.version" in candidate
-    assert "release-manifest.json" in candidate
+    assert "actions/upload-artifact" not in candidate
     assert "digest_with_retry" in candidate
+
+
+def test_release_ci_pins_required_actions_and_runs_release_contract_tests() -> None:
+    required = (
+        "tests.yml",
+        "frontend.yml",
+        "package-build.yml",
+        "acceptance.yml",
+        "quality-gate.yml",
+        "containers.yml",
+        "security.yml",
+        "cla.yml",
+    )
+    for filename in required:
+        workflow = (ROOT / ".github/workflows" / filename).read_text(encoding="utf-8")
+        for action in re.findall(r"uses:\s+([^\s#]+)", workflow):
+            if action.startswith("./"):
+                continue
+            assert re.search(r"@[0-9a-f]{40}$", action), (filename, action)
+
+    quality = (ROOT / ".github/workflows/quality-gate.yml").read_text(encoding="utf-8")
+    assert "tests/architecture/test_primary_release_units.py" in quality
+    assert "github.com/rhysd/actionlint/cmd/actionlint@v1.7.7" in quality
+    assert '".github/workflows/release.yml"' in quality
+    assert '"scripts/release/**"' in quality
 
 
 def test_acceptance_validates_previous_release_upgrade() -> None:
