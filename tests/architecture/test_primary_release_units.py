@@ -135,6 +135,9 @@ def test_release_identity_uses_canonical_version_not_commit_subject() -> None:
 
     assert "scripts/release/set_platform_version.py" in prepare
     assert "gh pr create" in prepare
+    assert "WOOBE_RELEASE_TOKEN" in prepare
+    assert "<<EOF" not in prepare
+    assert "Unable to create the release pull request" in prepare
     assert "Dispatch release-branch validation" in prepare
     assert "workflow run cla.yml" in prepare
 
