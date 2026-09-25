@@ -100,20 +100,23 @@ Never perform a repository-wide replacement of the old platform version.
 
 `VERSION` at the repository root is the canonical Woobe platform version. Humans choose the target version once; release-bearing manifests, lockfile version metadata and runtime version mirrors are synchronized from that value.
 
-The preferred release-preparation path is GitHub Actions:
+The preferred release path is the **Release Woobe** GitHub Action. Starting this workflow is the human authorization to release the requested version if, and only if, the repository's release gates pass.
 
-1. Open **Actions -> Prepare Woobe release**.
+1. Open **Actions -> Release Woobe**.
 2. Enter the target Semantic Version without the `v` prefix.
 3. The workflow validates the version, requires it to be newer than the latest published Semantic Version when published tags exist, and ensures that neither `v<VERSION>` nor `release/<VERSION>` already exists.
 4. It runs `scripts/release/set_platform_version.py <VERSION>`.
 5. It validates the synchronized state with `scripts/ci/check_package_versions.py`.
-6. It creates `release/<VERSION>`, commits the synchronized release state, opens a Draft pull request and explicitly dispatches the release-branch CI workflows.
+6. It creates `release/<VERSION>`, commits the synchronized release state and opens a normal release pull request.
+7. It waits for the complete required CI matrix on the exact PR HEAD.
+8. If any required workflow fails, is cancelled, times out or otherwise does not conclude successfully, the release remains unmerged and nothing is tagged or published. The orchestrator comments the blocking state on the PR.
+9. If `master` advances while validation is running, the workflow refreshes the release branch from current `master` and requires CI to pass again.
+10. Only a stable release HEAD with every required gate green is merged automatically.
+11. The exact merge commit is then handed to release-candidate finalization.
 
-The workflow explicitly dispatches CI because pushes and pull requests created with the repository `GITHUB_TOKEN` do not recursively trigger ordinary workflow events.
+For automatic PR creation and merge, enable **Settings -> Actions -> General -> Workflow permissions -> Allow GitHub Actions to create and approve pull requests**. As an alternative, configure a repository secret named `WOOBE_RELEASE_TOKEN` with Contents, Pull requests and Actions write access; the workflow prefers that token when present.
 
-For automatic PR creation, enable **Settings -> Actions -> General -> Workflow permissions -> Allow GitHub Actions to create and approve pull requests**. As an alternative, configure a repository secret named `WOOBE_RELEASE_TOKEN` with Contents, Pull requests and Actions write access; the workflow prefers that token when present.
-
-The generated release PR remains Draft until changelog, documentation, compatibility notes and any release blockers have been reviewed.
+The release PR is an auditable, deterministic version-synchronization unit. Product code, migrations, changelog entries, public documentation and compatibility notes must already be reviewed on `master` through normal development pull requests before starting the release.
 
 When no published Woobe tag with a corresponding API image exists, Acceptance treats the previous-release upgrade probe as a first-release baseline and skips only that historical-upgrade check. All current-schema, package, container, security and smoke validation still runs.
 
@@ -442,26 +445,32 @@ with the canonical pull request title:
 chore(release): prepare Woobe v<VERSION>
 ```
 
-A release PR should contain only release preparation and required blockers. Review and complete:
+A release PR is intentionally narrow. It may contain only the deterministic files owned by platform-version synchronization. The release orchestrator rejects unexpected file paths before merge.
 
-- target version;
-- previous published release/tag;
-- scope summary;
-- compatibility or migration notes;
-- changelog and public documentation;
-- validation performed;
-- known limitations that belong in release notes;
-- release/legal/third-party review.
+The required release gates are:
 
-All required repository checks and reviews must pass before merge. The automated workflow dispatches the normal validation matrix for its generated branch; subsequent human edits to the PR trigger the ordinary pull-request workflows.
+- Backend test suite;
+- Frontend test and build;
+- Package Build;
+- Acceptance;
+- Quality Gate;
+- Container quality;
+- Security audit;
+- CLA acceptance.
+
+Only `success` satisfies a required gate. Older cancelled runs do not override a newer run for the same workflow and exact HEAD. Missing workflows are explicitly dispatched as a fallback.
+
+The orchestrator also requires the validated PR HEAD to include current `master`. If `master` advances, the release branch is refreshed and the new HEAD must pass the complete gate again.
+
+A failed gate leaves the PR open for diagnosis and posts a release-blocked comment. No merge, Git tag, container promotion or GitHub Release occurs.
 
 ## 12. Merge and automatic release finalization
 
-Merge the reviewed release PR using any repository-supported merge strategy. Release correctness does not depend on the merge commit subject.
+The release orchestrator merges the exact validated PR HEAD using the repository merge strategy only after all release gates pass. The merge operation is pinned to the validated head SHA so a concurrent PR update cannot be merged without another CI pass. Release correctness does not depend on the merge commit subject.
 
 The canonical platform release commit is the exact `master` commit that introduces the transition of root `VERSION` from the previous platform version to `<VERSION>`.
 
-On a push to `master` that changes `VERSION`, `.github/workflows/release-candidate.yml` automatically:
+After the automated merge, the orchestrator explicitly dispatches `.github/workflows/release-candidate.yml` for the exact merge commit with the expected platform version and release-finalization authorization. A normal `master` push that changes `VERSION` remains supported as a compatibility path. Candidate processing:
 
 1. compares `VERSION` with the first parent;
 2. validates every release-bearing mirror against canonical `VERSION`;
@@ -544,7 +553,7 @@ Generated notes preserve pull-request provenance, contributor attribution, first
 
 `.github/release.yml` remains the configuration surface for generated-note categorization.
 
-`CHANGELOG.md` remains the curated product/operator history and should be reviewed in the release PR before merge. It is not replaced by the generated GitHub Release notes.
+`CHANGELOG.md` remains the curated product/operator history, but it is not edited by the deterministic release PR. Changelog and documentation changes must land through normal development PRs before the release workflow is started. Generated GitHub Release notes do not replace that curated history.
 
 If the GitHub Release already exists during an idempotent recovery run, the workflow preserves it instead of creating a second release.
 
@@ -552,12 +561,13 @@ After the GitHub Release is confirmed, the workflow removes `release/<VERSION>` 
 
 ## 15. Human release gate and recovery
 
-The normal release path has two intentional human actions:
+The normal release path has one intentional human authorization:
 
-1. choose the target Semantic Version and start **Prepare Woobe release**;
-2. review the generated Draft release PR and merge it when its CI, changelog, documentation and compatibility notes are acceptable.
+1. choose the target Semantic Version and start **Release Woobe**.
 
-After that merge, candidate build, immutable tagging, image promotion, post-publish smoke, GitHub Release creation and release-branch cleanup are automatic.
+That action authorizes publication only if every technical release gate succeeds. The generated PR, exact-head validation, master freshness check, merge, candidate build, immutable tagging, image promotion, post-publish smoke, GitHub Release creation and release-branch cleanup are automatic.
+
+If pre-merge CI does not pass, the workflow stops, leaves the release PR open and reports the blocking checks. Nothing is published.
 
 Manual recovery remains available:
 
