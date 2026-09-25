@@ -16,7 +16,7 @@ All application images in one deployment should use the same Woobe platform vers
 ## Pull the images
 
 ```bash
-VERSION=0.14.0
+VERSION=0.14.2
 
 docker pull ghcr.io/a1b3rt0m3rcad0/woobe-api:$VERSION
 docker pull ghcr.io/a1b3rt0m3rcad0/woobe-workers:$VERSION
@@ -77,7 +77,7 @@ docker run -d \
   --env-file .env \
   -p 8000:8000 \
   -v woobe_uploads:/app/storage/uploads \
-  ghcr.io/a1b3rt0m3rcad0/woobe-api:0.14.0
+  ghcr.io/a1b3rt0m3rcad0/woobe-api:0.14.2
 ```
 
 Readiness:
@@ -93,7 +93,7 @@ Schema migration is explicit and must complete before API/Workers rollout. The A
 ```bash
 docker run --rm \
   --env-file .env \
-  ghcr.io/a1b3rt0m3rcad0/woobe-api:0.14.0 \
+  ghcr.io/a1b3rt0m3rcad0/woobe-api:0.14.2 \
   alembic -c packages/woobe-core/alembic.ini upgrade head
 ```
 
@@ -151,7 +151,7 @@ docker run -d \
   --name woobe-workers \
   --env-file .env \
   -v woobe_uploads:/app/storage/uploads \
-  ghcr.io/a1b3rt0m3rcad0/woobe-workers:0.14.0
+  ghcr.io/a1b3rt0m3rcad0/woobe-workers:0.14.2
 ```
 
 Workers may be scaled independently from API:
@@ -188,7 +188,7 @@ docker run -d \
   -p 8080:8080 \
   -e WOOBE_PUBLIC_API_URL=https://api.example.com \
   -e WOOBE_PUBLIC_CHAT_EMBED_URL=https://chat.example.com \
-  ghcr.io/a1b3rt0m3rcad0/woobe-frontend:0.14.0
+  ghcr.io/a1b3rt0m3rcad0/woobe-frontend:0.14.2
 ```
 
 These are runtime values. The image does not need to be rebuilt when the API or Embed public domains change.
@@ -209,7 +209,7 @@ The Embed image is a static browser artifact and currently requires no container
 docker run -d \
   --name woobe-embed \
   -p 8081:8080 \
-  ghcr.io/a1b3rt0m3rcad0/woobe-embed:0.14.0
+  ghcr.io/a1b3rt0m3rcad0/woobe-embed:0.14.2
 ```
 
 Health endpoint:
@@ -246,7 +246,7 @@ For a real deployment, prefer the full root `compose.yaml` contract or translate
 ```yaml
 services:
   api:
-    image: ghcr.io/a1b3rt0m3rcad0/woobe-api:0.14.0
+    image: ghcr.io/a1b3rt0m3rcad0/woobe-api:0.14.2
     env_file: [.env]
     ports:
       - "8000:8000"
@@ -254,13 +254,13 @@ services:
       - woobe_uploads:/app/storage/uploads
 
   workers:
-    image: ghcr.io/a1b3rt0m3rcad0/woobe-workers:0.14.0
+    image: ghcr.io/a1b3rt0m3rcad0/woobe-workers:0.14.2
     env_file: [.env]
     volumes:
       - woobe_uploads:/app/storage/uploads
 
   frontend:
-    image: ghcr.io/a1b3rt0m3rcad0/woobe-frontend:0.14.0
+    image: ghcr.io/a1b3rt0m3rcad0/woobe-frontend:0.14.2
     environment:
       WOOBE_PUBLIC_API_URL: https://api.example.com
       WOOBE_PUBLIC_CHAT_EMBED_URL: https://chat.example.com
@@ -268,7 +268,7 @@ services:
       - "8080:8080"
 
   embed:
-    image: ghcr.io/a1b3rt0m3rcad0/woobe-embed:0.14.0
+    image: ghcr.io/a1b3rt0m3rcad0/woobe-embed:0.14.2
     ports:
       - "8081:8080"
 
@@ -285,10 +285,10 @@ Do not mix platform versions unless a release explicitly documents compatibility
 Prefer:
 
 ```text
-woobe-api       0.14.0
-woobe-workers   0.14.0
-woobe-frontend  0.14.0
-woobe-embed     0.14.0
+woobe-api       0.14.2
+woobe-workers   0.14.2
+woobe-frontend  0.14.2
+woobe-embed     0.14.2
 ```
 
 rather than independently upgrading individual application images.
