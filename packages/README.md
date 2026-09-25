@@ -2,6 +2,22 @@
 
 `packages/` contains Woobe product and distributable artifacts. Development-only helpers, repository quality tooling and cross-system test suites do not belong here.
 
+## Primary release units
+
+Woobe has exactly five primary product release units:
+
+| Release unit | Source package | Distribution role |
+| --- | --- | --- |
+| Core | `woobe-core` | Python domain/runtime library and migrations; not a standalone container |
+| API | `woobe-api` | Independently deployable HTTP/API container |
+| Workers | `woobe-workers` | Independently deployable background-execution container |
+| Web | `woobe-frontend` | Independently deployable administrative Web container |
+| ChatSurface | `woobe-embed` | Independently deployable Embed/ChatSurface container |
+
+`woobe-runtime-client` and `woobe-ui` are shared internal browser libraries consumed at build time by the primary Web artifacts. They are not independent deployment units. `woobe-ee` remains a separate Enterprise implementation/license boundary and is not a Core release unit.
+
+The four deployable Core container artifacts are therefore `woobe-api`, `woobe-workers`, `woobe-web` and `woobe-chat-embed`. The `woobe-core` release unit is consumed by API and Workers as a Python package rather than exposed as an artificial process/container.
+
 ## Contents and license boundary
 
 | Package | Responsibility | License boundary |
