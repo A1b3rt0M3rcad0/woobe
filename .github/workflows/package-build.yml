@@ -24,7 +24,11 @@ jobs:
         with:
           python-version: "3.14"
       - name: Verify release package versions
-        run: python scripts/ci/check_package_versions.py
+        run: |
+          set -euo pipefail
+          python scripts/ci/check_package_versions.py
+          python scripts/release/set_platform_version.py "$(tr -d '[:space:]' < VERSION)"
+          git diff --exit-code
 
   python-packages:
     name: Core, API and Workers packages

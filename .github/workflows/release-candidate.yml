@@ -3,23 +3,72 @@ name: Release candidate images
 on:
   push:
     branches: [master]
+    paths:
+      - VERSION
   workflow_dispatch:
+    inputs:
+      ref:
+        description: Optional branch, tag or commit to build. Defaults to the selected workflow ref.
+        required: false
+        type: string
 
 permissions:
   contents: read
   packages: write
 
 concurrency:
-  group: release-candidate-${{ github.sha }}
+  group: release-candidate-${{ github.sha }}-${{ inputs.ref || 'push' }}
   cancel-in-progress: false
 
 jobs:
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      should_build: ${{ steps.detect.outputs.should_build }}
+      source_ref: ${{ steps.detect.outputs.source_ref }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          fetch-depth: 2
+
+      - name: Detect platform release transition
+        id: detect
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REQUESTED_REF: ${{ inputs.ref }}
+        run: |
+          set -euo pipefail
+
+          source_ref="${REQUESTED_REF:-${GITHUB_SHA}}"
+          echo "source_ref=$source_ref" >> "$GITHUB_OUTPUT"
+
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if ! git cat-file -e HEAD^:VERSION 2>/dev/null; then
+            echo "Canonical VERSION was just introduced; skipping bootstrap candidate build."
+            echo "should_build=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          previous="$(git show HEAD^:VERSION | tr -d '[:space:]')"
+          current="$(tr -d '[:space:]' < VERSION)"
+
+          if [[ "$current" != "$previous" ]]; then
+            echo "Platform version transition: $previous -> $current"
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "VERSION did not change."
+            echo "should_build=false" >> "$GITHUB_OUTPUT"
+          fi
+
   metadata:
-    if: >-
-      ${{
-        github.event_name == 'workflow_dispatch' ||
-        startsWith(github.event.head_commit.message, 'chore(release): prepare Woobe v')
-      }}
+    needs: detect
+    if: ${{ needs.detect.outputs.should_build == 'true' }}
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.meta.outputs.version }}
@@ -29,31 +78,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ needs.detect.outputs.source_ref }}
           fetch-depth: 0
 
-      - name: Validate canonical release commit
+      - name: Validate canonical release state
         id: meta
         shell: bash
         run: |
           set -euo pipefail
-          version="$(python - <<'PY'
-          import tomllib
-          from pathlib import Path
-          print(tomllib.loads(Path("pyproject.toml").read_text())["project"]["version"])
-          PY
-          )"
+          version="$(tr -d '[:space:]' < VERSION)"
+          python scripts/ci/check_package_versions.py
+
           revision="$(git rev-parse HEAD)"
-          subject="$(git log -1 --format=%s)"
-          expected="chore(release): prepare Woobe v${version}"
-          test "$subject" = "$expected"
           owner="${GITHUB_REPOSITORY_OWNER,,}"
+
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "owner=$owner" >> "$GITHUB_OUTPUT"
           echo "revision=$revision" >> "$GITHUB_OUTPUT"
           echo "candidate_tag=sha-$revision" >> "$GITHUB_OUTPUT"
 
   build:
-    needs: metadata
+    needs: [detect, metadata]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -79,6 +124,8 @@ jobs:
       DOCKER_BUILD_RECORD_UPLOAD: "false"
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.detect.outputs.source_ref }}
 
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
@@ -154,7 +201,7 @@ jobs:
           done
 
   smoke:
-    needs: [metadata, build, verify-platforms]
+    needs: [detect, metadata, build, verify-platforms]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -168,6 +215,8 @@ jobs:
       WOOBE_CHAT_EMBED_BASE_URL: http://127.0.0.1:8081
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.detect.outputs.source_ref }}
 
       - uses: docker/login-action@v3
         with:

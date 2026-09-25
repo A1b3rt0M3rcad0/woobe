@@ -112,6 +112,64 @@ def test_release_promotes_candidate_without_rebuilding() -> None:
     assert "/woobe-core:" not in release
 
 
+def test_release_identity_uses_canonical_version_not_commit_subject() -> None:
+    candidate = (ROOT / ".github/workflows/release-candidate.yml").read_text(
+        encoding="utf-8"
+    )
+    release = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
+    prepare = (ROOT / ".github/workflows/prepare-release.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert (ROOT / "VERSION").read_text(encoding="utf-8").strip()
+    assert "Detect platform release transition" in candidate
+    assert "paths:\n      - VERSION" in candidate
+    assert "python scripts/ci/check_package_versions.py" in candidate
+    assert 'version="$(tr -d \'[:space:]\' < VERSION)"' in candidate
+    assert "git log -1 --format=%s" not in candidate
+    assert "startsWith(github.event.head_commit.message" not in candidate
+
+    assert 'test "$version" = "${{ inputs.version }}"' in release
+    assert 'git rev-parse "v${{ inputs.version }}^{commit}"' in release
+    assert "git log -1 --format=%s" not in release
+
+    assert "scripts/release/set_platform_version.py" in prepare
+    assert "gh pr create" in prepare
+    assert "Dispatch release-branch validation" in prepare
+    assert "workflow run cla.yml" in prepare
+
+
+def test_platform_version_sync_script_covers_release_mirrors() -> None:
+    sync = (ROOT / "scripts/release/set_platform_version.py").read_text(
+        encoding="utf-8"
+    )
+    check = (ROOT / "scripts/ci/check_package_versions.py").read_text(
+        encoding="utf-8"
+    )
+
+    for path in (
+        "pyproject.toml",
+        "packages/woobe-core/pyproject.toml",
+        "packages/woobe-api/pyproject.toml",
+        "packages/woobe-workers/pyproject.toml",
+        "packages/woobe-runtime-client/package.json",
+        "packages/woobe-ui/package.json",
+        "packages/woobe-frontend/package.json",
+        "packages/woobe-embed/package.json",
+        "packages/woobe-frontend/package-lock.json",
+        "packages/woobe-embed/package-lock.json",
+        "uv.lock",
+        "packages/woobe-api/src/main.py",
+        "packages/woobe-core/src/modules/agent/application/mcp_discovery.py",
+        "packages/woobe-core/src/modules/agent/application/mcp_oauth_flow_safety.py",
+    ):
+        assert path in sync
+
+    assert '_canonical_version()' in check
+    assert 'ROOT / "VERSION"' in check
+    assert '"uv.lock": _uv_project_version()' in check
+
+
 def test_container_ci_reproduces_release_candidate_multiarch_contract() -> None:
     candidate = (ROOT / ".github/workflows/release-candidate.yml").read_text(
         encoding="utf-8"
