@@ -93,22 +93,27 @@ jobs:
       - name: Open draft release pull request
         id: pr
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.WOOBE_RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.target.outputs.version }}
           BRANCH: ${{ steps.target.outputs.branch }}
         shell: bash
         run: |
           set -euo pipefail
-          cat > "$RUNNER_TEMP/release-pr.md" <<EOF
-          ## Target
 
-          Woobe v${VERSION}
+          python - <<'PY'
+          import os
+          from pathlib import Path
+
+          version = os.environ["VERSION"]
+          body = f"""## Target
+
+          Woobe v{version}
 
           ## Automated preparation
 
-          - canonical `VERSION` updated to `${VERSION}`;
+          - canonical `VERSION` updated to `{version}`;
           - all Python and browser package manifests synchronized;
-          - exact `woobe-core==${VERSION}` dependencies synchronized;
+          - exact `woobe-core=={version}` dependencies synchronized;
           - npm and uv lockfile version metadata synchronized;
           - FastAPI and MCP client runtime version metadata synchronized;
           - repository version-consistency contract validated.
@@ -118,22 +123,28 @@ jobs:
           Review and update `CHANGELOG.md`, public documentation, migration notes and release notes as required by `RELEASING.md`. Keep this PR in Draft until the release contents are final.
 
           After merge, the change to `VERSION` automatically triggers immutable release-candidate image build and smoke validation. The merge commit message is not part of release identity.
-          EOF
+          """
+          Path(os.environ["RUNNER_TEMP"], "release-pr.md").write_text(body, encoding="utf-8")
+          PY
 
-          gh pr create \
+          if ! gh pr create \
             --repo "$GITHUB_REPOSITORY" \
             --base master \
             --head "$BRANCH" \
             --draft \
             --title "chore(release): prepare Woobe v${VERSION}" \
             --body-file "$RUNNER_TEMP/release-pr.md"
+          then
+            echo "::error::Unable to create the release pull request. In Settings > Actions > General > Workflow permissions, enable 'Allow GitHub Actions to create and approve pull requests', or configure a WOOBE_RELEASE_TOKEN secret with Contents, Pull requests and Actions write access."
+            exit 1
+          fi
 
           pr_number="$(gh pr view "$BRANCH" --repo "$GITHUB_REPOSITORY" --json number --jq .number)"
           echo "number=$pr_number" >> "$GITHUB_OUTPUT"
 
       - name: Dispatch release-branch validation
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.WOOBE_RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
           BRANCH: ${{ steps.target.outputs.branch }}
           PR_NUMBER: ${{ steps.pr.outputs.number }}
         shell: bash
