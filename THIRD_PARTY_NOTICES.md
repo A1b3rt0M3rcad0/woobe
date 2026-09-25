@@ -11,6 +11,7 @@ Conversely, rights granted by a third-party license apply to that third-party ma
 The [Container quality workflow](.github/workflows/containers.yml) generates SPDX SBOMs for these Core container build targets:
 
 - `woobe-api`
+- `woobe-workers`
 - `woobe-web`
 - `woobe-chat-embed`
 
