@@ -20,6 +20,8 @@ chat-embed
 
 `deploy/dev/compose.yml` is a contributor-only extension and is not the production deployment contract.
 
+Application deployment units are intentionally isolated: API and Workers use different container targets/images even though both consume the same `woobe-core` package. Web and ChatSurface are separate browser artifacts. This allows each process class to be scaled, replaced and rolled out independently while keeping one platform version.
+
 ## Production configuration
 
 Set strong, independent secrets and exact public origins/hosts. At minimum:
