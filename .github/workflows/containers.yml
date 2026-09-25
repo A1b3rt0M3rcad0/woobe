@@ -29,7 +29,9 @@ jobs:
       - name: Validate the supported Core Compose contract
         run: docker compose config --quiet
       - name: Build API image
-        run: docker build --pull --no-cache --tag woobe-api:ci .
+        run: docker build --pull --no-cache --target api --tag woobe-api:ci .
+      - name: Build Workers image
+        run: docker build --pull --no-cache --target workers --tag woobe-workers:ci .
       - name: Build Web image
         run: >-
           docker build
@@ -50,7 +52,7 @@ jobs:
       - name: Require non-root runtime users
         run: |
           set -euo pipefail
-          for image in woobe-api:ci woobe-web:ci woobe-chat-embed:ci; do
+          for image in woobe-api:ci woobe-workers:ci woobe-web:ci woobe-chat-embed:ci; do
             configured_user="$(docker image inspect "$image" --format '{{.Config.User}}')"
             test -n "$configured_user"
             test "$configured_user" != "0"
@@ -60,7 +62,7 @@ jobs:
       - name: Require Core image license metadata
         run: |
           set -euo pipefail
-          for image in woobe-api:ci woobe-web:ci woobe-chat-embed:ci; do
+          for image in woobe-api:ci woobe-workers:ci woobe-web:ci woobe-chat-embed:ci; do
             license="$(docker image inspect "$image" --format '{{ index .Config.Labels "org.opencontainers.image.licenses" }}')"
             test "$license" = "LicenseRef-Woobe-Core-Sustainable-Use-1.0"
           done
@@ -72,6 +74,15 @@ jobs:
           image: woobe-api:ci
           artifact-name: woobe-api-sbom.spdx.json
           output-file: .test-artifacts/woobe-api-sbom.spdx.json
+          format: spdx-json
+          upload-artifact: false
+          upload-release-assets: false
+      - name: Generate Workers SBOM
+        uses: anchore/sbom-action@v0.24.0
+        with:
+          image: woobe-workers:ci
+          artifact-name: woobe-workers-sbom.spdx.json
+          output-file: .test-artifacts/woobe-workers-sbom.spdx.json
           format: spdx-json
           upload-artifact: false
           upload-release-assets: false
@@ -149,6 +160,14 @@ jobs:
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: woobe-api:ci
+          format: table
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: '1'
+      - name: Scan Workers image
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: woobe-workers:ci
           format: table
           severity: CRITICAL,HIGH
           ignore-unfixed: true
