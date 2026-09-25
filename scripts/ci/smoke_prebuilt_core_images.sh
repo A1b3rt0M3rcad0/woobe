@@ -14,7 +14,7 @@ compose=(
 
 "${compose[@]}" config --quiet
 "${compose[@]}" up -d --no-build db rabbitmq redis mongodb
-"${compose[@]}" run --rm --no-build migrate
+"${compose[@]}" run --rm migrate
 
 if ! "${compose[@]}" up -d --no-build api workers web chat-embed; then
   "${compose[@]}" ps --all || true
