@@ -25,6 +25,9 @@ def test_worker_bootstrap_owns_messaging_and_worker_lifecycle() -> None:
     assert "build_registries" in source
     assert "WorkerRunner.from_registries" in source
     assert "await runner.start()" in source
+    assert "heartbeat_loop" in source
+    assert "worker_health_file" in source
+    assert "worker_heartbeat_interval_seconds" in source
     assert "await runner.stop()" in source
     assert "signal.SIGTERM" in source
 
@@ -40,6 +43,7 @@ def test_default_community_compose_keeps_processes_and_optional_infra_separate()
     assert 'command: ["python", "-m", "worker_main"]' in compose
     assert 'command: ["alembic", "-c", "packages/woobe-core/alembic.ini", "upgrade", "head"]' in compose
     assert "condition: service_completed_successfully" in compose
+    assert "python -m woobe_workers.runtime.health check" in compose
 
 
 def test_repository_has_one_default_community_compose_contract() -> None:
