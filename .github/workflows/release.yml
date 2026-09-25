@@ -7,14 +7,6 @@ on:
         description: Semantic version without v prefix, for example 0.12.0
         required: true
         type: string
-      public_api_url:
-        description: Public API URL baked into the reference web image
-        required: true
-        type: string
-      public_chat_embed_url:
-        description: Public ChatSurface origin baked into the reference web image
-        required: true
-        type: string
 
 permissions:
   contents: read
@@ -56,10 +48,6 @@ jobs:
           file: packages/woobe-frontend/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
-          build-args: |
-            VITE_API_URL=${{ inputs.public_api_url }}
-            VITE_CHAT_EMBED_URL=${{ inputs.public_chat_embed_url }}
-            VITE_WOOBE_EDITION=core
           tags: ghcr.io/${{ steps.ghcr.outputs.owner }}/woobe-web:${{ inputs.version }}
 
       - name: Build and push Core ChatSurface
