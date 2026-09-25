@@ -50,6 +50,8 @@ def generate(template: Path, output: Path, *, force: bool) -> None:
         "WOOBE_MCP_SESSION_CACHE_ENABLED": "false",
         "WOOBE_STORAGE_DRIVER": "local",
         "WOOBE_UPLOAD_LOCAL_DIR": "/app/storage/uploads",
+        "WOOBE_PUBLIC_API_URL": "http://localhost:8000",
+        "WOOBE_PUBLIC_CHAT_EMBED_URL": "http://localhost:8081",
         "VITE_API_URL": "http://localhost:8000",
         "VITE_CHAT_EMBED_URL": "http://localhost:8081",
         "VITE_WOOBE_EDITION": "core",
