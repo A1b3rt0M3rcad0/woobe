@@ -3,23 +3,56 @@ name: CLA acceptance
 on:
   pull_request:
     types: [opened, edited, reopened, synchronize]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Pull request number to validate
+        required: true
+        type: string
 
 permissions:
   contents: read
   pull-requests: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || inputs.pr_number || github.ref }}
   cancel-in-progress: true
 
 jobs:
   cla:
     runs-on: [self-hosted, Linux, X64]
     steps:
+      - name: Resolve pull request context
+        id: pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_PR_NUMBER: ${{ inputs.pr_number }}
+          EVENT_ASSOCIATION: ${{ github.event.pull_request.author_association }}
+          EVENT_BODY: ${{ github.event.pull_request.body }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            association="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$INPUT_PR_NUMBER" --jq '.author_association')"
+            body="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$INPUT_PR_NUMBER" --jq '.body // ""')"
+          else
+            association="$EVENT_ASSOCIATION"
+            body="$EVENT_BODY"
+          fi
+
+          {
+            echo "association=$association"
+            echo "body<<__WOOBE_PR_BODY__"
+            printf '%s\n' "$body"
+            echo "__WOOBE_PR_BODY__"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Require explicit CLA acceptance from external contributors
         env:
-          AUTHOR_ASSOCIATION: ${{ github.event.pull_request.author_association }}
-          PR_BODY: ${{ github.event.pull_request.body }}
+          AUTHOR_ASSOCIATION: ${{ steps.pr.outputs.association }}
+          PR_BODY: ${{ steps.pr.outputs.body }}
         run: |
           set -eu
           case "$AUTHOR_ASSOCIATION" in
@@ -34,3 +67,5 @@ jobs:
             echo "External contributor must accept CONTRIBUTOR_LICENSE_AGREEMENT.md in the pull request body." >&2
             exit 1
           fi
+
+          echo "Contributor License Agreement accepted."
