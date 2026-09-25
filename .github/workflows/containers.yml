@@ -241,6 +241,7 @@ jobs:
         with:
           context: .
           file: packages/woobe-frontend/Dockerfile
+          target: runtime
           platforms: linux/amd64,linux/arm64
           push: false
 
@@ -249,5 +250,6 @@ jobs:
         with:
           context: .
           file: packages/woobe-embed/Dockerfile
+          target: runtime
           platforms: linux/amd64,linux/arm64
           push: false
