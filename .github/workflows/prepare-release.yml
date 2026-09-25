@@ -446,21 +446,20 @@ jobs:
           ALREADY_PUBLISHED: ${{ steps.target.outputs.already_published }}
         run: |
           {
-            echo "### Woobe v$VERSION released"
-            echo
-            echo "Revision: `$REVISION`"
-            echo "Resumed post-merge finalization: `$RESUMED`"
+            printf '### Woobe v%s released\n\n' "$VERSION"
+            printf 'Revision: `%s`\n' "$REVISION"
+            printf 'Resumed post-merge finalization: `%s`\n' "$RESUMED"
             if [[ -n "$PR_NUMBER" ]]; then
-              echo "Release PR: #$PR_NUMBER"
+              printf 'Release PR: #%s\n' "$PR_NUMBER"
             fi
             if [[ -n "$VALIDATED_HEAD_SHA" ]]; then
-              echo "Validated PR HEAD: `$VALIDATED_HEAD_SHA`"
+              printf 'Validated PR HEAD: `%s`\n' "$VALIDATED_HEAD_SHA"
             fi
             if [[ "$ALREADY_PUBLISHED" == "true" ]]; then
               echo "GitHub Release: already complete; this retry verified the immutable tag/revision and returned success."
             else
-              echo "Candidate run: [#$CANDIDATE_RUN_ID]($CANDIDATE_URL)"
-              echo "Publication run: [#$PUBLICATION_RUN_ID]($PUBLICATION_URL)"
+              printf 'Candidate run: [#%s](%s)\n' "$CANDIDATE_RUN_ID" "$CANDIDATE_URL"
+              printf 'Publication run: [#%s](%s)\n' "$PUBLICATION_RUN_ID" "$PUBLICATION_URL"
               echo
               echo "Required PR CI, exact candidate build, multi-arch validation, candidate smoke, immutable digest promotion, post-publish smoke and GitHub Release creation all passed."
             fi
