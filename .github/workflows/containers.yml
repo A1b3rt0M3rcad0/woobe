@@ -41,10 +41,13 @@ jobs:
       - name: Verify API and Workers image isolation
         run: |
           set -euo pipefail
-          docker run --rm --entrypoint python woobe-api:ci -c "import importlib.util; import main, woobe_api; assert importlib.util.find_spec('woobe_workers') is None"
-          docker run --rm --entrypoint sh woobe-api:ci -c 'test ! -d /app/packages/woobe-workers/src'
-          docker run --rm --entrypoint python woobe-workers:ci -c "import importlib.util; import worker_main, woobe_workers; assert importlib.util.find_spec('woobe_api') is None"
-          docker run --rm --entrypoint sh woobe-workers:ci -c 'test ! -d /app/packages/woobe-api/src'
+          # Check packaging boundaries without importing process entrypoints.
+          # Importing main/worker_main initializes runtime Settings and would turn
+          # this structural check into an environment/secrets bootstrap test.
+          docker run --rm --entrypoint python woobe-api:ci -c "import importlib.util, woobe_api; assert importlib.util.find_spec('main') is not None; assert importlib.util.find_spec('woobe_workers') is None"
+          docker run --rm --entrypoint sh woobe-api:ci -c 'test -f /app/packages/woobe-api/src/main.py && test ! -d /app/packages/woobe-workers/src'
+          docker run --rm --entrypoint python woobe-workers:ci -c "import importlib.util, woobe_workers; assert importlib.util.find_spec('worker_main') is not None; assert importlib.util.find_spec('woobe_api') is None"
+          docker run --rm --entrypoint sh woobe-workers:ci -c 'test -f /app/packages/woobe-workers/src/worker_main.py && test ! -d /app/packages/woobe-api/src'
       - name: Build Web image
         run: >-
           docker build
