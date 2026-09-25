@@ -1,4 +1,4 @@
-import { post, get, getCsrfHeaders, refreshAuthSession } from '@/lib/api/client'
+import { API_BASE_URL, post, get, getCsrfHeaders, refreshAuthSession } from '@/lib/api/client'
 import type { CreateSessionRequest, Session, SessionListItem, SessionListPage, AskRequest, AskResponse, Message, SourceInfo, ToolCallInfo, FallbackEventInfo } from './types'
 
 export interface CreateAskJobRequest {
@@ -19,7 +19,7 @@ export interface AskJobResult {
   completed_at?: string | null
 }
 
-const BASE_URL = import.meta.env.VITE_API_URL ?? ''
+const BASE_URL = API_BASE_URL
 
 function asString(value: unknown): string | null {
   return typeof value === 'string' ? value : null

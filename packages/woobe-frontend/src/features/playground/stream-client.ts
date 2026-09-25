@@ -1,5 +1,6 @@
 import { skillActivityLabel } from '@/features/skills/operations'
 import { ensureCsrfToken, getCsrfHeaders, refreshAuthSession } from '@/lib/api/client'
+import { RUNTIME_API_URL } from '@/lib/runtime-config'
 import {
   RUNTIME_STREAM_MAX_ATTEMPTS,
   RuntimeStreamGapError,
@@ -26,7 +27,7 @@ import type {
   UsageInfo,
 } from './types'
 
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+const BASE_URL = RUNTIME_API_URL
 const FINAL_PHASES = new Set([
   'response_generation',
   'capability_response_generation',

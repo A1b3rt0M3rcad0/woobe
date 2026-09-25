@@ -6,8 +6,9 @@ Administrative control-plane frontend for Woobe. The ChatSurface browser artifac
 
 - Node.js 22+
 - root `.env` generated from `.env.example`
-- backend reachable at `VITE_API_URL`
-- ChatSurface embed reachable at `VITE_CHAT_EMBED_URL`
+- backend reachable at `WOOBE_PUBLIC_API_URL` for the container runtime
+- ChatSurface embed reachable at `WOOBE_PUBLIC_CHAT_EMBED_URL` for the container runtime
+- `VITE_API_URL` and `VITE_CHAT_EMBED_URL` remain local development/build fallbacks only
 
 ## Setup
 

@@ -1,24 +1,7 @@
 import { ApiError, UnauthorizedError } from './errors'
+import { RUNTIME_API_URL } from '../runtime-config'
 
-function resolveBaseUrl(value: string | undefined): string {
-  const baseUrl = value?.trim()
-
-  if (!baseUrl) {
-    throw new Error('VITE_API_URL must be configured with an absolute API URL')
-  }
-
-  try {
-    const url = new URL(baseUrl)
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-      throw new Error('Invalid API URL protocol')
-    }
-    return url.toString().replace(/\/+$/, '')
-  } catch {
-    throw new Error(`VITE_API_URL must be an absolute HTTP(S) URL. Received: ${baseUrl}`)
-  }
-}
-
-export const API_BASE_URL = resolveBaseUrl(import.meta.env.VITE_API_URL)
+export const API_BASE_URL = RUNTIME_API_URL
 const AUTH_REFRESH_PATH = '/identity/auth/refresh'
 const AUTH_CSRF_PATH = '/identity/auth/csrf'
 const AUTH_PUBLIC_PATHS = new Set([

@@ -82,8 +82,8 @@ def test_default_core_compose_has_explicit_product_boundary() -> None:
     assert "WOOBE_STORAGE_DRIVER: local" in compose
     assert 'WOOBE_MCP_SESSION_CACHE_ENABLED: "true"' in compose
     assert "WOOBE_CHAT_TOKEN_SIGNING_KEY" in compose
-    assert "VITE_API_URL" in compose
-    assert "VITE_CHAT_EMBED_URL" in compose
+    assert "WOOBE_PUBLIC_API_URL" in compose
+    assert "WOOBE_PUBLIC_CHAT_EMBED_URL" in compose
     assert "no-new-privileges:true" in compose
     assert "./src:" not in compose
 
@@ -109,6 +109,8 @@ def test_environment_manifest_covers_settings_and_uses_woobe_namespace() -> None
         "WOOBE_REDIS_URL=",
         "WOOBE_CHAT_TOKEN_SIGNING_KEY=",
         "WOOBE_S3_ENDPOINT_URL=",
+        "WOOBE_PUBLIC_API_URL=",
+        "WOOBE_PUBLIC_CHAT_EMBED_URL=",
         "VITE_API_URL=",
         "VITE_CHAT_EMBED_URL=",
     ):
@@ -141,6 +143,12 @@ def test_frontend_build_contract_includes_api_chat_surface_and_edition() -> None
     assert "VITE_API_URL" in dockerfile
     assert "VITE_CHAT_EMBED_URL" in dockerfile
     assert "VITE_WOOBE_EDITION" in dockerfile
+    entrypoint = read("packages/woobe-frontend/docker-entrypoint.sh")
+    assert "WOOBE_PUBLIC_API_URL" in entrypoint
+    assert "WOOBE_PUBLIC_CHAT_EMBED_URL" in entrypoint
+    assert "woobe-runtime-config.js" in entrypoint
+    index = read("packages/woobe-frontend/index.html")
+    assert "/runtime-config.js" in index
     assert 'org.opencontainers.image.licenses="LicenseRef-Woobe-Core-Sustainable-Use-1.0"' in dockerfile
 
 
