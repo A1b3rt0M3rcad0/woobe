@@ -688,3 +688,5 @@ Every Woobe release must satisfy these invariants:
 16. The canonical release commit produced a successful immutable `sha-<commit>` candidate for all four container units before tagging.
 17. Versioned container tags are digest-preserving promotions of those tested candidates, not rebuilds.
 18. The registry-delivered versioned images passed post-publish smoke validation.
+19. The GitHub Release contains `release-manifest.json` with the exact release revision and four published multi-arch image digests.
+20. `Release Woobe` is successful only when the complete reusable-workflow release transaction reaches its verified terminal state.
