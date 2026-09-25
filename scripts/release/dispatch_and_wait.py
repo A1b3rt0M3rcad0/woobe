@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import argparse
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import json
 import os
 import subprocess
@@ -103,7 +103,9 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     started = datetime.now(timezone.utc)
-    not_before = started.replace(microsecond=0)
+    # Allow small clock skew between the runner and GitHub's Actions API.
+    # The orchestration_id embedded in the exact run title keeps this safe.
+    not_before = started.replace(microsecond=0) - timedelta(seconds=10)
 
     dispatch = [
         "gh",
