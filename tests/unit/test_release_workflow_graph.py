@@ -26,27 +26,53 @@ def test_release_workflow_graph_is_parent_owned_and_serial() -> None:
     assert set(jobs) >= {
         "prepare",
         "candidate",
-        "tag",
         "publish",
         "verify-published",
         "summary",
     }
+    assert "tag" not in jobs
 
     assert jobs["candidate"]["needs"] == "prepare"
     assert jobs["candidate"]["uses"] == "./.github/workflows/release-candidate.yml"
 
-    assert set(as_list(jobs["tag"]["needs"])) == {"prepare", "candidate"}
-    assert set(as_list(jobs["publish"]["needs"])) == {"prepare", "candidate", "tag"}
+    assert set(as_list(jobs["publish"]["needs"])) == {"prepare", "candidate"}
     assert jobs["publish"]["uses"] == "./.github/workflows/release.yml"
 
     assert jobs["verify-published"]["needs"] == "prepare"
     assert set(as_list(jobs["summary"]["needs"])) == {
         "prepare",
         "candidate",
-        "tag",
         "publish",
         "verify-published",
     }
+
+    release = load_workflow("release.yml")
+    release_jobs = release["jobs"]
+    assert set(release_jobs) >= {
+        "publish",
+        "post-publish-smoke",
+        "tag",
+        "github-release",
+    }
+    assert release_jobs["post-publish-smoke"]["needs"] == "publish"
+    assert set(as_list(release_jobs["tag"]["needs"])) == {
+        "publish",
+        "post-publish-smoke",
+    }
+    assert set(as_list(release_jobs["github-release"]["needs"])) == {
+        "publish",
+        "post-publish-smoke",
+        "tag",
+    }
+
+    publish_steps = [
+        step.get("name")
+        for step in release_jobs["publish"]["steps"]
+        if step.get("name")
+    ]
+    assert publish_steps.index("Preflight release version targets") < publish_steps.index(
+        "Promote exact validated digests to release version"
+    )
 
     assert prepare["concurrency"]["cancel-in-progress"] == "false"
     assert prepare["permissions"]["packages"] == "write"

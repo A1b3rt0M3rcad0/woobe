@@ -77,6 +77,13 @@ if args[:3] == ["buildx", "imagetools", "inspect"]:
             print(f"Digest: {expected(unit)}")
         raise SystemExit(0)
 
+    if scenario == "preflight_late_conflict":
+        if unit == "workers":
+            print("Digest: sha256:conflict")
+            raise SystemExit(0)
+        print("manifest unknown", file=sys.stderr)
+        raise SystemExit(1)
+
     if scenario == "publish_partial":
         marker = state_dir / f"published-{unit}"
         if unit in {"api", "frontend"} or marker.exists():
@@ -219,6 +226,29 @@ def test_candidate_probe_fails_closed_after_transient_registry_errors(
     assert "Unable to determine whether immutable candidate exists" in result.stderr
     log = (tmp_path / "docker.log").read_text(encoding="utf-8")
     assert log.count("buildx imagetools inspect") == 5
+
+
+def test_release_target_preflight_detects_late_conflict_before_any_promotion(
+    tmp_path: Path,
+) -> None:
+    script = workflow_step_script(
+        "release.yml", "publish", "Preflight release version targets"
+    )
+    result = run_step(
+        script,
+        tmp_path,
+        scenario="preflight_late_conflict",
+        extra_env=publish_env(),
+    )
+
+    assert result.returncode != 0
+    assert "Immutable release image already exists with a different digest" in (
+        result.stdout + result.stderr
+    )
+    log = (tmp_path / "docker.log").read_text(encoding="utf-8")
+    assert "woobe-api:0.12.0" in log
+    assert "woobe-workers:0.12.0" in log
+    assert "buildx imagetools create" not in log
 
 
 def test_partial_publication_resumes_without_overwriting_existing_tags(

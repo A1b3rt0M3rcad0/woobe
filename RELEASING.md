@@ -62,9 +62,10 @@ master
           |
           +-- PR -> master
                     |
+                    +-- release artifacts/images
+                    +-- post-publish smoke
                     +-- tag v<VERSION>
                     +-- GitHub Release
-                    +-- release artifacts/images
 ```
 
 Example:
@@ -116,12 +117,12 @@ The preferred release path is the **Release Woobe** GitHub Action. Starting this
 12. Candidate lookup is fail-closed: only an explicit registry not-found response permits a new build; authentication, timeout and transient registry failures abort.
 13. Multi-architecture verification and production-shaped candidate smoke must pass.
 14. The candidate reusable workflow returns the exact SHA256 digest for each of the four validated images plus a validation identity directly to the parent workflow. No GitHub Actions artifact is required for orchestration.
-15. Only after candidate validation succeeds does **Release Woobe** create or verify the immutable Git tag `v<VERSION>` on the exact merge commit.
-16. **Release Woobe** invokes **Publish Woobe Core images** as a reusable workflow and passes those exact digests. Tag creation no longer independently triggers publication.
-17. Publication revalidates candidate digests/platforms and promotes those exact digests to the release version without rebuilding. Registry state must be conclusively `exists` or `not found`; an unknown/error state aborts.
-18. Promotion is idempotent. If a version tag already exists with the expected digest, it is preserved and the workflow continues; a different digest blocks the release.
-19. The published images are pulled and smoke-tested again. Only after this post-publish smoke succeeds is the GitHub Release created, a permanent `release-manifest.json` attached, and the release branch removed.
-20. **Release Woobe reports success only after all upstream CI, candidate validation, digest promotion, post-publish smoke and GitHub Release creation have succeeded.** Reusable-workflow failure/cancellation propagates to the parent.
+15. **Release Woobe** invokes **Publish Woobe Core images** as a reusable workflow and passes those exact digests.
+16. Publication first revalidates candidate digests/platforms and then preflights all four `<VERSION>` GHCR targets before writing any one of them. Each target must be conclusively missing or already point to the expected digest; a conflicting digest or unknown/error state aborts before promotion.
+17. Publication promotes the exact validated digests to the release version without rebuilding. Promotion is idempotent: an existing tag with the expected digest is preserved, while a different digest blocks the release.
+18. The published images are pulled and smoke-tested again.
+19. Only after post-publish smoke succeeds does the publisher create or verify the immutable Git tag `v<VERSION>` on the exact release revision. It then creates/repairs the GitHub Release, attaches the permanent `release-manifest.json`, and removes the release branch.
+20. **Release Woobe reports success only after all upstream CI, candidate validation, all-target registry preflight, digest promotion, post-publish smoke, immutable Git tagging and GitHub Release creation have succeeded.** Reusable-workflow failure/cancellation propagates to the parent.
 
 The candidate workflow keeps an optional manual `workflow_dispatch` entrypoint for diagnostics/revalidation. Publication is callable only by the parent through `workflow_call`; it cannot be started directly or by a tag push. Neither workflow is triggered by a `master` push or by a `v*` tag push. This removes the former race and prevents bypassing the successful candidate gate.
 
@@ -506,13 +507,11 @@ The exact merge commit becomes the immutable release revision. Candidate process
 
 No GitHub Actions artifact is required to transport release state between candidate validation and publication.
 
-A failed candidate does not create the release tag. Re-running **Release Woobe** with the same version after a post-merge failure recovers the exact historical merge revision and revalidates the candidate.
+A failure before post-publish smoke completes does not create a new release tag. Re-running **Release Woobe** with the same version after a post-merge failure recovers the exact historical merge revision and revalidates the candidate.
 
-## 13. Immutable tag and container publication
+## 13. Container publication and immutable tag
 
-After candidate validation succeeds, **Release Woobe** creates or verifies the annotated `v<VERSION>` Git tag on the exact validated merge revision.
-
-Tag creation is not a publication trigger. `.github/workflows/release.yml` has no `push: tags` release path; normal publication is invoked explicitly by the parent as a reusable workflow.
+After candidate validation succeeds, **Release Woobe** invokes the publisher without requiring a Git tag to exist first. Tag creation is not a publication trigger. `.github/workflows/release.yml` has no `push: tags` release path; normal publication is invoked explicitly by the parent as a reusable workflow.
 
 Publication receives:
 
@@ -526,7 +525,7 @@ Publication receives:
 
 Before promotion, publication re-inspects each `sha-<commit>` candidate and requires its registry digest and both architectures to match the candidate outputs.
 
-For an existing `<VERSION>` image tag, registry lookup has three states:
+It then performs an all-target preflight over API, Workers, Frontend and Embed before promoting any image. For an existing `<VERSION>` image tag, registry lookup has three states:
 
 - **exists** — its digest must equal the validated candidate digest;
 - **not found** — promotion is allowed;
@@ -543,20 +542,24 @@ validated multi-arch sha-<commit> candidates
         ↓
 exact SHA256 digest outputs
         ↓
-v<VERSION> immutable Git tag
+all-target GHCR preflight
         ↓
 digest-preserving GHCR promotion
         ↓
 <VERSION> image tags
+        ↓
+post-publish smoke
+        ↓
+v<VERSION> immutable Git tag
 ```
 
-Partial promotion is recoverable. A retry preserves any version tag already pointing to the expected digest and continues with missing units. A conflicting digest permanently blocks reuse of that version.
+Partial promotion is recoverable. A retry preserves any version tag already pointing to the expected digest and continues with missing units. Because all four destinations are preflighted before the first write, known conflicts are detected before promotion starts. A conflicting digest permanently blocks reuse of that version and is never overwritten automatically.
 
 ## 14. Post-publish verification and permanent manifest
 
 After promotion, the workflow pulls all four registry-delivered `<VERSION>` images, verifies their embedded revision/version labels and runs the production-shaped smoke contract again.
 
-Only after that smoke succeeds does the workflow create the GitHub Release.
+Only after that smoke succeeds does the workflow create or verify the immutable Git tag on the exact release revision and then create the GitHub Release.
 
 A permanent `release-manifest.json` is attached to the GitHub Release. It records:
 
@@ -592,11 +595,13 @@ prepare/release PR + required CI + exact merge
   ↓
 reusable Release candidate images
   ↓
-immutable Git tag
-  ↓
 reusable Publish Woobe Core images
   ↓
+all-target GHCR preflight + digest promotion
+  ↓
 post-publish smoke
+  ↓
+immutable Git tag
   ↓
 GitHub Release + permanent release-manifest.json
   ↓
