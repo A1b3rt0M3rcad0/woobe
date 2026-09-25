@@ -472,7 +472,7 @@ class McpToolRuntime(ToolRuntimePort):
             "params": {
                 "protocolVersion": MCP_PROTOCOL_VERSION,
                 "capabilities": {},
-                "clientInfo": {"name": "Woobe", "version": "0.13.0"},
+                "clientInfo": {"name": "Woobe", "version": "0.14.0"},
             },
         }
         init_result = await self._executor.execute(
