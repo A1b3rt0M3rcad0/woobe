@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Semantic version without v prefix, for example 0.14.0
+        description: Semantic version without v prefix, for example 0.15.0
         required: true
         type: string
 
@@ -15,19 +15,39 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    env:
-      DOCKER_BUILD_RECORD_UPLOAD: "false"
+    outputs:
+      owner: ${{ steps.meta.outputs.owner }}
+      revision: ${{ steps.meta.outputs.revision }}
+      version: ${{ steps.meta.outputs.version }}
     steps:
       - uses: actions/checkout@v4
         with:
           ref: v${{ inputs.version }}
+          fetch-depth: 0
 
-      - name: Normalize GHCR owner
-        id: ghcr
+      - name: Verify release identity
+        id: meta
         shell: bash
-        run: echo "owner=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
+        run: |
+          set -euo pipefail
+          manifest_version="$(python - <<'PY'
+          import tomllib
+          from pathlib import Path
+          print(tomllib.loads(Path("pyproject.toml").read_text())["project"]["version"])
+          PY
+          )"
+          test "$manifest_version" = "${{ inputs.version }}"
 
-      - uses: docker/setup-qemu-action@v3
+          revision="$(git rev-parse HEAD)"
+          subject="$(git log -1 --format=%s)"
+          expected="chore(release): prepare Woobe v${manifest_version}"
+          test "$subject" = "$expected"
+
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          echo "owner=$owner" >> "$GITHUB_OUTPUT"
+          echo "revision=$revision" >> "$GITHUB_OUTPUT"
+          echo "version=$manifest_version" >> "$GITHUB_OUTPUT"
+
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
@@ -35,38 +55,118 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push Core API
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          target: api
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ghcr.io/${{ steps.ghcr.outputs.owner }}/woobe-api:${{ inputs.version }}
+      - name: Verify immutable release candidates
+        shell: bash
+        run: |
+          set -euo pipefail
+          candidate_tag="sha-${{ steps.meta.outputs.revision }}"
+          for unit in api workers frontend embed; do
+            image="ghcr.io/${{ steps.meta.outputs.owner }}/woobe-${unit}:${candidate_tag}"
+            manifest="$(docker buildx imagetools inspect "$image")"
+            printf '%s\n' "$manifest"
+            grep -q 'linux/amd64' <<<"$manifest"
+            grep -q 'linux/arm64' <<<"$manifest"
+          done
 
-      - name: Build and push Core Workers
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          target: workers
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ghcr.io/${{ steps.ghcr.outputs.owner }}/woobe-workers:${{ inputs.version }}
+      - name: Promote exact candidate manifests to release version
+        shell: bash
+        run: |
+          set -euo pipefail
 
-      - name: Build and push Core Web reference image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: packages/woobe-frontend/Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ghcr.io/${{ steps.ghcr.outputs.owner }}/woobe-frontend:${{ inputs.version }}
+          digest_of() {
+            docker buildx imagetools inspect "$1" | awk '$1 == "Digest:" { print $2; exit }'
+          }
 
-      - name: Build and push Core ChatSurface
-        uses: docker/build-push-action@v6
+          candidate_tag="sha-${{ steps.meta.outputs.revision }}"
+          version="${{ steps.meta.outputs.version }}"
+
+          for unit in api workers frontend embed; do
+            repository="ghcr.io/${{ steps.meta.outputs.owner }}/woobe-${unit}"
+            source_ref="${repository}:${candidate_tag}"
+            target_ref="${repository}:${version}"
+            source_digest="$(digest_of "$source_ref")"
+            test -n "$source_digest"
+
+            docker buildx imagetools create \
+              --tag "$target_ref" \
+              "${repository}@${source_digest}"
+
+            target_digest="$(digest_of "$target_ref")"
+            test "$target_digest" = "$source_digest"
+            echo "${unit}: ${target_digest}"
+          done
+
+  post-publish-smoke:
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      COMPOSE_PROJECT_NAME: woobe-release-${{ github.run_id }}
+      WOOBE_API_IMAGE: ghcr.io/${{ needs.publish.outputs.owner }}/woobe-api:${{ needs.publish.outputs.version }}
+      WOOBE_WORKERS_IMAGE: ghcr.io/${{ needs.publish.outputs.owner }}/woobe-workers:${{ needs.publish.outputs.version }}
+      WOOBE_FRONTEND_IMAGE: ghcr.io/${{ needs.publish.outputs.owner }}/woobe-frontend:${{ needs.publish.outputs.version }}
+      WOOBE_EMBED_IMAGE: ghcr.io/${{ needs.publish.outputs.owner }}/woobe-embed:${{ needs.publish.outputs.version }}
+      WOOBE_API_BASE_URL: http://127.0.0.1:8000
+      WOOBE_WEB_BASE_URL: http://127.0.0.1:8080
+      WOOBE_CHAT_EMBED_BASE_URL: http://127.0.0.1:8081
+    steps:
+      - uses: actions/checkout@v4
         with:
-          context: .
-          file: packages/woobe-embed/Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ghcr.io/${{ steps.ghcr.outputs.owner }}/woobe-embed:${{ inputs.version }}
+          ref: v${{ inputs.version }}
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull published release images
+        shell: bash
+        run: |
+          set -euo pipefail
+          for image in "$WOOBE_API_IMAGE" "$WOOBE_WORKERS_IMAGE" "$WOOBE_FRONTEND_IMAGE" "$WOOBE_EMBED_IMAGE"; do
+            docker pull "$image"
+            revision="$(docker image inspect "$image" --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}')"
+            version="$(docker image inspect "$image" --format '{{ index .Config.Labels "org.opencontainers.image.version" }}')"
+            test "$revision" = "${{ needs.publish.outputs.revision }}"
+            test "$version" = "${{ needs.publish.outputs.version }}"
+          done
+
+      - name: Generate production-shaped environment
+        run: |
+          python scripts/generate_self_host_env.py --force
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path(".env")
+          values = {
+              "WOOBE_ENVIRONMENT": "production",
+              "WOOBE_ACCESS_COOKIE_SECURE": "true",
+              "WOOBE_REFRESH_COOKIE_SECURE": "true",
+              "WOOBE_CORS_ORIGINS": "https://app.example.test,https://chat.example.test",
+              "WOOBE_TRUSTED_HOSTS": "localhost,127.0.0.1",
+          }
+          lines = path.read_text().splitlines()
+          for key, value in values.items():
+              prefix = f"{key}="
+              for index, line in enumerate(lines):
+                  if line.startswith(prefix):
+                      lines[index] = f"{key}={value}"
+                      break
+              else:
+                  lines.append(f"{key}={value}")
+          path.write_text("\n".join(lines) + "\n")
+          PY
+
+      - name: Smoke published release images
+        run: bash scripts/ci/smoke_prebuilt_core_images.sh
+
+      - name: Capture post-publish diagnostics
+        if: failure()
+        run: |
+          docker compose -f compose.yaml -f docker/ci/compose.release-images.yml ps --all || true
+          docker compose -f compose.yaml -f docker/ci/compose.release-images.yml logs --no-color || true
+
+      - name: Tear down
+        if: always()
+        run: docker compose -f compose.yaml -f docker/ci/compose.release-images.yml down -v --remove-orphans || true
