@@ -12,8 +12,8 @@ The [Container quality workflow](.github/workflows/containers.yml) generates SPD
 
 - `woobe-api`
 - `woobe-workers`
-- `woobe-web`
-- `woobe-chat-embed`
+- `woobe-frontend`
+- `woobe-embed`
 
 The workflow derives `.test-artifacts/THIRD_PARTY_INVENTORY.md` from those SBOMs and uploads it as `woobe-third-party-inventory` on manual (`workflow_dispatch`) runs. The inventory records the source artifact, package name, package version, declared license and concluded license reported for each discovered component.
 
