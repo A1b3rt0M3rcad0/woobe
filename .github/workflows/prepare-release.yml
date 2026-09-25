@@ -125,14 +125,38 @@ jobs:
 
           if [[ "$current" == "$TARGET_VERSION" ]]; then
             resume_finalization="true"
-            merge_sha="$(git rev-parse HEAD)"
-            echo "VERSION is already $TARGET_VERSION on master; resuming post-merge finalization at $merge_sha."
+            merge_sha="$(gh pr list \
+              --repo "$GITHUB_REPOSITORY" \
+              --state merged \
+              --base master \
+              --head "$branch" \
+              --json mergeCommit,mergedAt \
+              --jq 'sort_by(.mergedAt) | last | .mergeCommit.oid // empty')"
+
+            if [[ -z "$merge_sha" ]] && git ls-remote --exit-code --tags origin "refs/tags/v$TARGET_VERSION" >/dev/null 2>&1; then
+              git fetch --force origin "refs/tags/v$TARGET_VERSION:refs/tags/v$TARGET_VERSION"
+              merge_sha="$(git rev-parse "v$TARGET_VERSION^{commit}")"
+            fi
+
+            if [[ -z "$merge_sha" ]]; then
+              echo "VERSION is already $TARGET_VERSION, but no merged release/$TARGET_VERSION PR or immutable v$TARGET_VERSION tag identifies the exact release revision." >&2
+              exit 1
+            fi
+
+            git fetch --force origin
+            recovered_version="$(git show "$merge_sha:VERSION" | tr -d '[:space:]')"
+            if [[ "$recovered_version" != "$TARGET_VERSION" ]]; then
+              echo "Recovered release revision $merge_sha contains VERSION=$recovered_version; expected $TARGET_VERSION." >&2
+              exit 1
+            fi
+
+            echo "VERSION is already $TARGET_VERSION on master; resuming post-merge finalization for exact release revision $merge_sha."
 
             if git ls-remote --exit-code --tags origin "refs/tags/v$TARGET_VERSION" >/dev/null 2>&1; then
               git fetch --force origin "refs/tags/v$TARGET_VERSION:refs/tags/v$TARGET_VERSION"
               tagged_revision="$(git rev-parse "v$TARGET_VERSION^{commit}")"
               if [[ "$tagged_revision" != "$merge_sha" ]]; then
-                echo "Tag v$TARGET_VERSION points to $tagged_revision, but master is $merge_sha." >&2
+                echo "Tag v$TARGET_VERSION points to $tagged_revision, but recovered release revision is $merge_sha." >&2
                 exit 1
               fi
             fi
