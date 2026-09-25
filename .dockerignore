@@ -12,6 +12,8 @@ __pycache__/
 !.github/workflows/
 .github/workflows/*
 !.github/workflows/prepare-release.yml
+!.github/workflows/release-candidate.yml
+!.github/workflows/release.yml
 .gitignore
 .pytest_cache/
 .ruff_cache/

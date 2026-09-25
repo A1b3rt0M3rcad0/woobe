@@ -20,7 +20,7 @@ concurrency:
 
 jobs:
   cla:
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-24.04
     steps:
       - name: Resolve pull request context
         id: pr

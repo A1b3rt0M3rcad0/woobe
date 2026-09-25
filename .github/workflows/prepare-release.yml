@@ -1,47 +1,110 @@
 name: Release Woobe
+run-name: Release Woobe v${{ inputs.version }}
 
 on:
   workflow_dispatch:
     inputs:
       version:
+        description: Target Semantic Version without the v prefix.
         required: true
         type: string
+      allow_initial_version_rebase:
+        description: Allow the first-ever published release to be lower than the current development VERSION.
+        required: false
+        default: false
+        type: boolean
 
 permissions:
-  actions: write
+  actions: read
   contents: write
   pull-requests: write
+  packages: write
 
 concurrency:
   group: release-woobe
   cancel-in-progress: false
 
 jobs:
-  release:
-    runs-on: ubuntu-latest
-    timeout-minutes: 240
+  prepare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 210
+    outputs:
+      version: ${{ steps.target.outputs.version }}
+      branch: ${{ steps.target.outputs.branch }}
+      already_published: ${{ steps.target.outputs.already_published }}
+      resumed: ${{ steps.target.outputs.resume_finalization }}
+      revision: ${{ steps.revision.outputs.sha }}
+      release_pr: ${{ steps.target.outputs.existing_pr || steps.pr.outputs.number }}
+      validated_head_sha: ${{ steps.gate.outputs.validated_head_sha }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Require canonical workflow source
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF" != "refs/heads/master" ]]; then
+            echo "::error::Release Woobe must be dispatched from the master branch; got $GITHUB_REF."
+            exit 1
+          fi
+
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           ref: master
           fetch-depth: 0
           token: ${{ secrets.WOOBE_RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.14"
 
-      - name: Validate target version
+      - name: Repository policy preflight
+        env:
+          GH_TOKEN: ${{ secrets.WOOBE_RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          repo_settings="$(gh api "repos/$GITHUB_REPOSITORY")"
+          protected="$(gh api "repos/$GITHUB_REPOSITORY/branches/master" --jq '.protected')"
+          allow_merge_commit="$(jq -r '.allow_merge_commit' <<<"$repo_settings")"
+
+          if [[ "$allow_merge_commit" != "true" ]]; then
+            echo "::error::Release orchestration requires merge commits, but allow_merge_commit=$allow_merge_commit."
+            exit 1
+          fi
+
+          if [[ "$protected" != "true" ]]; then
+            echo "::warning::master is not protected by GitHub branch protection/rulesets. The release gate still validates its own release PR, but direct pushes can bypass repository-level enforcement. Enable protection when the repository plan/settings permit it."
+          fi
+
+          echo "Required pre-merge CI gates run on GitHub-hosted ubuntu-24.04 runners; release orchestration has no self-hosted runner dependency."
+      - name: Validate target version and resolve release state
         id: target
         shell: bash
         env:
           TARGET_VERSION: ${{ inputs.version }}
+          ALLOW_INITIAL_REBASE: ${{ inputs.allow_initial_version_rebase }}
           GH_TOKEN: ${{ secrets.WOOBE_RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
+
+          release_exists="false"
+          already_published="false"
+          if gh release view "v$TARGET_VERSION" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            release_exists="true"
+            release_assets="$(gh release view "v$TARGET_VERSION" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name')"
+            if grep -Fxq 'release-manifest.json' <<<"$release_assets"; then
+              already_published="true"
+            else
+              echo "::warning::GitHub Release v$TARGET_VERSION exists without release-manifest.json; resuming finalization to repair the permanent release record."
+            fi
+          fi
+
+          published_tags="$(gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" --jq '.[].tag_name')"
+          export PUBLISHED_TAGS="$published_tags"
+          export TARGET_ALREADY_PUBLISHED="$release_exists"
+
           python - "$TARGET_VERSION" <<'PY'
+          import os
           import re
-          import subprocess
           import sys
 
           version = sys.argv[1]
@@ -59,27 +122,29 @@ jobs:
               prerelease = match.group(4)
               if prerelease is None:
                   return (major, minor, patch, 1, ())
-              identifiers = tuple(
-                  (0, int(item)) if item.isdigit() else (1, item)
-                  for item in prerelease.split(".")
-              )
-              return (major, minor, patch, 0, identifiers)
+              identifiers = []
+              for item in prerelease.split("."):
+                  if item.isdigit():
+                      if len(item) > 1 and item.startswith("0"):
+                          return None
+                      identifiers.append((0, int(item)))
+                  else:
+                      identifiers.append((1, item))
+              return (major, minor, patch, 0, tuple(identifiers))
 
           target_key = semver_key(version)
           if target_key is None:
-              raise SystemExit(f"invalid Semantic Version: {version}")
+              raise SystemExit(f"invalid Semantic Version 2.0.0: {version}")
 
-          raw_tags = subprocess.check_output(
-              ["git", "tag", "--list", "v*"],
-              text=True,
-          ).splitlines()
           published = []
-          for tag in raw_tags:
-              key = semver_key(tag.removeprefix("v"))
+          for raw in os.environ.get("PUBLISHED_TAGS", "").splitlines():
+              if not raw.startswith("v"):
+                  continue
+              key = semver_key(raw[1:])
               if key is not None:
-                  published.append((key, tag))
+                  published.append((key, raw))
 
-          if published:
+          if published and os.environ.get("TARGET_ALREADY_PUBLISHED") != "true":
               latest_key, latest_tag = max(published, key=lambda item: item[0])
               if target_key <= latest_key:
                   raise SystemExit(
@@ -88,30 +153,137 @@ jobs:
           PY
 
           current="$(tr -d '[:space:]' < VERSION)"
-          test "$TARGET_VERSION" != "$current"
-
-          if git rev-parse -q --verify "refs/tags/v$TARGET_VERSION" >/dev/null; then
-            echo "Tag v$TARGET_VERSION already exists" >&2
-            exit 1
-          fi
-
           branch="release/$TARGET_VERSION"
           existing_pr=""
-          if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
-            existing_pr="$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --base master --head "$branch" --json number --jq '.[0].number // empty')"
-            if [[ -z "$existing_pr" ]]; then
-              echo "Branch $branch exists without an open release PR targeting master; inspect it before retrying." >&2
+          resume_finalization="false"
+          merge_sha=""
+
+          if [[ "$release_exists" == "true" ]]; then
+            resume_finalization="true"
+            git fetch --force --tags origin
+            merge_sha="$(git rev-parse "v$TARGET_VERSION^{commit}")"
+            released_version="$(git show "$merge_sha:VERSION" | tr -d '[:space:]')"
+            if [[ "$released_version" != "$TARGET_VERSION" ]]; then
+              echo "Published tag v$TARGET_VERSION resolves to VERSION=$released_version; expected $TARGET_VERSION." >&2
               exit 1
             fi
-            echo "Resuming release PR #$existing_pr on $branch."
+            if [[ "$already_published" == "true" ]]; then
+              echo "GitHub Release v$TARGET_VERSION has a permanent manifest at $merge_sha; verifying terminal state."
+            else
+              echo "GitHub Release v$TARGET_VERSION is incomplete at $merge_sha; resuming post-release finalization."
+            fi
+          elif [[ "$current" == "$TARGET_VERSION" ]]; then
+            resume_finalization="true"
+            merge_sha="$(gh pr list \
+              --repo "$GITHUB_REPOSITORY" \
+              --state merged \
+              --base master \
+              --head "$branch" \
+              --json mergeCommit,mergedAt \
+              --jq 'sort_by(.mergedAt) | last | .mergeCommit.oid // empty')"
+
+            if [[ -z "$merge_sha" ]] && git ls-remote --exit-code --tags origin "refs/tags/v$TARGET_VERSION" >/dev/null 2>&1; then
+              git fetch --force origin "refs/tags/v$TARGET_VERSION:refs/tags/v$TARGET_VERSION"
+              merge_sha="$(git rev-parse "v$TARGET_VERSION^{commit}")"
+            fi
+
+            if [[ -z "$merge_sha" ]]; then
+              echo "VERSION is already $TARGET_VERSION, but no merged release/$TARGET_VERSION PR or immutable v$TARGET_VERSION tag identifies the exact release revision." >&2
+              exit 1
+            fi
+
+            git fetch --force origin
+            recovered_version="$(git show "$merge_sha:VERSION" | tr -d '[:space:]')"
+            if [[ "$recovered_version" != "$TARGET_VERSION" ]]; then
+              echo "Recovered release revision $merge_sha contains VERSION=$recovered_version; expected $TARGET_VERSION." >&2
+              exit 1
+            fi
+
+            echo "VERSION is already $TARGET_VERSION on master; resuming post-merge finalization for exact release revision $merge_sha."
+
+            if git ls-remote --exit-code --tags origin "refs/tags/v$TARGET_VERSION" >/dev/null 2>&1; then
+              git fetch --force origin "refs/tags/v$TARGET_VERSION:refs/tags/v$TARGET_VERSION"
+              tagged_revision="$(git rev-parse "v$TARGET_VERSION^{commit}")"
+              if [[ "$tagged_revision" != "$merge_sha" ]]; then
+                echo "Tag v$TARGET_VERSION points to $tagged_revision, but recovered release revision is $merge_sha." >&2
+                exit 1
+              fi
+            fi
+          else
+            export CURRENT_VERSION="$current"
+            export TARGET_VERSION
+            export ALLOW_INITIAL_REBASE
+            export HAS_PUBLISHED_RELEASES="$([[ -n "$published_tags" ]] && echo true || echo false)"
+            python - <<'PY'
+            import os
+            import re
+
+            pattern = re.compile(
+                r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)"
+                r"(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?"
+                r"(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$"
+            )
+
+            def key(value: str):
+                match = pattern.fullmatch(value)
+                if not match:
+                    raise SystemExit(f"invalid canonical VERSION: {value}")
+                major, minor, patch = (int(match.group(i)) for i in range(1, 4))
+                prerelease = match.group(4)
+                if prerelease is None:
+                    return (major, minor, patch, 1, ())
+                items = []
+                for item in prerelease.split("."):
+                    if item.isdigit():
+                        if len(item) > 1 and item.startswith("0"):
+                            raise SystemExit(f"invalid canonical VERSION: {value}")
+                        items.append((0, int(item)))
+                    else:
+                        items.append((1, item))
+                return (major, minor, patch, 0, tuple(items))
+
+            current = os.environ["CURRENT_VERSION"]
+            target = os.environ["TARGET_VERSION"]
+            allow_initial = os.environ["ALLOW_INITIAL_REBASE"].lower() == "true"
+            has_published = os.environ["HAS_PUBLISHED_RELEASES"].lower() == "true"
+
+            if key(target) <= key(current) and not (allow_initial and not has_published):
+                raise SystemExit(
+                    f"target {target} must be newer than current VERSION {current}; "
+                    "the only exception is an explicit first-release rebase"
+                )
+            PY
+
+            if git rev-parse -q --verify "refs/tags/v$TARGET_VERSION" >/dev/null; then
+              echo "Tag v$TARGET_VERSION already exists before the candidate has been validated." >&2
+              exit 1
+            fi
+
+            if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
+              existing_pr="$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --base master --head "$branch" --json number --jq '.[0].number // empty')"
+              if [[ -z "$existing_pr" ]]; then
+                merged_pr="$(gh pr list --repo "$GITHUB_REPOSITORY" --state merged --base master --head "$branch" --json number,mergeCommit --jq '.[0] // empty')"
+                if [[ -n "$merged_pr" ]]; then
+                  echo "Branch $branch belongs to an already merged release PR, but master VERSION is $current instead of $TARGET_VERSION." >&2
+                else
+                  echo "Branch $branch exists without an open or merged release PR targeting master; inspect it before retrying." >&2
+                fi
+                exit 1
+              fi
+              echo "Resuming release PR #$existing_pr on $branch."
+            fi
           fi
 
           echo "version=$TARGET_VERSION" >> "$GITHUB_OUTPUT"
           echo "branch=$branch" >> "$GITHUB_OUTPUT"
           echo "existing_pr=$existing_pr" >> "$GITHUB_OUTPUT"
+          echo "resume_finalization=$resume_finalization" >> "$GITHUB_OUTPUT"
+          echo "release_exists=$release_exists" >> "$GITHUB_OUTPUT"
+          echo "already_published=$already_published" >> "$GITHUB_OUTPUT"
+          echo "merge_sha=$merge_sha" >> "$GITHUB_OUTPUT"
 
       - name: Synchronize platform version
-        if: steps.target.outputs.existing_pr == ''
+        if: steps.target.outputs.resume_finalization != 'true' && steps.target.outputs.existing_pr == ''
         run: |
           set -euo pipefail
           python scripts/release/set_platform_version.py "${{ steps.target.outputs.version }}"
@@ -123,7 +295,7 @@ jobs:
           fi
 
       - name: Create release branch
-        if: steps.target.outputs.existing_pr == ''
+        if: steps.target.outputs.resume_finalization != 'true' && steps.target.outputs.existing_pr == ''
         shell: bash
         run: |
           set -euo pipefail
@@ -136,7 +308,7 @@ jobs:
 
       - name: Open release pull request
         id: pr
-        if: steps.target.outputs.existing_pr == ''
+        if: steps.target.outputs.resume_finalization != 'true' && steps.target.outputs.existing_pr == ''
         env:
           GH_TOKEN: ${{ secrets.WOOBE_RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.target.outputs.version }}
@@ -160,14 +332,19 @@ jobs:
 
           This PR was created by the Woobe release orchestrator after synchronizing the canonical platform version and all release-bearing mirrors.
 
-          The release gate now owns this PR:
+          The release gate owns this PR and the parent Release Woobe workflow owns the entire release transaction:
 
           - required CI must pass for the exact PR HEAD;
           - only deterministic release-preparation files are allowed;
-          - if `master` advances, the release branch is refreshed and CI must pass again;
+          - if master advances, the release branch is refreshed and CI must pass again;
           - CI failure leaves the PR open and publishes nothing;
           - a fully green, stable release HEAD is merged automatically;
-          - candidate build, smoke, immutable tagging, image promotion, post-publish smoke, GitHub Release creation and branch cleanup continue automatically after merge.
+          - the exact merge commit is built into immutable candidate images;
+          - candidate multi-arch verification and production-shaped smoke must pass;
+          - an immutable release manifest records the exact image digests;
+          - only then is the Git tag created and those exact digests promoted;
+          - post-publish smoke and GitHub Release creation must pass before Release Woobe reports success;
+          - a failed post-merge stage can be resumed safely by running Release Woobe for the same VERSION.
 
           Product code, migration notes, documentation and changelog changes belong in normal development PRs before starting this release. Do not add unrelated changes to this release PR.
           """)
@@ -192,6 +369,7 @@ jobs:
 
       - name: Wait for release CI and merge exact validated head
         id: gate
+        if: steps.target.outputs.resume_finalization != 'true'
         env:
           GH_TOKEN: ${{ secrets.WOOBE_RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
@@ -202,34 +380,250 @@ jobs:
             --branch "${{ steps.target.outputs.branch }}" \
             --github-output "$GITHUB_OUTPUT"
 
-      - name: Start exact release finalization
+      - name: Resolve exact release revision
+        id: revision
         env:
-          GH_TOKEN: ${{ secrets.WOOBE_RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.target.outputs.version }}
+          RESUME_SHA: ${{ steps.target.outputs.merge_sha }}
           MERGE_SHA: ${{ steps.gate.outputs.merge_sha }}
         shell: bash
         run: |
           set -euo pipefail
-          gh workflow run release-candidate.yml \
+          revision="${RESUME_SHA:-$MERGE_SHA}"
+          test -n "$revision"
+          git fetch --force origin
+          merged_version="$(git show "$revision:VERSION" | tr -d '[:space:]')"
+          test "$merged_version" = "$VERSION"
+          echo "sha=$revision" >> "$GITHUB_OUTPUT"
+
+  candidate:
+    name: Validate exact release candidate
+    needs: prepare
+    if: ${{ needs.prepare.outputs.already_published != 'true' }}
+    uses: ./.github/workflows/release-candidate.yml
+    with:
+      ref: ${{ needs.prepare.outputs.revision }}
+      expected_version: ${{ needs.prepare.outputs.version }}
+      orchestration_id: ${{ github.run_id }}-${{ github.run_attempt }}
+    secrets: inherit
+
+  tag:
+    name: Create immutable release tag
+    needs: [prepare, candidate]
+    if: ${{ needs.prepare.outputs.already_published != 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ needs.prepare.outputs.revision }}
+          fetch-depth: 0
+          token: ${{ secrets.WOOBE_RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Create or verify immutable release tag
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          REVISION: ${{ needs.prepare.outputs.revision }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="v$VERSION"
+          git fetch --force --tags origin
+
+          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null 2>&1; then
+            git fetch --force origin "refs/tags/$tag:refs/tags/$tag"
+            tagged_revision="$(git rev-parse "$tag^{commit}")"
+            if [[ "$tagged_revision" != "$REVISION" ]]; then
+              echo "::error::Immutable release tag $tag already points to $tagged_revision; expected $REVISION."
+              exit 1
+            fi
+            echo "Tag $tag already exists on the exact validated release commit."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag -a "$tag" "$REVISION" -m "Woobe $tag"
+            git push origin "refs/tags/$tag"
+          fi
+
+  publish:
+    name: Publish validated release
+    needs: [prepare, candidate, tag]
+    if: ${{ needs.prepare.outputs.already_published != 'true' }}
+    uses: ./.github/workflows/release.yml
+    with:
+      version: ${{ needs.prepare.outputs.version }}
+      revision: ${{ needs.prepare.outputs.revision }}
+      validation_id: ${{ needs.candidate.outputs.validation_id }}
+      api_digest: ${{ needs.candidate.outputs.api_digest }}
+      workers_digest: ${{ needs.candidate.outputs.workers_digest }}
+      frontend_digest: ${{ needs.candidate.outputs.frontend_digest }}
+      embed_digest: ${{ needs.candidate.outputs.embed_digest }}
+      orchestration_id: ${{ github.run_id }}-${{ github.run_attempt }}
+    secrets: inherit
+
+  verify-published:
+    name: Verify completed release recovery
+    needs: prepare
+    if: ${{ needs.prepare.outputs.already_published == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ needs.prepare.outputs.revision }}
+          fetch-depth: 0
+          token: ${{ secrets.WOOBE_RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download permanent release manifest
+        env:
+          GH_TOKEN: ${{ secrets.WOOBE_RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          gh release view "v$VERSION" --repo "$GITHUB_REPOSITORY" >/dev/null
+          mkdir -p "$RUNNER_TEMP/completed-release"
+          gh release download "v$VERSION" \
             --repo "$GITHUB_REPOSITORY" \
-            --ref master \
-            -f ref="$MERGE_SHA" \
-            -f expected_version="$VERSION" \
-            -f finalize_release=true
+            --pattern release-manifest.json \
+            --dir "$RUNNER_TEMP/completed-release"
+          test -s "$RUNNER_TEMP/completed-release/release-manifest.json"
+
+      - name: Verify completed release manifest and registry state
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          REVISION: ${{ needs.prepare.outputs.revision }}
+          MANIFEST: ${{ runner.temp }}/completed-release/release-manifest.json
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python - <<'PY' >> "$GITHUB_ENV"
+          import json
+          import os
+          from pathlib import Path
+
+          manifest = json.loads(Path(os.environ["MANIFEST"]).read_text(encoding="utf-8"))
+          if manifest.get("schema_version") != 1:
+              raise SystemExit("release manifest schema mismatch")
+          if manifest.get("repository") != os.environ["GITHUB_REPOSITORY"]:
+              raise SystemExit("release manifest repository mismatch")
+          if manifest.get("version") != os.environ["VERSION"]:
+              raise SystemExit("release manifest version mismatch")
+          if manifest.get("revision") != os.environ["REVISION"]:
+              raise SystemExit("release manifest revision mismatch")
+          if not manifest.get("validation_id"):
+              raise SystemExit("release manifest validation identity is missing")
+          if manifest.get("platforms") != ["linux/amd64", "linux/arm64"]:
+              raise SystemExit("release manifest platform contract mismatch")
+
+          images = manifest.get("images") or {}
+          for unit in ("api", "workers", "frontend", "embed"):
+              digest = images.get(unit)
+              if not isinstance(digest, str) or not digest.startswith("sha256:"):
+                  raise SystemExit(f"invalid digest for {unit}: {digest!r}")
+              print(f"EXPECTED_{unit.upper()}_DIGEST={digest}")
+          PY
+
+          expected_digest() {
+            case "$1" in
+              api) printf '%s\n' "$EXPECTED_API_DIGEST" ;;
+              workers) printf '%s\n' "$EXPECTED_WORKERS_DIGEST" ;;
+              frontend) printf '%s\n' "$EXPECTED_FRONTEND_DIGEST" ;;
+              embed) printf '%s\n' "$EXPECTED_EMBED_DIGEST" ;;
+              *) return 2 ;;
+            esac
+          }
+
+          for unit in api workers frontend embed; do
+            ref="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/woobe-$unit:$VERSION"
+            output="$(docker buildx imagetools inspect "$ref")"
+            digest="$(awk '$1 == "Digest:" { print $2; exit }' <<<"$output")"
+            test "$digest" = "$(expected_digest "$unit")"
+            grep -q 'linux/amd64' <<<"$output"
+            grep -q 'linux/arm64' <<<"$output"
+
+            docker pull --platform linux/amd64 "$ref"
+            image_revision="$(docker image inspect "$ref" --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}')"
+            image_version="$(docker image inspect "$ref" --format '{{ index .Config.Labels "org.opencontainers.image.version" }}')"
+            test "$image_revision" = "$REVISION"
+            test "$image_version" = "$VERSION"
+          done
+
+      - name: Complete pending release branch cleanup
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          branch="release/$VERSION"
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
+            git push origin --delete "$branch"
+          fi
+
+  summary:
+    name: Release result
+    needs: [prepare, candidate, tag, publish, verify-published]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Validate terminal orchestration state
+        env:
+          ALREADY_PUBLISHED: ${{ needs.prepare.outputs.already_published }}
+          PREPARE_RESULT: ${{ needs.prepare.result }}
+          CANDIDATE_RESULT: ${{ needs.candidate.result }}
+          TAG_RESULT: ${{ needs.tag.result }}
+          PUBLISH_RESULT: ${{ needs.publish.result }}
+          VERIFY_RESULT: ${{ needs.verify-published.result }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$PREPARE_RESULT" = "success"
+
+          if [[ "$ALREADY_PUBLISHED" == "true" ]]; then
+            test "$VERIFY_RESULT" = "success"
+          else
+            test "$CANDIDATE_RESULT" = "success"
+            test "$TAG_RESULT" = "success"
+            test "$PUBLISH_RESULT" = "success"
+          fi
 
       - name: Release orchestration summary
         env:
-          VERSION: ${{ steps.target.outputs.version }}
-          PR_NUMBER: ${{ steps.target.outputs.existing_pr || steps.pr.outputs.number }}
-          VALIDATED_HEAD_SHA: ${{ steps.gate.outputs.validated_head_sha }}
-          MERGE_SHA: ${{ steps.gate.outputs.merge_sha }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+          REVISION: ${{ needs.prepare.outputs.revision }}
+          PR_NUMBER: ${{ needs.prepare.outputs.release_pr }}
+          VALIDATED_HEAD_SHA: ${{ needs.prepare.outputs.validated_head_sha }}
+          RESUMED: ${{ needs.prepare.outputs.resumed }}
+          ALREADY_PUBLISHED: ${{ needs.prepare.outputs.already_published }}
+          VALIDATION_ID: ${{ needs.candidate.outputs.validation_id }}
+          RELEASE_URL: ${{ needs.publish.outputs.release_url }}
+        shell: bash
         run: |
           {
-            printf '### Woobe v%s\n' "$VERSION"
-            echo
-            printf 'Release PR: #%s\n' "$PR_NUMBER"
-            printf 'Validated PR HEAD: `%s`\n' "$VALIDATED_HEAD_SHA"
-            printf 'Merge commit: `%s`\n' "$MERGE_SHA"
-            echo
-            echo "All required pre-merge CI passed. The PR was merged automatically and exact release finalization was dispatched."
+            printf '### Woobe v%s released\n\n' "$VERSION"
+            printf 'Revision: `%s`\n' "$REVISION"
+            printf 'Resumed post-merge finalization: `%s`\n' "$RESUMED"
+            if [[ -n "$PR_NUMBER" ]]; then
+              printf 'Release PR: #%s\n' "$PR_NUMBER"
+            fi
+            if [[ -n "$VALIDATED_HEAD_SHA" ]]; then
+              printf 'Validated PR HEAD: `%s`\n' "$VALIDATED_HEAD_SHA"
+            fi
+            if [[ "$ALREADY_PUBLISHED" == "true" ]]; then
+              echo "GitHub Release: previously published state fully reverified."
+              echo "Permanent manifest and all four registry images matched."
+            else
+              printf 'Candidate validation: `%s`\n' "$VALIDATION_ID"
+              printf 'GitHub Release: %s\n' "$RELEASE_URL"
+              echo
+              echo "Required PR CI, exact candidate build, multi-arch validation, candidate smoke, immutable digest promotion, post-publish smoke and GitHub Release creation all passed."
+            fi
           } >> "$GITHUB_STEP_SUMMARY"

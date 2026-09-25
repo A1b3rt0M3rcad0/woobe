@@ -12,10 +12,17 @@ on:
       - "tooling/quality-gate/**"
       - "tests/quality_gate/**"
       - "tests/architecture/**"
+      - "tests/unit/test_release_orchestrator.py"
+      - "tests/unit/test_release_workflow_graph.py"
+      - "tests/unit/test_release_registry_state_machine.py"
       - "pyproject.toml"
       - "pytest.ini"
       - "uv.lock"
       - ".github/workflows/quality-gate.yml"
+      - ".github/workflows/prepare-release.yml"
+      - ".github/workflows/release-candidate.yml"
+      - ".github/workflows/release.yml"
+      - "scripts/release/**"
   workflow_dispatch:
 
 permissions:
@@ -27,14 +34,21 @@ concurrency:
 
 jobs:
   agent-architecture:
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.14"
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: "1.25.x"
+      - name: Validate GitHub Actions workflows
+        run: |
+          set -euo pipefail
+          go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7 -shellcheck= -color
       - name: Install development dependencies
         run: uv sync --frozen --all-groups --extra test
       - name: Quality gate self-tests
@@ -49,6 +63,13 @@ jobs:
           tests/architecture/test_runtime_client_boundary.py
           tests/architecture/test_runtime_observer_boundary.py
           tests/architecture/test_runtime_process_composition_packaging.py
+          tests/architecture/test_primary_release_units.py
+      - name: Release workflow state-machine tests
+        run: >-
+          uv run pytest -q
+          tests/unit/test_release_orchestrator.py
+          tests/unit/test_release_workflow_graph.py
+          tests/unit/test_release_registry_state_machine.py
       - name: Agent architecture policy
         run: >-
           PYTHONPATH=tooling/quality-gate/src

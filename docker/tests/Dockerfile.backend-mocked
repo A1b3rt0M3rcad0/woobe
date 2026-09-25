@@ -43,6 +43,8 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 COPY tests/ tests/
 COPY scripts/ scripts/
 COPY .github/workflows/prepare-release.yml .github/workflows/prepare-release.yml
+COPY .github/workflows/release-candidate.yml .github/workflows/release-candidate.yml
+COPY .github/workflows/release.yml .github/workflows/release.yml
 COPY pytest.ini ./
 
 CMD ["/bin/sh", "-c", "set -eu; mkdir -p /artifacts; python -m pytest -q tests/unit tests/fakes/test_openai_provider.py --junitxml=/artifacts/backend-mocked.xml"]
