@@ -161,6 +161,8 @@ def run_step(
     }
     if scenario is not None:
         env["FAKE_DOCKER_SCENARIO"] = scenario
+        if scenario.startswith("candidate_"):
+            env["REF"] = "ghcr.io/owner/woobe-api:sha-revision"
     if extra_env:
         env.update(extra_env)
 
