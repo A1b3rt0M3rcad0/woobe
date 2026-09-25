@@ -22,6 +22,8 @@ chat-embed
 
 Application deployment units are intentionally isolated: API and Workers use different container targets/images even though both consume the same `woobe-core` package. Web and ChatSurface are separate browser artifacts. This allows each process class to be scaled, replaced and rolled out independently while keeping one platform version.
 
+For pulling and configuring the published GHCR images directly, see [`container-packages.md`](container-packages.md).
+
 ## Production configuration
 
 Set strong, independent secrets and exact public origins/hosts. At minimum:
