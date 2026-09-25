@@ -4,15 +4,6 @@ import { Maximize2 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import type { ChatSurfaceAppearance } from '@/features/chat-surfaces/types'
 
-function resolveEmbedOrigin(): string {
-  const configured = import.meta.env.VITE_CHAT_EMBED_URL?.trim() || 'http://localhost:8081'
-  const url = new URL(configured)
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-    throw new Error('VITE_CHAT_EMBED_URL must use HTTP(S)')
-  }
-  return url.origin
-}
-
 export function ChatSurfaceAppearancePreview({
   appearance,
   onTest,
@@ -23,7 +14,7 @@ export function ChatSurfaceAppearancePreview({
   testDisabledReason?: string | null
 }) {
   const frameRef = useRef<HTMLIFrameElement | null>(null)
-  const embedOrigin = useMemo(() => resolveEmbedOrigin(), [])
+  const embedOrigin = RUNTIME_CHAT_EMBED_ORIGIN
   const previewUrl = useMemo(
     () => new URL('/chat/v1/preview.html', `${embedOrigin}/`).toString(),
     [embedOrigin],
