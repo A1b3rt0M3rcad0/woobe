@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Semantic version without v prefix, for example 0.12.0
+        description: Semantic version without v prefix, for example 0.13.0
         required: true
         type: string
 
@@ -15,6 +15,8 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    env:
+      DOCKER_BUILD_RECORD_UPLOAD: "false"
     steps:
       - uses: actions/checkout@v4
         with:
