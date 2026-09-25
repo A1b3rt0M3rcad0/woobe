@@ -19,6 +19,7 @@ import { ContractValueForm } from '@/features/contracts/ContractValueForm'
 import { filterContractValues } from '@/features/contracts/contractFields'
 import type { ChatSurface, ChatSurfaceTestSession } from '@/features/chat-surfaces/types'
 import { API_BASE_URL } from '@/lib/api/client'
+import { RUNTIME_CHAT_EMBED_ORIGIN } from '@/lib/runtime-config'
 
 interface ChatSurfaceLiveTestDialogProps {
   open: boolean
