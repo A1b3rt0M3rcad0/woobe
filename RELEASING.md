@@ -653,8 +653,8 @@ Current Core release units are:
 - `woobe-core==<VERSION>` — Python domain/runtime package used by backend process images;
 - `woobe-api:<VERSION>` — independently deployable API container;
 - `woobe-workers:<VERSION>` — independently deployable background-execution container;
-- `woobe-web:<VERSION>` — independently deployable administrative Web container;
-- `woobe-chat-embed:<VERSION>` — independently deployable ChatSurface container.
+- `woobe-frontend:<VERSION>` — independently deployable administrative Web container;
+- `woobe-embed:<VERSION>` — independently deployable ChatSurface container.
 
 The release workflow publishes the four container units. Core is not published as a standalone container because it is a library/migration boundary rather than a process host.
 
