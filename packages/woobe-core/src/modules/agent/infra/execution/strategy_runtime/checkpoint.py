@@ -45,6 +45,9 @@ class RuntimeStrategyCheckpoint:
                 "source_type": contribution.source_type,
                 "content": contribution.content,
                 "metadata": dict(contribution.metadata),
+                "replaces_message_indexes": list(
+                    contribution.replaces_message_indexes
+                ),
             }
             for key, contribution in self._runtime_state.context_contributions.items()
             if isinstance(contribution, StrategyContextContribution)

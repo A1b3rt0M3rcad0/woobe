@@ -113,11 +113,18 @@ class StandardContextAssembler:
         self,
         request: ContextInspectionRequest,
     ) -> ContextInspectionOutput:
+        replaced_indexes = {
+            index
+            for contribution in request.contributions
+            for index in contribution.replaces_message_indexes
+            if 0 <= index < len(request.messages)
+        }
         estimated = sum(
             estimate_input_units(
                 _serialized_content(getattr(message, "content", ""))
             )
-            for message in request.messages
+            for index, message in enumerate(request.messages)
+            if index not in replaced_indexes
         )
         estimated += sum(
             estimate_input_units(_serialized_content(item.content))
@@ -141,7 +148,7 @@ class StandardContextAssembler:
             pressure = "LOW"
 
         return ContextInspectionOutput(
-            message_count=len(request.messages),
+            message_count=len(request.messages) - len(replaced_indexes),
             contribution_count=len(request.contributions),
             estimated_input_units=estimated,
             usable_input_units=usable,

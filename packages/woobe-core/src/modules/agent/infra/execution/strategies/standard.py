@@ -31,6 +31,7 @@ MAX_CONSECUTIVE_SEMANTIC_FAILURE_ROUNDS = (
 
 class StandardPhase(ExecutionPhase):
     KNOWLEDGE_RETRIEVAL = "knowledge_retrieval"
+    CONTEXT_COMPACTION = "context_compaction"
     RESPONSE_GENERATION = "response_generation"
     CAPABILITY_RESPONSE_GENERATION = "capability_response_generation"
     TOOL_FOLLOWUP = "tool_followup"
@@ -204,6 +205,10 @@ class StandardExecutionStrategy(ExecutionStrategy[StandardExecutionState]):
                         )
                     )
 
+        await ctx.context.compact(
+            phase=StandardPhase.CONTEXT_COMPACTION,
+        )
+
         if state.phase == StandardPhase.FINAL_RESPONSE_GENERATION.value:
             reason = (
                 state.stop_reason.value
@@ -273,6 +278,9 @@ class StandardExecutionStrategy(ExecutionStrategy[StandardExecutionState]):
                 break
 
             try:
+                await ctx.context.compact(
+                    phase=StandardPhase.CONTEXT_COMPACTION,
+                )
                 invocation = await ctx.context.assemble(
                     phase=state.phase,
                     tools=tools,
@@ -292,6 +300,9 @@ class StandardExecutionStrategy(ExecutionStrategy[StandardExecutionState]):
                 break
 
         if state.stop_reason is not None and result.has_tool_calls:
+            await ctx.context.compact(
+                phase=StandardPhase.CONTEXT_COMPACTION,
+            )
             no_tools = ctx.tools.none()
             invocation = await ctx.context.assemble_final(
                 reason=state.stop_reason.value,
