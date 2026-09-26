@@ -19,54 +19,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  frontend-hosted:
-    name: frontend (GitHub-hosted)
-    runs-on: ubuntu-24.04
-    continue-on-error: true
-    outputs:
-      outcome: ${{ job.status }}
-    timeout-minutes: 20
-    defaults:
-      run:
-        working-directory: packages/woobe-frontend
-    env:
-      VITE_API_URL: http://127.0.0.1:8000
-      VITE_CHAT_EMBED_URL: http://127.0.0.1:8081
-      VITE_WOOBE_EDITION: core
-    steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
-
-      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
-        with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: packages/woobe-frontend/package-lock.json
-
-      - name: Install frontend dependencies
-        run: npm ci
-
-      - name: Run frontend tests
-        run: npm run test:run
-
-      - name: Build frontend production bundle
-        run: npm run build
-
-      - name: Install Chat Embed dependencies
-        working-directory: packages/woobe-embed
-        run: npm ci
-
-      - name: Run Chat Embed tests
-        working-directory: packages/woobe-embed
-        run: npm test
-
-      - name: Typecheck Chat Embed
-        working-directory: packages/woobe-embed
-        run: npm run typecheck
-
   frontend:
     name: frontend
-    needs: frontend-hosted
-    if: ${{ !cancelled() && needs.frontend-hosted.outputs.outcome != 'success' }}
     runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 20
     defaults:
@@ -77,9 +31,6 @@ jobs:
       VITE_CHAT_EMBED_URL: http://127.0.0.1:8081
       VITE_WOOBE_EDITION: core
     steps:
-      - name: Report fallback activation
-        run: |
-          echo "::warning::GitHub-hosted frontend.yml / frontend did not pass; retrying on self-hosted runner."
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
