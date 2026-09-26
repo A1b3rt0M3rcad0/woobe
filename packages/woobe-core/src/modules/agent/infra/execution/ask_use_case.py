@@ -19,6 +19,8 @@ from modules.agent.application.dtos.runtime_dtos import (
     ToolCallInfo,
     UsageInfo,
 )
+from modules.agent.application.interfaces.execution import InstrumentedExecution
+from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.application.interfaces.llm_factory import LLMFactory
 from modules.agent.application.interfaces.outbox import OutboxEventWriter
 from modules.agent.application.interfaces.repositories import (
@@ -119,8 +121,19 @@ class AskAgentUseCase:
                 agent_tools,
                 tool_name_to_id,
                 messages,
+                knowledge_query=input_dto.message,
+                history=history,
             )
             llm_latency_ms = round((time.monotonic() - llm_latency_start) * 1000)
+
+            execution_context = current_execution.get()
+            execution = (
+                execution_context.execution
+                if execution_context is not None
+                else None
+            )
+            if isinstance(execution, InstrumentedExecution):
+                sources = list(execution.sources)
 
             answer = result.content if hasattr(result, "content") else str(result)
 
@@ -424,6 +437,8 @@ class AskAgentUseCase:
         agent_tools: list[dict],
         tool_name_to_id: dict[str, str],
         messages: list,
+        knowledge_query: str | None = None,
+        history: list[Any] | tuple[Any, ...] | None = None,
     ) -> tuple[Any, list[ToolCallInfo], bool, int | None]:
         chat_model = self._llm_factory.create_chat_model(
             provider=(
