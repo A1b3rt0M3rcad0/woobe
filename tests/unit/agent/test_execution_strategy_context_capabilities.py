@@ -59,6 +59,7 @@ async def test_context_compaction_is_owned_by_configured_manager() -> None:
     execution_context.run_id = uuid4()
     execution_context.project_id = uuid4()
     execution_context.context_policy = {
+        "session": {"max_messages": 3},
         "budget": {"max_input_units": 1500},
     }
     token = current_execution.set(execution_context)

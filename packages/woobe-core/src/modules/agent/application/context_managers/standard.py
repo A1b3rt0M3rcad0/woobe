@@ -235,7 +235,11 @@ class ProgrammableStandardContextAssembler(StandardContextAssembler):
                 and index not in already_replaced
             )
         ]
-        if len(session_indexes) <= self._compaction_keep_recent_messages:
+        keep_recent = min(
+            self._compaction_keep_recent_messages,
+            max(0, request.policy.session.max_messages - 1),
+        )
+        if len(session_indexes) <= keep_recent:
             return ContextCompactionOutput(
                 changed=False,
                 metadata={
@@ -244,9 +248,11 @@ class ProgrammableStandardContextAssembler(StandardContextAssembler):
                 },
             )
 
-        compact_indexes = session_indexes[
-            : -self._compaction_keep_recent_messages
-        ]
+        compact_indexes = (
+            session_indexes
+            if keep_recent == 0
+            else session_indexes[:-keep_recent]
+        )
         if not compact_indexes:
             return ContextCompactionOutput(changed=False)
 
