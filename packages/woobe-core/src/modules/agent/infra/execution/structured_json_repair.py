@@ -60,12 +60,13 @@ async def repair_json_if_needed(
         ),
         HumanMessage(content=answer),
     ]
-    repair_context = context_capability.assemble(
-        messages=repair_messages,
-        phase="json_repair",
-        tool_selection_mode="none",
-    )
     try:
+        repair_context = context_capability.assemble(
+            messages=repair_messages,
+            phase="json_repair",
+            tool_selection_mode="none",
+            call_index=call_index + 1,
+        )
         result, call = await invoke_llm(
             model=repair_model,
             messages=list(repair_context.messages),
