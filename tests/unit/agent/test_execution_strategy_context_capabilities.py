@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import pytest
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from modules.agent.infra.execution.capabilities.bundle import ExecutionCapabilities
 from modules.agent.infra.execution.capabilities.context_assembly import (
@@ -85,3 +85,53 @@ async def test_context_summarize_is_explicit_and_does_not_mutate_context() -> No
 
     built.context.context.set(summary)
     assert built.context.context.has("session.summary") is True
+
+
+
+def test_strategy_conversation_exposes_real_bound_messages_read_only() -> None:
+    model = _SummaryModel()
+
+    async def execute_single_tool(_tool_call, _tool_id):
+        raise AssertionError("Conversation inspection must not execute Tools")
+
+    capabilities = ExecutionCapabilities(
+        model=ModelInvocationCapability(
+            model=model,
+            provider="custom",
+            model_name="conversation-model",
+        ),
+        tools=ToolExecutionCapability(
+            execute_single_tool=execute_single_tool,
+            tool_name_to_id={},
+        ),
+        knowledge=KnowledgeRetrievalCapability(retrieve_fn=None),
+        context=ContextAssemblyCapability(
+            assembler=None,
+            provider="custom",
+            model_name="conversation-model",
+            pricing_snapshot=None,
+        ),
+        recovery=StrategyRecoveryCapability(strategy_name="standard"),
+    )
+    messages = [
+        SystemMessage(content="Agent system instruction"),
+        HumanMessage(content="Older user question"),
+        AIMessage(content="Older assistant answer"),
+        HumanMessage(content="Current user question"),
+    ]
+    built = build_strategy_context_from_capabilities(
+        strategy=StandardExecutionStrategy(),
+        capabilities=capabilities,
+        messages=messages,
+        initial_phase="response_generation",
+        final_json_instruction=None,
+    )
+
+    conversation = built.context.conversation
+
+    assert conversation.messages == tuple(messages)
+    assert conversation.current_user_message is messages[-1]
+    assert conversation.history == tuple(messages[1:3])
+    assert conversation.system_messages == (messages[0],)
+    assert conversation.assistant_messages == (messages[2],)
+    assert conversation.last_assistant_message is messages[2]

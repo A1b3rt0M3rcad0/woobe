@@ -4,7 +4,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, HumanMessage
 
 from modules.agent.application.dtos.runtime_dtos import SourceInfo
 from modules.agent.application.interfaces.execution import InstrumentedExecutionError
@@ -81,6 +81,7 @@ def _request(
     knowledge_retrieve=None,
     knowledge_query: str | None = None,
     agent: Any | None = None,
+    messages: list[Any] | None = None,
 ) -> ExecutionStrategyRequest:
     return ExecutionStrategyRequest(
         llm_factory=factory,
@@ -94,7 +95,7 @@ def _request(
         has_tools=has_tools,
         agent_tools=agent_tools or [],
         tool_name_to_id=tool_name_to_id or {},
-        messages=[],
+        messages=list(messages or []),
         context_assembler=None,
         knowledge_retrieve=knowledge_retrieve,
         knowledge_query=knowledge_query,
@@ -427,7 +428,8 @@ async def test_standard_strategy_retrieves_knowledge_and_materializes_it_in_cont
             execute_single_tool=execute_single_tool,
             has_tools=False,
             knowledge_retrieve=retrieve_knowledge,
-            knowledge_query="How does Woobe execute agents?",
+            knowledge_query="legacy opaque query that must not win",
+            messages=[HumanMessage(content="How does Woobe execute agents?")],
         )
     )
 
@@ -442,3 +444,49 @@ async def test_standard_strategy_retrieves_knowledge_and_materializes_it_in_cont
     assert "Woobe runtime knowledge" in serialized
     assert "source_type" in serialized
     assert "KNOWLEDGE" in serialized
+
+
+@pytest.mark.asyncio
+async def test_standard_strategy_builds_knowledge_query_from_real_conversation_history() -> None:
+    model = _SequenceModel([AIMessage(content="grounded answer")])
+    factory = _RecordingFactory(model)
+    retrievals: list[str] = []
+
+    async def retrieve_knowledge(query: str):
+        retrievals.append(query)
+        return SimpleNamespace(context=None, sources=(), metrics={})
+
+    async def execute_single_tool(_tool_call, _tool_id):
+        raise AssertionError("Tool execution must not run")
+
+    agent = _agent()
+    agent.settings = {
+        "runtime_config": {
+            "rag": {
+                "query_mode": "conversation_context",
+                "history_turns": 1,
+            }
+        }
+    }
+
+    await _execute(
+        _request(
+            factory=factory,
+            execute_single_tool=execute_single_tool,
+            has_tools=False,
+            knowledge_retrieve=retrieve_knowledge,
+            knowledge_query="legacy query",
+            agent=agent,
+            messages=[
+                HumanMessage(content="What is Woobe?"),
+                AIMessage(content="It is an agentic runtime."),
+                HumanMessage(content="How does execution work?"),
+            ],
+        )
+    )
+
+    assert retrievals == [
+        "User: What is Woobe?\n"
+        "Assistant: It is an agentic runtime.\n"
+        "Current user message: How does execution work?"
+    ]

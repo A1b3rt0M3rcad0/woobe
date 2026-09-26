@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
+from langchain_core.messages import HumanMessage
 
 from modules.agent.application.strategy_sdk import (
     Completed,
@@ -12,7 +13,9 @@ from modules.agent.application.strategy_sdk import (
     ExecutionPolicy,
     ExecutionState,
     ExecutionStopReason,
+    StrategyBootstrap,
     StrategyInvocationContext,
+    StrategyKnowledgeQueryPolicy,
     StrategyKnowledgeResult,
     StrategyModelResult,
     StrategyToolBatch,
@@ -32,12 +35,25 @@ from modules.agent.infra.execution.strategies.standard import (
 
 class _Knowledge:
     def __init__(self) -> None:
-        self.calls: list[str | None] = []
+        self.calls: list[tuple[str | None, str | None]] = []
+        self.query_policy = StrategyKnowledgeQueryPolicy(
+            mode="current_message",
+            history_turns=3,
+        )
 
     async def retrieve(self, *, query=None, phase=None):
-        del query
-        self.calls.append(str(getattr(phase, "value", phase)))
+        self.calls.append((query, str(getattr(phase, "value", phase))))
         return StrategyKnowledgeResult(content=None)
+
+
+class _Conversation:
+    def __init__(self) -> None:
+        self.current_user_message = HumanMessage(content="test query")
+        self.history = ()
+        self.system_messages = ()
+        self.assistant_messages = ()
+        self.last_assistant_message = None
+        self.messages = (self.current_user_message,)
 
 
 class _ContextManager:
@@ -72,6 +88,7 @@ class _Model:
     def __init__(self, results):
         self.results = list(results)
         self.phases: list[str] = []
+        self.fallback_available = False
 
     async def invoke(self, *, context=None, tools=None, phase=None):
         del context, tools
@@ -88,6 +105,7 @@ class _Tools:
     def __init__(self, batches):
         self.batches = list(batches)
         self.calls: list[tuple[dict, ...]] = []
+        self.has_any = True
 
     def all(self) -> StrategyToolSelection:
         return StrategyToolSelection(mode=StrategyToolSelectionMode.ALL)
@@ -106,13 +124,24 @@ class _Tools:
         return self.batches.pop(0)
 
 
+class _Output:
+    def requires_repair(self, _result) -> bool:
+        return False
+
+    async def repair(self, *_args, **_kwargs):
+        raise AssertionError("Output repair must not run")
+
+
 class _Context:
     def __init__(self, *, state, model, tools):
         self.state = state
+        self.bootstrap = StrategyBootstrap()
+        self.conversation = _Conversation()
         self.model = model
         self.tools = tools
         self.knowledge = _Knowledge()
         self.context = _ContextManager()
+        self.output = _Output()
         self.checkpoints: list[ExecutionCheckpointBoundary] = []
 
     async def checkpoint(self, boundary=ExecutionCheckpointBoundary.TOOL):
@@ -136,6 +165,7 @@ def test_standard_types_implement_shared_strategy_contracts() -> None:
     assert "messages" not in StandardExecutionState.model_fields
     assert state.model_dump(mode="json") == {
         "phase": None,
+        "preflight_resolved": False,
         "tool_round": 0,
         "consecutive_failures": 0,
         "knowledge_resolved": False,
@@ -164,7 +194,7 @@ async def test_standard_algorithm_is_expressed_only_with_strategy_context_primit
     assert isinstance(outcome, Completed)
     assert outcome.result.message.content == "done"
     assert ctx.checkpoints == [ExecutionCheckpointBoundary.TOOL]
-    assert ctx.knowledge.calls == ["knowledge_retrieval"]
+    assert ctx.knowledge.calls == [("test query", "knowledge_retrieval")]
     assert state.knowledge_resolved is True
     assert state.tool_round == 1
     assert state.consecutive_failures == 0
@@ -203,5 +233,5 @@ async def test_standard_algorithm_can_return_suspension_without_run_lifecycle_ac
     assert outcome.reason is SuspensionReason.ASYNC_TOOL
     assert outcome.operation_ref == "job-123"
     assert ctx.checkpoints == [ExecutionCheckpointBoundary.TOOL]
-    assert ctx.knowledge.calls == ["knowledge_retrieval"]
+    assert ctx.knowledge.calls == [("test query", "knowledge_retrieval")]
     assert state.knowledge_resolved is True
