@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from typing import Any, Mapping, Protocol
 from uuid import UUID
 
-from modules.agent.application.strategy_sdk.model import StrategyPhase
+from modules.agent.application.strategy_sdk.contracts import ExecutionPhase
 from modules.agent.application.strategy_sdk.tools import StrategyToolSelection
 
 
@@ -39,6 +39,6 @@ class StrategyContextManager(Protocol):
     async def assemble(
         self,
         *,
-        phase: StrategyPhase | None = None,
+        phase: str | ExecutionPhase | None = None,
         tools: StrategyToolSelection | None = None,
     ) -> StrategyInvocationContext: ...
