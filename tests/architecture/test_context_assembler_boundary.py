@@ -278,11 +278,8 @@ def test_execution_preparation_cannot_retrieve_knowledge() -> None:
                     )
 
     legacy_base = (AGENT_EXECUTION / "ask_use_case.py").read_text(encoding="utf-8")
-    legacy_bridge = (
-        AGENT_EXECUTION / "transaction_bounded_rag.py"
-    ).read_text(encoding="utf-8")
     assert "_load_rag_context" not in legacy_base
-    assert "_load_rag_context" not in legacy_bridge
+    assert not (AGENT_EXECUTION / "transaction_bounded_rag.py").exists()
     assert "Use the following context when relevant." not in legacy_base
     assert not violations, "\n".join(violations)
 
