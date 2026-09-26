@@ -44,6 +44,7 @@ class StandardStopReason(ExecutionStopReason):
 
 class StandardExecutionState(ExecutionState):
     phase: str | None = None
+    preflight_resolved: bool = False
     tool_round: int = 0
     consecutive_failures: int = 0
     knowledge_resolved: bool = False
@@ -87,6 +88,13 @@ class StandardExecutionStrategy(ExecutionStrategy[StandardExecutionState]):
     ) -> StrategyOutcome:
         state = ctx.state
 
+        if not state.preflight_resolved:
+            initial_tool_call = ctx.bootstrap.initial_tool_call
+            if initial_tool_call is not None:
+                await ctx.tools.execute_many([initial_tool_call])
+                await ctx.checkpoint(ExecutionCheckpointBoundary.PREFLIGHT)
+            state.preflight_resolved = True
+
         if not state.knowledge_resolved:
             knowledge = await ctx.knowledge.retrieve(
                 phase="knowledge_retrieval",
@@ -126,6 +134,11 @@ class StandardExecutionStrategy(ExecutionStrategy[StandardExecutionState]):
                 context=invocation,
                 tools=no_tools,
             )
+            if ctx.output.requires_repair(result):
+                result = await ctx.output.repair(
+                    result,
+                    phase="json_repair",
+                )
             return Completed(result)
 
         tools = ctx.tools.all()
@@ -202,6 +215,11 @@ class StandardExecutionStrategy(ExecutionStrategy[StandardExecutionState]):
                 tools=no_tools,
             )
 
+        if ctx.output.requires_repair(result):
+            result = await ctx.output.repair(
+                result,
+                phase="json_repair",
+            )
         return Completed(result)
 
 
