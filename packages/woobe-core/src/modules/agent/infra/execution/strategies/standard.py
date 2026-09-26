@@ -96,7 +96,15 @@ class StandardExecutionStrategy(ExecutionStrategy[StandardExecutionState]):
             )
             return Completed(result)
 
-        result = await ctx.model.invoke(phase=state.phase)
+        tools = ctx.tools.all()
+        invocation = await ctx.context.assemble(
+            phase=state.phase,
+            tools=tools,
+        )
+        result = await ctx.model.invoke(
+            context=invocation,
+            phase=state.phase,
+        )
 
         while result.has_tool_calls and state.tool_round < self.policy.max_tool_rounds:
             tool_batch = await ctx.tools.execute_many(result.tool_calls)
@@ -133,7 +141,14 @@ class StandardExecutionStrategy(ExecutionStrategy[StandardExecutionState]):
                 break
 
             try:
-                result = await ctx.model.invoke(phase=state.phase)
+                invocation = await ctx.context.assemble(
+                    phase=state.phase,
+                    tools=tools,
+                )
+                result = await ctx.model.invoke(
+                    context=invocation,
+                    phase=state.phase,
+                )
             except InstrumentedExecutionError:
                 state.stop_reason = StandardStopReason.PROVIDER_REJECTED_FOLLOWUP
                 state.phase = StandardPhase.FINAL_RESPONSE_GENERATION.value
