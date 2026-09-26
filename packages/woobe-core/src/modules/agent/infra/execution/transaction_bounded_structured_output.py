@@ -32,7 +32,6 @@ from modules.agent.infra.execution.structured_output_ask_use_case import (
 )
 from modules.agent.infra.execution.transaction_bounded_rag import (
     TransactionBoundedVectorSnapshotRAGMixin,
-    _rag_history_context,
 )
 from shared.infra.crypto import decrypt_secret
 from shared.runtime_environment import normalize_runtime_environment
@@ -364,45 +363,41 @@ class TransactionBoundedStructuredOutputRuntime(
         )
 
     async def _prepare(self, input_dto):
-        token = _rag_history_context.set([])
-        try:
-            if self._defer_persistence(input_dto):
-                prepared = await self._prepare_with_instrumentation(
-                    input_dto,
-                    self._prepare_deferred_network,
-                )
-            else:
-                prepared = await super(StructuredOutputAskAgentUseCase, self)._prepare(input_dto)
-            updated = list(prepared)
-            context = current_execution.get()
+        if self._defer_persistence(input_dto):
+            prepared = await self._prepare_with_instrumentation(
+                input_dto,
+                self._prepare_deferred_network,
+            )
+        else:
+            prepared = await super(StructuredOutputAskAgentUseCase, self)._prepare(input_dto)
+        updated = list(prepared)
+        context = current_execution.get()
 
-            if context and context.internal_tool_definitions:
-                definitions = list(updated[7])
-                mapping = dict(updated[8])
-                internal_mapping = context.internal_tool_name_to_id or {}
-                collisions = set(mapping).intersection(internal_mapping)
-                if collisions:
-                    raise ValueError(
-                        "Network delegation tool name collides with an Agent Tool: "
-                        + ", ".join(sorted(collisions))
-                    )
-                definitions.extend(context.internal_tool_definitions)
-                mapping.update(internal_mapping)
-                updated[7] = definitions
-                updated[8] = mapping
-                updated[9] = bool(definitions)
-
-            if updated[9]:
-                messages = list(updated[11])
-                insert_at = len(messages) - 1 if messages else 0
-                messages.insert(
-                    insert_at,
-                    SystemMessage(content=_TOOL_GROUNDING_RUNTIME_RULES),
+        if context and context.internal_tool_definitions:
+            definitions = list(updated[7])
+            mapping = dict(updated[8])
+            internal_mapping = context.internal_tool_name_to_id or {}
+            collisions = set(mapping).intersection(internal_mapping)
+            if collisions:
+                raise ValueError(
+                    "Network delegation tool name collides with an Agent Tool: "
+                    + ", ".join(sorted(collisions))
                 )
-                updated[11] = messages
-            return tuple(updated)
-        finally:
-            _rag_history_context.reset(token)
+            definitions.extend(context.internal_tool_definitions)
+            mapping.update(internal_mapping)
+            updated[7] = definitions
+            updated[8] = mapping
+            updated[9] = bool(definitions)
+
+        if updated[9]:
+            messages = list(updated[11])
+            insert_at = len(messages) - 1 if messages else 0
+            messages.insert(
+                insert_at,
+                SystemMessage(content=_TOOL_GROUNDING_RUNTIME_RULES),
+            )
+            updated[11] = messages
+        return tuple(updated)
 
     async def _finalize(
         self,
