@@ -1,10 +1,19 @@
 from modules.agent.application.strategy_sdk.context import StrategyContext
+from modules.agent.application.strategy_sdk.context_manager import (
+    StrategyContextContribution,
+    StrategyContextManager,
+    StrategyInvocationContext,
+)
 from modules.agent.application.strategy_sdk.contracts import (
     ExecutionCheckpointBoundary,
     ExecutionPhase,
     ExecutionPolicy,
     ExecutionState,
     ExecutionStopReason,
+)
+from modules.agent.application.strategy_sdk.knowledge import (
+    StrategyKnowledge,
+    StrategyKnowledgeResult,
 )
 from modules.agent.application.strategy_sdk.model import (
     StrategyModel,
@@ -20,6 +29,8 @@ from modules.agent.application.strategy_sdk.outcome import (
 )
 from modules.agent.application.strategy_sdk.tools import (
     StrategyToolBatch,
+    StrategyToolSelection,
+    StrategyToolSelectionMode,
     StrategyTools,
     SuspensionReason,
 )
@@ -32,11 +43,18 @@ __all__ = [
     "ExecutionState",
     "ExecutionStopReason",
     "StrategyContext",
+    "StrategyContextContribution",
+    "StrategyContextManager",
+    "StrategyInvocationContext",
+    "StrategyKnowledge",
+    "StrategyKnowledgeResult",
     "StrategyModel",
     "StrategyModelResult",
     "StrategyOutcome",
     "StrategyPhase",
     "StrategyToolBatch",
+    "StrategyToolSelection",
+    "StrategyToolSelectionMode",
     "StrategyTools",
     "Suspended",
     "SuspensionReason",
