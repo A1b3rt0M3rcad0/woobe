@@ -32,6 +32,7 @@ class RuntimeStrategyModel:
         "_final_model_factory",
         "_final_json_instruction",
         "_tool_definitions",
+        "_bound_capabilities",
     )
 
     def __init__(
@@ -54,6 +55,10 @@ class RuntimeStrategyModel:
         self._final_model_factory = final_model_factory
         self._final_json_instruction = final_json_instruction
         self._tool_definitions = list(tool_definitions or [])
+        self._bound_capabilities: dict[
+            tuple[str, tuple[str, ...]],
+            ModelInvocationCapability,
+        ] = {}
 
     def _capability_for_tools(
         self,
@@ -94,14 +99,25 @@ class RuntimeStrategyModel:
 
         if not definitions:
             return self._capability
+
+        key = (
+            effective.mode.value,
+            tuple(sorted(effective.names)),
+        )
+        cached = self._bound_capabilities.get(key)
+        if cached is not None:
+            return cached
+
         bind_tools = getattr(self._capability.model, "bind_tools", None)
         if not callable(bind_tools):
             raise RuntimeError(
                 "Selected Tools require a model implementation with bind_tools()"
             )
-        return self._capability.for_model(
+        bound = self._capability.for_model(
             bind_tools(definitions, tool_choice="auto")
         )
+        self._bound_capabilities[key] = bound
+        return bound
 
     async def _invoke(
         self,
