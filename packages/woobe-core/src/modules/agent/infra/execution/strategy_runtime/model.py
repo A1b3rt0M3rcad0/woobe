@@ -7,6 +7,8 @@ from modules.agent.application.strategy_sdk import (
     StrategyInvocationContext,
     StrategyModelResult,
     StrategyPhase,
+    StrategyToolSelection,
+    StrategyToolSelectionMode,
     strategy_phase_value,
 )
 from modules.agent.infra.execution.capabilities.message_progression import (
@@ -29,6 +31,7 @@ class RuntimeStrategyModel:
         "_final_model",
         "_final_model_factory",
         "_final_json_instruction",
+        "_tool_definitions",
     )
 
     def __init__(
@@ -41,6 +44,7 @@ class RuntimeStrategyModel:
         final_model: Any | None,
         final_model_factory: Any | None,
         final_json_instruction: str | None,
+        tool_definitions: list[dict[str, Any]] | None = None,
     ) -> None:
         self._capability = capability
         self._runtime_state = runtime_state
@@ -49,6 +53,55 @@ class RuntimeStrategyModel:
         self._final_model = final_model
         self._final_model_factory = final_model_factory
         self._final_json_instruction = final_json_instruction
+        self._tool_definitions = list(tool_definitions or [])
+
+    def _capability_for_tools(
+        self,
+        selection: StrategyToolSelection | None,
+    ) -> ModelInvocationCapability:
+        if not self._tool_definitions:
+            return self._capability
+
+        effective = selection
+        if effective is None:
+            effective = StrategyToolSelection(StrategyToolSelectionMode.ALL)
+
+        if effective.mode is StrategyToolSelectionMode.NONE:
+            return self._capability
+
+        if effective.mode is StrategyToolSelectionMode.ALL:
+            definitions = list(self._tool_definitions)
+        else:
+            requested = set(effective.names)
+            definitions = []
+            resolved: set[str] = set()
+            for definition in self._tool_definitions:
+                function = definition.get("function")
+                name = (
+                    function.get("name")
+                    if isinstance(function, dict)
+                    else definition.get("name")
+                )
+                if isinstance(name, str) and name in requested:
+                    definitions.append(definition)
+                    resolved.add(name)
+            missing = sorted(requested.difference(resolved))
+            if missing:
+                raise ValueError(
+                    "No model Tool definition is available for selected Tools: "
+                    + ", ".join(missing)
+                )
+
+        if not definitions:
+            return self._capability
+        bind_tools = getattr(self._capability.model, "bind_tools", None)
+        if not callable(bind_tools):
+            raise RuntimeError(
+                "Selected Tools require a model implementation with bind_tools()"
+            )
+        return self._capability.for_model(
+            bind_tools(definitions, tool_choice="auto")
+        )
 
     async def _invoke(
         self,
@@ -57,10 +110,16 @@ class RuntimeStrategyModel:
         messages: list[Any],
         phase: StrategyPhase,
         context: StrategyInvocationContext | None = None,
+        tools: StrategyToolSelection | None = None,
     ) -> StrategyModelResult:
         call_index = self._runtime_state.next_call_index()
+        effective_capability = (
+            self._capability_for_tools(tools)
+            if capability is self._capability
+            else capability
+        )
         try:
-            result, call = await capability.invoke(
+            result, call = await effective_capability.invoke(
                 messages=(
                     list(context.messages)
                     if context is not None
@@ -92,6 +151,7 @@ class RuntimeStrategyModel:
         self,
         *,
         context: StrategyInvocationContext | None = None,
+        tools: StrategyToolSelection | None = None,
         phase: StrategyPhase | None = None,
     ) -> StrategyModelResult:
         return await self._invoke(
@@ -99,6 +159,7 @@ class RuntimeStrategyModel:
             messages=self._runtime_state.messages,
             phase=phase or self._initial_phase,
             context=context,
+            tools=tools,
         )
 
     async def finalize(
@@ -107,6 +168,7 @@ class RuntimeStrategyModel:
         reason: str,
         phase: StrategyPhase,
         context: StrategyInvocationContext | None = None,
+        tools: StrategyToolSelection | None = None,
     ) -> StrategyModelResult:
         terminal_model = self._final_model
         if terminal_model is None and self._final_model_factory is not None:
@@ -138,6 +200,7 @@ class RuntimeStrategyModel:
                 ),
                 phase=phase,
                 context=context,
+                tools=tools,
             )
         except InstrumentedExecutionError as exc:
             execution = self._runtime_state.execution
