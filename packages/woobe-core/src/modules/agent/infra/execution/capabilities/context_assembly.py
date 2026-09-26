@@ -7,10 +7,10 @@ from uuid import UUID
 
 import uuid6
 
-from modules.agent.application.context_assembly import ContextBudgetExceeded
 from modules.agent.application.interfaces.context_assembler import (
     ContextAssembler,
     ContextAssemblyRequest,
+    ContextBudgetExceeded,
 )
 from modules.agent.application.interfaces.context_policy import ContextPolicyV1
 from modules.agent.application.interfaces.execution import (
