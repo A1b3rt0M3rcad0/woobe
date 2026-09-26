@@ -61,6 +61,7 @@ jobs:
           tests/architecture/test_chat_surface_runtime_boundary.py
           tests/architecture/test_context_assembler_boundary.py
           tests/architecture/test_execution_strategy_boundary.py
+          tests/architecture/test_execution_strategy_ownership.py
           tests/architecture/execution_strategy/test_strategy_import_quality_gate.py
           tests/architecture/test_runtime_client_boundary.py
           tests/architecture/test_runtime_observer_boundary.py
