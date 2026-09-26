@@ -134,10 +134,12 @@ The normal Strategy-facing surface is:
 
 ```text
 ctx.state
+ctx.bootstrap
 ctx.knowledge
 ctx.context
 ctx.model
 ctx.tools
+ctx.output
 await ctx.checkpoint()
 ```
 
@@ -164,6 +166,29 @@ if knowledge.found:
 ```
 
 Retrieving Knowledge and exposing it to the next Model invocation are separate decisions. The runtime owns the concrete Knowledge implementation and evidence; the Strategy owns the orchestration decision.
+
+### Inspect or summarize Context explicitly
+
+Context pressure can be inspected without changing execution:
+
+```python
+inspection = ctx.context.inspect()
+```
+
+If the algorithm decides summarization is appropriate, request it explicitly:
+
+```python
+summary = await ctx.context.summarize(
+    key="session.summary",
+    scope="session",
+    target_units=2_000,
+    phase=PlannerPhase.SUMMARIZATION,
+)
+
+ctx.context.set(summary)
+```
+
+`summarize(...)` performs an instrumented auxiliary Model call but does not mutate active Context by itself. The Strategy owns both decisions: whether to summarize and whether to install the returned contribution.
 
 ### Assemble Context and invoke the Model
 
@@ -215,6 +240,47 @@ await ctx.checkpoint()
 Checkpoint after an algorithm boundary when a restart must resume from the updated State without replaying completed side effects.
 
 The Strategy does not serialize State or construct a recovery cursor.
+
+### Decide fallback explicitly
+
+The Runtime may bind a fallback Model, but it never chooses to use it.
+
+```python
+try:
+    result = await ctx.model.invoke(
+        context=invocation,
+        phase=PlannerPhase.EXECUTION,
+        tools=tools,
+    )
+except InstrumentedExecutionError as exc:
+    if not ctx.model.fallback_available:
+        raise
+    no_tools = ctx.tools.none()
+    fallback_context = await ctx.context.assemble(
+        phase=PlannerPhase.FALLBACK,
+        tools=no_tools,
+    )
+    result = await ctx.model.invoke_fallback(
+        context=fallback_context,
+        primary_error=str(exc),
+        phase=PlannerPhase.FALLBACK,
+        tools=no_tools,
+    )
+```
+
+### Repair structured output explicitly
+
+When structured output is required, the Strategy chooses whether to repair:
+
+```python
+if ctx.output.requires_repair(result):
+    result = await ctx.output.repair(
+        result,
+        phase=PlannerPhase.JSON_REPAIR,
+    )
+```
+
+No repair is executed by the runner after `Completed`.
 
 ### Complete the Strategy
 
