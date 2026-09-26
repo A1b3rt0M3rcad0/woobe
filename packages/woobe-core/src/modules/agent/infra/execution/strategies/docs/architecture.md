@@ -14,10 +14,18 @@ Concrete Strategy
       ▼
 StrategyContext
 ├── state
+├── bootstrap
 ├── knowledge
 ├── context
+│   ├── inspect()
+│   ├── summarize()
+│   └── assemble()
 ├── model
+│   ├── invoke()
+│   ├── invoke_fallback()
+│   └── finalize()
 ├── tools
+├── output
 └── checkpoint()
       │
       ▼
@@ -41,16 +49,24 @@ Execution Capabilities
 
 The concrete Strategy owns algorithm decisions. The Strategy Runtime owns the mechanics required to execute those decisions safely and durably.
 
+The governing rule is:
+
+> **Runtime owns guarantees. Capabilities own mechanisms. ExecutionStrategy owns decisions.**
+
+The runner may build/freeze bindings before `execute(ctx)` and perform terminal bookkeeping after it returns, but it must not execute Model, Tool, Knowledge, Context, fallback or output-repair capabilities around that boundary.
+
 ## What a Strategy owns
 
 Typical Strategy responsibilities include:
 
 ```text
+bootstrap/preflight execution decisions
 Knowledge retrieval timing and query choice
-Context contribution lifecycle
+Context inspection, summarization and contribution lifecycle
 per-invocation Tool selection
-Model invocation order
+Model invocation and fallback order
 Tool-use loop structure
+structured-output repair decisions
 algorithm-local counters
 planning or reflection phases
 stop conditions
@@ -80,6 +96,8 @@ Context contribution restoration
 recovery message reconstruction
 legacy recovery compatibility
 provider/model preparation
+fallback Model binding
+output repair mechanism binding
 final execution result materialization
 ```
 
@@ -114,7 +132,7 @@ if result.has_tool_calls:
     await ctx.checkpoint()
 ```
 
-The Context → Model boundary is explicit: `ctx.model.invoke(...)` never silently assembles Context. The Strategy should not manually maintain message history, call indexes, authorization state or recovery cursors.
+The Context → Model boundary is explicit: `ctx.model.invoke(...)` never silently assembles Context. Fallback and structured-output repair are also explicit Strategy decisions. Context summarization is opt-in: `ctx.context.summarize(...)` returns a contribution and does not add it to active Context until the Strategy calls `ctx.context.set(...)`. The Strategy should not manually maintain message history, call indexes, authorization state or recovery cursors.
 
 ## When the Strategy Runtime should change
 
@@ -150,4 +168,8 @@ The runtime resolves and freezes concrete dependencies; the Strategy orchestrate
 - Tool authorization belongs to the runtime; Tool selection belongs to the Strategy.
 - Model invocation receives an already assembled `StrategyInvocationContext`.
 - Terminal responses use `ctx.context.assemble_final(...)` before `ctx.model.finalize(...)`.
+- Fallback executes only when a Strategy calls `ctx.model.invoke_fallback(...)`.
+- Structured-output repair executes only when a Strategy calls `ctx.output.repair(...)`.
+- Context summarization executes only when a Strategy calls `ctx.context.summarize(...)`.
+- After a Strategy returns `Completed`, the runner may not start another execution capability.
 - Concrete Strategies do not import infrastructure adapters or mutate `InstrumentedExecution` directly.
