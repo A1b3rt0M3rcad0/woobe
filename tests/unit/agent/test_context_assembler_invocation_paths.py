@@ -13,6 +13,9 @@ from modules.agent.application.interfaces.context_assembler import (
 )
 from modules.agent.application.interfaces.execution import InstrumentedExecution
 from modules.agent.infra.execution import structured_json_repair, tool_execution_loop
+from modules.agent.infra.execution.capabilities.context_assembly import (
+    ContextAssemblyCapability,
+)
 
 
 class _UnusedContextAssembler(ContextAssembler):
@@ -95,7 +98,7 @@ class _RepairFactory:
 
 
 @pytest.mark.asyncio
-async def test_json_repair_propagates_context_assembler(monkeypatch) -> None:
+async def test_json_repair_uses_preassembled_context(monkeypatch) -> None:
     context_assembler = _UnusedContextAssembler()
     captured = {}
 
@@ -121,9 +124,15 @@ async def test_json_repair_propagates_context_assembler(monkeypatch) -> None:
         max_tokens=128,
         schema={"type": "object"},
         clean_json_answer=lambda value: value,
-        context_assembler=context_assembler,
+        context_capability=ContextAssemblyCapability(
+            assembler=context_assembler,
+            provider="custom",
+            model_name="test-model",
+            pricing_snapshot=None,
+        ),
     )
 
     assert result.result.content == '{"ok": true}'
     assert captured["phase"] == "json_repair"
-    assert captured["context_assembler"] is context_assembler
+    assert captured["context_prepared"] is True
+    assert "context_assembler" not in captured
