@@ -11,9 +11,11 @@ from modules.agent.application.interfaces.execution_context import current_execu
 from modules.agent.infra.execution.capabilities.context_assembly import (
     ContextAssemblyCapability,
 )
+from modules.agent.infra.execution.capabilities.model_invocation import (
+    ModelInvocationCapability,
+)
 from modules.agent.infra.execution.durable_execution_instrumentation import (
     aggregate_usage,
-    invoke_llm,
     resolve_effective_output_tokens,
 )
 from modules.agent.infra.execution.strategy_runtime.context_manager import (
@@ -93,17 +95,19 @@ class InstrumentedFallbackMixin:
                 tool_selection_mode="none",
                 call_index=call_index,
             )
-            result, call = await invoke_llm(
+            fallback_capability = ModelInvocationCapability(
                 model=fallback_chat_model,
+                provider=fallback_provider,
+                model_name=agent.fallback_model,
+                pricing_snapshot=pricing_snapshot,
+            )
+            result, call = await fallback_capability.invoke(
                 messages=list(fallback_context.messages),
                 # Fallback is a terminal response generation attempt. Reusing the
                 # public final phase keeps standalone and Network streaming semantics
                 # identical while the fallback event preserves provider provenance.
                 phase="final_response_generation",
                 call_index=call_index,
-                provider=fallback_provider,
-                model_name=agent.fallback_model,
-                pricing_snapshot=pricing_snapshot,
                 invocation_id=fallback_context.invocation_id,
                 context_snapshot=fallback_context.snapshot,
                 context_prepared=True,
