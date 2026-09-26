@@ -14,94 +14,38 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  version-consistency-hosted:
-    name: Version consistency (GitHub-hosted)
-    runs-on: ubuntu-24.04
-    continue-on-error: true
-    outputs:
-      outcome: ${{ job.status }}
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
-        with:
-          python-version: "3.14"
-      - name: Verify release package versions
-        run: |
-          set -euo pipefail
-          python scripts/ci/check_package_versions.py
-          python scripts/release/set_platform_version.py "$(tr -d '[:space:]' < VERSION)"
-          git diff --exit-code
-
-
-  version-consistency:
-    name: Version consistency
-    needs: version-consistency-hosted
-    if: ${{ !cancelled() && needs.version-consistency-hosted.outputs.outcome != 'success' }}
+  ci:
+    name: packages
     runs-on: [self-hosted, Linux, X64]
-    timeout-minutes: 10
-    steps:
-      - name: Report fallback activation
-        run: |
-          echo "::warning::GitHub-hosted package-build.yml / Version consistency did not pass; retrying on self-hosted runner."
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
-        with:
-          python-version: "3.14"
-      - name: Verify release package versions
-        run: |
-          set -euo pipefail
-          python scripts/ci/check_package_versions.py
-          python scripts/release/set_platform_version.py "$(tr -d '[:space:]' < VERSION)"
-          git diff --exit-code
-
-  python-packages-hosted:
-    name: Core, API and Workers packages (GitHub-hosted)
-    runs-on: ubuntu-24.04
-    continue-on-error: true
-    outputs:
-      outcome: ${{ job.status }}
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
-        with:
-          python-version: "3.14"
-      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
-      - name: Build and clean-install Python packages
-        run: bash scripts/ci/build_python_packages.sh
-
-
-  python-packages:
-    name: Core, API and Workers packages
-    needs: python-packages-hosted
-    if: ${{ !cancelled() && needs.python-packages-hosted.outputs.outcome != 'success' }}
-    runs-on: [self-hosted, Linux, X64]
-    timeout-minutes: 30
-    steps:
-      - name: Report fallback activation
-        run: |
-          echo "::warning::GitHub-hosted package-build.yml / Core, API and Workers packages did not pass; retrying on self-hosted runner."
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
-        with:
-          python-version: "3.14"
-      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
-      - name: Build and clean-install Python packages
-        run: bash scripts/ci/build_python_packages.sh
-
-  frontend-package-hosted:
-    name: Frontend package (GitHub-hosted)
-    runs-on: ubuntu-24.04
-    continue-on-error: true
-    outputs:
-      outcome: ${{ job.status }}
-    timeout-minutes: 20
+    timeout-minutes: 75
     env:
       VITE_API_URL: http://127.0.0.1:8000
       VITE_CHAT_EMBED_URL: http://127.0.0.1:8081
       VITE_WOOBE_EDITION: core
     steps:
+      - name: Phase · version-consistency
+        run: echo "Running version-consistency"
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.14"
+      - name: Verify release package versions
+        run: |
+          set -euo pipefail
+          python scripts/ci/check_package_versions.py
+          python scripts/release/set_platform_version.py "$(tr -d '[:space:]' < VERSION)"
+          git diff --exit-code
+      - name: Phase · python-packages
+        run: echo "Running python-packages"
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.14"
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
+      - name: Build and clean-install Python packages
+        run: bash scripts/ci/build_python_packages.sh
+      - name: Phase · frontend-package
+        run: echo "Running frontend-package"
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
@@ -118,75 +62,8 @@ jobs:
         run: npm run build
       - name: Verify Frontend artifact
         run: test -d packages/woobe-frontend/dist && test -n "$(find packages/woobe-frontend/dist -type f -print -quit)"
-
-
-  frontend-package:
-    name: Frontend package
-    needs: frontend-package-hosted
-    if: ${{ !cancelled() && needs.frontend-package-hosted.outputs.outcome != 'success' }}
-    runs-on: [self-hosted, Linux, X64]
-    timeout-minutes: 20
-    env:
-      VITE_API_URL: http://127.0.0.1:8000
-      VITE_CHAT_EMBED_URL: http://127.0.0.1:8081
-      VITE_WOOBE_EDITION: core
-    steps:
-      - name: Report fallback activation
-        run: |
-          echo "::warning::GitHub-hosted package-build.yml / Frontend package did not pass; retrying on self-hosted runner."
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
-      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
-        with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: packages/woobe-frontend/package-lock.json
-      - name: Install Frontend dependencies
-        working-directory: packages/woobe-frontend
-        run: npm ci
-      - name: Typecheck shared Runtime client
-        run: packages/woobe-frontend/node_modules/.bin/tsc -p packages/woobe-runtime-client/tsconfig.json --noEmit
-      - name: Build Frontend package
-        working-directory: packages/woobe-frontend
-        run: npm run build
-      - name: Verify Frontend artifact
-        run: test -d packages/woobe-frontend/dist && test -n "$(find packages/woobe-frontend/dist -type f -print -quit)"
-
-  embed-package-hosted:
-    name: Embed package (GitHub-hosted)
-    runs-on: ubuntu-24.04
-    continue-on-error: true
-    outputs:
-      outcome: ${{ job.status }}
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
-      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
-        with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: packages/woobe-embed/package-lock.json
-      - name: Install Embed dependencies
-        working-directory: packages/woobe-embed
-        run: npm ci
-      - name: Typecheck Embed package
-        working-directory: packages/woobe-embed
-        run: npm run typecheck
-      - name: Build Embed package
-        working-directory: packages/woobe-embed
-        run: npm run build
-      - name: Verify Embed artifact
-        run: test -d packages/woobe-embed/dist && test -n "$(find packages/woobe-embed/dist -type f -print -quit)"
-
-  embed-package:
-    name: Embed package
-    needs: embed-package-hosted
-    if: ${{ !cancelled() && needs.embed-package-hosted.outputs.outcome != 'success' }}
-    runs-on: [self-hosted, Linux, X64]
-    timeout-minutes: 20
-    steps:
-      - name: Report fallback activation
-        run: |
-          echo "::warning::GitHub-hosted package-build.yml / Embed package did not pass; retrying on self-hosted runner."
+      - name: Phase · embed-package
+        run: echo "Running embed-package"
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
