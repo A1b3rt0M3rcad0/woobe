@@ -27,6 +27,10 @@ class RuntimeStrategyTools:
         self._capability = capability
         self._runtime_state = runtime_state
 
+    @property
+    def has_any(self) -> bool:
+        return bool(self._capability.tool_name_to_id)
+
     def all(self) -> StrategyToolSelection:
         return StrategyToolSelection(StrategyToolSelectionMode.ALL)
 
