@@ -339,14 +339,10 @@ class TransactionBoundedStructuredOutputRuntime(
                 ttl_seconds=self._execution_state_ttl_seconds,
             )
 
-        rag_context, sources = await self._load_rag_context(
-            agent,
-            input_dto.message,
-            self._transactions,
-        )
+        sources: list[SourceInfo] = []
         messages = self._build_messages(
             agent,
-            rag_context,
+            None,
             history,
             input_dto.message,
             response_format if json_enabled else None,
