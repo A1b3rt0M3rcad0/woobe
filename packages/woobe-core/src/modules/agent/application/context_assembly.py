@@ -11,6 +11,7 @@ from uuid import UUID
 import uuid6
 
 from modules.agent.application.context_policy import ContextPolicyV1, context_policy_hash
+from modules.agent.application.interfaces.context_assembler import ContextBudgetExceeded
 from modules.agent.domain.context import (
     ContextContribution,
     ContextMeasurementStatus,
@@ -20,40 +21,6 @@ from modules.agent.domain.context import (
     ContextSnapshot,
     ContextSourceType,
 )
-
-
-class ContextBudgetExceeded(RuntimeError):
-    def __init__(
-        self,
-        message: str,
-        *,
-        configured_budget_units: int | None = None,
-        effective_budget_units: int | None = None,
-        mandatory_units: int | None = None,
-        model_capacity_units: int | None = None,
-        reserved_output_units: int | None = None,
-        runtime_reserve_units: int = 0,
-    ) -> None:
-        super().__init__(message)
-        self.configured_budget_units = configured_budget_units
-        self.effective_budget_units = effective_budget_units
-        self.mandatory_units = mandatory_units
-        self.model_capacity_units = model_capacity_units
-        self.reserved_output_units = reserved_output_units
-        self.runtime_reserve_units = runtime_reserve_units
-
-    def failure_context(self) -> dict[str, Any]:
-        return {
-            "code": "CONTEXT_BUDGET_EXCEEDED",
-            "context_fit_status": "UNFIT",
-            "configured_budget_units": self.configured_budget_units,
-            "effective_budget_units": self.effective_budget_units,
-            "mandatory_units": self.mandatory_units,
-            "model_capacity_units": self.model_capacity_units,
-            "reserved_output_units": self.reserved_output_units,
-            "runtime_reserve_units": self.runtime_reserve_units,
-            "provider_called": False,
-        }
 
 
 @dataclass(frozen=True, slots=True)
