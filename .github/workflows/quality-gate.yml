@@ -18,6 +18,7 @@ on:
       - "pyproject.toml"
       - "pytest.ini"
       - "uv.lock"
+      - ".github/workflows/tests.yml"
       - ".github/workflows/quality-gate.yml"
       - ".github/workflows/prepare-release.yml"
       - ".github/workflows/release-candidate.yml"
@@ -33,9 +34,13 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  agent-architecture:
+  agent-architecture-hosted:
+    name: agent-architecture (GitHub-hosted)
     runs-on: ubuntu-24.04
+    continue-on-error: true
     timeout-minutes: 10
+    outputs:
+      outcome: ${{ job.status }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
@@ -75,3 +80,53 @@ jobs:
           PYTHONPATH=tooling/quality-gate/src
           uv run python -m quality_gate.architecture.checker
           --policy-dir tooling/quality-gate/src/quality_gate/architecture/policies
+
+  agent-architecture:
+    name: agent-architecture
+    needs: agent-architecture-hosted
+    if: ${{ !cancelled() && needs.agent-architecture-hosted.outputs.outcome != 'success' }}
+    runs-on: [self-hosted, Linux, X64]
+    timeout-minutes: 10
+    steps:
+      - name: Report fallback activation
+        run: |
+          echo "::warning::GitHub-hosted Quality Gate did not pass; retrying on self-hosted runner."
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.14"
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: "1.25.x"
+      - name: Validate GitHub Actions workflows
+        run: |
+          set -euo pipefail
+          go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7 -shellcheck= -color
+      - name: Install development dependencies
+        run: uv sync --frozen --all-groups --extra test
+      - name: Quality gate self-tests
+        run: uv run pytest -q tests/quality_gate
+      - name: Runtime architecture gates
+        run: >-
+          uv run pytest -q
+          tests/architecture/test_chat_surface_runtime_boundary.py
+          tests/architecture/test_context_assembler_boundary.py
+          tests/architecture/test_execution_strategy_boundary.py
+          tests/architecture/execution_strategy/test_strategy_import_quality_gate.py
+          tests/architecture/test_runtime_client_boundary.py
+          tests/architecture/test_runtime_observer_boundary.py
+          tests/architecture/test_runtime_process_composition_packaging.py
+          tests/architecture/test_primary_release_units.py
+      - name: Release workflow state-machine tests
+        run: >-
+          uv run pytest -q
+          tests/unit/test_release_orchestrator.py
+          tests/unit/test_release_workflow_graph.py
+          tests/unit/test_release_registry_state_machine.py
+      - name: Agent architecture policy
+        run: >-
+          PYTHONPATH=tooling/quality-gate/src
+          uv run python -m quality_gate.architecture.checker
+          --policy-dir tooling/quality-gate/src/quality_gate/architecture/policies
+
