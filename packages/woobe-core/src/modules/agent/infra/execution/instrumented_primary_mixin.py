@@ -354,6 +354,8 @@ class InstrumentedPrimaryExecutionMixin:
                     result=None,
                     tool_calls=exc.tool_calls,
                     llm_calls=exc.llm_calls,
+                    knowledge_calls=exc.knowledge_calls,
+                    sources=exc.sources,
                     timeline=exc.timeline,
                     tool_wall_latency_ms=exc.tool_wall_latency_ms,
                     tool_call_duration_sum_ms=exc.tool_call_duration_sum_ms,
