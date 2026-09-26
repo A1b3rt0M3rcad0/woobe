@@ -36,6 +36,9 @@ class RuntimeStrategyKnowledge:
         query: str | None = None,
         phase: StrategyPhase | None = None,
     ) -> StrategyKnowledgeResult:
+        if self._capability.retrieve_fn is None:
+            return StrategyKnowledgeResult(content=None)
+
         result = await self._capability.retrieve(query=query)
         normalized_phase = strategy_phase_value(phase or "knowledge_retrieval")
         occurred_at = utc_iso()
