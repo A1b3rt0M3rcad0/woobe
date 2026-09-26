@@ -134,6 +134,12 @@ class AskAgentUseCase:
             )
             if isinstance(execution, InstrumentedExecution):
                 sources = list(execution.sources)
+                fallback_used = bool(execution.fallback_used)
+                fallback_info_result = execution.fallback_info
+                if fallback_info_result:
+                    fallback_provider_val = fallback_info_result.get(
+                        "fallback_provider"
+                    )
 
             answer = result.content if hasattr(result, "content") else str(result)
 
@@ -209,100 +215,11 @@ class AskAgentUseCase:
             if isinstance(failed_execution, InstrumentedExecution):
                 sources = list(failed_execution.sources)
 
-            if agent.fallback_model and agent.fallback_credential_id:
-                try:
-                    fallback_info_result = {
-                        "primary_model": agent.model,
-                        "primary_provider": (
-                            agent.provider.value
-                            if hasattr(agent.provider, "value")
-                            else agent.provider
-                        ),
-                        "primary_error": llm_error,
-                        "fallback_model": agent.fallback_model,
-                        "fallback_provider": (
-                            agent.fallback_provider.value
-                            if hasattr(agent.fallback_provider, "value")
-                            else agent.fallback_provider
-                        ),
-                    }
-                    (
-                        fallback_result,
-                        fb_provider_val,
-                        fallback_latency,
-                        fallback_info_result,
-                    ) = await self._try_fallback(
-                        agent,
-                        messages,
-                        json_enabled,
-                        llm_error,
-                    )
-                    llm_latency_ms = fallback_latency
-                    fallback_used = True
-                    fallback_provider_val = fb_provider_val
-
-                    result = fallback_result
-                    answer = result.content if hasattr(result, "content") else str(result)
-
-                    parsed_output = None
-                    output_parse_error = None
-                    if json_enabled:
-                        try:
-                            cleaned = self._clean_json_answer(answer)
-                            parsed_output = json.loads(cleaned)
-                        except Exception:
-                            pass
-
-                    raw_usage = normalize_llm_usage(result)
-                    usage = UsageInfo(
-                        input_tokens=raw_usage["input_tokens"],
-                        output_tokens=raw_usage["output_tokens"],
-                        total_tokens=raw_usage["total_tokens"],
-                        cost_usd=raw_usage["cost_usd"],
-                    )
-
-                    response_meta = getattr(result, "response_metadata", None) or {}
-                    response_model = response_meta.get("model", agent.fallback_model)
-                    response_provider = response_meta.get(
-                        "provider",
-                        fallback_provider_val,
-                    )
-
-                    output = await self._finalize(
-                        session,
-                        agent,
-                        input_dto,
-                        trace_id,
-                        answer,
-                        usage,
-                        response_model,
-                        response_provider,
-                        llm_latency_ms,
-                        sources,
-                        parsed_output,
-                        output_parse_error,
-                        tool_calls_recorded,
-                        fallback_used,
-                        fallback_info_result,
-                        json_format_latency_ms,
-                    )
-                    output.latency_ms = round((time.monotonic() - started_at) * 1000)
-                    return output
-                except Exception as fallback_error:
-                    combined_error = f"Primary: {llm_error} | Fallback: {fallback_error}"
-                    await self._fail(
-                        trace_id,
-                        agent,
-                        session,
-                        combined_error,
-                        input_dto,
-                    )
-                    raise ValueError(
-                        f"AI provider error: {combined_error}"
-                    ) from fallback_error
-            else:
-                await self._fail(trace_id, agent, session, llm_error, input_dto)
-                raise ValueError(f"AI provider error: {llm_error}")
+            # Fallback is an ExecutionStrategy decision. The outer runtime only
+            # persists the terminal failure when the selected Strategy cannot
+            # complete through its bound capabilities.
+            await self._fail(trace_id, agent, session, llm_error, input_dto)
+            raise ValueError(f"AI provider error: {llm_error}") from exc
 
     async def _prepare(
         self,
