@@ -73,6 +73,8 @@ async def repair_json_if_needed(
             str(exc),
             llm_calls=execution.llm_calls + exc.llm_calls,
             tool_calls=execution.tool_calls,
+            knowledge_calls=list(execution.knowledge_calls),
+            sources=list(execution.sources),
             timeline=execution.timeline + exc.timeline,
             tool_wall_latency_ms=execution.tool_wall_latency_ms,
             tool_call_duration_sum_ms=execution.tool_call_duration_sum_ms,
