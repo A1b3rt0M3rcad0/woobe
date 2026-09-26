@@ -51,7 +51,7 @@ class StrategyModel(Protocol):
     async def invoke(
         self,
         *,
-        context: StrategyInvocationContext | None = None,
+        context: StrategyInvocationContext,
         tools: StrategyToolSelection | None = None,
         phase: StrategyPhase | None = None,
     ) -> StrategyModelResult: ...
@@ -61,6 +61,6 @@ class StrategyModel(Protocol):
         *,
         reason: str,
         phase: StrategyPhase,
-        context: StrategyInvocationContext | None = None,
+        context: StrategyInvocationContext,
         tools: StrategyToolSelection | None = None,
     ) -> StrategyModelResult: ...
