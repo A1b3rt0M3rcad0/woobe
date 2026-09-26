@@ -165,10 +165,10 @@ The runtime resolves and freezes concrete dependencies; the Strategy orchestrate
 
 - Knowledge retrieval and Knowledge inclusion in Context are separate decisions.
 - Context is assembled for one Model invocation, not globally for an execution.
-- Tool authorization belongs to the runtime; Tool selection belongs to the Strategy.
+- Tool authorization belongs to the runtime; every Model/Context Tool selection belongs explicitly to the Strategy.
 - Model invocation receives an already assembled `StrategyInvocationContext`.
 - Terminal responses use `ctx.context.assemble_final(...)` before `ctx.model.finalize(...)`.
-- Fallback executes only when a Strategy calls `ctx.model.invoke_fallback(...)`.
+- Fallback Context is assembled only when the Strategy selects `StrategyContextTarget.FALLBACK`, and fallback executes only when it calls `ctx.model.invoke_fallback(...)`.
 - Structured-output repair executes only when a Strategy calls `ctx.output.repair(...)`.
 - Context summarization executes only when a Strategy calls `ctx.context.summarize(...)`.
 - After a Strategy returns `Completed`, the runner may not start another execution capability.
