@@ -242,6 +242,51 @@ def test_context_assembly_runtime_contract_covers_every_runtime_state_read() -> 
     )
 
 
+def test_execution_preparation_cannot_retrieve_knowledge() -> None:
+    prepare_paths = (
+        AGENT_EXECUTION / "ask_use_case.py",
+        AGENT_EXECUTION / "explicit_runtime_persistence.py",
+        AGENT_EXECUTION / "transaction_bounded_structured_output.py",
+        AGENT_EXECUTION / "agent_run_recovery_runtime.py",
+    )
+    violations: list[str] = []
+
+    for path in prepare_paths:
+        tree = _tree(path)
+        for node in ast.walk(tree):
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            if "prepare" not in node.name:
+                continue
+            for call in ast.walk(node):
+                if not isinstance(call, ast.Call):
+                    continue
+                if _call_name(call) == "_load_rag_context":
+                    violations.append(
+                        f"{path.relative_to(ROOT).as_posix()}::{node.name} "
+                        "retrieves Knowledge during preparation"
+                    )
+                if (
+                    isinstance(call.func, ast.Attribute)
+                    and call.func.attr == "retrieve"
+                    and isinstance(call.func.value, ast.Attribute)
+                    and call.func.value.attr == "_rag_runtime"
+                ):
+                    violations.append(
+                        f"{path.relative_to(ROOT).as_posix()}::{node.name} "
+                        "calls RAG runtime retrieval during preparation"
+                    )
+
+    legacy_base = (AGENT_EXECUTION / "ask_use_case.py").read_text(encoding="utf-8")
+    legacy_bridge = (
+        AGENT_EXECUTION / "transaction_bounded_rag.py"
+    ).read_text(encoding="utf-8")
+    assert "_load_rag_context" not in legacy_base
+    assert "_load_rag_context" not in legacy_bridge
+    assert "Use the following context when relevant." not in legacy_base
+    assert not violations, "\n".join(violations)
+
+
 def test_every_model_invocation_has_explicit_context_boundary() -> None:
     violations: list[str] = []
 
