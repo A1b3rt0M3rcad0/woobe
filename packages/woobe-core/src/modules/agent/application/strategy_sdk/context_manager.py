@@ -42,3 +42,11 @@ class StrategyContextManager(Protocol):
         phase: str | ExecutionPhase | None = None,
         tools: StrategyToolSelection | None = None,
     ) -> StrategyInvocationContext: ...
+
+    async def assemble_final(
+        self,
+        *,
+        reason: str,
+        phase: str | ExecutionPhase,
+        tools: StrategyToolSelection | None = None,
+    ) -> StrategyInvocationContext: ...
