@@ -55,8 +55,8 @@ class StrategyModel(Protocol):
         self,
         *,
         context: StrategyInvocationContext,
+        phase: StrategyPhase,
         tools: StrategyToolSelection | None = None,
-        phase: StrategyPhase | None = None,
     ) -> StrategyModelResult: ...
 
     async def invoke_fallback(
