@@ -3,12 +3,15 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from langchain_core.messages import SystemMessage
+from langchain_core.messages import HumanMessage, SystemMessage
 
+from modules.agent.application.context_assembly import estimate_input_units
+from modules.agent.application.interfaces.context_policy import ContextPolicyV1
 from modules.agent.application.interfaces.execution import InstrumentedExecutionError
 from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.application.strategy_sdk import (
     StrategyContextContribution,
+    StrategyContextInspection,
     StrategyInvocationContext,
     StrategyPhase,
     StrategyToolSelection,
@@ -26,6 +29,7 @@ from modules.agent.infra.execution.capabilities.preparation import (
     _messages_with_skill_usage,
     _messages_with_tool_grounding,
 )
+from modules.agent.infra.execution.strategy_runtime.model import RuntimeStrategyModel
 from modules.agent.infra.execution.strategy_runtime.runtime_state import (
     StrategyRuntimeState,
 )
@@ -87,6 +91,7 @@ class RuntimeStrategyContextManager:
         "_runtime_state",
         "_base_messages",
         "_final_json_instruction",
+        "_model",
     )
 
     def __init__(
@@ -96,11 +101,13 @@ class RuntimeStrategyContextManager:
         runtime_state: StrategyRuntimeState,
         base_messages: list[Any] | None = None,
         final_json_instruction: str | None = None,
+        model: RuntimeStrategyModel | None = None,
     ) -> None:
         self._capability = capability
         self._runtime_state = runtime_state
         self._base_messages = list(base_messages or runtime_state.messages)
         self._final_json_instruction = final_json_instruction
+        self._model = model
         self._sync_execution_context()
 
     def _sync_execution_context(self) -> None:
@@ -109,6 +116,76 @@ class RuntimeStrategyContextManager:
             execution_context.strategy_context_contributions = dict(
                 self._runtime_state.context_contributions
             )
+
+    def inspect(self) -> StrategyContextInspection:
+        execution_context = current_execution.get()
+        policy = ContextPolicyV1.model_validate(
+            (
+                execution_context.context_policy
+                if execution_context is not None
+                else None
+            )
+            or {}
+        )
+        estimated = sum(
+            estimate_input_units(_serialized_content(getattr(message, "content", "")))
+            for message in self._runtime_state.messages
+        )
+        estimated += sum(
+            estimate_input_units(_serialized_content(item.content))
+            for item in self._contributions()
+        )
+
+        capacity = (
+            execution_context.model_capacity_units
+            if execution_context is not None
+            else None
+        )
+        reserved = (
+            execution_context.reserved_output_units
+            if execution_context is not None
+            else None
+        )
+        model_usable = (
+            max(
+                0,
+                capacity
+                - int(reserved or 0)
+                - int(policy.budget.runtime_reserve_units or 0),
+            )
+            if isinstance(capacity, int) and capacity > 0
+            else None
+        )
+        configured = policy.budget.max_input_units
+        if model_usable is not None and configured is not None:
+            usable = min(model_usable, configured)
+        else:
+            usable = model_usable if model_usable is not None else configured
+
+        utilization = (
+            estimated / usable
+            if isinstance(usable, int) and usable > 0
+            else None
+        )
+        if utilization is None:
+            pressure = "UNKNOWN"
+        elif utilization >= policy.pressure.critical_at:
+            pressure = "CRITICAL"
+        elif utilization >= policy.pressure.high_at:
+            pressure = "HIGH"
+        elif utilization >= policy.pressure.moderate_at:
+            pressure = "MODERATE"
+        else:
+            pressure = "LOW"
+
+        return StrategyContextInspection(
+            message_count=len(self._runtime_state.messages),
+            contribution_count=len(self._contributions()),
+            estimated_input_units=estimated,
+            usable_input_units=usable,
+            utilization=utilization,
+            pressure=pressure,
+        )
 
     def has(self, key: str) -> bool:
         return key in self._runtime_state.context_contributions
@@ -222,6 +299,72 @@ class RuntimeStrategyContextManager:
             invocation_id=result.invocation_id,
             messages=result.messages,
             snapshot=result.snapshot,
+        )
+
+    async def summarize(
+        self,
+        *,
+        key: str = "session.summary",
+        scope: str = "session",
+        target_units: int = 2000,
+        phase: StrategyPhase | None = None,
+    ) -> StrategyContextContribution:
+        if scope != "session":
+            raise ValueError("Context summarize currently supports only session scope")
+        if target_units <= 0:
+            raise ValueError("Context summarize target_units must be positive")
+        if self._model is None:
+            raise RuntimeError("Context summarization Model is not bound")
+
+        source_lines: list[str] = []
+        for message in self._runtime_state.messages:
+            role = type(message).__name__
+            content = _serialized_content(getattr(message, "content", ""))
+            tool_calls = getattr(message, "tool_calls", None) or ()
+            tool_call_id = getattr(message, "tool_call_id", None)
+            suffix = ""
+            if tool_calls:
+                suffix += f" tool_calls={_serialized_content(tool_calls)}"
+            if tool_call_id:
+                suffix += f" tool_call_id={tool_call_id}"
+            source_lines.append(f"[{role}]{suffix}\n{content}")
+
+        summary_phase = phase or "context_summarization"
+        summary_messages = [
+            SystemMessage(
+                content=(
+                    "Summarize the supplied Session context for later Agent reasoning. "
+                    "Preserve concrete facts, decisions, constraints, unresolved work, "
+                    "important Tool results and identifiers. Do not invent information. "
+                    f"Aim for at most approximately {target_units} input units."
+                )
+            ),
+            HumanMessage(content="\n\n".join(source_lines)),
+        ]
+        no_tools = StrategyToolSelection(StrategyToolSelectionMode.NONE)
+        invocation = await self._assemble_messages(
+            messages=summary_messages,
+            phase=summary_phase,
+            tools=no_tools,
+        )
+        result = await self._model.invoke_auxiliary(
+            context=invocation,
+            tools=no_tools,
+            phase=summary_phase,
+        )
+        content = result.content
+        if not isinstance(content, str) or not content.strip():
+            raise RuntimeError("Context summarization returned no textual content")
+        return StrategyContextContribution(
+            key=key,
+            source_type="SESSION",
+            content=content,
+            metadata={
+                "selection_method": "strategy_context_summary",
+                "scope": scope,
+                "target_units": target_units,
+                "source_message_count": len(self._runtime_state.messages),
+            },
         )
 
     async def assemble(
