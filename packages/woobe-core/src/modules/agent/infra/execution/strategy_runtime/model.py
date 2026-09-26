@@ -132,6 +132,7 @@ class RuntimeStrategyModel:
         phase: StrategyPhase,
         context: StrategyInvocationContext,
         tools: StrategyToolSelection | None = None,
+        record_message: bool = True,
     ) -> StrategyModelResult:
         call_index = self._runtime_state.next_call_index()
         effective_capability = (
@@ -164,8 +165,26 @@ class RuntimeStrategyModel:
             ) from exc
 
         self._runtime_state.record_model_call(call)
-        self._runtime_state.record_model_message(result)
+        if record_message:
+            self._runtime_state.record_model_message(result)
         return StrategyModelResult(message=result)
+
+    async def invoke_auxiliary(
+        self,
+        *,
+        context: StrategyInvocationContext,
+        tools: StrategyToolSelection | None,
+        phase: StrategyPhase,
+    ) -> StrategyModelResult:
+        """Run a Strategy-requested auxiliary Model call without extending chat history."""
+
+        return await self._invoke(
+            capability=self._capability,
+            phase=phase,
+            context=context,
+            tools=tools,
+            record_message=False,
+        )
 
     async def invoke(
         self,
