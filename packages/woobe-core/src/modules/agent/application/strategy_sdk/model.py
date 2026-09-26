@@ -56,7 +56,7 @@ class StrategyModel(Protocol):
         *,
         context: StrategyInvocationContext,
         phase: StrategyPhase,
-        tools: StrategyToolSelection | None = None,
+        tools: StrategyToolSelection,
     ) -> StrategyModelResult: ...
 
     async def invoke_fallback(
@@ -65,7 +65,7 @@ class StrategyModel(Protocol):
         context: StrategyInvocationContext,
         primary_error: str,
         phase: StrategyPhase,
-        tools: StrategyToolSelection | None = None,
+        tools: StrategyToolSelection,
     ) -> StrategyModelResult: ...
 
     async def finalize(
@@ -74,5 +74,5 @@ class StrategyModel(Protocol):
         reason: str,
         phase: StrategyPhase,
         context: StrategyInvocationContext,
-        tools: StrategyToolSelection | None = None,
+        tools: StrategyToolSelection,
     ) -> StrategyModelResult: ...
