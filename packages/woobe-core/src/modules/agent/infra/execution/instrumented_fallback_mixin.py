@@ -81,18 +81,18 @@ class InstrumentedFallbackMixin:
                 fallback_messages,
                 tuple(context.strategy_context_contributions.values()),
             )
-        fallback_context = ContextAssemblyCapability(
-            assembler=getattr(self, "_context_assembler", None),
-            provider=fallback_provider,
-            model_name=agent.fallback_model,
-            pricing_snapshot=pricing_snapshot,
-        ).assemble(
-            messages=fallback_messages,
-            phase="final_response_generation",
-            tool_selection_mode="none",
-        )
-
         try:
+            fallback_context = ContextAssemblyCapability(
+                assembler=getattr(self, "_context_assembler", None),
+                provider=fallback_provider,
+                model_name=agent.fallback_model,
+                pricing_snapshot=pricing_snapshot,
+            ).assemble(
+                messages=fallback_messages,
+                phase="final_response_generation",
+                tool_selection_mode="none",
+                call_index=call_index,
+            )
             result, call = await invoke_llm(
                 model=fallback_chat_model,
                 messages=list(fallback_context.messages),
