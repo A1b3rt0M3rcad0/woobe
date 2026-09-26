@@ -339,7 +339,7 @@ class TransactionBoundedStructuredOutputRuntime(
                 ttl_seconds=self._execution_state_ttl_seconds,
             )
 
-        sources: list[SourceInfo] = []
+        sources = []
         messages = self._build_messages(
             agent,
             None,
