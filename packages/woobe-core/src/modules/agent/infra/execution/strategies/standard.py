@@ -103,6 +103,7 @@ class StandardExecutionStrategy(ExecutionStrategy[StandardExecutionState]):
         )
         result = await ctx.model.invoke(
             context=invocation,
+            tools=tools,
             phase=state.phase,
         )
 
@@ -147,6 +148,7 @@ class StandardExecutionStrategy(ExecutionStrategy[StandardExecutionState]):
                 )
                 result = await ctx.model.invoke(
                     context=invocation,
+                    tools=tools,
                     phase=state.phase,
                 )
             except InstrumentedExecutionError:
