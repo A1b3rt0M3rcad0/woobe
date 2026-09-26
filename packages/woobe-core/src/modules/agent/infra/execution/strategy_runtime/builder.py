@@ -145,6 +145,7 @@ def build_strategy_context_from_capabilities(
         tools=runtime_tools,
         knowledge=RuntimeStrategyKnowledge(
             capability=capabilities.knowledge,
+            runtime_state=runtime_state,
         ),
         context=RuntimeStrategyContextManager(
             capability=capabilities.context,
