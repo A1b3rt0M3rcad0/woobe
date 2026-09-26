@@ -209,6 +209,54 @@ def test_context_assembly_keeps_mandatory_input_and_only_recent_session_messages
     ]
 
 
+def test_session_window_counts_historical_tool_messages_without_losing_provenance():
+    policy = ContextPolicyV1.model_validate(
+        {"session": {"max_messages": 2}}
+    )
+    result = _assemble(
+        [
+            SystemMessage(content="system"),
+            HumanMessage(content="old question"),
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "id": "call-1",
+                        "name": "lookup",
+                        "args": {"query": "old"},
+                        "type": "tool_call",
+                    }
+                ],
+            ),
+            ToolMessage(content="old result", tool_call_id="call-1"),
+            HumanMessage(content="current"),
+        ],
+        policy=policy,
+    )
+
+    assert not any(
+        isinstance(message, HumanMessage) and message.content == "old question"
+        for message in result.messages
+    )
+    assistant_index = next(
+        index
+        for index, message in enumerate(result.messages)
+        if isinstance(message, AIMessage) and message.tool_calls
+    )
+    assert isinstance(result.messages[assistant_index + 1], ToolMessage)
+    assert result.messages[assistant_index + 1].tool_call_id == "call-1"
+    tool_contribution = next(
+        item
+        for item in result.snapshot.contributions
+        if item.source_type == ContextSourceType.TOOL
+    )
+    assert tool_contribution.source_type == ContextSourceType.TOOL
+    assert (
+        result.snapshot.manifest["exclusion_reasons"]["session_window"]["SESSION"]
+        == 1
+    )
+
+
 def test_current_user_contribution_uses_durable_message_id_when_available():
     message_id = uuid4()
     runtime = _runtime_context(input_message_id=message_id)

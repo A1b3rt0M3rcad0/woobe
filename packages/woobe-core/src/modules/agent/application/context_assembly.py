@@ -558,15 +558,31 @@ def _contribution(
     )
 
 
+def _is_session_history_index(
+    index: int,
+    source: ContextSourceType,
+    latest_user_index: int | None,
+) -> bool:
+    if source == ContextSourceType.SESSION:
+        return True
+    return (
+        source == ContextSourceType.TOOL
+        and latest_user_index is not None
+        and index < latest_user_index
+    )
+
+
 def _session_keep_indices(
     messages: list[Any],
     sources: list[ContextSourceType],
     policy: ContextPolicyV1,
+    *,
+    latest_user_index: int | None,
 ) -> tuple[set[int], set[int]]:
     indices = [
         index
         for index, source in enumerate(sources)
-        if source == ContextSourceType.SESSION
+        if _is_session_history_index(index, source, latest_user_index)
     ]
     selected = indices[-policy.session.max_messages :]
     if policy.session.max_units is None:
@@ -683,7 +699,12 @@ def assemble_context(
     if ContextSourceType.SYSTEM not in allowed or current_source not in allowed:
         raise ContextBudgetExceeded("Context Policy excludes mandatory context sources")
 
-    session_keep, session_trimmed = _session_keep_indices(working, sources, policy)
+    session_keep, session_trimmed = _session_keep_indices(
+        working,
+        sources,
+        policy,
+        latest_user_index=latest_user_index,
+    )
     keep = [True] * len(working)
     exclusions: dict[str, int] = {}
     exclusion_reasons: dict[str, dict[str, int]] = {}
@@ -702,7 +723,10 @@ def assemble_context(
         ):
             keep[index] = False
             record_exclusion(source, "source_not_allowed")
-        elif source == ContextSourceType.SESSION and index not in session_keep:
+        elif (
+            _is_session_history_index(index, source, latest_user_index)
+            and index not in session_keep
+        ):
             keep[index] = False
             record_exclusion(source, "session_window")
 
@@ -800,7 +824,14 @@ def assemble_context(
             for index, source in enumerate(sources):
                 if overflow <= 0:
                     break
-                if keep[index] and source == ContextSourceType.SESSION:
+                if (
+                    keep[index]
+                    and _is_session_history_index(
+                        index,
+                        source,
+                        latest_user_index,
+                    )
+                ):
                     units = estimate_input_units(_message_text(working[index]))
                     keep[index] = False
                     record_exclusion(source, "global_budget")
