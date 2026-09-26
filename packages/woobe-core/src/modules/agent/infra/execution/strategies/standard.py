@@ -115,6 +115,13 @@ class StandardExecutionStrategy(ExecutionStrategy[StandardExecutionState]):
                 await ctx.checkpoint(ExecutionCheckpointBoundary.PREFLIGHT)
             state.preflight_resolved = True
 
+        if state.phase is None:
+            state.phase = (
+                StandardPhase.CAPABILITY_RESPONSE_GENERATION.value
+                if ctx.tools.has_any
+                else StandardPhase.RESPONSE_GENERATION.value
+            )
+
         if not state.knowledge_resolved:
             knowledge = await ctx.knowledge.retrieve(
                 phase="knowledge_retrieval",
