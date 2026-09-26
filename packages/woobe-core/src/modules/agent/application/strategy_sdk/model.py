@@ -48,12 +48,24 @@ class StrategyModelResult:
 class StrategyModel(Protocol):
     """Model operations available to an Execution Strategy."""
 
+    @property
+    def fallback_available(self) -> bool: ...
+
     async def invoke(
         self,
         *,
         context: StrategyInvocationContext,
         tools: StrategyToolSelection | None = None,
         phase: StrategyPhase | None = None,
+    ) -> StrategyModelResult: ...
+
+    async def invoke_fallback(
+        self,
+        *,
+        context: StrategyInvocationContext,
+        primary_error: str,
+        phase: StrategyPhase,
+        tools: StrategyToolSelection | None = None,
     ) -> StrategyModelResult: ...
 
     async def finalize(
