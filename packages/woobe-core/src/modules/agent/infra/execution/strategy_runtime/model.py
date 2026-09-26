@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Callable
 
 from modules.agent.application.interfaces.execution import InstrumentedExecutionError
 from modules.agent.application.strategy_sdk import (
@@ -14,6 +14,8 @@ from modules.agent.application.strategy_sdk import (
 from modules.agent.infra.execution.capabilities.model_invocation import (
     ModelInvocationCapability,
 )
+from modules.agent.infra.execution.capabilities.preparation import PreparedFallbackModel
+from modules.agent.infra.execution.runtime_streaming import emit_runtime_event
 from modules.agent.infra.execution.strategy_runtime.runtime_state import StrategyRuntimeState
 
 
@@ -26,6 +28,7 @@ class RuntimeStrategyModel:
         "_initial_phase",
         "_final_model",
         "_final_model_factory",
+        "_fallback_model_factory",
         "_tool_definitions",
         "_bound_capabilities",
     )
@@ -38,6 +41,7 @@ class RuntimeStrategyModel:
         initial_phase: str,
         final_model: Any | None,
         final_model_factory: Any | None,
+        fallback_model_factory: Callable[[], PreparedFallbackModel] | None,
         tool_definitions: list[dict[str, Any]] | None = None,
     ) -> None:
         self._capability = capability
@@ -45,11 +49,22 @@ class RuntimeStrategyModel:
         self._initial_phase = initial_phase
         self._final_model = final_model
         self._final_model_factory = final_model_factory
+        self._fallback_model_factory = fallback_model_factory
         self._tool_definitions = list(tool_definitions or [])
         self._bound_capabilities: dict[
             tuple[str, tuple[str, ...]],
             ModelInvocationCapability,
         ] = {}
+
+    def set_fallback_model_factory(
+        self,
+        factory: Callable[[], PreparedFallbackModel] | None,
+    ) -> None:
+        self._fallback_model_factory = factory
+
+    @property
+    def fallback_available(self) -> bool:
+        return self._fallback_model_factory is not None
 
     def _capability_for_tools(
         self,
@@ -165,6 +180,40 @@ class RuntimeStrategyModel:
             context=context,
             tools=tools,
         )
+
+    async def invoke_fallback(
+        self,
+        *,
+        context: StrategyInvocationContext,
+        primary_error: str,
+        phase: StrategyPhase,
+        tools: StrategyToolSelection | None = None,
+    ) -> StrategyModelResult:
+        factory = self._fallback_model_factory
+        if factory is None:
+            raise RuntimeError("Fallback Model is not bound for this Strategy")
+
+        binding = factory()
+        info = {
+            **binding.metadata,
+            "primary_error": primary_error,
+        }
+        await emit_runtime_event("fallback", **info)
+        capability = ModelInvocationCapability(
+            model=binding.model,
+            provider=binding.provider,
+            model_name=binding.model_name,
+            pricing_snapshot=binding.pricing_snapshot,
+        )
+        result = await self._invoke(
+            capability=capability,
+            phase=phase,
+            context=context,
+            tools=tools,
+        )
+        self._runtime_state.execution.fallback_used = True
+        self._runtime_state.execution.fallback_info = info
+        return result
 
     async def finalize(
         self,
