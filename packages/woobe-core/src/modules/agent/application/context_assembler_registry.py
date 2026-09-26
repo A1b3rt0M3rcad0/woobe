@@ -14,6 +14,11 @@ from modules.agent.application.interfaces.context_assembler import (
     ContextAssemblerSelection,
     ContextAssemblyOutput,
     ContextAssemblyRequest,
+    ContextCompactionOutput,
+    ContextCompactionRequest,
+    ContextInspectionOutput,
+    ContextInspectionRequest,
+    ContextManagerCapabilities,
     context_assembler_selection_from_runtime_config,
 )
 from shared.contracts.errors import ValidationError
@@ -325,21 +330,21 @@ def build_context_assembler(
 
 
 class RegistryContextAssembler:
-    """Concurrency-safe dispatcher that executes the frozen strategy from each snapshot."""
+    """Concurrency-safe dispatcher for the frozen Context Manager strategy."""
 
     __slots__ = ("_registry",)
 
     def __init__(self, registry: ContextAssemblerRegistry) -> None:
         self._registry = registry
 
-    def assemble(self, request: ContextAssemblyRequest) -> ContextAssemblyOutput:
+    def _resolve(self, runtime_context) -> ContextAssembler:
         strategy_name = getattr(
-            request.runtime_context,
+            runtime_context,
             "context_assembler_strategy_name",
             None,
         )
         strategy_version = getattr(
-            request.runtime_context,
+            runtime_context,
             "context_assembler_strategy_version",
             None,
         )
@@ -349,9 +354,8 @@ class RegistryContextAssembler:
                 version=strategy_version,
             )
         else:
-            # Compatibility for historical Runs that only carried selection identity.
-            name = getattr(request.runtime_context, "context_assembler_name", None)
-            version = getattr(request.runtime_context, "context_assembler_version", None)
+            name = getattr(runtime_context, "context_assembler_name", None)
+            version = getattr(runtime_context, "context_assembler_version", None)
             selection_key = (
                 ContextAssemblerKey(name=name, version=version)
                 if name and version
@@ -362,7 +366,26 @@ class RegistryContextAssembler:
                 if selection_key == LEGACY_DEFAULT_CONTEXT_ASSEMBLER_KEY
                 else selection_key
             )
-        return self._registry.create_strategy(strategy_key).assemble(request)
+        return self._registry.create_strategy(strategy_key)
+
+    def inspect(
+        self,
+        request: ContextInspectionRequest,
+    ) -> ContextInspectionOutput:
+        return self._resolve(request.runtime_context).inspect(request)
+
+    async def compact(
+        self,
+        request: ContextCompactionRequest,
+        capabilities: ContextManagerCapabilities,
+    ) -> ContextCompactionOutput:
+        return await self._resolve(request.runtime_context).compact(
+            request,
+            capabilities,
+        )
+
+    def assemble(self, request: ContextAssemblyRequest) -> ContextAssemblyOutput:
+        return self._resolve(request.runtime_context).assemble(request)
 
 
 def build_runtime_context_assembler(

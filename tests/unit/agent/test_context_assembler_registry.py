@@ -26,6 +26,11 @@ from modules.agent.application.interfaces.context_assembler import (
     ContextAssemblerKey,
     ContextAssemblyOutput,
     ContextAssemblyRequest,
+    ContextCompactionOutput,
+    ContextCompactionRequest,
+    ContextInspectionOutput,
+    ContextInspectionRequest,
+    ContextManagerCapabilities,
     context_assembler_selection_from_runtime_config,
 )
 from modules.agent.application.interfaces.context_policy import ContextPolicyV1
@@ -33,6 +38,24 @@ from shared.contracts.errors import ValidationError
 
 
 class _AlternateContextAssembler:
+    def inspect(self, request: ContextInspectionRequest) -> ContextInspectionOutput:
+        return ContextInspectionOutput(
+            message_count=len(request.messages),
+            contribution_count=len(request.contributions),
+            estimated_input_units=0,
+            usable_input_units=None,
+            utilization=None,
+            pressure="UNKNOWN",
+        )
+
+    async def compact(
+        self,
+        request: ContextCompactionRequest,
+        capabilities: ContextManagerCapabilities,
+    ) -> ContextCompactionOutput:
+        del request, capabilities
+        return ContextCompactionOutput(changed=False)
+
     def assemble(self, request: ContextAssemblyRequest) -> ContextAssemblyOutput:
         return SimpleNamespace(messages=request.messages, snapshot=SimpleNamespace())
 

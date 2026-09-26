@@ -14,6 +14,7 @@ from modules.agent.application.strategy_sdk import (
     ExecutionState,
     ExecutionStopReason,
     StrategyBootstrap,
+    StrategyContextCompactionResult,
     StrategyInvocationContext,
     StrategyKnowledgeQueryPolicy,
     StrategyKnowledgeResult,
@@ -60,6 +61,7 @@ class _ContextManager:
     def __init__(self) -> None:
         self.contributions = {}
         self.calls: list[tuple[str | None, StrategyToolSelection | None]] = []
+        self.compaction_phases: list[str] = []
 
     def has(self, key: str) -> bool:
         return key in self.contributions
@@ -69,6 +71,11 @@ class _ContextManager:
 
     def remove(self, key: str) -> None:
         self.contributions.pop(key, None)
+
+    async def compact(self, *, phase=None):
+        normalized_phase = str(getattr(phase, "value", phase))
+        self.compaction_phases.append(normalized_phase)
+        return StrategyContextCompactionResult(changed=False)
 
     async def assemble(self, *, phase=None, tools=None):
         normalized_phase = str(getattr(phase, "value", phase))

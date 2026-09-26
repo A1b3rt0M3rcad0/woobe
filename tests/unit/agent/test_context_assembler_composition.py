@@ -8,6 +8,11 @@ from modules.agent.application.interfaces.context_assembler import (
     ContextAssembler,
     ContextAssemblyOutput,
     ContextAssemblyRequest,
+    ContextCompactionOutput,
+    ContextCompactionRequest,
+    ContextInspectionOutput,
+    ContextInspectionRequest,
+    ContextManagerCapabilities,
 )
 from modules.agent.composition.factories.ask_agent_runtime_factory import (
     build_ask_agent_handler,
@@ -25,6 +30,24 @@ def _assert_registry_context_assembler(runtime) -> None:
 
 
 class _AlternateContextAssembler:
+    def inspect(self, request: ContextInspectionRequest) -> ContextInspectionOutput:
+        return ContextInspectionOutput(
+            message_count=len(request.messages),
+            contribution_count=len(request.contributions),
+            estimated_input_units=0,
+            usable_input_units=None,
+            utilization=None,
+            pressure="UNKNOWN",
+        )
+
+    async def compact(
+        self,
+        request: ContextCompactionRequest,
+        capabilities: ContextManagerCapabilities,
+    ) -> ContextCompactionOutput:
+        del request, capabilities
+        return ContextCompactionOutput(changed=False)
+
     def assemble(self, request: ContextAssemblyRequest) -> ContextAssemblyOutput:
         raise AssertionError("Composition test does not execute Context Assembly")
 
