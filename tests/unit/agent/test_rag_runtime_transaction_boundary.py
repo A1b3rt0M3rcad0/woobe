@@ -12,9 +12,15 @@ from modules.agent.application.interfaces.execution_context import (
 from modules.agent.application.rag.registry import RAGStrategyRegistry
 from modules.agent.application.rag.strategies.classic import ClassicRAGStrategy
 from modules.agent.infra.execution.rag import embedding_capability as embedding_module
+from modules.agent.infra.execution.capabilities.knowledge_retrieval import (
+    KnowledgeRetrievalCapability,
+)
 from modules.agent.infra.execution.rag.runtime_adapter import RAGRuntimeAdapter
-from modules.agent.infra.execution.transaction_bounded_rag import (
-    TransactionBoundedVectorSnapshotRAGMixin,
+from modules.agent.infra.execution.strategy_runtime.knowledge import (
+    RuntimeStrategyKnowledge,
+)
+from modules.agent.infra.execution.strategy_runtime.runtime_state import (
+    StrategyRuntimeState,
 )
 
 
@@ -75,10 +81,6 @@ class _VectorSearch:
         return await self.guard.read(sql_read)
 
 
-class _RAGRuntime(TransactionBoundedVectorSnapshotRAGMixin):
-    pass
-
-
 @pytest.mark.asyncio
 async def test_rag_embedding_is_external_and_vector_search_is_read_only(monkeypatch) -> None:
     guard = _Guard()
@@ -121,8 +123,6 @@ async def test_rag_embedding_is_external_and_vector_search_is_read_only(monkeypa
         vector_search=_VectorSearch(guard, snapshot_id, chunk),
         encryption_key="test-key",
     )
-    runtime = _RAGRuntime()
-    runtime.configure_rag_runtime(adapter)
     agent = SimpleNamespace(
         id=agent_id,
         project_id=project_id,
@@ -150,22 +150,36 @@ async def test_rag_embedding_is_external_and_vector_search_is_read_only(monkeypa
     }
 
     monkeypatch.setattr(embedding_module, "decrypt_secret", lambda *_args: "embedding-key")
+    async def retrieve(query: str):
+        return await adapter.retrieve(
+            agent=agent,
+            query=query,
+            history=(),
+        )
+
+    state = StrategyRuntimeState()
+    knowledge = RuntimeStrategyKnowledge(
+        capability=KnowledgeRetrievalCapability(
+            retrieve_fn=retrieve,
+            default_query="what is Woobe?",
+        ),
+        runtime_state=state,
+    )
+
     token = current_execution.set(context)
     try:
-        rag_context, sources = await runtime._load_rag_context(
-            agent,
-            "what is Woobe?",
-            object(),
-        )
+        result = await knowledge.retrieve()
     finally:
         current_execution.reset(token)
 
     assert client.calls == 1
     assert guard.write_calls == 0
     assert guard.read_calls == 1
-    assert rag_context is not None
-    assert "Woobe is the control plane." in rag_context
-    assert len(sources) == 1
-    assert sources[0].document_id == str(document_id)
+    assert result.content is not None
+    assert "Woobe is the control plane." in result.content
+    assert len(result.sources) == 1
+    assert result.sources[0].document_id == str(document_id)
+    assert len(state.execution.knowledge_calls) == 1
+    assert state.execution.knowledge_calls[0]["status"] == "success"
     assert context.rag_metadata["strategy"] == "classic"
     assert context.rag_metadata["vector_snapshot_id"] == str(snapshot_id)
