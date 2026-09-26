@@ -21,7 +21,7 @@ class _UnusedContextAssembler(ContextAssembler):
 
 
 @pytest.mark.asyncio
-async def test_tool_loop_propagates_same_assembler_across_model_invocations(
+async def test_tool_loop_does_not_propagate_context_assembler_into_model_invocations(
     monkeypatch,
 ) -> None:
     context_assembler = _UnusedContextAssembler()
@@ -81,11 +81,7 @@ async def test_tool_loop_propagates_same_assembler_across_model_invocations(
         context_assembler=context_assembler,
     )
 
-    assert captured_assemblers == [
-        context_assembler,
-        context_assembler,
-        context_assembler,
-    ]
+    assert captured_assemblers == [None, None, None]
     assert [call["phase"] for call in execution.llm_calls] == [
         "capability_response_generation",
         "tool_followup_1",
