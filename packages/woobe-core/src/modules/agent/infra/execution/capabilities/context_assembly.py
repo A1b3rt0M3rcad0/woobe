@@ -6,17 +6,12 @@ from uuid import UUID
 
 import uuid6
 
-from modules.agent.application.context_policy import ContextPolicyV1
+from modules.agent.application.interfaces.context_policy import ContextPolicyV1
 from modules.agent.application.interfaces.context_assembler import (
     ContextAssembler,
     ContextAssemblyRequest,
 )
 from modules.agent.application.interfaces.execution_context import current_execution
-from modules.agent.application.strategy_sdk import (
-    StrategyToolSelection,
-    StrategyToolSelectionMode,
-)
-
 
 def _positive_int(value: Any) -> int | None:
     if isinstance(value, int) and not isinstance(value, bool) and value > 0:
@@ -67,16 +62,19 @@ class ContextAssemblyCapability:
 
     def _selected_tool_definitions(
         self,
-        selection: StrategyToolSelection | None,
+        mode: str | None,
+        names: tuple[str, ...],
     ) -> list[dict[str, Any]] | None:
-        if selection is None:
+        if mode is None:
             return None
-        if selection.mode is StrategyToolSelectionMode.NONE:
+        if mode == "none":
             return []
-        if selection.mode is StrategyToolSelectionMode.ALL:
+        if mode == "all":
             return [dict(definition) for definition in self.tool_definitions]
+        if mode != "explicit":
+            raise ValueError(f"Unsupported Tool selection mode: {mode}")
 
-        requested = set(selection.names)
+        requested = set(names)
         selected = [
             dict(definition)
             for definition in self.tool_definitions
@@ -100,7 +98,8 @@ class ContextAssemblyCapability:
         *,
         messages: list[Any],
         phase: str,
-        tools: StrategyToolSelection | None = None,
+        tool_selection_mode: str | None = None,
+        tool_selection_names: tuple[str, ...] = (),
         invocation_id: UUID | None = None,
     ) -> ContextAssemblyResult:
         resolved_invocation_id = invocation_id or uuid6.uuid7()
@@ -128,7 +127,10 @@ class ContextAssemblyCapability:
             previous_reserved,
             self.pricing_snapshot,
         )
-        selected_tools = self._selected_tool_definitions(tools)
+        selected_tools = self._selected_tool_definitions(
+            tool_selection_mode,
+            tool_selection_names,
+        )
         if selected_tools is not None:
             context.active_tool_definitions = selected_tools
         elif phase in {"final_response_generation", "json_repair"}:
