@@ -134,7 +134,6 @@ def build_strategy_context_from_capabilities(
     runtime_model = RuntimeStrategyModel(
         capability=capabilities.model,
         runtime_state=runtime_state,
-        initial_phase=initial_phase,
         final_model=final_model,
         final_model_factory=final_model_factory,
         fallback_model_factory=None,
