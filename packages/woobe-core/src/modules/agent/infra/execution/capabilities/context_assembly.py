@@ -70,6 +70,11 @@ class ContextAssemblyCapability:
         if mode == "none":
             return []
         if mode == "all":
+            if not self.tool_definitions:
+                # Compatibility callers may provide an already-bound model without
+                # the original definitions. Preserve the runtime's existing Tool
+                # metadata instead of interpreting that as an explicit empty set.
+                return None
             return [dict(definition) for definition in self.tool_definitions]
         if mode != "explicit":
             raise ValueError(f"Unsupported Tool selection mode: {mode}")
