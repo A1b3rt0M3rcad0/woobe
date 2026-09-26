@@ -15,6 +15,8 @@ class InstrumentedExecution:
     tool_wall_latency_ms: int = 0
     tool_call_duration_sum_ms: int = 0
     failure_context: dict[str, Any] | None = None
+    fallback_used: bool = False
+    fallback_info: dict[str, Any] | None = None
 
 
 class InstrumentedExecutionError(RuntimeError):
