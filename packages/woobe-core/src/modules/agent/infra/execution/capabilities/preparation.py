@@ -128,7 +128,14 @@ def _fallback_pricing_snapshot(request: ExecutionStrategyRequest) -> dict[str, A
     return value if isinstance(value, dict) else None
 
 
-def _knowledge_query_policy(runtime_config: Any) -> tuple[str, int]:
+def _knowledge_query_policy(
+    runtime_config: Any,
+    *,
+    enabled: bool,
+) -> tuple[str, int]:
+    if not enabled:
+        return "conversation_context", 3
+
     raw_rag = (
         runtime_config.get("rag")
         if isinstance(runtime_config, dict)
@@ -242,7 +249,10 @@ def prepare_execution(request: ExecutionStrategyRequest) -> PreparedExecution:
     agent = request.agent
     provider = agent.provider.value if hasattr(agent.provider, "value") else str(agent.provider)
     runtime_config = (agent.settings or {}).get("runtime_config")
-    knowledge_query_mode, knowledge_history_turns = _knowledge_query_policy(runtime_config)
+    knowledge_query_mode, knowledge_history_turns = _knowledge_query_policy(
+        runtime_config,
+        enabled=request.knowledge_retrieve is not None,
+    )
     has_skill_config = isinstance(runtime_config, dict) and bool(runtime_config.get("skills"))
     if has_skill_config:
         if _skill_snapshots_resolver is None or _skill_runtime_factory is None:
