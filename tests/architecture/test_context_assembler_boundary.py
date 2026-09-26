@@ -252,13 +252,15 @@ def test_every_model_invocation_has_explicit_context_boundary() -> None:
                 continue
             name = _call_name(node)
             if name == "invoke_llm":
-                if not (
-                    _has_keyword(node, "context_assembler")
-                    or _has_keyword(node, "context_prepared")
-                ):
+                if _has_keyword(node, "context_assembler"):
                     violations.append(
                         f"{path.relative_to(ROOT).as_posix()} calls invoke_llm(...) "
-                        "without an explicit Context boundary"
+                        "with the forbidden context_assembler compatibility path"
+                    )
+                if not _has_keyword(node, "context_prepared"):
+                    violations.append(
+                        f"{path.relative_to(ROOT).as_posix()} calls invoke_llm(...) "
+                        "without an explicitly prepared Context"
                     )
             elif name in {"run_tool_loop", "run_instrumented_execution"}:
                 if not _has_keyword(node, "context_assembler"):
@@ -274,6 +276,21 @@ def test_every_model_invocation_has_explicit_context_boundary() -> None:
                     )
 
     assert not violations, "\n".join(violations)
+
+
+def test_model_instrumentation_does_not_own_context_assembly() -> None:
+    path = AGENT_EXECUTION / "execution_instrumentation.py"
+    source = path.read_text(encoding="utf-8")
+    imports: list[str] = []
+    for node in ast.walk(_tree(path)):
+        if isinstance(node, ast.ImportFrom) and node.module:
+            imports.append(node.module)
+        elif isinstance(node, ast.Import):
+            imports.extend(alias.name for alias in node.names)
+
+    assert "modules.agent.application.interfaces.context_assembler" not in imports
+    assert "_assemble_invocation_context" not in source
+    assert "context_assembler" not in source
 
 
 def test_model_invocation_capability_does_not_own_context_assembly() -> None:
