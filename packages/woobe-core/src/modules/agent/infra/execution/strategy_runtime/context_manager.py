@@ -5,6 +5,7 @@ from typing import Any
 
 from langchain_core.messages import SystemMessage
 
+from modules.agent.application.interfaces.execution import InstrumentedExecutionError
 from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.application.strategy_sdk import (
     StrategyContextContribution,
@@ -121,16 +122,38 @@ class RuntimeStrategyContextManager:
             self._runtime_state.messages,
             contributions,
         )
-        result = self._capability.assemble(
-            messages=messages,
-            phase=strategy_phase_value(phase or "response_generation"),
-            tool_selection_mode=(
-                tools.mode.value
-                if tools is not None
-                else StrategyToolSelectionMode.ALL.value
-            ),
-            tool_selection_names=tools.names if tools is not None else (),
-        )
+        next_call_index = self._runtime_state.call_index + 1
+        try:
+            result = self._capability.assemble(
+                messages=messages,
+                phase=strategy_phase_value(phase or "response_generation"),
+                tool_selection_mode=(
+                    tools.mode.value
+                    if tools is not None
+                    else StrategyToolSelectionMode.ALL.value
+                ),
+                tool_selection_names=tools.names if tools is not None else (),
+                call_index=next_call_index,
+            )
+        except InstrumentedExecutionError as exc:
+            # Context assembly is part of the upcoming Model Invocation boundary.
+            # A budget failure consumes that invocation index even though the
+            # Provider was never called.
+            self._runtime_state.call_index = next_call_index
+            self._runtime_state.absorb_model_error(exc)
+            execution = self._runtime_state.execution
+            raise InstrumentedExecutionError(
+                str(exc),
+                llm_calls=list(execution.llm_calls),
+                tool_calls=list(execution.tool_calls),
+                knowledge_calls=list(execution.knowledge_calls),
+                sources=list(execution.sources),
+                timeline=list(execution.timeline),
+                tool_wall_latency_ms=execution.tool_wall_latency_ms,
+                tool_call_duration_sum_ms=execution.tool_call_duration_sum_ms,
+                failure_context=execution.failure_context,
+            ) from exc
+
         return StrategyInvocationContext(
             invocation_id=result.invocation_id,
             messages=result.messages,
