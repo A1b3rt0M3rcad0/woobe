@@ -376,6 +376,8 @@ class StructuredOutputAskAgentUseCase(
         json_format_latency_ms,
     ):
         context = current_execution.get()
+        if context is not None and context.execution is not None:
+            sources = list(context.execution.sources)
         if context is not None:
             context.persisted_sources = list(sources or [])
         response_format = self._get_response_format(agent)
