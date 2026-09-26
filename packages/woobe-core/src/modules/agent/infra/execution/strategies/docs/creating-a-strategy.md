@@ -134,20 +134,59 @@ The normal Strategy-facing surface is:
 
 ```text
 ctx.state
+ctx.knowledge
+ctx.context
 ctx.model
 ctx.tools
 await ctx.checkpoint()
 ```
 
-### Invoke the Model
+The runtime resolves and authorizes the underlying capabilities. The Strategy decides when to retrieve Knowledge, what Context contributions are active, which authorized Tools are visible to one Model invocation, and when the Model is invoked.
+
+### Retrieve Knowledge when the algorithm needs it
+
+Knowledge retrieval is an explicit Strategy decision:
 
 ```python
+knowledge = await ctx.knowledge.retrieve(
+    phase="knowledge_retrieval",
+)
+
+if knowledge.found:
+    ctx.context.set(
+        StrategyContextContribution(
+            key="knowledge.primary",
+            source_type="KNOWLEDGE",
+            content=knowledge.content,
+            metadata={"retrieval": dict(knowledge.metadata)},
+        )
+    )
+```
+
+Retrieving Knowledge and exposing it to the next Model invocation are separate decisions. The runtime owns the concrete Knowledge implementation and evidence; the Strategy owns the orchestration decision.
+
+### Assemble Context and invoke the Model
+
+Every Model invocation consumes an explicitly prepared invocation Context:
+
+```python
+tools = ctx.tools.all()
+
+invocation = await ctx.context.assemble(
+    phase=PlannerPhase.PLANNING,
+    tools=tools,
+)
+
 result = await ctx.model.invoke(
+    context=invocation,
+    tools=tools,
     phase=PlannerPhase.PLANNING,
 )
 ```
 
-The Runtime owns the current conversation and call instrumentation.
+Use `ctx.tools.none()` for an invocation that must not expose Tools, or `ctx.tools.select("search", "lookup")` to expose only a subset of the Tools already authorized by the runtime.
+
+The Runtime owns conversation progression, call instrumentation, Tool authorization and Context Manager implementation. The Strategy owns invocation order and per-invocation selection.
 
 ### Execute Tools
 
@@ -185,13 +224,57 @@ return Completed(result)
 
 Do not mutate `InstrumentedExecution` directly.
 
+### Final Model invocation
+
+A terminal response is also explicit. Build terminal Context with no Tools, then invoke the final Model:
+
+```python
+no_tools = ctx.tools.none()
+invocation = await ctx.context.assemble_final(
+    reason=state.stop_reason.value,
+    phase=PlannerPhase.FINAL,
+    tools=no_tools,
+)
+
+result = await ctx.model.finalize(
+    reason=state.stop_reason.value,
+    phase=PlannerPhase.FINAL,
+    context=invocation,
+    tools=no_tools,
+)
+```
+
+`assemble_final(...)` preserves the normalized terminal prompt, successful and failed Tool evidence, structured-output instructions, Context contributions and the same Context budget policy used by ordinary invocations.
+
 ### Standard algorithm shape
 
 The Standard implementation is approximately:
 
 ```python
 state = ctx.state
-result = await ctx.model.invoke(phase=state.phase)
+
+if not state.knowledge_resolved:
+    knowledge = await ctx.knowledge.retrieve(phase="knowledge_retrieval")
+    state.knowledge_resolved = True
+    if knowledge.found:
+        ctx.context.set(
+            StrategyContextContribution(
+                key="knowledge.primary",
+                source_type="KNOWLEDGE",
+                content=knowledge.content,
+            )
+        )
+
+tools = ctx.tools.all()
+invocation = await ctx.context.assemble(
+    phase=state.phase,
+    tools=tools,
+)
+result = await ctx.model.invoke(
+    context=invocation,
+    tools=tools,
+    phase=state.phase,
+)
 
 while result.has_tool_calls and state.tool_round < self.policy.max_tool_rounds:
     batch = await ctx.tools.execute_many(result.tool_calls)
@@ -204,7 +287,15 @@ while result.has_tool_calls and state.tool_round < self.policy.max_tool_rounds:
     if state.stop_reason is not None:
         break
 
-    result = await ctx.model.invoke(phase=state.phase)
+    invocation = await ctx.context.assemble(
+        phase=state.phase,
+        tools=tools,
+    )
+    result = await ctx.model.invoke(
+        context=invocation,
+        tools=tools,
+        phase=state.phase,
+    )
 
 return Completed(result)
 ```
