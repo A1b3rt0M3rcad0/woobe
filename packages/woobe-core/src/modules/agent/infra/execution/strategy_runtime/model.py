@@ -141,7 +141,18 @@ class RuntimeStrategyModel:
             )
         except InstrumentedExecutionError as exc:
             self._runtime_state.absorb_model_error(exc)
-            raise
+            execution = self._runtime_state.execution
+            raise InstrumentedExecutionError(
+                str(exc),
+                llm_calls=list(execution.llm_calls),
+                tool_calls=list(execution.tool_calls),
+                knowledge_calls=list(execution.knowledge_calls),
+                sources=list(execution.sources),
+                timeline=list(execution.timeline),
+                tool_wall_latency_ms=execution.tool_wall_latency_ms,
+                tool_call_duration_sum_ms=execution.tool_call_duration_sum_ms,
+                failure_context=execution.failure_context,
+            ) from exc
 
         self._runtime_state.record_model_call(call)
         self._runtime_state.record_model_message(result)
