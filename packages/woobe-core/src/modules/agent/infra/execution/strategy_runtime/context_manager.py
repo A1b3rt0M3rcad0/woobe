@@ -239,6 +239,8 @@ class RuntimeStrategyContextManager:
         messages: list[Any],
         phase: StrategyPhase,
         tools: StrategyToolSelection | None,
+        include_contributions: bool = True,
+        include_skill_context: bool = True,
     ) -> StrategyInvocationContext:
         selected_definitions = self._selected_tool_definitions(tools)
         selected_names = tuple(
@@ -259,11 +261,23 @@ class RuntimeStrategyContextManager:
             invocation_messages,
             has_tools=bool(selected_definitions),
         )
-        materialized = materialize_context_contributions(
-            invocation_messages,
-            self._contributions(),
+        materialized = (
+            materialize_context_contributions(
+                invocation_messages,
+                self._contributions(),
+            )
+            if include_contributions
+            else list(invocation_messages)
         )
         next_call_index = self._runtime_state.call_index + 1
+        execution_context = current_execution.get()
+        previous_skill_context = (
+            execution_context.skill_context
+            if execution_context is not None
+            else None
+        )
+        if execution_context is not None and not include_skill_context:
+            execution_context.skill_context = None
         try:
             result = self._capability.assemble(
                 messages=materialized,
@@ -294,6 +308,9 @@ class RuntimeStrategyContextManager:
                 tool_call_duration_sum_ms=execution.tool_call_duration_sum_ms,
                 failure_context=execution.failure_context,
             ) from exc
+        finally:
+            if execution_context is not None and not include_skill_context:
+                execution_context.skill_context = previous_skill_context
 
         return StrategyInvocationContext(
             invocation_id=result.invocation_id,
@@ -346,6 +363,8 @@ class RuntimeStrategyContextManager:
             messages=summary_messages,
             phase=summary_phase,
             tools=no_tools,
+            include_contributions=False,
+            include_skill_context=False,
         )
         result = await self._model.invoke_auxiliary(
             context=invocation,
