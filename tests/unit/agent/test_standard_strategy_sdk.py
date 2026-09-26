@@ -63,6 +63,10 @@ class _ContextManager:
             snapshot=None,
         )
 
+    async def assemble_final(self, *, reason, phase, tools=None):
+        del reason
+        return await self.assemble(phase=phase, tools=tools)
+
 
 class _Model:
     def __init__(self, results):
