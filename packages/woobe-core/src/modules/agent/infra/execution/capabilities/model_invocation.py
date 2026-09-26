@@ -37,6 +37,9 @@ class ModelInvocationCapability:
         messages: list,
         phase: str,
         call_index: int,
+        invocation_id: Any | None = None,
+        context_snapshot: Any | None = None,
+        context_prepared: bool = False,
     ) -> tuple[Any, dict[str, Any]]:
         invoke = self.invoke_fn or invoke_llm
         return await invoke(
@@ -48,4 +51,7 @@ class ModelInvocationCapability:
             model_name=self.model_name,
             pricing_snapshot=self.pricing_snapshot,
             context_assembler=self.context_assembler,
+            invocation_id=invocation_id,
+            context_snapshot=context_snapshot,
+            context_prepared=context_prepared,
         )
