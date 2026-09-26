@@ -28,6 +28,7 @@ class RuntimeStrategyModel:
         "_final_model",
         "_final_model_factory",
         "_fallback_model_factory",
+        "_fallback_binding",
         "_tool_definitions",
         "_bound_capabilities",
     )
@@ -47,6 +48,7 @@ class RuntimeStrategyModel:
         self._final_model = final_model
         self._final_model_factory = final_model_factory
         self._fallback_model_factory = fallback_model_factory
+        self._fallback_binding: PreparedFallbackModel | None = None
         self._tool_definitions = list(tool_definitions or [])
         self._bound_capabilities: dict[
             tuple[str, tuple[str, ...]],
@@ -58,6 +60,28 @@ class RuntimeStrategyModel:
         factory: Callable[[], PreparedFallbackModel] | None,
     ) -> None:
         self._fallback_model_factory = factory
+        self._fallback_binding = None
+
+    def _resolved_fallback_binding(self) -> PreparedFallbackModel:
+        binding = self._fallback_binding
+        if binding is not None:
+            return binding
+        factory = self._fallback_model_factory
+        if factory is None:
+            raise RuntimeError("Fallback Model is not bound for this Strategy")
+        binding = factory()
+        self._fallback_binding = binding
+        return binding
+
+    def fallback_context_binding(
+        self,
+    ) -> tuple[str, str, dict[str, Any] | None]:
+        binding = self._resolved_fallback_binding()
+        return (
+            binding.provider,
+            binding.model_name,
+            binding.pricing_snapshot,
+        )
 
     @property
     def fallback_available(self) -> bool:
@@ -205,11 +229,7 @@ class RuntimeStrategyModel:
         phase: StrategyPhase,
         tools: StrategyToolSelection | None = None,
     ) -> StrategyModelResult:
-        factory = self._fallback_model_factory
-        if factory is None:
-            raise RuntimeError("Fallback Model is not bound for this Strategy")
-
-        binding = factory()
+        binding = self._resolved_fallback_binding()
         info = {
             **binding.metadata,
             "primary_error": primary_error,
