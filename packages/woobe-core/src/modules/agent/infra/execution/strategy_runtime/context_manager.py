@@ -5,6 +5,7 @@ from typing import Any
 
 from langchain_core.messages import SystemMessage
 
+from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.application.strategy_sdk import (
     StrategyContextContribution,
     StrategyInvocationContext,
@@ -55,7 +56,7 @@ def _materialize_contribution(
     )
 
 
-def _with_contributions(
+def materialize_context_contributions(
     messages: list[Any],
     contributions: tuple[StrategyContextContribution, ...],
 ) -> list[Any]:
@@ -81,6 +82,14 @@ class RuntimeStrategyContextManager:
     ) -> None:
         self._capability = capability
         self._runtime_state = runtime_state
+        self._sync_execution_context()
+
+    def _sync_execution_context(self) -> None:
+        execution_context = current_execution.get()
+        if execution_context is not None:
+            execution_context.strategy_context_contributions = dict(
+                self._runtime_state.context_contributions
+            )
 
     def has(self, key: str) -> bool:
         return key in self._runtime_state.context_contributions
@@ -90,9 +99,11 @@ class RuntimeStrategyContextManager:
         if not key:
             raise ValueError("Context contribution key must not be empty")
         self._runtime_state.context_contributions[key] = contribution
+        self._sync_execution_context()
 
     def remove(self, key: str) -> None:
         self._runtime_state.context_contributions.pop(key, None)
+        self._sync_execution_context()
 
     async def assemble(
         self,
@@ -105,7 +116,7 @@ class RuntimeStrategyContextManager:
             for contribution in self._runtime_state.context_contributions.values()
             if isinstance(contribution, StrategyContextContribution)
         )
-        messages = _with_contributions(
+        messages = materialize_context_contributions(
             self._runtime_state.messages,
             contributions,
         )
