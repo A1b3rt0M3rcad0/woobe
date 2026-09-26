@@ -7,6 +7,10 @@ from modules.agent.application.strategy_sdk import (
     ExecutionState,
 )
 from modules.agent.infra.execution.strategy_runtime.checkpoint import RuntimeStrategyCheckpoint
+from modules.agent.infra.execution.strategy_runtime.context_manager import (
+    RuntimeStrategyContextManager,
+)
+from modules.agent.infra.execution.strategy_runtime.knowledge import RuntimeStrategyKnowledge
 from modules.agent.infra.execution.strategy_runtime.model import RuntimeStrategyModel
 from modules.agent.infra.execution.strategy_runtime.tools import RuntimeStrategyTools
 
@@ -21,6 +25,8 @@ class RuntimeStrategyContext(Generic[StateT]):
         "state",
         "model",
         "tools",
+        "knowledge",
+        "context",
         "_checkpoint",
     )
 
@@ -30,11 +36,15 @@ class RuntimeStrategyContext(Generic[StateT]):
         state: StateT,
         model: RuntimeStrategyModel,
         tools: RuntimeStrategyTools,
+        knowledge: RuntimeStrategyKnowledge,
+        context: RuntimeStrategyContextManager,
         checkpoint: RuntimeStrategyCheckpoint,
     ) -> None:
         self.state = state
         self.model = model
         self.tools = tools
+        self.knowledge = knowledge
+        self.context = context
         self._checkpoint = checkpoint
 
     async def checkpoint(
