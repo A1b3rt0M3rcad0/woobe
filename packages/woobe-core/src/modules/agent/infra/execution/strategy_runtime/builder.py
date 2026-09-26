@@ -152,6 +152,8 @@ def build_strategy_context_from_capabilities(
         context=RuntimeStrategyContextManager(
             capability=capabilities.context,
             runtime_state=runtime_state,
+            base_messages=messages,
+            final_json_instruction=final_json_instruction,
         ),
         checkpoint=checkpoint,
     )
