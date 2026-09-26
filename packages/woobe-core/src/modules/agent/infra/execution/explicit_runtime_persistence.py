@@ -545,30 +545,15 @@ class ExplicitRuntimePersistenceMixin:
                         run_id, "agent.run.accepted", {"trace_id": str(trace_id)},
                     )
 
-            rag_context, sources = await self._load_rag_context(
-                agent,
-                input_dto.message,
-                self._transactions,
-            )
-            if context is not None and context.run_event_recorder is not None and sources:
-                await context.run_event_recorder.emit(
-                    "knowledge.retrieval.completed",
-                    {
-                        "source_count": len(sources),
-                        "sources": [
-                            source.model_dump() if hasattr(source, "model_dump") else source
-                            for source in sources
-                        ],
-                    },
-                )
+            sources: list[SourceInfo] = []
             messages = self._build_messages(
                 agent,
-                rag_context,
+                None,
                 history,
                 input_dto.message,
                 response_format if json_enabled else None,
             )
-            await self._hot_update({"phase": "llm", "rag_sources": len(sources or [])})
+            await self._hot_update({"phase": "llm", "rag_sources": 0})
         except Exception as exc:
             await self._persist_prepare_failure(input_dto, exc)
             raise
