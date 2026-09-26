@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any, Protocol, runtime_checkable
+from dataclasses import dataclass, field
+from typing import Any, Mapping, Protocol, runtime_checkable
 from uuid import UUID
 
 from modules.agent.application.interfaces.context_policy import ContextPolicyV1
@@ -266,6 +266,81 @@ class ContextAssemblyOutput(Protocol):
     def snapshot(self) -> ContextSnapshot: ...
 
 
+@dataclass(frozen=True, slots=True)
+class ContextManagedContribution:
+    """Mutation produced by a Context Manager and persisted by the Runtime."""
+
+    key: str
+    source_type: str
+    content: Any
+    metadata: Mapping[str, Any] = field(default_factory=dict)
+    replaces_message_indexes: tuple[int, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class ContextInspectionRequest:
+    """Read-only state supplied to one Context Manager inspection."""
+
+    messages: tuple[Any, ...]
+    contributions: tuple[ContextManagedContribution, ...]
+    runtime_context: ContextAssemblyRuntimeContext
+    policy: ContextPolicyV1
+
+
+@dataclass(frozen=True, slots=True)
+class ContextInspectionOutput:
+    message_count: int
+    contribution_count: int
+    estimated_input_units: int
+    usable_input_units: int | None
+    utilization: float | None
+    pressure: str
+
+
+@dataclass(frozen=True, slots=True)
+class ContextSummaryRequest:
+    """Model-assisted summarization requested by a Context Manager implementation."""
+
+    instruction: str
+    input_text: str
+    target_units: int
+    phase: str
+
+
+@dataclass(frozen=True, slots=True)
+class ContextSummaryOutput:
+    content: str
+    metadata: Mapping[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True, slots=True)
+class ContextCompactionRequest:
+    """Input available when a Context Manager decides how to compact Context."""
+
+    messages: tuple[Any, ...]
+    contributions: tuple[ContextManagedContribution, ...]
+    phase: str
+    runtime_context: ContextAssemblyRuntimeContext
+    policy: ContextPolicyV1
+
+
+@dataclass(frozen=True, slots=True)
+class ContextCompactionOutput:
+    changed: bool
+    upserts: tuple[ContextManagedContribution, ...] = ()
+    remove_keys: tuple[str, ...] = ()
+    metadata: Mapping[str, Any] = field(default_factory=dict)
+
+
+class ContextManagerCapabilities(Protocol):
+    """Mechanisms available to Context Manager algorithms."""
+
+    async def summarize(
+        self,
+        request: ContextSummaryRequest,
+    ) -> ContextSummaryOutput: ...
+
+
 @runtime_checkable
 class ContextAssembler(Protocol):
     """Assemble the context for exactly one Model Invocation.
@@ -276,5 +351,16 @@ class ContextAssembler(Protocol):
     values are inputs; implementations should return assembled output rather than
     mutate runtime-owned state in place.
     """
+
+    def inspect(
+        self,
+        request: ContextInspectionRequest,
+    ) -> ContextInspectionOutput: ...
+
+    async def compact(
+        self,
+        request: ContextCompactionRequest,
+        capabilities: ContextManagerCapabilities,
+    ) -> ContextCompactionOutput: ...
 
     def assemble(self, request: ContextAssemblyRequest) -> ContextAssemblyOutput: ...
