@@ -5,10 +5,12 @@ from typing import Any
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from modules.agent.application.interfaces.context_assembler import ContextAssembler
 from modules.agent.application.interfaces.execution import (
     InstrumentedExecution,
     InstrumentedExecutionError,
+)
+from modules.agent.infra.execution.capabilities.context_assembly import (
+    ContextAssemblyCapability,
 )
 from modules.agent.infra.execution.durable_execution_instrumentation import invoke_llm
 from modules.agent.infra.execution.runtime_streaming import runtime_streaming_enabled
@@ -27,7 +29,7 @@ async def repair_json_if_needed(
     schema: dict,
     clean_json_answer,
     pricing_snapshot: dict[str, Any] | None = None,
-    context_assembler: ContextAssembler | None = None,
+    context_capability: ContextAssemblyCapability,
 ) -> InstrumentedExecution:
     result = execution.result
     answer = result.content if hasattr(result, "content") else str(result)
@@ -48,25 +50,33 @@ async def repair_json_if_needed(
         streaming=runtime_streaming_enabled(),
         response_format={"type": "json_object"},
     )
+    repair_messages = [
+        SystemMessage(
+            content=(
+                "Repair the answer into valid JSON matching the schema. "
+                "Return JSON only.\n"
+                f"<schema>\n{schema_json}\n</schema>"
+            )
+        ),
+        HumanMessage(content=answer),
+    ]
+    repair_context = context_capability.assemble(
+        messages=repair_messages,
+        phase="json_repair",
+        tool_selection_mode="none",
+    )
     try:
         result, call = await invoke_llm(
             model=repair_model,
-            messages=[
-                SystemMessage(
-                    content=(
-                        "Repair the answer into valid JSON matching the schema. "
-                        "Return JSON only.\n"
-                        f"<schema>\n{schema_json}\n</schema>"
-                    )
-                ),
-                HumanMessage(content=answer),
-            ],
+            messages=list(repair_context.messages),
             phase="json_repair",
             call_index=call_index + 1,
             provider=provider,
             model_name=model_name,
             pricing_snapshot=pricing_snapshot,
-            context_assembler=context_assembler,
+            invocation_id=repair_context.invocation_id,
+            context_snapshot=repair_context.snapshot,
+            context_prepared=True,
         )
     except InstrumentedExecutionError as exc:
         raise InstrumentedExecutionError(
