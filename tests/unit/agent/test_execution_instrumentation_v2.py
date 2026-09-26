@@ -12,9 +12,11 @@ from modules.agent.application.interfaces.execution import (
     InstrumentedExecutionError,
 )
 from modules.agent.application.interfaces.execution_context import current_execution
+from modules.agent.infra.execution.capabilities.context_assembly import (
+    ContextAssemblyCapability,
+)
 from modules.agent.infra.execution.execution_instrumentation import (
     aggregate_usage,
-    invoke_llm,
     resolve_effective_output_tokens,
 )
 from modules.agent.infra.execution.instrumented_execution_runner import (
@@ -79,28 +81,26 @@ async def test_context_budget_unfit_blocks_provider_and_records_invocation_evide
         execution=execution,
     )
     token = current_execution.set(context)
-    model = MagicMock()
-    model.ainvoke = AsyncMock()
+    capability = ContextAssemblyCapability(
+        assembler=RejectingAssembler(),
+        provider="custom",
+        model_name="fallback-model",
+        pricing_snapshot={
+            "context_window": 32000,
+            "max_output_tokens": 4096,
+        },
+    )
     try:
         with pytest.raises(InstrumentedExecutionError) as error:
-            await invoke_llm(
-                model=model,
+            capability.assemble(
                 messages=[],
                 phase="final_response_generation",
                 call_index=2,
-                provider="custom",
-                model_name="fallback-model",
-                pricing_snapshot={
-                    "context_window": 32000,
-                    "max_output_tokens": 4096,
-                },
-                context_assembler=RejectingAssembler(),
             )
     finally:
         current_execution.reset(token)
 
     assert captured == {"capacity": 32000, "reserved": 4096}
-    assert model.ainvoke.await_count == 0
     assert error.value.failure_context["code"] == "CONTEXT_BUDGET_EXCEEDED"
     assert error.value.failure_context["provider_called"] is False
     assert execution.llm_calls[0]["context_fit_status"] == "UNFIT"
