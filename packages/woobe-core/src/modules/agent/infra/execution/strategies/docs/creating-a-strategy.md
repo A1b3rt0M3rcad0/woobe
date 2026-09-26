@@ -209,7 +209,7 @@ result = await ctx.model.invoke(
 )
 ```
 
-Use `ctx.tools.none()` for an invocation that must not expose Tools, or `ctx.tools.select("search", "lookup")` to expose only a subset of the Tools already authorized by the runtime.
+Use `ctx.tools.none()` for an invocation that must not expose Tools, or `ctx.tools.select("search", "lookup")` to expose only a subset of the Tools already authorized by the runtime. Tool selection is required: Model and Context calls never interpret an omitted selection as an implicit `all()`.
 
 The Runtime owns conversation progression, call instrumentation, Tool authorization and Context Manager implementation. The Strategy owns invocation order and per-invocation selection.
 
@@ -259,6 +259,7 @@ except InstrumentedExecutionError as exc:
     fallback_context = await ctx.context.assemble(
         phase=PlannerPhase.FALLBACK,
         tools=no_tools,
+        target=StrategyContextTarget.FALLBACK,
     )
     result = await ctx.model.invoke_fallback(
         context=fallback_context,
