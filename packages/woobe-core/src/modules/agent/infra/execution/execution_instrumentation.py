@@ -230,22 +230,27 @@ async def invoke_llm(
     model_name: str,
     pricing_snapshot: dict[str, Any] | None = None,
     context_assembler: ContextAssembler | None = None,
+    invocation_id: Any | None = None,
+    context_snapshot: Any | None = None,
+    context_prepared: bool = False,
 ) -> tuple[Any, dict[str, Any]]:
-    call_uuid = uuid6.uuid7()
+    call_uuid = invocation_id or uuid6.uuid7()
     call_id = str(call_uuid)
     started_at = utc_iso()
     started = time.monotonic()
     cost_context = _cost_context(pricing_snapshot)
+    invocation_messages = messages
     try:
-        invocation_messages, context_snapshot = _assemble_invocation_context(
-            invocation_id=call_uuid,
-            messages=messages,
-            provider=provider,
-            model_name=model_name,
-            phase=phase,
-            pricing_snapshot=pricing_snapshot,
-            context_assembler=context_assembler,
-        )
+        if not context_prepared:
+            invocation_messages, context_snapshot = _assemble_invocation_context(
+                invocation_id=call_uuid,
+                messages=messages,
+                provider=provider,
+                model_name=model_name,
+                phase=phase,
+                pricing_snapshot=pricing_snapshot,
+                context_assembler=context_assembler,
+            )
     except ContextBudgetExceeded as exc:
         ended_at = utc_iso()
         failure_context = {
