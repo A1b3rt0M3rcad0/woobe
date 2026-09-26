@@ -13,6 +13,7 @@ from modules.agent.application.strategy_sdk import (
     ExecutionStopReason,
     StrategyContext,
     StrategyContextContribution,
+    StrategyContextTarget,
     StrategyOutcome,
     Suspended,
     strategy_phase_with_iteration,
@@ -94,6 +95,7 @@ class StandardExecutionStrategy(ExecutionStrategy[StandardExecutionState]):
         invocation = await ctx.context.assemble(
             phase=StandardPhase.FALLBACK_RESPONSE_GENERATION,
             tools=no_tools,
+            target=StrategyContextTarget.FALLBACK,
         )
         return await ctx.model.invoke_fallback(
             context=invocation,
