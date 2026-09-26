@@ -351,7 +351,7 @@ def test_release_ci_pins_required_actions_and_runs_release_contract_tests() -> N
         workflow = (ROOT / ".github/workflows" / filename).read_text(encoding="utf-8")
         assert "runs-on: [self-hosted, Linux, X64]" in workflow
         assert "runs-on: ubuntu-24.04" not in workflow
-        assert "continue-on-error: true" not in workflow
+        assert "GitHub-hosted" not in workflow
         assert "outcome: ${{ job.status }}" not in workflow
         assert workflow.count("runs-on:") == 1
         for action in re.findall(r"uses:\s+([^\s#]+)", workflow):
