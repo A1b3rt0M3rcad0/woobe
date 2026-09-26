@@ -175,7 +175,7 @@ class ContextAssemblyCapability:
     pricing_snapshot: dict[str, Any] | None
     tool_definitions: tuple[dict[str, Any], ...] = ()
 
-    def _selected_tool_definitions(
+    def selected_tool_definitions(
         self,
         mode: str | None,
         names: tuple[str, ...],
@@ -257,7 +257,7 @@ class ContextAssemblyCapability:
             previous_reserved,
             self.pricing_snapshot,
         )
-        selected_tools = self._selected_tool_definitions(
+        selected_tools = self.selected_tool_definitions(
             tool_selection_mode,
             tool_selection_names,
         )
