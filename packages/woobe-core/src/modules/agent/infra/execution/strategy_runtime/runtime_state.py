@@ -31,6 +31,7 @@ class StrategyRuntimeState:
     call_index: int = 0
     messages: list[Any] = field(default_factory=list)
     base_message_count: int = 0
+    context_contributions: dict[str, Any] = field(default_factory=dict)
 
     def next_call_index(self) -> int:
         self.call_index += 1
