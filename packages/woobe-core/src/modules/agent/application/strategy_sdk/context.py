@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Generic, Protocol, TypeVar
 
 from modules.agent.application.strategy_sdk.bootstrap import StrategyBootstrap
+from modules.agent.application.strategy_sdk.conversation import StrategyConversation
 from modules.agent.application.strategy_sdk.context_manager import StrategyContextManager
 from modules.agent.application.strategy_sdk.contracts import (
     ExecutionCheckpointBoundary,
@@ -22,6 +23,7 @@ class StrategyContext(Protocol, Generic[StateT]):
 
     state: StateT
     bootstrap: StrategyBootstrap
+    conversation: StrategyConversation
     model: StrategyModel
     tools: StrategyTools
     knowledge: StrategyKnowledge

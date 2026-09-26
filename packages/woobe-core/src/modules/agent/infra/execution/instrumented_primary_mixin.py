@@ -328,7 +328,9 @@ class InstrumentedPrimaryExecutionMixin:
             return await rag_runtime.retrieve(
                 agent=agent,
                 query=query,
-                history=tuple(history or ()),
+                # The Execution Strategy owns conversation-to-query semantics and
+                # passes a final retrieval query. RAG receives no hidden history rewrite.
+                history=(),
             )
 
         knowledge_retrieve = retrieve_knowledge if has_knowledge else None

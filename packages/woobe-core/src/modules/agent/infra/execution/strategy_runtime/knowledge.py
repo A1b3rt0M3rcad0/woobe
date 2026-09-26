@@ -4,6 +4,7 @@ import time
 
 from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.application.strategy_sdk import (
+    StrategyKnowledgeQueryPolicy,
     StrategyKnowledgeResult,
     StrategyPhase,
     strategy_phase_value,
@@ -31,6 +32,10 @@ class RuntimeStrategyKnowledge:
     ) -> None:
         self._capability = capability
         self._runtime_state = runtime_state
+
+    @property
+    def query_policy(self) -> StrategyKnowledgeQueryPolicy:
+        return self._capability.query_policy
 
     async def retrieve(
         self,

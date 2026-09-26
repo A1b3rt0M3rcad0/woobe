@@ -24,6 +24,9 @@ from modules.agent.infra.execution.strategy_runtime.context import RuntimeStrate
 from modules.agent.infra.execution.strategy_runtime.context_manager import (
     RuntimeStrategyContextManager,
 )
+from modules.agent.infra.execution.strategy_runtime.conversation import (
+    RuntimeStrategyConversation,
+)
 from modules.agent.infra.execution.strategy_runtime.knowledge import RuntimeStrategyKnowledge
 from modules.agent.infra.execution.strategy_runtime.model import RuntimeStrategyModel
 from modules.agent.infra.execution.strategy_runtime.output import RuntimeStrategyOutput
@@ -146,6 +149,10 @@ def build_strategy_context_from_capabilities(
                 bootstrap,
                 resuming=resume is not None,
             ),
+        ),
+        conversation=RuntimeStrategyConversation(
+            runtime_state=runtime_state,
+            base_messages=messages,
         ),
         model=runtime_model,
         tools=runtime_tools,

@@ -5,6 +5,7 @@ from typing import Any, Awaitable, Callable, Mapping
 
 from modules.agent.application.dtos.runtime_dtos import SourceInfo
 from modules.agent.application.interfaces.execution_context import current_execution
+from modules.agent.application.strategy_sdk import StrategyKnowledgeQueryPolicy
 
 
 KnowledgeRetrieveFn = Callable[[str], Awaitable[Any]]
@@ -25,6 +26,15 @@ class KnowledgeRetrievalCapability:
 
     retrieve_fn: KnowledgeRetrieveFn | None
     default_query: str | None = None
+    query_mode: str = "conversation_context"
+    history_turns: int = 3
+
+    @property
+    def query_policy(self) -> StrategyKnowledgeQueryPolicy:
+        return StrategyKnowledgeQueryPolicy(
+            mode=self.query_mode,
+            history_turns=self.history_turns,
+        )
 
     async def retrieve(self, *, query: str | None = None) -> KnowledgeRetrievalResult:
         effective_query = query if query is not None else self.default_query

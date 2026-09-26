@@ -6,6 +6,7 @@ from typing import Any, Awaitable, Callable, Coroutine
 
 from langchain_core.messages import SystemMessage
 
+from modules.agent.application.dtos.rag_config_dtos import RAGRuntimeConfig
 from modules.agent.application.interfaces.context_assembler import ContextAssembler
 from modules.agent.application.interfaces.context_policy import resolve_context_policy
 from modules.agent.application.interfaces.execution import InstrumentedExecution
@@ -101,6 +102,8 @@ class PreparedExecution:
     tool_definitions: list[dict]
     knowledge_retrieve: Callable[[str], Awaitable[Any]] | None
     knowledge_query: str | None
+    knowledge_query_mode: str
+    knowledge_history_turns: int
 
 
 def configure_skill_runtime(
@@ -123,6 +126,17 @@ def _fallback_pricing_snapshot(request: ExecutionStrategyRequest) -> dict[str, A
     settings = request.agent.settings or {}
     value = settings.get("fallback_model_pricing")
     return value if isinstance(value, dict) else None
+
+
+def _knowledge_query_policy(runtime_config: Any) -> tuple[str, int]:
+    raw_rag = (
+        runtime_config.get("rag")
+        if isinstance(runtime_config, dict)
+        and isinstance(runtime_config.get("rag"), dict)
+        else {}
+    )
+    config = RAGRuntimeConfig.model_validate(raw_rag)
+    return config.query_mode, config.history_turns
 
 
 def _positive_int(value: Any) -> int | None:
@@ -228,6 +242,7 @@ def prepare_execution(request: ExecutionStrategyRequest) -> PreparedExecution:
     agent = request.agent
     provider = agent.provider.value if hasattr(agent.provider, "value") else str(agent.provider)
     runtime_config = (agent.settings or {}).get("runtime_config")
+    knowledge_query_mode, knowledge_history_turns = _knowledge_query_policy(runtime_config)
     has_skill_config = isinstance(runtime_config, dict) and bool(runtime_config.get("skills"))
     if has_skill_config:
         if _skill_snapshots_resolver is None or _skill_runtime_factory is None:
@@ -433,4 +448,6 @@ def prepare_execution(request: ExecutionStrategyRequest) -> PreparedExecution:
         tool_definitions=agent_tools,
         knowledge_retrieve=request.knowledge_retrieve,
         knowledge_query=request.knowledge_query,
+        knowledge_query_mode=knowledge_query_mode,
+        knowledge_history_turns=knowledge_history_turns,
     )

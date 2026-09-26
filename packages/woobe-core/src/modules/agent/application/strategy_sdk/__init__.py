@@ -1,5 +1,6 @@
 from modules.agent.application.strategy_sdk.bootstrap import StrategyBootstrap
 from modules.agent.application.strategy_sdk.context import StrategyContext
+from modules.agent.application.strategy_sdk.conversation import StrategyConversation
 from modules.agent.application.strategy_sdk.context_manager import (
     StrategyContextContribution,
     StrategyContextInspection,
@@ -16,6 +17,7 @@ from modules.agent.application.strategy_sdk.contracts import (
 )
 from modules.agent.application.strategy_sdk.knowledge import (
     StrategyKnowledge,
+    StrategyKnowledgeQueryPolicy,
     StrategyKnowledgeResult,
 )
 from modules.agent.application.strategy_sdk.model import (
@@ -48,12 +50,14 @@ __all__ = [
     "ExecutionStopReason",
     "StrategyBootstrap",
     "StrategyContext",
+    "StrategyConversation",
     "StrategyContextContribution",
     "StrategyContextInspection",
     "StrategyContextManager",
     "StrategyContextTarget",
     "StrategyInvocationContext",
     "StrategyKnowledge",
+    "StrategyKnowledgeQueryPolicy",
     "StrategyKnowledgeResult",
     "StrategyModel",
     "StrategyModelResult",

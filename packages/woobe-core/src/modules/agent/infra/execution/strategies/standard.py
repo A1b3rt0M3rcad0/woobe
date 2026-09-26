@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from modules.agent.application.interfaces.execution import InstrumentedExecutionError
 from modules.agent.application.interfaces.execution_strategy import ExecutionStrategy
@@ -29,6 +30,7 @@ MAX_CONSECUTIVE_SEMANTIC_FAILURE_ROUNDS = (
 
 
 class StandardPhase(ExecutionPhase):
+    KNOWLEDGE_RETRIEVAL = "knowledge_retrieval"
     RESPONSE_GENERATION = "response_generation"
     CAPABILITY_RESPONSE_GENERATION = "capability_response_generation"
     TOOL_FOLLOWUP = "tool_followup"
@@ -73,6 +75,58 @@ class StandardExecutionPolicy(ExecutionPolicy[StandardExecutionState]):
         if state.tool_round >= self.max_tool_rounds:
             return StandardStopReason.CAPABILITY_ROUND_LIMIT
         return None
+
+
+def _message_text(message: Any | None) -> str | None:
+    content = getattr(message, "content", None)
+    if isinstance(content, str):
+        normalized = content.strip()
+        return normalized or None
+    if not isinstance(content, list):
+        return None
+
+    parts: list[str] = []
+    for part in content:
+        if isinstance(part, str) and part.strip():
+            parts.append(part.strip())
+            continue
+        if not isinstance(part, dict):
+            continue
+        text = part.get("text")
+        if isinstance(text, str) and text.strip():
+            parts.append(text.strip())
+    return "\n".join(parts) or None
+
+
+def _conversation_knowledge_query(
+    ctx: StrategyContext[StandardExecutionState],
+) -> str | None:
+    current = _message_text(ctx.conversation.current_user_message)
+    if current is None:
+        return None
+
+    policy = ctx.knowledge.query_policy
+    if policy.mode != "conversation_context":
+        return current
+
+    conversational: list[tuple[str, str]] = []
+    for message in ctx.conversation.history:
+        content = _message_text(message)
+        if content is None:
+            continue
+        class_name = type(message).__name__
+        if class_name == "HumanMessage":
+            conversational.append(("User", content))
+        elif class_name == "AIMessage":
+            conversational.append(("Assistant", content))
+
+    tail = conversational[-(policy.history_turns * 2) :]
+    if not tail:
+        return current
+
+    lines = [f"{role}: {content}" for role, content in tail]
+    lines.append(f"Current user message: {current}")
+    return "\n".join(lines)
 
 
 class StandardExecutionStrategy(ExecutionStrategy[StandardExecutionState]):
@@ -126,25 +180,29 @@ class StandardExecutionStrategy(ExecutionStrategy[StandardExecutionState]):
             )
 
         if not state.knowledge_resolved:
-            knowledge = await ctx.knowledge.retrieve(
-                phase="knowledge_retrieval",
-            )
+            query = _conversation_knowledge_query(ctx)
             state.knowledge_resolved = True
-            if knowledge.found:
-                ctx.context.set(
-                    StrategyContextContribution(
-                        key="knowledge.primary",
-                        source_type="KNOWLEDGE",
-                        content=knowledge.content,
-                        metadata={
-                            "retrieval": dict(knowledge.metadata),
-                            "sources": [
-                                source.model_dump(mode="json")
-                                for source in knowledge.sources
-                            ],
-                        },
-                    )
+            if query is not None:
+                knowledge = await ctx.knowledge.retrieve(
+                    query=query,
+                    phase=StandardPhase.KNOWLEDGE_RETRIEVAL,
                 )
+                if knowledge.found:
+                    ctx.context.set(
+                        StrategyContextContribution(
+                            key="knowledge.primary",
+                            source_type="KNOWLEDGE",
+                            content=knowledge.content,
+                            metadata={
+                                "query": query,
+                                "retrieval": dict(knowledge.metadata),
+                                "sources": [
+                                    source.model_dump(mode="json")
+                                    for source in knowledge.sources
+                                ],
+                            },
+                        )
+                    )
 
         if state.phase == StandardPhase.FINAL_RESPONSE_GENERATION.value:
             reason = (
@@ -168,17 +226,11 @@ class StandardExecutionStrategy(ExecutionStrategy[StandardExecutionState]):
             except InstrumentedExecutionError as exc:
                 result = await self._fallback_or_raise(ctx, exc)
             if ctx.output.requires_repair(result):
-                result = await ctx.output.repair(
-                    result,
-                    phase="json_repair",
-                )
+                result = await ctx.output.repair(result, phase="json_repair")
             return Completed(result)
 
         tools = ctx.tools.all()
-        invocation = await ctx.context.assemble(
-            phase=state.phase,
-            tools=tools,
-        )
+        invocation = await ctx.context.assemble(phase=state.phase, tools=tools)
         try:
             result = await ctx.model.invoke(
                 context=invocation,
@@ -192,9 +244,7 @@ class StandardExecutionStrategy(ExecutionStrategy[StandardExecutionState]):
             tool_batch = await ctx.tools.execute_many(result.tool_calls)
             state.tool_round += 1
             state.consecutive_failures = (
-                state.consecutive_failures + 1
-                if tool_batch.has_failures
-                else 0
+                state.consecutive_failures + 1 if tool_batch.has_failures else 0
             )
 
             if tool_batch.requires_suspension:
@@ -259,10 +309,7 @@ class StandardExecutionStrategy(ExecutionStrategy[StandardExecutionState]):
                 result = await self._fallback_or_raise(ctx, exc)
 
         if ctx.output.requires_repair(result):
-            result = await ctx.output.repair(
-                result,
-                phase="json_repair",
-            )
+            result = await ctx.output.repair(result, phase="json_repair")
         return Completed(result)
 
 

@@ -11,6 +11,9 @@ from modules.agent.infra.execution.strategy_runtime.checkpoint import RuntimeStr
 from modules.agent.infra.execution.strategy_runtime.context_manager import (
     RuntimeStrategyContextManager,
 )
+from modules.agent.infra.execution.strategy_runtime.conversation import (
+    RuntimeStrategyConversation,
+)
 from modules.agent.infra.execution.strategy_runtime.knowledge import RuntimeStrategyKnowledge
 from modules.agent.infra.execution.strategy_runtime.model import RuntimeStrategyModel
 from modules.agent.infra.execution.strategy_runtime.output import RuntimeStrategyOutput
@@ -26,6 +29,7 @@ class RuntimeStrategyContext(Generic[StateT]):
     __slots__ = (
         "state",
         "bootstrap",
+        "conversation",
         "model",
         "tools",
         "knowledge",
@@ -39,6 +43,7 @@ class RuntimeStrategyContext(Generic[StateT]):
         *,
         state: StateT,
         bootstrap: StrategyBootstrap,
+        conversation: RuntimeStrategyConversation,
         model: RuntimeStrategyModel,
         tools: RuntimeStrategyTools,
         knowledge: RuntimeStrategyKnowledge,
@@ -48,6 +53,7 @@ class RuntimeStrategyContext(Generic[StateT]):
     ) -> None:
         self.state = state
         self.bootstrap = bootstrap
+        self.conversation = conversation
         self.model = model
         self.tools = tools
         self.knowledge = knowledge
