@@ -29,9 +29,6 @@ from modules.agent.infra.execution.runtime_preparation import (
 from modules.agent.infra.execution.structured_output_ask_use_case import (
     StructuredOutputAskAgentUseCase,
 )
-from modules.agent.infra.execution.transaction_bounded_rag import (
-    TransactionBoundedVectorSnapshotRAGMixin,
-)
 from shared.infra.crypto import decrypt_secret
 from shared.runtime_environment import normalize_runtime_environment
 
@@ -113,10 +110,7 @@ def _network_hot_session_history(
     return history
 
 
-class TransactionBoundedStructuredOutputRuntime(
-    TransactionBoundedVectorSnapshotRAGMixin,
-    StructuredOutputAskAgentUseCase,
-):
+class TransactionBoundedStructuredOutputRuntime(StructuredOutputAskAgentUseCase):
     """Runtime shared by standalone and Network-deferred Agent executions."""
 
     @staticmethod
