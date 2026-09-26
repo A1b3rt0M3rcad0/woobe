@@ -4,6 +4,7 @@ from modules.agent.application.strategy_sdk.context_manager import (
     StrategyContextContribution,
     StrategyContextInspection,
     StrategyContextManager,
+    StrategyContextTarget,
     StrategyInvocationContext,
 )
 from modules.agent.application.strategy_sdk.contracts import (
@@ -50,6 +51,7 @@ __all__ = [
     "StrategyContextContribution",
     "StrategyContextInspection",
     "StrategyContextManager",
+    "StrategyContextTarget",
     "StrategyInvocationContext",
     "StrategyKnowledge",
     "StrategyKnowledgeResult",
