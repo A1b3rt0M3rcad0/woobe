@@ -39,6 +39,11 @@ def _call_name(node: ast.Call) -> str | None:
     return None
 
 
+def test_post_strategy_result_finalizer_does_not_exist() -> None:
+    path = EXECUTION / "capabilities" / "result_finalization.py"
+    assert not path.exists()
+
+
 def test_runner_does_not_execute_strategy_capabilities() -> None:
     source = RUNNER.read_text(encoding="utf-8")
 
