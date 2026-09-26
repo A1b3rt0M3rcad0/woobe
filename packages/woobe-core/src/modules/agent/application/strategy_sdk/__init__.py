@@ -2,6 +2,7 @@ from modules.agent.application.strategy_sdk.bootstrap import StrategyBootstrap
 from modules.agent.application.strategy_sdk.context import StrategyContext
 from modules.agent.application.strategy_sdk.conversation import StrategyConversation
 from modules.agent.application.strategy_sdk.context_manager import (
+    StrategyContextCompactionResult,
     StrategyContextContribution,
     StrategyContextInspection,
     StrategyContextManager,
@@ -51,6 +52,7 @@ __all__ = [
     "StrategyBootstrap",
     "StrategyContext",
     "StrategyConversation",
+    "StrategyContextCompactionResult",
     "StrategyContextContribution",
     "StrategyContextInspection",
     "StrategyContextManager",

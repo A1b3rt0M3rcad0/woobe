@@ -11,6 +11,12 @@ from modules.agent.application.interfaces.context_assembler import (
     ContextAssembler,
     ContextAssemblyRequest,
     ContextBudgetExceeded,
+    ContextCompactionOutput,
+    ContextCompactionRequest,
+    ContextInspectionOutput,
+    ContextInspectionRequest,
+    ContextManagedContribution,
+    ContextManagerCapabilities,
 )
 from modules.agent.application.interfaces.context_policy import ContextPolicyV1
 from modules.agent.application.interfaces.execution import (
@@ -174,6 +180,58 @@ class ContextAssemblyCapability:
     model_name: str
     pricing_snapshot: dict[str, Any] | None
     tool_definitions: tuple[dict[str, Any], ...] = ()
+
+    def inspect(
+        self,
+        *,
+        messages: list[Any],
+        contributions: tuple[ContextManagedContribution, ...],
+    ) -> ContextInspectionOutput:
+        context = current_execution.get()
+        if context is None or self.assembler is None:
+            return ContextInspectionOutput(
+                message_count=len(messages),
+                contribution_count=len(contributions),
+                estimated_input_units=0,
+                usable_input_units=None,
+                utilization=None,
+                pressure="UNKNOWN",
+            )
+        policy = ContextPolicyV1.model_validate(context.context_policy or {})
+        return self.assembler.inspect(
+            ContextInspectionRequest(
+                messages=tuple(messages),
+                contributions=contributions,
+                runtime_context=context,
+                policy=policy,
+            )
+        )
+
+    async def compact(
+        self,
+        *,
+        messages: list[Any],
+        contributions: tuple[ContextManagedContribution, ...],
+        phase: str,
+        capabilities: ContextManagerCapabilities,
+    ) -> ContextCompactionOutput:
+        context = current_execution.get()
+        if context is None or self.assembler is None:
+            return ContextCompactionOutput(
+                changed=False,
+                metadata={"reason": "context_manager_unavailable"},
+            )
+        policy = ContextPolicyV1.model_validate(context.context_policy or {})
+        return await self.assembler.compact(
+            ContextCompactionRequest(
+                messages=tuple(messages),
+                contributions=contributions,
+                phase=phase,
+                runtime_context=context,
+                policy=policy,
+            ),
+            capabilities,
+        )
 
     def selected_tool_definitions(
         self,

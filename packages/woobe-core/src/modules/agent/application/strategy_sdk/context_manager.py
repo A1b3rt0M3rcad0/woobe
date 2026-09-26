@@ -22,11 +22,12 @@ class StrategyContextContribution:
     source_type: str
     content: Any
     metadata: Mapping[str, Any] = field(default_factory=dict)
+    replaces_message_indexes: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
 class StrategyContextInspection:
-    """Read-only pressure view used by a Strategy before choosing Context operations."""
+    """Read-only pressure view produced by the configured Context Manager."""
 
     message_count: int
     contribution_count: int
@@ -34,6 +35,16 @@ class StrategyContextInspection:
     usable_input_units: int | None
     utilization: float | None
     pressure: str
+
+
+@dataclass(frozen=True, slots=True)
+class StrategyContextCompactionResult:
+    """Outcome of one Context Manager compaction decision."""
+
+    changed: bool
+    upserted_keys: tuple[str, ...] = ()
+    removed_keys: tuple[str, ...] = ()
+    metadata: Mapping[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)
@@ -56,14 +67,11 @@ class StrategyContextManager(Protocol):
 
     def remove(self, key: str) -> None: ...
 
-    async def summarize(
+    async def compact(
         self,
         *,
-        key: str = "session.summary",
-        scope: str = "session",
-        target_units: int = 2000,
         phase: str | ExecutionPhase | None = None,
-    ) -> StrategyContextContribution: ...
+    ) -> StrategyContextCompactionResult: ...
 
     async def assemble(
         self,
