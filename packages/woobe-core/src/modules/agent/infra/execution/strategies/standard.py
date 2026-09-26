@@ -12,6 +12,7 @@ from modules.agent.application.strategy_sdk import (
     ExecutionState,
     ExecutionStopReason,
     StrategyContext,
+    StrategyContextContribution,
     StrategyOutcome,
     Suspended,
     strategy_phase_with_iteration,
@@ -45,6 +46,7 @@ class StandardExecutionState(ExecutionState):
     phase: str | None = None
     tool_round: int = 0
     consecutive_failures: int = 0
+    knowledge_resolved: bool = False
     stop_reason: StandardStopReason | None = None
 
 
@@ -84,6 +86,27 @@ class StandardExecutionStrategy(ExecutionStrategy[StandardExecutionState]):
         ctx: StrategyContext[StandardExecutionState],
     ) -> StrategyOutcome:
         state = ctx.state
+
+        if not state.knowledge_resolved:
+            knowledge = await ctx.knowledge.retrieve(
+                phase="knowledge_retrieval",
+            )
+            state.knowledge_resolved = True
+            if knowledge.found:
+                ctx.context.set(
+                    StrategyContextContribution(
+                        key="knowledge.primary",
+                        source_type="KNOWLEDGE",
+                        content=knowledge.content,
+                        metadata={
+                            "retrieval": dict(knowledge.metadata),
+                            "sources": [
+                                source.model_dump(mode="json")
+                                for source in knowledge.sources
+                            ],
+                        },
+                    )
+                )
 
         if state.phase == StandardPhase.FINAL_RESPONSE_GENERATION.value:
             result = await ctx.model.finalize(
