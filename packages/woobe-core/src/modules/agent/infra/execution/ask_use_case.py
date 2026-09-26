@@ -373,15 +373,13 @@ class AskAgentUseCase:
                     agent,
                 )
 
-            rag_context, sources = await self._load_rag_context(
-                agent,
-                input_dto.message,
-                repositories,
-            )
-
+            # Knowledge retrieval is an ExecutionStrategy decision. Preparation
+            # only builds the base conversation; the frozen Knowledge binding is
+            # resolved by the durable runtime and exposed through StrategyKnowledge.
+            sources: list[SourceInfo] = []
             messages = self._build_messages(
                 agent,
-                rag_context,
+                None,
                 history,
                 input_dto.message,
                 response_format if json_enabled else None,
@@ -1116,61 +1114,10 @@ class AskAgentUseCase:
             )
             return []
 
-    async def _load_rag_context(
-        self,
-        agent: Agent,
-        query: str,
-        repositories: AgentRuntimeRepositories,
-    ) -> tuple[str | None, list[SourceInfo]]:
-        try:
-            collections = await repositories.agent_collections.list_by_agent(agent.id)
-            if not collections:
-                return None, []
-
-            all_sources: list[SourceInfo] = []
-            all_chunks: list[str] = []
-
-            for link in collections:
-                try:
-                    results = await repositories.document_chunks.search_similar(
-                        embedding=[0.0] * 1536,
-                        collection_id=link.collection_id,
-                        limit=3,
-                        threshold=0.0,
-                    )
-                except Exception:
-                    continue
-
-                for chunk, score in results:
-                    all_chunks.append(
-                        f"[{len(all_sources) + 1}] {chunk.content[:500]}"
-                    )
-                    all_sources.append(
-                        SourceInfo(
-                            document_id=(
-                                str(chunk.document_id)
-                                if chunk.document_id
-                                else None
-                            ),
-                            chunk_id=str(chunk.id),
-                            page_number=chunk.page_number,
-                            score=round(score, 4),
-                            content_preview=chunk.content[:200],
-                        )
-                    )
-
-            if not all_chunks:
-                return None, []
-
-            context = "\n\n".join(all_chunks)
-            return context, all_sources
-        except Exception:
-            return None, []
-
     def _build_messages(
         self,
         agent: Agent,
-        rag_context: str | None,
+        _rag_context: str | None,
         history: list,
         user_message: str,
         response_format: dict | None = None,
@@ -1192,17 +1139,6 @@ class AskAgentUseCase:
 
         if system_prompt:
             messages.append(SystemMessage(content=system_prompt))
-
-        if rag_context:
-            messages.append(
-                SystemMessage(
-                    content=(
-                        "Use the following context when relevant. "
-                        "If the context is not enough, say you do not know.\n\n"
-                        f"<context>\n{rag_context}\n</context>"
-                    )
-                )
-            )
 
         messages.extend(history)
         messages.append(HumanMessage(content=user_message))
