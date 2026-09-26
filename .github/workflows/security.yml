@@ -15,33 +15,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  secret-history-hosted:
-    name: secret-history (GitHub-hosted)
-    runs-on: ubuntu-24.04
-    continue-on-error: true
-    outputs:
-      outcome: ${{ job.status }}
-    steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
-        with:
-          fetch-depth: 0
-      - name: Clear stale gitleaks installer state
-        run: rm -f /tmp/gitleaks.tmp
-      - name: Scan reachable Git history
-        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
-
   secret-history:
     name: secret-history
-    needs: secret-history-hosted
-    if: ${{ !cancelled() && needs.secret-history-hosted.outputs.outcome != 'success' }}
     runs-on: [self-hosted, Linux, X64]
     steps:
-      - name: Report fallback activation
-        run: |
-          echo "::warning::GitHub-hosted security.yml / secret-history did not pass; retrying on self-hosted runner."
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           fetch-depth: 0
