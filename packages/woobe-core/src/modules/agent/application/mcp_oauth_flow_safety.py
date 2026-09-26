@@ -201,7 +201,7 @@ class WoobeMcpOAuthMetadataResolver(_oauth.McpOAuthMetadataResolver):
             "params": {
                 "protocolVersion": _oauth.MCP_PROTOCOL_VERSION,
                 "capabilities": {},
-                "clientInfo": {"name": "Woobe", "version": "0.12.0"},
+                "clientInfo": {"name": "Woobe", "version": "0.12.1"},
             },
         }
         result = await self._executor.execute(
