@@ -38,7 +38,6 @@ def build_execution_capabilities(
             provider=prepared.provider,
             model_name=prepared.model_name,
             pricing_snapshot=prepared.pricing_snapshot,
-            context_assembler=prepared.context_assembler,
         ),
         tools=ToolExecutionCapability(
             execute_single_tool=prepared.execute_single_tool,
