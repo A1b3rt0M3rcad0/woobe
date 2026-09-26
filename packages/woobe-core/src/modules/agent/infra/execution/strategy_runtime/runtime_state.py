@@ -55,6 +55,35 @@ class StrategyRuntimeState:
             partial_result_available=bool(self.execution.tool_calls),
         )
 
+    def record_knowledge_call(
+        self,
+        call: dict[str, Any],
+        sources: tuple[Any, ...],
+    ) -> None:
+        self.execution.knowledge_calls.append(call)
+        self.execution.timeline.append(
+            {
+                "kind": "knowledge",
+                "occurred_at": call["occurred_at"],
+                "payload": call,
+            }
+        )
+        known = {
+            source.model_dump_json()
+            for source in self.execution.sources
+            if hasattr(source, "model_dump_json")
+        }
+        for source in sources:
+            identity = (
+                source.model_dump_json()
+                if hasattr(source, "model_dump_json")
+                else repr(source)
+            )
+            if identity in known:
+                continue
+            self.execution.sources.append(source)
+            known.add(identity)
+
     def record_tool_batch(self, batch: ToolExecutionBatch) -> None:
         self.execution.tool_wall_latency_ms += batch.wall_latency_ms
         for info, message, payload in batch.results:
