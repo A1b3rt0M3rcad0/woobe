@@ -5,6 +5,8 @@ from types import SimpleNamespace
 import pytest
 from langchain_core.messages import AIMessage, ToolMessage
 
+from modules.agent.application.dtos.runtime_dtos import SourceInfo
+
 from modules.agent.application.interfaces.execution_context import (
     current_execution,
     new_execution_context,
@@ -56,7 +58,13 @@ class _Factory:
         return self.model
 
 
-def _request(model, execute_single_tool) -> ExecutionStrategyRequest:
+def _request(
+    model,
+    execute_single_tool,
+    *,
+    knowledge_retrieve=None,
+    knowledge_query: str | None = None,
+) -> ExecutionStrategyRequest:
     return ExecutionStrategyRequest(
         llm_factory=_Factory(model),
         execute_single_tool=execute_single_tool,
@@ -86,6 +94,8 @@ def _request(model, execute_single_tool) -> ExecutionStrategyRequest:
         tool_name_to_id={"lookup": "tool-id"},
         messages=[],
         context_assembler=None,
+        knowledge_retrieve=knowledge_retrieve,
+        knowledge_query=knowledge_query,
     )
 
 
@@ -155,3 +165,85 @@ async def test_standard_strategy_resumes_generic_checkpoint_without_replaying_to
     assert second_context.resume_state is None
     assert any(isinstance(message, AIMessage) for message in model.invocations[1])
     assert any(isinstance(message, ToolMessage) for message in model.invocations[1])
+
+
+@pytest.mark.asyncio
+async def test_standard_strategy_restores_knowledge_contribution_without_retrieval_replay() -> None:
+    model = _SequenceModel()
+    tool_calls = 0
+    knowledge_calls = 0
+    captured: dict = {}
+
+    async def retrieve_knowledge(query: str):
+        nonlocal knowledge_calls
+        assert query == "customer 123"
+        knowledge_calls += 1
+        return SimpleNamespace(
+            context="Customer records are authoritative.",
+            sources=(
+                SourceInfo(
+                    document_id="doc-1",
+                    chunk_id="chunk-1",
+                    score=0.99,
+                ),
+            ),
+            metrics={"retrieved_chunks": 1},
+        )
+
+    async def execute_single_tool(_tool_call, resolved_tool_id):
+        nonlocal tool_calls
+        assert resolved_tool_id == "tool-id"
+        tool_calls += 1
+        return {
+            "success": True,
+            "output": {"result": {"active": True}},
+            "duration_ms": 1,
+            "error": None,
+        }
+
+    class CrashAfterCheckpointRecorder:
+        async def checkpoint(self, state, *, durable=True):
+            captured["state"] = state
+            captured["durable"] = durable
+            raise _SimulatedCrash("process stopped after durable Tool boundary")
+
+    request = _request(
+        model,
+        execute_single_tool,
+        knowledge_retrieve=retrieve_knowledge,
+        knowledge_query="customer 123",
+    )
+
+    first_context = new_execution_context()
+    first_context.run_event_recorder = CrashAfterCheckpointRecorder()
+    first_token = current_execution.set(first_context)
+    try:
+        with pytest.raises(_SimulatedCrash):
+            await _execute(request)
+    finally:
+        current_execution.reset(first_token)
+
+    assert knowledge_calls == 1
+    assert tool_calls == 1
+    assert captured["durable"] is True
+    contribution = captured["state"]["context_contributions"]["knowledge.primary"]
+    assert contribution["source_type"] == "KNOWLEDGE"
+    assert contribution["content"] == "Customer records are authoritative."
+    assert contribution["metadata"]["sources"][0]["document_id"] == "doc-1"
+    assert captured["state"]["strategy_cursor"]["state"]["knowledge_resolved"] is True
+
+    second_context = new_execution_context()
+    second_context.resume_state = captured["state"]
+    second_token = current_execution.set(second_context)
+    try:
+        execution = await _execute(request)
+    finally:
+        current_execution.reset(second_token)
+
+    assert knowledge_calls == 1
+    assert tool_calls == 1
+    assert len(execution.knowledge_calls) == 1
+    assert len(execution.sources) == 1
+    assert execution.sources[0].document_id == "doc-1"
+    assert "Customer records are authoritative." in str(model.invocations[1])
+    assert execution.result.content == "Customer 123 is active."
