@@ -291,6 +291,7 @@ def test_platform_version_sync_script_covers_release_mirrors() -> None:
     assert '"uv.lock": _uv_project_version()' in check
 
 
+
 def test_container_ci_reproduces_release_candidate_multiarch_contract() -> None:
     candidate = (ROOT / ".github/workflows/release-candidate.yml").read_text(
         encoding="utf-8"
@@ -299,9 +300,10 @@ def test_container_ci_reproduces_release_candidate_multiarch_contract() -> None:
         encoding="utf-8"
     )
 
-    assert "release-multiarch-build:" in containers
-    assert "runs-on: ubuntu-latest" not in containers
-    assert "runs-on: ubuntu-24.04" in containers
+    assert "Phase · release-multiarch-build" in containers
+    assert "runs-on: [self-hosted, Linux, X64]" in containers
+    assert "runs-on: ubuntu-24.04" not in containers
+    assert containers.count("runs-on:") == 1
     assert containers.count("platforms: linux/amd64,linux/arm64") == 4
     assert containers.count("push: false") == 4
     assert "docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1" in containers
@@ -315,7 +317,6 @@ def test_container_ci_reproduces_release_candidate_multiarch_contract() -> None:
     ):
         assert token in candidate
         assert token in containers
-
 
 def test_release_candidate_sha_tags_are_reused_not_overwritten() -> None:
     candidate = (ROOT / ".github/workflows/release-candidate.yml").read_text(
@@ -334,6 +335,7 @@ def test_release_candidate_sha_tags_are_reused_not_overwritten() -> None:
     assert "digest_with_retry" in candidate
 
 
+
 def test_release_ci_pins_required_actions_and_runs_release_contract_tests() -> None:
     required = (
         "tests.yml",
@@ -345,17 +347,14 @@ def test_release_ci_pins_required_actions_and_runs_release_contract_tests() -> N
         "security.yml",
         "cla.yml",
     )
-    hybrid_fallback = set(required)
     for filename in required:
         workflow = (ROOT / ".github/workflows" / filename).read_text(encoding="utf-8")
-        assert "runs-on: ubuntu-24.04" in workflow
-        if filename in hybrid_fallback:
-            assert "runs-on: [self-hosted, Linux, X64]" in workflow
-            assert "continue-on-error: true" in workflow
-            assert "outcome: ${{ job.status }}" in workflow
-        else:
-            assert "runs-on: [self-hosted, Linux, X64]" not in workflow
-        for action in re.findall(r"uses:\\s+([^\\s#]+)", workflow):
+        assert "runs-on: [self-hosted, Linux, X64]" in workflow
+        assert "runs-on: ubuntu-24.04" not in workflow
+        assert "continue-on-error: true" not in workflow
+        assert "outcome: ${{ job.status }}" not in workflow
+        assert workflow.count("runs-on:") == 1
+        for action in re.findall(r"uses:\s+([^\s#]+)", workflow):
             if action.startswith("./"):
                 continue
             assert re.search(r"@[0-9a-f]{40}$", action), (filename, action)
@@ -378,7 +377,8 @@ def test_acceptance_validates_previous_release_upgrade() -> None:
         encoding="utf-8"
     )
 
-    assert "previous-release-upgrade:" in acceptance
+    assert "Phase · previous-release-upgrade" in acceptance
+    assert acceptance.count("runs-on:") == 1
     assert 'docker exec --user 999:999 "$WOOBE_ACCEPTANCE_RABBITMQ_CONTAINER"' in acceptance
     assert "validate_previous_release_upgrade.sh" in acceptance
     assert "git tag --merged" in upgrade
@@ -389,7 +389,6 @@ def test_acceptance_validates_previous_release_upgrade() -> None:
     assert "ghcr.io/" in upgrade
     assert "alembic" in upgrade
     assert "release-upgrade-probe" in upgrade
-
 
 def test_prebuilt_image_smoke_contract_covers_all_container_units() -> None:
     override = (ROOT / "docker/ci/compose.release-images.yml").read_text(
