@@ -498,30 +498,10 @@ class AgentRunRecoveryRuntime(FrozenSnapshotStructuredOutputRuntime):
                         {"attempt": context.run_attempt, "trace_id": str(accepted.trace_id)},
                     )
 
-                rag_context, sources = await self._load_rag_context(
-                    agent,
-                    accepted.input_message,
-                    self._transactions,
-                )
-                if context.run_event_recorder is not None and sources:
-                    await context.run_event_recorder.emit(
-                        "knowledge.retrieval.completed",
-                        {
-                            "source_count": len(sources),
-                            "sources": [
-                                source.model_dump() if hasattr(source, "model_dump") else source
-                                for source in sources
-                            ],
-                        },
-                    )
-                context.context_rag_sources = [
-                    source.model_dump() if hasattr(source, "model_dump") else dict(source)
-                    for source in sources or []
-                    if hasattr(source, "model_dump") or isinstance(source, dict)
-                ]
+                sources = []
                 messages = self._build_messages(
                     agent,
-                    rag_context,
+                    None,
                     history,
                     accepted.input_message,
                     response_format if json_enabled else None,
@@ -533,7 +513,7 @@ class AgentRunRecoveryRuntime(FrozenSnapshotStructuredOutputRuntime):
                         SystemMessage(content=_TOOL_GROUNDING_RUNTIME_RULES),
                     )
                 await self._hot_update(
-                    {"phase": "llm", "rag_sources": len(sources or [])}
+                    {"phase": "llm", "rag_sources": 0}
                 )
                 return (
                     agent,
