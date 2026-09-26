@@ -68,8 +68,8 @@ class StrategyContextManager(Protocol):
     async def assemble(
         self,
         *,
+        tools: StrategyToolSelection,
         phase: str | ExecutionPhase | None = None,
-        tools: StrategyToolSelection | None = None,
         target: StrategyContextTarget = StrategyContextTarget.PRIMARY,
     ) -> StrategyInvocationContext: ...
 
@@ -78,6 +78,6 @@ class StrategyContextManager(Protocol):
         *,
         reason: str,
         phase: str | ExecutionPhase,
-        tools: StrategyToolSelection | None = None,
+        tools: StrategyToolSelection,
         target: StrategyContextTarget = StrategyContextTarget.PRIMARY,
     ) -> StrategyInvocationContext: ...
