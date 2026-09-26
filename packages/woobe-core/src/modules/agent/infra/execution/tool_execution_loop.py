@@ -50,7 +50,6 @@ async def run_tool_loop(
             provider=provider,
             model_name=model_name,
             pricing_snapshot=pricing_snapshot,
-            context_assembler=context_assembler,
             invoke_fn=invoke_llm,
         ),
         tools=ToolExecutionCapability(
