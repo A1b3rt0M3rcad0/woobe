@@ -345,7 +345,7 @@ def test_release_ci_pins_required_actions_and_runs_release_contract_tests() -> N
         "security.yml",
         "cla.yml",
     )
-    hybrid_fallback = {"tests.yml", "quality-gate.yml"}
+    hybrid_fallback = set(required)
     for filename in required:
         workflow = (ROOT / ".github/workflows" / filename).read_text(encoding="utf-8")
         assert "runs-on: ubuntu-24.04" in workflow
