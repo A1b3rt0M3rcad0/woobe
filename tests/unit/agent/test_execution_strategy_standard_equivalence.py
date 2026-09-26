@@ -6,6 +6,7 @@ from typing import Any
 import pytest
 from langchain_core.messages import AIMessage
 
+from modules.agent.application.dtos.runtime_dtos import SourceInfo
 from modules.agent.application.interfaces.execution import InstrumentedExecutionError
 from modules.agent.application.interfaces.execution_strategy import ExecutionStrategyRequest
 from modules.agent.infra.execution.strategies.standard import StandardExecutionStrategy
@@ -16,12 +17,14 @@ class _SequenceModel:
     def __init__(self, responses: list[AIMessage]) -> None:
         self.responses = responses
         self.invocation_count = 0
+        self.invocations: list[list[Any]] = []
 
     def bind_tools(self, _tools, *, tool_choice):
         assert tool_choice == "auto"
         return self
 
     async def ainvoke(self, _messages):
+        self.invocations.append(list(_messages))
         response = self.responses[self.invocation_count]
         self.invocation_count += 1
         return response
@@ -71,6 +74,8 @@ def _request(
     tool_name_to_id: dict[str, str] | None = None,
     json_enabled: bool = False,
     response_format: dict | None = None,
+    knowledge_retrieve=None,
+    knowledge_query: str | None = None,
 ) -> ExecutionStrategyRequest:
     return ExecutionStrategyRequest(
         llm_factory=factory,
@@ -86,6 +91,8 @@ def _request(
         tool_name_to_id=tool_name_to_id or {},
         messages=[],
         context_assembler=None,
+        knowledge_retrieve=knowledge_retrieve,
+        knowledge_query=knowledge_query,
     )
 
 
@@ -332,3 +339,49 @@ async def test_standard_strategy_preserves_failed_tool_evidence() -> None:
         "capability_response_generation",
         "tool_followup_1",
     ]
+
+
+@pytest.mark.asyncio
+async def test_standard_strategy_retrieves_knowledge_and_materializes_it_in_context_once() -> None:
+    model = _SequenceModel([AIMessage(content="grounded answer")])
+    factory = _RecordingFactory(model)
+    retrievals: list[str] = []
+
+    async def retrieve_knowledge(query: str):
+        retrievals.append(query)
+        return SimpleNamespace(
+            context="Woobe runtime knowledge",
+            sources=(
+                SourceInfo(
+                    document_id="doc-1",
+                    chunk_id="chunk-1",
+                    score=0.93,
+                ),
+            ),
+            metrics={"retrieved_chunks": 1},
+        )
+
+    async def execute_single_tool(_tool_call, _tool_id):
+        raise AssertionError("Tool execution must not run")
+
+    execution = await _execute(
+        _request(
+            factory=factory,
+            execute_single_tool=execute_single_tool,
+            has_tools=False,
+            knowledge_retrieve=retrieve_knowledge,
+            knowledge_query="How does Woobe execute agents?",
+        )
+    )
+
+    assert retrievals == ["How does Woobe execute agents?"]
+    assert len(execution.knowledge_calls) == 1
+    assert execution.knowledge_calls[0]["found"] is True
+    assert len(execution.sources) == 1
+    assert execution.sources[0].document_id == "doc-1"
+    assert [item["kind"] for item in execution.timeline] == ["knowledge", "llm"]
+
+    serialized = str(model.invocations[0])
+    assert "Woobe runtime knowledge" in serialized
+    assert "source_type" in serialized
+    assert "KNOWLEDGE" in serialized
