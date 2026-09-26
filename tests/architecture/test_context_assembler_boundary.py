@@ -287,6 +287,37 @@ def test_execution_preparation_cannot_retrieve_knowledge() -> None:
     assert not violations, "\n".join(violations)
 
 
+def test_tool_instructions_are_invocation_scoped_not_prepare_scoped() -> None:
+    preparation = AGENT_EXECUTION / "capabilities" / "preparation.py"
+    prepare_function = _find_function(_tree(preparation), "prepare_execution")
+    forbidden_calls = {
+        "_messages_with_bound_capability_authority",
+        "_messages_with_tool_grounding",
+        "_messages_with_skill_usage",
+    }
+
+    called = {
+        name
+        for node in ast.walk(prepare_function)
+        if isinstance(node, ast.Call)
+        and (name := _call_name(node)) in forbidden_calls
+    }
+    assert not called, (
+        "prepare_execution must not materialize invocation-scoped Tool instructions: "
+        + ", ".join(sorted(called))
+    )
+
+    for filename in (
+        "structured_output_ask_use_case.py",
+        "transaction_bounded_structured_output.py",
+        "agent_run_recovery_runtime.py",
+    ):
+        source = (AGENT_EXECUTION / filename).read_text(encoding="utf-8")
+        assert "_TOOL_GROUNDING_RUNTIME_RULES" not in source, (
+            f"{filename} still materializes Tool grounding during preparation"
+        )
+
+
 def test_every_model_invocation_has_explicit_context_boundary() -> None:
     violations: list[str] = []
 
