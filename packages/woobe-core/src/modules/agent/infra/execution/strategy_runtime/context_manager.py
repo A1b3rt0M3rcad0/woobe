@@ -21,6 +21,11 @@ from modules.agent.infra.execution.capabilities.context_assembly import (
 from modules.agent.infra.execution.capabilities.message_progression import (
     terminal_response_messages,
 )
+from modules.agent.infra.execution.capabilities.preparation import (
+    _messages_with_bound_capability_authority,
+    _messages_with_skill_usage,
+    _messages_with_tool_grounding,
+)
 from modules.agent.infra.execution.strategy_runtime.runtime_state import (
     StrategyRuntimeState,
 )
@@ -126,6 +131,31 @@ class RuntimeStrategyContextManager:
             if isinstance(contribution, StrategyContextContribution)
         )
 
+    def _selected_tool_definitions(
+        self,
+        tools: StrategyToolSelection | None,
+    ) -> tuple[dict[str, Any], ...]:
+        mode = (
+            tools.mode.value
+            if tools is not None
+            else StrategyToolSelectionMode.ALL.value
+        )
+        selected = self._capability.selected_tool_definitions(
+            mode,
+            tools.names if tools is not None else (),
+        )
+        return tuple(selected or ())
+
+    @staticmethod
+    def _tool_name(definition: dict[str, Any]) -> str | None:
+        function = definition.get("function")
+        if isinstance(function, dict):
+            name = function.get("name")
+            if isinstance(name, str) and name:
+                return name
+        name = definition.get("name")
+        return name if isinstance(name, str) and name else None
+
     async def _assemble_messages(
         self,
         *,
@@ -133,8 +163,27 @@ class RuntimeStrategyContextManager:
         phase: StrategyPhase,
         tools: StrategyToolSelection | None,
     ) -> StrategyInvocationContext:
-        materialized = materialize_context_contributions(
+        selected_definitions = self._selected_tool_definitions(tools)
+        selected_names = tuple(
+            name
+            for definition in selected_definitions
+            if (name := self._tool_name(definition)) is not None
+        )
+        invocation_messages = _messages_with_bound_capability_authority(
             messages,
+            has_tools=bool(selected_definitions),
+            has_skills=any(name.startswith("skills_") for name in selected_names),
+        )
+        invocation_messages = _messages_with_skill_usage(
+            invocation_messages,
+            has_skills=any(name.startswith("skills_") for name in selected_names),
+        )
+        invocation_messages = _messages_with_tool_grounding(
+            invocation_messages,
+            has_tools=bool(selected_definitions),
+        )
+        materialized = materialize_context_contributions(
+            invocation_messages,
             self._contributions(),
         )
         next_call_index = self._runtime_state.call_index + 1
