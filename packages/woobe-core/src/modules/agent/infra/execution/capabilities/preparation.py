@@ -88,7 +88,6 @@ class PreparedExecution:
     tool_name_to_id: dict[str, str]
     provider: str
     model_name: str
-    initial_phase: str
     final_json_instruction: str | None
     pricing_snapshot: dict[str, Any] | None
     effective_output_tokens: int
@@ -421,9 +420,6 @@ def prepare_execution(request: ExecutionStrategyRequest) -> PreparedExecution:
         tool_name_to_id=tool_name_to_id,
         provider=provider,
         model_name=agent.model,
-        initial_phase=(
-            "capability_response_generation" if has_tools else "response_generation"
-        ),
         final_json_instruction=instruction,
         pricing_snapshot=pricing_snapshot,
         effective_output_tokens=effective_output_tokens,
