@@ -14,6 +14,9 @@ from modules.agent.infra.execution.durable_execution_instrumentation import (
     invoke_llm,
     resolve_effective_output_tokens,
 )
+from modules.agent.infra.execution.strategy_runtime.context_manager import (
+    materialize_context_contributions,
+)
 from modules.agent.infra.execution.runtime_streaming import (
     emit_runtime_event,
     runtime_streaming_enabled,
@@ -75,11 +78,17 @@ class InstrumentedFallbackMixin:
             "_context_assembler",
             None,
         )
+        fallback_messages = list(messages)
+        if context is not None and context.strategy_context_contributions:
+            fallback_messages = materialize_context_contributions(
+                fallback_messages,
+                tuple(context.strategy_context_contributions.values()),
+            )
 
         try:
             result, call = await invoke_llm(
                 model=fallback_chat_model,
-                messages=messages,
+                messages=fallback_messages,
                 # Fallback is a terminal response generation attempt. Reusing the
                 # public final phase keeps standalone and Network streaming semantics
                 # identical while the fallback event preserves provider provenance.
