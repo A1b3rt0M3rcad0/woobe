@@ -20,50 +20,33 @@ async def test_context_assembler_catalog_uses_api_envelope_and_backend_metadata(
     payload = response.json()
     assert payload["success"] is True
     assert payload["message"] == "ok"
-    assert len(payload["data"]) == 3
 
-    system_default, explicit_standard, skills_standard = payload["data"]
-    expected_common = {
-        "strategy_name": "stdcm",
-        "strategy_version": "v1",
-        "display_name": "Standard Context Manager",
-        "description": (
-            "Balanced deterministic context management for general-purpose Agent execution."
-        ),
-        "behavior": (
-            "Builds each Model Invocation context deterministically from the Agent's available "
-            "context sources, applying Context Policy v1 budgets, priorities, pressure handling, "
-            "ordering, deduplication, and provenance capture."
-        ),
-        "recommended_for": [
-            "General-purpose Agents that need predictable context behavior.",
-            "Production workloads where replayability and stable snapshot behavior matter.",
-        ],
-        "capabilities": [
-            "Preserves mandatory system instructions and the current user input.",
-            "Balances session history, knowledge, tool, artifact, delegation, and runtime context within configured budgets.",
-            "Applies pressure trimming, ordering, and deduplication before each Model Invocation.",
-            "Records source contributions and provenance in the Context Snapshot.",
-        ],
-        "limitations": [
-            "Does not perform autonomous context planning or iterative retrieval.",
-            "Behavior is bounded by Context Policy v1 and the context sources available to the Agent.",
-        ],
-        "configuration": "Context Policy v1",
-        "supports_skills": False,
+    descriptors = {
+        (item["name"], item["version"]): item
+        for item in payload["data"]
+    }
+    assert set(descriptors) == {
+        ("default", "v3"),
+        ("stdcm", "v1"),
+        ("stdcm", "v2"),
+        ("stdcm", "v3"),
     }
 
-    assert system_default == {
-        "name": "default",
-        "version": "v1",
-        **expected_common,
-        "is_default": True,
-        "is_system_default_alias": True,
-    }
-    assert explicit_standard == {
-        "name": "stdcm",
-        "version": "v1",
-        **expected_common,
-        "is_default": False,
-        "is_system_default_alias": False,
-    }
+    system_default = descriptors[("default", "v3")]
+    assert system_default["strategy_name"] == "stdcm"
+    assert system_default["strategy_version"] == "v3"
+    assert system_default["display_name"] == "Standard Context Manager v3"
+    assert system_default["supports_skills"] is True
+    assert system_default["is_default"] is True
+    assert system_default["is_system_default_alias"] is True
+
+    historical_v1 = descriptors[("stdcm", "v1")]
+    assert historical_v1["strategy_version"] == "v1"
+    assert historical_v1["display_name"] == "Standard Context Manager"
+    assert historical_v1["supports_skills"] is False
+    assert historical_v1["is_default"] is False
+
+    programmable_v3 = descriptors[("stdcm", "v3")]
+    assert programmable_v3["strategy_version"] == "v3"
+    assert programmable_v3["supports_skills"] is True
+    assert "compaction" in programmable_v3["behavior"].lower()

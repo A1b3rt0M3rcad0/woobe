@@ -45,6 +45,16 @@ def test_chat_surface_insecure_origins_are_opt_in(
     assert enabled_settings.chat_surface_allow_insecure_origins is True
 
 
+def test_default_context_manager_is_programmable_v3() -> None:
+    settings = Settings(
+        edition="core",
+        secret_key="s" * 32,
+        encryption_key="e" * 16,
+    )
+
+    assert settings.default_context_manager == "stdcm:v3"
+
+
 def test_default_context_manager_is_loaded_from_environment(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

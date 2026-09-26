@@ -51,6 +51,32 @@ async def test_create_agent_freezes_system_default_selection_and_strategy() -> N
 
 
 @pytest.mark.asyncio
+async def test_create_agent_freezes_programmable_v3_default() -> None:
+    agent_repo, credential_repo, outbox = _deps()
+    use_case = CreateAgentUseCase(
+        agent_repo,
+        credential_repo,
+        outbox,
+        default_context_manager="stdcm:v3",
+    )
+
+    saved = await use_case.execute(
+        CreateAgentInput(
+            project_id=uuid4(),
+            name="Programmable Context Agent",
+            model="test-model",
+        )
+    )
+
+    assert saved.settings["runtime_config"]["context_assembler"] == {
+        "name": "default",
+        "version": "v3",
+        "strategy_name": "stdcm",
+        "strategy_version": "v3",
+    }
+
+
+@pytest.mark.asyncio
 async def test_create_agent_preserves_explicit_context_manager_selection() -> None:
     agent_repo, credential_repo, outbox = _deps()
     use_case = CreateAgentUseCase(
