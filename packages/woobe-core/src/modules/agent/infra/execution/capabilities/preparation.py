@@ -62,6 +62,15 @@ _skill_runtime_factory: Callable[[list[dict[str, Any]], Any, set[str]], Any] | N
 
 
 @dataclass(frozen=True, slots=True)
+class PreparedFallbackModel:
+    model: Any
+    provider: str
+    model_name: str
+    pricing_snapshot: dict[str, Any] | None
+    metadata: dict[str, Any]
+
+
+@dataclass(frozen=True, slots=True)
 class PreparedExecution:
     """Resolved strategy-facing bindings for one Agent execution.
 
@@ -73,6 +82,7 @@ class PreparedExecution:
     model: Any
     final_model: Any | None
     final_model_factory: Callable[[], Any] | None
+    fallback_model_factory: Callable[[], PreparedFallbackModel] | None
     execute_single_tool: Callable[[dict, str], Coroutine[Any, Any, dict]]
     messages: list
     tool_name_to_id: dict[str, str]
@@ -107,6 +117,12 @@ def configure_skill_runtime(
 def _primary_pricing_snapshot(request: ExecutionStrategyRequest) -> dict[str, Any] | None:
     settings = request.agent.settings or {}
     value = settings.get("model_pricing")
+    return value if isinstance(value, dict) else None
+
+
+def _fallback_pricing_snapshot(request: ExecutionStrategyRequest) -> dict[str, Any] | None:
+    settings = request.agent.settings or {}
+    value = settings.get("fallback_model_pricing")
     return value if isinstance(value, dict) else None
 
 
@@ -327,6 +343,65 @@ def prepare_execution(request: ExecutionStrategyRequest) -> PreparedExecution:
 
         final_model_factory = create_structured_recovery_model
 
+    fallback_model_factory: Callable[[], PreparedFallbackModel] | None = None
+    fallback_model_name = getattr(agent, "fallback_model", None)
+    fallback_credential_id = getattr(agent, "fallback_credential_id", None)
+    fallback_provider_value = getattr(agent, "fallback_provider", None)
+    if fallback_model_name and fallback_credential_id and fallback_provider_value:
+        fallback_provider = (
+            fallback_provider_value.value
+            if hasattr(fallback_provider_value, "value")
+            else str(fallback_provider_value)
+        )
+        fallback_pricing = _fallback_pricing_snapshot(request)
+        fallback_output_tokens = resolve_effective_output_tokens(
+            agent.max_output_tokens,
+            fallback_pricing,
+        )
+
+        def create_fallback_model() -> PreparedFallbackModel:
+            execution_context = current_execution.get()
+            prepared_fallback = (
+                execution_context.prepared_fallback
+                if execution_context is not None
+                else None
+            )
+            prepared_fallback = (
+                prepared_fallback if isinstance(prepared_fallback, dict) else {}
+            )
+            fallback_model = request.llm_factory.create_chat_model(
+                provider=fallback_provider,
+                model=fallback_model_name,
+                api_key=str(prepared_fallback.get("api_key") or ""),
+                base_url=prepared_fallback.get("base_url"),
+                temperature=agent.temperature or 0.2,
+                max_tokens=fallback_output_tokens,
+                streaming=streaming_enabled,
+                response_format=(
+                    {"type": "json_object"} if request.json_enabled else None
+                ),
+            )
+            return PreparedFallbackModel(
+                model=fallback_model,
+                provider=fallback_provider,
+                model_name=str(fallback_model_name),
+                pricing_snapshot=fallback_pricing,
+                metadata={
+                    "primary_model": agent.model,
+                    "primary_provider": provider,
+                    "fallback_model": str(fallback_model_name),
+                    "fallback_provider": fallback_provider,
+                    "fallback_credential_id": str(fallback_credential_id),
+                    "fallback_provider_model_id": (
+                        str(getattr(agent, "fallback_provider_model_id"))
+                        if getattr(agent, "fallback_provider_model_id", None)
+                        else None
+                    ),
+                },
+            )
+
+        fallback_model_factory = create_fallback_model
+
     # Tool authority, grounding and Skill usage instructions are invocation-scoped.
     # Preparation owns only the stable base conversation and structured-output contract.
     execution_messages = list(request.messages)
@@ -340,6 +415,7 @@ def prepare_execution(request: ExecutionStrategyRequest) -> PreparedExecution:
         model=model,
         final_model=final_model,
         final_model_factory=final_model_factory,
+        fallback_model_factory=fallback_model_factory,
         execute_single_tool=execute_single_tool,
         messages=execution_messages,
         tool_name_to_id=tool_name_to_id,
