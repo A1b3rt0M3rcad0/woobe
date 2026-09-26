@@ -32,6 +32,7 @@ class StandardPhase(ExecutionPhase):
     CAPABILITY_RESPONSE_GENERATION = "capability_response_generation"
     TOOL_FOLLOWUP = "tool_followup"
     FINAL_RESPONSE_GENERATION = "final_response_generation"
+    FALLBACK_RESPONSE_GENERATION = "fallback_response_generation"
 
 
 class StandardStopReason(ExecutionStopReason):
@@ -82,6 +83,25 @@ class StandardExecutionStrategy(ExecutionStrategy[StandardExecutionState]):
     def __init__(self, policy: StandardExecutionPolicy | None = None) -> None:
         self.policy = policy or StandardExecutionPolicy()
 
+    async def _fallback_or_raise(
+        self,
+        ctx: StrategyContext[StandardExecutionState],
+        error: InstrumentedExecutionError,
+    ):
+        if not ctx.model.fallback_available:
+            raise error
+        no_tools = ctx.tools.none()
+        invocation = await ctx.context.assemble(
+            phase=StandardPhase.FALLBACK_RESPONSE_GENERATION,
+            tools=no_tools,
+        )
+        return await ctx.model.invoke_fallback(
+            context=invocation,
+            primary_error=str(error),
+            phase=StandardPhase.FALLBACK_RESPONSE_GENERATION,
+            tools=no_tools,
+        )
+
     async def execute(
         self,
         ctx: StrategyContext[StandardExecutionState],
@@ -128,12 +148,15 @@ class StandardExecutionStrategy(ExecutionStrategy[StandardExecutionState]):
                 phase=StandardPhase.FINAL_RESPONSE_GENERATION,
                 tools=no_tools,
             )
-            result = await ctx.model.finalize(
-                reason=reason,
-                phase=StandardPhase.FINAL_RESPONSE_GENERATION,
-                context=invocation,
-                tools=no_tools,
-            )
+            try:
+                result = await ctx.model.finalize(
+                    reason=reason,
+                    phase=StandardPhase.FINAL_RESPONSE_GENERATION,
+                    context=invocation,
+                    tools=no_tools,
+                )
+            except InstrumentedExecutionError as exc:
+                result = await self._fallback_or_raise(ctx, exc)
             if ctx.output.requires_repair(result):
                 result = await ctx.output.repair(
                     result,
@@ -146,11 +169,14 @@ class StandardExecutionStrategy(ExecutionStrategy[StandardExecutionState]):
             phase=state.phase,
             tools=tools,
         )
-        result = await ctx.model.invoke(
-            context=invocation,
-            tools=tools,
-            phase=state.phase,
-        )
+        try:
+            result = await ctx.model.invoke(
+                context=invocation,
+                tools=tools,
+                phase=state.phase,
+            )
+        except InstrumentedExecutionError as exc:
+            result = await self._fallback_or_raise(ctx, exc)
 
         while result.has_tool_calls and state.tool_round < self.policy.max_tool_rounds:
             tool_batch = await ctx.tools.execute_many(result.tool_calls)
@@ -196,7 +222,11 @@ class StandardExecutionStrategy(ExecutionStrategy[StandardExecutionState]):
                     tools=tools,
                     phase=state.phase,
                 )
-            except InstrumentedExecutionError:
+            except InstrumentedExecutionError as exc:
+                if ctx.model.fallback_available:
+                    result = await self._fallback_or_raise(ctx, exc)
+                    state.phase = StandardPhase.FALLBACK_RESPONSE_GENERATION.value
+                    break
                 state.stop_reason = StandardStopReason.PROVIDER_REJECTED_FOLLOWUP
                 state.phase = StandardPhase.FINAL_RESPONSE_GENERATION.value
                 break
@@ -208,12 +238,15 @@ class StandardExecutionStrategy(ExecutionStrategy[StandardExecutionState]):
                 phase=StandardPhase.FINAL_RESPONSE_GENERATION,
                 tools=no_tools,
             )
-            result = await ctx.model.finalize(
-                reason=state.stop_reason.value,
-                phase=StandardPhase.FINAL_RESPONSE_GENERATION,
-                context=invocation,
-                tools=no_tools,
-            )
+            try:
+                result = await ctx.model.finalize(
+                    reason=state.stop_reason.value,
+                    phase=StandardPhase.FINAL_RESPONSE_GENERATION,
+                    context=invocation,
+                    tools=no_tools,
+                )
+            except InstrumentedExecutionError as exc:
+                result = await self._fallback_or_raise(ctx, exc)
 
         if ctx.output.requires_repair(result):
             result = await ctx.output.repair(
