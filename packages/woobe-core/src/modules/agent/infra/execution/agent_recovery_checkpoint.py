@@ -66,6 +66,8 @@ def _serialize_execution(execution: InstrumentedExecution) -> dict[str, Any]:
         "tool_wall_latency_ms": int(execution.tool_wall_latency_ms or 0),
         "tool_call_duration_sum_ms": int(execution.tool_call_duration_sum_ms or 0),
         "failure_context": deepcopy(execution.failure_context),
+        "fallback_used": bool(execution.fallback_used),
+        "fallback_info": deepcopy(execution.fallback_info),
     }
 
 
@@ -102,6 +104,12 @@ def _restore_execution(value: dict[str, Any]) -> InstrumentedExecution:
         failure_context=(
             deepcopy(value["failure_context"])
             if isinstance(value.get("failure_context"), dict)
+            else None
+        ),
+        fallback_used=bool(value.get("fallback_used")),
+        fallback_info=(
+            deepcopy(value["fallback_info"])
+            if isinstance(value.get("fallback_info"), dict)
             else None
         ),
     )
