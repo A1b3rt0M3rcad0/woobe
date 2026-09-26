@@ -8,7 +8,7 @@ from modules.agent.application.interfaces.execution_strategy import (
     ExecutionStrategy,
     ExecutionStrategyRequest,
 )
-from modules.agent.application.strategy_sdk import StrategyContextContribution
+from modules.agent.application.strategy_sdk import StrategyBootstrap, StrategyContextContribution
 from modules.agent.infra.execution.capabilities.bundle import (
     ExecutionCapabilities,
     build_execution_capabilities,
@@ -26,6 +26,7 @@ from modules.agent.infra.execution.strategy_runtime.context_manager import (
 )
 from modules.agent.infra.execution.strategy_runtime.knowledge import RuntimeStrategyKnowledge
 from modules.agent.infra.execution.strategy_runtime.model import RuntimeStrategyModel
+from modules.agent.infra.execution.strategy_runtime.output import RuntimeStrategyOutput
 from modules.agent.infra.execution.strategy_runtime.runtime_state import StrategyRuntimeState
 from modules.agent.infra.execution.strategy_runtime.state import RuntimeStrategyStateStore
 from modules.agent.infra.execution.strategy_runtime.tools import RuntimeStrategyTools
@@ -35,7 +36,6 @@ from modules.agent.infra.execution.strategy_runtime.tools import RuntimeStrategy
 class BuiltStrategyContext:
     context: RuntimeStrategyContext[Any]
     runtime_state: StrategyRuntimeState
-    preflight_tool_call: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,7 +43,6 @@ class BuiltStrategyExecution:
     context: RuntimeStrategyContext[Any]
     runtime_state: StrategyRuntimeState
     prepared: PreparedExecution
-    preflight_tool_call: dict[str, Any] | None = None
 
 
 def _next_call_index(cursor: dict[str, Any] | None) -> int:
@@ -132,16 +131,23 @@ def build_strategy_context_from_capabilities(
         capability=capabilities.tools,
         runtime_state=runtime_state,
     )
+    runtime_model = RuntimeStrategyModel(
+        capability=capabilities.model,
+        runtime_state=runtime_state,
+        initial_phase=initial_phase,
+        final_model=final_model,
+        final_model_factory=final_model_factory,
+        tool_definitions=tool_definitions,
+    )
     context = RuntimeStrategyContext(
         state=state,
-        model=RuntimeStrategyModel(
-            capability=capabilities.model,
-            runtime_state=runtime_state,
-            initial_phase=initial_phase,
-            final_model=final_model,
-            final_model_factory=final_model_factory,
-            tool_definitions=tool_definitions,
+        bootstrap=StrategyBootstrap(
+            initial_tool_call=_preflight_tool_call(
+                bootstrap,
+                resuming=resume is not None,
+            ),
         ),
+        model=runtime_model,
         tools=runtime_tools,
         knowledge=RuntimeStrategyKnowledge(
             capability=capabilities.knowledge,
@@ -153,15 +159,12 @@ def build_strategy_context_from_capabilities(
             base_messages=messages,
             final_json_instruction=final_json_instruction,
         ),
+        output=RuntimeStrategyOutput.disabled(runtime_state=runtime_state),
         checkpoint=checkpoint,
     )
     return BuiltStrategyContext(
         context=context,
         runtime_state=runtime_state,
-        preflight_tool_call=_preflight_tool_call(
-            bootstrap,
-            resuming=resume is not None,
-        ),
     )
 
 
@@ -185,9 +188,12 @@ def build_strategy_execution(
         final_json_instruction=prepared.final_json_instruction,
         tool_definitions=prepared.tool_definitions,
     )
+    built.context.output = RuntimeStrategyOutput.from_prepared(
+        prepared=prepared,
+        runtime_state=built.runtime_state,
+    )
     return BuiltStrategyExecution(
         context=built.context,
         runtime_state=built.runtime_state,
         prepared=prepared,
-        preflight_tool_call=built.preflight_tool_call,
     )
