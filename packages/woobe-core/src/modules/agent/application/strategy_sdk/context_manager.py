@@ -1,11 +1,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import StrEnum
 from typing import Any, Mapping, Protocol
 from uuid import UUID
 
 from modules.agent.application.strategy_sdk.contracts import ExecutionPhase
 from modules.agent.application.strategy_sdk.tools import StrategyToolSelection
+
+
+class StrategyContextTarget(StrEnum):
+    PRIMARY = "primary"
+    FALLBACK = "fallback"
 
 
 @dataclass(frozen=True, slots=True)
@@ -64,6 +70,7 @@ class StrategyContextManager(Protocol):
         *,
         phase: str | ExecutionPhase | None = None,
         tools: StrategyToolSelection | None = None,
+        target: StrategyContextTarget = StrategyContextTarget.PRIMARY,
     ) -> StrategyInvocationContext: ...
 
     async def assemble_final(
@@ -72,4 +79,5 @@ class StrategyContextManager(Protocol):
         reason: str,
         phase: str | ExecutionPhase,
         tools: StrategyToolSelection | None = None,
+        target: StrategyContextTarget = StrategyContextTarget.PRIMARY,
     ) -> StrategyInvocationContext: ...
