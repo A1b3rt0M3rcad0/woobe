@@ -832,12 +832,3 @@ class ExplicitRuntimePersistenceMixin:
 
 class TransactionalAskAgentUseCase(ExplicitRuntimePersistenceMixin, AskAgentUseCase):
     """Compatibility base while orchestration is moved behind Application ports."""
-
-    async def _load_rag_context(
-        self,
-        agent,
-        query: str,
-        transactions,
-    ) -> tuple[str | None, list[SourceInfo]]:
-        del agent, query, transactions
-        return None, []
