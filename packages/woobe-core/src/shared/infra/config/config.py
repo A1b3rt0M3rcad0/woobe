@@ -98,7 +98,7 @@ class Settings(BaseSettings):
     run_event_dead_letter_stream: str = "woobe:runtime:journal:dead"
     run_event_output_batch_bytes: int = Field(default=16384, ge=1024, le=1048576)
     run_event_output_flush_interval_ms: int = Field(default=200, ge=10, le=5000)
-    default_context_manager: str = "stdcm:v1"
+    default_context_manager: str = "stdcm:v3"
     chat_surface_enabled: bool = True
     chat_surface_allow_insecure_origins: bool = False
     chat_token_signing_key: str = ""

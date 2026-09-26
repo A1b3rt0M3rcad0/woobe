@@ -83,30 +83,9 @@ def _effective_usable_units(
 
 
 class StandardContextAssembler:
-    """Programmable Standard Context Manager used by Woobe.
+    """Historical stdcm:v1 behavior behind the full Context Manager interface."""
 
-    The historical class name is preserved for compatibility. The implementation
-    owns Context inspection, compaction and assembly decisions behind the stable
-    Context Manager interface.
-    """
-
-    __slots__ = (
-        "_compaction_keep_recent_messages",
-        "_compaction_target_units",
-    )
-
-    def __init__(
-        self,
-        *,
-        compaction_keep_recent_messages: int = 8,
-        compaction_target_units: int = 2000,
-    ) -> None:
-        if compaction_keep_recent_messages < 1:
-            raise ValueError("compaction_keep_recent_messages must be positive")
-        if compaction_target_units < 1:
-            raise ValueError("compaction_target_units must be positive")
-        self._compaction_keep_recent_messages = compaction_keep_recent_messages
-        self._compaction_target_units = compaction_target_units
+    __slots__ = ()
 
     def inspect(
         self,
@@ -154,6 +133,53 @@ class StandardContextAssembler:
             utilization=utilization,
             pressure=pressure,
         )
+
+    async def compact(
+        self,
+        request: ContextCompactionRequest,
+        capabilities: ContextManagerCapabilities,
+    ) -> ContextCompactionOutput:
+        del request, capabilities
+        # stdcm:v1 is frozen historical behavior. It satisfies the complete
+        # Context Manager interface but does not add new semantic compaction.
+        return ContextCompactionOutput(
+            changed=False,
+            metadata={"reason": "stdcm_v1_preserves_historical_behavior"},
+        )
+
+    def assemble(self, request: ContextAssemblyRequest) -> ContextAssemblyOutput:
+        return assemble_context(
+            messages=request.messages,
+            model_invocation_id=request.model_invocation_id,
+            agent_run_id=request.agent_run_id,
+            project_id=request.project_id,
+            provider=request.provider,
+            model=request.model,
+            runtime_context=request.runtime_context,
+            policy=request.policy,
+        )
+
+
+class ProgrammableStandardContextAssembler(StandardContextAssembler):
+    """stdcm:v3: programmable pressure-aware Context management."""
+
+    __slots__ = (
+        "_compaction_keep_recent_messages",
+        "_compaction_target_units",
+    )
+
+    def __init__(
+        self,
+        *,
+        compaction_keep_recent_messages: int = 8,
+        compaction_target_units: int = 2000,
+    ) -> None:
+        if compaction_keep_recent_messages < 1:
+            raise ValueError("compaction_keep_recent_messages must be positive")
+        if compaction_target_units < 1:
+            raise ValueError("compaction_target_units must be positive")
+        self._compaction_keep_recent_messages = compaction_keep_recent_messages
+        self._compaction_target_units = compaction_target_units
 
     async def compact(
         self,
@@ -296,17 +322,8 @@ class StandardContextAssembler:
             },
         )
 
-    def assemble(self, request: ContextAssemblyRequest) -> ContextAssemblyOutput:
-        return assemble_context(
-            messages=request.messages,
-            model_invocation_id=request.model_invocation_id,
-            agent_run_id=request.agent_run_id,
-            project_id=request.project_id,
-            provider=request.provider,
-            model=request.model,
-            runtime_context=request.runtime_context,
-            policy=request.policy,
-        )
 
-
-__all__ = ["StandardContextAssembler"]
+__all__ = [
+    "ProgrammableStandardContextAssembler",
+    "StandardContextAssembler",
+]

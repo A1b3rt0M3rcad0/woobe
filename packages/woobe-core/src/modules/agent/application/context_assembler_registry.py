@@ -4,7 +4,10 @@ from collections.abc import Callable
 from copy import deepcopy
 from dataclasses import dataclass, replace
 
-from modules.agent.application.context_managers.standard import StandardContextAssembler
+from modules.agent.application.context_managers.standard import (
+    ProgrammableStandardContextAssembler,
+    StandardContextAssembler,
+)
 from modules.agent.application.context_managers.standard_v2 import StandardSkillsContextAssembler
 from modules.agent.application.interfaces.context_assembler import (
     LEGACY_DEFAULT_CONTEXT_ASSEMBLER_KEY,
@@ -24,7 +27,7 @@ from modules.agent.application.interfaces.context_assembler import (
 from shared.contracts.errors import ValidationError
 
 
-DEFAULT_CONTEXT_MANAGER_SETTING = "stdcm:v1"
+DEFAULT_CONTEXT_MANAGER_SETTING = "stdcm:v3"
 ContextAssemblerFactory = Callable[[], ContextAssembler]
 
 
@@ -286,6 +289,40 @@ def _register_builtin_context_manager_strategies(
     stable versioned strategy and its backend-owned descriptor here; Runtime code
     must not import the concrete implementation directly.
     """
+
+    programmable_key = ContextAssemblerKey(name="stdcm", version="v3")
+    registry.register(
+        programmable_key,
+        lambda: StandardSkillsContextAssembler(
+            ProgrammableStandardContextAssembler()
+        ),
+        descriptor=replace(
+            _STANDARD_DESCRIPTOR,
+            key=programmable_key,
+            strategy_key=programmable_key,
+            display_name="Standard Context Manager v3",
+            supports_skills=True,
+            description=(
+                "Programmable pressure-aware context management with versioned Skills."
+            ),
+            behavior=(
+                "Owns Context inspection, pressure-aware compaction, summarize-and-replace, "
+                "deterministic budgeting, ordering, deduplication, provenance and final "
+                "materialization behind the Context Manager interface."
+            ),
+            capabilities=(
+                *_STANDARD_DESCRIPTOR.capabilities,
+                "Compacts older Session context under pressure through manager-owned model-assisted summarization.",
+                "Replaces covered Session messages with a persisted summary contribution.",
+                "Loads Skills on demand with per-Run retention and exact package provenance.",
+            ),
+            limitations=(
+                "The built-in compaction strategy currently summarizes Session history only.",
+                "Model-assisted compaction uses the Agent's bound primary Model capability.",
+            ),
+            configuration="Context Policy v1 plus programmable manager defaults",
+        ),
+    )
 
     skills_key = ContextAssemblerKey(name="stdcm", version="v2")
     registry.register(
