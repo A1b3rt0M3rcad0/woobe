@@ -291,6 +291,27 @@ def test_model_invocation_capability_does_not_own_context_assembly() -> None:
     assert "context_assembler" not in source
 
 
+def test_fallback_preassembles_context_before_model_invocation() -> None:
+    path = AGENT_EXECUTION / "instrumented_fallback_mixin.py"
+    violations: list[str] = []
+
+    for node in ast.walk(_tree(path)):
+        if not isinstance(node, ast.Call) or _call_name(node) != "invoke_llm":
+            continue
+        if _has_keyword(node, "context_assembler"):
+            violations.append(
+                "instrumented_fallback_mixin.py passes context_assembler into invoke_llm"
+            )
+        if not _has_keyword(node, "context_prepared"):
+            violations.append(
+                "instrumented_fallback_mixin.py invokes the fallback model without "
+                "an explicitly prepared Context"
+            )
+
+    assert not violations, "\n".join(violations)
+
+
+
 def test_background_worker_gets_runtime_dispatcher_only_from_public_boundary() -> None:
     boundary_names: set[str] = set()
     direct_standard_imports: list[str] = []
