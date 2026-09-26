@@ -137,6 +137,7 @@ def build_strategy_context_from_capabilities(
         initial_phase=initial_phase,
         final_model=final_model,
         final_model_factory=final_model_factory,
+        fallback_model_factory=None,
         tool_definitions=tool_definitions,
     )
     context = RuntimeStrategyContext(
@@ -187,6 +188,9 @@ def build_strategy_execution(
         final_model_factory=prepared.final_model_factory,
         final_json_instruction=prepared.final_json_instruction,
         tool_definitions=prepared.tool_definitions,
+    )
+    built.context.model.set_fallback_model_factory(
+        prepared.fallback_model_factory
     )
     built.context.output = RuntimeStrategyOutput.from_prepared(
         prepared=prepared,
