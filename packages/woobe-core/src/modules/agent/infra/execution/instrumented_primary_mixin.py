@@ -48,6 +48,7 @@ class _PrimaryExecutionSuper(Protocol):
 
 class _PrimaryExecutionHost(Protocol):
     _llm_factory: Any
+    _rag_runtime: Any
     _transactions: AgentRuntimeTransactionRunner
     _context_assembler: ContextAssembler | None
     _execution_strategy_resolver: ExecutionStrategyResolver | None
@@ -294,6 +295,8 @@ class InstrumentedPrimaryExecutionMixin:
         agent_tools: list[dict],
         tool_name_to_id: dict[str, str],
         messages: list,
+        knowledge_query: str | None = None,
+        history: list[Any] | tuple[Any, ...] | None = None,
     ) -> tuple[Any, list, bool, Any]:
         host = cast(_PrimaryExecutionHost, self)
         settings = getattr(agent, "settings", None)
@@ -308,6 +311,22 @@ class InstrumentedPrimaryExecutionMixin:
         if resolver is None:
             raise RuntimeError("Agent execution strategy resolver is not configured")
         strategy = resolver.resolve(strategy_name)
+
+        rag_runtime = getattr(host, "_rag_runtime", None)
+
+        async def retrieve_knowledge(query: str):
+            if rag_runtime is None:
+                settings = getattr(agent, "settings", None)
+                settings = settings if isinstance(settings, dict) else {}
+                if settings.get("knowledge_version_id"):
+                    raise RuntimeError("RAG runtime is not configured")
+                return None
+            return await rag_runtime.retrieve(
+                agent=agent,
+                query=query,
+                history=tuple(history or ()),
+            )
+
         try:
             execution = await strategy.execute(
                 ExecutionStrategyRequest(
@@ -324,6 +343,8 @@ class InstrumentedPrimaryExecutionMixin:
                     agent_tools=agent_tools,
                     tool_name_to_id=tool_name_to_id,
                     messages=messages,
+                    knowledge_retrieve=retrieve_knowledge,
+                    knowledge_query=knowledge_query,
                 )
             )
         except InstrumentedExecutionError as exc:
