@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable
 
-from modules.agent.application.interfaces.context_assembler import ContextAssembler
 from modules.agent.infra.execution.durable_execution_instrumentation import invoke_llm
 
 ModelInvokeFn = Callable[..., Awaitable[tuple[Any, dict[str, Any]]]]
@@ -17,7 +16,6 @@ class ModelInvocationCapability:
     provider: str
     model_name: str
     pricing_snapshot: dict[str, Any] | None = None
-    context_assembler: ContextAssembler | None = None
     invoke_fn: ModelInvokeFn | None = None
 
     def for_model(self, model: Any) -> ModelInvocationCapability:
@@ -27,7 +25,6 @@ class ModelInvocationCapability:
             provider=self.provider,
             model_name=self.model_name,
             pricing_snapshot=self.pricing_snapshot,
-            context_assembler=self.context_assembler,
             invoke_fn=self.invoke_fn,
         )
 
@@ -50,7 +47,6 @@ class ModelInvocationCapability:
             provider=self.provider,
             model_name=self.model_name,
             pricing_snapshot=self.pricing_snapshot,
-            context_assembler=self.context_assembler,
             invocation_id=invocation_id,
             context_snapshot=context_snapshot,
             context_prepared=context_prepared,
