@@ -18,6 +18,9 @@ from modules.agent.application.strategy_sdk import (
 from modules.agent.infra.execution.capabilities.context_assembly import (
     ContextAssemblyCapability,
 )
+from modules.agent.infra.execution.capabilities.message_progression import (
+    terminal_response_messages,
+)
 from modules.agent.infra.execution.strategy_runtime.runtime_state import (
     StrategyRuntimeState,
 )
@@ -74,16 +77,25 @@ def materialize_context_contributions(
 class RuntimeStrategyContextManager:
     """Strategy-facing Context facade with runtime-owned contribution storage."""
 
-    __slots__ = ("_capability", "_runtime_state")
+    __slots__ = (
+        "_capability",
+        "_runtime_state",
+        "_base_messages",
+        "_final_json_instruction",
+    )
 
     def __init__(
         self,
         *,
         capability: ContextAssemblyCapability,
         runtime_state: StrategyRuntimeState,
+        base_messages: list[Any] | None = None,
+        final_json_instruction: str | None = None,
     ) -> None:
         self._capability = capability
         self._runtime_state = runtime_state
+        self._base_messages = list(base_messages or runtime_state.messages)
+        self._final_json_instruction = final_json_instruction
         self._sync_execution_context()
 
     def _sync_execution_context(self) -> None:
@@ -107,26 +119,29 @@ class RuntimeStrategyContextManager:
         self._runtime_state.context_contributions.pop(key, None)
         self._sync_execution_context()
 
-    async def assemble(
-        self,
-        *,
-        phase: StrategyPhase | None = None,
-        tools: StrategyToolSelection | None = None,
-    ) -> StrategyInvocationContext:
-        contributions = tuple(
+    def _contributions(self) -> tuple[StrategyContextContribution, ...]:
+        return tuple(
             contribution
             for contribution in self._runtime_state.context_contributions.values()
             if isinstance(contribution, StrategyContextContribution)
         )
-        messages = materialize_context_contributions(
-            self._runtime_state.messages,
-            contributions,
+
+    async def _assemble_messages(
+        self,
+        *,
+        messages: list[Any],
+        phase: StrategyPhase,
+        tools: StrategyToolSelection | None,
+    ) -> StrategyInvocationContext:
+        materialized = materialize_context_contributions(
+            messages,
+            self._contributions(),
         )
         next_call_index = self._runtime_state.call_index + 1
         try:
             result = self._capability.assemble(
-                messages=messages,
-                phase=strategy_phase_value(phase or "response_generation"),
+                messages=materialized,
+                phase=strategy_phase_value(phase),
                 tool_selection_mode=(
                     tools.mode.value
                     if tools is not None
@@ -158,4 +173,35 @@ class RuntimeStrategyContextManager:
             invocation_id=result.invocation_id,
             messages=result.messages,
             snapshot=result.snapshot,
+        )
+
+    async def assemble(
+        self,
+        *,
+        phase: StrategyPhase | None = None,
+        tools: StrategyToolSelection | None = None,
+    ) -> StrategyInvocationContext:
+        return await self._assemble_messages(
+            messages=list(self._runtime_state.messages),
+            phase=phase or "response_generation",
+            tools=tools,
+        )
+
+    async def assemble_final(
+        self,
+        *,
+        reason: str,
+        phase: StrategyPhase,
+        tools: StrategyToolSelection | None = None,
+    ) -> StrategyInvocationContext:
+        messages = terminal_response_messages(
+            self._base_messages,
+            self._final_json_instruction,
+            self._runtime_state.execution.tool_calls,
+            reason,
+        )
+        return await self._assemble_messages(
+            messages=messages,
+            phase=phase,
+            tools=tools,
         )
