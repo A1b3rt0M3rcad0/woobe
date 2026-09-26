@@ -12,6 +12,7 @@ from modules.agent.application.interfaces.execution_context import current_execu
 from modules.agent.application.strategy_sdk import (
     StrategyContextContribution,
     StrategyContextInspection,
+    StrategyContextTarget,
     StrategyInvocationContext,
     StrategyPhase,
     StrategyToolSelection,
@@ -239,10 +240,35 @@ class RuntimeStrategyContextManager:
         messages: list[Any],
         phase: StrategyPhase,
         tools: StrategyToolSelection | None,
+        target: StrategyContextTarget = StrategyContextTarget.PRIMARY,
         include_contributions: bool = True,
         include_skill_context: bool = True,
     ) -> StrategyInvocationContext:
-        selected_definitions = self._selected_tool_definitions(tools)
+        capability = self._capability
+        if target is StrategyContextTarget.FALLBACK:
+            if self._model is None or not self._model.fallback_available:
+                raise RuntimeError("Fallback Context requested without a bound fallback Model")
+            if (
+                tools is not None
+                and tools.mode is not StrategyToolSelectionMode.NONE
+            ):
+                raise ValueError("Fallback Context currently requires tools=ctx.tools.none()")
+            provider, model_name, pricing_snapshot = (
+                self._model.fallback_context_binding()
+            )
+            capability = ContextAssemblyCapability(
+                assembler=self._capability.assembler,
+                provider=provider,
+                model_name=model_name,
+                pricing_snapshot=pricing_snapshot,
+                tool_definitions=(),
+            )
+
+        selected_definitions = (
+            ()
+            if target is StrategyContextTarget.FALLBACK
+            else self._selected_tool_definitions(tools)
+        )
         selected_names = tuple(
             name
             for definition in selected_definitions
@@ -279,7 +305,7 @@ class RuntimeStrategyContextManager:
         if execution_context is not None and not include_skill_context:
             execution_context.skill_context = None
         try:
-            result = self._capability.assemble(
+            result = capability.assemble(
                 messages=materialized,
                 phase=strategy_phase_value(phase),
                 tool_selection_mode=(
@@ -363,6 +389,7 @@ class RuntimeStrategyContextManager:
             messages=summary_messages,
             phase=summary_phase,
             tools=no_tools,
+            target=StrategyContextTarget.PRIMARY,
             include_contributions=False,
             include_skill_context=False,
         )
@@ -391,11 +418,13 @@ class RuntimeStrategyContextManager:
         *,
         phase: StrategyPhase | None = None,
         tools: StrategyToolSelection | None = None,
+        target: StrategyContextTarget = StrategyContextTarget.PRIMARY,
     ) -> StrategyInvocationContext:
         return await self._assemble_messages(
             messages=list(self._runtime_state.messages),
             phase=phase or "response_generation",
             tools=tools,
+            target=target,
         )
 
     async def assemble_final(
@@ -404,6 +433,7 @@ class RuntimeStrategyContextManager:
         reason: str,
         phase: StrategyPhase,
         tools: StrategyToolSelection | None = None,
+        target: StrategyContextTarget = StrategyContextTarget.PRIMARY,
     ) -> StrategyInvocationContext:
         messages = terminal_response_messages(
             self._base_messages,
@@ -415,4 +445,5 @@ class RuntimeStrategyContextManager:
             messages=messages,
             phase=phase,
             tools=tools,
+            target=target,
         )
