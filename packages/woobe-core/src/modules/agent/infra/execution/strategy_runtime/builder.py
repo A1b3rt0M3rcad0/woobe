@@ -20,6 +20,10 @@ from modules.agent.infra.execution.strategy_runtime.checkpoint import (
     RuntimeStrategyCheckpoint,
 )
 from modules.agent.infra.execution.strategy_runtime.context import RuntimeStrategyContext
+from modules.agent.infra.execution.strategy_runtime.context_manager import (
+    RuntimeStrategyContextManager,
+)
+from modules.agent.infra.execution.strategy_runtime.knowledge import RuntimeStrategyKnowledge
 from modules.agent.infra.execution.strategy_runtime.model import RuntimeStrategyModel
 from modules.agent.infra.execution.strategy_runtime.runtime_state import StrategyRuntimeState
 from modules.agent.infra.execution.strategy_runtime.state import RuntimeStrategyStateStore
@@ -105,6 +109,10 @@ def build_strategy_context_from_capabilities(
         runtime_state=runtime_state,
         state_store=state_store,
     )
+    runtime_tools = RuntimeStrategyTools(
+        capability=capabilities.tools,
+        runtime_state=runtime_state,
+    )
     context = RuntimeStrategyContext(
         state=state,
         model=RuntimeStrategyModel(
@@ -116,8 +124,12 @@ def build_strategy_context_from_capabilities(
             final_model_factory=final_model_factory,
             final_json_instruction=final_json_instruction,
         ),
-        tools=RuntimeStrategyTools(
-            capability=capabilities.tools,
+        tools=runtime_tools,
+        knowledge=RuntimeStrategyKnowledge(
+            capability=capabilities.knowledge,
+        ),
+        context=RuntimeStrategyContextManager(
+            capability=capabilities.context,
             runtime_state=runtime_state,
         ),
         checkpoint=checkpoint,
