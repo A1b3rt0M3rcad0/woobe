@@ -15,6 +15,11 @@ Concrete Strategy
 StrategyContext
 ├── state
 ├── bootstrap
+├── conversation
+│   ├── current_user_message
+│   ├── history
+│   ├── system_messages
+│   └── messages
 ├── knowledge
 ├── context
 │   ├── inspect()
@@ -61,6 +66,7 @@ Typical Strategy responsibilities include:
 
 ```text
 bootstrap/preflight execution decisions
+read-only conversation inspection and Knowledge query construction
 Knowledge retrieval timing and query choice
 Context inspection, summarization and contribution lifecycle
 per-invocation Tool selection
@@ -104,7 +110,11 @@ final execution result materialization
 Therefore this is normal Strategy code:
 
 ```python
+current = ctx.conversation.current_user_message
+query = current.content if current is not None else None
+
 knowledge = await ctx.knowledge.retrieve(
+    query=query,
     phase="knowledge_retrieval",
 )
 if knowledge.found:
@@ -163,6 +173,8 @@ The rule is:
 
 The runtime resolves and freezes concrete dependencies; the Strategy orchestrates them through the stable SDK.
 
+- Runtime freezes the execution conversation; Strategies inspect it through `ctx.conversation` without mutating runtime message state.
+- Conversation-to-Knowledge query construction is a Strategy decision; Knowledge receives the final explicit query.
 - Knowledge retrieval and Knowledge inclusion in Context are separate decisions.
 - Context is assembled for one Model invocation, not globally for an execution.
 - Tool authorization belongs to the runtime; every Model/Context Tool selection belongs explicitly to the Strategy.

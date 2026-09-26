@@ -61,6 +61,7 @@ The public algorithm-facing surface should remain approximately:
 ```text
 ctx.state
 ctx.bootstrap
+ctx.conversation
 ctx.knowledge
 ctx.context
 ctx.model
@@ -85,6 +86,7 @@ Forbidden outer-runtime decisions include:
 
 ```text
 preflight Tool execution
+conversation-to-Knowledge query construction
 Knowledge retrieval
 Context summarization/assembly
 Model invocation

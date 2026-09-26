@@ -135,6 +135,7 @@ The normal Strategy-facing surface is:
 ```text
 ctx.state
 ctx.bootstrap
+ctx.conversation
 ctx.knowledge
 ctx.context
 ctx.model
@@ -147,10 +148,14 @@ The runtime resolves and authorizes the underlying capabilities. The Strategy de
 
 ### Retrieve Knowledge when the algorithm needs it
 
-Knowledge retrieval is an explicit Strategy decision:
+Knowledge retrieval is an explicit Strategy decision. The Runtime exposes the real bound conversation read-only; the Strategy decides how to construct the retrieval query:
 
 ```python
+current = ctx.conversation.current_user_message
+query = current.content if current is not None else None
+
 knowledge = await ctx.knowledge.retrieve(
+    query=query,
     phase="knowledge_retrieval",
 )
 
@@ -165,7 +170,9 @@ if knowledge.found:
     )
 ```
 
-Retrieving Knowledge and exposing it to the next Model invocation are separate decisions. The runtime owns the concrete Knowledge implementation and evidence; the Strategy owns the orchestration decision.
+`ctx.conversation.history`, `ctx.conversation.system_messages` and `ctx.conversation.messages` are also available when the algorithm needs them. Treat the conversation surface as read-only; do not attempt to mutate runtime progression.
+
+Retrieving Knowledge and exposing it to the next Model invocation are separate decisions. The runtime owns the concrete Knowledge implementation and evidence; the Strategy owns query construction and orchestration.
 
 ### Inspect or summarize Context explicitly
 
