@@ -16,6 +16,9 @@ from modules.agent.infra.execution import structured_json_repair, tool_execution
 from modules.agent.infra.execution.capabilities.context_assembly import (
     ContextAssemblyCapability,
 )
+from modules.agent.infra.execution.capabilities.model_invocation import (
+    ModelInvocationCapability,
+)
 
 
 class _UnusedContextAssembler(ContextAssembler):
@@ -103,15 +106,18 @@ async def test_json_repair_uses_preassembled_context(monkeypatch) -> None:
     context_assembler = _UnusedContextAssembler()
     captured = {}
 
-    async def fake_invoke_llm(**kwargs):
+    async def fake_invoke(self, **kwargs):
         captured.update(kwargs)
+        captured["model"] = self.model
+        captured["provider"] = self.provider
+        captured["model_name"] = self.model_name
         return AIMessage(content='{"ok": true}'), {
             "phase": kwargs["phase"],
             "occurred_at": "2026-09-04T00:00:00+00:00",
             "status": "success",
         }
 
-    monkeypatch.setattr(structured_json_repair, "invoke_llm", fake_invoke_llm)
+    monkeypatch.setattr(ModelInvocationCapability, "invoke", fake_invoke)
 
     execution = InstrumentedExecution(result=AIMessage(content="not-json"))
     result = await structured_json_repair.repair_json_if_needed(

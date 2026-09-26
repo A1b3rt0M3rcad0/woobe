@@ -121,6 +121,9 @@ async def test_standard_strategy_resumes_generic_checkpoint_without_replaying_to
         }
 
     class CrashAfterCheckpointRecorder:
+        async def emit(self, _event_type, _payload):
+            return None
+
         async def checkpoint(self, state, *, durable=True):
             captured["state"] = state
             captured["durable"] = durable
@@ -202,6 +205,9 @@ async def test_standard_strategy_restores_knowledge_contribution_without_retriev
         }
 
     class CrashAfterCheckpointRecorder:
+        async def emit(self, _event_type, _payload):
+            return None
+
         async def checkpoint(self, state, *, durable=True):
             captured["state"] = state
             captured["durable"] = durable

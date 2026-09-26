@@ -193,9 +193,14 @@ async def test_parallel_tools_and_no_redundant_json_repair():
         "tool_followup_1",
     ]
     initial_messages = tool_model.ainvoke.await_args_list[0].args[0]
-    assert isinstance(initial_messages[0], SystemMessage)
-    assert "complete and authoritative" in initial_messages[0].content
-    assert "return only valid JSON" in initial_messages[0].content
+    system_messages = [
+        message.content
+        for message in initial_messages
+        if isinstance(message, SystemMessage)
+    ]
+    assert any("complete and authoritative" in content for content in system_messages)
+    assert any("Tool grounding rules" in content for content in system_messages)
+    assert any("return only valid JSON" in content for content in system_messages)
     usage, complete, cost_status = aggregate_usage(execution.llm_calls)
     assert (usage.input_tokens, usage.output_tokens, usage.total_tokens) == (30, 6, 36)
     assert complete is True

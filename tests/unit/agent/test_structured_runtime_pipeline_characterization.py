@@ -140,7 +140,7 @@ async def test_structured_runtime_preserves_exact_release_tool_selection_through
 
 
 @pytest.mark.asyncio
-async def test_tool_enabled_prepare_injects_grounding_rule_before_user_message(monkeypatch):
+async def test_tool_enabled_prepare_keeps_grounding_invocation_scoped(monkeypatch):
     project_id = uuid4()
     agent = _agent(project_id=project_id)
     tool_id = uuid4()
@@ -161,9 +161,13 @@ async def test_tool_enabled_prepare_injects_grounding_rule_before_user_message(m
     result = await _run_prepare(_use_case(), input_dto, context)
 
     assert result[9] is True
+    assert result[8] == {"lookup": str(tool_id)}
+    assert len(result[7]) == 1
     assert isinstance(result[11][-1], HumanMessage)
-    system_messages = [m.content for m in result[11] if isinstance(m, SystemMessage)]
-    assert any("Tool grounding rules" in content for content in system_messages)
+    assert not any(
+        isinstance(message, SystemMessage) and "Tool grounding rules" in message.content
+        for message in result[11]
+    )
 
 
 @pytest.mark.asyncio
