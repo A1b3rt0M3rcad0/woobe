@@ -1,6 +1,10 @@
 from __future__ import annotations
 
-from modules.agent.application.strategy_sdk import StrategyToolBatch
+from modules.agent.application.strategy_sdk import (
+    StrategyToolBatch,
+    StrategyToolSelection,
+    StrategyToolSelectionMode,
+)
 from modules.agent.infra.execution.capabilities.tool_execution import (
     ToolExecutionCapability,
 )
@@ -22,6 +26,27 @@ class RuntimeStrategyTools:
     ) -> None:
         self._capability = capability
         self._runtime_state = runtime_state
+
+    def all(self) -> StrategyToolSelection:
+        return StrategyToolSelection(StrategyToolSelectionMode.ALL)
+
+    def none(self) -> StrategyToolSelection:
+        return StrategyToolSelection(StrategyToolSelectionMode.NONE)
+
+    def select(self, *names: str) -> StrategyToolSelection:
+        normalized = tuple(dict.fromkeys(name.strip() for name in names if name.strip()))
+        if not normalized:
+            raise ValueError("Tool selection requires at least one tool name")
+        unknown = sorted(set(normalized).difference(self._capability.tool_name_to_id))
+        if unknown:
+            raise ValueError(
+                "Execution Strategy selected unauthorized or unknown Tools: "
+                + ", ".join(unknown)
+            )
+        return StrategyToolSelection(
+            StrategyToolSelectionMode.EXPLICIT,
+            normalized,
+        )
 
     async def execute_many(
         self,
