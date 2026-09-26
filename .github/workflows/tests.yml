@@ -14,70 +14,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  tests-hosted:
-    name: tests (GitHub-hosted)
-    runs-on: ubuntu-24.04
-    continue-on-error: true
-    timeout-minutes: 45
-    outputs:
-      outcome: ${{ job.status }}
-    steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
-        with:
-          fetch-depth: 0
-
-      - name: Prepare Docker access
-        run: bash scripts/ci/prepare_docker_access.sh
-
-      - name: Reset stale validation stack
-        run: docker compose -f compose.test.yaml down -v --remove-orphans || true
-
-      - name: Prepare validation artifacts
-        run: |
-          rm -rf .test-artifacts
-          mkdir -p .test-artifacts
-
-      - name: Validate standalone backend test Compose contract
-        run: docker compose -f compose.test.yaml config --quiet
-
-      - name: Run the local/CI backend test contract
-        run: docker compose -f compose.test.yaml up --build --exit-code-from tests tests
-
-      - name: Capture Compose diagnostics
-        if: failure()
-        run: |
-          docker compose -f compose.test.yaml ps --all | tee .test-artifacts/compose-ps.txt || true
-          docker compose -f compose.test.yaml logs --no-color 2>&1 | tee .test-artifacts/compose.log || true
-
-      - name: Tear down validation stack
-        if: always()
-        run: timeout 120 docker compose -f compose.test.yaml down -v --remove-orphans || true
-
-      - name: Cleanup Docker access
-        if: always()
-        run: bash scripts/ci/cleanup_docker_access.sh
-
-      - name: Upload backend test evidence
-        if: ${{ always() && vars.WOOBE_UPLOAD_CI_ARTIFACTS == 'true' }}
-        continue-on-error: true
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
-        with:
-          name: woobe-backend-test-evidence-hosted
-          path: .test-artifacts
-          if-no-files-found: warn
-          include-hidden-files: true
-          retention-days: 1
-
   tests:
     name: tests
-    needs: tests-hosted
-    if: ${{ !cancelled() && needs.tests-hosted.outputs.outcome != 'success' }}
     runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 45
     steps:
-      - name: Report fallback activation
-        run: |
-          echo "::warning::GitHub-hosted backend validation did not pass; retrying on self-hosted runner."
 
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
