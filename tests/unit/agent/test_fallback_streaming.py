@@ -105,4 +105,5 @@ async def test_fallback_uses_streaming_model_public_final_phase_and_effective_ou
     assert factory.kwargs["max_tokens"] == 64
     assert captured["phase"] == "final_response_generation"
     assert captured["model"] is factory.model
-    assert captured["context_assembler"] is context_assembler
+    assert captured["context_prepared"] is True
+    assert "context_assembler" not in captured
