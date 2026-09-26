@@ -106,7 +106,9 @@ async def test_context_compaction_is_owned_by_configured_manager() -> None:
             "context.session.compaction"
         ]
         assert contribution.content == "Compact session summary"
-        assert contribution.replaces_message_indexes
+        assert built.runtime_state.context_replacements[
+            "context.session.compaction"
+        ]
         assert contribution.metadata["operation"] == "summarize_replace"
 
         invocation = await built.context.context.assemble(

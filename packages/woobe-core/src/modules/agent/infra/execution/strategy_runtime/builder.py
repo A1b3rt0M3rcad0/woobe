@@ -111,21 +111,29 @@ def build_strategy_context_from_capabilities(
                     if isinstance(value.get("metadata"), dict)
                     else {}
                 ),
-                replaces_message_indexes=tuple(
-                    int(index)
-                    for index in (
-                        value.get("replaces_message_indexes")
-                        if isinstance(value.get("replaces_message_indexes"), list)
-                        else ()
-                    )
-                    if isinstance(index, int) and index >= 0
-                ),
             )
             for key, value in (
                 resume.context_contributions.items()
                 if resume is not None
                 else ()
             )
+        },
+        context_replacements={
+            key: tuple(
+                int(index)
+                for index in (
+                    value.get("replaces_message_indexes")
+                    if isinstance(value.get("replaces_message_indexes"), list)
+                    else ()
+                )
+                if isinstance(index, int) and index >= 0
+            )
+            for key, value in (
+                resume.context_contributions.items()
+                if resume is not None
+                else ()
+            )
+            if isinstance(value, dict)
         },
     )
     state_store = RuntimeStrategyStateStore()

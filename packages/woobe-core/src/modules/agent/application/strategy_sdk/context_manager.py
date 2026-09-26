@@ -22,7 +22,6 @@ class StrategyContextContribution:
     source_type: str
     content: Any
     metadata: Mapping[str, Any] = field(default_factory=dict)
-    replaces_message_indexes: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

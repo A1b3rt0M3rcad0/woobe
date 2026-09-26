@@ -71,10 +71,6 @@ def _materialize_contribution(
         "source_ref": contribution.key,
     }
     metadata.setdefault("selection_method", "strategy_context_contribution")
-    if contribution.replaces_message_indexes:
-        metadata["replaces_message_indexes"] = list(
-            contribution.replaces_message_indexes
-        )
     return SystemMessage(
         content=content,
         additional_kwargs={"woobe_context": metadata},
@@ -177,10 +173,12 @@ class RuntimeStrategyContextManager:
         if not key:
             raise ValueError("Context contribution key must not be empty")
         self._runtime_state.context_contributions[key] = contribution
+        self._runtime_state.context_replacements.pop(key, None)
         self._sync_execution_context()
 
     def remove(self, key: str) -> None:
         self._runtime_state.context_contributions.pop(key, None)
+        self._runtime_state.context_replacements.pop(key, None)
         self._sync_execution_context()
 
     def _contributions(self) -> tuple[StrategyContextContribution, ...]:
@@ -197,15 +195,20 @@ class RuntimeStrategyContextManager:
                 source_type=item.source_type,
                 content=item.content,
                 metadata=dict(item.metadata),
-                replaces_message_indexes=item.replaces_message_indexes,
+                replaces_message_indexes=self._runtime_state.context_replacements.get(
+                    item.key,
+                    (),
+                ),
             )
             for item in self._contributions()
         )
 
     def _apply_replacements(self, messages: list[Any]) -> list[Any]:
-        replaced: set[int] = set()
-        for contribution in self._contributions():
-            replaced.update(contribution.replaces_message_indexes)
+        replaced = {
+            index
+            for indexes in self._runtime_state.context_replacements.values()
+            for index in indexes
+        }
         if not replaced:
             return list(messages)
         return [
@@ -244,6 +247,7 @@ class RuntimeStrategyContextManager:
         )
         for key in result.remove_keys:
             self._runtime_state.context_contributions.pop(key, None)
+            self._runtime_state.context_replacements.pop(key, None)
 
         upserted: list[str] = []
         for item in result.upserts:
@@ -252,9 +256,11 @@ class RuntimeStrategyContextManager:
                 source_type=item.source_type,
                 content=item.content,
                 metadata=dict(item.metadata),
-                replaces_message_indexes=item.replaces_message_indexes,
             )
             self._runtime_state.context_contributions[item.key] = contribution
+            self._runtime_state.context_replacements[item.key] = (
+                item.replaces_message_indexes
+            )
             upserted.append(item.key)
 
         if result.changed or result.remove_keys or result.upserts:
