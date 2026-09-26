@@ -112,7 +112,8 @@ class RuntimeStrategyContextManager:
         result = self._capability.assemble(
             messages=messages,
             phase=strategy_phase_value(phase or "response_generation"),
-            tools=tools,
+            tool_selection_mode=tools.mode.value if tools is not None else None,
+            tool_selection_names=tools.names if tools is not None else (),
         )
         return StrategyInvocationContext(
             invocation_id=result.invocation_id,
