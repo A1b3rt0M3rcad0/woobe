@@ -25,7 +25,6 @@ class RuntimeStrategyModel:
     __slots__ = (
         "_capability",
         "_runtime_state",
-        "_initial_phase",
         "_final_model",
         "_final_model_factory",
         "_fallback_model_factory",
@@ -38,7 +37,6 @@ class RuntimeStrategyModel:
         *,
         capability: ModelInvocationCapability,
         runtime_state: StrategyRuntimeState,
-        initial_phase: str,
         final_model: Any | None,
         final_model_factory: Any | None,
         fallback_model_factory: Callable[[], PreparedFallbackModel] | None = None,
@@ -46,7 +44,6 @@ class RuntimeStrategyModel:
     ) -> None:
         self._capability = capability
         self._runtime_state = runtime_state
-        self._initial_phase = initial_phase
         self._final_model = final_model
         self._final_model_factory = final_model_factory
         self._fallback_model_factory = fallback_model_factory
@@ -190,12 +187,12 @@ class RuntimeStrategyModel:
         self,
         *,
         context: StrategyInvocationContext,
+        phase: StrategyPhase,
         tools: StrategyToolSelection | None = None,
-        phase: StrategyPhase | None = None,
     ) -> StrategyModelResult:
         return await self._invoke(
             capability=self._capability,
-            phase=phase or self._initial_phase,
+            phase=phase,
             context=context,
             tools=tools,
         )
