@@ -2,6 +2,7 @@ from modules.agent.application.strategy_sdk.bootstrap import StrategyBootstrap
 from modules.agent.application.strategy_sdk.context import StrategyContext
 from modules.agent.application.strategy_sdk.context_manager import (
     StrategyContextContribution,
+    StrategyContextInspection,
     StrategyContextManager,
     StrategyInvocationContext,
 )
@@ -47,6 +48,7 @@ __all__ = [
     "StrategyBootstrap",
     "StrategyContext",
     "StrategyContextContribution",
+    "StrategyContextInspection",
     "StrategyContextManager",
     "StrategyInvocationContext",
     "StrategyKnowledge",
