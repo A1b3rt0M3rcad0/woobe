@@ -12,7 +12,9 @@ from modules.agent.application.interfaces.execution import (
 from modules.agent.infra.execution.capabilities.context_assembly import (
     ContextAssemblyCapability,
 )
-from modules.agent.infra.execution.durable_execution_instrumentation import invoke_llm
+from modules.agent.infra.execution.capabilities.model_invocation import (
+    ModelInvocationCapability,
+)
 from modules.agent.infra.execution.runtime_streaming import runtime_streaming_enabled
 
 
@@ -67,14 +69,16 @@ async def repair_json_if_needed(
             tool_selection_mode="none",
             call_index=call_index + 1,
         )
-        result, call = await invoke_llm(
+        repair_capability = ModelInvocationCapability(
             model=repair_model,
-            messages=list(repair_context.messages),
-            phase="json_repair",
-            call_index=call_index + 1,
             provider=provider,
             model_name=model_name,
             pricing_snapshot=pricing_snapshot,
+        )
+        result, call = await repair_capability.invoke(
+            messages=list(repair_context.messages),
+            phase="json_repair",
+            call_index=call_index + 1,
             invocation_id=repair_context.invocation_id,
             context_snapshot=repair_context.snapshot,
             context_prepared=True,
