@@ -313,19 +313,20 @@ class InstrumentedPrimaryExecutionMixin:
         strategy = resolver.resolve(strategy_name)
 
         rag_runtime = getattr(host, "_rag_runtime", None)
+        agent_settings = getattr(agent, "settings", None)
+        agent_settings = agent_settings if isinstance(agent_settings, dict) else {}
+        has_knowledge = bool(agent_settings.get("knowledge_version_id"))
 
         async def retrieve_knowledge(query: str):
             if rag_runtime is None:
-                settings = getattr(agent, "settings", None)
-                settings = settings if isinstance(settings, dict) else {}
-                if settings.get("knowledge_version_id"):
-                    raise RuntimeError("RAG runtime is not configured")
-                return None
+                raise RuntimeError("RAG runtime is not configured")
             return await rag_runtime.retrieve(
                 agent=agent,
                 query=query,
                 history=tuple(history or ()),
             )
+
+        knowledge_retrieve = retrieve_knowledge if has_knowledge else None
 
         try:
             execution = await strategy.execute(
@@ -343,7 +344,7 @@ class InstrumentedPrimaryExecutionMixin:
                     agent_tools=agent_tools,
                     tool_name_to_id=tool_name_to_id,
                     messages=messages,
-                    knowledge_retrieve=retrieve_knowledge,
+                    knowledge_retrieve=knowledge_retrieve,
                     knowledge_query=knowledge_query,
                 )
             )
