@@ -5,7 +5,7 @@ from typing import Any
 from uuid import UUID
 
 import uuid6
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from modules.agent.application.dtos.runtime_dtos import AskOutput
 from modules.agent.application.interfaces.execution_context import current_execution
@@ -28,7 +28,6 @@ from modules.agent.infra.execution.runtime_preparation import (
 )
 from modules.agent.infra.execution.structured_output_ask_use_case import (
     StructuredOutputAskAgentUseCase,
-    _TOOL_GROUNDING_RUNTIME_RULES,
 )
 from modules.agent.infra.execution.transaction_bounded_rag import (
     TransactionBoundedVectorSnapshotRAGMixin,
@@ -389,14 +388,6 @@ class TransactionBoundedStructuredOutputRuntime(
             updated[8] = mapping
             updated[9] = bool(definitions)
 
-        if updated[9]:
-            messages = list(updated[11])
-            insert_at = len(messages) - 1 if messages else 0
-            messages.insert(
-                insert_at,
-                SystemMessage(content=_TOOL_GROUNDING_RUNTIME_RULES),
-            )
-            updated[11] = messages
         return tuple(updated)
 
     async def _finalize(
