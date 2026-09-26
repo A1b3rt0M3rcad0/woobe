@@ -19,93 +19,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  cla-hosted:
-    name: cla (GitHub-hosted)
-    runs-on: ubuntu-24.04
-    continue-on-error: true
-    outputs:
-      outcome: ${{ job.status }}
-    steps:
-      - name: Resolve pull request context
-        id: pr
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          EVENT_NAME: ${{ github.event_name }}
-          INPUT_PR_NUMBER: ${{ inputs.pr_number }}
-          EVENT_ASSOCIATION: ${{ github.event.pull_request.author_association }}
-          EVENT_BODY: ${{ github.event.pull_request.body }}
-          EVENT_AUTHOR_LOGIN: ${{ github.event.pull_request.user.login }}
-          EVENT_HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
-          EVENT_HEAD_REF: ${{ github.event.pull_request.head.ref }}
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
-            association="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$INPUT_PR_NUMBER" --jq '.author_association')"
-            body="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$INPUT_PR_NUMBER" --jq '.body // ""')"
-            author_login="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$INPUT_PR_NUMBER" --jq '.user.login')"
-            head_repo="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$INPUT_PR_NUMBER" --jq '.head.repo.full_name')"
-            head_ref="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$INPUT_PR_NUMBER" --jq '.head.ref')"
-          else
-            association="$EVENT_ASSOCIATION"
-            body="$EVENT_BODY"
-            author_login="$EVENT_AUTHOR_LOGIN"
-            head_repo="$EVENT_HEAD_REPO"
-            head_ref="$EVENT_HEAD_REF"
-          fi
-
-          {
-            echo "association=$association"
-            echo "author_login=$author_login"
-            echo "head_repo=$head_repo"
-            echo "head_ref=$head_ref"
-            echo "body<<__WOOBE_PR_BODY__"
-            printf '%s\n' "$body"
-            echo "__WOOBE_PR_BODY__"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Require explicit CLA acceptance from external contributors
-        env:
-          AUTHOR_ASSOCIATION: ${{ steps.pr.outputs.association }}
-          AUTHOR_LOGIN: ${{ steps.pr.outputs.author_login }}
-          HEAD_REPO: ${{ steps.pr.outputs.head_repo }}
-          HEAD_REF: ${{ steps.pr.outputs.head_ref }}
-          PR_BODY: ${{ steps.pr.outputs.body }}
-        run: |
-          set -eu
-
-          if [[ "$AUTHOR_LOGIN" == "github-actions[bot]" \
-            && "$HEAD_REPO" == "$GITHUB_REPOSITORY" \
-            && "$HEAD_REF" == release/* ]]; then
-            echo "Trusted internal release PR; external CLA gate not required."
-            exit 0
-          fi
-
-          case "$AUTHOR_ASSOCIATION" in
-            OWNER|MEMBER|COLLABORATOR)
-              echo "Repository member contribution; external CLA gate not required."
-              exit 0
-              ;;
-          esac
-
-          required='- [x] I have read and agree to the Woobe Contributor License Agreement.'
-          if ! printf '%s\n' "$PR_BODY" | grep -Fqx -- "$required"; then
-            echo "External contributor must accept CONTRIBUTOR_LICENSE_AGREEMENT.md in the pull request body." >&2
-            exit 1
-          fi
-
-          echo "Contributor License Agreement accepted."
-
   cla:
     name: cla
-    needs: cla-hosted
-    if: ${{ !cancelled() && needs.cla-hosted.outputs.outcome != 'success' }}
     runs-on: [self-hosted, Linux, X64]
     steps:
-      - name: Report fallback activation
-        run: |
-          echo "::warning::GitHub-hosted cla.yml / cla did not pass; retrying on self-hosted runner."
       - name: Resolve pull request context
         id: pr
         env:
