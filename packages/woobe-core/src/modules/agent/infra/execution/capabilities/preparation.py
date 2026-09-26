@@ -27,6 +27,20 @@ _BOUND_CAPABILITIES_INSTRUCTION = (
     "when they are needed; otherwise answer directly."
 )
 
+_TOOL_GROUNDING_RUNTIME_RULES = (
+    "Tool grounding rules:\n"
+    "- The Tool definitions attached to this Model Invocation are the complete "
+    "set of runtime Tools available to this Agent. Do not call another Tool just "
+    "to discover which Tools exist.\n"
+    "- Never invent identifiers, owners, repository names, URLs, resource IDs, "
+    "tenant IDs, slugs or keys required by a Tool.\n"
+    "- If a qualified identifier is missing, use a real discovery or search Tool "
+    "when one is explicitly present in the attached Tool definitions.\n"
+    "- If no discovery Tool is available, ask the user for the missing identifier.\n"
+    "- Do not try guessed candidates or fabricated alternatives after a Tool rejects "
+    "an identifier or reports that a resource was not found."
+)
+
 _SKILL_USAGE_INSTRUCTION = (
     "The installed Skill catalog contains metadata only; Skill instructions and "
     "resources are not loaded. Decide whether a Skill helps fulfill the current "
@@ -165,6 +179,32 @@ def _messages_with_bound_capability_authority(
     return _messages_with_leading_system_instruction(messages, instruction)
 
 
+def _messages_with_tool_grounding(
+    messages: list,
+    *,
+    has_tools: bool,
+) -> list:
+    if not has_tools:
+        return list(messages)
+    result = list(messages)
+    insert_at = len(result) - 1 if result else 0
+    result.insert(insert_at, SystemMessage(content=_TOOL_GROUNDING_RUNTIME_RULES))
+    return result
+
+
+def _messages_with_skill_usage(
+    messages: list,
+    *,
+    has_skills: bool,
+) -> list:
+    if not has_skills:
+        return list(messages)
+    return _messages_with_leading_system_instruction(
+        messages,
+        _SKILL_USAGE_INSTRUCTION,
+    )
+
+
 def prepare_execution(request: ExecutionStrategyRequest) -> PreparedExecution:
     """Resolve provider/model/tool inputs without deciding the execution algorithm."""
     agent = request.agent
@@ -284,16 +324,9 @@ def prepare_execution(request: ExecutionStrategyRequest) -> PreparedExecution:
 
         final_model_factory = create_structured_recovery_model
 
-    execution_messages = _messages_with_bound_capability_authority(
-        request.messages,
-        has_tools=has_tools,
-        has_skills=bool(snapshots),
-    )
-    if snapshots:
-        execution_messages = _messages_with_leading_system_instruction(
-            execution_messages,
-            _SKILL_USAGE_INSTRUCTION,
-        )
+    # Tool authority, grounding and Skill usage instructions are invocation-scoped.
+    # Preparation owns only the stable base conversation and structured-output contract.
+    execution_messages = list(request.messages)
     if instruction is not None:
         execution_messages = _messages_with_leading_system_instruction(
             execution_messages,
