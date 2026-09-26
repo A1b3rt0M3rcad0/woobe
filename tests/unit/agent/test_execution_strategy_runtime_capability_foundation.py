@@ -11,6 +11,7 @@ from modules.agent.application.interfaces.execution_context import (
 )
 from modules.agent.application.strategy_sdk import (
     StrategyContextContribution,
+    StrategyToolSelection,
     StrategyToolSelectionMode,
 )
 from modules.agent.infra.execution.capabilities.context_assembly import (
@@ -171,6 +172,58 @@ async def test_context_runtime_materializes_typed_knowledge_before_user_input() 
     assert "<context>\nanswer from knowledge\n</context>" in knowledge.content
     assert knowledge.additional_kwargs["woobe_context"]["source_type"] == "KNOWLEDGE"
     assert isinstance(assembled.messages[2], HumanMessage)
+
+
+@pytest.mark.asyncio
+async def test_context_runtime_scopes_tool_instructions_to_selected_invocation() -> None:
+    state = StrategyRuntimeState(
+        messages=[
+            SystemMessage(content="system"),
+            HumanMessage(content="question"),
+        ]
+    )
+    runtime = RuntimeStrategyContextManager(
+        capability=ContextAssemblyCapability(
+            assembler=None,
+            provider="test",
+            model_name="test-model",
+            pricing_snapshot=None,
+            tool_definitions=(
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "search",
+                        "description": "Search",
+                        "parameters": {"type": "object"},
+                    },
+                },
+            ),
+        ),
+        runtime_state=state,
+    )
+
+    without_tools = await runtime.assemble(
+        tools=StrategyToolSelection(mode=StrategyToolSelectionMode.NONE),
+    )
+    with_tools = await runtime.assemble(
+        tools=StrategyToolSelection(mode=StrategyToolSelectionMode.ALL),
+    )
+
+    without_text = "\n".join(
+        str(message.content)
+        for message in without_tools.messages
+        if isinstance(message, SystemMessage)
+    )
+    with_text = "\n".join(
+        str(message.content)
+        for message in with_tools.messages
+        if isinstance(message, SystemMessage)
+    )
+
+    assert "complete and authoritative" not in without_text
+    assert "Tool grounding rules" not in without_text
+    assert "complete and authoritative" in with_text
+    assert "Tool grounding rules" in with_text
 
 
 def test_runtime_tool_selection_rejects_tools_outside_authorized_mapping() -> None:
