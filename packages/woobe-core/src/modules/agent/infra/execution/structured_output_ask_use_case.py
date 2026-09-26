@@ -23,7 +23,6 @@ from modules.agent.infra.execution.instrumented_execution_finalizer import (
 from modules.agent.infra.execution.instrumented_failed_finalizer import (
     finalize_failed_instrumented_execution,
 )
-from modules.agent.infra.execution.instrumented_fallback_mixin import InstrumentedFallbackMixin
 from modules.agent.infra.execution.instrumented_primary_mixin import InstrumentedPrimaryExecutionMixin
 from modules.agent.infra.execution.session_continuity_runtime_resolver import (
     SessionContinuityReleaseRuntimeResolver,
@@ -55,7 +54,6 @@ def _provider_value(value) -> str | None:
 
 
 class StructuredOutputAskAgentUseCase(
-    InstrumentedFallbackMixin,
     InstrumentedPrimaryExecutionMixin,
     ExplicitRuntimePersistenceMixin,
     SessionContinuityReleaseRuntimeResolver,
