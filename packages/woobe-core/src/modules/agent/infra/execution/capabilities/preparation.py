@@ -108,7 +108,6 @@ def _positive_int(value: Any) -> int | None:
 def _bind_context_runtime(
     *,
     request: ExecutionStrategyRequest,
-    agent_tools: list[dict],
     pricing_snapshot: dict[str, Any] | None,
 ) -> None:
     context = current_execution.get()
@@ -118,7 +117,9 @@ def _bind_context_runtime(
     policy = resolve_context_policy(runtime_config)
     context.context_policy = policy.model_dump(mode="json")
     context.reserved_output_units = request.agent.max_output_tokens or 1000
-    context.active_tool_definitions = list(agent_tools)
+    # Tool visibility belongs to one model invocation. Preparation resolves the
+    # authorized inventory but does not make every Tool active in Context.
+    context.active_tool_definitions = []
     context.model_capacity_units = _positive_int(
         (pricing_snapshot or {}).get("context_window")
     )
@@ -225,7 +226,6 @@ def prepare_execution(request: ExecutionStrategyRequest) -> PreparedExecution:
     )
     _bind_context_runtime(
         request=request,
-        agent_tools=agent_tools,
         pricing_snapshot=pricing_snapshot,
     )
 
