@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from typing import Any, Callable, Coroutine
+from typing import Any, Awaitable, Callable, Coroutine
 
 from langchain_core.messages import SystemMessage
 
@@ -75,6 +75,9 @@ class PreparedExecution:
     base_url: str | None
     clean_json_answer: Callable[..., Any]
     context_assembler: ContextAssembler | None
+    tool_definitions: list[dict]
+    knowledge_retrieve: Callable[[str], Awaitable[Any]] | None
+    knowledge_query: str | None
 
 
 def configure_skill_runtime(
@@ -319,4 +322,7 @@ def prepare_execution(request: ExecutionStrategyRequest) -> PreparedExecution:
         base_url=request.base_url,
         clean_json_answer=request.clean_json_answer,
         context_assembler=request.context_assembler,
+        tool_definitions=agent_tools,
+        knowledge_retrieve=request.knowledge_retrieve,
+        knowledge_query=request.knowledge_query,
     )
