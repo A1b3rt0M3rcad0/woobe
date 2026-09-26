@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from modules.agent.application.interfaces.execution import InstrumentedExecution
+from modules.agent.infra.execution.capabilities.context_assembly import (
+    ContextAssemblyCapability,
+)
 from modules.agent.infra.execution.capabilities.preparation import PreparedExecution
 from modules.agent.infra.execution.structured_json_repair import repair_json_if_needed
 
@@ -27,5 +30,10 @@ async def finalize_execution_result(
         schema=prepared.response_schema,
         clean_json_answer=prepared.clean_json_answer,
         pricing_snapshot=prepared.pricing_snapshot,
-        context_assembler=prepared.context_assembler,
+        context_capability=ContextAssemblyCapability(
+            assembler=prepared.context_assembler,
+            provider=prepared.provider,
+            model_name=prepared.model_name,
+            pricing_snapshot=prepared.pricing_snapshot,
+        ),
     )
