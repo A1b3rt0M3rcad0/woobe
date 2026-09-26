@@ -242,7 +242,7 @@ def test_context_assembly_runtime_contract_covers_every_runtime_state_read() -> 
     )
 
 
-def test_every_model_invocation_propagates_context_assembler_explicitly() -> None:
+def test_every_model_invocation_has_explicit_context_boundary() -> None:
     violations: list[str] = []
 
     for path in AGENT_EXECUTION.rglob("*.py"):
@@ -251,18 +251,27 @@ def test_every_model_invocation_propagates_context_assembler_explicitly() -> Non
             if not isinstance(node, ast.Call):
                 continue
             name = _call_name(node)
-            if name not in {
-                "invoke_llm",
-                "run_tool_loop",
-                "repair_json_if_needed",
-                "run_instrumented_execution",
-            }:
-                continue
-            if not _has_keyword(node, "context_assembler"):
-                violations.append(
-                    f"{path.relative_to(ROOT).as_posix()} calls {name}(...) "
-                    "without context_assembler"
-                )
+            if name == "invoke_llm":
+                if not (
+                    _has_keyword(node, "context_assembler")
+                    or _has_keyword(node, "context_prepared")
+                ):
+                    violations.append(
+                        f"{path.relative_to(ROOT).as_posix()} calls invoke_llm(...) "
+                        "without an explicit Context boundary"
+                    )
+            elif name in {"run_tool_loop", "run_instrumented_execution"}:
+                if not _has_keyword(node, "context_assembler"):
+                    violations.append(
+                        f"{path.relative_to(ROOT).as_posix()} calls {name}(...) "
+                        "without context_assembler"
+                    )
+            elif name == "repair_json_if_needed":
+                if not _has_keyword(node, "context_capability"):
+                    violations.append(
+                        f"{path.relative_to(ROOT).as_posix()} calls repair_json_if_needed(...) "
+                        "without context_capability"
+                    )
 
     assert not violations, "\n".join(violations)
 
