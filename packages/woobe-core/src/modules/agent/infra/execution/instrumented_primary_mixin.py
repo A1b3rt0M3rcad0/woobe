@@ -36,6 +36,7 @@ from modules.agent.infra.database.runtime_transaction_runner import (
     AgentRuntimeTransactionRunner,
 )
 from modules.agent.infra.execution.execution_instrumentation import aggregate_usage
+from modules.agent.infra.execution.rag.runtime_adapter import RAGRuntimeAdapter
 from modules.agent.infra.execution.runtime_streaming import current_runtime_stream
 
 logger = logging.getLogger(__name__)
@@ -80,6 +81,10 @@ def _copy_http_route_metadata(payload: dict[str, Any]) -> None:
 class InstrumentedPrimaryExecutionMixin:
     _context_assembler: ContextAssembler | None = None
     _execution_strategy_resolver: ExecutionStrategyResolver | None = None
+    _rag_runtime: RAGRuntimeAdapter | None = None
+
+    def configure_rag_runtime(self, adapter: RAGRuntimeAdapter) -> None:
+        self._rag_runtime = adapter
 
     def configure_context_assembler(self, assembler: ContextAssembler) -> None:
         self._context_assembler = assembler
