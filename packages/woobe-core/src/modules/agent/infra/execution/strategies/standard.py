@@ -109,13 +109,22 @@ class StandardExecutionStrategy(ExecutionStrategy[StandardExecutionState]):
                 )
 
         if state.phase == StandardPhase.FINAL_RESPONSE_GENERATION.value:
-            result = await ctx.model.finalize(
-                reason=(
-                    state.stop_reason.value
-                    if state.stop_reason is not None
-                    else "Capability execution could not complete"
-                ),
+            reason = (
+                state.stop_reason.value
+                if state.stop_reason is not None
+                else "Capability execution could not complete"
+            )
+            no_tools = ctx.tools.none()
+            invocation = await ctx.context.assemble_final(
+                reason=reason,
                 phase=StandardPhase.FINAL_RESPONSE_GENERATION,
+                tools=no_tools,
+            )
+            result = await ctx.model.finalize(
+                reason=reason,
+                phase=StandardPhase.FINAL_RESPONSE_GENERATION,
+                context=invocation,
+                tools=no_tools,
             )
             return Completed(result)
 
@@ -180,9 +189,17 @@ class StandardExecutionStrategy(ExecutionStrategy[StandardExecutionState]):
                 break
 
         if state.stop_reason is not None and result.has_tool_calls:
+            no_tools = ctx.tools.none()
+            invocation = await ctx.context.assemble_final(
+                reason=state.stop_reason.value,
+                phase=StandardPhase.FINAL_RESPONSE_GENERATION,
+                tools=no_tools,
+            )
             result = await ctx.model.finalize(
                 reason=state.stop_reason.value,
                 phase=StandardPhase.FINAL_RESPONSE_GENERATION,
+                context=invocation,
+                tools=no_tools,
             )
 
         return Completed(result)
