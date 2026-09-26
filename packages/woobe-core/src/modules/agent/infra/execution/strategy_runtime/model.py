@@ -4,6 +4,7 @@ from typing import Any
 
 from modules.agent.application.interfaces.execution import InstrumentedExecutionError
 from modules.agent.application.strategy_sdk import (
+    StrategyInvocationContext,
     StrategyModelResult,
     StrategyPhase,
     strategy_phase_value,
@@ -55,13 +56,29 @@ class RuntimeStrategyModel:
         capability: ModelInvocationCapability,
         messages: list[Any],
         phase: StrategyPhase,
+        context: StrategyInvocationContext | None = None,
     ) -> StrategyModelResult:
         call_index = self._runtime_state.next_call_index()
         try:
             result, call = await capability.invoke(
-                messages=messages,
+                messages=(
+                    list(context.messages)
+                    if context is not None
+                    else messages
+                ),
                 phase=strategy_phase_value(phase),
                 call_index=call_index,
+                invocation_id=(
+                    context.invocation_id
+                    if context is not None
+                    else None
+                ),
+                context_snapshot=(
+                    context.snapshot
+                    if context is not None
+                    else None
+                ),
+                context_prepared=context is not None,
             )
         except InstrumentedExecutionError as exc:
             self._runtime_state.absorb_model_error(exc)
@@ -74,12 +91,14 @@ class RuntimeStrategyModel:
     async def invoke(
         self,
         *,
+        context: StrategyInvocationContext | None = None,
         phase: StrategyPhase | None = None,
     ) -> StrategyModelResult:
         return await self._invoke(
             capability=self._capability,
             messages=self._runtime_state.messages,
             phase=phase or self._initial_phase,
+            context=context,
         )
 
     async def finalize(
@@ -87,6 +106,7 @@ class RuntimeStrategyModel:
         *,
         reason: str,
         phase: StrategyPhase,
+        context: StrategyInvocationContext | None = None,
     ) -> StrategyModelResult:
         terminal_model = self._final_model
         if terminal_model is None and self._final_model_factory is not None:
@@ -117,6 +137,7 @@ class RuntimeStrategyModel:
                     reason,
                 ),
                 phase=phase,
+                context=context,
             )
         except InstrumentedExecutionError as exc:
             execution = self._runtime_state.execution
