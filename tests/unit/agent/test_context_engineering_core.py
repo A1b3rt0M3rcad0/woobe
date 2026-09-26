@@ -281,6 +281,17 @@ def test_context_contribution_preserves_tool_compaction_transformation():
         [
             SystemMessage(content="system"),
             HumanMessage(content="current user"),
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "id": "tool-call-1",
+                        "name": "lookup",
+                        "args": {"query": "current"},
+                        "type": "tool_call",
+                    }
+                ],
+            ),
             ToolMessage(
                 content='{"result":"compact"}',
                 tool_call_id="tool-call-1",
@@ -511,14 +522,14 @@ def test_context_budget_metrics_report_fit_and_model_clamp():
 
 def test_context_budget_drops_orphan_tool_messages_when_parent_tool_call_is_evicted():
     policy = ContextPolicyV1.model_validate(
-        {"budget": {"max_input_units": 120}}
+        {"budget": {"max_input_units": 256}}
     )
     result = _assemble(
         [
             SystemMessage(content="system"),
             HumanMessage(content="old question"),
             AIMessage(
-                content="",
+                content="assistant context " * 160,
                 tool_calls=[
                     {
                         "id": "call-1",
@@ -529,7 +540,7 @@ def test_context_budget_drops_orphan_tool_messages_when_parent_tool_call_is_evic
                 ],
             ),
             ToolMessage(
-                content="x" * 1000,
+                content="small result",
                 tool_call_id="call-1",
             ),
             HumanMessage(content="current"),
