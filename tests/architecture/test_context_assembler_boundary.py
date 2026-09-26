@@ -267,6 +267,21 @@ def test_every_model_invocation_propagates_context_assembler_explicitly() -> Non
     assert not violations, "\n".join(violations)
 
 
+def test_model_invocation_capability_does_not_own_context_assembly() -> None:
+    path = AGENT_EXECUTION / "capabilities" / "model_invocation.py"
+    source = path.read_text(encoding="utf-8")
+    imports = []
+    for node in ast.walk(_tree(path)):
+        if isinstance(node, ast.ImportFrom) and node.module:
+            imports.append(node.module)
+        elif isinstance(node, ast.Import):
+            imports.extend(alias.name for alias in node.names)
+
+    assert "modules.agent.application.interfaces.context_assembler" not in imports
+    assert "ContextAssembler" not in source
+    assert "context_assembler" not in source
+
+
 def test_background_worker_gets_runtime_dispatcher_only_from_public_boundary() -> None:
     boundary_names: set[str] = set()
     direct_standard_imports: list[str] = []
