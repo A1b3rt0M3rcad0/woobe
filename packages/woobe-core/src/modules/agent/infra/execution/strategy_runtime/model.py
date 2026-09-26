@@ -41,7 +41,7 @@ class RuntimeStrategyModel:
         initial_phase: str,
         final_model: Any | None,
         final_model_factory: Any | None,
-        fallback_model_factory: Callable[[], PreparedFallbackModel] | None,
+        fallback_model_factory: Callable[[], PreparedFallbackModel] | None = None,
         tool_definitions: list[dict[str, Any]] | None = None,
     ) -> None:
         self._capability = capability
