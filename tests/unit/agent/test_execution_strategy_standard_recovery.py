@@ -132,6 +132,7 @@ async def test_standard_strategy_resumes_generic_checkpoint_without_replaying_to
         "phase": "tool_followup_1",
         "tool_round": 1,
         "consecutive_failures": 0,
+        "knowledge_resolved": True,
         "stop_reason": None,
     }
     assert captured["state"]["strategy_cursor"]["next_call_index"] == 2
