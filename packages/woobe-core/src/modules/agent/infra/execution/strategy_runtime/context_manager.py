@@ -11,6 +11,7 @@ from modules.agent.application.strategy_sdk import (
     StrategyInvocationContext,
     StrategyPhase,
     StrategyToolSelection,
+    StrategyToolSelectionMode,
     strategy_phase_value,
 )
 from modules.agent.infra.execution.capabilities.context_assembly import (
@@ -123,7 +124,11 @@ class RuntimeStrategyContextManager:
         result = self._capability.assemble(
             messages=messages,
             phase=strategy_phase_value(phase or "response_generation"),
-            tool_selection_mode=tools.mode.value if tools is not None else None,
+            tool_selection_mode=(
+                tools.mode.value
+                if tools is not None
+                else StrategyToolSelectionMode.ALL.value
+            ),
             tool_selection_names=tools.names if tools is not None else (),
         )
         return StrategyInvocationContext(
