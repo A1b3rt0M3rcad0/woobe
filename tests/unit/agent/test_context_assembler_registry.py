@@ -85,14 +85,16 @@ def test_default_registry_exposes_default_alias_and_explicit_standard_strategy()
     assert DEFAULT_CONTEXT_ASSEMBLER_KEY == ContextAssemblerKey("default", "v1")
     assert STANDARD_CONTEXT_ASSEMBLER_KEY == ContextAssemblerKey("stdcm", "v1")
     assert [descriptor.key for descriptor in descriptors] == [
-        DEFAULT_CONTEXT_ASSEMBLER_KEY,
+        ContextAssemblerKey("default", "v3"),
         STANDARD_CONTEXT_ASSEMBLER_KEY,
         ContextAssemblerKey("stdcm", "v2"),
+        ContextAssemblerKey("stdcm", "v3"),
     ]
 
-    system_default, explicit_standard, skills_standard = descriptors
-    assert system_default.strategy_key == STANDARD_CONTEXT_ASSEMBLER_KEY
-    assert system_default.display_name == "Standard Context Manager"
+    system_default, explicit_standard, skills_standard, programmable_standard = descriptors
+    assert system_default.strategy_key == ContextAssemblerKey("stdcm", "v3")
+    assert system_default.display_name == "Standard Context Manager v3"
+    assert system_default.supports_skills is True
     assert system_default.is_default is True
     assert system_default.is_system_default_alias is True
 
@@ -100,6 +102,11 @@ def test_default_registry_exposes_default_alias_and_explicit_standard_strategy()
     assert explicit_standard.display_name == "Standard Context Manager"
     assert explicit_standard.is_default is False
     assert explicit_standard.is_system_default_alias is False
+
+    assert skills_standard.key == ContextAssemblerKey("stdcm", "v2")
+    assert skills_standard.supports_skills is True
+    assert programmable_standard.key == ContextAssemblerKey("stdcm", "v3")
+    assert programmable_standard.supports_skills is True
 
 
 def test_default_alias_and_explicit_strategy_resolve_same_standard_implementation() -> None:
@@ -115,55 +122,36 @@ def test_default_alias_and_explicit_strategy_resolve_same_standard_implementatio
 
 
 def test_default_registry_exposes_backend_owned_product_metadata_for_both_selections() -> None:
-    descriptors = list_context_assemblers()
-
-    assert len(descriptors) == 3
-    system_default, explicit_standard, skills_standard = descriptors
-
-    expected_common = {
-        "strategy_name": "stdcm",
-        "strategy_version": "v1",
-        "display_name": "Standard Context Manager",
-        "description": (
-            "Balanced deterministic context management for general-purpose Agent execution."
-        ),
-        "behavior": (
-            "Builds each Model Invocation context deterministically from the Agent's available "
-            "context sources, applying Context Policy v1 budgets, priorities, pressure handling, "
-            "ordering, deduplication, and provenance capture."
-        ),
-        "recommended_for": [
-            "General-purpose Agents that need predictable context behavior.",
-            "Production workloads where replayability and stable snapshot behavior matter.",
-        ],
-        "capabilities": [
-            "Preserves mandatory system instructions and the current user input.",
-            "Balances session history, knowledge, tool, artifact, delegation, and runtime context within configured budgets.",
-            "Applies pressure trimming, ordering, and deduplication before each Model Invocation.",
-            "Records source contributions and provenance in the Context Snapshot.",
-        ],
-        "limitations": [
-            "Does not perform autonomous context planning or iterative retrieval.",
-            "Behavior is bounded by Context Policy v1 and the context sources available to the Agent.",
-        ],
-        "configuration": "Context Policy v1",
-        "supports_skills": False,
+    descriptors = {
+        (item["name"], item["version"]): item
+        for item in list_context_assemblers()
     }
 
-    assert system_default == {
-        "name": "default",
-        "version": "v1",
-        **expected_common,
-        "is_default": True,
-        "is_system_default_alias": True,
+    assert set(descriptors) == {
+        ("default", "v3"),
+        ("stdcm", "v1"),
+        ("stdcm", "v2"),
+        ("stdcm", "v3"),
     }
-    assert explicit_standard == {
-        "name": "stdcm",
-        "version": "v1",
-        **expected_common,
-        "is_default": False,
-        "is_system_default_alias": False,
-    }
+
+    system_default = descriptors[("default", "v3")]
+    assert system_default["strategy_name"] == "stdcm"
+    assert system_default["strategy_version"] == "v3"
+    assert system_default["display_name"] == "Standard Context Manager v3"
+    assert system_default["supports_skills"] is True
+    assert system_default["is_default"] is True
+    assert system_default["is_system_default_alias"] is True
+
+    explicit_v1 = descriptors[("stdcm", "v1")]
+    assert explicit_v1["strategy_version"] == "v1"
+    assert explicit_v1["display_name"] == "Standard Context Manager"
+    assert explicit_v1["supports_skills"] is False
+    assert explicit_v1["is_default"] is False
+
+    programmable_v3 = descriptors[("stdcm", "v3")]
+    assert programmable_v3["strategy_version"] == "v3"
+    assert programmable_v3["supports_skills"] is True
+    assert "compaction" in str(programmable_v3["behavior"]).lower()
 
 
 def test_build_context_assembler_resolves_through_fresh_registry() -> None:
@@ -354,9 +342,9 @@ def test_new_agent_canonicalization_freezes_system_default_and_strategy() -> Non
         "other": True,
         "context_assembler": {
             "name": "default",
-            "version": "v1",
+            "version": "v3",
             "strategy_name": "stdcm",
-            "strategy_version": "v1",
+            "strategy_version": "v3",
         },
     }
 

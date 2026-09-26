@@ -60,6 +60,8 @@ Runtime/execution code depends only on the stable `ContextAssembler` compatibili
 
 ```text
 stdcm:v1 -> StandardContextAssembler
+stdcm:v2 -> StandardSkillsContextAssembler(StandardContextAssembler)
+stdcm:v3 -> StandardSkillsContextAssembler(ProgrammableStandardContextAssembler)
 ```
 
 Implementation:
@@ -72,6 +74,6 @@ The Standard strategy owns pressure inspection and session compaction, including
 
 ## Standard v2: Skills
 
-`stdcm:v2` is composed by the registry as `StandardSkillsContextAssembler` with a standard assembler dependency. It materializes Run-local Skill catalog, instruction and resource contributions, protects complete procedures from compaction and records package/version provenance. Its activation state belongs to the Run, not the shared manager instance. The system default remains `stdcm:v1`; published v1 identities retain their behavior.
+`stdcm:v2` is composed by the registry as `StandardSkillsContextAssembler(StandardContextAssembler())` and preserves the published v1 management behavior while adding Skills. `stdcm:v3` composes `StandardSkillsContextAssembler(ProgrammableStandardContextAssembler())`; it adds manager-owned pressure inspection, model-assisted summarize-and-replace compaction and Skills. The current system default is `stdcm:v3`. Historical `default:v1`, `stdcm:v1` and `stdcm:v2` identities retain their frozen behavior.
 
 See [Agent Skills](../../../../../../../docs/skills/README.md) for package, API, budget and rollout contracts. Manager catalog metadata declares `supports_skills`; the frontend uses that contract to select compatible strategies.

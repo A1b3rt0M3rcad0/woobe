@@ -205,6 +205,10 @@ class ContextAssemblerRegistry:
 
     def create(self, key: ContextAssemblerKey) -> ContextAssembler:
         entry = self._entries.get(key)
+        if entry is None and key == LEGACY_DEFAULT_CONTEXT_ASSEMBLER_KEY:
+            # Historical default:v1 remains resolvable even after the current
+            # system-default alias advances to a newer strategy version.
+            return self.create_strategy(STANDARD_CONTEXT_ASSEMBLER_KEY)
         if entry is None:
             raise UnknownContextAssemblerError(f"Unknown context assembler: {key}")
 
