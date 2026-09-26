@@ -75,7 +75,7 @@ jobs:
             echo "::warning::master is not protected by GitHub branch protection/rulesets. The release gate still validates its own release PR, but direct pushes can bypass repository-level enforcement. Enable protection when the repository plan/settings permit it."
           fi
 
-          echo "Required pre-merge CI gates run on GitHub-hosted ubuntu-24.04 runners; release orchestration has no self-hosted runner dependency."
+          echo "Required pre-merge CI gates currently run on self-hosted Linux X64 runners; release publication orchestration remains separately isolated."
       - name: Validate target version and resolve release state
         id: target
         shell: bash
