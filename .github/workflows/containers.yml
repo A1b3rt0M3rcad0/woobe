@@ -14,8 +14,12 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  containers:
+  containers-hosted:
+    name: containers (GitHub-hosted)
     runs-on: ubuntu-24.04
+    continue-on-error: true
+    outputs:
+      outcome: ${{ job.status }}
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -208,13 +212,268 @@ jobs:
         if: always()
         run: bash scripts/ci/cleanup_docker_access.sh
 
-  release-multiarch-build:
-    name: Release-equivalent multi-arch build
+
+  containers:
+    name: containers
+    needs: containers-hosted
+    if: ${{ !cancelled() && needs.containers-hosted.outputs.outcome != 'success' }}
+    runs-on: [self-hosted, Linux, X64]
+    timeout-minutes: 45
+    steps:
+      - name: Report fallback activation
+        run: |
+          echo "::warning::GitHub-hosted containers.yml / containers did not pass; retrying on self-hosted runner."
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - name: Prepare Docker access
+        run: bash scripts/ci/prepare_docker_access.sh
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.14"
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
+      - name: Build standalone Core package
+        run: |
+          mkdir -p .test-artifacts/core-dist
+          uv build packages/woobe-core --out-dir .test-artifacts/core-dist
+          test -n "$(find .test-artifacts/core-dist -maxdepth 1 -name 'woobe_core-*.whl' -print -quit)"
+      - name: Generate isolated Core environment
+        run: python scripts/generate_self_host_env.py --force
+      - name: Validate the supported Core Compose contract
+        run: docker compose config --quiet
+      - name: Build API image
+        run: docker build --pull --no-cache --target api --tag woobe-api:ci .
+      - name: Build Workers image
+        run: docker build --pull --no-cache --target workers --tag woobe-workers:ci .
+      - name: Verify API and Workers image isolation
+        run: |
+          set -euo pipefail
+          # Check packaging boundaries without importing process entrypoints.
+          # Importing main/worker_main initializes runtime Settings and would turn
+          # this structural check into an environment/secrets bootstrap test.
+          docker run --rm --entrypoint python woobe-api:ci -c "import importlib.util, woobe_api; assert importlib.util.find_spec('main') is not None; assert importlib.util.find_spec('woobe_workers') is None"
+          docker run --rm --entrypoint sh woobe-api:ci -c 'test -f /app/packages/woobe-api/src/main.py && test ! -d /app/packages/woobe-workers/src'
+          docker run --rm --entrypoint python woobe-workers:ci -c "import importlib.util, woobe_workers; assert importlib.util.find_spec('worker_main') is not None; assert importlib.util.find_spec('woobe_api') is None"
+          docker run --rm --entrypoint sh woobe-workers:ci -c 'test -f /app/packages/woobe-workers/src/worker_main.py && test ! -d /app/packages/woobe-api/src'
+      - name: Build Web image
+        run: >-
+          docker build
+          --pull
+          --no-cache
+          --file packages/woobe-frontend/Dockerfile
+          --build-arg VITE_API_URL=http://127.0.0.1:8000
+          --build-arg VITE_CHAT_EMBED_URL=http://127.0.0.1:8081
+          --build-arg VITE_WOOBE_EDITION=core
+          --tag woobe-frontend:ci .
+      - name: Build ChatSurface image
+        run: >-
+          docker build
+          --pull
+          --no-cache
+          --file packages/woobe-embed/Dockerfile
+          --tag woobe-embed:ci .
+      - name: Require non-root runtime users
+        run: |
+          set -euo pipefail
+          for image in woobe-api:ci woobe-workers:ci woobe-frontend:ci woobe-embed:ci; do
+            configured_user="$(docker image inspect "$image" --format '{{.Config.User}}')"
+            test -n "$configured_user"
+            test "$configured_user" != "0"
+            test "$configured_user" != "root"
+            docker run --rm --entrypoint sh "$image" -c 'test "$(id -u)" -ne 0'
+          done
+      - name: Require Core image license metadata
+        run: |
+          set -euo pipefail
+          for image in woobe-api:ci woobe-workers:ci woobe-frontend:ci woobe-embed:ci; do
+            license="$(docker image inspect "$image" --format '{{ index .Config.Labels "org.opencontainers.image.licenses" }}')"
+            test "$license" = "LicenseRef-Woobe-Core-Sustainable-Use-1.0"
+          done
+      - name: Prepare release evidence directory
+        run: mkdir -p .test-artifacts
+      - name: Generate API SBOM
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          image: woobe-api:ci
+          artifact-name: woobe-api-sbom.spdx.json
+          output-file: .test-artifacts/woobe-api-sbom.spdx.json
+          format: spdx-json
+          upload-artifact: false
+          upload-release-assets: false
+      - name: Generate Workers SBOM
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          image: woobe-workers:ci
+          artifact-name: woobe-workers-sbom.spdx.json
+          output-file: .test-artifacts/woobe-workers-sbom.spdx.json
+          format: spdx-json
+          upload-artifact: false
+          upload-release-assets: false
+      - name: Generate Web SBOM
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          image: woobe-frontend:ci
+          artifact-name: woobe-frontend-sbom.spdx.json
+          output-file: .test-artifacts/woobe-frontend-sbom.spdx.json
+          format: spdx-json
+          upload-artifact: false
+          upload-release-assets: false
+      - name: Generate ChatSurface SBOM
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          image: woobe-embed:ci
+          artifact-name: woobe-embed-sbom.spdx.json
+          output-file: .test-artifacts/woobe-embed-sbom.spdx.json
+          format: spdx-json
+          upload-artifact: false
+          upload-release-assets: false
+      - name: Render third-party dependency inventory
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          sboms = sorted(Path('.test-artifacts').glob('woobe-*-sbom.spdx.json'))
+          rows = set()
+          for sbom in sboms:
+              payload = json.loads(sbom.read_text(encoding='utf-8'))
+              for package in payload.get('packages', []):
+                  if not isinstance(package, dict):
+                      continue
+                  rows.add((
+                      sbom.name,
+                      str(package.get('name') or 'NOASSERTION'),
+                      str(package.get('versionInfo') or 'NOASSERTION'),
+                      str(package.get('licenseDeclared') or 'NOASSERTION'),
+                      str(package.get('licenseConcluded') or 'NOASSERTION'),
+                  ))
+
+          output = Path('.test-artifacts/THIRD_PARTY_INVENTORY.md')
+          lines = [
+              '# Woobe Core third-party dependency inventory',
+              '',
+              'Generated from the SPDX SBOMs of the exact Core container artifacts.',
+              'This inventory is release evidence and still requires manual review of notice obligations and original license texts.',
+              '',
+              '| Artifact | Package | Version | Declared license | Concluded license |',
+              '| --- | --- | --- | --- | --- |',
+          ]
+          for row in sorted(rows):
+              escaped = [value.replace('|', '\\|').replace('\n', ' ') for value in row]
+              lines.append('| ' + ' | '.join(escaped) + ' |')
+          lines.append('')
+          output.write_text('\n'.join(lines), encoding='utf-8')
+          PY
+      - name: Upload third-party dependency inventory
+        if: ${{ github.event_name == 'workflow_dispatch' && vars.WOOBE_UPLOAD_CI_ARTIFACTS == 'true' }}
+        continue-on-error: true
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: woobe-third-party-inventory
+          path: .test-artifacts/THIRD_PARTY_INVENTORY.md
+          if-no-files-found: error
+          retention-days: 1
+      - name: Reclaim Docker space before vulnerability scans
+        run: |
+          docker builder prune --all --force || true
+          docker image prune --force || true
+          rm -rf .cache/trivy
+
+      - name: Scan API image
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: woobe-api:ci
+          format: table
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: '1'
+      - name: Scan Workers image
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: woobe-workers:ci
+          format: table
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: '1'
+      - name: Scan Web image
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: woobe-frontend:ci
+          format: table
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: '1'
+      - name: Scan ChatSurface image
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: woobe-embed:ci
+          format: table
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: '1'
+      - name: Cleanup Docker access
+        if: always()
+        run: bash scripts/ci/cleanup_docker_access.sh
+
+  release-multiarch-build-hosted:
+    name: Release-equivalent multi-arch build (GitHub-hosted)
     runs-on: ubuntu-24.04
+    continue-on-error: true
+    outputs:
+      outcome: ${{ job.status }}
     timeout-minutes: 60
     env:
       DOCKER_BUILD_RECORD_UPLOAD: "false"
     steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+
+      - name: Build Core API for release architectures
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: .
+          target: api
+          platforms: linux/amd64,linux/arm64
+          push: false
+
+      - name: Build Core Workers for release architectures
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: .
+          target: workers
+          platforms: linux/amd64,linux/arm64
+          push: false
+
+      - name: Build Core Frontend for release architectures
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: .
+          file: packages/woobe-frontend/Dockerfile
+          target: runtime
+          platforms: linux/amd64,linux/arm64
+          push: false
+
+      - name: Build Core Embed for release architectures
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: .
+          file: packages/woobe-embed/Dockerfile
+          target: runtime
+          platforms: linux/amd64,linux/arm64
+          push: false
+
+  release-multiarch-build:
+    name: Release-equivalent multi-arch build
+    needs: release-multiarch-build-hosted
+    if: ${{ !cancelled() && needs.release-multiarch-build-hosted.outputs.outcome != 'success' }}
+    runs-on: [self-hosted, Linux, X64]
+    timeout-minutes: 60
+    env:
+      DOCKER_BUILD_RECORD_UPLOAD: "false"
+    steps:
+      - name: Report fallback activation
+        run: |
+          echo "::warning::GitHub-hosted containers.yml / Release-equivalent multi-arch build did not pass; retrying on self-hosted runner."
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4
