@@ -3,7 +3,11 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from modules.agent.application.strategy_sdk import StrategyModelResult, StrategyPhase
+from modules.agent.application.strategy_sdk import (
+    StrategyModelResult,
+    StrategyPhase,
+    strategy_phase_value,
+)
 from modules.agent.infra.execution.capabilities.context_assembly import (
     ContextAssemblyCapability,
 )
@@ -133,6 +137,7 @@ class RuntimeStrategyOutput:
             clean_json_answer=self._clean_json_answer or (lambda value: value),
             pricing_snapshot=self._pricing_snapshot,
             context_capability=self._context_capability,
+            phase=strategy_phase_value(phase),
         )
         if repaired.llm_calls:
             self._runtime_state.call_index = max(
