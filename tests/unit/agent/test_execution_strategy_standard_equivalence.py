@@ -8,6 +8,10 @@ from langchain_core.messages import AIMessage
 
 from modules.agent.application.dtos.runtime_dtos import SourceInfo
 from modules.agent.application.interfaces.execution import InstrumentedExecutionError
+from modules.agent.application.interfaces.execution_context import (
+    current_execution,
+    new_execution_context,
+)
 from modules.agent.application.interfaces.execution_strategy import ExecutionStrategyRequest
 from modules.agent.infra.execution.strategies.standard import StandardExecutionStrategy
 from modules.agent.infra.execution.strategy_runtime.runner import execute_strategy
@@ -76,12 +80,13 @@ def _request(
     response_format: dict | None = None,
     knowledge_retrieve=None,
     knowledge_query: str | None = None,
+    agent: Any | None = None,
 ) -> ExecutionStrategyRequest:
     return ExecutionStrategyRequest(
         llm_factory=factory,
         execute_single_tool=execute_single_tool,
         clean_json_answer=lambda value: value,
-        agent=_agent(),
+        agent=agent or _agent(),
         api_key="test-key",
         base_url=None,
         response_format=response_format or {},
@@ -259,6 +264,58 @@ async def test_standard_strategy_preserves_structured_json_repair() -> None:
     assert len(factory.calls) == 2
     assert factory.calls[1]["temperature"] == 0.0
     assert factory.calls[1]["response_format"] == {"type": "json_object"}
+
+
+@pytest.mark.asyncio
+async def test_standard_strategy_decides_fallback_through_model_capability() -> None:
+    primary = _FailingModel()
+    fallback = _SequenceModel([AIMessage(content="fallback answer")])
+    factory = _MultiModelFactory([primary, fallback])
+    agent = SimpleNamespace(
+        provider="openrouter",
+        model="primary-model",
+        fallback_provider="openai",
+        fallback_model="fallback-model",
+        fallback_credential_id="fallback-credential",
+        fallback_provider_model_id=None,
+        temperature=0.2,
+        max_output_tokens=1000,
+        settings={},
+    )
+
+    async def execute_single_tool(_tool_call, _tool_id):
+        raise AssertionError("Tool execution must not run")
+
+    context = new_execution_context()
+    context.prepared_fallback = {
+        "api_key": "fallback-key",
+        "base_url": None,
+    }
+    token = current_execution.set(context)
+    try:
+        execution = await _execute(
+            _request(
+                factory=factory,
+                execute_single_tool=execute_single_tool,
+                has_tools=False,
+                agent=agent,
+            )
+        )
+    finally:
+        current_execution.reset(token)
+
+    assert execution.result.content == "fallback answer"
+    assert execution.fallback_used is True
+    assert execution.fallback_info is not None
+    assert execution.fallback_info["primary_error"] == "provider down"
+    assert execution.fallback_info["fallback_provider"] == "openai"
+    assert [call["phase"] for call in execution.llm_calls] == [
+        "response_generation",
+        "fallback_response_generation",
+    ]
+    assert len(factory.calls) == 2
+    assert factory.calls[1]["provider"] == "openai"
+    assert factory.calls[1]["model"] == "fallback-model"
 
 
 @pytest.mark.asyncio
