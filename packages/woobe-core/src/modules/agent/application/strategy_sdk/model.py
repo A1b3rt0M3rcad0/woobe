@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from modules.agent.application.strategy_sdk.context_manager import (
         StrategyInvocationContext,
     )
+    from modules.agent.application.strategy_sdk.tools import StrategyToolSelection
 
 
 StrategyPhase: TypeAlias = str | ExecutionPhase
@@ -51,6 +52,7 @@ class StrategyModel(Protocol):
         self,
         *,
         context: StrategyInvocationContext | None = None,
+        tools: StrategyToolSelection | None = None,
         phase: StrategyPhase | None = None,
     ) -> StrategyModelResult: ...
 
@@ -60,4 +62,5 @@ class StrategyModel(Protocol):
         reason: str,
         phase: StrategyPhase,
         context: StrategyInvocationContext | None = None,
+        tools: StrategyToolSelection | None = None,
     ) -> StrategyModelResult: ...
