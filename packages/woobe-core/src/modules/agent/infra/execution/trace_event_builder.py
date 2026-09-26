@@ -13,6 +13,7 @@ _EVENT_ORDER = {
     "llm.call.started": 50,
     "tool.call.started": 50,
     "rag.retrieval.completed": 55,
+    "knowledge.retrieval.completed": 55,
     "llm.call.completed": 60,
     "tool.call.completed": 60,
     "structured_output.parse.completed": 70,
@@ -138,7 +139,7 @@ def build_operation_events(trace_id: str, timeline: list[dict[str, Any]]) -> lis
                     "error": payload.get("error"),
                 },
             ))
-        elif item.get("kind") == "rag":
+        elif item.get("kind") in {"rag", "knowledge"}:
             occurred_at = str(ended_at or started_at or "")
             attributes = {
                 key: value
@@ -147,7 +148,11 @@ def build_operation_events(trace_id: str, timeline: list[dict[str, Any]]) -> lis
             }
             events.append(_event(
                 trace_id,
-                "rag.retrieval.completed",
+                (
+                    "knowledge.retrieval.completed"
+                    if item.get("kind") == "knowledge"
+                    else "rag.retrieval.completed"
+                ),
                 occurred_at,
                 phase="retrieval",
                 status="success",
