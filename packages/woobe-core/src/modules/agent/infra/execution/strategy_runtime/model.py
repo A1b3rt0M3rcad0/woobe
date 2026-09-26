@@ -212,7 +212,7 @@ class RuntimeStrategyModel:
         *,
         context: StrategyInvocationContext,
         phase: StrategyPhase,
-        tools: StrategyToolSelection | None = None,
+        tools: StrategyToolSelection,
     ) -> StrategyModelResult:
         return await self._invoke(
             capability=self._capability,
@@ -227,7 +227,7 @@ class RuntimeStrategyModel:
         context: StrategyInvocationContext,
         primary_error: str,
         phase: StrategyPhase,
-        tools: StrategyToolSelection | None = None,
+        tools: StrategyToolSelection,
     ) -> StrategyModelResult:
         binding = self._resolved_fallback_binding()
         info = {
@@ -257,7 +257,7 @@ class RuntimeStrategyModel:
         reason: str,
         phase: StrategyPhase,
         context: StrategyInvocationContext,
-        tools: StrategyToolSelection | None = None,
+        tools: StrategyToolSelection,
     ) -> StrategyModelResult:
         terminal_model = self._final_model
         if terminal_model is None and self._final_model_factory is not None:
