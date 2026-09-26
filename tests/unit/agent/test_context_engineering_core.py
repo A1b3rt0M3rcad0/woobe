@@ -461,6 +461,88 @@ def test_context_budget_metrics_report_fit_and_model_clamp():
     assert metrics["headroom_units"] == 700 - result.snapshot.estimated_input_units
 
 
+def test_context_budget_drops_orphan_tool_messages_when_parent_tool_call_is_evicted():
+    policy = ContextPolicyV1.model_validate(
+        {"budget": {"max_input_units": 120}}
+    )
+    result = _assemble(
+        [
+            SystemMessage(content="system"),
+            HumanMessage(content="old question"),
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "id": "call-1",
+                        "name": "lookup",
+                        "args": {"query": "old"},
+                        "type": "tool_call",
+                    }
+                ],
+            ),
+            ToolMessage(
+                content="x" * 1000,
+                tool_call_id="call-1",
+            ),
+            HumanMessage(content="current"),
+        ],
+        policy=policy,
+        runtime_context=_runtime_context(
+            model_capacity_units=1000,
+            reserved_output_units=0,
+        ),
+    )
+
+    assert not any(isinstance(message, ToolMessage) for message in result.messages)
+    assert not any(
+        isinstance(message, AIMessage) and message.tool_calls
+        for message in result.messages
+    )
+    assert (
+        result.snapshot.manifest["exclusion_reasons"]["tool_protocol_orphan"]["TOOL"]
+        == 1
+    )
+
+
+def test_context_assembly_preserves_complete_parallel_tool_protocol_block():
+    result = _assemble(
+        [
+            SystemMessage(content="system"),
+            HumanMessage(content="old question"),
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "id": "call-a",
+                        "name": "lookup",
+                        "args": {"query": "a"},
+                        "type": "tool_call",
+                    },
+                    {
+                        "id": "call-b",
+                        "name": "lookup",
+                        "args": {"query": "b"},
+                        "type": "tool_call",
+                    },
+                ],
+            ),
+            ToolMessage(content="a", tool_call_id="call-a"),
+            ToolMessage(content="b", tool_call_id="call-b"),
+            HumanMessage(content="current"),
+        ],
+    )
+
+    assistant_index = next(
+        index
+        for index, message in enumerate(result.messages)
+        if isinstance(message, AIMessage) and message.tool_calls
+    )
+    assert [
+        result.messages[assistant_index + 1].tool_call_id,
+        result.messages[assistant_index + 2].tool_call_id,
+    ] == ["call-a", "call-b"]
+
+
 def test_context_budget_metrics_report_degraded_when_global_budget_reduces_context():
     result = _assemble(
         [

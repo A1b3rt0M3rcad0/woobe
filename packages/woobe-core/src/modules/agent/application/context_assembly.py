@@ -865,6 +865,78 @@ def assemble_context(
             )
         )
 
+    # Tool-calling messages form a provider protocol unit: an assistant message
+    # with tool_calls must be followed immediately by ToolMessages that answer
+    # every declared tool_call_id. Context selection, budgeting, deduplication,
+    # or source ordering must never leave orphan ToolMessages or incomplete
+    # assistant Tool-call blocks behind.
+    protocol_safe_indices: list[int] = []
+    cursor = 0
+    while cursor < len(selected_indices):
+        index = selected_indices[cursor]
+        message = working[index]
+        message_type = type(message).__name__
+
+        if message_type == "ToolMessage":
+            keep[index] = False
+            record_exclusion(sources[index], "tool_protocol_orphan")
+            cursor += 1
+            continue
+
+        raw_tool_calls = getattr(message, "tool_calls", None)
+        if not raw_tool_calls:
+            additional = getattr(message, "additional_kwargs", None)
+            if isinstance(additional, dict):
+                raw_tool_calls = additional.get("tool_calls")
+
+        call_ids: list[str] = []
+        if message_type == "AIMessage" and isinstance(raw_tool_calls, (list, tuple)):
+            for call in raw_tool_calls:
+                raw_id = (
+                    call.get("id")
+                    if isinstance(call, dict)
+                    else getattr(call, "id", None)
+                )
+                if raw_id is not None and str(raw_id):
+                    call_ids.append(str(raw_id))
+
+        if not call_ids:
+            protocol_safe_indices.append(index)
+            cursor += 1
+            continue
+
+        group_indices = [index]
+        response_ids: list[str] = []
+        next_cursor = cursor + 1
+        while next_cursor < len(selected_indices):
+            response_index = selected_indices[next_cursor]
+            response = working[response_index]
+            if type(response).__name__ != "ToolMessage":
+                break
+            group_indices.append(response_index)
+            response_id = getattr(response, "tool_call_id", None)
+            if response_id is not None and str(response_id):
+                response_ids.append(str(response_id))
+            next_cursor += 1
+
+        complete = (
+            len(response_ids) == len(call_ids)
+            and set(response_ids) == set(call_ids)
+        )
+        if complete:
+            protocol_safe_indices.extend(group_indices)
+        else:
+            for protocol_index in group_indices:
+                if keep[protocol_index]:
+                    keep[protocol_index] = False
+                    record_exclusion(
+                        sources[protocol_index],
+                        "tool_protocol_incomplete",
+                    )
+
+        cursor = next_cursor
+
+    selected_indices = protocol_safe_indices
     materialized_messages = [working[index] for index in selected_indices]
     estimated = total_units()
     snapshot_id = uuid6.uuid7()
