@@ -386,20 +386,6 @@ class InstrumentedPrimaryExecutionMixin:
                 if snapshot and snapshot.get("snapshot_hash"):
                     payload["tool_snapshot_hash"] = snapshot["snapshot_hash"]
 
-        if context and context.rag_metadata:
-            occurred_at = context.prepare_ended_at or utc_now()
-            execution.timeline.append(
-                {
-                    "kind": "rag",
-                    "occurred_at": occurred_at,
-                    "payload": {
-                        "occurred_at": occurred_at,
-                        "started_at": context.prepare_started_at,
-                        "ended_at": context.prepare_ended_at or occurred_at,
-                        **context.rag_metadata,
-                    },
-                }
-            )
         if context:
             context.execution = execution
         ensure_model_result_has_public_output(execution.result)
