@@ -81,6 +81,13 @@ def test_runner_has_no_async_work_after_strategy_returns() -> None:
     )
 
 
+def test_production_runtime_does_not_compose_legacy_fallback_mixin() -> None:
+    path = EXECUTION / "structured_output_ask_use_case.py"
+    source = path.read_text(encoding="utf-8")
+
+    assert "InstrumentedFallbackMixin" not in source
+
+
 def test_ask_use_case_does_not_orchestrate_fallback() -> None:
     function = _function(_tree(ASK_USE_CASE), "_execute_phased")
     fallback_calls = [
