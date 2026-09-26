@@ -1,9 +1,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Protocol, TypeAlias
+from typing import TYPE_CHECKING, Any, Protocol, TypeAlias
 
 from modules.agent.application.strategy_sdk.contracts import ExecutionPhase
+
+if TYPE_CHECKING:
+    from modules.agent.application.strategy_sdk.context_manager import (
+        StrategyInvocationContext,
+    )
 
 
 StrategyPhase: TypeAlias = str | ExecutionPhase
@@ -45,6 +50,7 @@ class StrategyModel(Protocol):
     async def invoke(
         self,
         *,
+        context: StrategyInvocationContext | None = None,
         phase: StrategyPhase | None = None,
     ) -> StrategyModelResult: ...
 
@@ -53,4 +59,5 @@ class StrategyModel(Protocol):
         *,
         reason: str,
         phase: StrategyPhase,
+        context: StrategyInvocationContext | None = None,
     ) -> StrategyModelResult: ...
