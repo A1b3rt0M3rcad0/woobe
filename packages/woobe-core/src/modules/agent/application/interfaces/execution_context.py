@@ -75,6 +75,11 @@ class RequestExecutionContext:
     # Run-local procedural content, never serialized as Session history.
     skill_context: list[dict[str, Any]] | None = None
 
+    # Transitional Strategy Runtime bridge for consumers that still execute outside
+    # the Strategy loop (notably provider fallback). This is ephemeral and must never
+    # be persisted as Session state.
+    strategy_context_contributions: dict[str, Any] | None = None
+
     # Context Engineering evidence. These values are configuration/provenance only;
     # raw secrets and full materialized prompts must never be stored here.
     context_policy: dict[str, Any] | None = None
