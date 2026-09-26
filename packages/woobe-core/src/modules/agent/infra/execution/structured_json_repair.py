@@ -32,6 +32,7 @@ async def repair_json_if_needed(
     clean_json_answer,
     pricing_snapshot: dict[str, Any] | None = None,
     context_capability: ContextAssemblyCapability,
+    phase: str = "json_repair",
 ) -> InstrumentedExecution:
     result = execution.result
     answer = result.content if hasattr(result, "content") else str(result)
@@ -65,7 +66,7 @@ async def repair_json_if_needed(
     try:
         repair_context = context_capability.assemble(
             messages=repair_messages,
-            phase="json_repair",
+            phase=phase,
             tool_selection_mode="none",
             call_index=call_index + 1,
         )
@@ -77,7 +78,7 @@ async def repair_json_if_needed(
         )
         result, call = await repair_capability.invoke(
             messages=list(repair_context.messages),
-            phase="json_repair",
+            phase=phase,
             call_index=call_index + 1,
             invocation_id=repair_context.invocation_id,
             context_snapshot=repair_context.snapshot,
