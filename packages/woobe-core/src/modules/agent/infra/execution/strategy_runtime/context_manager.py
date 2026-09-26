@@ -416,8 +416,8 @@ class RuntimeStrategyContextManager:
     async def assemble(
         self,
         *,
+        tools: StrategyToolSelection,
         phase: StrategyPhase | None = None,
-        tools: StrategyToolSelection | None = None,
         target: StrategyContextTarget = StrategyContextTarget.PRIMARY,
     ) -> StrategyInvocationContext:
         return await self._assemble_messages(
@@ -432,7 +432,7 @@ class RuntimeStrategyContextManager:
         *,
         reason: str,
         phase: StrategyPhase,
-        tools: StrategyToolSelection | None = None,
+        tools: StrategyToolSelection,
         target: StrategyContextTarget = StrategyContextTarget.PRIMARY,
     ) -> StrategyInvocationContext:
         messages = terminal_response_messages(
