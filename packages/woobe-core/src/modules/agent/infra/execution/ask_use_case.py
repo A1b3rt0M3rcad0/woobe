@@ -200,6 +200,15 @@ class AskAgentUseCase:
         except Exception as exc:
             llm_error = str(exc)
 
+            execution_context = current_execution.get()
+            failed_execution = (
+                execution_context.execution
+                if execution_context is not None
+                else None
+            )
+            if isinstance(failed_execution, InstrumentedExecution):
+                sources = list(failed_execution.sources)
+
             if agent.fallback_model and agent.fallback_credential_id:
                 try:
                     fallback_info_result = {
