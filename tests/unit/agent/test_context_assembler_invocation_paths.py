@@ -28,7 +28,7 @@ async def test_tool_loop_does_not_propagate_context_assembler_into_model_invocat
     monkeypatch,
 ) -> None:
     context_assembler = _UnusedContextAssembler()
-    captured_assemblers: list[ContextAssembler | None] = []
+    prepared_flags: list[bool] = []
     planned_results = [
         SimpleNamespace(
             content="",
@@ -42,8 +42,9 @@ async def test_tool_loop_does_not_propagate_context_assembler_into_model_invocat
     ]
 
     async def fake_invoke_llm(**kwargs):
-        captured_assemblers.append(kwargs.get("context_assembler"))
-        result = planned_results[len(captured_assemblers) - 1]
+        prepared_flags.append(bool(kwargs.get("context_prepared")))
+        assert "context_assembler" not in kwargs
+        result = planned_results[len(prepared_flags) - 1]
         return result, {
             "phase": kwargs["phase"],
             "occurred_at": "2026-09-04T00:00:00+00:00",
@@ -84,7 +85,7 @@ async def test_tool_loop_does_not_propagate_context_assembler_into_model_invocat
         context_assembler=context_assembler,
     )
 
-    assert captured_assemblers == [None, None, None]
+    assert prepared_flags == [True, True, True]
     assert [call["phase"] for call in execution.llm_calls] == [
         "capability_response_generation",
         "tool_followup_1",
