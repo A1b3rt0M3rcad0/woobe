@@ -23,11 +23,9 @@ class RuntimeStrategyModel:
     __slots__ = (
         "_capability",
         "_runtime_state",
-        "_base_messages",
         "_initial_phase",
         "_final_model",
         "_final_model_factory",
-        "_final_json_instruction",
         "_tool_definitions",
         "_bound_capabilities",
     )
@@ -37,20 +35,16 @@ class RuntimeStrategyModel:
         *,
         capability: ModelInvocationCapability,
         runtime_state: StrategyRuntimeState,
-        base_messages: list[Any],
         initial_phase: str,
         final_model: Any | None,
         final_model_factory: Any | None,
-        final_json_instruction: str | None,
         tool_definitions: list[dict[str, Any]] | None = None,
     ) -> None:
         self._capability = capability
         self._runtime_state = runtime_state
-        self._base_messages = list(base_messages)
         self._initial_phase = initial_phase
         self._final_model = final_model
         self._final_model_factory = final_model_factory
-        self._final_json_instruction = final_json_instruction
         self._tool_definitions = list(tool_definitions or [])
         self._bound_capabilities: dict[
             tuple[str, tuple[str, ...]],
@@ -120,9 +114,8 @@ class RuntimeStrategyModel:
         self,
         *,
         capability: ModelInvocationCapability,
-        messages: list[Any],
         phase: StrategyPhase,
-        context: StrategyInvocationContext | None = None,
+        context: StrategyInvocationContext,
         tools: StrategyToolSelection | None = None,
     ) -> StrategyModelResult:
         call_index = self._runtime_state.next_call_index()
@@ -133,24 +126,12 @@ class RuntimeStrategyModel:
         )
         try:
             result, call = await effective_capability.invoke(
-                messages=(
-                    list(context.messages)
-                    if context is not None
-                    else messages
-                ),
+                messages=list(context.messages),
                 phase=strategy_phase_value(phase),
                 call_index=call_index,
-                invocation_id=(
-                    context.invocation_id
-                    if context is not None
-                    else None
-                ),
-                context_snapshot=(
-                    context.snapshot
-                    if context is not None
-                    else None
-                ),
-                context_prepared=context is not None,
+                invocation_id=context.invocation_id,
+                context_snapshot=context.snapshot,
+                context_prepared=True,
             )
         except InstrumentedExecutionError as exc:
             self._runtime_state.absorb_model_error(exc)
@@ -174,13 +155,12 @@ class RuntimeStrategyModel:
     async def invoke(
         self,
         *,
-        context: StrategyInvocationContext | None = None,
+        context: StrategyInvocationContext,
         tools: StrategyToolSelection | None = None,
         phase: StrategyPhase | None = None,
     ) -> StrategyModelResult:
         return await self._invoke(
             capability=self._capability,
-            messages=self._runtime_state.messages,
             phase=phase or self._initial_phase,
             context=context,
             tools=tools,
@@ -191,7 +171,7 @@ class RuntimeStrategyModel:
         *,
         reason: str,
         phase: StrategyPhase,
-        context: StrategyInvocationContext | None = None,
+        context: StrategyInvocationContext,
         tools: StrategyToolSelection | None = None,
     ) -> StrategyModelResult:
         terminal_model = self._final_model
@@ -214,16 +194,10 @@ class RuntimeStrategyModel:
                 },
             )
 
-        if context is None:
-            raise RuntimeError(
-                "Final Model invocation requires an explicitly assembled Context"
-            )
-
         terminal_capability = self._capability.for_model(terminal_model)
         try:
             return await self._invoke(
                 capability=terminal_capability,
-                messages=[],
                 phase=phase,
                 context=context,
                 tools=tools,
