@@ -11,9 +11,6 @@ from modules.agent.application.strategy_sdk import (
     StrategyToolSelectionMode,
     strategy_phase_value,
 )
-from modules.agent.infra.execution.capabilities.message_progression import (
-    terminal_response_messages,
-)
 from modules.agent.infra.execution.capabilities.model_invocation import (
     ModelInvocationCapability,
 )
@@ -217,16 +214,16 @@ class RuntimeStrategyModel:
                 },
             )
 
+        if context is None:
+            raise RuntimeError(
+                "Final Model invocation requires an explicitly assembled Context"
+            )
+
         terminal_capability = self._capability.for_model(terminal_model)
         try:
             return await self._invoke(
                 capability=terminal_capability,
-                messages=terminal_response_messages(
-                    self._base_messages,
-                    self._final_json_instruction,
-                    self._runtime_state.execution.tool_calls,
-                    reason,
-                ),
+                messages=[],
                 phase=phase,
                 context=context,
                 tools=tools,
