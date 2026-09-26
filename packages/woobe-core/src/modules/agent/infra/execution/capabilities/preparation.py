@@ -186,10 +186,13 @@ def _messages_with_tool_grounding(
 ) -> list:
     if not has_tools:
         return list(messages)
-    result = list(messages)
-    insert_at = len(result) - 1 if result else 0
-    result.insert(insert_at, SystemMessage(content=_TOOL_GROUNDING_RUNTIME_RULES))
-    return result
+    # Invocation-scoped System instructions must never split an assistant Tool-call
+    # message from the ToolMessages that satisfy its tool_call_ids. Keep grounding
+    # in the leading System block so provider Tool protocol remains contiguous.
+    return _messages_with_leading_system_instruction(
+        messages,
+        _TOOL_GROUNDING_RUNTIME_RULES,
+    )
 
 
 def _messages_with_skill_usage(

@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
-from langchain_core.messages import SystemMessage
+from langchain_core.messages import SystemMessage, ToolMessage
 
 from modules.agent.application.context_assembly import ContextBudgetExceeded
 from modules.agent.application.interfaces.execution import (
@@ -201,6 +201,19 @@ async def test_parallel_tools_and_no_redundant_json_repair():
     assert any("complete and authoritative" in content for content in system_messages)
     assert any("Tool grounding rules" in content for content in system_messages)
     assert any("return only valid JSON" in content for content in system_messages)
+
+    followup_messages = tool_model.ainvoke.await_args_list[1].args[0]
+    tool_message_indexes = [
+        index
+        for index, message in enumerate(followup_messages)
+        if isinstance(message, ToolMessage)
+    ]
+    assert len(tool_message_indexes) == 2
+    assert tool_message_indexes[1] == tool_message_indexes[0] + 1
+    assert [
+        followup_messages[index].tool_call_id
+        for index in tool_message_indexes
+    ] == ["a", "b"]
     usage, complete, cost_status = aggregate_usage(execution.llm_calls)
     assert (usage.input_tokens, usage.output_tokens, usage.total_tokens) == (30, 6, 36)
     assert complete is True
