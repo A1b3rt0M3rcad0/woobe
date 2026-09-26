@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Callable, Coroutine, Generic, Protocol, TypeVar, runtime_checkable
+from typing import Any, Awaitable, Callable, Coroutine, Generic, Protocol, TypeVar, runtime_checkable
 
 from modules.agent.application.interfaces.context_assembler import ContextAssembler
 from modules.agent.application.interfaces.execution import InstrumentedExecution
@@ -34,6 +34,8 @@ class ExecutionStrategyRequest:
     tool_name_to_id: dict[str, str]
     messages: list
     context_assembler: ContextAssembler | None = None
+    knowledge_retrieve: Callable[[str], Awaitable[Any]] | None = None
+    knowledge_query: str | None = None
 
 
 @runtime_checkable
