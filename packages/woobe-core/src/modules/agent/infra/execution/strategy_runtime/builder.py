@@ -82,6 +82,7 @@ def build_strategy_context_from_capabilities(
     final_model: Any | None = None,
     final_model_factory: Any | None = None,
     final_json_instruction: str | None = None,
+    tool_definitions: list[dict[str, Any]] | None = None,
     bootstrap: dict[str, Any] | None = None,
 ) -> BuiltStrategyContext:
     resume = capabilities.recovery.load()
@@ -141,6 +142,7 @@ def build_strategy_context_from_capabilities(
             final_model=final_model,
             final_model_factory=final_model_factory,
             final_json_instruction=final_json_instruction,
+            tool_definitions=tool_definitions,
         ),
         tools=runtime_tools,
         knowledge=RuntimeStrategyKnowledge(
@@ -181,6 +183,7 @@ def build_strategy_execution(
         final_model=prepared.final_model,
         final_model_factory=prepared.final_model_factory,
         final_json_instruction=prepared.final_json_instruction,
+        tool_definitions=prepared.tool_definitions,
     )
     return BuiltStrategyExecution(
         context=built.context,
