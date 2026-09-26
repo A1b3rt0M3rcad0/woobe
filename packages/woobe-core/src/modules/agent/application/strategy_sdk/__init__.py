@@ -1,3 +1,4 @@
+from modules.agent.application.strategy_sdk.bootstrap import StrategyBootstrap
 from modules.agent.application.strategy_sdk.context import StrategyContext
 from modules.agent.application.strategy_sdk.context_manager import (
     StrategyContextContribution,
@@ -22,6 +23,7 @@ from modules.agent.application.strategy_sdk.model import (
     strategy_phase_value,
     strategy_phase_with_iteration,
 )
+from modules.agent.application.strategy_sdk.output import StrategyOutput
 from modules.agent.application.strategy_sdk.outcome import (
     Completed,
     StrategyOutcome,
@@ -42,6 +44,7 @@ __all__ = [
     "ExecutionPolicy",
     "ExecutionState",
     "ExecutionStopReason",
+    "StrategyBootstrap",
     "StrategyContext",
     "StrategyContextContribution",
     "StrategyContextManager",
@@ -51,6 +54,7 @@ __all__ = [
     "StrategyModel",
     "StrategyModelResult",
     "StrategyOutcome",
+    "StrategyOutput",
     "StrategyPhase",
     "StrategyToolBatch",
     "StrategyToolSelection",
