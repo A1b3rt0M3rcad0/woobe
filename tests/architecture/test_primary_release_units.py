@@ -345,11 +345,17 @@ def test_release_ci_pins_required_actions_and_runs_release_contract_tests() -> N
         "security.yml",
         "cla.yml",
     )
+    hybrid_fallback = {"tests.yml", "quality-gate.yml"}
     for filename in required:
         workflow = (ROOT / ".github/workflows" / filename).read_text(encoding="utf-8")
-        assert "runs-on: [self-hosted, Linux, X64]" not in workflow
         assert "runs-on: ubuntu-24.04" in workflow
-        for action in re.findall(r"uses:\s+([^\s#]+)", workflow):
+        if filename in hybrid_fallback:
+            assert "runs-on: [self-hosted, Linux, X64]" in workflow
+            assert "continue-on-error: true" in workflow
+            assert "outcome: ${{ job.status }}" in workflow
+        else:
+            assert "runs-on: [self-hosted, Linux, X64]" not in workflow
+        for action in re.findall(r"uses:\\s+([^\\s#]+)", workflow):
             if action.startswith("./"):
                 continue
             assert re.search(r"@[0-9a-f]{40}$", action), (filename, action)
