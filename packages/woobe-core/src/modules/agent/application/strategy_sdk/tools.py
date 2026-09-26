@@ -46,6 +46,9 @@ class StrategyToolBatch:
 class StrategyTools(Protocol):
     """Tool operations available to an Execution Strategy."""
 
+    @property
+    def has_any(self) -> bool: ...
+
     def all(self) -> StrategyToolSelection: ...
 
     def none(self) -> StrategyToolSelection: ...
