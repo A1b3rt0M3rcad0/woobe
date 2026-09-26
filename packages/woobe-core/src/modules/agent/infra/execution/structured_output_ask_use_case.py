@@ -131,14 +131,6 @@ class StructuredOutputAskAgentUseCase(
         updated = list(prepared)
         context = current_execution.get()
 
-        if context is not None:
-            raw_sources = updated[10] if len(updated) > 10 else []
-            context.context_rag_sources = [
-                source.model_dump() if hasattr(source, "model_dump") else dict(source)
-                for source in raw_sources or []
-                if hasattr(source, "model_dump") or isinstance(source, dict)
-            ]
-
         if context and context.internal_tool_definitions:
             definitions = list(updated[7])
             mapping = dict(updated[8])
