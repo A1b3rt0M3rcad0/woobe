@@ -9,7 +9,6 @@ from modules.agent.application.context_assembly import (
     estimate_input_units,
 )
 from modules.agent.application.interfaces.context_assembler import (
-    ContextAssembler,
     ContextAssemblyOutput,
     ContextAssemblyRequest,
     ContextCompactionOutput,

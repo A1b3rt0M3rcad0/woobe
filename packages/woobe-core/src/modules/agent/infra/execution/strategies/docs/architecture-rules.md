@@ -88,14 +88,14 @@ Forbidden outer-runtime decisions include:
 preflight Tool execution
 conversation-to-Knowledge query construction
 Knowledge retrieval
-Context summarization/assembly
+Context Manager invocation outside the Execution Strategy boundary
 Model invocation
 provider fallback
 structured-output repair
 new semantic checkpoints
 ```
 
-Capabilities own how those mechanisms execute; the Strategy owns whether and when they execute.
+Capabilities own mechanisms; the Execution Strategy decides when to request Context operations; the selected Context Manager decides how Context is inspected, compacted and assembled.
 
 ## State boundary
 

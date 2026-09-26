@@ -8,7 +8,7 @@ The Runtime boundary is **not** implemented here. The boundary is:
 modules/agent/application/interfaces/context_assembler.py
 ```
 
-Runtime/execution code depends only on `ContextAssembler`. Concrete strategies live in this directory and are selected through `context_assembler_registry.py`.
+Runtime/execution code depends only on the stable `ContextAssembler` compatibility contract. Despite the historical name, this is now the full Context Manager interface: `inspect`, `compact` and `assemble`. Concrete strategies live in this directory and are selected through `context_assembler_registry.py`.
 
 ## Add a new built-in Context Manager
 
@@ -17,6 +17,19 @@ Runtime/execution code depends only on `ContextAssembler`. Concrete strategies l
 
    ```python
    class AdaptiveContextAssembler:
+       def inspect(
+           self,
+           request: ContextInspectionRequest,
+       ) -> ContextInspectionOutput:
+           ...
+
+       async def compact(
+           self,
+           request: ContextCompactionRequest,
+           capabilities: ContextManagerCapabilities,
+       ) -> ContextCompactionOutput:
+           ...
+
        def assemble(
            self,
            request: ContextAssemblyRequest,
@@ -55,7 +68,7 @@ Implementation:
 modules/agent/application/context_managers/standard.py
 ```
 
-The Standard strategy currently delegates to the existing deterministic `context_assembly.py` algorithm. Future strategies may use different internal algorithms while preserving the same `ContextAssembler` boundary.
+The Standard strategy owns pressure inspection and session compaction, including model-assisted summarize-and-replace when pressure is high, then delegates final deterministic materialization to `context_assembly.py`. Other managers may implement completely different management algorithms while preserving the same interface.
 
 ## Standard v2: Skills
 

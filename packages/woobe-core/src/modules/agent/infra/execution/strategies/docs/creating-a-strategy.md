@@ -174,7 +174,7 @@ if knowledge.found:
 
 Retrieving Knowledge and exposing it to the next Model invocation are separate decisions. The runtime owns the concrete Knowledge implementation and evidence; the Strategy owns query construction and orchestration.
 
-### Inspect or summarize Context explicitly
+### Inspect or compact Context explicitly
 
 Context pressure can be inspected without changing execution:
 
@@ -182,20 +182,15 @@ Context pressure can be inspected without changing execution:
 inspection = ctx.context.inspect()
 ```
 
-If the algorithm decides summarization is appropriate, request it explicitly:
+If the execution algorithm reaches a point where Context may need management, ask the configured Context Manager to compact:
 
 ```python
-summary = await ctx.context.summarize(
-    key="session.summary",
-    scope="session",
-    target_units=2_000,
-    phase=PlannerPhase.SUMMARIZATION,
+compaction = await ctx.context.compact(
+    phase=PlannerPhase.CONTEXT_COMPACTION,
 )
-
-ctx.context.set(summary)
 ```
 
-`summarize(...)` performs an instrumented auxiliary Model call but does not mutate active Context by itself. The Strategy owns both decisions: whether to summarize and whether to install the returned contribution.
+The Execution Strategy does not choose the compaction technique. One Context Manager may summarize and replace older Session messages, another may trim low-priority sources, and another may no-op. Model-assisted summarization is an internal Context Manager capability, not an Execution Strategy primitive.
 
 ### Assemble Context and invoke the Model
 
@@ -340,6 +335,9 @@ if not state.knowledge_resolved:
         )
 
 tools = ctx.tools.all()
+await ctx.context.compact(
+    phase=PlannerPhase.CONTEXT_COMPACTION,
+)
 invocation = await ctx.context.assemble(
     phase=state.phase,
     tools=tools,

@@ -68,7 +68,7 @@ Typical Strategy responsibilities include:
 bootstrap/preflight execution decisions
 read-only conversation inspection and Knowledge query construction
 Knowledge retrieval timing and query choice
-Context inspection, summarization and contribution lifecycle
+Context inspection, compaction requests and contribution lifecycle
 per-invocation Tool selection
 Model invocation and fallback order
 Tool-use loop structure
@@ -142,7 +142,7 @@ if result.has_tool_calls:
     await ctx.checkpoint()
 ```
 
-The Context → Model boundary is explicit: `ctx.model.invoke(...)` never silently assembles Context. Fallback and structured-output repair are also explicit Strategy decisions. Context summarization is opt-in: `ctx.context.summarize(...)` returns a contribution and does not add it to active Context until the Strategy calls `ctx.context.set(...)`. The Strategy should not manually maintain message history, call indexes, authorization state or recovery cursors.
+The Context → Model boundary is explicit: `ctx.model.invoke(...)` never silently assembles Context. Fallback and structured-output repair are also explicit Strategy decisions. `ctx.context.compact(...)` asks the configured Context Manager to manage pressure; the manager decides whether that means summarization, trimming, replacement or no-op. The Strategy never implements the compaction algorithm itself. The Strategy should not manually maintain message history, call indexes, authorization state or recovery cursors.
 
 ## When the Strategy Runtime should change
 
@@ -182,6 +182,6 @@ The runtime resolves and freezes concrete dependencies; the Strategy orchestrate
 - Terminal responses use `ctx.context.assemble_final(...)` before `ctx.model.finalize(...)`.
 - Fallback Context is assembled only when the Strategy selects `StrategyContextTarget.FALLBACK`, and fallback executes only when it calls `ctx.model.invoke_fallback(...)`.
 - Structured-output repair executes only when a Strategy calls `ctx.output.repair(...)`.
-- Context summarization executes only when a Strategy calls `ctx.context.summarize(...)`.
+- Context compaction begins only when a Strategy calls `ctx.context.compact(...)`; the configured Context Manager owns the compaction algorithm and may use model-assisted summarization through runtime-provided capabilities.
 - After a Strategy returns `Completed`, the runner may not start another execution capability.
 - Concrete Strategies do not import infrastructure adapters or mutate `InstrumentedExecution` directly.
