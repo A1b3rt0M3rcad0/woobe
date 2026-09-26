@@ -8,6 +8,7 @@ from modules.agent.application.interfaces.execution_strategy import (
     ExecutionStrategy,
     ExecutionStrategyRequest,
 )
+from modules.agent.application.strategy_sdk import StrategyContextContribution
 from modules.agent.infra.execution.capabilities.bundle import (
     ExecutionCapabilities,
     build_execution_capabilities,
@@ -97,6 +98,23 @@ def build_strategy_context_from_capabilities(
             *(resume.capability_messages if resume is not None else []),
         ],
         base_message_count=len(messages),
+        context_contributions={
+            key: StrategyContextContribution(
+                key=str(value.get("key") or key),
+                source_type=str(value.get("source_type") or "RUNTIME"),
+                content=value.get("content"),
+                metadata=(
+                    dict(value.get("metadata"))
+                    if isinstance(value.get("metadata"), dict)
+                    else {}
+                ),
+            )
+            for key, value in (
+                resume.context_contributions.items()
+                if resume is not None
+                else ()
+            )
+        },
     )
     state_store = RuntimeStrategyStateStore()
     state = state_store.create(
