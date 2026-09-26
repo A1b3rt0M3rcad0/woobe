@@ -112,8 +112,9 @@ class StandardExecutionStrategy(ExecutionStrategy[StandardExecutionState]):
             initial_tool_call = ctx.bootstrap.initial_tool_call
             if initial_tool_call is not None:
                 await ctx.tools.execute_many([initial_tool_call])
-                await ctx.checkpoint(ExecutionCheckpointBoundary.PREFLIGHT)
             state.preflight_resolved = True
+            if initial_tool_call is not None:
+                await ctx.checkpoint(ExecutionCheckpointBoundary.PREFLIGHT)
 
         if state.phase is None:
             state.phase = (
