@@ -7,8 +7,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from modules.agent.application.interfaces.context_assembler import (
-    context_assembler_key_from_runtime_config,
+from modules.agent.application.interfaces.context_manager import (
+    context_manager_key_from_runtime_config,
 )
 from modules.agent.application.interfaces.context_policy import resolve_context_policy
 from modules.agent.application.interfaces.skill_repository import SkillRepository
@@ -40,7 +40,7 @@ def validate_skill_context(
     if not any(item.enabled for item in bindings):
         return
     try:
-        manager = context_assembler_key_from_runtime_config(runtime_config)
+        manager = context_manager_key_from_runtime_config(runtime_config)
     except ValueError as exc:
         raise ValidationError(str(exc)) from exc
     if str(manager) != "stdcm":
