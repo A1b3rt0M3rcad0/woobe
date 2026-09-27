@@ -15,7 +15,7 @@ export function enableSkillsContext(runtime: Record<string, unknown>, manager: C
   const sources = Array.isArray(context.allowed_sources) ? context.allowed_sources : ['SYSTEM', 'USER_INPUT', 'SESSION', 'KNOWLEDGE', 'TOOL', 'DELEGATION', 'RUNTIME']
   return {
     ...runtime,
-    context_assembler: { name: manager.name, version: manager.version, strategy_name: manager.strategy_name, strategy_version: manager.strategy_version },
+    context_assembler: { name: manager.name },
     context: { ...context, allowed_sources: [...new Set([...sources, 'SKILL', 'TOOL'])],
       source_priorities: { ...record(context.source_priorities), SKILL: 'MANDATORY' },
       skills: { max_units: 8000, catalog_max_units: 2000, search_limit: 8, ...record(context.skills) } },

@@ -32,7 +32,7 @@ export function AgentSkillsSection({ projectId }: { projectId: string }) {
   const [open, setOpen] = useState(Boolean(initialVersionId))
   const config = skillsConfig(state.runtimeConfig)
   const selection = record(state.runtimeConfig.context_assembler)
-  const manager = managers.find(item => item.supports_skills && item.name === selection.name && item.version === selection.version) ?? managers.find(item => item.supports_skills && !item.is_system_default_alias)
+  const manager = managers.find(item => item.supports_skills && item.name === selection.name) ?? managers.find(item => item.supports_skills && item.is_default) ?? managers.find(item => item.supports_skills)
   const enabled = config.bindings.filter(item => item.enabled).length
   const context = record(state.runtimeConfig.context)
   const policy = record(context.skills)
