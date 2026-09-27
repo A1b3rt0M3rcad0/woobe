@@ -58,15 +58,15 @@ async def test_context_budget_unfit_blocks_provider_and_records_invocation_evide
 
     class RejectingAssembler:
         def assemble(self, request):
-            captured["capacity"] = request.runtime_context.model_capacity_units
-            captured["reserved"] = request.runtime_context.reserved_output_units
+            captured["capacity"] = request.environment.model_capacity_units
+            captured["reserved"] = request.environment.reserved_output_units
             raise ContextBudgetExceeded(
                 "mandatory context does not fit",
                 configured_budget_units=64000,
                 effective_budget_units=25904,
                 mandatory_units=28000,
-                model_capacity_units=request.runtime_context.model_capacity_units,
-                reserved_output_units=request.runtime_context.reserved_output_units,
+                model_capacity_units=request.environment.model_capacity_units,
+                reserved_output_units=request.environment.reserved_output_units,
                 runtime_reserve_units=2000,
             )
 
