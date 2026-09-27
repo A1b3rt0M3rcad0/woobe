@@ -205,37 +205,46 @@ class ContextAssemblyCapability:
     ) -> ContextInvocationEnvironment:
         active_tools = self.active_tool_definitions(tool_selection_mode)
         if active_tools is None:
+            raw_active_tools = getattr(context, "active_tool_definitions", None)
             active_tools = (
-                list(context.active_tool_definitions)
-                if isinstance(context.active_tool_definitions, list)
+                list(raw_active_tools)
+                if isinstance(raw_active_tools, list)
                 else []
             )
         return ContextInvocationEnvironment(
-            run_id=context.run_id,
-            input_message_id=context.input_message_id,
+            run_id=getattr(context, "run_id", None),
+            input_message_id=getattr(context, "input_message_id", None),
             model_capacity_units=_positive_int(
                 (self.pricing_snapshot or {}).get("context_window")
             ),
             reserved_output_units=_effective_output_tokens(
-                context.reserved_output_units,
+                getattr(context, "reserved_output_units", None),
                 self.pricing_snapshot,
             ),
             active_tool_definitions=tuple(dict(item) for item in active_tools),
             skill_context=(
-                _tuple_dicts(context.skill_context)
+                _tuple_dicts(getattr(context, "skill_context", None))
                 if include_skill_context
                 else ()
             ),
-            external_context_contract=_dict_copy(context.external_context_contract),
-            model_external_context=_dict_copy(context.model_external_context),
-            context_selection_metadata=_dict_copy(context.context_selection_metadata),
-            rag_metadata=_dict_copy(context.rag_metadata),
-            context_rag_sources=_tuple_dicts(context.context_rag_sources),
-            context_manager_name=context.context_assembler_name,
-            parent_invocation_id=context.parent_invocation_id,
-            network_execution_id=context.network_execution_id,
-            network_invocation_id=context.network_invocation_id,
-            network_node_id=context.network_node_id,
+            external_context_contract=_dict_copy(
+                getattr(context, "external_context_contract", None)
+            ),
+            model_external_context=_dict_copy(
+                getattr(context, "model_external_context", None)
+            ),
+            context_selection_metadata=_dict_copy(
+                getattr(context, "context_selection_metadata", None)
+            ),
+            rag_metadata=_dict_copy(getattr(context, "rag_metadata", None)),
+            context_rag_sources=_tuple_dicts(
+                getattr(context, "context_rag_sources", None)
+            ),
+            context_manager_name=getattr(context, "context_assembler_name", None),
+            parent_invocation_id=getattr(context, "parent_invocation_id", None),
+            network_execution_id=getattr(context, "network_execution_id", None),
+            network_invocation_id=getattr(context, "network_invocation_id", None),
+            network_node_id=getattr(context, "network_node_id", None),
         )
 
     def inspect(
