@@ -135,6 +135,11 @@ class InstrumentedPrimaryExecutionMixin:
         project_id = input_dto.project_id
         agent_id = input_dto.agent_id
         rag_metadata = dict(context.rag_metadata or {}) if context else {}
+        failure_rag_metadata = getattr(exc, "rag_metadata", None)
+        if isinstance(failure_rag_metadata, dict):
+            rag_metadata.update(failure_rag_metadata)
+            if context is not None:
+                context.rag_metadata = dict(rag_metadata)
 
         if context:
             context.trace_id = trace_id
@@ -306,22 +311,24 @@ class InstrumentedPrimaryExecutionMixin:
         strategy = resolver.resolve(strategy_name)
 
         rag_runtime = getattr(host, "_rag_runtime", None)
-        agent_settings = getattr(agent, "settings", None)
-        agent_settings = agent_settings if isinstance(agent_settings, dict) else {}
-        has_knowledge = bool(agent_settings.get("knowledge_version_id"))
+        rag_binding = context.prepared_rag if context is not None else None
 
         async def retrieve_knowledge(query: str):
             if rag_runtime is None:
                 raise RuntimeError("RAG runtime is not configured")
+            if rag_binding is None:
+                raise RuntimeError("RAG binding is not prepared")
+            if context is not None:
+                context.rag_metadata = dict(rag_binding.metadata)
             return await rag_runtime.retrieve(
-                agent=agent,
+                binding=rag_binding,
                 query=query,
                 # The Execution Strategy owns conversation-to-query semantics and
                 # passes a final retrieval query. RAG receives no hidden history rewrite.
                 history=(),
             )
 
-        knowledge_retrieve = retrieve_knowledge if has_knowledge else None
+        knowledge_retrieve = retrieve_knowledge if rag_binding is not None else None
 
         try:
             execution = await strategy.execute(

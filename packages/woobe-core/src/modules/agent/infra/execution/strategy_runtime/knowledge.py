@@ -111,6 +111,8 @@ class RuntimeStrategyKnowledge:
             source.model_dump(mode="json")
             for source in result.sources
         ]
+        if execution_context is not None:
+            execution_context.rag_metadata = dict(result.metadata)
         call = {
             "phase": normalized_phase,
             "query": effective_query,

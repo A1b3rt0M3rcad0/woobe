@@ -30,6 +30,20 @@ class RAGVectorSearchCapability(Protocol):
 
 
 @dataclass(frozen=True, slots=True)
+class RAGBinding:
+    """Frozen Knowledge/RAG binding accepted for one Agent Run."""
+
+    strategy: str
+    config: RAGRuntimeConfig
+    knowledge: Any
+    snapshot: Any
+    provider_model: Any
+    credential: Any
+    snapshot_documents: tuple[Any, ...]
+    metadata: Mapping[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True, slots=True)
 class RAGRequest:
     """Immutable input presented to one RAG strategy invocation."""
 

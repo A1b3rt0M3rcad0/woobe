@@ -10,10 +10,12 @@ from modules.agent.application.interfaces.embedding_errors import (
     EmbeddingProviderError,
     normalize_embedding_error,
 )
+from modules.agent.application.dtos.rag_config_dtos import RAGRuntimeConfig
 from modules.agent.application.interfaces.execution_context import (
     current_execution,
     new_execution_context,
 )
+from modules.agent.application.interfaces.rag import RAGBinding
 from modules.agent.application.rag.registry import RAGStrategyRegistry
 from modules.agent.application.rag.strategies.classic import ClassicRAGStrategy
 from modules.agent.domain.entities import (
@@ -136,34 +138,46 @@ async def test_rag_query_embedding_failure_records_terminal_metadata(monkeypatch
         encryption_key="test-key",
     )
 
-    execution_context = new_execution_context()
-    execution_context.execution_context = "production"
-    execution_context.prepared_rag = {
-        "knowledge": knowledge,
-        "snapshot": snapshot,
-        "provider_model": provider_model,
-        "credential": credential,
-        "snapshot_documents": [],
-    }
-    token = current_execution.set(execution_context)
-    try:
-        with pytest.raises(EmbeddingProviderError) as raised:
-            await adapter.retrieve(
-                agent=agent,
-                query="What is in the knowledge base?",
-                history=(),
-            )
-    finally:
-        current_execution.reset(token)
+    rag_config = RAGRuntimeConfig()
+    binding = RAGBinding(
+        strategy=rag_config.strategy,
+        config=rag_config,
+        knowledge=knowledge,
+        snapshot=snapshot,
+        provider_model=provider_model,
+        credential=credential,
+        snapshot_documents=(),
+        metadata={
+            "strategy": rag_config.strategy,
+            "knowledge_version_id": str(knowledge.id),
+            "knowledge_version": knowledge.version,
+            "vector_snapshot_id": str(snapshot.id),
+            "vector_snapshot_version": snapshot.version,
+            "snapshot_hash": snapshot.snapshot_hash,
+            "embedding_provider_model_id": str(provider_model_id),
+            "embedding_provider": snapshot.embedding_provider,
+            "embedding_model": snapshot.embedding_model,
+            "embedding_dimensions": snapshot.embedding_dimensions,
+            "rag_runtime_config": rag_config.model_dump(),
+            "rag_runtime_config_source": "production",
+            "retrieval_query_mode": rag_config.query_mode,
+        },
+    )
+    with pytest.raises(EmbeddingProviderError) as raised:
+        await adapter.retrieve(
+            binding=binding,
+            query="What is in the knowledge base?",
+            history=(),
+        )
 
     assert str(raised.value) == "Embedding provider account has insufficient credits."
-    assert execution_context.rag_metadata is not None
-    assert execution_context.rag_metadata["failure_phase"] == "rag_query_embedding"
-    assert execution_context.rag_metadata["upstream_status"] == 402
-    assert execution_context.rag_metadata["upstream_error_code"] == "insufficient_credits"
-    assert execution_context.rag_metadata["embedding_error_category"] == "provider_billing"
-    assert execution_context.rag_metadata["vector_snapshot_id"] == str(snapshot.id)
-    assert execution_context.rag_metadata["embedding_provider_model_id"] == str(provider_model_id)
+    metadata = getattr(raised.value, "rag_metadata")
+    assert metadata["failure_phase"] == "rag_query_embedding"
+    assert metadata["upstream_status"] == 402
+    assert metadata["upstream_error_code"] == "insufficient_credits"
+    assert metadata["embedding_error_category"] == "provider_billing"
+    assert metadata["vector_snapshot_id"] == str(snapshot.id)
+    assert metadata["embedding_provider_model_id"] == str(provider_model_id)
 
 
 def test_database_pollers_are_registered_without_rabbitmq():

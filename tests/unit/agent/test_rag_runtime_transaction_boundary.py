@@ -5,10 +5,12 @@ from uuid import uuid4
 
 import pytest
 
+from modules.agent.application.dtos.rag_config_dtos import RAGRuntimeConfig
 from modules.agent.application.interfaces.execution_context import (
     current_execution,
     new_execution_context,
 )
+from modules.agent.application.interfaces.rag import RAGBinding
 from modules.agent.application.rag.registry import RAGStrategyRegistry
 from modules.agent.application.rag.strategies.classic import ClassicRAGStrategy
 from modules.agent.infra.execution.rag import embedding_capability as embedding_module
@@ -123,36 +125,43 @@ async def test_rag_embedding_is_external_and_vector_search_is_read_only(monkeypa
         vector_search=_VectorSearch(guard, snapshot_id, chunk),
         encryption_key="test-key",
     )
-    agent = SimpleNamespace(
-        id=agent_id,
-        project_id=project_id,
-        settings={
+    rag_config = RAGRuntimeConfig(
+        top_k=3,
+        candidate_k=5,
+        max_chunks_per_document=3,
+        max_context_chunks=3,
+        max_context_chars=4000,
+    )
+    binding = RAGBinding(
+        strategy=rag_config.strategy,
+        config=rag_config,
+        knowledge=knowledge,
+        snapshot=snapshot,
+        provider_model=provider_model,
+        credential=credential,
+        snapshot_documents=tuple(snapshot_documents),
+        metadata={
+            "strategy": rag_config.strategy,
             "knowledge_version_id": str(knowledge_id),
-            "runtime_config": {
-                "rag": {
-                    "top_k": 3,
-                    "candidate_k": 5,
-                    "max_chunks_per_document": 3,
-                    "max_context_chunks": 3,
-                    "max_context_chars": 4000,
-                }
-            },
+            "knowledge_version": knowledge.version,
+            "vector_snapshot_id": str(snapshot_id),
+            "vector_snapshot_version": snapshot.version,
+            "snapshot_hash": snapshot.snapshot_hash,
+            "embedding_provider_model_id": str(provider_model_id),
+            "embedding_provider": snapshot.embedding_provider,
+            "embedding_model": snapshot.embedding_model,
+            "embedding_dimensions": snapshot.embedding_dimensions,
+            "rag_runtime_config": rag_config.model_dump(),
+            "rag_runtime_config_source": "draft",
+            "retrieval_query_mode": rag_config.query_mode,
         },
     )
     context = new_execution_context()
-    context.execution_context = "playground"
-    context.prepared_rag = {
-        "knowledge": knowledge,
-        "snapshot": snapshot,
-        "provider_model": provider_model,
-        "credential": credential,
-        "snapshot_documents": snapshot_documents,
-    }
 
     monkeypatch.setattr(embedding_module, "decrypt_secret", lambda *_args: "embedding-key")
     async def retrieve(query: str):
         return await adapter.retrieve(
-            agent=agent,
+            binding=binding,
             query=query,
             history=(),
         )

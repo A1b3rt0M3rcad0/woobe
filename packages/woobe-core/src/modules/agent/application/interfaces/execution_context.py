@@ -9,6 +9,7 @@ from typing import Any
 from uuid import UUID
 
 from modules.agent.application.interfaces.execution import InstrumentedExecution
+from modules.agent.application.interfaces.rag import RAGBinding
 
 
 def utc_now() -> str:
@@ -97,7 +98,7 @@ class RequestExecutionContext:
     prepared_tools: dict[str, Any] | None = None
     prepared_tool_secrets: dict[str, str] | None = None
     prepared_project_environment: dict[str, Any] | None = None
-    prepared_rag: dict[str, Any] | None = None
+    prepared_rag: RAGBinding | None = None
 
 
 current_execution: ContextVar[RequestExecutionContext | None] = ContextVar(
