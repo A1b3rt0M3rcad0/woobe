@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, Coroutine, Generic, Protocol, TypeVar, runtime_checkable
 
-from modules.agent.application.interfaces.context_assembler import ContextAssembler
+from modules.agent.application.interfaces.context_manager import ContextManager
 from modules.agent.application.interfaces.execution import InstrumentedExecution
 from modules.agent.application.strategy_sdk import ExecutionState, StrategyContext, StrategyOutcome
 from modules.agent.domain.entities import Agent
@@ -33,7 +33,7 @@ class ExecutionStrategyRequest:
     agent_tools: list[dict]
     tool_name_to_id: dict[str, str]
     messages: list
-    context_assembler: ContextAssembler | None = None
+    context_assembler: ContextManager | None = None
     knowledge_retrieve: Callable[[str], Awaitable[Any]] | None = None
     knowledge_query: str | None = None
 
