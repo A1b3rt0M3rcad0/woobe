@@ -4,9 +4,9 @@ from uuid import UUID
 from modules.agent.application.interfaces.skill_repository import SkillRepository
 from modules.agent.application.skill_bindings import freeze_skill_bindings
 
-from modules.agent.application.context_assembler_registry import (
+from modules.agent.application.context_manager_registry import (
     DEFAULT_CONTEXT_MANAGER_SETTING,
-    canonicalize_context_assembler_runtime_config,
+    canonicalize_context_manager_runtime_config,
 )
 from modules.agent.application.execution_strategy_config import (
     canonicalize_execution_strategy_runtime_config,
@@ -279,7 +279,7 @@ def _force_strict_json_settings(
 ) -> None:
     settings = dict(agent.settings or {})
     if initialize_context_manager or "runtime_config" in settings:
-        runtime_config = canonicalize_context_assembler_runtime_config(
+        runtime_config = canonicalize_context_manager_runtime_config(
             settings.get("runtime_config"),
             default_context_manager=default_context_manager,
             use_current_default_if_missing=initialize_context_manager,
