@@ -345,7 +345,10 @@ def test_legacy_context_unchanged_without_skills(version):
     context_request = request(
         SkillRuntime([version.snapshot()], SkillContextPolicy(), set()), policy
     )
-    context_request.runtime_context.skill_context = None
+    context_request = replace(
+        context_request,
+        environment=replace(context_request.environment, skill_context=()),
+    )
     original = StandardContextAssembler().assemble(context_request)
     updated = StandardSkillsContextAssembler(StandardContextAssembler()).assemble(
         context_request
