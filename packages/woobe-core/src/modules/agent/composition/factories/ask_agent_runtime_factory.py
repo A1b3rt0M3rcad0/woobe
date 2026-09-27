@@ -3,14 +3,14 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable, Mapping
 from uuid import UUID
 
-from modules.agent.application.context_assembler_registry import (
-    build_runtime_context_assembler,
+from modules.agent.application.context_manager_registry import (
+    build_runtime_context_manager,
 )
 from modules.agent.application.execution_snapshot import (
     AgentExecutionSnapshotResolver,
     apply_agent_execution_snapshot,
 )
-from modules.agent.application.interfaces.context_assembler import ContextAssembler
+from modules.agent.application.interfaces.context_manager import ContextManager
 from modules.agent.application.skill_bindings import (
     freeze_skill_bindings,
     frozen_enabled_skills,
@@ -98,12 +98,12 @@ def _build_runtime_components(
 
 def _resolve_context_assembler(
     settings: Settings,
-    context_assembler: ContextAssembler | None,
-) -> ContextAssembler:
+    context_assembler: ContextManager | None,
+) -> ContextManager:
     return (
         context_assembler
         if context_assembler is not None
-        else build_runtime_context_assembler(settings.default_context_manager)
+        else build_runtime_context_manager(settings.default_context_manager)
     )
 
 
@@ -143,7 +143,7 @@ def _build_agent_runtime(
     http_executor: HttpToolExecutor | None = None,
     *,
     internal_tool_handlers: Mapping[UUID, InternalToolHandler] | None = None,
-    context_assembler: ContextAssembler | None = None,
+    context_assembler: ContextManager | None = None,
 ) -> tuple[FrozenSnapshotStructuredOutputRuntime, AgentRuntimeTransactionRunner]:
     transactions, tool_runtime = _build_runtime_components(
         settings,
@@ -172,7 +172,7 @@ def build_ask_agent_use_case(
     settings: Settings,
     http_executor: HttpToolExecutor | None = None,
     *,
-    context_assembler: ContextAssembler | None = None,
+    context_assembler: ContextManager | None = None,
 ) -> tuple[FrozenSnapshotStructuredOutputRuntime, AgentRuntimeTransactionRunner]:
     return _build_agent_runtime(
         settings,
@@ -186,7 +186,7 @@ def build_internal_agent_runtime(
     http_executor: HttpToolExecutor | None = None,
     *,
     internal_tool_handlers: Mapping[UUID, InternalToolHandler] | None = None,
-    context_assembler: ContextAssembler | None = None,
+    context_assembler: ContextManager | None = None,
 ) -> FrozenSnapshotStructuredOutputRuntime:
     runtime, _transactions = _build_agent_runtime(
         settings,
@@ -201,7 +201,7 @@ def build_agent_run_recovery_executor(
     settings: Settings,
     http_executor: HttpToolExecutor | None = None,
     *,
-    context_assembler: ContextAssembler | None = None,
+    context_assembler: ContextManager | None = None,
 ) -> AgentRunRecoveryExecutor:
     if settings.run_persistence_mode != "event_journal":
         raise RuntimeError("Agent Run recovery executor requires event_journal persistence")
@@ -233,7 +233,7 @@ def build_ask_agent_handler(
     settings: Settings,
     http_executor: HttpToolExecutor | None = None,
     *,
-    context_assembler: ContextAssembler | None = None,
+    context_assembler: ContextManager | None = None,
 ) -> AskRequestHandler:
     runtime, _transactions = build_ask_agent_use_case(
         settings,
