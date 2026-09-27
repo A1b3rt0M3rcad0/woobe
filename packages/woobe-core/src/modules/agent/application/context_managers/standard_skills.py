@@ -8,8 +8,8 @@ from modules.agent.application.context_assembly import (
     ContextBudgetExceeded,
     estimate_input_units,
 )
-from modules.agent.application.interfaces.context_assembler import (
-    ContextAssembler,
+from modules.agent.application.interfaces.context_manager import (
+    ContextManager,
     ContextAssemblyOutput,
     ContextAssemblyRequest,
     ContextCompactionOutput,
@@ -31,12 +31,12 @@ def _message_class(messages: list[Any], class_name: str):
     )
 
 
-class StandardSkillsContextAssembler:
+class StandardSkillsContextManager:
     """Skills-aware wrapper for the Standard Context Manager."""
 
     __slots__ = ("_base",)
 
-    def __init__(self, base: ContextAssembler) -> None:
+    def __init__(self, base: ContextManager) -> None:
         self._base = base
 
     def _with_skills(self, request):
@@ -157,3 +157,7 @@ class StandardSkillsContextAssembler:
             messages=assembled.messages,
             snapshot=replace(assembled.snapshot, manifest=manifest),
         )
+
+
+# Legacy class alias; internal code uses StandardSkillsContextManager.
+StandardSkillsContextAssembler = StandardSkillsContextManager
