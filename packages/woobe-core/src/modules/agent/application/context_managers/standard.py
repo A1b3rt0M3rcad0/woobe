@@ -33,6 +33,14 @@ def _serialized_content(value: Any) -> str:
         return str(value)
 
 
+def _message_id(message: Any) -> str | None:
+    value = getattr(message, "id", None)
+    if value is None:
+        return None
+    normalized = str(value).strip()
+    return normalized or None
+
+
 def _message_signature(message: Any) -> str:
     payload = {
         "type": type(message).__name__,
@@ -107,18 +115,17 @@ class StandardContextAssembler:
         self,
         request: ContextInspectionRequest,
     ) -> ContextInspectionOutput:
-        replaced_indexes = {
-            index
+        replaced_message_ids = {
+            message_id
             for contribution in request.contributions
-            for index in contribution.replaces_message_indexes
-            if 0 <= index < len(request.messages)
+            for message_id in contribution.replaces_message_ids
         }
         estimated = sum(
             estimate_input_units(
                 _serialized_content(getattr(message, "content", ""))
             )
-            for index, message in enumerate(request.messages)
-            if index not in replaced_indexes
+            for message in request.messages
+            if _message_id(message) not in replaced_message_ids
         )
         estimated += sum(
             estimate_input_units(_serialized_content(item.content))
@@ -142,7 +149,11 @@ class StandardContextAssembler:
             pressure = "LOW"
 
         return ContextInspectionOutput(
-            message_count=len(request.messages) - len(replaced_indexes),
+            message_count=sum(
+                1
+                for message in request.messages
+                if _message_id(message) not in replaced_message_ids
+            ),
             contribution_count=len(request.contributions),
             estimated_input_units=estimated,
             usable_input_units=usable,
@@ -181,7 +192,7 @@ class StandardContextAssembler:
             None,
         )
         already_replaced = set(
-            existing.replaces_message_indexes if existing is not None else ()
+            existing.replaces_message_ids if existing is not None else ()
         )
 
         latest_user_index: int | None = None
@@ -201,7 +212,7 @@ class StandardContextAssembler:
             for index, message in enumerate(request.messages[:latest_user_index])
             if (
                 type(message).__name__ in {"HumanMessage", "AIMessage", "ToolMessage"}
-                and index not in already_replaced
+                and _message_id(message) not in already_replaced
             )
         ]
         keep_recent = min(
@@ -265,7 +276,33 @@ class StandardContextAssembler:
                 metadata={"reason": "empty_summary"},
             )
 
-        replaced = tuple(sorted(already_replaced.union(compact_indexes)))
+        compact_message_ids = tuple(
+            message_id
+            for index in compact_indexes
+            if (message_id := _message_id(request.messages[index])) is not None
+        )
+        if len(compact_message_ids) != len(compact_indexes):
+            raise RuntimeError(
+                "Context Manager compaction requires stable IDs for every replaced message"
+            )
+        replaced = tuple(sorted(already_replaced.union(compact_message_ids)))
+
+        existing_signatures = (
+            existing.metadata.get("covered_message_signatures", ())
+            if existing is not None
+            else ()
+        )
+        signature_values = [
+            str(value)
+            for value in existing_signatures
+            if isinstance(value, str) and value
+        ]
+        signature_values.extend(
+            _message_signature(request.messages[index])
+            for index in compact_indexes
+        )
+        covered_signatures = tuple(dict.fromkeys(signature_values))
+
         contribution = ContextManagedContribution(
             key=_SESSION_COMPACTION_KEY,
             source_type="SESSION",
@@ -277,13 +314,10 @@ class StandardContextAssembler:
                 "pressure": inspection.pressure,
                 "target_units": adaptive_target,
                 "covered_message_count": len(replaced),
-                "covered_message_signatures": [
-                    _message_signature(request.messages[index])
-                    for index in replaced
-                    if 0 <= index < len(request.messages)
-                ],
+                "covered_message_ids": list(replaced),
+                "covered_message_signatures": list(covered_signatures),
             },
-            replaces_message_indexes=replaced,
+            replaces_message_ids=replaced,
         )
         return ContextCompactionOutput(
             changed=True,
