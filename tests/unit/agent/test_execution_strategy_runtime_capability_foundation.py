@@ -110,7 +110,9 @@ async def test_strategy_knowledge_records_started_completed_and_execution_eviden
 @pytest.mark.asyncio
 async def test_strategy_knowledge_records_failed_retrieval_before_reraising() -> None:
     async def retrieve(_query: str):
-        raise RuntimeError("retrieval unavailable")
+        error = RuntimeError("retrieval unavailable")
+        setattr(error, "rag_metadata", {"strategy": "classic"})
+        raise error
 
     state = StrategyRuntimeState()
     runtime = RuntimeStrategyKnowledge(
@@ -122,7 +124,6 @@ async def test_strategy_knowledge_records_failed_retrieval_before_reraising() ->
     )
     recorder = _Recorder()
     context = new_execution_context()
-    context.rag_metadata = {"strategy": "classic"}
     context.run_event_recorder = recorder
     token = current_execution.set(context)
     try:
@@ -168,7 +169,9 @@ async def test_context_runtime_materializes_typed_knowledge_before_user_input() 
         )
     )
 
-    assembled = await runtime.prepare()
+    assembled = await runtime.prepare(
+        tools=StrategyToolSelection(mode=StrategyToolSelectionMode.NONE),
+    )
 
     assert len(assembled.messages) == 3
     knowledge = assembled.messages[1]
