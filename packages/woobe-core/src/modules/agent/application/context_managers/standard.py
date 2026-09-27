@@ -83,9 +83,25 @@ def _effective_usable_units(
 
 
 class StandardContextAssembler:
-    """Historical stdcm:v1 behavior behind the full Context Manager interface."""
+    """The built-in programmable Standard Context Manager."""
 
-    __slots__ = ()
+    __slots__ = (
+        "_compaction_keep_recent_messages",
+        "_compaction_target_units",
+    )
+
+    def __init__(
+        self,
+        *,
+        compaction_keep_recent_messages: int = 8,
+        compaction_target_units: int = 2000,
+    ) -> None:
+        if compaction_keep_recent_messages < 1:
+            raise ValueError("compaction_keep_recent_messages must be positive")
+        if compaction_target_units < 1:
+            raise ValueError("compaction_target_units must be positive")
+        self._compaction_keep_recent_messages = compaction_keep_recent_messages
+        self._compaction_target_units = compaction_target_units
 
     def inspect(
         self,
@@ -133,53 +149,6 @@ class StandardContextAssembler:
             utilization=utilization,
             pressure=pressure,
         )
-
-    async def compact(
-        self,
-        request: ContextCompactionRequest,
-        capabilities: ContextManagerCapabilities,
-    ) -> ContextCompactionOutput:
-        del request, capabilities
-        # stdcm:v1 is frozen historical behavior. It satisfies the complete
-        # Context Manager interface but does not add new semantic compaction.
-        return ContextCompactionOutput(
-            changed=False,
-            metadata={"reason": "stdcm_v1_preserves_historical_behavior"},
-        )
-
-    def assemble(self, request: ContextAssemblyRequest) -> ContextAssemblyOutput:
-        return assemble_context(
-            messages=request.messages,
-            model_invocation_id=request.model_invocation_id,
-            agent_run_id=request.agent_run_id,
-            project_id=request.project_id,
-            provider=request.provider,
-            model=request.model,
-            runtime_context=request.runtime_context,
-            policy=request.policy,
-        )
-
-
-class ProgrammableStandardContextAssembler(StandardContextAssembler):
-    """stdcm:v3: programmable pressure-aware Context management."""
-
-    __slots__ = (
-        "_compaction_keep_recent_messages",
-        "_compaction_target_units",
-    )
-
-    def __init__(
-        self,
-        *,
-        compaction_keep_recent_messages: int = 8,
-        compaction_target_units: int = 2000,
-    ) -> None:
-        if compaction_keep_recent_messages < 1:
-            raise ValueError("compaction_keep_recent_messages must be positive")
-        if compaction_target_units < 1:
-            raise ValueError("compaction_target_units must be positive")
-        self._compaction_keep_recent_messages = compaction_keep_recent_messages
-        self._compaction_target_units = compaction_target_units
 
     async def compact(
         self,
@@ -296,9 +265,7 @@ class ProgrammableStandardContextAssembler(StandardContextAssembler):
                 metadata={"reason": "empty_summary"},
             )
 
-        replaced = tuple(
-            sorted(already_replaced.union(compact_indexes))
-        )
+        replaced = tuple(sorted(already_replaced.union(compact_indexes)))
         contribution = ContextManagedContribution(
             key=_SESSION_COMPACTION_KEY,
             source_type="SESSION",
@@ -328,8 +295,17 @@ class ProgrammableStandardContextAssembler(StandardContextAssembler):
             },
         )
 
+    def assemble(self, request: ContextAssemblyRequest) -> ContextAssemblyOutput:
+        return assemble_context(
+            messages=request.messages,
+            model_invocation_id=request.model_invocation_id,
+            agent_run_id=request.agent_run_id,
+            project_id=request.project_id,
+            provider=request.provider,
+            model=request.model,
+            runtime_context=request.runtime_context,
+            policy=request.policy,
+        )
 
-__all__ = [
-    "ProgrammableStandardContextAssembler",
-    "StandardContextAssembler",
-]
+
+__all__ = ["StandardContextAssembler"]

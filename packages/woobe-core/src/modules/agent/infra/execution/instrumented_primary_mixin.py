@@ -14,7 +14,7 @@ from modules.agent.application.runtime_output_validation import (
 )
 from modules.agent.application.interfaces.context_assembler import (
     ContextAssembler,
-    context_assembler_selection_from_runtime_config,
+    context_assembler_key_from_runtime_config,
 )
 from modules.agent.application.interfaces.embedding_errors import EmbeddingProviderError
 from modules.agent.application.interfaces.execution import (
@@ -182,15 +182,8 @@ class InstrumentedPrimaryExecutionMixin:
             "agent_release_version": context.agent_release_version if context else None,
             "execution_strategy": context.execution_strategy if context else None,
             "context_assembler": (
-                {
-                    "name": context.context_assembler_name,
-                    "version": context.context_assembler_version,
-                    "strategy_name": context.context_assembler_strategy_name,
-                    "strategy_version": context.context_assembler_strategy_version,
-                }
-                if context
-                and context.context_assembler_name
-                and context.context_assembler_version
+                {"name": context.context_assembler_name}
+                if context and context.context_assembler_name
                 else None
             ),
             "rag_metadata": rag_metadata or None,
@@ -249,16 +242,11 @@ class InstrumentedPrimaryExecutionMixin:
             settings = getattr(agent, "settings", None)
             settings = settings if isinstance(settings, dict) else {}
             runtime_config = settings.get("runtime_config")
-            assembler_selection = context_assembler_selection_from_runtime_config(
-                runtime_config
-            )
+            assembler_key = context_assembler_key_from_runtime_config(runtime_config)
             context.execution_strategy = execution_strategy_from_runtime_config(
                 runtime_config
             )
-            context.context_assembler_name = assembler_selection.selection_key.name
-            context.context_assembler_version = assembler_selection.selection_key.version
-            context.context_assembler_strategy_name = assembler_selection.strategy_key.name
-            context.context_assembler_strategy_version = assembler_selection.strategy_key.version
+            context.context_assembler_name = assembler_key.name
             context.project_id = getattr(agent, "project_id", None)
             context.agent_id = getattr(agent, "id", None)
             context.session_id = getattr(session, "id", None) if session else None

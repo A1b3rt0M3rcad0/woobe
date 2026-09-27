@@ -13,9 +13,6 @@ class ContextAssemblerDescriptorResponse(BaseModel):
     """HTTP contract for backend-owned Context Manager presentation metadata."""
 
     name: str = Field(min_length=1)
-    version: str = Field(min_length=1)
-    strategy_name: str = Field(min_length=1)
-    strategy_version: str = Field(min_length=1)
     display_name: str = Field(min_length=1)
     description: str = Field(min_length=1)
     behavior: str = Field(min_length=1)
@@ -25,7 +22,6 @@ class ContextAssemblerDescriptorResponse(BaseModel):
     configuration: str = Field(min_length=1)
     supports_skills: bool = False
     is_default: bool
-    is_system_default_alias: bool
 
 
 class ContextAssemblerCatalogResponse(BaseModel):

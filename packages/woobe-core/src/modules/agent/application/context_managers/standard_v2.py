@@ -32,7 +32,7 @@ def _message_class(messages: list[Any], class_name: str):
 
 
 class StandardSkillsContextAssembler:
-    """Standard v2 Context Manager with versioned Run-local Skills."""
+    """Skills-aware wrapper for the Standard Context Manager."""
 
     __slots__ = ("_base",)
 
