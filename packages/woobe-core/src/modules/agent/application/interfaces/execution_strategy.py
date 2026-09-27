@@ -37,6 +37,11 @@ class ExecutionStrategyRequest:
     knowledge_retrieve: Callable[[str], Awaitable[Any]] | None = None
     knowledge_query: str | None = None
 
+    @property
+    def context_manager(self) -> ContextManager | None:
+        """Canonical internal name for the legacy request field."""
+        return self.context_assembler
+
 
 @runtime_checkable
 class ExecutionStrategy(Protocol, Generic[StateT]):
