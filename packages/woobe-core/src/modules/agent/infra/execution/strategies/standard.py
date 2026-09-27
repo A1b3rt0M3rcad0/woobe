@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
 
 from modules.agent.application.interfaces.execution import InstrumentedExecutionError
 from modules.agent.application.interfaces.execution_strategy import ExecutionStrategy
@@ -13,8 +12,9 @@ from modules.agent.application.strategy_sdk import (
     ExecutionState,
     ExecutionStopReason,
     StrategyContext,
-    StrategyContextContribution,
     StrategyContextTarget,
+    StrategyMessage,
+    StrategyMessageRole,
     StrategyOutcome,
     Suspended,
     strategy_phase_with_iteration,
@@ -78,8 +78,10 @@ class StandardExecutionPolicy(ExecutionPolicy[StandardExecutionState]):
         return None
 
 
-def _message_text(message: Any | None) -> str | None:
-    content = getattr(message, "content", None)
+def _message_text(message: StrategyMessage | None) -> str | None:
+    if message is None:
+        return None
+    content = message.content
     if isinstance(content, str):
         normalized = content.strip()
         return normalized or None
@@ -115,10 +117,9 @@ def _conversation_knowledge_query(
         content = _message_text(message)
         if content is None:
             continue
-        class_name = type(message).__name__
-        if class_name == "HumanMessage":
+        if message.role is StrategyMessageRole.USER:
             conversational.append(("User", content))
-        elif class_name == "AIMessage":
+        elif message.role is StrategyMessageRole.ASSISTANT:
             conversational.append(("Assistant", content))
 
     tail = conversational[-(policy.history_turns * 2) :]
@@ -147,16 +148,14 @@ class StandardExecutionStrategy(ExecutionStrategy[StandardExecutionState]):
         if not ctx.model.fallback_available:
             raise error
         no_tools = ctx.tools.none()
-        invocation = await ctx.context.assemble(
+        invocation = await ctx.context.prepare(
             phase=StandardPhase.FALLBACK_RESPONSE_GENERATION,
             tools=no_tools,
             target=StrategyContextTarget.FALLBACK,
         )
         return await ctx.model.invoke_fallback(
-            context=invocation,
+            invocation,
             primary_error=str(error),
-            phase=StandardPhase.FALLBACK_RESPONSE_GENERATION,
-            tools=no_tools,
         )
 
     async def execute(
@@ -189,21 +188,7 @@ class StandardExecutionStrategy(ExecutionStrategy[StandardExecutionState]):
                     phase=StandardPhase.KNOWLEDGE_RETRIEVAL,
                 )
                 if knowledge.found:
-                    ctx.context.set(
-                        StrategyContextContribution(
-                            key="knowledge.primary",
-                            source_type="KNOWLEDGE",
-                            content=knowledge.content,
-                            metadata={
-                                "query": query,
-                                "retrieval": dict(knowledge.metadata),
-                                "sources": [
-                                    source.model_dump(mode="json")
-                                    for source in knowledge.sources
-                                ],
-                            },
-                        )
-                    )
+                    ctx.context.include_knowledge(knowledge)
 
         await ctx.context.compact(
             phase=StandardPhase.CONTEXT_COMPACTION,
@@ -216,17 +201,15 @@ class StandardExecutionStrategy(ExecutionStrategy[StandardExecutionState]):
                 else "Capability execution could not complete"
             )
             no_tools = ctx.tools.none()
-            invocation = await ctx.context.assemble_final(
+            invocation = await ctx.context.prepare_final(
                 reason=reason,
                 phase=StandardPhase.FINAL_RESPONSE_GENERATION,
                 tools=no_tools,
             )
             try:
                 result = await ctx.model.finalize(
+                    invocation,
                     reason=reason,
-                    phase=StandardPhase.FINAL_RESPONSE_GENERATION,
-                    context=invocation,
-                    tools=no_tools,
                 )
             except InstrumentedExecutionError as exc:
                 result = await self._fallback_or_raise(ctx, exc)
@@ -235,13 +218,9 @@ class StandardExecutionStrategy(ExecutionStrategy[StandardExecutionState]):
             return Completed(result)
 
         tools = ctx.tools.all()
-        invocation = await ctx.context.assemble(phase=state.phase, tools=tools)
+        invocation = await ctx.context.prepare(phase=state.phase, tools=tools)
         try:
-            result = await ctx.model.invoke(
-                context=invocation,
-                tools=tools,
-                phase=state.phase,
-            )
+            result = await ctx.model.invoke(invocation)
         except InstrumentedExecutionError as exc:
             result = await self._fallback_or_raise(ctx, exc)
 
@@ -281,15 +260,11 @@ class StandardExecutionStrategy(ExecutionStrategy[StandardExecutionState]):
                 await ctx.context.compact(
                     phase=StandardPhase.CONTEXT_COMPACTION,
                 )
-                invocation = await ctx.context.assemble(
+                invocation = await ctx.context.prepare(
                     phase=state.phase,
                     tools=tools,
                 )
-                result = await ctx.model.invoke(
-                    context=invocation,
-                    tools=tools,
-                    phase=state.phase,
-                )
+                result = await ctx.model.invoke(invocation)
             except InstrumentedExecutionError as exc:
                 if ctx.model.fallback_available:
                     result = await self._fallback_or_raise(ctx, exc)
@@ -304,17 +279,15 @@ class StandardExecutionStrategy(ExecutionStrategy[StandardExecutionState]):
                 phase=StandardPhase.CONTEXT_COMPACTION,
             )
             no_tools = ctx.tools.none()
-            invocation = await ctx.context.assemble_final(
+            invocation = await ctx.context.prepare_final(
                 reason=state.stop_reason.value,
                 phase=StandardPhase.FINAL_RESPONSE_GENERATION,
                 tools=no_tools,
             )
             try:
                 result = await ctx.model.finalize(
+                    invocation,
                     reason=state.stop_reason.value,
-                    phase=StandardPhase.FINAL_RESPONSE_GENERATION,
-                    context=invocation,
-                    tools=no_tools,
                 )
             except InstrumentedExecutionError as exc:
                 result = await self._fallback_or_raise(ctx, exc)

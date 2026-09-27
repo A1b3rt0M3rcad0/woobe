@@ -33,6 +33,7 @@ class StrategyRuntimeState:
     base_message_count: int = 0
     context_contributions: dict[str, Any] = field(default_factory=dict)
     context_replacements: dict[str, tuple[int, ...]] = field(default_factory=dict)
+    last_model_message: Any | None = None
 
     def next_call_index(self) -> int:
         self.call_index += 1
@@ -46,6 +47,7 @@ class StrategyRuntimeState:
         )
 
     def record_model_message(self, message: Any) -> None:
+        self.last_model_message = message
         self.messages.append(message)
 
     def absorb_model_error(self, exc: InstrumentedExecutionError) -> None:

@@ -26,6 +26,7 @@ class StrategyKnowledgeResult:
     """Knowledge retrieval result exposed to Execution Strategies."""
 
     content: str | None
+    query: str | None = None
     sources: tuple[SourceInfo, ...] = ()
     metadata: Mapping[str, Any] = field(default_factory=dict)
 

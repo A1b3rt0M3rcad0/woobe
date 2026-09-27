@@ -1,13 +1,16 @@
 from modules.agent.application.strategy_sdk.bootstrap import StrategyBootstrap
 from modules.agent.application.strategy_sdk.context import StrategyContext
-from modules.agent.application.strategy_sdk.conversation import StrategyConversation
+from modules.agent.application.strategy_sdk.conversation import (
+    StrategyConversation,
+    StrategyMessage,
+    StrategyMessageRole,
+)
 from modules.agent.application.strategy_sdk.context_manager import (
     StrategyContextCompactionResult,
     StrategyContextContribution,
     StrategyContextInspection,
     StrategyContextManager,
     StrategyContextTarget,
-    StrategyInvocationContext,
 )
 from modules.agent.application.strategy_sdk.contracts import (
     ExecutionCheckpointBoundary,
@@ -16,6 +19,7 @@ from modules.agent.application.strategy_sdk.contracts import (
     ExecutionState,
     ExecutionStopReason,
 )
+from modules.agent.application.strategy_sdk.invocation import StrategyInvocation
 from modules.agent.application.strategy_sdk.knowledge import (
     StrategyKnowledge,
     StrategyKnowledgeQueryPolicy,
@@ -36,6 +40,7 @@ from modules.agent.application.strategy_sdk.outcome import (
 )
 from modules.agent.application.strategy_sdk.tools import (
     StrategyToolBatch,
+    StrategyToolCall,
     StrategyToolSelection,
     StrategyToolSelectionMode,
     StrategyTools,
@@ -57,16 +62,19 @@ __all__ = [
     "StrategyContextInspection",
     "StrategyContextManager",
     "StrategyContextTarget",
-    "StrategyInvocationContext",
+    "StrategyInvocation",
     "StrategyKnowledge",
     "StrategyKnowledgeQueryPolicy",
     "StrategyKnowledgeResult",
+    "StrategyMessage",
+    "StrategyMessageRole",
     "StrategyModel",
     "StrategyModelResult",
     "StrategyOutcome",
     "StrategyOutput",
     "StrategyPhase",
     "StrategyToolBatch",
+    "StrategyToolCall",
     "StrategyToolSelection",
     "StrategyToolSelectionMode",
     "StrategyTools",

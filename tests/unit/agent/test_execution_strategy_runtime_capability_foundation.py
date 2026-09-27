@@ -168,7 +168,7 @@ async def test_context_runtime_materializes_typed_knowledge_before_user_input() 
         )
     )
 
-    assembled = await runtime.assemble()
+    assembled = await runtime.prepare()
 
     assert len(assembled.messages) == 3
     knowledge = assembled.messages[1]
@@ -206,10 +206,10 @@ async def test_context_runtime_scopes_tool_instructions_to_selected_invocation()
         runtime_state=state,
     )
 
-    without_tools = await runtime.assemble(
+    without_tools = await runtime.prepare(
         tools=StrategyToolSelection(mode=StrategyToolSelectionMode.NONE),
     )
-    with_tools = await runtime.assemble(
+    with_tools = await runtime.prepare(
         tools=StrategyToolSelection(mode=StrategyToolSelectionMode.ALL),
     )
 

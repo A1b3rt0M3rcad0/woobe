@@ -112,7 +112,7 @@ async def test_context_compaction_is_owned_by_configured_manager() -> None:
         ]
         assert contribution.metadata["operation"] == "summarize_replace"
 
-        invocation = await built.context.context.assemble(
+        invocation = await built.context.context.prepare(
             tools=built.context.tools.none(),
             phase="response_generation",
         )
@@ -171,9 +171,21 @@ def test_strategy_conversation_exposes_real_bound_messages_read_only() -> None:
 
     conversation = built.context.conversation
 
-    assert conversation.messages == tuple(messages)
-    assert conversation.current_user_message is messages[-1]
-    assert conversation.history == tuple(messages[1:3])
-    assert conversation.system_messages == (messages[0],)
-    assert conversation.assistant_messages == (messages[2],)
-    assert conversation.last_assistant_message is messages[2]
+    assert [message.content for message in conversation.messages] == [
+        "Agent system instruction",
+        "Older user question",
+        "Older assistant answer",
+        "Current user question",
+    ]
+    assert conversation.current_user_message.content == "Current user question"
+    assert [message.content for message in conversation.history] == [
+        "Older user question",
+        "Older assistant answer",
+    ]
+    assert [message.content for message in conversation.system_messages] == [
+        "Agent system instruction"
+    ]
+    assert [message.content for message in conversation.assistant_messages] == [
+        "Older assistant answer"
+    ]
+    assert conversation.last_assistant_message.content == "Older assistant answer"

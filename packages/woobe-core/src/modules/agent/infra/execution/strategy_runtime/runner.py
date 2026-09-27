@@ -25,10 +25,12 @@ from modules.agent.infra.execution.strategy_runtime.builder import (
 def _apply_completed_result(
     execution: InstrumentedExecution,
     outcome: Completed,
+    *,
+    raw_model_result: Any | None,
 ) -> None:
     result = outcome.result
     execution.result = (
-        result.message if isinstance(result, StrategyModelResult) else result
+        raw_model_result if isinstance(result, StrategyModelResult) else result
     )
 
 
@@ -46,7 +48,11 @@ async def execute_strategy(
     if not isinstance(outcome, Completed):
         raise RuntimeError("Execution Strategy returned an unsupported outcome")
 
-    _apply_completed_result(built.runtime_state.execution, outcome)
+    _apply_completed_result(
+        built.runtime_state.execution,
+        outcome,
+        raw_model_result=built.runtime_state.last_model_message,
+    )
     return built.runtime_state.execution
 
 
@@ -73,14 +79,17 @@ async def execute_strategy_with_capabilities(
         final_json_instruction=final_json_instruction,
         bootstrap=bootstrap,
     )
-    await _run_preflight(built)
     outcome = await strategy.execute(built.context)
     if isinstance(outcome, Suspended):
         raise RuntimeError("Legacy Strategy execution does not support suspended outcomes")
     if not isinstance(outcome, Completed):
         raise RuntimeError("Execution Strategy returned an unsupported outcome")
 
-    _apply_completed_result(built.runtime_state.execution, outcome)
+    _apply_completed_result(
+        built.runtime_state.execution,
+        outcome,
+        raw_model_result=built.runtime_state.last_model_message,
+    )
     return built.runtime_state.execution, built.runtime_state.call_index
 
 

@@ -8,7 +8,11 @@ from modules.agent.application.interfaces.execution_strategy import (
     ExecutionStrategy,
     ExecutionStrategyRequest,
 )
-from modules.agent.application.strategy_sdk import StrategyBootstrap, StrategyContextContribution
+from modules.agent.application.strategy_sdk import (
+    StrategyBootstrap,
+    StrategyContextContribution,
+    StrategyToolCall,
+)
 from modules.agent.infra.execution.capabilities.bundle import (
     ExecutionCapabilities,
     build_execution_capabilities,
@@ -64,7 +68,7 @@ def _preflight_tool_call(
     bootstrap: dict[str, Any] | None,
     *,
     resuming: bool,
-) -> dict[str, Any] | None:
+) -> StrategyToolCall | None:
     if resuming or not bootstrap:
         return None
     value = bootstrap.get("initial_tool_call")
@@ -72,7 +76,18 @@ def _preflight_tool_call(
         return None
     if not isinstance(value, dict):
         raise ValueError("Execution Strategy initial_tool_call must be a mapping")
-    return value
+    name = value.get("name")
+    if not isinstance(name, str) or not name.strip():
+        raise ValueError("Execution Strategy initial_tool_call requires a Tool name")
+    args = value.get("args")
+    if not isinstance(args, dict):
+        args = {}
+    call_id = value.get("id")
+    return StrategyToolCall(
+        id=str(call_id) if call_id is not None else None,
+        name=name,
+        arguments=args,
+    )
 
 
 def build_strategy_context_from_capabilities(

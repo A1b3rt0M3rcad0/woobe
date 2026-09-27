@@ -47,7 +47,7 @@ class RuntimeStrategyKnowledge:
             query if query is not None else self._capability.default_query
         )
         if self._capability.retrieve_fn is None or not effective_query:
-            return StrategyKnowledgeResult(content=None)
+            return StrategyKnowledgeResult(content=None, query=effective_query)
 
         normalized_phase = strategy_phase_value(phase or "knowledge_retrieval")
         execution_context = current_execution.get()
@@ -149,6 +149,7 @@ class RuntimeStrategyKnowledge:
 
         return StrategyKnowledgeResult(
             content=result.content,
+            query=effective_query,
             sources=result.sources,
             metadata=result.metadata,
         )

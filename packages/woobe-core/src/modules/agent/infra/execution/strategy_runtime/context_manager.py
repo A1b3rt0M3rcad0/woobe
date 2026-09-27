@@ -19,7 +19,7 @@ from modules.agent.application.strategy_sdk import (
     StrategyContextContribution,
     StrategyContextInspection,
     StrategyContextTarget,
-    StrategyInvocationContext,
+    StrategyKnowledgeResult,
     StrategyPhase,
     StrategyToolSelection,
     StrategyToolSelectionMode,
@@ -35,6 +35,9 @@ from modules.agent.infra.execution.capabilities.preparation import (
     _messages_with_bound_capability_authority,
     _messages_with_skill_usage,
     _messages_with_tool_grounding,
+)
+from modules.agent.infra.execution.strategy_runtime.invocation import (
+    RuntimeStrategyInvocation,
 )
 from modules.agent.infra.execution.strategy_runtime.model import RuntimeStrategyModel
 from modules.agent.infra.execution.strategy_runtime.runtime_state import (
@@ -105,20 +108,18 @@ class _RuntimeContextManagerCapabilities(ContextManagerCapabilities):
         if request.target_units <= 0:
             raise ValueError("Context summary target_units must be positive")
 
-        invocation = StrategyInvocationContext(
+        no_tools = StrategyToolSelection(StrategyToolSelectionMode.NONE)
+        invocation = RuntimeStrategyInvocation(
             invocation_id=uuid6.uuid7(),
+            phase=request.phase,
+            tools=no_tools,
             messages=(
                 SystemMessage(content=request.instruction),
                 HumanMessage(content=request.input_text),
             ),
             snapshot=None,
         )
-        no_tools = StrategyToolSelection(StrategyToolSelectionMode.NONE)
-        result = await self._model.invoke_auxiliary(
-            context=invocation,
-            tools=no_tools,
-            phase=request.phase,
-        )
+        result = await self._model.invoke_auxiliary(invocation)
         content = result.content
         if not isinstance(content, str) or not content.strip():
             raise RuntimeError("Context Manager summarization returned no textual content")
@@ -180,6 +181,26 @@ class RuntimeStrategyContextManager:
         self._runtime_state.context_contributions.pop(key, None)
         self._runtime_state.context_replacements.pop(key, None)
         self._sync_execution_context()
+
+    def include_knowledge(self, result: StrategyKnowledgeResult) -> None:
+        if not result.found:
+            self.remove("knowledge.primary")
+            return
+        self.set(
+            StrategyContextContribution(
+                key="knowledge.primary",
+                source_type="KNOWLEDGE",
+                content=result.content,
+                metadata={
+                    "query": result.query,
+                    "retrieval": dict(result.metadata),
+                    "sources": [
+                        source.model_dump(mode="json")
+                        for source in result.sources
+                    ],
+                },
+            )
+        )
 
     def _contributions(self) -> tuple[StrategyContextContribution, ...]:
         return tuple(
@@ -305,7 +326,7 @@ class RuntimeStrategyContextManager:
         include_contributions: bool = True,
         include_skill_context: bool = True,
         apply_replacements: bool = True,
-    ) -> StrategyInvocationContext:
+    ) -> RuntimeStrategyInvocation:
         capability = self._capability
         if target is StrategyContextTarget.FALLBACK:
             if self._model is None or not self._model.fallback_available:
@@ -401,19 +422,21 @@ class RuntimeStrategyContextManager:
             if execution_context is not None and not include_skill_context:
                 execution_context.skill_context = previous_skill_context
 
-        return StrategyInvocationContext(
+        return RuntimeStrategyInvocation(
             invocation_id=result.invocation_id,
+            phase=strategy_phase_value(phase),
+            tools=tools or StrategyToolSelection(StrategyToolSelectionMode.ALL),
             messages=result.messages,
             snapshot=result.snapshot,
         )
 
-    async def assemble(
+    async def prepare(
         self,
         *,
         tools: StrategyToolSelection,
         phase: StrategyPhase | None = None,
         target: StrategyContextTarget = StrategyContextTarget.PRIMARY,
-    ) -> StrategyInvocationContext:
+    ) -> RuntimeStrategyInvocation:
         return await self._assemble_messages(
             messages=list(self._runtime_state.messages),
             phase=phase or "response_generation",
@@ -421,14 +444,14 @@ class RuntimeStrategyContextManager:
             target=target,
         )
 
-    async def assemble_final(
+    async def prepare_final(
         self,
         *,
         reason: str,
         phase: StrategyPhase,
         tools: StrategyToolSelection,
         target: StrategyContextTarget = StrategyContextTarget.PRIMARY,
-    ) -> StrategyInvocationContext:
+    ) -> RuntimeStrategyInvocation:
         base_messages = self._apply_replacements(self._base_messages)
         messages = terminal_response_messages(
             base_messages,

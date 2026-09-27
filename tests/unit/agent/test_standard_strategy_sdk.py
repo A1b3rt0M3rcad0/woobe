@@ -1,10 +1,10 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from types import SimpleNamespace
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
-from langchain_core.messages import HumanMessage
 
 from modules.agent.application.strategy_sdk import (
     Completed,
@@ -15,11 +15,13 @@ from modules.agent.application.strategy_sdk import (
     ExecutionStopReason,
     StrategyBootstrap,
     StrategyContextCompactionResult,
-    StrategyInvocationContext,
     StrategyKnowledgeQueryPolicy,
     StrategyKnowledgeResult,
+    StrategyMessage,
+    StrategyMessageRole,
     StrategyModelResult,
     StrategyToolBatch,
+    StrategyToolCall,
     StrategyToolSelection,
     StrategyToolSelectionMode,
     Suspended,
@@ -34,6 +36,13 @@ from modules.agent.infra.execution.strategies.standard import (
 )
 
 
+@dataclass(frozen=True, slots=True)
+class _Invocation:
+    invocation_id: UUID
+    phase: str
+    tools: StrategyToolSelection
+
+
 class _Knowledge:
     def __init__(self) -> None:
         self.calls: list[tuple[str | None, str | None]] = []
@@ -44,12 +53,16 @@ class _Knowledge:
 
     async def retrieve(self, *, query=None, phase=None):
         self.calls.append((query, str(getattr(phase, "value", phase))))
-        return StrategyKnowledgeResult(content=None)
+        return StrategyKnowledgeResult(content=None, query=query)
 
 
 class _Conversation:
     def __init__(self) -> None:
-        self.current_user_message = HumanMessage(content="test query")
+        self.current_user_message = StrategyMessage(
+            id="user-current",
+            role=StrategyMessageRole.USER,
+            content="test query",
+        )
         self.history = ()
         self.system_messages = ()
         self.assistant_messages = ()
@@ -62,6 +75,7 @@ class _ContextManager:
         self.contributions = {}
         self.calls: list[tuple[str | None, StrategyToolSelection | None]] = []
         self.compaction_phases: list[str] = []
+        self.knowledge_results = []
 
     def has(self, key: str) -> bool:
         return key in self.contributions
@@ -72,23 +86,27 @@ class _ContextManager:
     def remove(self, key: str) -> None:
         self.contributions.pop(key, None)
 
+    def include_knowledge(self, result) -> None:
+        self.knowledge_results.append(result)
+
     async def compact(self, *, phase=None):
         normalized_phase = str(getattr(phase, "value", phase))
         self.compaction_phases.append(normalized_phase)
         return StrategyContextCompactionResult(changed=False)
 
-    async def assemble(self, *, phase=None, tools=None):
+    async def prepare(self, *, phase=None, tools=None, target=None):
+        del target
         normalized_phase = str(getattr(phase, "value", phase))
         self.calls.append((normalized_phase, tools))
-        return StrategyInvocationContext(
+        return _Invocation(
             invocation_id=uuid4(),
-            messages=(),
-            snapshot=None,
+            phase=normalized_phase,
+            tools=tools,
         )
 
-    async def assemble_final(self, *, reason, phase, tools=None):
-        del reason
-        return await self.assemble(phase=phase, tools=tools)
+    async def prepare_final(self, *, reason, phase, tools=None, target=None):
+        del reason, target
+        return await self.prepare(phase=phase, tools=tools)
 
 
 class _Model:
@@ -97,21 +115,20 @@ class _Model:
         self.phases: list[str] = []
         self.fallback_available = False
 
-    async def invoke(self, *, context=None, tools=None, phase=None):
-        del context, tools
-        self.phases.append(str(getattr(phase, "value", phase)))
+    async def invoke(self, invocation):
+        self.phases.append(invocation.phase)
         return self.results.pop(0)
 
-    async def finalize(self, *, reason, phase, context=None, tools=None):
-        del reason, context, tools
-        self.phases.append(str(getattr(phase, "value", phase)))
+    async def finalize(self, invocation, *, reason):
+        del reason
+        self.phases.append(invocation.phase)
         return self.results.pop(0)
 
 
 class _Tools:
     def __init__(self, batches):
         self.batches = list(batches)
-        self.calls: list[tuple[dict, ...]] = []
+        self.calls: list[tuple[StrategyToolCall, ...]] = []
         self.has_any = True
 
     def all(self) -> StrategyToolSelection:
@@ -150,9 +167,15 @@ class _Context:
 
 
 def _model_result(*, content="", tool_calls=None):
-    return StrategyModelResult(
-        message=SimpleNamespace(content=content, tool_calls=list(tool_calls or []))
+    normalized = tuple(
+        StrategyToolCall(
+            id=item.get("id"),
+            name=item["name"],
+            arguments=item.get("args") or {},
+        )
+        for item in (tool_calls or [])
     )
+    return StrategyModelResult(content=content, tool_calls=normalized)
 
 
 def test_standard_types_implement_shared_strategy_contracts() -> None:
@@ -193,7 +216,7 @@ async def test_standard_algorithm_is_expressed_only_with_strategy_context_primit
     outcome = await StandardExecutionStrategy().execute(ctx)
 
     assert isinstance(outcome, Completed)
-    assert outcome.result.message.content == "done"
+    assert outcome.result.content == "done"
     assert ctx.checkpoints == [ExecutionCheckpointBoundary.TOOL]
     assert ctx.knowledge.calls == [("test query", "knowledge_retrieval")]
     assert state.knowledge_resolved is True

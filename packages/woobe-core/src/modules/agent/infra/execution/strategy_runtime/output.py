@@ -13,6 +13,9 @@ from modules.agent.infra.execution.capabilities.context_assembly import (
 )
 from modules.agent.infra.execution.capabilities.preparation import PreparedExecution
 from modules.agent.infra.execution.structured_json_repair import repair_json_if_needed
+from modules.agent.infra.execution.strategy_runtime.model import (
+    strategy_model_result_from_message,
+)
 from modules.agent.infra.execution.strategy_runtime.runtime_state import StrategyRuntimeState
 
 
@@ -123,7 +126,7 @@ class RuntimeStrategyOutput:
             raise RuntimeError("Structured output repair is not bound for this Strategy")
 
         execution = self._runtime_state.execution
-        execution.result = result.message
+        execution.result = self._runtime_state.last_model_message
         repaired = await repair_json_if_needed(
             execution=execution,
             call_index=self._runtime_state.call_index,
@@ -144,4 +147,5 @@ class RuntimeStrategyOutput:
                 self._runtime_state.call_index,
                 int(repaired.llm_calls[-1].get("call_index") or 0),
             )
-        return StrategyModelResult(message=repaired.result)
+        self._runtime_state.last_model_message = repaired.result
+        return strategy_model_result_from_message(repaired.result)

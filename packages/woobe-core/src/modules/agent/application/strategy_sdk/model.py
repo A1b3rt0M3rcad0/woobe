@@ -1,15 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Protocol, TypeAlias
+from typing import Any, Protocol, TypeAlias
 
 from modules.agent.application.strategy_sdk.contracts import ExecutionPhase
-
-if TYPE_CHECKING:
-    from modules.agent.application.strategy_sdk.context_manager import (
-        StrategyInvocationContext,
-    )
-    from modules.agent.application.strategy_sdk.tools import StrategyToolSelection
+from modules.agent.application.strategy_sdk.invocation import StrategyInvocation
+from modules.agent.application.strategy_sdk.tools import StrategyToolCall
 
 
 StrategyPhase: TypeAlias = str | ExecutionPhase
@@ -27,18 +23,11 @@ def strategy_phase_with_iteration(phase: StrategyPhase, iteration: int) -> str:
 
 @dataclass(frozen=True, slots=True)
 class StrategyModelResult:
-    """Framework-neutral model result exposed to Execution Strategies."""
+    """Framework-neutral Model result exposed to Execution Strategies."""
 
-    message: Any
-
-    @property
-    def content(self) -> Any:
-        return getattr(self.message, "content", None)
-
-    @property
-    def tool_calls(self) -> tuple[dict[str, Any], ...]:
-        value = getattr(self.message, "tool_calls", None) or []
-        return tuple(item for item in value if isinstance(item, dict))
+    content: Any
+    tool_calls: tuple[StrategyToolCall, ...] = ()
+    finish_reason: str | None = None
 
     @property
     def has_tool_calls(self) -> bool:
@@ -53,26 +42,19 @@ class StrategyModel(Protocol):
 
     async def invoke(
         self,
-        *,
-        context: StrategyInvocationContext,
-        phase: StrategyPhase,
-        tools: StrategyToolSelection,
+        invocation: StrategyInvocation,
     ) -> StrategyModelResult: ...
 
     async def invoke_fallback(
         self,
+        invocation: StrategyInvocation,
         *,
-        context: StrategyInvocationContext,
         primary_error: str,
-        phase: StrategyPhase,
-        tools: StrategyToolSelection,
     ) -> StrategyModelResult: ...
 
     async def finalize(
         self,
+        invocation: StrategyInvocation,
         *,
         reason: str,
-        phase: StrategyPhase,
-        context: StrategyInvocationContext,
-        tools: StrategyToolSelection,
     ) -> StrategyModelResult: ...

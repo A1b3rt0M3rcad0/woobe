@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from modules.agent.application.strategy_sdk import (
     StrategyToolBatch,
+    StrategyToolCall,
     StrategyToolSelection,
     StrategyToolSelectionMode,
 )
@@ -40,9 +41,11 @@ class RuntimeStrategyTools:
 
     async def execute_many(
         self,
-        tool_calls: list[dict] | tuple[dict, ...],
+        tool_calls: list[StrategyToolCall] | tuple[StrategyToolCall, ...],
     ) -> StrategyToolBatch:
-        batch = await self._capability.execute_many(list(tool_calls))
+        batch = await self._capability.execute_many(
+            [tool_call.as_runtime_dict() for tool_call in tool_calls]
+        )
         self._runtime_state.record_tool_batch(batch)
         return StrategyToolBatch(
             results=tuple(payload for _info, _message, payload in batch.results),

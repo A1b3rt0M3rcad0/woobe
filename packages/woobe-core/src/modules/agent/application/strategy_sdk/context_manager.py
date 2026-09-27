@@ -3,9 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any, Mapping, Protocol
-from uuid import UUID
 
 from modules.agent.application.strategy_sdk.contracts import ExecutionPhase
+from modules.agent.application.strategy_sdk.invocation import StrategyInvocation
+from modules.agent.application.strategy_sdk.knowledge import StrategyKnowledgeResult
 from modules.agent.application.strategy_sdk.tools import StrategyToolSelection
 
 
@@ -46,15 +47,6 @@ class StrategyContextCompactionResult:
     metadata: Mapping[str, Any] = field(default_factory=dict)
 
 
-@dataclass(frozen=True, slots=True)
-class StrategyInvocationContext:
-    """Context materialized for one model invocation."""
-
-    invocation_id: UUID
-    messages: tuple[Any, ...]
-    snapshot: Any | None = None
-
-
 class StrategyContextManager(Protocol):
     """Context operations available to an Execution Strategy."""
 
@@ -66,25 +58,27 @@ class StrategyContextManager(Protocol):
 
     def remove(self, key: str) -> None: ...
 
+    def include_knowledge(self, result: StrategyKnowledgeResult) -> None: ...
+
     async def compact(
         self,
         *,
         phase: str | ExecutionPhase | None = None,
     ) -> StrategyContextCompactionResult: ...
 
-    async def assemble(
+    async def prepare(
         self,
         *,
         tools: StrategyToolSelection,
         phase: str | ExecutionPhase | None = None,
         target: StrategyContextTarget = StrategyContextTarget.PRIMARY,
-    ) -> StrategyInvocationContext: ...
+    ) -> StrategyInvocation: ...
 
-    async def assemble_final(
+    async def prepare_final(
         self,
         *,
         reason: str,
         phase: str | ExecutionPhase,
         tools: StrategyToolSelection,
         target: StrategyContextTarget = StrategyContextTarget.PRIMARY,
-    ) -> StrategyInvocationContext: ...
+    ) -> StrategyInvocation: ...

@@ -4,19 +4,65 @@ from typing import Any, Callable
 
 from modules.agent.application.interfaces.execution import InstrumentedExecutionError
 from modules.agent.application.strategy_sdk import (
-    StrategyInvocationContext,
+    StrategyInvocation,
     StrategyModelResult,
-    StrategyPhase,
+    StrategyToolCall,
     StrategyToolSelection,
     StrategyToolSelectionMode,
-    strategy_phase_value,
 )
 from modules.agent.infra.execution.capabilities.model_invocation import (
     ModelInvocationCapability,
 )
 from modules.agent.infra.execution.capabilities.preparation import PreparedFallbackModel
 from modules.agent.infra.execution.runtime_streaming import emit_runtime_event
+from modules.agent.infra.execution.strategy_runtime.invocation import (
+    RuntimeStrategyInvocation,
+)
 from modules.agent.infra.execution.strategy_runtime.runtime_state import StrategyRuntimeState
+
+
+def _strategy_tool_call(value: object) -> StrategyToolCall | None:
+    if not isinstance(value, dict):
+        return None
+    name = value.get("name")
+    if not isinstance(name, str) or not name.strip():
+        return None
+    args = value.get("args")
+    if not isinstance(args, dict):
+        args = {}
+    call_id = value.get("id")
+    return StrategyToolCall(
+        id=str(call_id) if call_id is not None else None,
+        name=name,
+        arguments=args,
+    )
+
+
+def strategy_model_result_from_message(message: Any) -> StrategyModelResult:
+    raw_calls = getattr(message, "tool_calls", None) or ()
+    tool_calls = tuple(
+        call
+        for value in raw_calls
+        if (call := _strategy_tool_call(value)) is not None
+    )
+    response_metadata = getattr(message, "response_metadata", None)
+    finish_reason = (
+        response_metadata.get("finish_reason")
+        if isinstance(response_metadata, dict)
+        and isinstance(response_metadata.get("finish_reason"), str)
+        else None
+    )
+    return StrategyModelResult(
+        content=getattr(message, "content", None),
+        tool_calls=tool_calls,
+        finish_reason=finish_reason,
+    )
+
+
+def _runtime_invocation(invocation: StrategyInvocation) -> RuntimeStrategyInvocation:
+    if not isinstance(invocation, RuntimeStrategyInvocation):
+        raise TypeError("Model invocation must be prepared by Strategy Context")
+    return invocation
 
 
 class RuntimeStrategyModel:
@@ -86,24 +132,18 @@ class RuntimeStrategyModel:
 
     def _capability_for_tools(
         self,
-        selection: StrategyToolSelection | None,
+        selection: StrategyToolSelection,
     ) -> ModelInvocationCapability:
         if not self._tool_definitions:
             return self._capability
-
-        effective = selection or StrategyToolSelection(
-            StrategyToolSelectionMode.ALL
-        )
-        if effective.mode is StrategyToolSelectionMode.NONE:
+        if selection.mode is StrategyToolSelectionMode.NONE:
             return self._capability
-        if effective.mode is not StrategyToolSelectionMode.ALL:
+        if selection.mode is not StrategyToolSelectionMode.ALL:
             raise ValueError(
-                f"Unsupported Tool selection mode: {effective.mode.value}"
+                f"Unsupported Tool selection mode: {selection.mode.value}"
             )
 
-        cached = self._bound_capabilities.get(
-            StrategyToolSelectionMode.ALL.value
-        )
+        cached = self._bound_capabilities.get(StrategyToolSelectionMode.ALL.value)
         if cached is not None:
             return cached
 
@@ -122,24 +162,22 @@ class RuntimeStrategyModel:
         self,
         *,
         capability: ModelInvocationCapability,
-        phase: StrategyPhase,
-        context: StrategyInvocationContext,
-        tools: StrategyToolSelection | None = None,
+        invocation: RuntimeStrategyInvocation,
         record_message: bool = True,
     ) -> StrategyModelResult:
         call_index = self._runtime_state.next_call_index()
         effective_capability = (
-            self._capability_for_tools(tools)
+            self._capability_for_tools(invocation.tools)
             if capability is self._capability
             else capability
         )
         try:
             result, call = await effective_capability.invoke(
-                messages=list(context.messages),
-                phase=strategy_phase_value(phase),
+                messages=list(invocation.messages),
+                phase=invocation.phase,
                 call_index=call_index,
-                invocation_id=context.invocation_id,
-                context_snapshot=context.snapshot,
+                invocation_id=invocation.invocation_id,
+                context_snapshot=invocation.snapshot,
                 context_prepared=True,
             )
         except InstrumentedExecutionError as exc:
@@ -160,47 +198,36 @@ class RuntimeStrategyModel:
         self._runtime_state.record_model_call(call)
         if record_message:
             self._runtime_state.record_model_message(result)
-        return StrategyModelResult(message=result)
+        return strategy_model_result_from_message(result)
 
     async def invoke_auxiliary(
         self,
-        *,
-        context: StrategyInvocationContext,
-        tools: StrategyToolSelection | None,
-        phase: StrategyPhase,
+        invocation: RuntimeStrategyInvocation,
     ) -> StrategyModelResult:
-        """Run a Strategy-requested auxiliary Model call without extending chat history."""
+        """Run a Runtime-requested auxiliary Model call without extending chat history."""
 
         return await self._invoke(
             capability=self._capability,
-            phase=phase,
-            context=context,
-            tools=tools,
+            invocation=invocation,
             record_message=False,
         )
 
     async def invoke(
         self,
-        *,
-        context: StrategyInvocationContext,
-        phase: StrategyPhase,
-        tools: StrategyToolSelection,
+        invocation: StrategyInvocation,
     ) -> StrategyModelResult:
         return await self._invoke(
             capability=self._capability,
-            phase=phase,
-            context=context,
-            tools=tools,
+            invocation=_runtime_invocation(invocation),
         )
 
     async def invoke_fallback(
         self,
+        invocation: StrategyInvocation,
         *,
-        context: StrategyInvocationContext,
         primary_error: str,
-        phase: StrategyPhase,
-        tools: StrategyToolSelection,
     ) -> StrategyModelResult:
+        runtime_invocation = _runtime_invocation(invocation)
         binding = self._resolved_fallback_binding()
         info = {
             **binding.metadata,
@@ -215,9 +242,7 @@ class RuntimeStrategyModel:
         )
         result = await self._invoke(
             capability=capability,
-            phase=phase,
-            context=context,
-            tools=tools,
+            invocation=runtime_invocation,
         )
         self._runtime_state.execution.fallback_used = True
         self._runtime_state.execution.fallback_info = info
@@ -225,12 +250,11 @@ class RuntimeStrategyModel:
 
     async def finalize(
         self,
+        invocation: StrategyInvocation,
         *,
         reason: str,
-        phase: StrategyPhase,
-        context: StrategyInvocationContext,
-        tools: StrategyToolSelection,
     ) -> StrategyModelResult:
+        runtime_invocation = _runtime_invocation(invocation)
         terminal_model = self._final_model
         if terminal_model is None and self._final_model_factory is not None:
             terminal_model = self._final_model_factory()
@@ -255,9 +279,7 @@ class RuntimeStrategyModel:
         try:
             return await self._invoke(
                 capability=terminal_capability,
-                phase=phase,
-                context=context,
-                tools=tools,
+                invocation=runtime_invocation,
             )
         except InstrumentedExecutionError as exc:
             execution = self._runtime_state.execution
