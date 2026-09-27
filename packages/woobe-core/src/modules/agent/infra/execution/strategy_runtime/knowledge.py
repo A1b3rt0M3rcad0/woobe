@@ -35,7 +35,10 @@ class RuntimeStrategyKnowledge:
 
     @property
     def query_policy(self) -> StrategyKnowledgeQueryPolicy:
-        return self._capability.query_policy
+        return StrategyKnowledgeQueryPolicy(
+            mode=self._capability.query_mode,
+            history_turns=self._capability.history_turns,
+        )
 
     async def retrieve(
         self,
@@ -72,9 +75,10 @@ class RuntimeStrategyKnowledge:
             result = await self._capability.retrieve(query=effective_query)
         except Exception as exc:
             ended_at = utc_iso()
+            raw_metadata = getattr(exc, "rag_metadata", None)
             metadata = (
-                dict(execution_context.rag_metadata or {})
-                if execution_context is not None
+                dict(raw_metadata)
+                if isinstance(raw_metadata, dict)
                 else {}
             )
             call = {
