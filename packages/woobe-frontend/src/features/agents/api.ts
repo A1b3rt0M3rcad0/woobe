@@ -1,7 +1,8 @@
 import { get, post, patch, del } from '@/lib/api/client'
-import type { Agent, AgentContract, AgentModelConfig, AgentPrompt, AgentRelease, AgentReleaseActivation, AgentReleaseTest, ContextAssemblerDescriptor, CreateAgentRequest, CreateContractRequest, CreateKnowledgeVersionRequest, CreateModelConfigRequest, CreatePromptRequest, CreateReleaseRequest, CreateReleaseTestRequest, ExecutionStrategyDescriptor, KnowledgeVersion, RuntimeEnvironment, RuntimeEnvironmentState, RuntimeEnvironmentStates, UpdateAgentRequest, UpdateContractRequest } from './types'
+import type { Agent, AgentContract, AgentModelConfig, AgentPrompt, AgentRelease, AgentReleaseActivation, AgentReleaseTest, ContextManagerDescriptor, CreateAgentRequest, CreateContractRequest, CreateKnowledgeVersionRequest, CreateModelConfigRequest, CreatePromptRequest, CreateReleaseRequest, CreateReleaseTestRequest, ExecutionStrategyDescriptor, KnowledgeVersion, RuntimeEnvironment, RuntimeEnvironmentState, RuntimeEnvironmentStates, UpdateAgentRequest, UpdateContractRequest } from './types'
 
-export async function getContextAssemblers(): Promise<ContextAssemblerDescriptor[]> { return get<ContextAssemblerDescriptor[]>('/ai/context-assemblers') }
+export async function getContextManagers(): Promise<ContextManagerDescriptor[]> { return get<ContextManagerDescriptor[]>('/ai/context-managers') }
+export const getContextAssemblers = getContextManagers
 export async function getExecutionStrategies(): Promise<ExecutionStrategyDescriptor[]> { return get<ExecutionStrategyDescriptor[]>('/ai/execution-strategies') }
 export async function getAgents(projectId?: string): Promise<Agent[]> { return get<Agent[]>('/ai/agents', { params: { project_id: projectId } }) }
 export async function getAgent(id: string): Promise<Agent> { return get<Agent>(`/ai/agents/${id}`) }
