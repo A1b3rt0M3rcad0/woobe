@@ -6,8 +6,8 @@ import { EmptyStatePanel, MetricTile, TechnicalListItem } from '@woobe/ui'
 import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
 import { ScrollArea } from '@/components/ui/ScrollArea'
-import { useContextAssemblers } from '@/features/agents/hooks'
-import type { ContextAssemblerDescriptor } from '@/features/agents/types'
+import { useContextManagers } from '@/features/agents/hooks'
+import type { ContextManagerDescriptor } from '@/features/agents/types'
 import { useAgentEditor } from '@/features/playground/AgentEditorContext'
 import { cn } from '@/lib/utils'
 import { AgentContextConfigurationDialog } from './AgentContextConfigurationDialog'
@@ -21,7 +21,7 @@ function recordValue(value: unknown): Record<string, unknown> {
 }
 
 function currentSelection(runtimeConfig: Record<string, unknown>) {
-  const raw = recordValue(runtimeConfig.context_assembler)
+  const raw = recordValue(runtimeConfig.context_manager ?? runtimeConfig.context_assembler)
   return typeof raw.name === 'string' && raw.name.trim()
     ? raw.name.trim()
     : DEFAULT_CONTEXT_MANAGER
@@ -43,10 +43,10 @@ function DetailList({ items }: { items: string[] }) {
 
 export function AgentContextAssemblerField({ projectId, compact = false }: { projectId: string; compact?: boolean }) {
   const { state, setField } = useAgentEditor()
-  const { data: assemblers = [], isLoading, isError } = useContextAssemblers()
+  const { data: assemblers = [], isLoading, isError } = useContextManagers()
   const selectedName = useMemo(() => currentSelection(state.runtimeConfig), [state.runtimeConfig])
 
-  const selectedFallback = useMemo<ContextAssemblerDescriptor>(() => ({
+  const selectedFallback = useMemo<ContextManagerDescriptor>(() => ({
     name: selectedName,
     display_name: selectedName,
     description: '',
@@ -89,10 +89,10 @@ export function AgentContextAssemblerField({ projectId, compact = false }: { pro
 
   const applySelection = () => {
     if (!canApplySelection) return
-    setField('runtimeConfig', {
-      ...state.runtimeConfig,
-      context_assembler: { name: focused.name },
-    })
+    const nextRuntime = { ...state.runtimeConfig }
+    delete nextRuntime.context_assembler
+    nextRuntime.context_manager = { name: focused.name }
+    setField('runtimeConfig', nextRuntime)
     setOpen(false)
   }
 
