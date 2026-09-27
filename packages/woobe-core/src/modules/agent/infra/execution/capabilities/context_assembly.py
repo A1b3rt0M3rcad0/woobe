@@ -7,8 +7,8 @@ from uuid import UUID
 
 import uuid6
 
-from modules.agent.application.interfaces.context_assembler import (
-    ContextAssembler,
+from modules.agent.application.interfaces.context_manager import (
+    ContextManager,
     ContextAssemblyRequest,
     ContextBudgetExceeded,
     ContextCompactionOutput,
@@ -172,15 +172,38 @@ class ContextAssemblyResult:
     snapshot: Any | None
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, init=False)
 class ContextAssemblyCapability:
     """Materialize one invocation Context through the frozen Context Manager."""
 
-    assembler: ContextAssembler | None
+    manager: ContextManager | None
     provider: str
     model_name: str
     pricing_snapshot: dict[str, Any] | None
     tool_definitions: tuple[dict[str, Any], ...] = ()
+
+    def __init__(
+        self,
+        *,
+        manager: ContextManager | None = None,
+        provider: str,
+        model_name: str,
+        pricing_snapshot: dict[str, Any] | None,
+        tool_definitions: tuple[dict[str, Any], ...] = (),
+        assembler: ContextManager | None = None,
+    ) -> None:
+        if manager is not None and assembler is not None and manager is not assembler:
+            raise ValueError("Context Manager capability received conflicting bindings")
+        object.__setattr__(self, "manager", manager if manager is not None else assembler)
+        object.__setattr__(self, "provider", provider)
+        object.__setattr__(self, "model_name", model_name)
+        object.__setattr__(self, "pricing_snapshot", pricing_snapshot)
+        object.__setattr__(self, "tool_definitions", tuple(tool_definitions))
+
+    @property
+    def assembler(self) -> ContextManager | None:
+        """Legacy capability alias; internal code uses manager."""
+        return self.manager
 
     def active_tool_definitions(
         self,
@@ -240,7 +263,7 @@ class ContextAssemblyCapability:
             context_rag_sources=_tuple_dicts(
                 getattr(context, "context_rag_sources", None)
             ),
-            context_manager_name=getattr(context, "context_assembler_name", None),
+            context_manager_name=getattr(context, "context_manager_name", None),
             parent_invocation_id=getattr(context, "parent_invocation_id", None),
             network_execution_id=getattr(context, "network_execution_id", None),
             network_invocation_id=getattr(context, "network_invocation_id", None),
@@ -254,7 +277,7 @@ class ContextAssemblyCapability:
         contributions: tuple[ContextManagedContribution, ...],
     ) -> ContextInspectionOutput:
         context = current_execution.get()
-        if context is None or self.assembler is None:
+        if context is None or self.manager is None:
             return ContextInspectionOutput(
                 message_count=len(messages),
                 contribution_count=len(contributions),
@@ -264,7 +287,7 @@ class ContextAssemblyCapability:
                 pressure="UNKNOWN",
             )
         policy = ContextPolicyV1.model_validate(context.context_policy or {})
-        return self.assembler.inspect(
+        return self.manager.inspect(
             ContextInspectionRequest(
                 messages=tuple(messages),
                 contributions=contributions,
@@ -286,13 +309,13 @@ class ContextAssemblyCapability:
         capabilities: ContextManagerCapabilities,
     ) -> ContextCompactionOutput:
         context = current_execution.get()
-        if context is None or self.assembler is None:
+        if context is None or self.manager is None:
             return ContextCompactionOutput(
                 changed=False,
                 metadata={"reason": "context_manager_unavailable"},
             )
         policy = ContextPolicyV1.model_validate(context.context_policy or {})
-        return await self.assembler.compact(
+        return await self.manager.compact(
             ContextCompactionRequest(
                 messages=tuple(messages),
                 contributions=contributions,
@@ -325,9 +348,9 @@ class ContextAssemblyCapability:
                 messages=tuple(messages),
                 snapshot=None,
             )
-        if self.assembler is None:
+        if self.manager is None:
             raise RuntimeError(
-                "ContextAssembler dependency is required for instrumented Agent execution"
+                "Context Manager dependency is required for instrumented Agent execution"
             )
 
         live_execution = getattr(context, "execution", None)
@@ -349,7 +372,7 @@ class ContextAssemblyCapability:
         started_at = utc_iso()
         started = time.monotonic()
         try:
-            assembled = self.assembler.assemble(
+            assembled = self.manager.assemble(
                 ContextAssemblyRequest(
                     messages=messages,
                     model_invocation_id=resolved_invocation_id,
