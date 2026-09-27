@@ -30,18 +30,18 @@ ASK_JOB_WORKER = (
     / "ask_job_worker.py"
 )
 _CONTEXT_ASSEMBLY = AGENT_ROOT / "application" / "context_assembly.py"
-_CONTEXT_ASSEMBLER_CONTRACT = (
-    AGENT_ROOT / "application" / "interfaces" / "context_assembler.py"
+_CONTEXT_MANAGER_CONTRACT = (
+    AGENT_ROOT / "application" / "interfaces" / "context_manager.py"
 )
 _CONTEXT_MANAGERS_ROOT = AGENT_ROOT / "application" / "context_managers"
 _CONTEXT_MANAGERS_README = _CONTEXT_MANAGERS_ROOT / "README.md"
 _STANDARD_ASSEMBLER = _CONTEXT_MANAGERS_ROOT / "standard.py"
-_CONTEXT_ASSEMBLER_REGISTRY = (
-    AGENT_ROOT / "application" / "context_assembler_registry.py"
+_CONTEXT_MANAGER_REGISTRY = (
+    AGENT_ROOT / "application" / "context_manager_registry.py"
 )
 _STANDARD_ASSEMBLER_MODULE = "modules.agent.application.context_managers.standard"
-_CONTEXT_ASSEMBLER_REGISTRY_MODULE = (
-    "modules.agent.application.context_assembler_registry"
+_CONTEXT_MANAGER_REGISTRY_MODULE = (
+    "modules.agent.application.context_manager_registry"
 )
 _BACKGROUND_BOUNDARY_MODULE = "modules.agent.background_boundary"
 _LEGACY_ASSEMBLY_MODULE = "modules.agent.application.context_assembly"
@@ -135,7 +135,7 @@ def _assigned_constructor_names(
     return names
 
 
-def _context_assembler_configured_names(
+def _context_manager_configured_names(
     function: ast.FunctionDef | ast.AsyncFunctionDef,
 ) -> set[str]:
     names: set[str] = set()
@@ -144,7 +144,7 @@ def _context_assembler_configured_names(
             continue
         if not isinstance(node.func, ast.Attribute):
             continue
-        if node.func.attr != "configure_context_assembler":
+        if node.func.attr != "configure_context_manager":
             continue
         if isinstance(node.func.value, ast.Name):
             names.add(node.func.value.id)
@@ -163,7 +163,7 @@ def test_agent_execution_depends_only_on_context_assembler_contract() -> None:
 
     forbidden_modules = {
         _STANDARD_ASSEMBLER_MODULE,
-        _CONTEXT_ASSEMBLER_REGISTRY_MODULE,
+        _CONTEXT_MANAGER_REGISTRY_MODULE,
     }
     for path in AGENT_EXECUTION.rglob("*.py"):
         for node in ast.walk(_tree(path)):
@@ -186,7 +186,7 @@ def test_standard_context_assembler_is_composed_only_by_application_registry() -
     violations: list[str] = []
 
     for path in AGENT_ROOT.rglob("*.py"):
-        if path in {_STANDARD_ASSEMBLER, _CONTEXT_ASSEMBLER_REGISTRY}:
+        if path in {_STANDARD_ASSEMBLER, _CONTEXT_MANAGER_REGISTRY}:
             continue
         for node in ast.walk(_tree(path)):
             if isinstance(node, ast.ImportFrom):
@@ -230,7 +230,7 @@ def test_legacy_assemble_context_is_only_consumed_by_standard_adapter() -> None:
 
 def test_context_invocation_environment_covers_every_context_assembly_read() -> None:
     required = _environment_reads(_tree(_CONTEXT_ASSEMBLY))
-    declared = _environment_contract_fields(_tree(_CONTEXT_ASSEMBLER_CONTRACT))
+    declared = _environment_contract_fields(_tree(_CONTEXT_MANAGER_CONTRACT))
     missing = sorted(required - declared)
 
     assert not missing, (
@@ -239,7 +239,7 @@ def test_context_invocation_environment_covers_every_context_assembly_read() -> 
     )
     source = _CONTEXT_ASSEMBLY.read_text(encoding="utf-8")
     assert "current_execution" not in source
-    assert "ContextAssemblyRuntimeContext" not in _CONTEXT_ASSEMBLER_CONTRACT.read_text(
+    assert "ContextAssemblyRuntimeContext" not in _CONTEXT_MANAGER_CONTRACT.read_text(
         encoding="utf-8"
     )
 
@@ -410,10 +410,10 @@ def test_background_worker_gets_runtime_dispatcher_only_from_public_boundary() -
             boundary_names.update(names)
         if "StandardContextAssembler" in names:
             direct_standard_imports.append(str(node.module))
-        if node.module == _CONTEXT_ASSEMBLER_REGISTRY_MODULE:
+        if node.module == _CONTEXT_MANAGER_REGISTRY_MODULE:
             direct_registry_imports.append(str(node.module))
 
-    assert "build_runtime_context_assembler" in boundary_names, (
+    assert "build_runtime_context_manager" in boundary_names, (
         "AskJobWorker must obtain the snapshot-aware ContextAssembler through "
         "modules.agent.background_boundary"
     )
@@ -445,7 +445,7 @@ def test_production_runtime_composition_configures_context_assembler_explicitly(
     for path, function_name, constructor_name in cases:
         function = _find_function(_tree(path), function_name)
         constructed = _assigned_constructor_names(function, constructor_name)
-        configured = _context_assembler_configured_names(function)
+        configured = _context_manager_configured_names(function)
         if not constructed:
             violations.append(
                 f"{path.relative_to(ROOT).as_posix()} no longer constructs "
@@ -455,7 +455,7 @@ def test_production_runtime_composition_configures_context_assembler_explicitly(
         for variable_name in sorted(constructed - configured):
             violations.append(
                 f"{path.relative_to(ROOT).as_posix()} constructs {constructor_name} "
-                f"as {variable_name} without configure_context_assembler(...)"
+                f"as {variable_name} without configure_context_manager(...)"
             )
 
     assert not violations, "\n".join(violations)
