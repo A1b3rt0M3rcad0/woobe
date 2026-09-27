@@ -98,7 +98,7 @@ class PreparedExecution:
     api_key: str
     base_url: str | None
     clean_json_answer: Callable[..., Any]
-    context_assembler: ContextManager | None
+    context_manager: ContextManager | None
     tool_definitions: list[dict]
     knowledge_retrieve: Callable[[str], Awaitable[Any]] | None
     knowledge_query: str | None
@@ -454,7 +454,7 @@ def prepare_execution(request: ExecutionStrategyRequest) -> PreparedExecution:
         api_key=request.api_key,
         base_url=request.base_url,
         clean_json_answer=request.clean_json_answer,
-        context_assembler=request.context_assembler,
+        context_manager=request.context_manager,
         tool_definitions=agent_tools,
         knowledge_retrieve=request.knowledge_retrieve,
         knowledge_query=request.knowledge_query,
