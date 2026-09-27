@@ -214,7 +214,7 @@ def build_strategy_context_from_capabilities(
             runtime_state=runtime_state,
             base_messages=base_messages,
             final_json_instruction=final_json_instruction,
-            model=runtime_model,
+            model_capabilities=runtime_model,
         ),
         output=RuntimeStrategyOutput.disabled(runtime_state=runtime_state),
         checkpoint=checkpoint,
