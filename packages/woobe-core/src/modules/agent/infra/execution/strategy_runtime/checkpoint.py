@@ -45,7 +45,7 @@ class RuntimeStrategyCheckpoint:
                 "source_type": contribution.source_type,
                 "content": contribution.content,
                 "metadata": dict(contribution.metadata),
-                "replaces_message_indexes": list(
+                "replaces_message_ids": list(
                     self._runtime_state.context_replacements.get(key, ())
                 ),
             }
