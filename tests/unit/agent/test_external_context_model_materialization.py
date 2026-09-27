@@ -96,7 +96,7 @@ def _assemble(runtime_context, *, policy=LEGACY_CONTEXT_POLICY):
         project_id=uuid4(),
         provider="custom",
         model="test-model",
-        runtime_context=runtime_context,
+        environment=runtime_context,
         policy=policy,
     )
 
@@ -152,7 +152,7 @@ def test_contract_exposure_does_not_enable_unrelated_runtime_context() -> None:
         project_id=uuid4(),
         provider="custom",
         model="test-model",
-        runtime_context=_runtime_context(),
+        environment=_runtime_context(),
         policy=LEGACY_CONTEXT_POLICY,
     )
     materialized = _materialized_text(result)

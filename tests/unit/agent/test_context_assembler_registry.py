@@ -24,6 +24,7 @@ from modules.agent.application.interfaces.context_assembler import (
     STANDARD_CONTEXT_ASSEMBLER_KEY,
     ContextAssembler,
     ContextAssemblerKey,
+    ContextInvocationEnvironment,
     ContextAssemblyOutput,
     ContextAssemblyRequest,
     ContextCompactionOutput,
@@ -213,7 +214,7 @@ def test_registry_dispatcher_resolves_manager_by_runtime_name() -> None:
         project_id=uuid4(),
         provider="test",
         model="test-model",
-        runtime_context=SimpleNamespace(context_assembler_name="adaptive"),
+        environment=ContextInvocationEnvironment(context_manager_name="adaptive"),
         policy=ContextPolicyV1(),
     )
 

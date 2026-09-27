@@ -384,14 +384,6 @@ class RuntimeStrategyContextManager:
             else list(invocation_messages)
         )
         next_call_index = self._runtime_state.call_index + 1
-        execution_context = current_execution.get()
-        previous_skill_context = (
-            execution_context.skill_context
-            if execution_context is not None
-            else None
-        )
-        if execution_context is not None and not include_skill_context:
-            execution_context.skill_context = None
         try:
             result = capability.assemble(
                 messages=materialized,
@@ -401,6 +393,7 @@ class RuntimeStrategyContextManager:
                     if tools is not None
                     else StrategyToolSelectionMode.ALL.value
                 ),
+                include_skill_context=include_skill_context,
                 call_index=next_call_index,
             )
         except InstrumentedExecutionError as exc:
@@ -418,9 +411,6 @@ class RuntimeStrategyContextManager:
                 tool_call_duration_sum_ms=execution.tool_call_duration_sum_ms,
                 failure_context=execution.failure_context,
             ) from exc
-        finally:
-            if execution_context is not None and not include_skill_context:
-                execution_context.skill_context = previous_skill_context
 
         return RuntimeStrategyInvocation(
             invocation_id=result.invocation_id,

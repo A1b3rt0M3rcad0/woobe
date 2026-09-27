@@ -40,7 +40,7 @@ class StandardSkillsContextAssembler:
         self._base = base
 
     def _with_skills(self, request):
-        candidates = getattr(request.runtime_context, "skill_context", None) or []
+        candidates = getattr(request.environment, "skill_context", None) or []
         if not candidates:
             return request, False
 
@@ -139,7 +139,7 @@ class StandardSkillsContextAssembler:
         if not has_candidates:
             return assembled
 
-        candidates = getattr(request.runtime_context, "skill_context", None) or []
+        candidates = getattr(request.environment, "skill_context", None) or []
         manifest = dict(assembled.snapshot.manifest)
         manifest["skills"] = {
             "retention": "run",

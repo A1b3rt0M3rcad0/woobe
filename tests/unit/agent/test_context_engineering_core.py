@@ -44,7 +44,7 @@ def _runtime_context(**overrides):
     return SimpleNamespace(**defaults)
 
 
-def _assemble(messages, *, policy=None, runtime_context=None):
+def _assemble(messages, *, policy=None, environment=None):
     return assemble_context(
         messages=messages,
         model_invocation_id=uuid4(),
@@ -52,7 +52,7 @@ def _assemble(messages, *, policy=None, runtime_context=None):
         project_id=uuid4(),
         provider="openai",
         model="test-model",
-        runtime_context=runtime_context or _runtime_context(),
+        environment=runtime_context or _runtime_context(),
         policy=policy or ContextPolicyV1(),
     )
 
@@ -165,7 +165,7 @@ def test_provider_capacity_reaches_persisted_context_budget(
         policy=ContextPolicyV1.model_validate({
             "budget": {"max_input_units": configured_budget, "runtime_reserve_units": 1000},
         }),
-        runtime_context=_runtime_context(
+        environment=_runtime_context(
             model_capacity_units=pricing["context_window"],
             reserved_output_units=4096,
         ),
@@ -265,7 +265,7 @@ def test_current_user_contribution_uses_durable_message_id_when_available():
             SystemMessage(content="system"),
             HumanMessage(content="current user"),
         ],
-        runtime_context=runtime,
+        environment=runtime,
     )
 
     current_input = next(
@@ -336,7 +336,7 @@ def test_knowledge_contribution_keeps_vector_and_chunk_provenance():
             SystemMessage(content="<context>retrieved fact</context>"),
             HumanMessage(content="current user"),
         ],
-        runtime_context=runtime,
+        environment=runtime,
     )
 
     knowledge = next(
@@ -502,7 +502,7 @@ def test_context_budget_metrics_report_fit_and_model_clamp():
     result = _assemble(
         [SystemMessage(content="system"), HumanMessage(content="hello")],
         policy=policy,
-        runtime_context=_runtime_context(
+        environment=_runtime_context(
             model_capacity_units=1000,
             reserved_output_units=200,
         ),
@@ -546,7 +546,7 @@ def test_context_budget_drops_orphan_tool_messages_when_parent_tool_call_is_evic
             HumanMessage(content="current"),
         ],
         policy=policy,
-        runtime_context=_runtime_context(
+        environment=_runtime_context(
             model_capacity_units=1000,
             reserved_output_units=0,
         ),
@@ -610,7 +610,7 @@ def test_context_budget_metrics_report_degraded_when_global_budget_reduces_conte
             AIMessage(content="answer " * 120),
             HumanMessage(content="current"),
         ],
-        runtime_context=_runtime_context(
+        environment=_runtime_context(
             model_capacity_units=90,
             reserved_output_units=10,
         ),
@@ -636,7 +636,7 @@ def test_context_assembly_fails_when_mandatory_material_exceeds_model_budget():
                 SystemMessage(content="s" * 120),
                 HumanMessage(content="u" * 120),
             ],
-            runtime_context=runtime_context,
+            environment=runtime_context,
         )
 
     failure = error.value.failure_context()
@@ -653,7 +653,7 @@ def test_reported_provider_usage_replaces_estimate_for_pressure_measurement():
             SystemMessage(content="system"),
             HumanMessage(content="hello"),
         ],
-        runtime_context=_runtime_context(
+        environment=_runtime_context(
             model_capacity_units=1000,
             reserved_output_units=100,
         ),
@@ -690,7 +690,7 @@ def test_exposed_external_context_is_materialized_as_runtime_context() -> None:
             SystemMessage(content="system"),
             HumanMessage(content="sabe meu nome?"),
         ],
-        runtime_context=runtime,
+        environment=runtime,
     )
 
     runtime_message = next(

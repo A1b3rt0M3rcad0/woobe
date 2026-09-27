@@ -19,6 +19,7 @@ from modules.agent.application.context_assembly import (
 from modules.agent.application.interfaces.context_assembler import (
     ContextAssemblerKey,
     ContextAssemblyRequest,
+    ContextInvocationEnvironment,
 )
 from modules.agent.application.interfaces.context_policy import (
     ContextPolicyV1,
@@ -91,8 +92,6 @@ def runtime_config(version):
 
 
 def request(runtime, policy=None):
-    context = new_execution_context()
-    context.skill_context = runtime.contributions()
     return ContextAssemblyRequest(
         messages=[
             SystemMessage(content="Agent rules"),
@@ -103,7 +102,9 @@ def request(runtime, policy=None):
         project_id=uuid4(),
         provider="openai",
         model="test",
-        runtime_context=context,
+        environment=ContextInvocationEnvironment(
+            skill_context=tuple(runtime.contributions()),
+        ),
         policy=policy
         or ContextPolicyV1(
             allowed_sources=["SYSTEM", "USER_INPUT", "SESSION", "SKILL", "TOOL"],
@@ -191,8 +192,8 @@ async def test_one_fixed_version_per_skill_and_integrity(version):
 
 async def test_enabled_skills_require_compatible_context_manager(version):
     config = runtime_config(version)
-    config["context_assembler"]["version"] = "v1"
-    with pytest.raises(ValidationError, match="v2"):
+    config["context_assembler"]["version"] = "legacy"
+    with pytest.raises(ValidationError, match="supports only the 'name' field"):
         await freeze_skill_bindings(
             None, project_id=version.project_id, runtime_config=config
         )

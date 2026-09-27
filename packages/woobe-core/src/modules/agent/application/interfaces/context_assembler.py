@@ -107,62 +107,26 @@ def context_assembler_key_from_runtime_config(value: object) -> ContextAssembler
     return ContextAssemblerKey(name=name)
 
 
-class ContextAssemblyRuntimeContext(Protocol):
-    """Read-only attribute surface consumed by Context Assembly.
+@dataclass(frozen=True, slots=True)
+class ContextInvocationEnvironment:
+    """Immutable per-invocation inputs consumed by Context Manager algorithms."""
 
-    This is intentionally narrower than RequestExecutionContext so ContextAssembler
-    implementations do not depend on the complete Agent runtime state container.
-    Container values exposed through this view are input data and must be treated as
-    immutable by assembler implementations.
-    """
-
-    @property
-    def skill_context(self) -> list[dict[str, Any]] | None: ...
-
-    @property
-    def external_context_contract(self) -> dict[str, Any] | None: ...
-
-    @property
-    def model_external_context(self) -> dict[str, Any] | None: ...
-
-    @property
-    def run_id(self) -> UUID | None: ...
-
-    @property
-    def input_message_id(self) -> UUID | None: ...
-
-    @property
-    def model_capacity_units(self) -> int | None: ...
-
-    @property
-    def reserved_output_units(self) -> int | None: ...
-
-    @property
-    def active_tool_definitions(self) -> list[dict[str, Any]] | None: ...
-
-    @property
-    def context_selection_metadata(self) -> dict[str, Any] | None: ...
-
-    @property
-    def rag_metadata(self) -> dict[str, Any] | None: ...
-
-    @property
-    def context_rag_sources(self) -> list[dict[str, Any]] | None: ...
-
-    @property
-    def context_assembler_name(self) -> str | None: ...
-
-    @property
-    def parent_invocation_id(self) -> UUID | None: ...
-
-    @property
-    def network_execution_id(self) -> UUID | None: ...
-
-    @property
-    def network_invocation_id(self) -> UUID | None: ...
-
-    @property
-    def network_node_id(self) -> UUID | None: ...
+    run_id: UUID | None = None
+    input_message_id: UUID | None = None
+    model_capacity_units: int | None = None
+    reserved_output_units: int | None = None
+    active_tool_definitions: tuple[Mapping[str, Any], ...] = ()
+    skill_context: tuple[Mapping[str, Any], ...] = ()
+    external_context_contract: Mapping[str, Any] | None = None
+    model_external_context: Mapping[str, Any] | None = None
+    context_selection_metadata: Mapping[str, Any] | None = None
+    rag_metadata: Mapping[str, Any] | None = None
+    context_rag_sources: tuple[Mapping[str, Any], ...] = ()
+    context_manager_name: str | None = None
+    parent_invocation_id: UUID | None = None
+    network_execution_id: UUID | None = None
+    network_invocation_id: UUID | None = None
+    network_node_id: UUID | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -173,7 +137,7 @@ class ContextAssemblyRequest:
     project_id: UUID
     provider: str
     model: str
-    runtime_context: ContextAssemblyRuntimeContext
+    environment: ContextInvocationEnvironment
     policy: ContextPolicyV1
 
 
@@ -202,7 +166,7 @@ class ContextInspectionRequest:
 
     messages: tuple[Any, ...]
     contributions: tuple[ContextManagedContribution, ...]
-    runtime_context: ContextAssemblyRuntimeContext
+    environment: ContextInvocationEnvironment
     policy: ContextPolicyV1
 
 
@@ -239,7 +203,7 @@ class ContextCompactionRequest:
     messages: tuple[Any, ...]
     contributions: tuple[ContextManagedContribution, ...]
     phase: str
-    runtime_context: ContextAssemblyRuntimeContext
+    environment: ContextInvocationEnvironment
     policy: ContextPolicyV1
 
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Mapping
 from uuid import UUID
 
 import uuid6
@@ -15,6 +15,7 @@ from modules.agent.application.interfaces.context_assembler import (
     ContextCompactionRequest,
     ContextInspectionOutput,
     ContextInspectionRequest,
+    ContextInvocationEnvironment,
     ContextManagedContribution,
     ContextManagerCapabilities,
 )
@@ -47,14 +48,14 @@ def _effective_output_tokens(
     return min(desired, model_limit) if model_limit is not None else desired
 
 
-def _tool_definition_name(definition: dict[str, Any]) -> str | None:
-    function = definition.get("function")
-    if isinstance(function, dict):
-        name = function.get("name")
-        if isinstance(name, str) and name:
-            return name
-    name = definition.get("name")
-    return name if isinstance(name, str) and name else None
+def _dict_copy(value: object) -> dict[str, Any] | None:
+    return dict(value) if isinstance(value, Mapping) else None
+
+
+def _tuple_dicts(value: object) -> tuple[Mapping[str, Any], ...]:
+    if not isinstance(value, (list, tuple)):
+        return ()
+    return tuple(dict(item) for item in value if isinstance(item, Mapping))
 
 
 def _pricing_evidence(pricing_snapshot: dict[str, Any] | None) -> dict[str, Any]:
@@ -181,6 +182,62 @@ class ContextAssemblyCapability:
     pricing_snapshot: dict[str, Any] | None
     tool_definitions: tuple[dict[str, Any], ...] = ()
 
+    def active_tool_definitions(
+        self,
+        mode: str | None,
+    ) -> list[dict[str, Any]] | None:
+        if mode is None:
+            return None
+        if mode == "none":
+            return []
+        if mode != "all":
+            raise ValueError(f"Unsupported Tool selection mode: {mode}")
+        if not self.tool_definitions:
+            return None
+        return [dict(definition) for definition in self.tool_definitions]
+
+    def _environment(
+        self,
+        context: Any,
+        *,
+        tool_selection_mode: str | None,
+        include_skill_context: bool,
+    ) -> ContextInvocationEnvironment:
+        active_tools = self.active_tool_definitions(tool_selection_mode)
+        if active_tools is None:
+            active_tools = (
+                list(context.active_tool_definitions)
+                if isinstance(context.active_tool_definitions, list)
+                else []
+            )
+        return ContextInvocationEnvironment(
+            run_id=context.run_id,
+            input_message_id=context.input_message_id,
+            model_capacity_units=_positive_int(
+                (self.pricing_snapshot or {}).get("context_window")
+            ),
+            reserved_output_units=_effective_output_tokens(
+                context.reserved_output_units,
+                self.pricing_snapshot,
+            ),
+            active_tool_definitions=tuple(dict(item) for item in active_tools),
+            skill_context=(
+                _tuple_dicts(context.skill_context)
+                if include_skill_context
+                else ()
+            ),
+            external_context_contract=_dict_copy(context.external_context_contract),
+            model_external_context=_dict_copy(context.model_external_context),
+            context_selection_metadata=_dict_copy(context.context_selection_metadata),
+            rag_metadata=_dict_copy(context.rag_metadata),
+            context_rag_sources=_tuple_dicts(context.context_rag_sources),
+            context_manager_name=context.context_assembler_name,
+            parent_invocation_id=context.parent_invocation_id,
+            network_execution_id=context.network_execution_id,
+            network_invocation_id=context.network_invocation_id,
+            network_node_id=context.network_node_id,
+        )
+
     def inspect(
         self,
         *,
@@ -202,7 +259,11 @@ class ContextAssemblyCapability:
             ContextInspectionRequest(
                 messages=tuple(messages),
                 contributions=contributions,
-                runtime_context=context,
+                environment=self._environment(
+                    context,
+                    tool_selection_mode="all",
+                    include_skill_context=True,
+                ),
                 policy=policy,
             )
         )
@@ -227,28 +288,15 @@ class ContextAssemblyCapability:
                 messages=tuple(messages),
                 contributions=contributions,
                 phase=phase,
-                runtime_context=context,
+                environment=self._environment(
+                    context,
+                    tool_selection_mode="all",
+                    include_skill_context=True,
+                ),
                 policy=policy,
             ),
             capabilities,
         )
-
-    def active_tool_definitions(
-        self,
-        mode: str | None,
-    ) -> list[dict[str, Any]] | None:
-        if mode is None:
-            return None
-        if mode == "none":
-            return []
-        if mode != "all":
-            raise ValueError(f"Unsupported Tool selection mode: {mode}")
-        if not self.tool_definitions:
-            # Compatibility callers may provide an already-bound model without
-            # the original definitions. Preserve the runtime's existing Tool
-            # metadata instead of interpreting that as an explicit empty set.
-            return None
-        return [dict(definition) for definition in self.tool_definitions]
 
     def assemble(
         self,
@@ -256,6 +304,7 @@ class ContextAssemblyCapability:
         messages: list[Any],
         phase: str,
         tool_selection_mode: str | None = None,
+        include_skill_context: bool = True,
         invocation_id: UUID | None = None,
         call_index: int | None = None,
     ) -> ContextAssemblyResult:
@@ -282,22 +331,11 @@ class ContextAssemblyCapability:
             )
 
         policy = ContextPolicyV1.model_validate(context.context_policy or {})
-        previous_capacity = context.model_capacity_units
-        previous_reserved = context.reserved_output_units
-        previous_tools = context.active_tool_definitions
-
-        context.model_capacity_units = _positive_int(
-            (self.pricing_snapshot or {}).get("context_window")
+        environment = self._environment(
+            context,
+            tool_selection_mode=tool_selection_mode,
+            include_skill_context=include_skill_context,
         )
-        context.reserved_output_units = _effective_output_tokens(
-            previous_reserved,
-            self.pricing_snapshot,
-        )
-        active_tools = self.active_tool_definitions(tool_selection_mode)
-        if active_tools is not None:
-            context.active_tool_definitions = active_tools
-        elif phase in {"final_response_generation", "json_repair"}:
-            context.active_tool_definitions = []
 
         started_at = utc_iso()
         started = time.monotonic()
@@ -310,7 +348,7 @@ class ContextAssemblyCapability:
                     project_id=context.project_id,
                     provider=self.provider,
                     model=self.model_name,
-                    runtime_context=context,
+                    environment=environment,
                     policy=policy,
                 )
             )
@@ -331,7 +369,3 @@ class ContextAssemblyCapability:
                 started_at=started_at,
                 started=started,
             ) from exc
-        finally:
-            context.model_capacity_units = previous_capacity
-            context.reserved_output_units = previous_reserved
-            context.active_tool_definitions = previous_tools

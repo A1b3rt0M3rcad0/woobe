@@ -252,8 +252,8 @@ class RegistryContextAssembler:
     def __init__(self, registry: ContextAssemblerRegistry) -> None:
         self._registry = registry
 
-    def _resolve(self, runtime_context) -> ContextAssembler:
-        name = getattr(runtime_context, "context_assembler_name", None)
+    def _resolve(self, environment) -> ContextAssembler:
+        name = getattr(environment, "context_manager_name", None)
         key = (
             ContextAssemblerKey(name=name)
             if isinstance(name, str) and name.strip()
@@ -265,20 +265,20 @@ class RegistryContextAssembler:
         self,
         request: ContextInspectionRequest,
     ) -> ContextInspectionOutput:
-        return self._resolve(request.runtime_context).inspect(request)
+        return self._resolve(request.environment).inspect(request)
 
     async def compact(
         self,
         request: ContextCompactionRequest,
         capabilities: ContextManagerCapabilities,
     ) -> ContextCompactionOutput:
-        return await self._resolve(request.runtime_context).compact(
+        return await self._resolve(request.environment).compact(
             request,
             capabilities,
         )
 
     def assemble(self, request: ContextAssemblyRequest) -> ContextAssemblyOutput:
-        return self._resolve(request.runtime_context).assemble(request)
+        return self._resolve(request.environment).assemble(request)
 
 
 def build_runtime_context_assembler(

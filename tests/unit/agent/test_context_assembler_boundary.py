@@ -13,6 +13,7 @@ from modules.agent.application.interfaces.context_assembler import (
     ContextAssembler,
     ContextAssemblyOutput,
     ContextAssemblyRequest,
+    ContextInvocationEnvironment,
 )
 from modules.agent.application.interfaces.context_policy import ContextPolicyV1
 from modules.agent.application.interfaces.execution_context import (
@@ -26,8 +27,6 @@ from modules.agent.infra.execution.capabilities.context_assembly import (
 
 
 def _request() -> ContextAssemblyRequest:
-    runtime_context = new_execution_context()
-    runtime_context.run_id = uuid4()
     return ContextAssemblyRequest(
         messages=[
             SystemMessage(content="system"),
@@ -38,7 +37,7 @@ def _request() -> ContextAssemblyRequest:
         project_id=uuid4(),
         provider="openai",
         model="test-model",
-        runtime_context=runtime_context,
+        environment=ContextInvocationEnvironment(run_id=uuid4()),
         policy=ContextPolicyV1(),
     )
 
@@ -84,7 +83,7 @@ def test_standard_context_assembler_is_transparent_adapter(monkeypatch) -> None:
         "project_id": request.project_id,
         "provider": request.provider,
         "model": request.model,
-        "runtime_context": request.runtime_context,
+        "environment": request.environment,
         "policy": request.policy,
     }
 
@@ -104,8 +103,8 @@ class _FakeContextAssembler(ContextAssembler):
 
     def assemble(self, request: ContextAssemblyRequest) -> ContextAssemblyOutput:
         self.requests.append(request)
-        self.capacity_seen = request.runtime_context.model_capacity_units
-        active_tools = request.runtime_context.active_tool_definitions
+        self.capacity_seen = request.environment.model_capacity_units
+        active_tools = request.environment.active_tool_definitions
         self.tool_definitions_seen = list(active_tools) if active_tools is not None else None
         return _FakeAssemblyOutput(
             messages=["fake-context"],
@@ -172,7 +171,7 @@ def test_invocation_context_uses_injected_context_assembler() -> None:
 
 
 @pytest.mark.parametrize("phase", ["final_response_generation", "json_repair"])
-def test_terminal_invocations_hide_tools_from_context_assembly_and_restore_state(
+def test_disabled_tool_invocations_hide_tools_without_mutating_runtime_state(
     phase: str,
 ) -> None:
     assembler = _FakeContextAssembler()
@@ -196,6 +195,7 @@ def test_terminal_invocations_hide_tools_from_context_assembly_and_restore_state
             invocation_id=uuid4(),
             messages=[HumanMessage(content="original")],
             phase=phase,
+            tool_selection_mode="none",
         )
     finally:
         current_execution.reset(token)
@@ -206,7 +206,7 @@ def test_terminal_invocations_hide_tools_from_context_assembly_and_restore_state
     ]
 
 
-def test_invocation_runtime_state_is_restored_when_context_assembler_fails() -> None:
+def test_invocation_runtime_state_is_not_mutated_when_context_assembler_fails() -> None:
     context = new_execution_context()
     context.run_id = uuid4()
     context.project_id = uuid4()

@@ -66,9 +66,9 @@ def _message_line(message: Any) -> str:
 def _effective_usable_units(
     request: ContextInspectionRequest,
 ) -> int | None:
-    capacity = getattr(request.runtime_context, "model_capacity_units", None)
+    capacity = getattr(request.environment, "model_capacity_units", None)
     capacity = capacity if isinstance(capacity, int) and capacity > 0 else None
-    reserved = getattr(request.runtime_context, "reserved_output_units", None)
+    reserved = getattr(request.environment, "reserved_output_units", None)
     reserved = reserved if isinstance(reserved, int) and reserved >= 0 else 0
     runtime_reserve = int(request.policy.budget.runtime_reserve_units or 0)
     model_usable = (
@@ -159,7 +159,7 @@ class StandardContextAssembler:
             ContextInspectionRequest(
                 messages=request.messages,
                 contributions=request.contributions,
-                runtime_context=request.runtime_context,
+                environment=request.environment,
                 policy=request.policy,
             )
         )
@@ -303,7 +303,7 @@ class StandardContextAssembler:
             project_id=request.project_id,
             provider=request.provider,
             model=request.model,
-            runtime_context=request.runtime_context,
+            environment=request.environment,
             policy=request.policy,
         )
 

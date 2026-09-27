@@ -52,14 +52,14 @@ def _json(value: Any) -> str:
         return str(value)
 
 
-def _external_context_message(runtime_context: Any, messages: list[Any]) -> Any | None:
-    if runtime_context is None:
+def _external_context_message(environment: Any, messages: list[Any]) -> Any | None:
+    if environment is None:
         return None
-    raw_values = getattr(runtime_context, "model_external_context", None)
+    raw_values = getattr(environment, "model_external_context", None)
     if not isinstance(raw_values, dict) or not raw_values:
         return None
 
-    raw_contract = getattr(runtime_context, "external_context_contract", None)
+    raw_contract = getattr(environment, "external_context_contract", None)
     contract = raw_contract if isinstance(raw_contract, dict) else {}
     payload: dict[str, Any] = {}
     for name, value in raw_values.items():
@@ -378,17 +378,17 @@ def _trim_message_to_units(message: Any, max_units: int) -> tuple[Any, bool]:
 
 def _effective_budget(
     policy: ContextPolicyV1,
-    runtime_context: Any,
+    environment: Any,
 ) -> tuple[int | None, int | None, int, int | None, int | None, int | None]:
     raw_capacity = (
-        getattr(runtime_context, "model_capacity_units", None)
-        if runtime_context
+        getattr(environment, "model_capacity_units", None)
+        if environment
         else None
     )
     capacity = raw_capacity if isinstance(raw_capacity, int) and raw_capacity > 0 else None
     raw_reserved = (
-        getattr(runtime_context, "reserved_output_units", None)
-        if runtime_context
+        getattr(environment, "reserved_output_units", None)
+        if environment
         else None
     )
     reserved = raw_reserved if isinstance(raw_reserved, int) and raw_reserved >= 0 else None
@@ -445,36 +445,36 @@ def _hash_text(text: str) -> str:
 
 def _source_runtime_metadata(
     source: ContextSourceType,
-    runtime_context: Any,
+    environment: Any,
 ) -> dict[str, Any]:
-    if runtime_context is None:
+    if environment is None:
         return {}
     if source == ContextSourceType.KNOWLEDGE:
-        rag = getattr(runtime_context, "rag_metadata", None)
-        sources = getattr(runtime_context, "context_rag_sources", None)
+        rag = getattr(environment, "rag_metadata", None)
+        sources = getattr(environment, "context_rag_sources", None)
         return {
             "rag": dict(rag) if isinstance(rag, dict) else None,
-            "sources": list(sources) if isinstance(sources, list) else [],
+            "sources": list(sources) if isinstance(sources, (list, tuple)) else [],
         }
     if source == ContextSourceType.SESSION:
-        selection = getattr(runtime_context, "context_selection_metadata", None)
+        selection = getattr(environment, "context_selection_metadata", None)
         return dict(selection) if isinstance(selection, dict) else {}
     if source == ContextSourceType.DELEGATION:
         return {
             "network_execution_id": (
-                str(getattr(runtime_context, "network_execution_id", "") or "")
+                str(getattr(environment, "network_execution_id", "") or "")
                 or None
             ),
             "network_invocation_id": (
-                str(getattr(runtime_context, "network_invocation_id", "") or "")
+                str(getattr(environment, "network_invocation_id", "") or "")
                 or None
             ),
             "parent_invocation_id": (
-                str(getattr(runtime_context, "parent_invocation_id", "") or "")
+                str(getattr(environment, "parent_invocation_id", "") or "")
                 or None
             ),
             "network_node_id": (
-                str(getattr(runtime_context, "network_node_id", "") or "")
+                str(getattr(environment, "network_node_id", "") or "")
                 or None
             ),
         }
@@ -490,13 +490,13 @@ def _contribution(
     raw_units: int,
     materialized_units: int,
     transformations: tuple[str, ...],
-    runtime_context: Any,
+    environment: Any,
     policy: ContextPolicyV1,
 ) -> ContextContribution:
     metadata = _context_metadata(message)
     source_ref = metadata.get("source_ref")
     parent_ref = metadata.get("parent_ref")
-    runtime_metadata = _source_runtime_metadata(source, runtime_context)
+    runtime_metadata = _source_runtime_metadata(source, environment)
     if source_ref is None and source == ContextSourceType.KNOWLEDGE:
         rag = runtime_metadata.get("rag")
         if isinstance(rag, dict):
@@ -505,8 +505,8 @@ def _contribution(
         ContextSourceType.USER_INPUT,
         ContextSourceType.DELEGATION,
     }:
-        source_ref = getattr(runtime_context, "input_message_id", None) or getattr(
-            runtime_context,
+        source_ref = getattr(environment, "input_message_id", None) or getattr(
+            environment,
             "run_id",
             None,
         )
@@ -646,11 +646,11 @@ def assemble_context(
     project_id: UUID,
     provider: str,
     model: str,
-    runtime_context: Any,
+    environment: Any,
     policy: ContextPolicyV1,
 ) -> ContextAssemblyResult:
     working = list(messages)
-    external_context_message = _external_context_message(runtime_context, working)
+    external_context_message = _external_context_message(environment, working)
     if external_context_message is not None:
         insertion = 0
         while (
@@ -661,8 +661,8 @@ def assemble_context(
         working.insert(insertion, external_context_message)
 
     delegated = (
-        bool(getattr(runtime_context, "parent_invocation_id", None))
-        if runtime_context
+        bool(getattr(environment, "parent_invocation_id", None))
+        if environment
         else False
     )
     latest_user_index = None
@@ -785,16 +785,16 @@ def assemble_context(
 
     capacity, reserved, runtime_reserve, model_usable, configured, usable = _effective_budget(
         policy,
-        runtime_context,
+        environment,
     )
     tool_definitions = (
-        getattr(runtime_context, "active_tool_definitions", None)
-        if runtime_context
+        getattr(environment, "active_tool_definitions", None)
+        if environment
         else None
     )
     tool_definition_units = (
         estimate_input_units(tool_definitions)
-        if isinstance(tool_definitions, list) and tool_definitions
+        if isinstance(tool_definitions, (list, tuple)) and tool_definitions
         else 0
     )
     if tool_definition_units:
@@ -983,7 +983,7 @@ def assemble_context(
                 raw_units=raw_units_by_index[index],
                 materialized_units=materialized_units,
                 transformations=tuple(transformations_by_index.get(index, [])),
-                runtime_context=runtime_context,
+                environment=environment,
                 policy=policy,
             )
         )
@@ -1105,13 +1105,13 @@ def assemble_context(
         materialized_payload.append({"tool_definitions": tool_definitions})
     materialized_hash = _hash_text(_json(materialized_payload))
     selection = (
-        getattr(runtime_context, "context_selection_metadata", None)
-        if runtime_context
+        getattr(environment, "context_selection_metadata", None)
+        if environment
         else None
     )
     rag_metadata = (
-        getattr(runtime_context, "rag_metadata", None)
-        if runtime_context
+        getattr(environment, "rag_metadata", None)
+        if environment
         else None
     )
     metrics = {

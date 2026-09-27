@@ -51,7 +51,7 @@ def _tree(path: Path) -> ast.Module:
     return ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
 
 
-def _runtime_context_reads(tree: ast.AST) -> set[str]:
+def _environment_reads(tree: ast.AST) -> set[str]:
     fields: set[str] = set()
     for node in ast.walk(tree):
         if (
@@ -60,7 +60,7 @@ def _runtime_context_reads(tree: ast.AST) -> set[str]:
             and node.func.id == "getattr"
             and len(node.args) >= 2
             and isinstance(node.args[0], ast.Name)
-            and node.args[0].id == "runtime_context"
+            and node.args[0].id == "environment"
             and isinstance(node.args[1], ast.Constant)
             and isinstance(node.args[1].value, str)
         ):
@@ -68,26 +68,23 @@ def _runtime_context_reads(tree: ast.AST) -> set[str]:
         elif (
             isinstance(node, ast.Attribute)
             and isinstance(node.value, ast.Name)
-            and node.value.id == "runtime_context"
+            and node.value.id == "environment"
             and isinstance(node.ctx, ast.Load)
         ):
             fields.add(node.attr)
     return fields
 
 
-def _runtime_context_contract_fields(tree: ast.Module) -> set[str]:
+def _environment_contract_fields(tree: ast.Module) -> set[str]:
     for node in tree.body:
-        if isinstance(node, ast.ClassDef) and node.name == "ContextAssemblyRuntimeContext":
+        if isinstance(node, ast.ClassDef) and node.name == "ContextInvocationEnvironment":
             return {
-                member.name
+                member.target.id
                 for member in node.body
-                if isinstance(member, (ast.FunctionDef, ast.AsyncFunctionDef))
-                and any(
-                    isinstance(decorator, ast.Name) and decorator.id == "property"
-                    for decorator in member.decorator_list
-                )
+                if isinstance(member, ast.AnnAssign)
+                and isinstance(member.target, ast.Name)
             }
-    raise AssertionError("ContextAssemblyRuntimeContext contract is missing")
+    raise AssertionError("ContextInvocationEnvironment contract is missing")
 
 
 def _call_name(node: ast.Call) -> str | None:
@@ -231,14 +228,19 @@ def test_legacy_assemble_context_is_only_consumed_by_standard_adapter() -> None:
     assert not violations, "\n".join(violations)
 
 
-def test_context_assembly_runtime_contract_covers_every_runtime_state_read() -> None:
-    required = _runtime_context_reads(_tree(_CONTEXT_ASSEMBLY))
-    declared = _runtime_context_contract_fields(_tree(_CONTEXT_ASSEMBLER_CONTRACT))
+def test_context_invocation_environment_covers_every_context_assembly_read() -> None:
+    required = _environment_reads(_tree(_CONTEXT_ASSEMBLY))
+    declared = _environment_contract_fields(_tree(_CONTEXT_ASSEMBLER_CONTRACT))
     missing = sorted(required - declared)
 
     assert not missing, (
-        "ContextAssemblyRuntimeContext is missing fields read by context_assembly.py: "
+        "ContextInvocationEnvironment is missing fields read by context_assembly.py: "
         + ", ".join(missing)
+    )
+    source = _CONTEXT_ASSEMBLY.read_text(encoding="utf-8")
+    assert "current_execution" not in source
+    assert "ContextAssemblyRuntimeContext" not in _CONTEXT_ASSEMBLER_CONTRACT.read_text(
+        encoding="utf-8"
     )
 
 
