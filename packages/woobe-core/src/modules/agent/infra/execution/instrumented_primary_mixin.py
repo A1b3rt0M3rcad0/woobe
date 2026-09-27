@@ -12,9 +12,9 @@ from modules.agent.application.execution_strategy_config import (
 from modules.agent.application.runtime_output_validation import (
     ensure_model_result_has_public_output,
 )
-from modules.agent.application.interfaces.context_assembler import (
-    ContextAssembler,
-    context_assembler_key_from_runtime_config,
+from modules.agent.application.interfaces.context_manager import (
+    ContextManager,
+    context_manager_key_from_runtime_config,
 )
 from modules.agent.application.interfaces.embedding_errors import EmbeddingProviderError
 from modules.agent.application.interfaces.execution import (
@@ -51,7 +51,7 @@ class _PrimaryExecutionHost(Protocol):
     _llm_factory: Any
     _rag_runtime: Any
     _transactions: AgentRuntimeTransactionRunner
-    _context_assembler: ContextAssembler | None
+    _context_manager: ContextManager | None
     _execution_strategy_resolver: ExecutionStrategyResolver | None
     async def _execute_single_tool(self, tool_call: dict, tool_id: str) -> dict: ...
     def _clean_json_answer(self, answer: str) -> str: ...
@@ -79,15 +79,15 @@ def _copy_http_route_metadata(payload: dict[str, Any]) -> None:
 
 
 class InstrumentedPrimaryExecutionMixin:
-    _context_assembler: ContextAssembler | None = None
+    _context_manager: ContextManager | None = None
     _execution_strategy_resolver: ExecutionStrategyResolver | None = None
     _rag_runtime: RAGRuntimeAdapter | None = None
 
     def configure_rag_runtime(self, adapter: RAGRuntimeAdapter) -> None:
         self._rag_runtime = adapter
 
-    def configure_context_assembler(self, assembler: ContextAssembler) -> None:
-        self._context_assembler = assembler
+    def configure_context_manager(self, assembler: ContextManager) -> None:
+        self._context_manager = assembler
 
     def configure_execution_strategy_resolver(
         self,
@@ -186,9 +186,9 @@ class InstrumentedPrimaryExecutionMixin:
             "agent_release_id": str(context.agent_release_id) if context and context.agent_release_id else None,
             "agent_release_version": context.agent_release_version if context else None,
             "execution_strategy": context.execution_strategy if context else None,
-            "context_assembler": (
-                {"name": context.context_assembler_name}
-                if context and context.context_assembler_name
+            "context_manager": (
+                {"name": context.context_manager_name}
+                if context and context.context_manager_name
                 else None
             ),
             "rag_metadata": rag_metadata or None,
@@ -247,11 +247,11 @@ class InstrumentedPrimaryExecutionMixin:
             settings = getattr(agent, "settings", None)
             settings = settings if isinstance(settings, dict) else {}
             runtime_config = settings.get("runtime_config")
-            assembler_key = context_assembler_key_from_runtime_config(runtime_config)
+            manager_key = context_manager_key_from_runtime_config(runtime_config)
             context.execution_strategy = execution_strategy_from_runtime_config(
                 runtime_config
             )
-            context.context_assembler_name = assembler_key.name
+            context.context_manager_name = manager_key.name
             context.project_id = getattr(agent, "project_id", None)
             context.agent_id = getattr(agent, "id", None)
             context.session_id = getattr(session, "id", None) if session else None
@@ -334,7 +334,7 @@ class InstrumentedPrimaryExecutionMixin:
             execution = await strategy.execute(
                 ExecutionStrategyRequest(
                     llm_factory=host._llm_factory,
-                    context_assembler=host._context_assembler,
+                    context_assembler=host._context_manager,
                     execute_single_tool=host._execute_single_tool,
                     clean_json_answer=host._clean_json_answer,
                     agent=agent,
