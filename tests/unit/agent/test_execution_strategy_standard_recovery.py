@@ -3,7 +3,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
-from langchain_core.messages import AIMessage, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from modules.agent.application.dtos.runtime_dtos import SourceInfo
 
@@ -92,7 +92,11 @@ def _request(
             }
         ],
         tool_name_to_id={"lookup": "tool-id"},
-        messages=[],
+        messages=(
+            [HumanMessage(content=knowledge_query)]
+            if knowledge_query
+            else []
+        ),
         context_assembler=None,
         knowledge_retrieve=knowledge_retrieve,
         knowledge_query=knowledge_query,
@@ -146,6 +150,7 @@ async def test_standard_strategy_resumes_generic_checkpoint_without_replaying_to
         "tool_round": 1,
         "consecutive_failures": 0,
         "knowledge_resolved": True,
+        "preflight_resolved": True,
         "stop_reason": None,
     }
     assert captured["state"]["strategy_cursor"]["next_call_index"] == 2
