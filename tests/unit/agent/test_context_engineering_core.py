@@ -52,7 +52,7 @@ def _assemble(messages, *, policy=None, environment=None):
         project_id=uuid4(),
         provider="openai",
         model="test-model",
-        environment=runtime_context or _runtime_context(),
+        environment=environment or _runtime_context(),
         policy=policy or ContextPolicyV1(),
     )
 
