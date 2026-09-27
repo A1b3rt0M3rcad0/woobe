@@ -157,7 +157,7 @@ class ContextManagedContribution:
     source_type: str
     content: Any
     metadata: Mapping[str, Any] = field(default_factory=dict)
-    replaces_message_indexes: tuple[int, ...] = ()
+    replaces_message_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
