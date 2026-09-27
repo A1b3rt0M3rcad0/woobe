@@ -241,16 +241,16 @@ class RuntimeStrategyContextManager:
 
     def _apply_replacements(self, messages: list[Any]) -> list[Any]:
         replaced = {
-            index
-            for indexes in self._runtime_state.context_replacements.values()
-            for index in indexes
+            message_id
+            for message_ids in self._runtime_state.context_replacements.values()
+            for message_id in message_ids
         }
         if not replaced:
             return list(messages)
         return [
             message
-            for index, message in enumerate(messages)
-            if index not in replaced
+            for message in messages
+            if str(getattr(message, "id", "") or "") not in replaced
         ]
 
     def inspect(self) -> StrategyContextInspection:
