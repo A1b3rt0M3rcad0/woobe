@@ -4,8 +4,6 @@ from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Mapping
 
 from modules.agent.application.dtos.runtime_dtos import SourceInfo
-from modules.agent.application.interfaces.execution_context import current_execution
-from modules.agent.application.strategy_sdk import StrategyKnowledgeQueryPolicy
 
 
 KnowledgeRetrieveFn = Callable[[str], Awaitable[Any]]
@@ -29,13 +27,6 @@ class KnowledgeRetrievalCapability:
     query_mode: str = "conversation_context"
     history_turns: int = 3
 
-    @property
-    def query_policy(self) -> StrategyKnowledgeQueryPolicy:
-        return StrategyKnowledgeQueryPolicy(
-            mode=self.query_mode,
-            history_turns=self.history_turns,
-        )
-
     async def retrieve(self, *, query: str | None = None) -> KnowledgeRetrievalResult:
         effective_query = query if query is not None else self.default_query
         if self.retrieve_fn is None or not effective_query:
@@ -55,10 +46,6 @@ class KnowledgeRetrievalCapability:
         metrics = getattr(raw, "metrics", None)
         if isinstance(metrics, Mapping):
             metadata.update(metrics)
-        context = current_execution.get()
-        if context is not None and isinstance(context.rag_metadata, dict):
-            metadata = {**context.rag_metadata, **metadata}
-
         return KnowledgeRetrievalResult(
             content=content if isinstance(content, str) else None,
             sources=sources,
