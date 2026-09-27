@@ -99,6 +99,6 @@ stdcm
 
 `stdcm` is the built-in Standard Context Manager and the system default. It supports Skills, pressure inspection, model-assisted summarize-and-replace compaction, deterministic budgeting, ordering, deduplication, provenance and final Context materialization.
 
-Alternative algorithms use different names rather than `stdcm:v2`, `stdcm:v3` or similar identities.
+Alternative algorithms use different names.
 
 See [Agent Skills](../../../../../../../docs/skills/README.md) for Skill package and runtime contracts.

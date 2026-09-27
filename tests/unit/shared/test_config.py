@@ -72,8 +72,8 @@ def test_default_context_manager_is_loaded_from_environment(
 @pytest.mark.parametrize(
     "value",
     [
-        "stdcm:v1",
-        "default:v1",
+        "stdcm:legacy",
+        "adaptive:legacy",
         "adaptive:v2",
         ":",
     ],

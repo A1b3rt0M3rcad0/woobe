@@ -193,7 +193,7 @@ def test_builder_rejects_versioned_default_manager_name() -> None:
         InvalidDefaultContextManagerError,
         match="registered Context Manager name",
     ):
-        build_context_assembler_registry("stdcm:v1")
+        build_context_assembler_registry("stdcm:legacy")
 
 
 def test_registry_dispatcher_resolves_manager_by_runtime_name() -> None:
@@ -291,7 +291,7 @@ def test_context_assembler_key_is_name_only() -> None:
     assert str(ContextAssemblerKey(" adaptive ")) == "adaptive"
 
     with pytest.raises(ValueError, match="plain name"):
-        ContextAssemblerKey.parse("stdcm:v1")
+        ContextAssemblerKey.parse("stdcm:legacy")
 
     with pytest.raises(ValueError, match="must not be empty"):
         ContextAssemblerKey(" ")

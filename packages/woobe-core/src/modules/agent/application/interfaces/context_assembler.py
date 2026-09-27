@@ -107,14 +107,6 @@ def context_assembler_key_from_runtime_config(value: object) -> ContextAssembler
     return ContextAssemblerKey(name=name)
 
 
-def context_assembler_strategy_key_from_runtime_config(
-    value: object,
-) -> ContextAssemblerKey:
-    """Compatibility helper: the selected manager name is the strategy identity."""
-
-    return context_assembler_key_from_runtime_config(value)
-
-
 class ContextAssemblyRuntimeContext(Protocol):
     """Read-only attribute surface consumed by Context Assembly.
 
