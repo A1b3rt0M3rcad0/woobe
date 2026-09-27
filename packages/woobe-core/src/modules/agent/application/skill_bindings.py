@@ -39,7 +39,10 @@ def validate_skill_context(
 ) -> None:
     if not any(item.enabled for item in bindings):
         return
-    manager = context_assembler_key_from_runtime_config(runtime_config)
+    try:
+        manager = context_assembler_key_from_runtime_config(runtime_config)
+    except ValueError as exc:
+        raise ValidationError(str(exc)) from exc
     if str(manager) != "stdcm":
         raise ValidationError("Enabled Skills require Standard Context Manager")
     policy = resolve_context_policy(runtime_config)
