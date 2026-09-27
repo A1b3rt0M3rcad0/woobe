@@ -216,7 +216,7 @@ class RuntimeStrategyContextManager:
                 source_type=item.source_type,
                 content=item.content,
                 metadata=dict(item.metadata),
-                replaces_message_indexes=self._runtime_state.context_replacements.get(
+                replaces_message_ids=self._runtime_state.context_replacements.get(
                     item.key,
                     (),
                 ),
@@ -280,7 +280,7 @@ class RuntimeStrategyContextManager:
             )
             self._runtime_state.context_contributions[item.key] = contribution
             self._runtime_state.context_replacements[item.key] = (
-                item.replaces_message_indexes
+                item.replaces_message_ids
             )
             upserted.append(item.key)
 
