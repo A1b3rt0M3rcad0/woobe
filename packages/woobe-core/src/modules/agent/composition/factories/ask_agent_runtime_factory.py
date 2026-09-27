@@ -96,7 +96,7 @@ def _build_runtime_components(
     return transactions, tool_runtime
 
 
-def _resolve_context_assembler(
+def _resolve_context_manager(
     settings: Settings,
     context_assembler: ContextManager | None,
 ) -> ContextManager:
@@ -156,8 +156,8 @@ def _build_agent_runtime(
         encryption_key=settings.encryption_key,
         tool_executor_factory=tool_runtime.execute_tool,
     )
-    runtime.configure_context_assembler(
-        _resolve_context_assembler(settings, context_assembler)
+    runtime.configure_context_manager(
+        _resolve_context_manager(settings, context_assembler)
     )
     _configure_agent_runtime_dependencies(
         runtime,
@@ -212,8 +212,8 @@ def build_agent_run_recovery_executor(
         encryption_key=settings.encryption_key,
         tool_executor_factory=tool_runtime.execute_tool,
     )
-    runtime.configure_context_assembler(
-        _resolve_context_assembler(settings, context_assembler)
+    runtime.configure_context_manager(
+        _resolve_context_manager(settings, context_assembler)
     )
     runtime.configure_recovery_tool_runtime(
         tool_from_snapshot=tool_from_release_snapshot,
