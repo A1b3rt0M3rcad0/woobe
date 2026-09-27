@@ -31,7 +31,6 @@ from modules.agent.application.interfaces.context_assembler import (
     ContextInspectionOutput,
     ContextInspectionRequest,
     ContextManagerCapabilities,
-    context_assembler_selection_from_runtime_config,
 )
 from modules.agent.application.interfaces.context_policy import ContextPolicyV1
 from shared.contracts.errors import ValidationError
@@ -67,7 +66,6 @@ def _descriptor(
 ) -> ContextAssemblerDescriptor:
     return ContextAssemblerDescriptor(
         key=key,
-        strategy_key=key,
         display_name=display_name,
         description="Alternate context manager used by tests.",
         behavior="Assembles test context deterministically.",
@@ -78,93 +76,48 @@ def _descriptor(
     )
 
 
-def test_default_registry_exposes_default_alias_and_explicit_standard_strategy() -> None:
+def test_default_registry_exposes_only_named_standard_manager() -> None:
     registry = build_context_assembler_registry()
     descriptors = registry.list_descriptors()
 
-    assert DEFAULT_CONTEXT_ASSEMBLER_KEY == ContextAssemblerKey("default", "v1")
-    assert STANDARD_CONTEXT_ASSEMBLER_KEY == ContextAssemblerKey("stdcm", "v1")
+    assert DEFAULT_CONTEXT_ASSEMBLER_KEY == ContextAssemblerKey("stdcm")
+    assert STANDARD_CONTEXT_ASSEMBLER_KEY == ContextAssemblerKey("stdcm")
     assert [descriptor.key for descriptor in descriptors] == [
-        ContextAssemblerKey("default", "v3"),
-        STANDARD_CONTEXT_ASSEMBLER_KEY,
-        ContextAssemblerKey("stdcm", "v2"),
-        ContextAssemblerKey("stdcm", "v3"),
+        ContextAssemblerKey("stdcm"),
     ]
 
-    system_default, explicit_standard, skills_standard, programmable_standard = descriptors
-    assert system_default.strategy_key == ContextAssemblerKey("stdcm", "v3")
-    assert system_default.display_name == "Standard Context Manager v3"
-    assert system_default.supports_skills is True
-    assert system_default.is_default is True
-    assert system_default.is_system_default_alias is True
-
-    assert explicit_standard.strategy_key == STANDARD_CONTEXT_ASSEMBLER_KEY
-    assert explicit_standard.display_name == "Standard Context Manager"
-    assert explicit_standard.is_default is False
-    assert explicit_standard.is_system_default_alias is False
-
-    assert skills_standard.key == ContextAssemblerKey("stdcm", "v2")
-    assert skills_standard.supports_skills is True
-    assert programmable_standard.key == ContextAssemblerKey("stdcm", "v3")
-    assert programmable_standard.supports_skills is True
+    standard = descriptors[0]
+    assert standard.display_name == "Standard Context Manager"
+    assert standard.supports_skills is True
+    assert standard.is_default is True
 
 
-def test_default_alias_and_explicit_strategy_resolve_same_standard_implementation() -> None:
-    registry = build_context_assembler_registry()
+def test_catalog_has_no_version_or_strategy_alias_fields() -> None:
+    descriptors = list_context_assemblers()
 
-    default_assembler = registry.create(DEFAULT_CONTEXT_ASSEMBLER_KEY)
-    explicit_assembler = registry.create(STANDARD_CONTEXT_ASSEMBLER_KEY)
-
-    assert isinstance(default_assembler, StandardContextAssembler)
-    assert isinstance(explicit_assembler, StandardContextAssembler)
-    assert isinstance(default_assembler, ContextAssembler)
-    assert default_assembler is not explicit_assembler
-
-
-def test_default_registry_exposes_backend_owned_product_metadata_for_both_selections() -> None:
-    descriptors = {
-        (item["name"], item["version"]): item
-        for item in list_context_assemblers()
-    }
-
-    assert set(descriptors) == {
-        ("default", "v3"),
-        ("stdcm", "v1"),
-        ("stdcm", "v2"),
-        ("stdcm", "v3"),
-    }
-
-    system_default = descriptors[("default", "v3")]
-    assert system_default["strategy_name"] == "stdcm"
-    assert system_default["strategy_version"] == "v3"
-    assert system_default["display_name"] == "Standard Context Manager v3"
-    assert system_default["supports_skills"] is True
-    assert system_default["is_default"] is True
-    assert system_default["is_system_default_alias"] is True
-
-    explicit_v1 = descriptors[("stdcm", "v1")]
-    assert explicit_v1["strategy_version"] == "v1"
-    assert explicit_v1["display_name"] == "Standard Context Manager"
-    assert explicit_v1["supports_skills"] is False
-    assert explicit_v1["is_default"] is False
-
-    programmable_v3 = descriptors[("stdcm", "v3")]
-    assert programmable_v3["strategy_version"] == "v3"
-    assert programmable_v3["supports_skills"] is True
-    assert "compaction" in str(programmable_v3["behavior"]).lower()
+    assert len(descriptors) == 1
+    standard = descriptors[0]
+    assert standard["name"] == "stdcm"
+    assert standard["is_default"] is True
+    assert standard["supports_skills"] is True
+    assert "compaction" in str(standard["behavior"]).lower()
+    assert "version" not in standard
+    assert "strategy_name" not in standard
+    assert "strategy_version" not in standard
+    assert "is_system_default_alias" not in standard
 
 
-def test_build_context_assembler_resolves_through_fresh_registry() -> None:
-    first = build_context_assembler(DEFAULT_CONTEXT_ASSEMBLER_KEY)
-    second = build_context_assembler(DEFAULT_CONTEXT_ASSEMBLER_KEY)
+def test_build_context_assembler_resolves_stdcm_through_fresh_registry() -> None:
+    first = build_context_assembler(ContextAssemblerKey("stdcm"))
+    second = build_context_assembler(ContextAssemblerKey("stdcm"))
 
-    assert isinstance(first, StandardContextAssembler)
-    assert isinstance(second, StandardContextAssembler)
+    assert isinstance(first, ContextAssembler)
+    assert isinstance(second, ContextAssembler)
     assert first is not second
 
 
-def test_registry_accepts_structural_context_assembler_factory() -> None:
-    key = ContextAssemblerKey("alternate", "v1")
+def test_registry_accepts_structural_context_manager_factory() -> None:
+    key = ContextAssemblerKey("adaptive")
     registry = ContextAssemblerRegistry()
     registry.register(key, _AlternateContextAssembler, descriptor=_descriptor(key))
 
@@ -172,14 +125,6 @@ def test_registry_accepts_structural_context_assembler_factory() -> None:
 
     assert isinstance(assembler, ContextAssembler)
     assert isinstance(assembler, _AlternateContextAssembler)
-
-
-def test_registry_requires_explicit_product_metadata() -> None:
-    key = ContextAssemblerKey("alternate", "v1")
-    registry = ContextAssemblerRegistry()
-
-    with pytest.raises(TypeError, match="descriptor"):
-        registry.register(key, _AlternateContextAssembler)  # type: ignore[call-arg]
 
 
 @pytest.mark.parametrize(
@@ -195,11 +140,10 @@ def test_registry_requires_explicit_product_metadata() -> None:
     ],
 )
 def test_descriptor_rejects_incomplete_product_metadata(field: str, value: object) -> None:
-    key = ContextAssemblerKey("alternate", "v1")
+    key = ContextAssemblerKey("adaptive")
     values: dict[str, object] = {
         "key": key,
-        "strategy_key": key,
-        "display_name": "Alternate Context Manager",
+        "display_name": "Adaptive Context Manager",
         "description": "Description",
         "behavior": "Behavior",
         "recommended_for": ("General use",),
@@ -213,76 +157,54 @@ def test_descriptor_rejects_incomplete_product_metadata(field: str, value: objec
         ContextAssemblerDescriptor(**values)  # type: ignore[arg-type]
 
 
-def test_registry_can_make_any_registered_strategy_the_system_default() -> None:
-    key = ContextAssemblerKey("adaptive", "v2")
+def test_registry_can_make_any_registered_manager_the_system_default() -> None:
+    key = ContextAssemblerKey("adaptive")
     registry = ContextAssemblerRegistry()
     registry.register(key, _AlternateContextAssembler, descriptor=_descriptor(key))
 
-    alias_key = registry.register_default_alias(strategy_key=key)
+    registry.set_default(key)
     descriptor = registry.current_default()
 
-    assert alias_key == ContextAssemblerKey("default", "v2")
-    assert descriptor.key == alias_key
-    assert descriptor.strategy_key == key
+    assert descriptor.key == key
     assert descriptor.is_default is True
-    assert descriptor.is_system_default_alias is True
-    assert isinstance(registry.create(alias_key), _AlternateContextAssembler)
+    assert isinstance(registry.create(key), _AlternateContextAssembler)
 
 
-def test_registry_reserves_default_name_for_system_alias() -> None:
-    key = ContextAssemblerKey("default", "v7")
-    registry = ContextAssemblerRegistry()
-
-    with pytest.raises(ValueError, match="reserved"):
-        registry.register(key, _AlternateContextAssembler, descriptor=_descriptor(key))
-
-
-def test_registry_rejects_default_alias_for_unregistered_strategy() -> None:
+def test_registry_rejects_unregistered_default() -> None:
     registry = ContextAssemblerRegistry()
 
     with pytest.raises(
         InvalidDefaultContextManagerError,
-        match="not registered: adaptive:v1",
+        match="not registered: adaptive",
     ):
-        registry.register_default_alias(strategy_key=ContextAssemblerKey("adaptive", "v1"))
+        registry.set_default(ContextAssemblerKey("adaptive"))
 
 
-def test_registry_rejects_more_than_one_system_default() -> None:
-    standard = ContextAssemblerKey("standard", "v1")
-    adaptive = ContextAssemblerKey("adaptive", "v2")
-    registry = ContextAssemblerRegistry()
-    registry.register(standard, _AlternateContextAssembler, descriptor=_descriptor(standard))
-    registry.register(adaptive, _AlternateContextAssembler, descriptor=_descriptor(adaptive))
-    registry.register_default_alias(strategy_key=standard)
-
-    with pytest.raises(InvalidDefaultContextManagerError, match="already registered"):
-        registry.register_default_alias(strategy_key=adaptive)
-
-
-def test_builder_rejects_unregistered_configured_default_strategy() -> None:
+def test_builder_rejects_unregistered_configured_default_manager() -> None:
     with pytest.raises(
         InvalidDefaultContextManagerError,
-        match="not registered: adaptive:v1",
+        match="not registered: adaptive",
     ):
-        build_context_assembler_registry("adaptive:v1")
+        build_context_assembler_registry("adaptive")
 
 
-def test_builder_rejects_default_alias_as_configured_strategy() -> None:
+def test_builder_rejects_versioned_default_manager_name() -> None:
     with pytest.raises(
         InvalidDefaultContextManagerError,
-        match="concrete strategy",
+        match="registered Context Manager name",
     ):
-        build_context_assembler_registry("default:v1")
+        build_context_assembler_registry("stdcm:v1")
 
 
-def test_registry_dispatcher_resolves_frozen_strategy_identity() -> None:
-    key = ContextAssemblerKey("alternate", "v1")
+def test_registry_dispatcher_resolves_manager_by_runtime_name() -> None:
+    key = ContextAssemblerKey("adaptive")
     registry = ContextAssemblerRegistry()
     registry.register(
         key,
         _AlternateContextAssembler,
         descriptor=_descriptor(key),
     )
+    registry.set_default(key)
     dispatcher = RegistryContextAssembler(registry)
     request = ContextAssemblyRequest(
         messages=["hello"],
@@ -291,12 +213,7 @@ def test_registry_dispatcher_resolves_frozen_strategy_identity() -> None:
         project_id=uuid4(),
         provider="test",
         model="test-model",
-        runtime_context=SimpleNamespace(
-            context_assembler_name="default",
-            context_assembler_version="v1",
-            context_assembler_strategy_name="alternate",
-            context_assembler_strategy_version="v1",
-        ),
+        runtime_context=SimpleNamespace(context_assembler_name="adaptive"),
         policy=ContextPolicyV1(),
     )
 
@@ -305,139 +222,59 @@ def test_registry_dispatcher_resolves_frozen_strategy_identity() -> None:
     assert output.messages == ["hello"]
 
 
-def test_registry_dispatcher_preserves_legacy_default_v1_behavior() -> None:
-    registry = ContextAssemblerRegistry()
-    registry.register(
-        STANDARD_CONTEXT_ASSEMBLER_KEY,
-        _AlternateContextAssembler,
-        descriptor=_descriptor(STANDARD_CONTEXT_ASSEMBLER_KEY),
-    )
-    dispatcher = RegistryContextAssembler(registry)
-    request = ContextAssemblyRequest(
-        messages=["legacy"],
-        model_invocation_id=uuid4(),
-        agent_run_id=uuid4(),
-        project_id=uuid4(),
-        provider="test",
-        model="test-model",
-        runtime_context=SimpleNamespace(
-            context_assembler_name="default",
-            context_assembler_version="v1",
-            context_assembler_strategy_name=None,
-            context_assembler_strategy_version=None,
-        ),
-        policy=ContextPolicyV1(),
-    )
-
-    output = dispatcher.assemble(request)
-
-    assert output.messages == ["legacy"]
-
-
-def test_new_agent_canonicalization_freezes_system_default_and_strategy() -> None:
+def test_new_agent_canonicalization_stores_only_manager_name() -> None:
     assert canonicalize_context_assembler_runtime_config(
         {"other": True},
         use_current_default_if_missing=True,
     ) == {
         "other": True,
-        "context_assembler": {
-            "name": "default",
-            "version": "v3",
-            "strategy_name": "stdcm",
-            "strategy_version": "v3",
-        },
+        "context_assembler": {"name": "stdcm"},
     }
 
 
-def test_legacy_runtime_config_without_selection_keeps_original_default_behavior() -> None:
+def test_runtime_config_without_selection_uses_stdcm() -> None:
     assert canonicalize_context_assembler_runtime_config({"other": True}) == {
         "other": True,
-        "context_assembler": {
-            "name": "default",
-            "version": "v1",
-            "strategy_name": "stdcm",
-            "strategy_version": "v1",
-        },
+        "context_assembler": {"name": "stdcm"},
     }
 
 
-def test_explicit_strategy_selection_freezes_same_selection_and_strategy_identity() -> None:
-    result = canonicalize_context_assembler_runtime_config(
-        {
-            "context_assembler": {
-                "name": "stdcm",
-                "version": "v1",
-            }
-        }
-    )
-
-    assert result["context_assembler"] == {
-        "name": "stdcm",
-        "version": "v1",
-        "strategy_name": "stdcm",
-        "strategy_version": "v1",
-    }
-
-
-def test_frozen_default_selection_keeps_its_resolved_strategy() -> None:
-    selection = context_assembler_selection_from_runtime_config(
-        {
-            "context_assembler": {
-                "name": "default",
-                "version": "v1",
-                "strategy_name": "adaptive",
-                "strategy_version": "v1",
-            }
-        }
-    )
-
-    assert selection.selection_key == ContextAssemblerKey("default", "v1")
-    assert selection.strategy_key == ContextAssemblerKey("adaptive", "v1")
-
-
-def test_default_selection_version_must_match_frozen_strategy_version() -> None:
-    with pytest.raises(ValidationError, match="selection version must match"):
+def test_runtime_config_rejects_version_and_strategy_alias_fields() -> None:
+    with pytest.raises(ValidationError, match="supports only the 'name' field"):
         canonicalize_context_assembler_runtime_config(
-            {
-                "context_assembler": {
-                    "name": "default",
-                    "version": "v2",
-                    "strategy_name": "stdcm",
-                    "strategy_version": "v1",
-                }
-            }
+            {"context_assembler": {"name": "stdcm", "version": "v1"}}
         )
 
 
-def test_runtime_config_rejects_unregistered_strategy() -> None:
+def test_runtime_config_rejects_unregistered_manager() -> None:
     with pytest.raises(
         ValidationError,
-        match="Unsupported context assembler strategy: missing:v1",
+        match="Unsupported context assembler: missing",
     ):
         canonicalize_context_assembler_runtime_config(
-            {"context_assembler": {"name": "missing", "version": "v1"}}
+            {"context_assembler": {"name": "missing"}}
         )
 
 
 def test_registry_rejects_duplicate_identity() -> None:
-    key = ContextAssemblerKey("adaptive", "v1")
+    key = ContextAssemblerKey("adaptive")
     registry = ContextAssemblerRegistry()
     descriptor = _descriptor(key)
     registry.register(key, _AlternateContextAssembler, descriptor=descriptor)
 
-    with pytest.raises(DuplicateContextAssemblerError, match="adaptive:v1"):
+    with pytest.raises(DuplicateContextAssemblerError, match="adaptive"):
         registry.register(key, _AlternateContextAssembler, descriptor=descriptor)
 
 
 def test_registry_rejects_unknown_identity() -> None:
-    registry = ContextAssemblerRegistry()
+    registry = build_context_assembler_registry()
 
-    with pytest.raises(UnknownContextAssemblerError, match="missing:v3"):
-        registry.create(ContextAssemblerKey("missing", "v3"))
+    with pytest.raises(UnknownContextAssemblerError, match="missing"):
+        registry.create(ContextAssemblerKey("missing"))
 
 
 def test_registry_rejects_incompatible_factory_result() -> None:
-    key = ContextAssemblerKey("invalid", "v1")
+    key = ContextAssemblerKey("invalid")
     registry = ContextAssemblerRegistry()
     registry.register(
         key,
@@ -445,38 +282,16 @@ def test_registry_rejects_incompatible_factory_result() -> None:
         descriptor=_descriptor(key),
     )
 
-    with pytest.raises(InvalidContextAssemblerFactoryError, match="invalid:v1"):
+    with pytest.raises(InvalidContextAssemblerFactoryError, match="invalid"):
         registry.create(key)
 
 
-@pytest.mark.parametrize(
-    ("name", "version", "message"),
-    [
-        (" ", "v1", "name"),
-        ("default", " ", "version"),
-    ],
-)
-def test_context_assembler_key_rejects_empty_identity_parts(
-    name: str,
-    version: str,
-    message: str,
-) -> None:
-    with pytest.raises(ValueError, match=message):
-        ContextAssemblerKey(name=name, version=version)
+def test_context_assembler_key_is_name_only() -> None:
+    assert ContextAssemblerKey.parse(" stdcm ") == ContextAssemblerKey("stdcm")
+    assert str(ContextAssemblerKey(" adaptive ")) == "adaptive"
 
+    with pytest.raises(ValueError, match="plain name"):
+        ContextAssemblerKey.parse("stdcm:v1")
 
-def test_context_assembler_key_normalizes_surrounding_whitespace() -> None:
-    key = ContextAssemblerKey("  adaptive  ", "  v2 ")
-
-    assert key == ContextAssemblerKey("adaptive", "v2")
-    assert str(key) == "adaptive:v2"
-
-
-def test_context_assembler_key_parses_environment_setting() -> None:
-    assert ContextAssemblerKey.parse(" adaptive:v2 ") == ContextAssemblerKey(
-        "adaptive",
-        "v2",
-    )
-
-    with pytest.raises(ValueError, match="<name>:<version>"):
-        ContextAssemblerKey.parse("adaptive")
+    with pytest.raises(ValueError, match="must not be empty"):
+        ContextAssemblerKey(" ")

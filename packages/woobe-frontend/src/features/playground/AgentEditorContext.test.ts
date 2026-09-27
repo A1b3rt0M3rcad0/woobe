@@ -44,13 +44,8 @@ describe('AgentEditorContext session mode', () => {
 })
 
 describe('AgentEditorContext context manager snapshot', () => {
-  it('preserves the explicit strategy identity in the Agent Draft snapshot', () => {
-    const selection = {
-      name: 'adaptive',
-      version: 'v1',
-      strategy_name: 'adaptive',
-      strategy_version: 'v1',
-    }
+  it('preserves the Context Manager name in the Agent Draft snapshot', () => {
+    const selection = { name: 'adaptive' }
     const state = agentToEditorState({
       ...agent,
       settings: {
@@ -64,14 +59,9 @@ describe('AgentEditorContext context manager snapshot', () => {
     expect((canonicalSnapshot(state).runtime_config as Record<string, unknown>).context_assembler).toEqual(selection)
   })
 
-  it('hydrates the frozen system-default selection and resolved strategy from a release', () => {
+  it('hydrates the Context Manager name from a release', () => {
     const current = agentToEditorState(agent)
-    const selection = {
-      name: 'default',
-      version: 'v1',
-      strategy_name: 'stdcm',
-      strategy_version: 'v1',
-    }
+    const selection = { name: 'stdcm' }
     const state = releaseToEditorState({
       id: 'release-1',
       project_id: 'project-1',

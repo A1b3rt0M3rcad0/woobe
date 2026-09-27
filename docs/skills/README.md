@@ -14,7 +14,7 @@ Both the standalone Inspector and the Network Agent editor expose an explicit **
 
 The Project page is available at `/workspaces/:workspaceId/projects/:projectId/skills`; `/projects/:projectId/skills` uses the existing legacy redirect. Agent links use `?editor=skills`, optionally with `skill_version_id`, to open the requested version for review. Following a link never installs or saves a version implicitly.
 
-Installation selects a registered Context Manager with `supports_skills`. Built-in compatible implementations are **Standard Context Manager v2 (`stdcm:v2`)** and the programmable **Standard Context Manager v3 (`stdcm:v3`)**. New default snapshots use `default:v3 -> stdcm:v3`; historical `stdcm:v1`, `default:v1` and `stdcm:v2` selections retain their frozen behavior. Enabled Skills cannot be saved with an incompatible manager or a policy that excludes SKILL or TOOL. Catalog browsing, creation and import remain available if manager metadata is unavailable; installation stays disabled until compatibility is known.
+Installation selects a registered Context Manager with `supports_skills`. The built-in compatible manager is **Standard Context Manager (`stdcm`)**. Context Managers are identified only by name; alternative management algorithms use different names rather than version suffixes. Enabled Skills cannot be saved with an incompatible manager or a policy that excludes SKILL or TOOL. Catalog browsing, creation and import remain available if manager metadata is unavailable; installation stays disabled until compatibility is known.
 
 ## Package contract
 

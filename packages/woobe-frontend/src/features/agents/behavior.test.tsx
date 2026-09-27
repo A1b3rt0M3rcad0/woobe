@@ -26,7 +26,7 @@ vi.mock('@/features/agents/hooks', async original => ({ ...await original<typeof
   useCreateRelease: () => ({ mutateAsync: fixture.save, isPending: false }),
   useCreateAgent: () => ({ mutateAsync: fixture.create, isPending: false }),
   useKnowledgeVersions: () => ({ data: [] }),
-  useContextAssemblers: () => ({ data: [{ name: 'default', version: 'v1', strategy_name: 'stdcm', strategy_version: 'v1', display_name: 'Standard Context Manager', description: 'General-purpose context assembly.', behavior: '', recommended_for: [], capabilities: [], limitations: [], configuration: '', is_default: true, is_system_default_alias: true, supports_skills: true }], isLoading: false, isPending: false, isError: false }),
+  useContextAssemblers: () => ({ data: [{ name: 'stdcm', display_name: 'Standard Context Manager', description: 'General-purpose context assembly.', behavior: '', recommended_for: [], capabilities: [], limitations: [], configuration: '', is_default: true, supports_skills: true }], isLoading: false, isPending: false, isError: false }),
 }))
 vi.mock('@/features/provider-credentials/hooks', async original => ({ ...await original<typeof import('@/features/provider-credentials/hooks')>(), useCredentials: () => ({ data: fixture.credentials, refetch: vi.fn() }) }))
 vi.mock('@/features/provider-models/hooks', async original => ({ ...await original<typeof import('@/features/provider-models/hooks')>(),

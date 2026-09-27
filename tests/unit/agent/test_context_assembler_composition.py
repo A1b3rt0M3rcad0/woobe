@@ -88,14 +88,14 @@ def test_default_composition_builds_snapshot_aware_dispatcher_with_configured_st
         build_dispatcher,
     )
 
-    settings = Settings.model_validate({"default_context_manager": "stdcm:v3"})
+    settings = Settings.model_validate({"default_context_manager": "stdcm"})
     runtime, _transactions = ask_agent_runtime_factory.build_ask_agent_use_case(
         settings,
         http_executor=MagicMock(),
     )
 
     assert runtime._context_assembler is assembler
-    assert calls == ["stdcm:v3"]
+    assert calls == ["stdcm"]
 
 
 def test_internal_network_agent_runtime_composition_wires_registry_dispatcher() -> None:

@@ -9,7 +9,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from modules.agent.application.context_assembler_registry import build_context_assembler
 from modules.agent.application.context_managers.standard import StandardContextAssembler
-from modules.agent.application.context_managers.standard_v2 import (
+from modules.agent.application.context_managers.standard_skills import (
     StandardSkillsContextAssembler,
 )
 from modules.agent.application.context_assembly import (
@@ -72,7 +72,7 @@ def version():
 
 def runtime_config(version):
     return {
-        "context_assembler": {"name": "stdcm", "version": "v2"},
+        "context_assembler": {"name": "stdcm"},
         "context": {
             "allowed_sources": ["SYSTEM", "USER_INPUT", "SESSION", "TOOL", "SKILL"],
             "skills": {},
@@ -438,7 +438,7 @@ async def test_real_model_loop_activates_visible_skill_only_when_requested(versi
                 HumanMessage(content="Please review"),
             ],
             context_assembler=build_context_assembler(
-                ContextAssemblerKey("stdcm", "v2")
+                ContextAssemblerKey("stdcm")
             ),
         )
         assert [tool_names for tool_names, _messages in observed] == [

@@ -5,7 +5,7 @@ from copy import deepcopy
 from dataclasses import dataclass, replace
 
 from modules.agent.application.context_managers.standard import StandardContextAssembler
-from modules.agent.application.context_managers.standard_v2 import StandardSkillsContextAssembler
+from modules.agent.application.context_managers.standard_skills import StandardSkillsContextAssembler
 from modules.agent.application.interfaces.context_assembler import (
     STANDARD_CONTEXT_ASSEMBLER_KEY,
     ContextAssembler,
