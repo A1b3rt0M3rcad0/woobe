@@ -391,6 +391,8 @@ class InstrumentedPrimaryExecutionMixin:
 
         if context:
             context.execution = execution
+        if execution.suspension is not None:
+            return None, execution.tool_calls, bool(execution.tool_calls), None
         ensure_model_result_has_public_output(execution.result)
         usage, _, _ = aggregate_usage(execution.llm_calls)
         execution.result.usage_metadata = {

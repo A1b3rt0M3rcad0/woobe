@@ -11,6 +11,7 @@ import uuid6
 
 class AgentRunStatus(StrEnum):
     RUNNING = "running"
+    WAITING = "waiting"
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"

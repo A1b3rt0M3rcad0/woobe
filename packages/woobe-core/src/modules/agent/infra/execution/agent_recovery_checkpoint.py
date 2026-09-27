@@ -7,7 +7,10 @@ from typing import Any
 from langchain_core.messages import AIMessage, ToolMessage
 
 from modules.agent.application.dtos.runtime_dtos import SourceInfo, ToolCallInfo
-from modules.agent.application.interfaces.execution import InstrumentedExecution
+from modules.agent.application.interfaces.execution import (
+    ExecutionSuspension,
+    InstrumentedExecution,
+)
 from modules.agent.application.interfaces.execution_context import current_execution
 
 _AGENT_CHECKPOINT_PHASES = {
@@ -68,6 +71,15 @@ def _serialize_execution(execution: InstrumentedExecution) -> dict[str, Any]:
         "failure_context": deepcopy(execution.failure_context),
         "fallback_used": bool(execution.fallback_used),
         "fallback_info": deepcopy(execution.fallback_info),
+        "suspension": (
+            {
+                "reason": execution.suspension.reason,
+                "operation_ref": execution.suspension.operation_ref,
+                "metadata": deepcopy(execution.suspension.metadata),
+            }
+            if execution.suspension is not None
+            else None
+        ),
     }
 
 
@@ -110,6 +122,24 @@ def _restore_execution(value: dict[str, Any]) -> InstrumentedExecution:
         fallback_info=(
             deepcopy(value["fallback_info"])
             if isinstance(value.get("fallback_info"), dict)
+            else None
+        ),
+        suspension=(
+            ExecutionSuspension(
+                reason=str(value["suspension"].get("reason") or ""),
+                operation_ref=(
+                    str(value["suspension"]["operation_ref"])
+                    if value["suspension"].get("operation_ref") is not None
+                    else None
+                ),
+                metadata=(
+                    deepcopy(value["suspension"].get("metadata"))
+                    if isinstance(value["suspension"].get("metadata"), dict)
+                    else None
+                ),
+            )
+            if isinstance(value.get("suspension"), dict)
+            and value["suspension"].get("reason")
             else None
         ),
     )

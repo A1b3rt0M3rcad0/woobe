@@ -12,7 +12,8 @@ from modules.agent.application.interfaces.execution_context import (
     current_execution,
     new_execution_context,
 )
-from modules.agent.domain.enums import Provider, SessionMode
+from modules.agent.domain.enums import Provider, SessionMode, SessionStatus
+from modules.agent.domain.run import AgentRunStatus
 from modules.agent.infra.execution.frozen_snapshot_runtime import (
     FrozenSnapshotStructuredOutputRuntime,
     _messages_to_history,
@@ -135,8 +136,8 @@ class AgentRunRecoveryRuntime(FrozenSnapshotStructuredOutputRuntime):
     @staticmethod
     def _validate_run_identity(run: Any, input_dto: AskInput, context: Any) -> None:
         status = str(_value(getattr(run, "status", None)) or "")
-        if status != "running":
-            raise ConflictError("Agent Run is no longer running")
+        if status not in {"running", "waiting"}:
+            raise ConflictError("Agent Run is not resumable")
         if str(getattr(run, "storage_version", "") or "") != EVENT_JOURNAL_STORAGE_VERSION:
             raise ConflictError("Agent Run is not owned by the event journal")
         if getattr(run, "network_execution_id", None) is not None or getattr(
@@ -276,6 +277,28 @@ class AgentRunRecoveryRuntime(FrozenSnapshotStructuredOutputRuntime):
 
         return await self._transactions.read(read_run)
 
+    async def _mark_resuming(
+        self,
+        accepted: _AcceptedRecoveryRun,
+    ) -> None:
+        async def mark(repositories, _outbox) -> None:
+            run = await repositories.runs.get_by_id(accepted.run_id)
+            if run is None:
+                raise ConflictError("Agent Run no longer exists")
+            if run.status not in {AgentRunStatus.RUNNING, AgentRunStatus.WAITING}:
+                raise ConflictError("Agent Run is not resumable")
+            run.status = AgentRunStatus.RUNNING
+            run.result = None
+            await repositories.runs.save(run)
+
+            if accepted.session_id is not None:
+                session = await repositories.sessions.get_by_id(accepted.session_id)
+                if session is not None and session.status == SessionStatus.WAITING:
+                    session.status = SessionStatus.ACTIVE
+                    await repositories.sessions.update(session)
+
+        await self._transactions.run(mark)
+
     async def _prepare_recovery_material(
         self,
         accepted: _AcceptedRecoveryRun,
@@ -400,6 +423,7 @@ class AgentRunRecoveryRuntime(FrozenSnapshotStructuredOutputRuntime):
             raise RuntimeError("Agent Run recovery context is incomplete")
 
         accepted = await self._read_accepted_run(input_dto)
+        await self._mark_resuming(accepted)
         context.project_id = accepted.project_id
         context.agent_id = accepted.agent_id
         context.session_id = accepted.session_id

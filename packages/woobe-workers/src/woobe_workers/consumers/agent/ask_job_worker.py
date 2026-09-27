@@ -101,7 +101,20 @@ class AskJobWorker:
             return
 
         async with AgentUnitOfWork(self._engine) as uow:
-            await SQLAlchemyAskJobRepository(uow).mark_completed(
+            repository = SQLAlchemyAskJobRepository(uow)
+            if result.status == "waiting":
+                await repository.mark_waiting(
+                    job.id,
+                    result.model_dump(),
+                    result.trace_id,
+                )
+                logger.info(
+                    "Job %s is waiting after %.2fs",
+                    job.id,
+                    time.monotonic() - started_at,
+                )
+                return
+            await repository.mark_completed(
                 job.id,
                 result.model_dump(),
                 result.trace_id,

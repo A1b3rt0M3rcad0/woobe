@@ -157,7 +157,9 @@ class ToolCallInfo(BaseModel):
 
 class AskOutput(BaseModel):
     run_id: UUID | None = None
+    status: str = "completed"
     answer: str
+    suspension: dict | None = None
     session_id: UUID | None = None
     message_id: UUID | None = None
     usage: UsageInfo | None = None

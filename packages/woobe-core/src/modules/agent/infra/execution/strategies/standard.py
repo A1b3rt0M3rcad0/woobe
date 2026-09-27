@@ -236,10 +236,15 @@ class StandardExecutionStrategy(ExecutionStrategy[StandardExecutionState]):
                     raise RuntimeError(
                         "Suspending Tool batch is missing a suspension reason"
                     )
+                state.phase = strategy_phase_with_iteration(
+                    StandardPhase.TOOL_FOLLOWUP,
+                    state.tool_round,
+                )
                 await ctx.checkpoint(ExecutionCheckpointBoundary.TOOL)
                 return Suspended(
                     reason=tool_batch.suspension_reason,
                     operation_ref=tool_batch.operation_ref,
+                    metadata=tool_batch.suspension_metadata,
                 )
 
             state.stop_reason = self.policy.stop_reason(state)

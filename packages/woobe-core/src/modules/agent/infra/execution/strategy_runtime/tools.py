@@ -5,6 +5,7 @@ from modules.agent.application.strategy_sdk import (
     StrategyToolCall,
     StrategyToolSelection,
     StrategyToolSelectionMode,
+    SuspensionReason,
 )
 from modules.agent.infra.execution.capabilities.tool_execution import (
     ToolExecutionCapability,
@@ -53,4 +54,12 @@ class RuntimeStrategyTools:
             has_failures=any(
                 info.success is False for info, _message, _payload in batch.results
             ),
+            requires_suspension=batch.requires_suspension,
+            suspension_reason=(
+                SuspensionReason(batch.suspension_reason)
+                if batch.suspension_reason is not None
+                else None
+            ),
+            operation_ref=batch.operation_ref,
+            suspension_metadata=batch.suspension_metadata,
         )

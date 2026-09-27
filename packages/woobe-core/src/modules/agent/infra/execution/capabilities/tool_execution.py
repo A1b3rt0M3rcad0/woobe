@@ -18,6 +18,10 @@ class ToolExecutionBatch:
 
     results: list[tuple[Any, Any, dict[str, Any]]]
     wall_latency_ms: int
+    requires_suspension: bool = False
+    suspension_reason: str | None = None
+    operation_ref: str | None = None
+    suspension_metadata: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -44,7 +48,30 @@ class ToolExecutionCapability:
                 for tool_call in tool_calls
             ]
         )
+        suspension: dict[str, Any] | None = None
+        for _info, _message, payload in results:
+            if not isinstance(payload, dict):
+                continue
+            raw = payload.get("suspension")
+            if isinstance(raw, dict) and isinstance(raw.get("reason"), str):
+                suspension = raw
+                break
+
         return ToolExecutionBatch(
             results=list(results),
             wall_latency_ms=round((time.monotonic() - started) * 1000),
+            requires_suspension=suspension is not None,
+            suspension_reason=(
+                str(suspension["reason"]) if suspension is not None else None
+            ),
+            operation_ref=(
+                str(suspension["operation_ref"])
+                if suspension is not None and suspension.get("operation_ref") is not None
+                else None
+            ),
+            suspension_metadata=(
+                dict(suspension.get("metadata") or {})
+                if suspension is not None
+                else None
+            ),
         )

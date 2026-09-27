@@ -4,6 +4,13 @@ from typing import Any
 from modules.agent.application.dtos.runtime_dtos import SourceInfo, ToolCallInfo
 
 
+@dataclass(frozen=True, slots=True)
+class ExecutionSuspension:
+    reason: str
+    operation_ref: str | None = None
+    metadata: dict[str, Any] | None = None
+
+
 @dataclass
 class InstrumentedExecution:
     result: Any
@@ -17,6 +24,7 @@ class InstrumentedExecution:
     failure_context: dict[str, Any] | None = None
     fallback_used: bool = False
     fallback_info: dict[str, Any] | None = None
+    suspension: ExecutionSuspension | None = None
 
 
 class InstrumentedExecutionError(RuntimeError):

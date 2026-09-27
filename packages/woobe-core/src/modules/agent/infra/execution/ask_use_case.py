@@ -34,8 +34,13 @@ from modules.agent.application.tool_converter import (
     agent_tools_to_openai_definitions_and_mapping,
 )
 from modules.agent.domain.entities import Agent, AgentRelease, Message, ProviderCredential, Session
-from modules.agent.domain.enums import MessageRole, RuntimeSessionMode as SessionMode
+from modules.agent.domain.enums import (
+    MessageRole,
+    RuntimeSessionMode as SessionMode,
+    SessionStatus,
+)
 from modules.agent.domain.errors import AgentNotFoundError, CredentialNotFoundError
+from modules.agent.domain.run import AgentRunStatus
 from modules.agent.domain.events import (
     AgentExecutionCompletedV1,
     AgentExecutionFailedV1,
@@ -140,6 +145,16 @@ class AskAgentUseCase:
                     fallback_provider_val = fallback_info_result.get(
                         "fallback_provider"
                     )
+                if execution.suspension is not None:
+                    output = await self._suspend(
+                        session=session,
+                        agent=agent,
+                        input_dto=input_dto,
+                        trace_id=trace_id,
+                        execution=execution,
+                    )
+                    output.latency_ms = round((time.monotonic() - started_at) * 1000)
+                    return output
 
             answer = result.content if hasattr(result, "content") else str(result)
 
@@ -220,6 +235,84 @@ class AskAgentUseCase:
             # complete through its bound capabilities.
             await self._fail(trace_id, agent, session, llm_error, input_dto)
             raise ValueError(f"AI provider error: {llm_error}") from exc
+
+    async def _suspend(
+        self,
+        *,
+        session: Session | None,
+        agent: Agent,
+        input_dto: AskInput,
+        trace_id: UUID,
+        execution: InstrumentedExecution,
+    ) -> AskOutput:
+        suspension = execution.suspension
+        if suspension is None:
+            raise RuntimeError("Suspension persistence requires suspension evidence")
+
+        context = current_execution.get()
+        payload = {
+            "reason": suspension.reason,
+            "operation_ref": suspension.operation_ref,
+            "metadata": dict(suspension.metadata or {}),
+        }
+
+        async def persist_waiting(
+            repositories: AgentRuntimeRepositories,
+            _outbox: OutboxEventWriter,
+        ) -> None:
+            if context is not None and context.run_id is not None:
+                run = await repositories.runs.get_by_id(context.run_id)
+                if run is not None and run.status in {
+                    AgentRunStatus.RUNNING,
+                    AgentRunStatus.WAITING,
+                }:
+                    run.status = AgentRunStatus.WAITING
+                    run.result = {"suspension": payload}
+                    run.failure_code = None
+                    run.failure_detail = None
+                    run.completed_at = None
+                    await repositories.runs.save(run)
+
+            if session is not None:
+                current_session = await repositories.sessions.get_by_id(session.id)
+                if current_session is not None:
+                    current_session.status = SessionStatus.WAITING
+                    await repositories.sessions.update(current_session)
+
+        await self._transactions.run(persist_waiting)
+
+        recorder = (
+            context.run_event_recorder
+            if context is not None
+            else None
+        )
+        if recorder is not None:
+            await recorder.emit(
+                "execution.suspended",
+                payload,
+                durable=True,
+            )
+
+        hot_update = getattr(self, "_hot_update", None)
+        if callable(hot_update):
+            await hot_update(
+                {
+                    "status": "waiting",
+                    "phase": "suspended",
+                    "suspension": payload,
+                }
+            )
+
+        return AskOutput(
+            run_id=context.run_id if context is not None else None,
+            status="waiting",
+            answer="",
+            suspension=payload,
+            session_id=session.id if session is not None else None,
+            trace_id=trace_id,
+            sources=list(execution.sources),
+            tool_calls=list(execution.tool_calls),
+        )
 
     async def _prepare(
         self,

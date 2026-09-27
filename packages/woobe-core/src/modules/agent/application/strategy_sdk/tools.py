@@ -53,6 +53,7 @@ class StrategyToolBatch:
     requires_suspension: bool = False
     suspension_reason: SuspensionReason | None = None
     operation_ref: str | None = None
+    suspension_metadata: dict[str, Any] | None = None
 
 
 class StrategyTools(Protocol):

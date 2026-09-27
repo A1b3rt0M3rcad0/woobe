@@ -3,7 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from modules.agent.application.interfaces.execution import InstrumentedExecution
+from modules.agent.application.interfaces.execution import (
+    ExecutionSuspension,
+    InstrumentedExecution,
+)
 from modules.agent.application.interfaces.execution_strategy import (
     ExecutionStrategy,
     ExecutionStrategyRequest,
@@ -41,10 +44,12 @@ async def execute_strategy(
     built = build_strategy_execution(strategy=strategy, request=request)
     outcome = await strategy.execute(built.context)
     if isinstance(outcome, Suspended):
-        raise RuntimeError(
-            "Execution Strategy suspension is defined by the internal SDK but the outer "
-            "Agent Run WAITING lifecycle is not enabled yet"
+        built.runtime_state.execution.suspension = ExecutionSuspension(
+            reason=outcome.reason.value,
+            operation_ref=outcome.operation_ref,
+            metadata=dict(outcome.metadata or {}),
         )
+        return built.runtime_state.execution
     if not isinstance(outcome, Completed):
         raise RuntimeError("Execution Strategy returned an unsupported outcome")
 
@@ -81,7 +86,12 @@ async def execute_strategy_with_capabilities(
     )
     outcome = await strategy.execute(built.context)
     if isinstance(outcome, Suspended):
-        raise RuntimeError("Legacy Strategy execution does not support suspended outcomes")
+        built.runtime_state.execution.suspension = ExecutionSuspension(
+            reason=outcome.reason.value,
+            operation_ref=outcome.operation_ref,
+            metadata=dict(outcome.metadata or {}),
+        )
+        return built.runtime_state.execution, built.runtime_state.call_index
     if not isinstance(outcome, Completed):
         raise RuntimeError("Execution Strategy returned an unsupported outcome")
 
