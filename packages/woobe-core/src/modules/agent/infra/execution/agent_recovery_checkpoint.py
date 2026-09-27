@@ -25,12 +25,14 @@ def _serialize_capability_message(message: Any) -> dict[str, Any]:
     if isinstance(message, AIMessage):
         return {
             "role": "assistant",
+            "id": str(message.id) if getattr(message, "id", None) is not None else None,
             "content": deepcopy(message.content),
             "tool_calls": deepcopy(list(getattr(message, "tool_calls", None) or [])),
         }
     if isinstance(message, ToolMessage):
         return {
             "role": "tool",
+            "id": str(message.id) if getattr(message, "id", None) is not None else None,
             "content": deepcopy(message.content),
             "tool_call_id": str(message.tool_call_id),
             "additional_kwargs": deepcopy(message.additional_kwargs or {}),
@@ -44,6 +46,7 @@ def _restore_capability_message(value: dict[str, Any]) -> Any:
     role = value.get("role")
     if role == "assistant":
         return AIMessage(
+            id=(str(value["id"]) if value.get("id") is not None else None),
             content=deepcopy(value.get("content") or ""),
             tool_calls=deepcopy(value.get("tool_calls") or []),
         )
@@ -52,6 +55,7 @@ def _restore_capability_message(value: dict[str, Any]) -> Any:
         if not tool_call_id:
             raise ValueError("Agent recovery Tool message has no tool_call_id")
         return ToolMessage(
+            id=(str(value["id"]) if value.get("id") is not None else None),
             content=deepcopy(value.get("content") or ""),
             tool_call_id=str(tool_call_id),
             additional_kwargs=deepcopy(value.get("additional_kwargs") or {}),
