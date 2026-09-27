@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, Protocol
 
 import uuid6
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from modules.agent.application.interfaces.context_assembler import (
+from modules.agent.application.interfaces.context_manager import (
     ContextManagedContribution,
     ContextManagerCapabilities,
     ContextSummaryOutput,
@@ -39,7 +39,6 @@ from modules.agent.infra.execution.capabilities.preparation import (
 from modules.agent.infra.execution.strategy_runtime.invocation import (
     RuntimeStrategyInvocation,
 )
-from modules.agent.infra.execution.strategy_runtime.model import RuntimeStrategyModel
 from modules.agent.infra.execution.strategy_runtime.runtime_state import (
     StrategyRuntimeState,
 )
@@ -93,13 +92,29 @@ def materialize_context_contributions(
     return [*messages[:split], *materialized, *messages[split:]]
 
 
+class _ContextModelCapabilities(Protocol):
+    """Minimal Model surface available to Context Manager runtime mechanics."""
+
+    @property
+    def fallback_available(self) -> bool: ...
+
+    async def invoke_auxiliary(
+        self,
+        invocation: RuntimeStrategyInvocation,
+    ) -> Any: ...
+
+    def fallback_context_binding(
+        self,
+    ) -> tuple[str, str, dict[str, Any] | None]: ...
+
+
 class _RuntimeContextManagerCapabilities(ContextManagerCapabilities):
     """Runtime mechanisms available to the configured Context Manager."""
 
-    __slots__ = ("_model",)
+    __slots__ = ("_model_capabilities",)
 
-    def __init__(self, model: RuntimeStrategyModel) -> None:
-        self._model = model
+    def __init__(self, model_capabilities: _ContextModelCapabilities) -> None:
+        self._model_capabilities = model_capabilities
 
     async def summarize(
         self,
@@ -119,7 +134,7 @@ class _RuntimeContextManagerCapabilities(ContextManagerCapabilities):
             ),
             snapshot=None,
         )
-        result = await self._model.invoke_auxiliary(invocation)
+        result = await self._model_capabilities.invoke_auxiliary(invocation)
         content = result.content
         if not isinstance(content, str) or not content.strip():
             raise RuntimeError("Context Manager summarization returned no textual content")
@@ -140,7 +155,7 @@ class RuntimeStrategyContextManager:
         "_runtime_state",
         "_base_messages",
         "_final_json_instruction",
-        "_model",
+        "_model_capabilities",
     )
 
     def __init__(
@@ -150,13 +165,13 @@ class RuntimeStrategyContextManager:
         runtime_state: StrategyRuntimeState,
         base_messages: list[Any] | None = None,
         final_json_instruction: str | None = None,
-        model: RuntimeStrategyModel | None = None,
+        model_capabilities: _ContextModelCapabilities | None = None,
     ) -> None:
         self._capability = capability
         self._runtime_state = runtime_state
         self._base_messages = list(base_messages or runtime_state.messages)
         self._final_json_instruction = final_json_instruction
-        self._model = model
+        self._model_capabilities = model_capabilities
         self._sync_execution_context()
 
     def _sync_execution_context(self) -> None:
@@ -257,14 +272,14 @@ class RuntimeStrategyContextManager:
         *,
         phase: StrategyPhase | None = None,
     ) -> StrategyContextCompactionResult:
-        if self._model is None:
+        if self._model_capabilities is None:
             raise RuntimeError("Context Manager Model capabilities are not bound")
 
         result = await self._capability.compact(
             messages=list(self._runtime_state.messages),
             contributions=self._managed_contributions(),
             phase=strategy_phase_value(phase or "context_compaction"),
-            capabilities=_RuntimeContextManagerCapabilities(self._model),
+            capabilities=_RuntimeContextManagerCapabilities(self._model_capabilities),
         )
         for key in result.remove_keys:
             self._runtime_state.context_contributions.pop(key, None)
@@ -329,7 +344,7 @@ class RuntimeStrategyContextManager:
     ) -> RuntimeStrategyInvocation:
         capability = self._capability
         if target is StrategyContextTarget.FALLBACK:
-            if self._model is None or not self._model.fallback_available:
+            if self._model_capabilities is None or not self._model_capabilities.fallback_available:
                 raise RuntimeError("Fallback Context requested without a bound fallback Model")
             if (
                 tools is not None
@@ -337,10 +352,10 @@ class RuntimeStrategyContextManager:
             ):
                 raise ValueError("Fallback Context currently requires tools=ctx.tools.none()")
             provider, model_name, pricing_snapshot = (
-                self._model.fallback_context_binding()
+                self._model_capabilities.fallback_context_binding()
             )
             capability = ContextAssemblyCapability(
-                assembler=self._capability.assembler,
+                manager=self._capability.manager,
                 provider=provider,
                 model_name=model_name,
                 pricing_snapshot=pricing_snapshot,
