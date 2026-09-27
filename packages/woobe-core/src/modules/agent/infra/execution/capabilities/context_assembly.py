@@ -233,43 +233,22 @@ class ContextAssemblyCapability:
             capabilities,
         )
 
-    def selected_tool_definitions(
+    def active_tool_definitions(
         self,
         mode: str | None,
-        names: tuple[str, ...],
     ) -> list[dict[str, Any]] | None:
         if mode is None:
             return None
         if mode == "none":
             return []
-        if mode == "all":
-            if not self.tool_definitions:
-                # Compatibility callers may provide an already-bound model without
-                # the original definitions. Preserve the runtime's existing Tool
-                # metadata instead of interpreting that as an explicit empty set.
-                return None
-            return [dict(definition) for definition in self.tool_definitions]
-        if mode != "explicit":
+        if mode != "all":
             raise ValueError(f"Unsupported Tool selection mode: {mode}")
-
-        requested = set(names)
-        selected = [
-            dict(definition)
-            for definition in self.tool_definitions
-            if _tool_definition_name(definition) in requested
-        ]
-        resolved = {
-            name
-            for definition in selected
-            if (name := _tool_definition_name(definition)) is not None
-        }
-        missing = sorted(requested.difference(resolved))
-        if missing:
-            raise ValueError(
-                "No model Tool definition is available for selected Tools: "
-                + ", ".join(missing)
-            )
-        return selected
+        if not self.tool_definitions:
+            # Compatibility callers may provide an already-bound model without
+            # the original definitions. Preserve the runtime's existing Tool
+            # metadata instead of interpreting that as an explicit empty set.
+            return None
+        return [dict(definition) for definition in self.tool_definitions]
 
     def assemble(
         self,
@@ -277,7 +256,6 @@ class ContextAssemblyCapability:
         messages: list[Any],
         phase: str,
         tool_selection_mode: str | None = None,
-        tool_selection_names: tuple[str, ...] = (),
         invocation_id: UUID | None = None,
         call_index: int | None = None,
     ) -> ContextAssemblyResult:
@@ -315,10 +293,7 @@ class ContextAssemblyCapability:
             previous_reserved,
             self.pricing_snapshot,
         )
-        selected_tools = self.selected_tool_definitions(
-            tool_selection_mode,
-            tool_selection_names,
-        )
+        selected_tools = self.active_tool_definitions(tool_selection_mode)
         if selected_tools is not None:
             context.active_tool_definitions = selected_tools
         elif phase in {"final_response_generation", "json_repair"}:

@@ -226,7 +226,7 @@ async def test_context_runtime_scopes_tool_instructions_to_selected_invocation()
     assert "Tool grounding rules" in with_text
 
 
-def test_runtime_tool_selection_rejects_tools_outside_authorized_mapping() -> None:
+def test_runtime_tools_exposes_only_all_or_none() -> None:
     capability = ToolExecutionCapability(
         execute_single_tool=lambda *_args: None,  # type: ignore[arg-type]
         tool_name_to_id={"search": "tool-id"},
@@ -238,7 +238,4 @@ def test_runtime_tool_selection_rejects_tools_outside_authorized_mapping() -> No
 
     assert runtime.all().mode is StrategyToolSelectionMode.ALL
     assert runtime.none().mode is StrategyToolSelectionMode.NONE
-    assert runtime.select("search").names == ("search",)
-
-    with pytest.raises(ValueError, match="unauthorized or unknown"):
-        runtime.select("admin")
+    assert not hasattr(runtime, "select")

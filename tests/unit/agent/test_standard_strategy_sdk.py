@@ -120,12 +120,6 @@ class _Tools:
     def none(self) -> StrategyToolSelection:
         return StrategyToolSelection(mode=StrategyToolSelectionMode.NONE)
 
-    def select(self, *names: str) -> StrategyToolSelection:
-        return StrategyToolSelection(
-            mode=StrategyToolSelectionMode.EXPLICIT,
-            names=tuple(names),
-        )
-
     async def execute_many(self, tool_calls):
         self.calls.append(tuple(tool_calls))
         return self.batches.pop(0)

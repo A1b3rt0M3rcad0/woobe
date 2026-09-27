@@ -14,21 +14,13 @@ class SuspensionReason(StrEnum):
 class StrategyToolSelectionMode(StrEnum):
     ALL = "all"
     NONE = "none"
-    EXPLICIT = "explicit"
 
 
 @dataclass(frozen=True, slots=True)
 class StrategyToolSelection:
-    """Invocation-scoped subset of the tools authorized by the runtime."""
+    """Whether one Model invocation receives all authorized Tools or none."""
 
     mode: StrategyToolSelectionMode
-    names: tuple[str, ...] = ()
-
-    def __post_init__(self) -> None:
-        if self.mode is StrategyToolSelectionMode.EXPLICIT and not self.names:
-            raise ValueError("Explicit tool selection requires at least one tool name")
-        if self.mode is not StrategyToolSelectionMode.EXPLICIT and self.names:
-            raise ValueError("Only explicit tool selection may contain tool names")
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,8 +44,6 @@ class StrategyTools(Protocol):
     def all(self) -> StrategyToolSelection: ...
 
     def none(self) -> StrategyToolSelection: ...
-
-    def select(self, *names: str) -> StrategyToolSelection: ...
 
     async def execute_many(
         self,

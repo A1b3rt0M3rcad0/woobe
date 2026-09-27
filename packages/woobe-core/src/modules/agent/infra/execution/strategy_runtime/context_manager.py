@@ -273,7 +273,7 @@ class RuntimeStrategyContextManager:
             metadata=dict(result.metadata),
         )
 
-    def _selected_tool_definitions(
+    def _active_tool_definitions(
         self,
         tools: StrategyToolSelection | None,
     ) -> tuple[dict[str, Any], ...]:
@@ -282,11 +282,8 @@ class RuntimeStrategyContextManager:
             if tools is not None
             else StrategyToolSelectionMode.ALL.value
         )
-        selected = self._capability.selected_tool_definitions(
-            mode,
-            tools.names if tools is not None else (),
-        )
-        return tuple(selected or ())
+        active = self._capability.active_tool_definitions(mode)
+        return tuple(active or ())
 
     @staticmethod
     def _tool_name(definition: dict[str, Any]) -> str | None:
@@ -332,7 +329,7 @@ class RuntimeStrategyContextManager:
         selected_definitions = (
             ()
             if target is StrategyContextTarget.FALLBACK
-            else self._selected_tool_definitions(tools)
+            else self._active_tool_definitions(tools)
         )
         selected_names = tuple(
             name
@@ -383,7 +380,6 @@ class RuntimeStrategyContextManager:
                     if tools is not None
                     else StrategyToolSelectionMode.ALL.value
                 ),
-                tool_selection_names=tools.names if tools is not None else (),
                 call_index=next_call_index,
             )
         except InstrumentedExecutionError as exc:

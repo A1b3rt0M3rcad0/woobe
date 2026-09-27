@@ -2,7 +2,7 @@
 
 An Execution Strategy is the algorithm that decides **how an Agent conducts Model and capability execution**.
 
-A Strategy may decide when to retrieve Knowledge, how Knowledge contributes to Context, which authorized Tools are visible to each Model invocation, when to invoke the Model, whether Tool calls should be executed, how many rounds should be allowed, when the algorithm should stop, and when progress should be checkpointed.
+A Strategy may decide when to retrieve Knowledge, how Knowledge contributes to Context, whether a Model invocation receives all authorized Tools or no Tools, when to invoke the Model, whether Tool calls should be executed, how many rounds should be allowed, when the algorithm should stop, and when progress should be checkpointed.
 
 The Strategy should read like algorithm code, not infrastructure code.
 
@@ -23,7 +23,7 @@ StrategyContext
 ├── knowledge
 ├── context
 │   ├── inspect()
-│   ├── summarize()
+│   ├── compact()
 │   └── assemble()
 ├── model
 │   ├── invoke()
@@ -69,7 +69,7 @@ bootstrap/preflight execution decisions
 read-only conversation inspection and Knowledge query construction
 Knowledge retrieval timing and query choice
 Context inspection, compaction requests and contribution lifecycle
-per-invocation Tool selection
+per-invocation Tool enable/disable decision
 Model invocation and fallback order
 Tool-use loop structure
 structured-output repair decisions
@@ -126,7 +126,7 @@ if knowledge.found:
         )
     )
 
-tools = ctx.tools.select("search")
+tools = ctx.tools.all()
 invocation = await ctx.context.assemble(
     phase=MyPhase.REASONING,
     tools=tools,
@@ -177,7 +177,7 @@ The runtime resolves and freezes concrete dependencies; the Strategy orchestrate
 - Conversation-to-Knowledge query construction is a Strategy decision; Knowledge receives the final explicit query.
 - Knowledge retrieval and Knowledge inclusion in Context are separate decisions.
 - Context is assembled for one Model invocation, not globally for an execution.
-- Tool authorization belongs to the runtime; every Model/Context Tool selection belongs explicitly to the Strategy.
+- Tool authorization and the complete Tool inventory belong to the Runtime. The Strategy may only enable all authorized Tools or disable Tools for an invocation; it cannot select a subset.
 - Model invocation receives an already assembled `StrategyInvocationContext`.
 - Terminal responses use `ctx.context.assemble_final(...)` before `ctx.model.finalize(...)`.
 - Fallback Context is assembled only when the Strategy selects `StrategyContextTarget.FALLBACK`, and fallback executes only when it calls `ctx.model.invoke_fallback(...)`.

@@ -50,10 +50,7 @@ class RuntimeStrategyModel:
         self._fallback_model_factory = fallback_model_factory
         self._fallback_binding: PreparedFallbackModel | None = None
         self._tool_definitions = list(tool_definitions or [])
-        self._bound_capabilities: dict[
-            tuple[str, tuple[str, ...]],
-            ModelInvocationCapability,
-        ] = {}
+        self._bound_capabilities: dict[str, ModelInvocationCapability] = {}
 
     def set_fallback_model_factory(
         self,
@@ -94,56 +91,31 @@ class RuntimeStrategyModel:
         if not self._tool_definitions:
             return self._capability
 
-        effective = selection
-        if effective is None:
-            effective = StrategyToolSelection(StrategyToolSelectionMode.ALL)
-
+        effective = selection or StrategyToolSelection(
+            StrategyToolSelectionMode.ALL
+        )
         if effective.mode is StrategyToolSelectionMode.NONE:
             return self._capability
+        if effective.mode is not StrategyToolSelectionMode.ALL:
+            raise ValueError(
+                f"Unsupported Tool selection mode: {effective.mode.value}"
+            )
 
-        if effective.mode is StrategyToolSelectionMode.ALL:
-            definitions = list(self._tool_definitions)
-        else:
-            requested = set(effective.names)
-            definitions = []
-            resolved: set[str] = set()
-            for definition in self._tool_definitions:
-                function = definition.get("function")
-                name = (
-                    function.get("name")
-                    if isinstance(function, dict)
-                    else definition.get("name")
-                )
-                if isinstance(name, str) and name in requested:
-                    definitions.append(definition)
-                    resolved.add(name)
-            missing = sorted(requested.difference(resolved))
-            if missing:
-                raise ValueError(
-                    "No model Tool definition is available for selected Tools: "
-                    + ", ".join(missing)
-                )
-
-        if not definitions:
-            return self._capability
-
-        key = (
-            effective.mode.value,
-            tuple(sorted(effective.names)),
+        cached = self._bound_capabilities.get(
+            StrategyToolSelectionMode.ALL.value
         )
-        cached = self._bound_capabilities.get(key)
         if cached is not None:
             return cached
 
         bind_tools = getattr(self._capability.model, "bind_tools", None)
         if not callable(bind_tools):
             raise RuntimeError(
-                "Selected Tools require a model implementation with bind_tools()"
+                "Authorized Tools require a model implementation with bind_tools()"
             )
         bound = self._capability.for_model(
-            bind_tools(definitions, tool_choice="auto")
+            bind_tools(list(self._tool_definitions), tool_choice="auto")
         )
-        self._bound_capabilities[key] = bound
+        self._bound_capabilities[StrategyToolSelectionMode.ALL.value] = bound
         return bound
 
     async def _invoke(

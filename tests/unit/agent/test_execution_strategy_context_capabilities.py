@@ -5,7 +5,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from uuid import uuid4
 
 from modules.agent.application.context_managers.standard import (
-    ProgrammableStandardContextAssembler,
+    StandardContextAssembler,
 )
 from modules.agent.application.interfaces.execution_context import (
     current_execution,
@@ -76,7 +76,7 @@ async def test_context_compaction_is_owned_by_configured_manager() -> None:
             ),
             knowledge=KnowledgeRetrievalCapability(retrieve_fn=None),
             context=ContextAssemblyCapability(
-                assembler=ProgrammableStandardContextAssembler(
+                assembler=StandardContextAssembler(
                     compaction_keep_recent_messages=2,
                     compaction_target_units=256,
                 ),

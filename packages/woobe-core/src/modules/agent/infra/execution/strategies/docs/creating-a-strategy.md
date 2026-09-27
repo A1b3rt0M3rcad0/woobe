@@ -144,7 +144,7 @@ ctx.output
 await ctx.checkpoint()
 ```
 
-The runtime resolves and authorizes the underlying capabilities. The Strategy decides when to retrieve Knowledge, what Context contributions are active, which authorized Tools are visible to one Model invocation, and when the Model is invoked.
+The runtime resolves and authorizes the underlying capabilities. The Strategy decides when to retrieve Knowledge, what Context contributions are active, whether one Model invocation receives all authorized Tools or no Tools, and when the Model is invoked.
 
 ### Retrieve Knowledge when the algorithm needs it
 
@@ -211,9 +211,9 @@ result = await ctx.model.invoke(
 )
 ```
 
-Use `ctx.tools.none()` for an invocation that must not expose Tools, or `ctx.tools.select("search", "lookup")` to expose only a subset of the Tools already authorized by the runtime. Tool selection is required: Model and Context calls never interpret an omitted selection as an implicit `all()`.
+Use `ctx.tools.all()` for a normal Tool-capable invocation and `ctx.tools.none()` for an invocation that must not expose Tools. Subset selection is intentionally unsupported: when Tools are enabled, the Model receives the complete Runtime-authorized Tool inventory and decides which Tool to call.
 
-The Runtime owns conversation progression, call instrumentation, Tool authorization and Context Manager implementation. The Strategy owns invocation order and per-invocation selection.
+The Runtime owns conversation progression, call instrumentation, Tool authorization, the complete Tool inventory and Context Manager implementation. The Strategy owns invocation order and only whether Tools are enabled or disabled for each invocation.
 
 ### Execute Tools
 
