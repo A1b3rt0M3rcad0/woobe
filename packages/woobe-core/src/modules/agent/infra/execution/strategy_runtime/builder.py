@@ -90,6 +90,32 @@ def _preflight_tool_call(
     )
 
 
+def _restored_replacement_ids(
+    value: dict[str, Any],
+    messages: list[Any],
+) -> tuple[str, ...]:
+    raw_ids = value.get("replaces_message_ids")
+    if isinstance(raw_ids, list):
+        return tuple(
+            normalized
+            for item in raw_ids
+            if isinstance(item, str) and (normalized := item.strip())
+        )
+
+    # Backwards compatibility for checkpoints created before stable message IDs.
+    raw_indexes = value.get("replaces_message_indexes")
+    if not isinstance(raw_indexes, list):
+        return ()
+    restored: list[str] = []
+    for index in raw_indexes:
+        if not isinstance(index, int) or index < 0 or index >= len(messages):
+            continue
+        message_id = getattr(messages[index], "id", None)
+        if message_id is not None:
+            restored.append(str(message_id))
+    return tuple(restored)
+
+
 def build_strategy_context_from_capabilities(
     *,
     strategy: ExecutionStrategy[Any],
@@ -133,24 +159,15 @@ def build_strategy_context_from_capabilities(
                 else ()
             )
         },
-        context_replacements={
-            key: tuple(
-                int(index)
-                for index in (
-                    value.get("replaces_message_indexes")
-                    if isinstance(value.get("replaces_message_indexes"), list)
-                    else ()
-                )
-                if isinstance(index, int) and index >= 0
-            )
-            for key, value in (
-                resume.context_contributions.items()
-                if resume is not None
-                else ()
-            )
-            if isinstance(value, dict)
-        },
     )
+    if resume is not None:
+        runtime_state.context_replacements = {
+            key: _restored_replacement_ids(value, runtime_state.messages)
+            for key, value in resume.context_contributions.items()
+            if isinstance(value, dict)
+        }
+
+    base_messages = runtime_state.messages[: len(messages)]
     state_store = RuntimeStrategyStateStore()
     state = state_store.create(
         strategy.state_type,
@@ -184,7 +201,7 @@ def build_strategy_context_from_capabilities(
         ),
         conversation=RuntimeStrategyConversation(
             runtime_state=runtime_state,
-            base_messages=messages,
+            base_messages=base_messages,
         ),
         model=runtime_model,
         tools=runtime_tools,
@@ -195,7 +212,7 @@ def build_strategy_context_from_capabilities(
         context=RuntimeStrategyContextManager(
             capability=capabilities.context,
             runtime_state=runtime_state,
-            base_messages=messages,
+            base_messages=base_messages,
             final_json_instruction=final_json_instruction,
             model=runtime_model,
         ),
