@@ -6,7 +6,9 @@ from uuid import uuid4
 import pytest
 from langchain_core.messages import HumanMessage
 
+from modules.agent.application.context_assembler_registry import build_context_assembler
 from modules.agent.application.dtos.runtime_dtos import AskInput
+from modules.agent.application.interfaces.context_assembler import ContextAssemblerKey
 from modules.agent.application.interfaces.execution_context import (
     current_execution,
     new_execution_context,
@@ -20,6 +22,12 @@ from modules.agent.domain.enums import (
 )
 from modules.agent.infra.execution.explicit_runtime_persistence import (
     TransactionalAskAgentUseCase,
+)
+from modules.agent.infra.execution.instrumented_primary_mixin import (
+    InstrumentedPrimaryExecutionMixin,
+)
+from modules.agent.infra.execution.strategies.resolver import (
+    BuiltinExecutionStrategyResolver,
 )
 
 
@@ -189,7 +197,7 @@ class _ToolLLMFactory:
         return self.model
 
 
-class _Runtime(TransactionalAskAgentUseCase):
+class _Runtime(InstrumentedPrimaryExecutionMixin, TransactionalAskAgentUseCase):
     def __init__(
         self,
         transactions,
@@ -236,6 +244,10 @@ class _Runtime(TransactionalAskAgentUseCase):
             transactions=transactions,
             llm_factory=llm_factory,
             tool_executor_factory=tool_executor_factory,
+        )
+        self.configure_execution_strategy_resolver(BuiltinExecutionStrategyResolver())
+        self.configure_context_assembler(
+            build_context_assembler(ContextAssemblerKey("stdcm"))
         )
 
     async def _load_agent(self, _repositories, _input_dto):
