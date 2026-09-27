@@ -50,7 +50,7 @@ def build_execution_capabilities(
             history_turns=prepared.knowledge_history_turns,
         ),
         context=ContextAssemblyCapability(
-            assembler=prepared.context_assembler,
+            manager=prepared.context_manager,
             provider=prepared.provider,
             model_name=prepared.model_name,
             pricing_snapshot=prepared.pricing_snapshot,
