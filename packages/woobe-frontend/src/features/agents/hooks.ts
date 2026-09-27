@@ -50,7 +50,7 @@ import type {
 
 export function useContextManagers() {
   return useQuery({
-    queryKey: ['context-assemblers'],
+    queryKey: ['context-managers'],
     queryFn: getContextManagers,
     staleTime: Infinity,
   })
