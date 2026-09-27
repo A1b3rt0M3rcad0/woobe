@@ -4,8 +4,8 @@ from copy import deepcopy
 from datetime import datetime, timezone
 from uuid import UUID
 
-from modules.agent.application.context_assembler_registry import (
-    canonicalize_context_assembler_runtime_config,
+from modules.agent.application.context_manager_registry import (
+    canonicalize_context_manager_runtime_config,
 )
 from modules.agent.application.context_policy import canonicalize_context_runtime_config
 from modules.agent.application.execution_strategy_config import (
@@ -41,7 +41,7 @@ _SNAPSHOT_FIELDS = (
 
 
 def _canonical_runtime_config(value) -> dict:
-    runtime_config = canonicalize_context_assembler_runtime_config(value)
+    runtime_config = canonicalize_context_manager_runtime_config(value)
     # Validate an explicit strategy, but do not backfill historical snapshots that
     # predate this field. Absence is permanently defined as Standard, so preserving
     # it avoids changing old snapshot material/hashes while keeping behavior stable.
