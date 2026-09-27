@@ -3,13 +3,13 @@ from typing import Literal
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
-from modules.agent.entrypoint import SETTINGS, list_context_assemblers
+from modules.agent.entrypoint import SETTINGS, list_context_managers
 
 
 router = APIRouter(prefix="/ai", tags=["ai", "agent"])
 
 
-class ContextAssemblerDescriptorResponse(BaseModel):
+class ContextManagerDescriptorResponse(BaseModel):
     """HTTP contract for backend-owned Context Manager presentation metadata."""
 
     name: str = Field(min_length=1)
@@ -24,20 +24,25 @@ class ContextAssemblerDescriptorResponse(BaseModel):
     is_default: bool
 
 
-class ContextAssemblerCatalogResponse(BaseModel):
+class ContextManagerCatalogResponse(BaseModel):
     success: Literal[True] = True
     message: str = "ok"
-    data: list[ContextAssemblerDescriptorResponse]
+    data: list[ContextManagerDescriptorResponse]
 
 
 @router.get(
-    "/context-assemblers",
-    response_model=ContextAssemblerCatalogResponse,
+    "/context-managers",
+    response_model=ContextManagerCatalogResponse,
 )
-async def context_assemblers() -> ContextAssemblerCatalogResponse:
-    return ContextAssemblerCatalogResponse(
+@router.get(
+    "/context-assemblers",
+    response_model=ContextManagerCatalogResponse,
+    include_in_schema=False,
+)
+async def context_managers() -> ContextManagerCatalogResponse:
+    return ContextManagerCatalogResponse(
         data=[
-            ContextAssemblerDescriptorResponse.model_validate(item)
-            for item in list_context_assemblers(SETTINGS.default_context_manager)
+            ContextManagerDescriptorResponse.model_validate(item)
+            for item in list_context_managers(SETTINGS.default_context_manager)
         ]
     )
