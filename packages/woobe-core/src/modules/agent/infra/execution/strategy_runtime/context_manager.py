@@ -326,14 +326,14 @@ class RuntimeStrategyContextManager:
                 tool_definitions=(),
             )
 
-        selected_definitions = (
+        active_definitions = (
             ()
             if target is StrategyContextTarget.FALLBACK
             else self._active_tool_definitions(tools)
         )
-        selected_names = tuple(
+        active_names = tuple(
             name
-            for definition in selected_definitions
+            for definition in active_definitions
             if (name := self._tool_name(definition)) is not None
         )
         base_messages = (
@@ -343,16 +343,16 @@ class RuntimeStrategyContextManager:
         )
         invocation_messages = _messages_with_bound_capability_authority(
             base_messages,
-            has_tools=bool(selected_definitions),
-            has_skills=any(name.startswith("skills_") for name in selected_names),
+            has_tools=bool(active_definitions),
+            has_skills=any(name.startswith("skills_") for name in active_names),
         )
         invocation_messages = _messages_with_skill_usage(
             invocation_messages,
-            has_skills=any(name.startswith("skills_") for name in selected_names),
+            has_skills=any(name.startswith("skills_") for name in active_names),
         )
         invocation_messages = _messages_with_tool_grounding(
             invocation_messages,
-            has_tools=bool(selected_definitions),
+            has_tools=bool(active_definitions),
         )
         materialized = (
             materialize_context_contributions(

@@ -20,6 +20,9 @@ from modules.agent.infra.execution.capabilities.context_assembly import (
 from modules.agent.infra.execution.capabilities.knowledge_retrieval import (
     KnowledgeRetrievalCapability,
 )
+from modules.agent.infra.execution.capabilities.model_invocation import (
+    ModelInvocationCapability,
+)
 from modules.agent.infra.execution.capabilities.tool_execution import (
     ToolExecutionCapability,
 )
@@ -29,6 +32,7 @@ from modules.agent.infra.execution.strategy_runtime.context_manager import (
 from modules.agent.infra.execution.strategy_runtime.knowledge import (
     RuntimeStrategyKnowledge,
 )
+from modules.agent.infra.execution.strategy_runtime.model import RuntimeStrategyModel
 from modules.agent.infra.execution.strategy_runtime.runtime_state import (
     StrategyRuntimeState,
 )
@@ -239,3 +243,58 @@ def test_runtime_tools_exposes_only_all_or_none() -> None:
     assert runtime.all().mode is StrategyToolSelectionMode.ALL
     assert runtime.none().mode is StrategyToolSelectionMode.NONE
     assert not hasattr(runtime, "select")
+
+
+def test_runtime_model_binds_all_authorized_tools_or_none() -> None:
+    definitions = [
+        {
+            "type": "function",
+            "function": {
+                "name": "search",
+                "description": "Search",
+                "parameters": {"type": "object"},
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "write",
+                "description": "Write",
+                "parameters": {"type": "object"},
+            },
+        },
+    ]
+
+    class _BindableModel:
+        def __init__(self) -> None:
+            self.bound: list[list[dict]] = []
+
+        def bind_tools(self, tools, *, tool_choice):
+            assert tool_choice == "auto"
+            self.bound.append(list(tools))
+            return SimpleNamespace(bound_tools=list(tools))
+
+    model = _BindableModel()
+    base = ModelInvocationCapability(
+        model=model,
+        provider="test",
+        model_name="test-model",
+    )
+    runtime = RuntimeStrategyModel(
+        capability=base,
+        runtime_state=StrategyRuntimeState(),
+        final_model=None,
+        final_model_factory=None,
+        tool_definitions=definitions,
+    )
+
+    all_capability = runtime._capability_for_tools(
+        StrategyToolSelection(StrategyToolSelectionMode.ALL)
+    )
+    none_capability = runtime._capability_for_tools(
+        StrategyToolSelection(StrategyToolSelectionMode.NONE)
+    )
+
+    assert model.bound == [definitions]
+    assert all_capability.model.bound_tools == definitions
+    assert none_capability is base

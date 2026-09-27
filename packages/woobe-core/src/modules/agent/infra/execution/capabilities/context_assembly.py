@@ -293,9 +293,9 @@ class ContextAssemblyCapability:
             previous_reserved,
             self.pricing_snapshot,
         )
-        selected_tools = self.active_tool_definitions(tool_selection_mode)
-        if selected_tools is not None:
-            context.active_tool_definitions = selected_tools
+        active_tools = self.active_tool_definitions(tool_selection_mode)
+        if active_tools is not None:
+            context.active_tool_definitions = active_tools
         elif phase in {"final_response_generation", "json_repair"}:
             context.active_tool_definitions = []
 

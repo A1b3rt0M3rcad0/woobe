@@ -97,6 +97,8 @@ new semantic checkpoints
 
 Capabilities own mechanisms; the Execution Strategy decides when to request Context operations; the selected Context Manager decides how Context is inspected, compacted and assembled.
 
+Tool inventory is not a Strategy policy surface. Runtime authorizes the complete Agent Tool inventory. A Strategy may expose all authorized Tools to a Model invocation or expose none; selecting a named subset is forbidden. The Model decides which exposed Tool to call.
+
 ## State boundary
 
 Concrete State contains algorithm data only.
