@@ -21,17 +21,15 @@ function recordValue(value: unknown): Record<string, unknown> {
     : {}
 }
 
-export function contextAssemblerLabel(runtimeConfig: unknown) {
+export function contextManagerLabel(runtimeConfig: unknown) {
   const runtime = recordValue(runtimeConfig)
-  const selection = recordValue(runtime.context_assembler)
-  const name = typeof selection.name === 'string' && selection.name.trim()
+  const selection = recordValue(runtime.context_manager ?? runtime.context_assembler)
+  return typeof selection.name === 'string' && selection.name.trim()
     ? selection.name.trim()
-    : 'default'
-  const version = typeof selection.version === 'string' && selection.version.trim()
-    ? selection.version.trim()
-    : 'v1'
-  return `${name}:${version}`
+    : 'stdcm'
 }
+
+export const contextAssemblerLabel = contextManagerLabel
 
 export function formatReleaseDate(value?: string) {
   if (!value) return '—'
