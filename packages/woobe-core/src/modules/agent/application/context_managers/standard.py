@@ -8,7 +8,7 @@ from modules.agent.application.context_assembly import (
     assemble_context,
     estimate_input_units,
 )
-from modules.agent.application.interfaces.context_assembler import (
+from modules.agent.application.interfaces.context_manager import (
     ContextAssemblyOutput,
     ContextAssemblyRequest,
     ContextCompactionOutput,
@@ -90,7 +90,7 @@ def _effective_usable_units(
     return model_usable if model_usable is not None else configured
 
 
-class StandardContextAssembler:
+class StandardContextManager:
     """The built-in programmable Standard Context Manager."""
 
     __slots__ = (
@@ -342,4 +342,7 @@ class StandardContextAssembler:
         )
 
 
-__all__ = ["StandardContextAssembler"]
+# Legacy class alias; internal code uses StandardContextManager.
+StandardContextAssembler = StandardContextManager
+
+__all__ = ["StandardContextManager"]
