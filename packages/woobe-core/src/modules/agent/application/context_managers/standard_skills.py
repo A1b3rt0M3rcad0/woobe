@@ -27,7 +27,7 @@ def _message_class(messages: list[Any], class_name: str):
         if message.__class__.__name__ == class_name:
             return message.__class__
     raise ContextBudgetExceeded(
-        f"Standard Context Manager v2 requires a {class_name} template"
+        f"Standard Context Manager requires a {class_name} template"
     )
 
 
