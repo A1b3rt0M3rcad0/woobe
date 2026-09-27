@@ -32,7 +32,7 @@ export interface ExternalContextFieldContract {
 export type ExternalContextContract = Record<string, ExternalContextFieldContract>
 
 /** Backend-owned presentation contract for one registered Context Manager. */
-export interface ContextAssemblerDescriptor {
+export interface ContextManagerDescriptor {
   supports_skills?: boolean
   name: string
   display_name: string
@@ -44,6 +44,8 @@ export interface ContextAssemblerDescriptor {
   configuration: string
   is_default: boolean
 }
+
+export type ContextAssemblerDescriptor = ContextManagerDescriptor
 
 /** Backend-owned presentation contract for one selectable Execution Strategy. */
 export interface ExecutionStrategyDescriptor {
