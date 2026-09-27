@@ -7,7 +7,7 @@ from typing import Any, Awaitable, Callable, Coroutine
 from langchain_core.messages import SystemMessage
 
 from modules.agent.application.dtos.rag_config_dtos import RAGRuntimeConfig
-from modules.agent.application.interfaces.context_assembler import ContextAssembler
+from modules.agent.application.interfaces.context_manager import ContextManager
 from modules.agent.application.interfaces.context_policy import resolve_context_policy
 from modules.agent.application.interfaces.execution import InstrumentedExecution
 from modules.agent.application.interfaces.execution_context import current_execution
@@ -98,7 +98,7 @@ class PreparedExecution:
     api_key: str
     base_url: str | None
     clean_json_answer: Callable[..., Any]
-    context_assembler: ContextAssembler | None
+    context_assembler: ContextManager | None
     tool_definitions: list[dict]
     knowledge_retrieve: Callable[[str], Awaitable[Any]] | None
     knowledge_query: str | None
