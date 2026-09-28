@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from uuid import uuid4
 
 import pytest
 from langchain_core.messages import HumanMessage, SystemMessage
 
+from modules.agent.application.context_managers.standard import StandardContextManager
 from modules.agent.application.interfaces.execution_context import (
     current_execution,
     new_execution_context,
@@ -145,7 +147,7 @@ async def test_strategy_knowledge_records_failed_retrieval_before_reraising() ->
 
 
 @pytest.mark.asyncio
-async def test_context_runtime_materializes_typed_knowledge_before_user_input() -> None:
+async def test_context_manager_materializes_typed_knowledge_before_user_input() -> None:
     state = StrategyRuntimeState(
         messages=[
             SystemMessage(content="system"),
@@ -154,7 +156,7 @@ async def test_context_runtime_materializes_typed_knowledge_before_user_input() 
     )
     runtime = RuntimeStrategyContextManager(
         capability=ContextAssemblyCapability(
-            manager=None,
+            manager=StandardContextManager(),
             provider="test",
             model_name="test-model",
             pricing_snapshot=None,
@@ -168,10 +170,16 @@ async def test_context_runtime_materializes_typed_knowledge_before_user_input() 
             content="answer from knowledge",
         )
     )
-
-    assembled = await runtime.prepare(
-        tools=StrategyToolSelection(mode=StrategyToolSelectionMode.NONE),
-    )
+    context = new_execution_context()
+    context.run_id = uuid4()
+    context.project_id = uuid4()
+    token = current_execution.set(context)
+    try:
+        assembled = await runtime.prepare(
+            tools=StrategyToolSelection(mode=StrategyToolSelectionMode.NONE),
+        )
+    finally:
+        current_execution.reset(token)
 
     assert len(assembled.messages) == 3
     knowledge = assembled.messages[1]
@@ -182,7 +190,7 @@ async def test_context_runtime_materializes_typed_knowledge_before_user_input() 
 
 
 @pytest.mark.asyncio
-async def test_context_runtime_scopes_tool_instructions_to_selected_invocation() -> None:
+async def test_context_manager_scopes_tool_instructions_to_selected_invocation() -> None:
     state = StrategyRuntimeState(
         messages=[
             SystemMessage(content="system"),
@@ -191,7 +199,7 @@ async def test_context_runtime_scopes_tool_instructions_to_selected_invocation()
     )
     runtime = RuntimeStrategyContextManager(
         capability=ContextAssemblyCapability(
-            manager=None,
+            manager=StandardContextManager(),
             provider="test",
             model_name="test-model",
             pricing_snapshot=None,
@@ -208,13 +216,19 @@ async def test_context_runtime_scopes_tool_instructions_to_selected_invocation()
         ),
         runtime_state=state,
     )
-
-    without_tools = await runtime.prepare(
-        tools=StrategyToolSelection(mode=StrategyToolSelectionMode.NONE),
-    )
-    with_tools = await runtime.prepare(
-        tools=StrategyToolSelection(mode=StrategyToolSelectionMode.ALL),
-    )
+    context = new_execution_context()
+    context.run_id = uuid4()
+    context.project_id = uuid4()
+    token = current_execution.set(context)
+    try:
+        without_tools = await runtime.prepare(
+            tools=StrategyToolSelection(mode=StrategyToolSelectionMode.NONE),
+        )
+        with_tools = await runtime.prepare(
+            tools=StrategyToolSelection(mode=StrategyToolSelectionMode.ALL),
+        )
+    finally:
+        current_execution.reset(token)
 
     without_text = "\n".join(
         str(message.content)
@@ -251,7 +265,8 @@ def test_runtime_state_assigns_deterministic_unique_ids_to_base_messages() -> No
     assert len(set(first_ids)) == len(first_ids)
 
 
-def test_context_runtime_applies_compaction_replacements_by_message_id() -> None:
+@pytest.mark.asyncio
+async def test_context_manager_applies_compaction_replacements_by_message_id() -> None:
     state = StrategyRuntimeState(
         messages=[
             SystemMessage(content="system"),
@@ -260,24 +275,37 @@ def test_context_runtime_applies_compaction_replacements_by_message_id() -> None
         ]
     )
     first_user = state.messages[1]
-    second_user = state.messages[2]
+    state.context_contributions["summary.session"] = StrategyContextContribution(
+        key="summary.session",
+        source_type="SESSION",
+        content="session summary",
+    )
     state.context_replacements["summary.session"] = (str(first_user.id),)
 
     runtime = RuntimeStrategyContextManager(
         capability=ContextAssemblyCapability(
-            manager=None,
+            manager=StandardContextManager(),
             provider="test",
             model_name="test-model",
             pricing_snapshot=None,
         ),
         runtime_state=state,
     )
+    context = new_execution_context()
+    context.run_id = uuid4()
+    context.project_id = uuid4()
+    token = current_execution.set(context)
+    try:
+        assembled = await runtime.prepare(
+            tools=StrategyToolSelection(mode=StrategyToolSelectionMode.NONE),
+        )
+    finally:
+        current_execution.reset(token)
 
-    reordered = [second_user, state.messages[0], first_user]
-    remaining = runtime._apply_replacements(reordered)
-
-    assert [message.content for message in remaining] == ["second", "system"]
-    assert all(message.id != first_user.id for message in remaining)
+    contents = [str(message.content) for message in assembled.messages]
+    assert "first" not in contents
+    assert "second" in contents
+    assert "session summary" in contents
 
 
 def test_runtime_tools_exposes_only_all_or_none() -> None:
