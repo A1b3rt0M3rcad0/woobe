@@ -132,7 +132,6 @@ async def test_vector_snapshot_rag_uses_agent_runtime_config_and_bound_snapshot(
     result = await _adapter(embedding_factory, vector_search).retrieve(
         binding=binding,
         query="When does it renew?",
-        history=(),
     )
 
     embedding_client.aembed_query.assert_awaited_once_with("When does it renew?")

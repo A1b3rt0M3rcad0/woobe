@@ -167,7 +167,6 @@ async def test_rag_query_embedding_failure_records_terminal_metadata(monkeypatch
         await adapter.retrieve(
             binding=binding,
             query="What is in the knowledge base?",
-            history=(),
         )
 
     assert str(raised.value) == "Embedding provider account has insufficient credits."

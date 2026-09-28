@@ -163,21 +163,19 @@ async def test_rag_embedding_is_external_and_vector_search_is_read_only(monkeypa
         return await adapter.retrieve(
             binding=binding,
             query=query,
-            history=(),
         )
 
     state = StrategyRuntimeState()
     knowledge = RuntimeStrategyKnowledge(
         capability=KnowledgeRetrievalCapability(
             retrieve_fn=retrieve,
-            default_query="what is Woobe?",
         ),
         runtime_state=state,
     )
 
     token = current_execution.set(context)
     try:
-        result = await knowledge.retrieve()
+        result = await knowledge.retrieve(query="what is Woobe?")
     finally:
         current_execution.reset(token)
 

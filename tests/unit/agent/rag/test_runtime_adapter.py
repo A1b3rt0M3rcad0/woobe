@@ -101,14 +101,12 @@ async def test_runtime_adapter_consumes_frozen_binding_and_merges_metrics() -> N
     result = await _adapter(registry).retrieve(
         binding=binding,
         query="question",
-        history=("history",),
     )
 
     assert result.context == "context"
     request, _capabilities = strategy.calls[0]
     assert request.config.strategy == "classic"
     assert request.query == "question"
-    assert request.history == ("history",)
     assert result.metrics["strategy"] == "classic"
     assert result.metrics["knowledge_version_id"] == str(binding.knowledge.id)
     assert result.metrics["vector_snapshot_id"] == str(binding.snapshot.id)
@@ -128,12 +126,10 @@ async def test_runtime_adapter_selects_strategy_from_binding_without_cross_conta
     first_result = await adapter.retrieve(
         binding=_binding("classic"),
         query="one",
-        history=(),
     )
     second_result = await adapter.retrieve(
         binding=_binding("experimental"),
         query="two",
-        history=(),
     )
 
     assert first_result.context == "classic"
@@ -151,8 +147,7 @@ async def test_runtime_adapter_rejects_unknown_binding_strategy() -> None:
         await _adapter(registry).retrieve(
             binding=_binding("agentic"),
             query="question",
-            history=(),
-        )
+            )
 
 
 @pytest.mark.asyncio
@@ -175,8 +170,7 @@ async def test_runtime_adapter_attaches_embedding_failure_metadata_to_error() ->
         await _adapter(registry).retrieve(
             binding=binding,
             query="question",
-            history=(),
-        )
+            )
 
     metadata = getattr(raised.value, "rag_metadata")
     assert metadata["failure_phase"] == "rag_query_embedding"
