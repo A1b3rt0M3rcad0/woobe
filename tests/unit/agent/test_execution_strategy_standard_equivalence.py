@@ -81,7 +81,6 @@ def _request(
     json_enabled: bool = False,
     response_format: dict | None = None,
     knowledge_retrieve=None,
-    knowledge_query: str | None = None,
     agent: Any | None = None,
     messages: list[Any] | None = None,
 ) -> ExecutionStrategyRequest:
@@ -100,7 +99,6 @@ def _request(
         messages=list(messages or []),
         context_assembler=StandardContextManager(),
         knowledge_retrieve=knowledge_retrieve,
-        knowledge_query=knowledge_query,
     )
 
 
@@ -441,7 +439,6 @@ async def test_standard_strategy_retrieves_knowledge_and_materializes_it_in_cont
             execute_single_tool=execute_single_tool,
             has_tools=False,
             knowledge_retrieve=retrieve_knowledge,
-            knowledge_query="legacy opaque query that must not win",
             messages=[HumanMessage(content="How does Woobe execute agents?")],
         )
     )
@@ -488,7 +485,6 @@ async def test_standard_strategy_builds_knowledge_query_from_real_conversation_h
             execute_single_tool=execute_single_tool,
             has_tools=False,
             knowledge_retrieve=retrieve_knowledge,
-            knowledge_query="legacy query",
             agent=agent,
             messages=[
                 HumanMessage(content="What is Woobe?"),

@@ -2,7 +2,7 @@
 
 The RAG subsystem separates behavior from infrastructure.
 
-- **Strategy** owns the retrieval algorithm and decides how capabilities are composed.
+- **Strategy** owns the retrieval algorithm and decides how capabilities are composed. It receives an already-final retrieval query; conversation-to-query construction belongs exclusively to the Execution Strategy.
 - **Capability** exposes a reusable operation required by one or more strategies.
 - **Adapter** connects capabilities and strategy execution to Woobe runtime infrastructure.
 

@@ -65,7 +65,7 @@ def _request(
     execute_single_tool,
     *,
     knowledge_retrieve=None,
-    knowledge_query: str | None = None,
+    user_message: str | None = None,
 ) -> ExecutionStrategyRequest:
     return ExecutionStrategyRequest(
         llm_factory=_Factory(model),
@@ -95,13 +95,12 @@ def _request(
         ],
         tool_name_to_id={"lookup": "tool-id"},
         messages=(
-            [HumanMessage(content=knowledge_query)]
-            if knowledge_query
+            [HumanMessage(content=user_message)]
+            if user_message
             else []
         ),
         context_assembler=StandardContextManager(),
         knowledge_retrieve=knowledge_retrieve,
-        knowledge_query=knowledge_query,
     )
 
 
@@ -228,7 +227,7 @@ async def test_standard_strategy_restores_knowledge_contribution_without_retriev
         model,
         execute_single_tool,
         knowledge_retrieve=retrieve_knowledge,
-        knowledge_query="customer 123",
+        user_message="customer 123",
     )
 
     first_context = new_execution_context()

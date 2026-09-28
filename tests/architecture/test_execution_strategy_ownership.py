@@ -21,6 +21,9 @@ STANDARD = EXECUTION / "strategies" / "standard.py"
 STRATEGY_OUTPUT = EXECUTION / "strategy_runtime" / "output.py"
 STRATEGY_MODEL = EXECUTION / "strategy_runtime" / "model.py"
 PREPARATION = EXECUTION / "capabilities" / "preparation.py"
+RAG_CLASSIC = ROOT / "packages" / "woobe-core" / "src" / "modules" / "agent" / "application" / "rag" / "strategies" / "classic.py"
+RAG_RUNTIME_ADAPTER = EXECUTION / "rag" / "runtime_adapter.py"
+STRATEGY_KNOWLEDGE = ROOT / "packages" / "woobe-core" / "src" / "modules" / "agent" / "application" / "strategy_sdk" / "knowledge.py"
 
 
 def _tree(path: Path) -> ast.Module:
@@ -170,3 +173,23 @@ def test_execution_preparation_is_composed_from_focused_helpers() -> None:
     assert required.issubset(calls)
     assert "create_chat_model" not in calls
     assert "_messages_with_leading_system_instruction" not in calls
+
+
+def test_execution_strategy_exclusively_owns_knowledge_query_construction() -> None:
+    standard_source = STANDARD.read_text(encoding="utf-8")
+    classic_source = RAG_CLASSIC.read_text(encoding="utf-8")
+    adapter_source = RAG_RUNTIME_ADAPTER.read_text(encoding="utf-8")
+    knowledge_source = STRATEGY_KNOWLEDGE.read_text(encoding="utf-8")
+
+    assert "_conversation_knowledge_query" in standard_source
+    assert "ctx.knowledge.retrieve(" in standard_source
+    assert "query=query" in standard_source
+
+    assert "build_retrieval_query" not in classic_source
+    assert "history_turns" not in classic_source
+    assert "query_mode" not in classic_source
+    assert "request.history" not in classic_source
+
+    assert "history:" not in adapter_source
+    assert "history=" not in adapter_source
+    assert "query: str | None" not in knowledge_source

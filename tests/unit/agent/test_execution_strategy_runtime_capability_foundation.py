@@ -58,10 +58,9 @@ async def test_knowledge_capability_normalizes_retrieval_result() -> None:
 
     capability = KnowledgeRetrievalCapability(
         retrieve_fn=retrieve,
-        default_query="runtime query",
     )
 
-    result = await capability.retrieve()
+    result = await capability.retrieve(query="runtime query")
 
     assert result.content == "retrieved knowledge"
     assert result.sources == ()
@@ -90,8 +89,7 @@ async def test_strategy_knowledge_records_started_completed_and_execution_eviden
     runtime = RuntimeStrategyKnowledge(
         capability=KnowledgeRetrievalCapability(
             retrieve_fn=retrieve,
-            default_query="runtime query",
-        ),
+            ),
         runtime_state=state,
     )
     recorder = _Recorder()
@@ -99,7 +97,7 @@ async def test_strategy_knowledge_records_started_completed_and_execution_eviden
     context.run_event_recorder = recorder
     token = current_execution.set(context)
     try:
-        result = await runtime.retrieve()
+        result = await runtime.retrieve(query="runtime query")
     finally:
         current_execution.reset(token)
 
@@ -125,8 +123,7 @@ async def test_strategy_knowledge_records_failed_retrieval_before_reraising() ->
     runtime = RuntimeStrategyKnowledge(
         capability=KnowledgeRetrievalCapability(
             retrieve_fn=retrieve,
-            default_query="runtime query",
-        ),
+            ),
         runtime_state=state,
     )
     recorder = _Recorder()
@@ -135,7 +132,7 @@ async def test_strategy_knowledge_records_failed_retrieval_before_reraising() ->
     token = current_execution.set(context)
     try:
         with pytest.raises(RuntimeError, match="retrieval unavailable"):
-            await runtime.retrieve()
+            await runtime.retrieve(query="runtime query")
     finally:
         current_execution.reset(token)
 
