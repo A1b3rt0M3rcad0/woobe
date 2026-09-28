@@ -45,6 +45,28 @@ STRATEGY_KNOWLEDGE = (
     / "strategy_sdk"
     / "knowledge.py"
 )
+RAG_INTERFACES = (
+    ROOT
+    / "packages"
+    / "woobe-core"
+    / "src"
+    / "modules"
+    / "agent"
+    / "application"
+    / "interfaces"
+    / "rag.py"
+)
+RAG_CONFIG_DTOS = (
+    ROOT
+    / "packages"
+    / "woobe-core"
+    / "src"
+    / "modules"
+    / "agent"
+    / "application"
+    / "dtos"
+    / "rag_config_dtos.py"
+)
 
 
 def _tree(path: Path) -> ast.Module:
@@ -201,6 +223,8 @@ def test_execution_strategy_exclusively_owns_knowledge_query_construction() -> N
     classic_source = RAG_CLASSIC.read_text(encoding="utf-8")
     adapter_source = RAG_RUNTIME_ADAPTER.read_text(encoding="utf-8")
     knowledge_source = STRATEGY_KNOWLEDGE.read_text(encoding="utf-8")
+    rag_interfaces_source = RAG_INTERFACES.read_text(encoding="utf-8")
+    rag_config_tree = _tree(RAG_CONFIG_DTOS)
 
     assert "_conversation_knowledge_query" in standard_source
     assert "ctx.knowledge.retrieve(" in standard_source
@@ -214,3 +238,31 @@ def test_execution_strategy_exclusively_owns_knowledge_query_construction() -> N
     assert "history:" not in adapter_source
     assert "history=" not in adapter_source
     assert "query: str | None" not in knowledge_source
+    assert "config: RAGRetrievalConfig" in rag_interfaces_source
+
+    retrieval_config = next(
+        node
+        for node in rag_config_tree.body
+        if isinstance(node, ast.ClassDef) and node.name == "RAGRetrievalConfig"
+    )
+    runtime_config = next(
+        node
+        for node in rag_config_tree.body
+        if isinstance(node, ast.ClassDef) and node.name == "RAGRuntimeConfig"
+    )
+    retrieval_fields = {
+        node.target.id
+        for node in retrieval_config.body
+        if isinstance(node, ast.AnnAssign)
+        and isinstance(node.target, ast.Name)
+    }
+    runtime_fields = {
+        node.target.id
+        for node in runtime_config.body
+        if isinstance(node, ast.AnnAssign)
+        and isinstance(node.target, ast.Name)
+    }
+
+    assert "query_mode" not in retrieval_fields
+    assert "history_turns" not in retrieval_fields
+    assert {"query_mode", "history_turns"}.issubset(runtime_fields)
