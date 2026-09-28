@@ -4,14 +4,13 @@ from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Mapping
 
 from modules.agent.application.dtos.runtime_dtos import SourceInfo
-from modules.agent.application.strategy_sdk.conversation import (
-    StrategyConversation,
-    StrategyMessage,
-    StrategyMessageRole,
+from modules.agent.application.interfaces.knowledge import (
+    KnowledgeConversation,
+    KnowledgeMessage,
 )
 
 
-def _message_text(message: StrategyMessage | None) -> str | None:
+def _message_text(message: KnowledgeMessage | None) -> str | None:
     if message is None:
         return None
     content = message.content
@@ -60,7 +59,7 @@ class KnowledgeRetrievalCapability:
         if self.history_turns <= 0:
             raise ValueError("Knowledge history_turns must be positive")
 
-    def build_query(self, conversation: StrategyConversation) -> str | None:
+    def build_query(self, conversation: KnowledgeConversation) -> str | None:
         current = _message_text(conversation.current_user_message)
         if current is None:
             return None
@@ -73,9 +72,10 @@ class KnowledgeRetrievalCapability:
             content = _message_text(message)
             if content is None:
                 continue
-            if message.role is StrategyMessageRole.USER:
+            role = getattr(message.role, "value", message.role)
+            if role == "user":
                 conversational.append(("User", content))
-            elif message.role is StrategyMessageRole.ASSISTANT:
+            elif role == "assistant":
                 conversational.append(("Assistant", content))
 
         tail = conversational[-(self.history_turns * 2) :]
