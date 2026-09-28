@@ -202,16 +202,20 @@ export function useAskStream() {
       if (ownedStreamControllerRef.current === controller) {
         ownedStreamControllerRef.current = null
       }
-      if (observedSessionId) {
-        void queryClient.invalidateQueries({ queryKey: ['session-messages', observedSessionId] })
+      // An aborted/replaced observer did not finish the Run. In particular, its
+      // cleanup must not refetch the Session now owned by a newer controller.
+      if (ownsCurrentStream && !controller.signal.aborted) {
+        if (observedSessionId) {
+          void queryClient.invalidateQueries({ queryKey: ['session-messages', observedSessionId] })
+        }
+        void queryClient.invalidateQueries({ queryKey: ['agent-sessions'] })
+        void queryClient.invalidateQueries({ queryKey: ['agent-runs'] })
+        void queryClient.invalidateQueries({ queryKey: ['traces'] })
+        void queryClient.invalidateQueries({
+          queryKey: ['project-overview'],
+          refetchType: 'none',
+        })
       }
-      void queryClient.invalidateQueries({ queryKey: ['agent-sessions'] })
-      void queryClient.invalidateQueries({ queryKey: ['agent-runs'] })
-      void queryClient.invalidateQueries({ queryKey: ['traces'] })
-      void queryClient.invalidateQueries({
-        queryKey: ['project-overview'],
-        refetchType: 'none',
-      })
     }
   }, [cancellation, queryClient])
 
@@ -238,7 +242,6 @@ export function useAskStream() {
     callbacks: StreamCallbacks,
   ) => {
     activeSessionIdRef.current = null
-    refreshedRunIdRef.current = null
     stopCallbacksRef.current = {}
     setAgentStreamStopState('running')
     cancellation.begin(runId)

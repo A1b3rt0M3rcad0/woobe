@@ -6,16 +6,22 @@ from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
-
 from modules.agent.domain.run import AgentRun
-from modules.agent.infra.execution.agent_run_reattach_service import AgentRunReattachService
+from modules.agent.infra.execution.agent_run_reattach_service import (
+    AgentRunReattachService,
+)
 from modules.network.infra.services.journal_aware_boundary_service import (
     JournalAwareNetworkBoundaryService,
 )
 from shared.contracts.run_event_journal import DurableRunEvent, RunJournalState
 from shared.infra.in_memory_execution_state import InMemoryExecutionStateStore
 from shared.infra.in_memory_run_event_journal import InMemoryRunEventJournal
-from shared.runtime import RunReference, RuntimeEventPublisher, RuntimeObserver, RuntimeStreamReader
+from shared.runtime import (
+    RunReference,
+    RuntimeEventPublisher,
+    RuntimeObserver,
+    RuntimeStreamReader,
+)
 from shared.runtime.event_schema import EVENT_JOURNAL_STORAGE_VERSION
 from shared.security.principal import ProjectApiPrincipal
 
@@ -278,3 +284,37 @@ async def test_durable_network_projection_preserves_agent_run_identity() -> None
     assert frame.session_id == network_session_id
     assert frame.data["invocations"][0]["agent_run_id"] == str(agent_run_id)
     await stream.aclose()
+
+
+@pytest.mark.asyncio
+async def test_playground_composer_excludes_terminal_journal_run(monkeypatch) -> None:
+    monkeypatch.setenv("WOOBE_ENCRYPTION_KEY", "test" * 8)
+    monkeypatch.setenv("WOOBE_SECRET_KEY", "test" * 8)
+    from modules.agent.composition.composers import (
+        agent_run_reattach_composer as composer,
+    )
+
+    run = _direct_run()
+    monkeypatch.setattr(composer, 'AgentRuntimeTransactionRunner', lambda *args: _Transactions(run))
+    monkeypatch.setattr(composer, 'EXECUTION_STATE_STORE', InMemoryExecutionStateStore())
+    monkeypatch.setattr(composer, 'RUN_EVENT_JOURNAL', _TerminalJournal(run.id))
+
+    active = await composer.active_agent_run_composer()(
+        session_id=run.session_id, principal=_principal(run),
+    )
+    assert active is None
+
+
+@pytest.mark.asyncio
+async def test_active_agent_does_not_hide_terminal_outside_durable_prefix() -> None:
+    from dataclasses import replace
+
+    run = _direct_run()
+    journal = _TerminalJournal(run.id)
+    state = await journal.get_state(run.id)
+    journal.get_state = AsyncMock(return_value=replace(state, durable_sequence=3))
+    service = AgentRunReattachService(
+        transactions=_Transactions(run), state_store=InMemoryExecutionStateStore(), journal=journal,
+    )
+    active = await service.active(session_id=run.session_id, principal=_principal(run))
+    assert active['run_id'] == str(run.id)

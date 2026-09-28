@@ -6,7 +6,7 @@ from modules.agent.composition.factories.agent_uow_factory import (
     build_agent_read_uow,
     build_agent_uow,
 )
-from modules.agent.composition.resources import EXECUTION_STATE_STORE
+from modules.agent.composition.resources import EXECUTION_STATE_STORE, RUN_EVENT_JOURNAL
 from modules.agent.infra.database.runtime_transaction_runner import (
     AgentRuntimeTransactionRunner,
 )
@@ -23,6 +23,7 @@ def _build_operations() -> AgentRunReattachService:
     return AgentRunReattachService(
         transactions=transactions,
         state_store=EXECUTION_STATE_STORE,
+        journal=RUN_EVENT_JOURNAL,
     )
 
 

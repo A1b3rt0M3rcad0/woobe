@@ -213,6 +213,8 @@ function PlaygroundContent() {
   const syncedSessionRef = useRef<string | null>(null)
   const currentRunIdRef = useRef<string | null>(null)
   const reattachingRunRef = useRef<string | null>(null)
+  const finishedRunsRef = useRef(new Set<string>())
+  const attemptedReattachmentsRef = useRef(new Set<string>())
   const mountedRef = useRef(true)
 
   const sessionIdState = activeSessionIdByEnvironment[environment]
@@ -301,6 +303,16 @@ function PlaygroundContent() {
     currentRunIdRef.current = runId
     if (projectId && agentId) setStoredPlaygroundRunId(projectId, agentId, environment, runId)
   }, [agentId, environment, projectId])
+
+  const finishRun = useCallback(() => {
+    if (currentRunIdRef.current) finishedRunsRef.current.add(currentRunIdRef.current)
+    rememberRunId(null)
+  }, [rememberRunId])
+
+  useEffect(() => {
+    // A new visit may recover an interrupted observer. Terminal Runs remain excluded.
+    attemptedReattachmentsRef.current.clear()
+  }, [agentId, environment, projectId, selectedSessionId])
 
   useEffect(() => {
     mountedRef.current = true
@@ -461,7 +473,11 @@ function PlaygroundContent() {
         }
       }
       if (!runId || disposed || reattachingRunRef.current === runId) return
+      if (finishedRunsRef.current.has(runId) || attemptedReattachmentsRef.current.has(runId)) return
 
+      // stream-client owns bounded transport retries. Do not restart that retry
+      // budget from this effect whenever isSending becomes false.
+      attemptedReattachmentsRef.current.add(runId)
       reattachingRunRef.current = runId
       rememberRunId(runId)
       accumulatedRef.current = ''
@@ -527,10 +543,10 @@ function PlaygroundContent() {
             }))
             setRawEvents([...rawEventsRef.current])
             setLastResponse(response as AskResponse)
-            rememberRunId(null)
+            finishRun()
           },
           onError: (error) => {
-            rememberRunId(null)
+            finishRun()
             setRawEvents([...rawEventsRef.current])
             updateLastAssistantMessage((last) => ({ ...last, activity: null, output_parse_error: error.message }))
             toast.error(error.message)
@@ -539,7 +555,7 @@ function PlaygroundContent() {
             rawEventsRef.current.push({ type: 'cancelled', timestamp: new Date().toISOString(), payload: event })
             setRawEvents([...rawEventsRef.current])
             reconcileCancelledAssistant(event)
-            rememberRunId(null)
+            finishRun()
             toast.info('Agent Run cancelled')
           },
           onFallback: (info) => {
@@ -561,7 +577,7 @@ function PlaygroundContent() {
     })()
 
     return () => { disposed = true }
-  }, [agentId, environment, isFetching, isSending, projectId, reattach, reconcileCancelledAssistant, rememberRunId, selectedSessionId, setCurrentSessionId, updateLastAssistantMessage])
+  }, [agentId, environment, isFetching, isSending, projectId, reattach, reconcileCancelledAssistant, rememberRunId, selectedSessionId, setCurrentSessionId, updateLastAssistantMessage, finishRun])
 
   const handleStop = useCallback(() => {
     cancelStream({
@@ -670,14 +686,14 @@ function PlaygroundContent() {
             return updated
           })
           setLastResponse(meta as AskResponse)
-          rememberRunId(null)
+          finishRun()
           if (meta.session_id) syncedSessionRef.current = meta.session_id
           if (meta.trace_id) setTimeout(() => setSelectedTraceId(meta.trace_id!), 100)
         },
         onError: (error) => {
           rawEventsRef.current.push({ type: 'error', timestamp: new Date().toISOString(), payload: { message: error.message } })
           setRawEvents([...rawEventsRef.current])
-          rememberRunId(null)
+          finishRun()
           toast.error(error.message)
           updateLastAssistantMessage((last) => ({ ...last, activity: null, content: last.content || `Error: ${error.message}`, output_parse_error: error.message, trace_id: metadataRef.current.trace_id ?? null }))
         },
@@ -685,7 +701,7 @@ function PlaygroundContent() {
           rawEventsRef.current.push({ type: 'cancelled', timestamp: new Date().toISOString(), payload: event })
           setRawEvents([...rawEventsRef.current])
           reconcileCancelledAssistant(event)
-          rememberRunId(null)
+          finishRun()
           toast.info('Agent Run cancelled')
           if (metadataRef.current.trace_id) setTimeout(() => setSelectedTraceId(metadataRef.current.trace_id!), 100)
         },

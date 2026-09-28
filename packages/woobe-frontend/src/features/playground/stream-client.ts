@@ -293,6 +293,19 @@ function waitForBrowserPaint(signal: AbortSignal | undefined): Promise<void> {
   })
 }
 
+function runFailureMessage(item: Record<string, unknown>): string {
+  const nested = item.error && typeof item.error === 'object' && !Array.isArray(item.error)
+    ? item.error as Record<string, unknown>
+    : {}
+  const message = stringOrNull(item.message) ?? stringOrNull(nested.message)
+    ?? stringOrNull(item.failure_detail) ?? 'Run failed'
+  const code = stringOrNull(item.failure_code) ?? stringOrNull(nested.failure_code)
+    ?? stringOrNull(nested.code)
+  const traceId = stringOrNull(item.trace_id) ?? stringOrNull(nested.trace_id)
+  return [message, code ? `Code: ${code}` : null, traceId ? `Trace: ${traceId}` : null]
+    .filter(Boolean).join(' · ')
+}
+
 function reconcileRunState(
   runtime: ParsedRuntimeFrame,
   item: Record<string, unknown>,
@@ -347,13 +360,7 @@ function reconcileRunState(
       output_parse_error: result.output_parse_error ?? item.output_parse_error,
     }, runtime.kind === 'semantic' ? runtime.sessionId : null))
   } else if (status === 'cancelled') callbacks.onCancelled?.(item)
-  else callbacks.onError(new Error(
-    typeof item.message === 'string'
-      ? item.message
-      : typeof item.failure_detail === 'string'
-        ? item.failure_detail
-        : 'Run failed',
-  ))
+  else callbacks.onError(new Error(runFailureMessage(item)))
   return true
 }
 
@@ -436,7 +443,7 @@ function dispatch(frame: SseFrame, callbacks: StreamCallbacks, state: RuntimeCli
     callbacks.onDone(response)
     return true
   } else if (type === 'error') {
-    callbacks.onError(new Error(typeof item.message === 'string' ? item.message : 'Stream error'))
+    callbacks.onError(new Error(runFailureMessage(item)))
     return true
   } else if (type === 'cancelled') {
     callbacks.onCancelled?.(item)

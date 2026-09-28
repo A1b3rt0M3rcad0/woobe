@@ -72,15 +72,24 @@ class RunEventPersistenceWorker:
 
             if self._projector is not None:
                 after_sequence = self._projected_hint.get(run_id, 0)
-                if state.durable_sequence > after_sequence:
+                while state.durable_sequence > after_sequence:
                     durable_events = await self._journal.list_events(
                         run_id,
                         after_sequence=after_sequence,
                         through_sequence=state.durable_sequence,
                     )
-                    if durable_events:
-                        await self._projector.project(durable_events)
-                    self._projected_hint[run_id] = state.durable_sequence
+                    if not durable_events or any(
+                        event.run_id != run_id
+                        or event.sequence != after_sequence + index + 1
+                        or event.sequence > state.durable_sequence
+                        for index, event in enumerate(durable_events)
+                    ):
+                        raise RuntimeError(
+                            f"Run {run_id} journal projection gap after {after_sequence}"
+                        )
+                    await self._projector.project(durable_events)
+                    after_sequence = durable_events[-1].sequence
+                    self._projected_hint[run_id] = after_sequence
 
         ackable = [
             event.cursor
