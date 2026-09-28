@@ -7,11 +7,15 @@ import pytest
 from langchain_core.messages import SystemMessage, ToolMessage
 
 from modules.agent.application.context_assembly import ContextBudgetExceeded
+from modules.agent.application.context_managers.standard import StandardContextManager
 from modules.agent.application.interfaces.execution import (
     InstrumentedExecution,
     InstrumentedExecutionError,
 )
-from modules.agent.application.interfaces.execution_context import current_execution
+from modules.agent.application.interfaces.execution_context import (
+    current_execution,
+    new_execution_context,
+)
 from modules.agent.infra.execution.capabilities.context_assembly import (
     ContextAssemblyCapability,
 )
@@ -171,20 +175,28 @@ async def test_parallel_tools_and_no_redundant_json_repair():
         active -= 1
         return await _execute_sum(call, tool_id)
 
-    execution = await run_instrumented_execution(
-        llm_factory=factory,
-        execute_single_tool=execute,
-        clean_json_answer=lambda value: value,
-        agent=_agent(),
-        api_key="key",
-        base_url=None,
-        response_format={"schema": {"type": "object"}},
-        json_enabled=True,
-        has_tools=True,
-        agent_tools=[{"type": "function"}],
-        tool_name_to_id={"sum": "id"},
-        messages=[],
-    )
+    context = new_execution_context()
+    context.run_id = uuid4()
+    context.project_id = uuid4()
+    token = current_execution.set(context)
+    try:
+        execution = await run_instrumented_execution(
+            llm_factory=factory,
+            execute_single_tool=execute,
+            clean_json_answer=lambda value: value,
+            agent=_agent(),
+            api_key="key",
+            base_url=None,
+            response_format={"schema": {"type": "object"}},
+            json_enabled=True,
+            has_tools=True,
+            agent_tools=[{"type": "function"}],
+            tool_name_to_id={"sum": "id"},
+            messages=[],
+            context_assembler=StandardContextManager(),
+        )
+    finally:
+        current_execution.reset(token)
 
     assert peak == 2
     assert factory.create_chat_model.call_count == 1
