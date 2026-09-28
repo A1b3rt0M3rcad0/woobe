@@ -5,25 +5,25 @@ from uuid import uuid4
 
 import pytest
 
-from modules.agent.application.context_assembler_registry import (
-    ContextAssemblerDescriptor,
-    ContextAssemblerRegistry,
-    DuplicateContextAssemblerError,
-    InvalidContextAssemblerFactoryError,
+from modules.agent.application.context_manager_registry import (
+    ContextManagerDescriptor,
+    ContextManagerRegistry,
+    DuplicateContextManagerError,
+    InvalidContextManagerFactoryError,
     InvalidDefaultContextManagerError,
-    RegistryContextAssembler,
-    UnknownContextAssemblerError,
-    build_context_assembler,
-    build_context_assembler_registry,
-    canonicalize_context_assembler_runtime_config,
-    list_context_assemblers,
+    RegistryContextManager,
+    UnknownContextManagerError,
+    build_context_manager,
+    build_context_manager_registry,
+    canonicalize_context_manager_runtime_config,
+    list_context_managers,
 )
-from modules.agent.application.context_managers.standard import StandardContextAssembler
-from modules.agent.application.interfaces.context_assembler import (
-    DEFAULT_CONTEXT_ASSEMBLER_KEY,
-    STANDARD_CONTEXT_ASSEMBLER_KEY,
-    ContextAssembler,
-    ContextAssemblerKey,
+from modules.agent.application.context_managers.standard import StandardContextManager
+from modules.agent.application.interfaces.context_manager import (
+    DEFAULT_CONTEXT_MANAGER_KEY,
+    STANDARD_CONTEXT_MANAGER_KEY,
+    ContextManager,
+    ContextManagerKey,
     ContextInvocationEnvironment,
     ContextAssemblyOutput,
     ContextAssemblyRequest,
@@ -37,7 +37,7 @@ from modules.agent.application.interfaces.context_policy import ContextPolicyV1
 from shared.contracts.errors import ValidationError
 
 
-class _AlternateContextAssembler:
+class _AlternateContextManager:
     def inspect(self, request: ContextInspectionRequest) -> ContextInspectionOutput:
         return ContextInspectionOutput(
             message_count=len(request.messages),
@@ -61,11 +61,11 @@ class _AlternateContextAssembler:
 
 
 def _descriptor(
-    key: ContextAssemblerKey,
+    key: ContextManagerKey,
     *,
     display_name: str = "Alternate Context Manager",
-) -> ContextAssemblerDescriptor:
-    return ContextAssemblerDescriptor(
+) -> ContextManagerDescriptor:
+    return ContextManagerDescriptor(
         key=key,
         display_name=display_name,
         description="Alternate context manager used by tests.",
@@ -78,13 +78,13 @@ def _descriptor(
 
 
 def test_default_registry_exposes_only_named_standard_manager() -> None:
-    registry = build_context_assembler_registry()
+    registry = build_context_manager_registry()
     descriptors = registry.list_descriptors()
 
-    assert DEFAULT_CONTEXT_ASSEMBLER_KEY == ContextAssemblerKey("stdcm")
-    assert STANDARD_CONTEXT_ASSEMBLER_KEY == ContextAssemblerKey("stdcm")
+    assert DEFAULT_CONTEXT_MANAGER_KEY == ContextManagerKey("stdcm")
+    assert STANDARD_CONTEXT_MANAGER_KEY == ContextManagerKey("stdcm")
     assert [descriptor.key for descriptor in descriptors] == [
-        ContextAssemblerKey("stdcm"),
+        ContextManagerKey("stdcm"),
     ]
 
     standard = descriptors[0]
@@ -94,7 +94,7 @@ def test_default_registry_exposes_only_named_standard_manager() -> None:
 
 
 def test_catalog_has_no_version_or_strategy_alias_fields() -> None:
-    descriptors = list_context_assemblers()
+    descriptors = list_context_managers()
 
     assert len(descriptors) == 1
     standard = descriptors[0]
@@ -108,24 +108,24 @@ def test_catalog_has_no_version_or_strategy_alias_fields() -> None:
     assert "is_system_default_alias" not in standard
 
 
-def test_build_context_assembler_resolves_stdcm_through_fresh_registry() -> None:
-    first = build_context_assembler(ContextAssemblerKey("stdcm"))
-    second = build_context_assembler(ContextAssemblerKey("stdcm"))
+def test_build_context_manager_resolves_stdcm_through_fresh_registry() -> None:
+    first = build_context_manager(ContextManagerKey("stdcm"))
+    second = build_context_manager(ContextManagerKey("stdcm"))
 
-    assert isinstance(first, ContextAssembler)
-    assert isinstance(second, ContextAssembler)
+    assert isinstance(first, ContextManager)
+    assert isinstance(second, ContextManager)
     assert first is not second
 
 
 def test_registry_accepts_structural_context_manager_factory() -> None:
-    key = ContextAssemblerKey("adaptive")
-    registry = ContextAssemblerRegistry()
-    registry.register(key, _AlternateContextAssembler, descriptor=_descriptor(key))
+    key = ContextManagerKey("adaptive")
+    registry = ContextManagerRegistry()
+    registry.register(key, _AlternateContextManager, descriptor=_descriptor(key))
 
     assembler = registry.create(key)
 
-    assert isinstance(assembler, ContextAssembler)
-    assert isinstance(assembler, _AlternateContextAssembler)
+    assert isinstance(assembler, ContextManager)
+    assert isinstance(assembler, _AlternateContextManager)
 
 
 @pytest.mark.parametrize(
@@ -141,7 +141,7 @@ def test_registry_accepts_structural_context_manager_factory() -> None:
     ],
 )
 def test_descriptor_rejects_incomplete_product_metadata(field: str, value: object) -> None:
-    key = ContextAssemblerKey("adaptive")
+    key = ContextManagerKey("adaptive")
     values: dict[str, object] = {
         "key": key,
         "display_name": "Adaptive Context Manager",
@@ -155,30 +155,30 @@ def test_descriptor_rejects_incomplete_product_metadata(field: str, value: objec
     values[field] = value
 
     with pytest.raises(ValueError, match=field):
-        ContextAssemblerDescriptor(**values)  # type: ignore[arg-type]
+        ContextManagerDescriptor(**values)  # type: ignore[arg-type]
 
 
 def test_registry_can_make_any_registered_manager_the_system_default() -> None:
-    key = ContextAssemblerKey("adaptive")
-    registry = ContextAssemblerRegistry()
-    registry.register(key, _AlternateContextAssembler, descriptor=_descriptor(key))
+    key = ContextManagerKey("adaptive")
+    registry = ContextManagerRegistry()
+    registry.register(key, _AlternateContextManager, descriptor=_descriptor(key))
 
     registry.set_default(key)
     descriptor = registry.current_default()
 
     assert descriptor.key == key
     assert descriptor.is_default is True
-    assert isinstance(registry.create(key), _AlternateContextAssembler)
+    assert isinstance(registry.create(key), _AlternateContextManager)
 
 
 def test_registry_rejects_unregistered_default() -> None:
-    registry = ContextAssemblerRegistry()
+    registry = ContextManagerRegistry()
 
     with pytest.raises(
         InvalidDefaultContextManagerError,
         match="not registered: adaptive",
     ):
-        registry.set_default(ContextAssemblerKey("adaptive"))
+        registry.set_default(ContextManagerKey("adaptive"))
 
 
 def test_builder_rejects_unregistered_configured_default_manager() -> None:
@@ -186,7 +186,7 @@ def test_builder_rejects_unregistered_configured_default_manager() -> None:
         InvalidDefaultContextManagerError,
         match="not registered: adaptive",
     ):
-        build_context_assembler_registry("adaptive")
+        build_context_manager_registry("adaptive")
 
 
 def test_builder_rejects_versioned_default_manager_name() -> None:
@@ -194,19 +194,19 @@ def test_builder_rejects_versioned_default_manager_name() -> None:
         InvalidDefaultContextManagerError,
         match="registered Context Manager name",
     ):
-        build_context_assembler_registry("stdcm:legacy")
+        build_context_manager_registry("stdcm:legacy")
 
 
 def test_registry_dispatcher_resolves_manager_by_runtime_name() -> None:
-    key = ContextAssemblerKey("adaptive")
-    registry = ContextAssemblerRegistry()
+    key = ContextManagerKey("adaptive")
+    registry = ContextManagerRegistry()
     registry.register(
         key,
-        _AlternateContextAssembler,
+        _AlternateContextManager,
         descriptor=_descriptor(key),
     )
     registry.set_default(key)
-    dispatcher = RegistryContextAssembler(registry)
+    dispatcher = RegistryContextManager(registry)
     request = ContextAssemblyRequest(
         messages=["hello"],
         model_invocation_id=uuid4(),
@@ -224,26 +224,34 @@ def test_registry_dispatcher_resolves_manager_by_runtime_name() -> None:
 
 
 def test_new_agent_canonicalization_stores_only_manager_name() -> None:
-    assert canonicalize_context_assembler_runtime_config(
+    assert canonicalize_context_manager_runtime_config(
         {"other": True},
         use_current_default_if_missing=True,
     ) == {
         "other": True,
-        "context_assembler": {"name": "stdcm"},
+        "context_manager": {"name": "stdcm"},
     }
 
 
 def test_runtime_config_without_selection_uses_stdcm() -> None:
-    assert canonicalize_context_assembler_runtime_config({"other": True}) == {
+    assert canonicalize_context_manager_runtime_config({"other": True}) == {
         "other": True,
-        "context_assembler": {"name": "stdcm"},
+        "context_manager": {"name": "stdcm"},
+    }
+
+
+def test_legacy_context_assembler_selection_is_canonicalized() -> None:
+    assert canonicalize_context_manager_runtime_config(
+        {"context_assembler": {"name": "stdcm"}}
+    ) == {
+        "context_manager": {"name": "stdcm"},
     }
 
 
 def test_runtime_config_rejects_version_and_strategy_alias_fields() -> None:
     with pytest.raises(ValidationError, match="supports only the 'name' field"):
-        canonicalize_context_assembler_runtime_config(
-            {"context_assembler": {"name": "stdcm", "version": "v1"}}
+        canonicalize_context_manager_runtime_config(
+            {"context_manager": {"name": "stdcm", "version": "v1"}}
         )
 
 
@@ -252,47 +260,47 @@ def test_runtime_config_rejects_unregistered_manager() -> None:
         ValidationError,
         match="Unsupported context assembler: missing",
     ):
-        canonicalize_context_assembler_runtime_config(
-            {"context_assembler": {"name": "missing"}}
+        canonicalize_context_manager_runtime_config(
+            {"context_manager": {"name": "missing"}}
         )
 
 
 def test_registry_rejects_duplicate_identity() -> None:
-    key = ContextAssemblerKey("adaptive")
-    registry = ContextAssemblerRegistry()
+    key = ContextManagerKey("adaptive")
+    registry = ContextManagerRegistry()
     descriptor = _descriptor(key)
-    registry.register(key, _AlternateContextAssembler, descriptor=descriptor)
+    registry.register(key, _AlternateContextManager, descriptor=descriptor)
 
-    with pytest.raises(DuplicateContextAssemblerError, match="adaptive"):
-        registry.register(key, _AlternateContextAssembler, descriptor=descriptor)
+    with pytest.raises(DuplicateContextManagerError, match="adaptive"):
+        registry.register(key, _AlternateContextManager, descriptor=descriptor)
 
 
 def test_registry_rejects_unknown_identity() -> None:
-    registry = build_context_assembler_registry()
+    registry = build_context_manager_registry()
 
-    with pytest.raises(UnknownContextAssemblerError, match="missing"):
-        registry.create(ContextAssemblerKey("missing"))
+    with pytest.raises(UnknownContextManagerError, match="missing"):
+        registry.create(ContextManagerKey("missing"))
 
 
 def test_registry_rejects_incompatible_factory_result() -> None:
-    key = ContextAssemblerKey("invalid")
-    registry = ContextAssemblerRegistry()
+    key = ContextManagerKey("invalid")
+    registry = ContextManagerRegistry()
     registry.register(
         key,
         lambda: object(),  # type: ignore[arg-type]
         descriptor=_descriptor(key),
     )
 
-    with pytest.raises(InvalidContextAssemblerFactoryError, match="invalid"):
+    with pytest.raises(InvalidContextManagerFactoryError, match="invalid"):
         registry.create(key)
 
 
-def test_context_assembler_key_is_name_only() -> None:
-    assert ContextAssemblerKey.parse(" stdcm ") == ContextAssemblerKey("stdcm")
-    assert str(ContextAssemblerKey(" adaptive ")) == "adaptive"
+def test_context_manager_key_is_name_only() -> None:
+    assert ContextManagerKey.parse(" stdcm ") == ContextManagerKey("stdcm")
+    assert str(ContextManagerKey(" adaptive ")) == "adaptive"
 
     with pytest.raises(ValueError, match="plain name"):
-        ContextAssemblerKey.parse("stdcm:legacy")
+        ContextManagerKey.parse("stdcm:legacy")
 
     with pytest.raises(ValueError, match="must not be empty"):
-        ContextAssemblerKey(" ")
+        ContextManagerKey(" ")
