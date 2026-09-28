@@ -90,7 +90,7 @@ class RuntimeStrategyOutput:
             clean_json_answer=prepared.clean_json_answer,
             pricing_snapshot=prepared.pricing_snapshot,
             context_capability=ContextAssemblyCapability(
-                assembler=prepared.context_assembler,
+                manager=prepared.context_manager,
                 provider=prepared.provider,
                 model_name=prepared.model_name,
                 pricing_snapshot=prepared.pricing_snapshot,
