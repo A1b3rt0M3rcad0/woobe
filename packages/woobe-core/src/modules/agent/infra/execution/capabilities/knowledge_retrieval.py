@@ -23,16 +23,14 @@ class KnowledgeRetrievalCapability:
     """Runtime-governed Knowledge access exposed to Strategy Runtime."""
 
     retrieve_fn: KnowledgeRetrieveFn | None
-    default_query: str | None = None
     query_mode: str = "conversation_context"
     history_turns: int = 3
 
-    async def retrieve(self, *, query: str | None = None) -> KnowledgeRetrievalResult:
-        effective_query = query if query is not None else self.default_query
-        if self.retrieve_fn is None or not effective_query:
+    async def retrieve(self, *, query: str) -> KnowledgeRetrievalResult:
+        if self.retrieve_fn is None or not query:
             return KnowledgeRetrievalResult(content=None)
 
-        raw = await self.retrieve_fn(effective_query)
+        raw = await self.retrieve_fn(query)
         content = getattr(raw, "content", None)
         if content is None:
             content = getattr(raw, "context", None)

@@ -65,6 +65,6 @@ class StrategyKnowledge(Protocol):
     async def retrieve(
         self,
         *,
-        query: str | None = None,
+        query: str,
         phase: StrategyPhase | None = None,
     ) -> StrategyKnowledgeResult: ...

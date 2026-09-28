@@ -35,7 +35,6 @@ class ExecutionStrategyRequest:
     messages: list
     context_assembler: ContextManager | None = None
     knowledge_retrieve: Callable[[str], Awaitable[Any]] | None = None
-    knowledge_query: str | None = None
 
     @property
     def context_manager(self) -> ContextManager | None:

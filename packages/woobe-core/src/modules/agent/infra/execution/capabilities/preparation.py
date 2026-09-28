@@ -62,7 +62,6 @@ class PreparedExecution:
     context_manager: ContextManager | None
     tool_definitions: list[dict]
     knowledge_retrieve: Callable[[str], Awaitable[Any]] | None
-    knowledge_query: str | None
     knowledge_query_mode: str
     knowledge_history_turns: int
 
@@ -499,7 +498,6 @@ def prepare_execution(request: ExecutionStrategyRequest) -> PreparedExecution:
         context_manager=request.context_manager,
         tool_definitions=tools.definitions,
         knowledge_retrieve=request.knowledge_retrieve,
-        knowledge_query=request.knowledge_query,
         knowledge_query_mode=knowledge_query_mode,
         knowledge_history_turns=knowledge_history_turns,
     )
