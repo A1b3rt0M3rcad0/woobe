@@ -145,6 +145,7 @@ class ContextAssemblyRequest:
     model: str
     environment: ContextInvocationEnvironment
     policy: ContextPolicyV1
+    contributions: tuple[ContextManagedContribution, ...] = ()
 
 
 class ContextAssemblyOutput(Protocol):

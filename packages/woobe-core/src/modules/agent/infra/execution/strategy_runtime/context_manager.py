@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from typing import Any, Protocol
 
 import uuid6
@@ -17,6 +16,7 @@ from modules.agent.application.interfaces.execution_context import current_execu
 from modules.agent.application.strategy_sdk import (
     StrategyContextCompactionResult,
     StrategyContextContribution,
+    StrategyExecutionError,
     StrategyContextInspection,
     StrategyContextTarget,
     StrategyKnowledgeResult,
@@ -31,65 +31,12 @@ from modules.agent.infra.execution.capabilities.context_assembly import (
 from modules.agent.infra.execution.capabilities.message_progression import (
     terminal_response_messages,
 )
-from modules.agent.infra.execution.capabilities.preparation import (
-    _messages_with_bound_capability_authority,
-    _messages_with_skill_usage,
-    _messages_with_tool_grounding,
-)
 from modules.agent.infra.execution.strategy_runtime.invocation import (
     RuntimeStrategyInvocation,
 )
 from modules.agent.infra.execution.strategy_runtime.runtime_state import (
     StrategyRuntimeState,
 )
-
-
-_KNOWLEDGE_PREAMBLE = (
-    "Use the following context when relevant. "
-    "If the context is not enough, say you do not know.\n\n"
-)
-
-
-def _serialized_content(value: Any) -> str:
-    if isinstance(value, str):
-        return value
-    try:
-        return json.dumps(value, ensure_ascii=False, sort_keys=True, default=str)
-    except (TypeError, ValueError):
-        return str(value)
-
-
-def _materialize_contribution(
-    contribution: StrategyContextContribution,
-) -> SystemMessage:
-    source_type = contribution.source_type.strip().upper()
-    content = _serialized_content(contribution.content)
-    if source_type == "KNOWLEDGE":
-        content = f"{_KNOWLEDGE_PREAMBLE}<context>\n{content}\n</context>"
-
-    metadata = {
-        **dict(contribution.metadata),
-        "source_type": source_type,
-        "source_ref": contribution.key,
-    }
-    metadata.setdefault("selection_method", "strategy_context_contribution")
-    return SystemMessage(
-        content=content,
-        additional_kwargs={"woobe_context": metadata},
-    )
-
-
-def materialize_context_contributions(
-    messages: list[Any],
-    contributions: tuple[StrategyContextContribution, ...],
-) -> list[Any]:
-    if not contributions:
-        return list(messages)
-    materialized = [_materialize_contribution(item) for item in contributions]
-    split = 0
-    while split < len(messages) and isinstance(messages[split], SystemMessage):
-        split += 1
-    return [*messages[:split], *materialized, *messages[split:]]
 
 
 class _ContextModelCapabilities(Protocol):
@@ -210,7 +157,7 @@ class RuntimeStrategyContextManager:
                     "query": result.query,
                     "retrieval": dict(result.metadata),
                     "sources": [
-                        source.model_dump(mode="json")
+                        source.as_dict()
                         for source in result.sources
                     ],
                 },
@@ -238,20 +185,6 @@ class RuntimeStrategyContextManager:
             )
             for item in self._contributions()
         )
-
-    def _apply_replacements(self, messages: list[Any]) -> list[Any]:
-        replaced = {
-            message_id
-            for message_ids in self._runtime_state.context_replacements.values()
-            for message_id in message_ids
-        }
-        if not replaced:
-            return list(messages)
-        return [
-            message
-            for message in messages
-            if str(getattr(message, "id", "") or "") not in replaced
-        ]
 
     def inspect(self) -> StrategyContextInspection:
         result = self._capability.inspect(
@@ -309,28 +242,6 @@ class RuntimeStrategyContextManager:
             metadata=dict(result.metadata),
         )
 
-    def _active_tool_definitions(
-        self,
-        tools: StrategyToolSelection | None,
-    ) -> tuple[dict[str, Any], ...]:
-        mode = (
-            tools.mode.value
-            if tools is not None
-            else StrategyToolSelectionMode.ALL.value
-        )
-        active = self._capability.active_tool_definitions(mode)
-        return tuple(active or ())
-
-    @staticmethod
-    def _tool_name(definition: dict[str, Any]) -> str | None:
-        function = definition.get("function")
-        if isinstance(function, dict):
-            name = function.get("name")
-            if isinstance(name, str) and name:
-                return name
-        name = definition.get("name")
-        return name if isinstance(name, str) and name else None
-
     async def _assemble_messages(
         self,
         *,
@@ -340,7 +251,6 @@ class RuntimeStrategyContextManager:
         target: StrategyContextTarget = StrategyContextTarget.PRIMARY,
         include_contributions: bool = True,
         include_skill_context: bool = True,
-        apply_replacements: bool = True,
     ) -> RuntimeStrategyInvocation:
         capability = self._capability
         if target is StrategyContextTarget.FALLBACK:
@@ -362,47 +272,17 @@ class RuntimeStrategyContextManager:
                 tool_definitions=(),
             )
 
-        active_definitions = (
-            ()
-            if target is StrategyContextTarget.FALLBACK
-            else self._active_tool_definitions(tools)
-        )
-        active_names = tuple(
-            name
-            for definition in active_definitions
-            if (name := self._tool_name(definition)) is not None
-        )
-        base_messages = (
-            self._apply_replacements(messages)
-            if apply_replacements
-            else list(messages)
-        )
-        invocation_messages = _messages_with_bound_capability_authority(
-            base_messages,
-            has_tools=bool(active_definitions),
-            has_skills=any(name.startswith("skills_") for name in active_names),
-        )
-        invocation_messages = _messages_with_skill_usage(
-            invocation_messages,
-            has_skills=any(name.startswith("skills_") for name in active_names),
-        )
-        invocation_messages = _messages_with_tool_grounding(
-            invocation_messages,
-            has_tools=bool(active_definitions),
-        )
-        materialized = (
-            materialize_context_contributions(
-                invocation_messages,
-                self._contributions(),
-            )
+        contributions = (
+            self._managed_contributions()
             if include_contributions
-            else list(invocation_messages)
+            else ()
         )
         next_call_index = self._runtime_state.call_index + 1
         try:
             result = capability.assemble(
-                messages=materialized,
+                messages=list(messages),
                 phase=strategy_phase_value(phase),
+                contributions=contributions,
                 tool_selection_mode=(
                     tools.mode.value
                     if tools is not None
@@ -415,7 +295,7 @@ class RuntimeStrategyContextManager:
             self._runtime_state.call_index = next_call_index
             self._runtime_state.absorb_model_error(exc)
             execution = self._runtime_state.execution
-            raise InstrumentedExecutionError(
+            runtime_error = InstrumentedExecutionError(
                 str(exc),
                 llm_calls=list(execution.llm_calls),
                 tool_calls=list(execution.tool_calls),
@@ -425,7 +305,8 @@ class RuntimeStrategyContextManager:
                 tool_wall_latency_ms=execution.tool_wall_latency_ms,
                 tool_call_duration_sum_ms=execution.tool_call_duration_sum_ms,
                 failure_context=execution.failure_context,
-            ) from exc
+            )
+            raise StrategyExecutionError(str(exc)) from runtime_error
 
         return RuntimeStrategyInvocation(
             invocation_id=result.invocation_id,
@@ -457,9 +338,8 @@ class RuntimeStrategyContextManager:
         tools: StrategyToolSelection,
         target: StrategyContextTarget = StrategyContextTarget.PRIMARY,
     ) -> RuntimeStrategyInvocation:
-        base_messages = self._apply_replacements(self._base_messages)
         messages = terminal_response_messages(
-            base_messages,
+            list(self._base_messages),
             self._final_json_instruction,
             self._runtime_state.execution.tool_calls,
             reason,
@@ -469,5 +349,4 @@ class RuntimeStrategyContextManager:
             phase=phase,
             tools=tools,
             target=target,
-            apply_replacements=False,
         )

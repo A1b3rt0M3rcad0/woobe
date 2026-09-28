@@ -317,6 +317,30 @@ def test_tool_instructions_are_invocation_scoped_not_prepare_scoped() -> None:
         )
 
 
+
+def test_strategy_runtime_context_facade_does_not_own_context_policy() -> None:
+    runtime_context = (
+        AGENT_EXECUTION / "strategy_runtime" / "context_manager.py"
+    ).read_text(encoding="utf-8")
+    forbidden = {
+        "_KNOWLEDGE_PREAMBLE",
+        "_messages_with_bound_capability_authority",
+        "_messages_with_tool_grounding",
+        "_messages_with_skill_usage",
+        "materialize_context_contributions",
+    }
+    leaked = sorted(name for name in forbidden if name in runtime_context)
+    assert not leaked, (
+        "Strategy Runtime must transport Context state, not define Context policy: "
+        + ", ".join(leaked)
+    )
+
+    standard_manager = _STANDARD_ASSEMBLER.read_text(encoding="utf-8")
+    assert "_prepare_invocation_messages(request)" in standard_manager
+    assert "request.contributions" in standard_manager
+    assert "request.environment.active_tool_definitions" in standard_manager
+
+
 def test_every_model_invocation_has_explicit_context_boundary() -> None:
     violations: list[str] = []
 

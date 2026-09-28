@@ -3,6 +3,7 @@ from __future__ import annotations
 from modules.agent.application.strategy_sdk import (
     StrategyToolBatch,
     StrategyToolCall,
+    StrategyToolResult,
     StrategyToolSelection,
     StrategyToolSelectionMode,
     SuspensionReason,
@@ -48,12 +49,26 @@ class RuntimeStrategyTools:
             [tool_call.as_runtime_dict() for tool_call in tool_calls]
         )
         self._runtime_state.record_tool_batch(batch)
+        results = tuple(
+            StrategyToolResult(
+                tool_call_id=info.tool_call_id,
+                tool_name=info.tool_name,
+                arguments=dict(requested.arguments),
+                output=info.output,
+                success=bool(info.success),
+                status=info.status,
+                error_code=info.error_code,
+                error=info.error,
+            )
+            for requested, (info, _message, _payload) in zip(
+                tool_calls,
+                batch.results,
+                strict=True,
+            )
+        )
         return StrategyToolBatch(
-            results=tuple(payload for _info, _message, payload in batch.results),
-            messages=tuple(message for _info, message, _payload in batch.results),
-            has_failures=any(
-                info.success is False for info, _message, _payload in batch.results
-            ),
+            results=results,
+            has_failures=any(not result.success for result in results),
             requires_suspension=batch.requires_suspension,
             suspension_reason=(
                 SuspensionReason(batch.suspension_reason)

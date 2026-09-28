@@ -7,6 +7,7 @@ from modules.agent.application.interfaces.execution import (
     InstrumentedExecution,
     InstrumentedExecutionError,
 )
+from modules.agent.application.interfaces.context_manager import ContextManagedContribution
 from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.infra.execution.capabilities.context_assembly import (
     ContextAssemblyCapability,
@@ -17,9 +18,6 @@ from modules.agent.infra.execution.capabilities.model_invocation import (
 from modules.agent.infra.execution.durable_execution_instrumentation import (
     aggregate_usage,
     resolve_effective_output_tokens,
-)
-from modules.agent.infra.execution.strategy_runtime.context_manager import (
-    materialize_context_contributions,
 )
 from modules.agent.infra.execution.runtime_streaming import (
     emit_runtime_event,
@@ -77,11 +75,16 @@ class InstrumentedFallbackMixin:
             streaming=runtime_streaming_enabled(),
             response_format={"type": "json_object"} if json_enabled else None,
         )
-        fallback_messages = list(messages)
+        contributions: tuple[ContextManagedContribution, ...] = ()
         if context is not None and context.strategy_context_contributions:
-            fallback_messages = materialize_context_contributions(
-                fallback_messages,
-                tuple(context.strategy_context_contributions.values()),
+            contributions = tuple(
+                ContextManagedContribution(
+                    key=item.key,
+                    source_type=item.source_type,
+                    content=item.content,
+                    metadata=dict(item.metadata),
+                )
+                for item in context.strategy_context_contributions.values()
             )
         try:
             fallback_context = ContextAssemblyCapability(
@@ -90,8 +93,9 @@ class InstrumentedFallbackMixin:
                 model_name=agent.fallback_model,
                 pricing_snapshot=pricing_snapshot,
             ).assemble(
-                messages=fallback_messages,
+                messages=list(messages),
                 phase="final_response_generation",
+                contributions=contributions,
                 tool_selection_mode="none",
                 call_index=call_index,
             )

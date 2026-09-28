@@ -6,6 +6,7 @@ from typing import Any
 from modules.agent.application.interfaces.execution import (
     ExecutionSuspension,
     InstrumentedExecution,
+    InstrumentedExecutionError,
 )
 from modules.agent.application.interfaces.execution_strategy import (
     ExecutionStrategy,
@@ -13,6 +14,7 @@ from modules.agent.application.interfaces.execution_strategy import (
 )
 from modules.agent.application.strategy_sdk import (
     Completed,
+    StrategyExecutionError,
     StrategyModelResult,
     Suspended,
 )
@@ -42,7 +44,13 @@ async def execute_strategy(
     request: ExecutionStrategyRequest,
 ) -> InstrumentedExecution:
     built = build_strategy_execution(strategy=strategy, request=request)
-    outcome = await strategy.execute(built.context)
+    try:
+        outcome = await strategy.execute(built.context)
+    except StrategyExecutionError as exc:
+        runtime_error = exc.__cause__
+        if isinstance(runtime_error, InstrumentedExecutionError):
+            raise runtime_error from exc
+        raise
     if isinstance(outcome, Suspended):
         built.runtime_state.execution.suspension = ExecutionSuspension(
             reason=outcome.reason.value,
@@ -84,7 +92,13 @@ async def execute_strategy_with_capabilities(
         final_json_instruction=final_json_instruction,
         bootstrap=bootstrap,
     )
-    outcome = await strategy.execute(built.context)
+    try:
+        outcome = await strategy.execute(built.context)
+    except StrategyExecutionError as exc:
+        runtime_error = exc.__cause__
+        if isinstance(runtime_error, InstrumentedExecutionError):
+            raise runtime_error from exc
+        raise
     if isinstance(outcome, Suspended):
         built.runtime_state.execution.suspension = ExecutionSuspension(
             reason=outcome.reason.value,

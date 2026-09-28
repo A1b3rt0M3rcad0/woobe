@@ -19,11 +19,13 @@ from modules.agent.application.strategy_sdk.contracts import (
     ExecutionState,
     ExecutionStopReason,
 )
+from modules.agent.application.strategy_sdk.errors import StrategyExecutionError
 from modules.agent.application.strategy_sdk.invocation import StrategyInvocation
 from modules.agent.application.strategy_sdk.knowledge import (
     StrategyKnowledge,
     StrategyKnowledgeQueryPolicy,
     StrategyKnowledgeResult,
+    StrategyKnowledgeSource,
 )
 from modules.agent.application.strategy_sdk.model import (
     StrategyModel,
@@ -41,6 +43,7 @@ from modules.agent.application.strategy_sdk.outcome import (
 from modules.agent.application.strategy_sdk.tools import (
     StrategyToolBatch,
     StrategyToolCall,
+    StrategyToolResult,
     StrategyToolSelection,
     StrategyToolSelectionMode,
     StrategyTools,
@@ -62,10 +65,12 @@ __all__ = [
     "StrategyContextInspection",
     "StrategyContextManager",
     "StrategyContextTarget",
+    "StrategyExecutionError",
     "StrategyInvocation",
     "StrategyKnowledge",
     "StrategyKnowledgeQueryPolicy",
     "StrategyKnowledgeResult",
+    "StrategyKnowledgeSource",
     "StrategyMessage",
     "StrategyMessageRole",
     "StrategyModel",
@@ -75,6 +80,7 @@ __all__ = [
     "StrategyPhase",
     "StrategyToolBatch",
     "StrategyToolCall",
+    "StrategyToolResult",
     "StrategyToolSelection",
     "StrategyToolSelectionMode",
     "StrategyTools",

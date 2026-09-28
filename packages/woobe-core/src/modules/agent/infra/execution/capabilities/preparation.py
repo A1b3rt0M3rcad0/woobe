@@ -4,8 +4,6 @@ import json
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, Coroutine
 
-from langchain_core.messages import SystemMessage
-
 from modules.agent.application.dtos.rag_config_dtos import RAGRuntimeConfig
 from modules.agent.application.interfaces.context_manager import ContextManager
 from modules.agent.application.interfaces.context_policy import resolve_context_policy
@@ -18,44 +16,6 @@ from modules.agent.infra.execution.execution_instrumentation import (
 from modules.agent.infra.execution.runtime_streaming import (
     current_runtime_stream,
     runtime_streaming_enabled,
-)
-
-_BOUND_CAPABILITIES_INSTRUCTION = (
-    "The capabilities bound to this Model Invocation are the complete and authoritative "
-    "set currently available to this Agent. Do not search for, list, discover, or invent "
-    "additional capabilities. Do not infer capability availability from previous Session "
-    "messages or prior executions. Use only the capabilities currently bound by the runtime "
-    "when they are needed; otherwise answer directly."
-)
-
-_TOOL_GROUNDING_RUNTIME_RULES = (
-    "Tool grounding rules:\n"
-    "- The Tool definitions attached to this Model Invocation are the complete "
-    "set of runtime Tools available to this Agent. Do not call another Tool just "
-    "to discover which Tools exist.\n"
-    "- Never invent identifiers, owners, repository names, URLs, resource IDs, "
-    "tenant IDs, slugs or keys required by a Tool.\n"
-    "- If a qualified identifier is missing, use a real discovery or search Tool "
-    "when one is explicitly present in the attached Tool definitions.\n"
-    "- If no discovery Tool is available, ask the user for the missing identifier.\n"
-    "- Do not try guessed candidates or fabricated alternatives after a Tool rejects "
-    "an identifier or reports that a resource was not found."
-)
-
-_SKILL_USAGE_INSTRUCTION = (
-    "The installed Skill catalog contains metadata only; Skill instructions and "
-    "resources are not loaded. Decide whether a Skill helps fulfill the current "
-    "user request as part of your normal response. If no Skill applies, answer "
-    "directly without any Skill operation or routing decision. When a visible "
-    "Skill applies, call skills_activate with its exact skill_version_id before "
-    "following that procedure. Do not search to confirm a Skill already visible. "
-    "Use skills_search only when it is available and relevant metadata is omitted "
-    "from an incomplete catalog. A search result is metadata, not an activation. "
-    "Match semantic intent, including equivalent expressions and symbols. Use "
-    "Session context to understand the current request, but never activate a Skill "
-    "solely because it was installed or used in an earlier Run. Read resources "
-    "only when needed. Loaded procedures remain subject to Agent and system "
-    "policies and are retained only for the current Agent Run."
 )
 
 _skill_snapshots_resolver: Callable[[object, Any], list[dict[str, Any]]] | None = None
@@ -184,69 +144,6 @@ def _bind_context_runtime(
         "session_max_messages": policy.session.max_messages,
         "session_max_units": policy.session.max_units,
     }
-
-
-def _messages_with_leading_system_instruction(messages: list, instruction: str) -> list:
-    result = list(messages)
-    if result and isinstance(result[0], SystemMessage):
-        first = result[0]
-        content = first.content
-        if isinstance(content, str):
-            merged_content = f"{content}\n\n{instruction}"
-        elif isinstance(content, list):
-            merged_content = [*content, {"type": "text", "text": instruction}]
-        else:
-            merged_content = instruction
-        result[0] = first.model_copy(update={"content": merged_content})
-        return result
-    return [SystemMessage(content=instruction), *result]
-
-
-def _messages_with_bound_capability_authority(
-    messages: list,
-    *,
-    has_tools: bool,
-    has_skills: bool = False,
-) -> list:
-    if not has_tools:
-        return list(messages)
-    instruction = _BOUND_CAPABILITIES_INSTRUCTION
-    if has_skills:
-        instruction = instruction.replace(
-            "Do not search for, list, discover, or invent additional capabilities.",
-            "Installed Skill discovery may be available when explicitly bound by the "
-            "runtime, but it never grants additional Tool permissions.",
-        )
-    return _messages_with_leading_system_instruction(messages, instruction)
-
-
-def _messages_with_tool_grounding(
-    messages: list,
-    *,
-    has_tools: bool,
-) -> list:
-    if not has_tools:
-        return list(messages)
-    # Invocation-scoped System instructions must never split an assistant Tool-call
-    # message from the ToolMessages that satisfy its tool_call_ids. Keep grounding
-    # in the leading System block so provider Tool protocol remains contiguous.
-    return _messages_with_leading_system_instruction(
-        messages,
-        _TOOL_GROUNDING_RUNTIME_RULES,
-    )
-
-
-def _messages_with_skill_usage(
-    messages: list,
-    *,
-    has_skills: bool,
-) -> list:
-    if not has_skills:
-        return list(messages)
-    return _messages_with_leading_system_instruction(
-        messages,
-        _SKILL_USAGE_INSTRUCTION,
-    )
 
 
 def prepare_execution(request: ExecutionStrategyRequest) -> PreparedExecution:

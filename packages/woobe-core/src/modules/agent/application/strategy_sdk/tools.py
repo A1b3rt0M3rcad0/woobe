@@ -44,11 +44,24 @@ class StrategyToolCall:
 
 
 @dataclass(frozen=True, slots=True)
+class StrategyToolResult:
+    """Framework-neutral result of one Tool execution."""
+
+    tool_call_id: str | None
+    tool_name: str
+    arguments: Mapping[str, Any]
+    output: Any
+    success: bool
+    status: str | None = None
+    error_code: str | None = None
+    error: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class StrategyToolBatch:
     """Tool results normalized for strategy-level orchestration."""
 
-    results: tuple[dict[str, Any], ...]
-    messages: tuple[Any, ...]
+    results: tuple[StrategyToolResult, ...]
     has_failures: bool
     requires_suspension: bool = False
     suspension_reason: SuspensionReason | None = None

@@ -4,6 +4,7 @@ from typing import Any, Callable
 
 from modules.agent.application.interfaces.execution import InstrumentedExecutionError
 from modules.agent.application.strategy_sdk import (
+    StrategyExecutionError,
     StrategyInvocation,
     StrategyModelResult,
     StrategyToolCall,
@@ -183,7 +184,7 @@ class RuntimeStrategyModel:
         except InstrumentedExecutionError as exc:
             self._runtime_state.absorb_model_error(exc)
             execution = self._runtime_state.execution
-            raise InstrumentedExecutionError(
+            runtime_error = InstrumentedExecutionError(
                 str(exc),
                 llm_calls=list(execution.llm_calls),
                 tool_calls=list(execution.tool_calls),
@@ -193,7 +194,8 @@ class RuntimeStrategyModel:
                 tool_wall_latency_ms=execution.tool_wall_latency_ms,
                 tool_call_duration_sum_ms=execution.tool_call_duration_sum_ms,
                 failure_context=execution.failure_context,
-            ) from exc
+            )
+            raise StrategyExecutionError(str(exc)) from runtime_error
 
         self._runtime_state.record_model_call(call)
         if record_message:
@@ -260,7 +262,7 @@ class RuntimeStrategyModel:
             terminal_model = self._final_model_factory()
         if terminal_model is None:
             execution = self._runtime_state.execution
-            raise InstrumentedExecutionError(
+            runtime_error = InstrumentedExecutionError(
                 reason,
                 llm_calls=execution.llm_calls,
                 tool_calls=execution.tool_calls,
@@ -274,23 +276,10 @@ class RuntimeStrategyModel:
                     "partial_result_available": bool(execution.tool_calls),
                 },
             )
+            raise StrategyExecutionError(reason) from runtime_error
 
         terminal_capability = self._capability.for_model(terminal_model)
-        try:
-            return await self._invoke(
-                capability=terminal_capability,
-                invocation=runtime_invocation,
-            )
-        except InstrumentedExecutionError as exc:
-            execution = self._runtime_state.execution
-            raise InstrumentedExecutionError(
-                str(exc),
-                llm_calls=execution.llm_calls,
-                tool_calls=execution.tool_calls,
-                knowledge_calls=execution.knowledge_calls,
-                sources=execution.sources,
-                timeline=execution.timeline,
-                tool_wall_latency_ms=execution.tool_wall_latency_ms,
-                tool_call_duration_sum_ms=execution.tool_call_duration_sum_ms,
-                failure_context=execution.failure_context,
-            ) from exc
+        return await self._invoke(
+            capability=terminal_capability,
+            invocation=runtime_invocation,
+        )

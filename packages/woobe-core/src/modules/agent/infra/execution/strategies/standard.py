@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from modules.agent.application.interfaces.execution import InstrumentedExecutionError
 from modules.agent.application.interfaces.execution_strategy import ExecutionStrategy
 from modules.agent.application.strategy_sdk import (
     Completed,
@@ -13,6 +12,7 @@ from modules.agent.application.strategy_sdk import (
     ExecutionStopReason,
     StrategyContext,
     StrategyContextTarget,
+    StrategyExecutionError,
     StrategyMessage,
     StrategyMessageRole,
     StrategyOutcome,
@@ -143,7 +143,7 @@ class StandardExecutionStrategy(ExecutionStrategy[StandardExecutionState]):
     async def _fallback_or_raise(
         self,
         ctx: StrategyContext[StandardExecutionState],
-        error: InstrumentedExecutionError,
+        error: StrategyExecutionError,
     ):
         if not ctx.model.fallback_available:
             raise error
@@ -211,7 +211,7 @@ class StandardExecutionStrategy(ExecutionStrategy[StandardExecutionState]):
                     invocation,
                     reason=reason,
                 )
-            except InstrumentedExecutionError as exc:
+            except StrategyExecutionError as exc:
                 result = await self._fallback_or_raise(ctx, exc)
             if ctx.output.requires_repair(result):
                 result = await ctx.output.repair(result, phase="json_repair")
@@ -221,7 +221,7 @@ class StandardExecutionStrategy(ExecutionStrategy[StandardExecutionState]):
         invocation = await ctx.context.prepare(phase=state.phase, tools=tools)
         try:
             result = await ctx.model.invoke(invocation)
-        except InstrumentedExecutionError as exc:
+        except StrategyExecutionError as exc:
             result = await self._fallback_or_raise(ctx, exc)
 
         while result.has_tool_calls and state.tool_round < self.policy.max_tool_rounds:
@@ -270,7 +270,7 @@ class StandardExecutionStrategy(ExecutionStrategy[StandardExecutionState]):
                     tools=tools,
                 )
                 result = await ctx.model.invoke(invocation)
-            except InstrumentedExecutionError as exc:
+            except StrategyExecutionError as exc:
                 if ctx.model.fallback_available:
                     result = await self._fallback_or_raise(ctx, exc)
                     state.phase = StandardPhase.FALLBACK_RESPONSE_GENERATION.value
@@ -294,7 +294,7 @@ class StandardExecutionStrategy(ExecutionStrategy[StandardExecutionState]):
                     invocation,
                     reason=state.stop_reason.value,
                 )
-            except InstrumentedExecutionError as exc:
+            except StrategyExecutionError as exc:
                 result = await self._fallback_or_raise(ctx, exc)
 
         if ctx.output.requires_repair(result):

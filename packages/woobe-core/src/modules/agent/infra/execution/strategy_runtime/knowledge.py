@@ -6,6 +6,7 @@ from modules.agent.application.interfaces.execution_context import current_execu
 from modules.agent.application.strategy_sdk import (
     StrategyKnowledgeQueryPolicy,
     StrategyKnowledgeResult,
+    StrategyKnowledgeSource,
     StrategyPhase,
     strategy_phase_value,
 )
@@ -153,9 +154,20 @@ class RuntimeStrategyKnowledge:
                 sources=serialized_sources,
             )
 
+        strategy_sources = tuple(
+            StrategyKnowledgeSource(
+                document_id=source.document_id,
+                document_title=source.document_title,
+                chunk_id=source.chunk_id,
+                page_number=source.page_number,
+                score=source.score,
+                content_preview=source.content_preview,
+            )
+            for source in result.sources
+        )
         return StrategyKnowledgeResult(
             content=result.content,
             query=effective_query,
-            sources=result.sources,
+            sources=strategy_sources,
             metadata=result.metadata,
         )

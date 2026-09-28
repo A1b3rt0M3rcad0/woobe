@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import json
-from typing import Any
+from typing import Any, Mapping
+
+from langchain_core.messages import SystemMessage
 
 from modules.agent.application.context_assembly import (
     assemble_context,
@@ -22,6 +24,208 @@ from modules.agent.application.interfaces.context_manager import (
 
 
 _SESSION_COMPACTION_KEY = "context.session.compaction"
+
+_BOUND_CAPABILITIES_INSTRUCTION = (
+    "The capabilities bound to this Model Invocation are the complete and authoritative "
+    "set currently available to this Agent. Do not search for, list, discover, or invent "
+    "additional capabilities. Do not infer capability availability from previous Session "
+    "messages or prior executions. Use only the capabilities currently bound by the runtime "
+    "when they are needed; otherwise answer directly."
+)
+
+_TOOL_GROUNDING_RUNTIME_RULES = (
+    "Tool grounding rules:\n"
+    "- The Tool definitions attached to this Model Invocation are the complete "
+    "set of runtime Tools available to this Agent. Do not call another Tool just "
+    "to discover which Tools exist.\n"
+    "- Never invent identifiers, owners, repository names, URLs, resource IDs, "
+    "tenant IDs, slugs or keys required by a Tool.\n"
+    "- If a qualified identifier is missing, use a real discovery or search Tool "
+    "when one is explicitly present in the attached Tool definitions.\n"
+    "- If no discovery Tool is available, ask the user for the missing identifier.\n"
+    "- Do not try guessed candidates or fabricated alternatives after a Tool rejects "
+    "an identifier or reports that a resource was not found."
+)
+
+_SKILL_USAGE_INSTRUCTION = (
+    "The installed Skill catalog contains metadata only; Skill instructions and "
+    "resources are not loaded. Decide whether a Skill helps fulfill the current "
+    "user request as part of your normal response. If no Skill applies, answer "
+    "directly without any Skill operation or routing decision. When a visible "
+    "Skill applies, call skills_activate with its exact skill_version_id before "
+    "following that procedure. Do not search to confirm a Skill already visible. "
+    "Use skills_search only when it is available and relevant metadata is omitted "
+    "from an incomplete catalog. A search result is metadata, not an activation. "
+    "Match semantic intent, including equivalent expressions and symbols. Use "
+    "Session context to understand the current request, but never activate a Skill "
+    "solely because it was installed or used in an earlier Run. Read resources "
+    "only when needed. Loaded procedures remain subject to Agent and system "
+    "policies and are retained only for the current Agent Run."
+)
+
+_KNOWLEDGE_PREAMBLE = (
+    "Use the following context when relevant. "
+    "If the context is not enough, say you do not know.\n\n"
+)
+
+
+def _messages_with_leading_system_instruction(
+    messages: list[Any],
+    instruction: str,
+) -> list[Any]:
+    result = list(messages)
+    if result and isinstance(result[0], SystemMessage):
+        first = result[0]
+        content = first.content
+        if isinstance(content, str):
+            merged_content = f"{content}\n\n{instruction}"
+        elif isinstance(content, list):
+            merged_content = [*content, {"type": "text", "text": instruction}]
+        else:
+            merged_content = instruction
+        result[0] = first.model_copy(update={"content": merged_content})
+        return result
+    return [SystemMessage(content=instruction), *result]
+
+
+def _messages_with_bound_capability_authority(
+    messages: list[Any],
+    *,
+    has_tools: bool,
+    has_skills: bool = False,
+) -> list[Any]:
+    if not has_tools:
+        return list(messages)
+    instruction = _BOUND_CAPABILITIES_INSTRUCTION
+    if has_skills:
+        instruction = instruction.replace(
+            "Do not search for, list, discover, or invent additional capabilities.",
+            "Installed Skill discovery may be available when explicitly bound by the "
+            "runtime, but it never grants additional Tool permissions.",
+        )
+    return _messages_with_leading_system_instruction(messages, instruction)
+
+
+def _messages_with_tool_grounding(
+    messages: list[Any],
+    *,
+    has_tools: bool,
+) -> list[Any]:
+    if not has_tools:
+        return list(messages)
+    return _messages_with_leading_system_instruction(
+        messages,
+        _TOOL_GROUNDING_RUNTIME_RULES,
+    )
+
+
+def _messages_with_skill_usage(
+    messages: list[Any],
+    *,
+    has_skills: bool,
+) -> list[Any]:
+    if not has_skills:
+        return list(messages)
+    return _messages_with_leading_system_instruction(
+        messages,
+        _SKILL_USAGE_INSTRUCTION,
+    )
+
+
+def _tool_name(definition: Mapping[str, Any]) -> str | None:
+    function = definition.get("function")
+    if isinstance(function, Mapping):
+        name = function.get("name")
+        if isinstance(name, str) and name:
+            return name
+    name = definition.get("name")
+    return name if isinstance(name, str) and name else None
+
+
+def _apply_replacements(
+    messages: list[Any],
+    contributions: tuple[ContextManagedContribution, ...],
+) -> list[Any]:
+    replaced = {
+        message_id
+        for contribution in contributions
+        for message_id in contribution.replaces_message_ids
+    }
+    if not replaced:
+        return list(messages)
+    return [
+        message
+        for message in messages
+        if _message_id(message) not in replaced
+    ]
+
+
+def _materialize_contribution(
+    contribution: ContextManagedContribution,
+) -> SystemMessage:
+    source_type = contribution.source_type.strip().upper()
+    content = _serialized_content(contribution.content)
+    if source_type == "KNOWLEDGE":
+        content = f"{_KNOWLEDGE_PREAMBLE}<context>\n{content}\n</context>"
+
+    metadata = {
+        **dict(contribution.metadata),
+        "source_type": source_type,
+        "source_ref": contribution.key,
+    }
+    metadata.setdefault("selection_method", "context_manager_contribution")
+    return SystemMessage(
+        content=content,
+        additional_kwargs={"woobe_context": metadata},
+    )
+
+
+def _materialize_context_contributions(
+    messages: list[Any],
+    contributions: tuple[ContextManagedContribution, ...],
+) -> list[Any]:
+    if not contributions:
+        return list(messages)
+    materialized = [_materialize_contribution(item) for item in contributions]
+    split = 0
+    while split < len(messages) and isinstance(messages[split], SystemMessage):
+        split += 1
+    return [*messages[:split], *materialized, *messages[split:]]
+
+
+def _prepare_invocation_messages(
+    request: ContextAssemblyRequest,
+) -> list[Any]:
+    active_definitions = tuple(request.environment.active_tool_definitions or ())
+    active_names = tuple(
+        name
+        for definition in active_definitions
+        if (name := _tool_name(definition)) is not None
+    )
+    has_tools = bool(active_definitions)
+    has_skills = any(name.startswith("skills_") for name in active_names)
+
+    messages = _apply_replacements(
+        list(request.messages),
+        request.contributions,
+    )
+    messages = _messages_with_bound_capability_authority(
+        messages,
+        has_tools=has_tools,
+        has_skills=has_skills,
+    )
+    messages = _messages_with_skill_usage(
+        messages,
+        has_skills=has_skills,
+    )
+    messages = _messages_with_tool_grounding(
+        messages,
+        has_tools=has_tools,
+    )
+    return _materialize_context_contributions(
+        messages,
+        request.contributions,
+    )
 
 
 def _serialized_content(value: Any) -> str:
@@ -331,7 +535,7 @@ class StandardContextManager:
 
     def assemble(self, request: ContextAssemblyRequest) -> ContextAssemblyOutput:
         return assemble_context(
-            messages=request.messages,
+            messages=_prepare_invocation_messages(request),
             model_invocation_id=request.model_invocation_id,
             agent_run_id=request.agent_run_id,
             project_id=request.project_id,

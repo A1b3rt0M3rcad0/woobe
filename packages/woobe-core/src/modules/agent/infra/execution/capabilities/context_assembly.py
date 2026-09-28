@@ -335,6 +335,7 @@ class ContextAssemblyCapability:
         *,
         messages: list[Any],
         phase: str,
+        contributions: tuple[ContextManagedContribution, ...] = (),
         tool_selection_mode: str | None = None,
         include_skill_context: bool = True,
         invocation_id: UUID | None = None,
@@ -382,6 +383,7 @@ class ContextAssemblyCapability:
                     model=self.model_name,
                     environment=environment,
                     policy=policy,
+                    contributions=contributions,
                 )
             )
             return ContextAssemblyResult(
