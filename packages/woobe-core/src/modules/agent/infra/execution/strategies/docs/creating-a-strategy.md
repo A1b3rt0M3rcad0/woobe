@@ -144,35 +144,25 @@ ctx.output
 await ctx.checkpoint()
 ```
 
-The runtime resolves and authorizes the underlying capabilities. The Strategy decides when to retrieve Knowledge, what Context contributions are active, whether one Model invocation receives all authorized Tools or no Tools, and when the Model is invoked.
+The runtime resolves and authorizes the underlying capabilities. The Strategy decides when to retrieve Knowledge, when to include retrieved Knowledge in Context, whether one Model invocation receives all authorized Tools or no Tools, and when the Model is invoked.
 
 ### Retrieve Knowledge when the algorithm needs it
 
-Knowledge retrieval is an explicit Strategy decision. The Runtime exposes the real bound conversation read-only; the Strategy decides how to construct the retrieval query:
+Knowledge retrieval is an explicit Strategy decision. The Runtime exposes the real bound conversation read-only; Knowledge constructs the retrieval query from the supplied conversation:
 
 ```python
-current = ctx.conversation.current_user_message
-query = current.content if current is not None else None
-
 knowledge = await ctx.knowledge.retrieve(
-    query=query,
+    conversation=ctx.conversation,
     phase="knowledge_retrieval",
 )
 
 if knowledge.found:
-    ctx.context.set(
-        StrategyContextContribution(
-            key="knowledge.primary",
-            source_type="KNOWLEDGE",
-            content=knowledge.content,
-            metadata={"retrieval": dict(knowledge.metadata)},
-        )
-    )
+    ctx.context.include_knowledge(knowledge)
 ```
 
 `ctx.conversation.history`, `ctx.conversation.system_messages` and `ctx.conversation.messages` are also available when the algorithm needs them. Treat the conversation surface as read-only; do not attempt to mutate runtime progression.
 
-Retrieving Knowledge and exposing it to the next Model invocation are separate decisions. The runtime owns the concrete Knowledge implementation and evidence; the Strategy owns query construction and orchestration.
+Retrieving Knowledge and exposing it to the next Model invocation are separate decisions. The runtime owns the concrete Knowledge implementation and evidence; Knowledge owns query construction and the Strategy owns orchestration.
 
 ### Inspect or compact Context explicitly
 
@@ -199,16 +189,12 @@ Every Model invocation consumes an explicitly prepared invocation Context:
 ```python
 tools = ctx.tools.all()
 
-invocation = await ctx.context.assemble(
+invocation = await ctx.context.prepare(
     phase=PlannerPhase.PLANNING,
     tools=tools,
 )
 
-result = await ctx.model.invoke(
-    context=invocation,
-    tools=tools,
-    phase=PlannerPhase.PLANNING,
-)
+result = await ctx.model.invoke(invocation)
 ```
 
 Use `ctx.tools.all()` for a normal Tool-capable invocation and `ctx.tools.none()` for an invocation that must not expose Tools. Subset selection is intentionally unsupported: when Tools are enabled, the Model receives the complete Runtime-authorized Tool inventory and decides which Tool to call.
@@ -258,7 +244,7 @@ except InstrumentedExecutionError as exc:
     if not ctx.model.fallback_available:
         raise
     no_tools = ctx.tools.none()
-    fallback_context = await ctx.context.assemble(
+    fallback_context = await ctx.context.prepare(
         phase=PlannerPhase.FALLBACK,
         tools=no_tools,
         target=StrategyContextTarget.FALLBACK,
@@ -323,35 +309,23 @@ The Standard implementation is approximately:
 state = ctx.state
 
 if not state.knowledge_resolved:
-    current = ctx.conversation.current_user_message
-    query = current.content if current is not None else None
     knowledge = await ctx.knowledge.retrieve(
-        query=query,
+        conversation=ctx.conversation,
         phase="knowledge_retrieval",
     )
     state.knowledge_resolved = True
     if knowledge.found:
-        ctx.context.set(
-            StrategyContextContribution(
-                key="knowledge.primary",
-                source_type="KNOWLEDGE",
-                content=knowledge.content,
-            )
-        )
+        ctx.context.include_knowledge(knowledge)
 
 tools = ctx.tools.all()
 await ctx.context.compact(
     phase=PlannerPhase.CONTEXT_COMPACTION,
 )
-invocation = await ctx.context.assemble(
+invocation = await ctx.context.prepare(
     phase=state.phase,
     tools=tools,
 )
-result = await ctx.model.invoke(
-    context=invocation,
-    tools=tools,
-    phase=state.phase,
-)
+result = await ctx.model.invoke(invocation)
 
 while result.has_tool_calls and state.tool_round < self.policy.max_tool_rounds:
     batch = await ctx.tools.execute_many(result.tool_calls)
@@ -364,7 +338,7 @@ while result.has_tool_calls and state.tool_round < self.policy.max_tool_rounds:
     if state.stop_reason is not None:
         break
 
-    invocation = await ctx.context.assemble(
+    invocation = await ctx.context.prepare(
         phase=state.phase,
         tools=tools,
     )
@@ -469,3 +443,5 @@ new:    tests/unit/agent/test_<name>_execution_strategy.py
 ```
 
 It should normally **not** require changes to `strategy_runtime/`.
+
+Execution cannot manipulate Context storage through `has`, `set` or `remove`. Contribution storage, replacement and materialization remain internal to Context management. `inspect()` is a read-only view.

@@ -86,7 +86,6 @@ Forbidden outer-runtime decisions include:
 
 ```text
 preflight Tool execution
-conversation-to-Knowledge query construction
 Knowledge retrieval
 Context Manager invocation outside the Execution Strategy boundary
 Model invocation
@@ -94,6 +93,8 @@ provider fallback
 structured-output repair
 new semantic checkpoints
 ```
+
+Knowledge owns conversation-to-query construction, including query mode and history limits. Execution passes `ctx.conversation` to `ctx.knowledge.retrieve(...)`; it does not inspect a Knowledge query policy.
 
 Capabilities own mechanisms; the Execution Strategy decides when to request Context operations; the selected Context Manager decides how Context is inspected, compacted and assembled.
 

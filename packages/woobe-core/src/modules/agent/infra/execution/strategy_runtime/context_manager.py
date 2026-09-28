@@ -125,10 +125,7 @@ class RuntimeStrategyContextManager:
                 self._runtime_state.context_contributions
             )
 
-    def has(self, key: str) -> bool:
-        return key in self._runtime_state.context_contributions
-
-    def set(self, contribution: StrategyContextContribution) -> None:
+    def _set(self, contribution: StrategyContextContribution) -> None:
         key = contribution.key.strip()
         if not key:
             raise ValueError("Context contribution key must not be empty")
@@ -136,16 +133,16 @@ class RuntimeStrategyContextManager:
         self._runtime_state.context_replacements.pop(key, None)
         self._sync_execution_context()
 
-    def remove(self, key: str) -> None:
+    def _remove(self, key: str) -> None:
         self._runtime_state.context_contributions.pop(key, None)
         self._runtime_state.context_replacements.pop(key, None)
         self._sync_execution_context()
 
     def include_knowledge(self, result: StrategyKnowledgeResult) -> None:
         if not result.found:
-            self.remove("knowledge.primary")
+            self._remove("knowledge.primary")
             return
-        self.set(
+        self._set(
             StrategyContextContribution(
                 key="knowledge.primary",
                 source_type="KNOWLEDGE",

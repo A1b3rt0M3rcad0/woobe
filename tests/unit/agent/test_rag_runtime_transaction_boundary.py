@@ -11,6 +11,7 @@ from modules.agent.application.interfaces.execution_context import (
     new_execution_context,
 )
 from modules.agent.application.interfaces.rag import RAGBinding
+from modules.agent.application.strategy_sdk import StrategyMessage, StrategyMessageRole
 from modules.agent.application.rag.registry import RAGStrategyRegistry
 from modules.agent.application.rag.strategies.classic import ClassicRAGStrategy
 from modules.agent.infra.execution.rag import embedding_capability as embedding_module
@@ -87,8 +88,6 @@ class _VectorSearch:
 async def test_rag_embedding_is_external_and_vector_search_is_read_only(monkeypatch) -> None:
     guard = _Guard()
     client = _EmbeddingClient(guard)
-    project_id = uuid4()
-    agent_id = uuid4()
     knowledge_id = uuid4()
     snapshot_id = uuid4()
     document_id = uuid4()
@@ -175,7 +174,12 @@ async def test_rag_embedding_is_external_and_vector_search_is_read_only(monkeypa
 
     token = current_execution.set(context)
     try:
-        result = await knowledge.retrieve(query="what is Woobe?")
+        result = await knowledge.retrieve(conversation=SimpleNamespace(
+            current_user_message=StrategyMessage(
+                id=None, role=StrategyMessageRole.USER, content="what is Woobe?",
+            ),
+            history=(),
+        ))
     finally:
         current_execution.reset(token)
 

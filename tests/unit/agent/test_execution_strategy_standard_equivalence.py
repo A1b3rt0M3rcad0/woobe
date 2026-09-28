@@ -457,7 +457,7 @@ async def test_standard_strategy_retrieves_knowledge_and_materializes_it_in_cont
 
 
 @pytest.mark.asyncio
-async def test_standard_strategy_builds_knowledge_query_from_real_conversation_history() -> None:
+async def test_standard_delegates_conversation_query_to_knowledge() -> None:
     model = _SequenceModel([AIMessage(content="grounded answer")])
     factory = _RecordingFactory(model)
     retrievals: list[str] = []

@@ -218,7 +218,7 @@ def test_execution_preparation_is_composed_from_focused_helpers() -> None:
     assert "_messages_with_leading_system_instruction" not in calls
 
 
-def test_execution_strategy_exclusively_owns_knowledge_query_construction() -> None:
+def test_knowledge_owns_query_construction() -> None:
     standard_source = STANDARD.read_text(encoding="utf-8")
     classic_source = RAG_CLASSIC.read_text(encoding="utf-8")
     adapter_source = RAG_RUNTIME_ADAPTER.read_text(encoding="utf-8")
@@ -226,9 +226,12 @@ def test_execution_strategy_exclusively_owns_knowledge_query_construction() -> N
     rag_interfaces_source = RAG_INTERFACES.read_text(encoding="utf-8")
     rag_config_tree = _tree(RAG_CONFIG_DTOS)
 
-    assert "_conversation_knowledge_query" in standard_source
+    assert "_conversation_knowledge_query" not in standard_source
+    assert "query_policy" not in standard_source
+    assert "history_turns" not in standard_source
+    assert "StrategyMessageRole" not in standard_source
     assert "ctx.knowledge.retrieve(" in standard_source
-    assert "query=query" in standard_source
+    assert "conversation=ctx.conversation" in standard_source
 
     assert "build_retrieval_query" not in classic_source
     assert "history_turns" not in classic_source
@@ -237,7 +240,8 @@ def test_execution_strategy_exclusively_owns_knowledge_query_construction() -> N
 
     assert "history:" not in adapter_source
     assert "history=" not in adapter_source
-    assert "query: str | None" not in knowledge_source
+    assert "conversation: StrategyConversation" in knowledge_source
+    assert "query_policy" not in knowledge_source
     assert "config: RAGRetrievalConfig" in rag_interfaces_source
 
     retrieval_config = next(

@@ -13,8 +13,6 @@ from modules.agent.application.strategy_sdk import (
     StrategyContext,
     StrategyContextTarget,
     StrategyExecutionError,
-    StrategyMessage,
-    StrategyMessageRole,
     StrategyOutcome,
     Suspended,
     strategy_phase_with_iteration,
@@ -78,59 +76,6 @@ class StandardExecutionPolicy(ExecutionPolicy[StandardExecutionState]):
         return None
 
 
-def _message_text(message: StrategyMessage | None) -> str | None:
-    if message is None:
-        return None
-    content = message.content
-    if isinstance(content, str):
-        normalized = content.strip()
-        return normalized or None
-    if not isinstance(content, list):
-        return None
-
-    parts: list[str] = []
-    for part in content:
-        if isinstance(part, str) and part.strip():
-            parts.append(part.strip())
-            continue
-        if not isinstance(part, dict):
-            continue
-        text = part.get("text")
-        if isinstance(text, str) and text.strip():
-            parts.append(text.strip())
-    return "\n".join(parts) or None
-
-
-def _conversation_knowledge_query(
-    ctx: StrategyContext[StandardExecutionState],
-) -> str | None:
-    current = _message_text(ctx.conversation.current_user_message)
-    if current is None:
-        return None
-
-    policy = ctx.knowledge.query_policy
-    if policy.mode != "conversation_context":
-        return current
-
-    conversational: list[tuple[str, str]] = []
-    for message in ctx.conversation.history:
-        content = _message_text(message)
-        if content is None:
-            continue
-        if message.role is StrategyMessageRole.USER:
-            conversational.append(("User", content))
-        elif message.role is StrategyMessageRole.ASSISTANT:
-            conversational.append(("Assistant", content))
-
-    tail = conversational[-(policy.history_turns * 2) :]
-    if not tail:
-        return current
-
-    lines = [f"{role}: {content}" for role, content in tail]
-    lines.append(f"Current user message: {current}")
-    return "\n".join(lines)
-
-
 class StandardExecutionStrategy(ExecutionStrategy[StandardExecutionState]):
     """General-purpose model/Tool loop expressed only through shared Strategy primitives."""
 
@@ -180,15 +125,13 @@ class StandardExecutionStrategy(ExecutionStrategy[StandardExecutionState]):
             )
 
         if not state.knowledge_resolved:
-            query = _conversation_knowledge_query(ctx)
+            knowledge = await ctx.knowledge.retrieve(
+                conversation=ctx.conversation,
+                phase=StandardPhase.KNOWLEDGE_RETRIEVAL,
+            )
+            if knowledge.found:
+                ctx.context.include_knowledge(knowledge)
             state.knowledge_resolved = True
-            if query is not None:
-                knowledge = await ctx.knowledge.retrieve(
-                    query=query,
-                    phase=StandardPhase.KNOWLEDGE_RETRIEVAL,
-                )
-                if knowledge.found:
-                    ctx.context.include_knowledge(knowledge)
 
         await ctx.context.compact(
             phase=StandardPhase.CONTEXT_COMPACTION,

@@ -23,7 +23,6 @@ from modules.agent.application.strategy_sdk.errors import StrategyExecutionError
 from modules.agent.application.strategy_sdk.invocation import StrategyInvocation
 from modules.agent.application.strategy_sdk.knowledge import (
     StrategyKnowledge,
-    StrategyKnowledgeQueryPolicy,
     StrategyKnowledgeResult,
     StrategyKnowledgeSource,
 )
@@ -68,7 +67,6 @@ __all__ = [
     "StrategyExecutionError",
     "StrategyInvocation",
     "StrategyKnowledge",
-    "StrategyKnowledgeQueryPolicy",
     "StrategyKnowledgeResult",
     "StrategyKnowledgeSource",
     "StrategyMessage",

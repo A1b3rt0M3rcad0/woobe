@@ -4,6 +4,34 @@ from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Mapping
 
 from modules.agent.application.dtos.runtime_dtos import SourceInfo
+from modules.agent.application.strategy_sdk.conversation import (
+    StrategyConversation,
+    StrategyMessage,
+    StrategyMessageRole,
+)
+
+
+def _message_text(message: StrategyMessage | None) -> str | None:
+    if message is None:
+        return None
+    content = message.content
+    if isinstance(content, str):
+        normalized = content.strip()
+        return normalized or None
+    if not isinstance(content, list):
+        return None
+
+    parts: list[str] = []
+    for part in content:
+        if isinstance(part, str) and part.strip():
+            parts.append(part.strip())
+            continue
+        if not isinstance(part, dict):
+            continue
+        text = part.get("text")
+        if isinstance(text, str) and text.strip():
+            parts.append(text.strip())
+    return "\n".join(parts) or None
 
 
 KnowledgeRetrieveFn = Callable[[str], Awaitable[Any]]
@@ -25,6 +53,38 @@ class KnowledgeRetrievalCapability:
     retrieve_fn: KnowledgeRetrieveFn | None
     query_mode: str = "conversation_context"
     history_turns: int = 3
+
+    def __post_init__(self) -> None:
+        if self.query_mode not in {"current_message", "conversation_context"}:
+            raise ValueError(f"Unsupported Knowledge query mode: {self.query_mode}")
+        if self.history_turns <= 0:
+            raise ValueError("Knowledge history_turns must be positive")
+
+    def build_query(self, conversation: StrategyConversation) -> str | None:
+        current = _message_text(conversation.current_user_message)
+        if current is None:
+            return None
+
+        if self.query_mode != "conversation_context":
+            return current
+
+        conversational: list[tuple[str, str]] = []
+        for message in conversation.history:
+            content = _message_text(message)
+            if content is None:
+                continue
+            if message.role is StrategyMessageRole.USER:
+                conversational.append(("User", content))
+            elif message.role is StrategyMessageRole.ASSISTANT:
+                conversational.append(("Assistant", content))
+
+        tail = conversational[-(self.history_turns * 2) :]
+        if not tail:
+            return current
+
+        lines = [f"{role}: {content}" for role, content in tail]
+        lines.append(f"Current user message: {current}")
+        return "\n".join(lines)
 
     async def retrieve(self, *, query: str) -> KnowledgeRetrievalResult:
         if self.retrieve_fn is None or not query:

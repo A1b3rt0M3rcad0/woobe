@@ -13,6 +13,9 @@ from modules.agent.application.interfaces.execution_context import (
 )
 from modules.agent.application.strategy_sdk import (
     StrategyContextContribution,
+    StrategyKnowledgeResult,
+    StrategyMessage,
+    StrategyMessageRole,
     StrategyModelResult,
     StrategyToolSelection,
     StrategyToolSelectionMode,
@@ -97,7 +100,12 @@ async def test_strategy_knowledge_records_started_completed_and_execution_eviden
     context.run_event_recorder = recorder
     token = current_execution.set(context)
     try:
-        result = await runtime.retrieve(query="runtime query")
+        result = await runtime.retrieve(conversation=SimpleNamespace(
+            current_user_message=StrategyMessage(
+                id=None, role=StrategyMessageRole.USER, content="runtime query",
+            ),
+            history=(),
+        ))
     finally:
         current_execution.reset(token)
 
@@ -132,7 +140,14 @@ async def test_strategy_knowledge_records_failed_retrieval_before_reraising() ->
     token = current_execution.set(context)
     try:
         with pytest.raises(RuntimeError, match="retrieval unavailable"):
-            await runtime.retrieve(query="runtime query")
+            await runtime.retrieve(
+                conversation=SimpleNamespace(
+                    current_user_message=StrategyMessage(
+                        id=None, role=StrategyMessageRole.USER, content="runtime query",
+                    ),
+                    history=(),
+                ),
+            )
     finally:
         current_execution.reset(token)
 
@@ -165,10 +180,8 @@ async def test_context_manager_materializes_typed_knowledge_before_user_input() 
         ),
         runtime_state=state,
     )
-    runtime.set(
-        StrategyContextContribution(
-            key="knowledge.primary",
-            source_type="KNOWLEDGE",
+    runtime.include_knowledge(
+        StrategyKnowledgeResult(
             content="answer from knowledge",
         )
     )
@@ -469,3 +482,66 @@ async def test_model_runtime_owns_structured_repair_model_invocation() -> None:
     assert state.last_model_message.content == '{"ok": true}'
     assert state.execution.result.content == '{"ok": true}'
     assert state.execution.llm_calls[-1]["phase"] == "json_repair"
+
+
+@pytest.mark.parametrize(
+    ("mode", "expected"),
+    [
+        ("current_message", "current\nquestion"),
+        (
+            "conversation_context",
+            "User: recent\nAssistant: reply\nCurrent user message: current\nquestion",
+        ),
+    ],
+)
+def test_knowledge_owns_query_mode_history_limit_and_text_extraction(mode, expected):
+    def message(role, content):
+        return StrategyMessage(id=None, role=role, content=content)
+
+    conversation = SimpleNamespace(
+        current_user_message=message(
+            StrategyMessageRole.USER,
+            [{"type": "text", "text": " current "}, "question", {"image_url": "ignored"}],
+        ),
+        history=(
+            message(StrategyMessageRole.USER, "old"),
+            message(StrategyMessageRole.ASSISTANT, "old reply"),
+            message(StrategyMessageRole.USER, "recent"),
+            message(StrategyMessageRole.SYSTEM, "excluded"),
+            message(StrategyMessageRole.ASSISTANT, "reply"),
+            message(StrategyMessageRole.TOOL, "excluded"),
+        ),
+    )
+    capability = KnowledgeRetrievalCapability(
+        retrieve_fn=None, query_mode=mode, history_turns=1,
+    )
+    assert capability.build_query(conversation) == expected
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("content", [None, "   ", [{"image_url": "image"}]])
+async def test_knowledge_skips_retrieval_without_current_text(content):
+    async def retrieve(_query):
+        pytest.fail("Empty current input must not trigger retrieval")
+
+    runtime = RuntimeStrategyKnowledge(
+        capability=KnowledgeRetrievalCapability(retrieve_fn=retrieve),
+        runtime_state=StrategyRuntimeState(),
+    )
+    result = await runtime.retrieve(conversation=SimpleNamespace(
+        current_user_message=(
+            StrategyMessage(id=None, role=StrategyMessageRole.USER, content=content)
+            if content is not None else None
+        ),
+        history=(),
+    ))
+    assert not result.found
+    assert result.query is None
+
+
+def test_execution_context_surface_does_not_expose_storage_primitives():
+    from modules.agent.application.strategy_sdk import StrategyContextManager
+
+    for name in ("has", "set", "remove"):
+        assert not hasattr(StrategyContextManager, name)
+        assert not hasattr(RuntimeStrategyContextManager, name)

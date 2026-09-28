@@ -66,9 +66,9 @@ Typical Strategy responsibilities include:
 
 ```text
 bootstrap/preflight execution decisions
-read-only conversation inspection and Knowledge query construction
-Knowledge retrieval timing and query choice
-Context inspection, compaction requests and contribution lifecycle
+read-only conversation inspection
+Knowledge retrieval timing and input conversation
+Context inspection, compaction requests and Knowledge inclusion
 per-invocation Tool enable/disable decision
 Model invocation and fallback order
 Tool-use loop structure
@@ -110,32 +110,19 @@ final execution result materialization
 Therefore this is normal Strategy code:
 
 ```python
-current = ctx.conversation.current_user_message
-query = current.content if current is not None else None
-
 knowledge = await ctx.knowledge.retrieve(
-    query=query,
+    conversation=ctx.conversation,
     phase="knowledge_retrieval",
 )
 if knowledge.found:
-    ctx.context.set(
-        StrategyContextContribution(
-            key="knowledge.primary",
-            source_type="KNOWLEDGE",
-            content=knowledge.content,
-        )
-    )
+    ctx.context.include_knowledge(knowledge)
 
 tools = ctx.tools.all()
-invocation = await ctx.context.assemble(
+invocation = await ctx.context.prepare(
     phase=MyPhase.REASONING,
     tools=tools,
 )
-result = await ctx.model.invoke(
-    context=invocation,
-    tools=tools,
-    phase=MyPhase.REASONING,
-)
+result = await ctx.model.invoke(invocation)
 
 if result.has_tool_calls:
     await ctx.tools.execute_many(result.tool_calls)
@@ -174,7 +161,7 @@ The rule is:
 The runtime resolves and freezes concrete dependencies; the Strategy orchestrates them through the stable SDK.
 
 - Runtime freezes the execution conversation; Strategies inspect it through `ctx.conversation` without mutating runtime message state.
-- Conversation-to-Knowledge query construction is a Strategy decision; Knowledge receives the final explicit query.
+- Conversation-to-Knowledge query construction belongs to Knowledge; Execution supplies the conversation without interpreting query mode or history limits.
 - Knowledge retrieval and Knowledge inclusion in Context are separate decisions.
 - Context is assembled for one Model invocation, not globally for an execution.
 - Tool authorization and the complete Tool inventory belong to the Runtime. The Strategy may only enable all authorized Tools or disable Tools for an invocation; it cannot select a subset.
@@ -185,3 +172,5 @@ The runtime resolves and freezes concrete dependencies; the Strategy orchestrate
 - Context compaction begins only when a Strategy calls `ctx.context.compact(...)`; the configured Context Manager owns the compaction algorithm and may use model-assisted summarization through runtime-provided capabilities.
 - After a Strategy returns `Completed`, the runner may not start another execution capability.
 - Concrete Strategies do not import infrastructure adapters or mutate `InstrumentedExecution` directly.
+
+Execution cannot manipulate Context storage through `has`, `set` or `remove`. Contribution storage, replacement and materialization remain internal to Context management. `inspect()` is a read-only view.

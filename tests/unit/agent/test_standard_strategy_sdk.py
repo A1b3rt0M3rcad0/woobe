@@ -14,7 +14,6 @@ from modules.agent.application.strategy_sdk import (
     ExecutionStopReason,
     StrategyBootstrap,
     StrategyContextCompactionResult,
-    StrategyKnowledgeQueryPolicy,
     StrategyKnowledgeResult,
     StrategyMessage,
     StrategyMessageRole,
@@ -45,14 +44,10 @@ class _Invocation:
 class _Knowledge:
     def __init__(self) -> None:
         self.calls: list[tuple[str | None, str | None]] = []
-        self.query_policy = StrategyKnowledgeQueryPolicy(
-            mode="current_message",
-            history_turns=3,
-        )
 
-    async def retrieve(self, *, query: str, phase=None):
-        self.calls.append((query, str(getattr(phase, "value", phase))))
-        return StrategyKnowledgeResult(content=None, query=query)
+    async def retrieve(self, *, conversation, phase=None):
+        self.calls.append((conversation, str(getattr(phase, "value", phase))))
+        return StrategyKnowledgeResult(content=None)
 
 
 class _Conversation:
@@ -75,15 +70,6 @@ class _ContextManager:
         self.calls: list[tuple[str | None, StrategyToolSelection | None]] = []
         self.compaction_phases: list[str] = []
         self.knowledge_results = []
-
-    def has(self, key: str) -> bool:
-        return key in self.contributions
-
-    def set(self, contribution) -> None:
-        self.contributions[contribution.key] = contribution
-
-    def remove(self, key: str) -> None:
-        self.contributions.pop(key, None)
 
     def include_knowledge(self, result) -> None:
         self.knowledge_results.append(result)
@@ -216,7 +202,7 @@ async def test_standard_algorithm_is_expressed_only_with_strategy_context_primit
     assert isinstance(outcome, Completed)
     assert outcome.result.content == "done"
     assert ctx.checkpoints == [ExecutionCheckpointBoundary.TOOL]
-    assert ctx.knowledge.calls == [("test query", "knowledge_retrieval")]
+    assert ctx.knowledge.calls == [(ctx.conversation, "knowledge_retrieval")]
     assert state.knowledge_resolved is True
     assert state.tool_round == 1
     assert state.consecutive_failures == 0
@@ -254,5 +240,21 @@ async def test_standard_algorithm_can_return_suspension_without_run_lifecycle_ac
     assert outcome.reason is SuspensionReason.ASYNC_TOOL
     assert outcome.operation_ref == "job-123"
     assert ctx.checkpoints == [ExecutionCheckpointBoundary.TOOL]
-    assert ctx.knowledge.calls == [("test query", "knowledge_retrieval")]
+    assert ctx.knowledge.calls == [(ctx.conversation, "knowledge_retrieval")]
     assert state.knowledge_resolved is True
+
+
+@pytest.mark.asyncio
+async def test_failed_knowledge_is_not_marked_resolved():
+    state = StandardExecutionState()
+    ctx = _Context(state=state, model=_Model([]), tools=_Tools([]))
+
+    class FailingKnowledge:
+        async def retrieve(self, *, conversation, phase):
+            assert conversation is ctx.conversation
+            raise RuntimeError("retrieval failed")
+
+    ctx.knowledge = FailingKnowledge()
+    with pytest.raises(RuntimeError, match="retrieval failed"):
+        await StandardExecutionStrategy().execute(ctx)
+    assert state.knowledge_resolved is False
