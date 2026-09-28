@@ -42,7 +42,7 @@ async def test_create_agent_freezes_stdcm_name_only() -> None:
         )
     )
 
-    assert saved.settings["runtime_config"]["context_assembler"] == {
+    assert saved.settings["runtime_config"]["context_manager"] == {
         "name": "stdcm",
     }
 
@@ -70,7 +70,7 @@ async def test_create_agent_preserves_explicit_stdcm_selection() -> None:
         )
     )
 
-    assert saved.settings["runtime_config"]["context_assembler"] == {
+    assert saved.settings["runtime_config"]["context_manager"] == {
         "name": "stdcm",
     }
 
