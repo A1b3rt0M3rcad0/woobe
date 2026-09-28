@@ -323,7 +323,12 @@ The Standard implementation is approximately:
 state = ctx.state
 
 if not state.knowledge_resolved:
-    knowledge = await ctx.knowledge.retrieve(phase="knowledge_retrieval")
+    current = ctx.conversation.current_user_message
+    query = current.content if current is not None else None
+    knowledge = await ctx.knowledge.retrieve(
+        query=query,
+        phase="knowledge_retrieval",
+    )
     state.knowledge_resolved = True
     if knowledge.found:
         ctx.context.set(
