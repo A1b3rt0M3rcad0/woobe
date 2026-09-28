@@ -21,9 +21,30 @@ STANDARD = EXECUTION / "strategies" / "standard.py"
 STRATEGY_OUTPUT = EXECUTION / "strategy_runtime" / "output.py"
 STRATEGY_MODEL = EXECUTION / "strategy_runtime" / "model.py"
 PREPARATION = EXECUTION / "capabilities" / "preparation.py"
-RAG_CLASSIC = ROOT / "packages" / "woobe-core" / "src" / "modules" / "agent" / "application" / "rag" / "strategies" / "classic.py"
+RAG_CLASSIC = (
+    ROOT
+    / "packages"
+    / "woobe-core"
+    / "src"
+    / "modules"
+    / "agent"
+    / "application"
+    / "rag"
+    / "strategies"
+    / "classic.py"
+)
 RAG_RUNTIME_ADAPTER = EXECUTION / "rag" / "runtime_adapter.py"
-STRATEGY_KNOWLEDGE = ROOT / "packages" / "woobe-core" / "src" / "modules" / "agent" / "application" / "strategy_sdk" / "knowledge.py"
+STRATEGY_KNOWLEDGE = (
+    ROOT
+    / "packages"
+    / "woobe-core"
+    / "src"
+    / "modules"
+    / "agent"
+    / "application"
+    / "strategy_sdk"
+    / "knowledge.py"
+)
 
 
 def _tree(path: Path) -> ast.Module:
