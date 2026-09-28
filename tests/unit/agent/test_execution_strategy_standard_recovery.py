@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from uuid import uuid4
 
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
+from modules.agent.application.context_managers.standard import StandardContextManager
 from modules.agent.application.dtos.runtime_dtos import SourceInfo
 
 from modules.agent.application.interfaces.execution_context import (
@@ -97,7 +99,7 @@ def _request(
             if knowledge_query
             else []
         ),
-        context_assembler=None,
+        context_assembler=StandardContextManager(),
         knowledge_retrieve=knowledge_retrieve,
         knowledge_query=knowledge_query,
     )
@@ -134,6 +136,8 @@ async def test_standard_strategy_resumes_generic_checkpoint_without_replaying_to
             raise _SimulatedCrash("process stopped after durable Tool boundary")
 
     first_context = new_execution_context()
+    first_context.run_id = uuid4()
+    first_context.project_id = uuid4()
     first_context.run_event_recorder = CrashAfterCheckpointRecorder()
     first_token = current_execution.set(first_context)
     try:
@@ -158,6 +162,8 @@ async def test_standard_strategy_resumes_generic_checkpoint_without_replaying_to
     assert tool_calls == 1
 
     second_context = new_execution_context()
+    second_context.run_id = uuid4()
+    second_context.project_id = uuid4()
     second_context.resume_state = captured["state"]
     second_token = current_execution.set(second_context)
     try:
@@ -226,6 +232,8 @@ async def test_standard_strategy_restores_knowledge_contribution_without_retriev
     )
 
     first_context = new_execution_context()
+    first_context.run_id = uuid4()
+    first_context.project_id = uuid4()
     first_context.run_event_recorder = CrashAfterCheckpointRecorder()
     first_token = current_execution.set(first_context)
     try:
@@ -244,6 +252,8 @@ async def test_standard_strategy_restores_knowledge_contribution_without_retriev
     assert captured["state"]["strategy_cursor"]["state"]["knowledge_resolved"] is True
 
     second_context = new_execution_context()
+    second_context.run_id = uuid4()
+    second_context.project_id = uuid4()
     second_context.resume_state = captured["state"]
     second_token = current_execution.set(second_context)
     try:
