@@ -86,8 +86,21 @@ class InstrumentedPrimaryExecutionMixin:
     def configure_rag_runtime(self, adapter: RAGRuntimeAdapter) -> None:
         self._rag_runtime = adapter
 
-    def configure_context_manager(self, assembler: ContextManager) -> None:
-        self._context_manager = assembler
+    def configure_context_manager(self, manager: ContextManager) -> None:
+        self._context_manager = manager
+
+    def configure_context_assembler(self, assembler: ContextManager) -> None:
+        """Legacy composition alias; new code uses configure_context_manager."""
+        self.configure_context_manager(assembler)
+
+    @property
+    def _context_assembler(self) -> ContextManager | None:
+        """Legacy runtime alias for tests/hosts migrating to ContextManager."""
+        return self._context_manager
+
+    @_context_assembler.setter
+    def _context_assembler(self, value: ContextManager | None) -> None:
+        self._context_manager = value
 
     def configure_execution_strategy_resolver(
         self,
