@@ -44,14 +44,11 @@ class RuntimeStrategyKnowledge:
     async def retrieve(
         self,
         *,
-        query: str | None = None,
+        query: str,
         phase: StrategyPhase | None = None,
     ) -> StrategyKnowledgeResult:
-        effective_query = (
-            query if query is not None else self._capability.default_query
-        )
-        if self._capability.retrieve_fn is None or not effective_query:
-            return StrategyKnowledgeResult(content=None, query=effective_query)
+        if self._capability.retrieve_fn is None or not query:
+            return StrategyKnowledgeResult(content=None, query=query)
 
         normalized_phase = strategy_phase_value(phase or "knowledge_retrieval")
         execution_context = current_execution.get()
@@ -68,12 +65,12 @@ class RuntimeStrategyKnowledge:
                 "knowledge.retrieval.started",
                 {
                     "phase": normalized_phase,
-                    "query": effective_query,
+                    "query": query,
                 },
             )
 
         try:
-            result = await self._capability.retrieve(query=effective_query)
+            result = await self._capability.retrieve(query=query)
         except Exception as exc:
             ended_at = utc_iso()
             raw_metadata = getattr(exc, "rag_metadata", None)
@@ -84,7 +81,7 @@ class RuntimeStrategyKnowledge:
             )
             call = {
                 "phase": normalized_phase,
-                "query": effective_query,
+                "query": query,
                 "status": "error",
                 "error": str(exc),
                 "found": False,
@@ -104,7 +101,7 @@ class RuntimeStrategyKnowledge:
                     "knowledge.retrieval.failed",
                     {
                         "phase": normalized_phase,
-                        "query": effective_query,
+                        "query": query,
                         "error": str(exc),
                         "metadata": metadata,
                     },
@@ -120,7 +117,7 @@ class RuntimeStrategyKnowledge:
             execution_context.rag_metadata = dict(result.metadata)
         call = {
             "phase": normalized_phase,
-            "query": effective_query,
+            "query": query,
             "status": "success",
             "found": bool(result.content),
             "source_count": len(result.sources),
@@ -139,7 +136,7 @@ class RuntimeStrategyKnowledge:
                     "knowledge.retrieval.completed",
                     {
                         "phase": normalized_phase,
-                        "query": effective_query,
+                        "query": query,
                         "found": bool(result.content),
                         "source_count": len(result.sources),
                         "sources": serialized_sources,
@@ -167,7 +164,7 @@ class RuntimeStrategyKnowledge:
         )
         return StrategyKnowledgeResult(
             content=result.content,
-            query=effective_query,
+            query=query,
             sources=strategy_sources,
             metadata=result.metadata,
         )

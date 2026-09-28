@@ -48,7 +48,6 @@ class RAGRequest:
     """Immutable input presented to one RAG strategy invocation."""
 
     query: str
-    history: tuple[Any, ...]
     config: RAGRuntimeConfig
     vector_snapshot_id: UUID
     snapshot_documents: tuple[Any, ...]

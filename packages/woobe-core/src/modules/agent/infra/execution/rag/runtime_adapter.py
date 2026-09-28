@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Any
-
 from modules.agent.application.interfaces.embedding_errors import EmbeddingProviderError
 from modules.agent.application.interfaces.embedding_factory import EmbeddingFactory
 from modules.agent.application.interfaces.rag import (
@@ -39,7 +37,6 @@ class RAGRuntimeAdapter:
         *,
         binding: RAGBinding,
         query: str,
-        history: tuple[Any, ...],
     ) -> RAGResult:
         try:
             strategy = self._registry.resolve(binding.strategy)
@@ -58,7 +55,6 @@ class RAGRuntimeAdapter:
         )
         request = RAGRequest(
             query=query,
-            history=history,
             config=binding.config,
             vector_snapshot_id=binding.snapshot.id,
             snapshot_documents=binding.snapshot_documents,

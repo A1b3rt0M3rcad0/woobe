@@ -126,8 +126,6 @@ class AskAgentUseCase:
                 agent_tools,
                 tool_name_to_id,
                 messages,
-                knowledge_query=input_dto.message,
-                history=history,
             )
             llm_latency_ms = round((time.monotonic() - llm_latency_start) * 1000)
 

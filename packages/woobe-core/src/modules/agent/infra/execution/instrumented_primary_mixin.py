@@ -306,8 +306,6 @@ class InstrumentedPrimaryExecutionMixin:
         agent_tools: list[dict],
         tool_name_to_id: dict[str, str],
         messages: list,
-        knowledge_query: str | None = None,
-        history: list[Any] | tuple[Any, ...] | None = None,
     ) -> tuple[Any, list, bool, Any]:
         host = cast(_PrimaryExecutionHost, self)
         settings = getattr(agent, "settings", None)
@@ -336,9 +334,6 @@ class InstrumentedPrimaryExecutionMixin:
             return await rag_runtime.retrieve(
                 binding=rag_binding,
                 query=query,
-                # The Execution Strategy owns conversation-to-query semantics and
-                # passes a final retrieval query. RAG receives no hidden history rewrite.
-                history=(),
             )
 
         knowledge_retrieve = retrieve_knowledge if rag_binding is not None else None
@@ -360,7 +355,6 @@ class InstrumentedPrimaryExecutionMixin:
                     tool_name_to_id=tool_name_to_id,
                     messages=messages,
                     knowledge_retrieve=knowledge_retrieve,
-                    knowledge_query=knowledge_query,
                 )
             )
         except InstrumentedExecutionError as exc:
