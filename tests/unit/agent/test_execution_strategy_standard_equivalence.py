@@ -2,10 +2,12 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 from typing import Any
+from uuid import uuid4
 
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 
+from modules.agent.application.context_managers.standard import StandardContextManager
 from modules.agent.application.dtos.runtime_dtos import SourceInfo
 from modules.agent.application.interfaces.execution import InstrumentedExecutionError
 from modules.agent.application.interfaces.execution_context import (
@@ -96,14 +98,25 @@ def _request(
         agent_tools=agent_tools or [],
         tool_name_to_id=tool_name_to_id or {},
         messages=list(messages or []),
-        context_assembler=None,
+        context_assembler=StandardContextManager(),
         knowledge_retrieve=knowledge_retrieve,
         knowledge_query=knowledge_query,
     )
 
 
 async def _execute(request: ExecutionStrategyRequest):
-    return await execute_strategy(StandardExecutionStrategy(), request)
+    existing = current_execution.get()
+    if existing is not None:
+        return await execute_strategy(StandardExecutionStrategy(), request)
+
+    context = new_execution_context()
+    context.run_id = uuid4()
+    context.project_id = uuid4()
+    token = current_execution.set(context)
+    try:
+        return await execute_strategy(StandardExecutionStrategy(), request)
+    finally:
+        current_execution.reset(token)
 
 
 @pytest.mark.asyncio
