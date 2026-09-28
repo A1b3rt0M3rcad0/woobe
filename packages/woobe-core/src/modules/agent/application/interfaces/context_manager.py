@@ -234,9 +234,9 @@ class ContextManagerCapabilities(Protocol):
 class ContextManager(Protocol):
     """Assemble the context for exactly one Model Invocation.
 
-    Runtime hosts may share one assembler instance across concurrent Runs. Concrete
+    Runtime hosts may share one manager instance across concurrent Runs. Concrete
     implementations therefore must keep per-invocation mutable state in the request
-    or local call scope instead of storing it on the assembler instance. Request
+    or local call scope instead of storing it on the manager instance. Request
     values are inputs; implementations should return assembled output rather than
     mutate runtime-owned state in place.
     """
