@@ -17,7 +17,7 @@ from modules.agent.application.interfaces.context_manager import (
     ContextInspectionRequest,
     ContextManagedContribution,
     ContextManagerCapabilities,
-    ContextMessageAdapter,
+    ContextMessagePort,
     ContextSummaryRequest,
 )
 
@@ -72,7 +72,7 @@ def _messages_with_leading_system_instruction(
     messages: list[Any],
     instruction: str,
     *,
-    adapter: ContextMessageAdapter,
+    adapter: ContextMessagePort,
 ) -> list[Any]:
     result = list(messages)
     if result and adapter.is_system(result[0]):
@@ -94,7 +94,7 @@ def _messages_with_bound_capability_authority(
     *,
     has_tools: bool,
     has_skills: bool = False,
-    adapter: ContextMessageAdapter,
+    adapter: ContextMessagePort,
 ) -> list[Any]:
     if not has_tools:
         return list(messages)
@@ -116,7 +116,7 @@ def _messages_with_tool_grounding(
     messages: list[Any],
     *,
     has_tools: bool,
-    adapter: ContextMessageAdapter,
+    adapter: ContextMessagePort,
 ) -> list[Any]:
     if not has_tools:
         return list(messages)
@@ -131,7 +131,7 @@ def _messages_with_skill_usage(
     messages: list[Any],
     *,
     has_skills: bool,
-    adapter: ContextMessageAdapter,
+    adapter: ContextMessagePort,
 ) -> list[Any]:
     if not has_skills:
         return list(messages)
@@ -173,7 +173,7 @@ def _apply_replacements(
 def _materialize_contribution(
     contribution: ContextManagedContribution,
     *,
-    adapter: ContextMessageAdapter,
+    adapter: ContextMessagePort,
 ) -> Any:
     source_type = contribution.source_type.strip().upper()
     content = _serialized_content(contribution.content)
@@ -196,7 +196,7 @@ def _materialize_context_contributions(
     messages: list[Any],
     contributions: tuple[ContextManagedContribution, ...],
     *,
-    adapter: ContextMessageAdapter,
+    adapter: ContextMessagePort,
 ) -> list[Any]:
     if not contributions:
         return list(messages)
