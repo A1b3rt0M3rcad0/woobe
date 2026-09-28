@@ -204,8 +204,7 @@ async def test_standard_algorithm_is_expressed_only_with_strategy_context_primit
     )
     final = _model_result(content="done")
     batch = StrategyToolBatch(
-        results=({"success": True},),
-        messages=(SimpleNamespace(content="tool-result"),),
+        results=(),
         has_failures=False,
     )
     state = StandardExecutionState(
@@ -240,7 +239,6 @@ async def test_standard_algorithm_can_return_suspension_without_run_lifecycle_ac
     )
     batch = StrategyToolBatch(
         results=(),
-        messages=(),
         has_failures=False,
         requires_suspension=True,
         suspension_reason=SuspensionReason.ASYNC_TOOL,
