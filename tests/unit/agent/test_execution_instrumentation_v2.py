@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
-from langchain_core.messages import SystemMessage, ToolMessage
+from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
 
 from modules.agent.application.context_assembly import ContextBudgetExceeded
 from modules.agent.application.context_managers.standard import StandardContextManager
@@ -146,17 +146,35 @@ async def test_primary_model_factory_uses_effective_output_capability():
 
 @pytest.mark.asyncio
 async def test_parallel_tools_and_no_redundant_json_repair():
-    tool_request = Result(
-        "",
-        [
-            {"id": "a", "name": "sum", "args": {"a": 8, "b": 8}},
-            {"id": "b", "name": "sum", "args": {"a": 9, "b": 8}},
+    tool_request = AIMessage(
+        content="",
+        tool_calls=[
+            {
+                "id": "a",
+                "name": "sum",
+                "args": {"a": 8, "b": 8},
+                "type": "tool_call",
+            },
+            {
+                "id": "b",
+                "name": "sum",
+                "args": {"a": 9, "b": 8},
+                "type": "tool_call",
+            },
         ],
-        {"input_tokens": 10, "output_tokens": 2, "total_tokens": 12},
+        usage_metadata={
+            "input_tokens": 10,
+            "output_tokens": 2,
+            "total_tokens": 12,
+        },
     )
-    structured_followup = Result(
-        '{"message":"ok"}',
-        usage={"input_tokens": 20, "output_tokens": 4, "total_tokens": 24},
+    structured_followup = AIMessage(
+        content='{"message":"ok"}',
+        usage_metadata={
+            "input_tokens": 20,
+            "output_tokens": 4,
+            "total_tokens": 24,
+        },
     )
     tool_model = MagicMock()
     tool_model.bind_tools.return_value = tool_model
