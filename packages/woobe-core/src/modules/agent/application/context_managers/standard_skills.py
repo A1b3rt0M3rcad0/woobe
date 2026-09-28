@@ -129,8 +129,8 @@ class StandardSkillsContextManager:
         request: ContextCompactionRequest,
         capabilities: ContextManagerCapabilities,
     ) -> ContextCompactionOutput:
-        # Compaction replacement indexes refer to the stable Runtime conversation.
-        # Skills are invocation-scoped additions, so they must not shift those indexes.
+        # Compaction replacement IDs refer to the stable Runtime conversation.
+        # Skills are invocation-scoped additions and never participate in those IDs.
         return await self._base.compact(request, capabilities)
 
     def assemble(self, request: ContextAssemblyRequest) -> ContextAssemblyOutput:
