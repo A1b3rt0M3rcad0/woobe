@@ -1,0 +1,4 @@
+# Gitleaks finding-level exclusions for verified non-secret test fixtures.
+# Keep these entries exact; do not allowlist whole files or commits.
+
+fe7b0c1731a473da600c098a3ba1b9899dfb7e22:.github/workflows/acceptance.yml:generic-api-key:28
