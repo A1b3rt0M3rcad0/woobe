@@ -18,6 +18,9 @@ EXECUTION = (
 RUNNER = EXECUTION / "strategy_runtime" / "runner.py"
 ASK_USE_CASE = EXECUTION / "ask_use_case.py"
 STANDARD = EXECUTION / "strategies" / "standard.py"
+STRATEGY_OUTPUT = EXECUTION / "strategy_runtime" / "output.py"
+STRATEGY_MODEL = EXECUTION / "strategy_runtime" / "model.py"
+PREPARATION = EXECUTION / "capabilities" / "preparation.py"
 
 
 def _tree(path: Path) -> ast.Module:
@@ -113,3 +116,57 @@ def test_standard_strategy_owns_bootstrap_fallback_and_output_repair() -> None:
     assert "ctx.model.invoke_fallback" in source
     assert "ctx.output.requires_repair" in source
     assert "ctx.output.repair" in source
+
+
+
+def test_strategy_output_does_not_own_model_plumbing() -> None:
+    source = STRATEGY_OUTPUT.read_text(encoding="utf-8")
+
+    forbidden = {
+        "ModelInvocationCapability",
+        "repair_json_if_needed",
+        "create_chat_model",
+        "_llm_factory",
+        "_api_key",
+        "_base_url",
+        "_pricing_snapshot",
+    }
+    leaked = sorted(name for name in forbidden if name in source)
+    assert not leaked, (
+        "Strategy Output may define validation/repair policy but Model execution "
+        "belongs to Strategy Model: " + ", ".join(leaked)
+    )
+    assert "invoke_structured_repair" in source
+
+
+def test_strategy_model_owns_structured_repair_inference() -> None:
+    source = STRATEGY_MODEL.read_text(encoding="utf-8")
+
+    assert "def invoke_structured_repair" in source
+    assert "_structured_repair_model_factory" in source
+    assert "retain_terminal_result=True" in source
+
+
+def test_execution_preparation_is_composed_from_focused_helpers() -> None:
+    function = next(
+        node
+        for node in _tree(PREPARATION).body
+        if isinstance(node, ast.FunctionDef) and node.name == "prepare_execution"
+    )
+    calls = {
+        name
+        for node in ast.walk(function)
+        if isinstance(node, ast.Call)
+        and (name := _call_name(node)) is not None
+    }
+
+    required = {
+        "_prepare_tools",
+        "_prepare_output_contract",
+        "_prepare_models",
+        "_prepare_fallback_model_factory",
+        "_initialize_runtime_state",
+    }
+    assert required.issubset(calls)
+    assert "create_chat_model" not in calls
+    assert "_messages_with_leading_system_instruction" not in calls

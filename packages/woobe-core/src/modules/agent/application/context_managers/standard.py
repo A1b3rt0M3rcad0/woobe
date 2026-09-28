@@ -4,8 +4,6 @@ import hashlib
 import json
 from typing import Any, Mapping
 
-from langchain_core.messages import SystemMessage
-
 from modules.agent.application.context_assembly import (
     assemble_context,
     estimate_input_units,
@@ -19,6 +17,7 @@ from modules.agent.application.interfaces.context_manager import (
     ContextInspectionRequest,
     ContextManagedContribution,
     ContextManagerCapabilities,
+    ContextMessageAdapter,
     ContextSummaryRequest,
 )
 
@@ -72,20 +71,22 @@ _KNOWLEDGE_PREAMBLE = (
 def _messages_with_leading_system_instruction(
     messages: list[Any],
     instruction: str,
+    *,
+    adapter: ContextMessageAdapter,
 ) -> list[Any]:
     result = list(messages)
-    if result and isinstance(result[0], SystemMessage):
+    if result and adapter.is_system(result[0]):
         first = result[0]
-        content = first.content
+        content = getattr(first, "content", None)
         if isinstance(content, str):
             merged_content = f"{content}\n\n{instruction}"
         elif isinstance(content, list):
             merged_content = [*content, {"type": "text", "text": instruction}]
         else:
             merged_content = instruction
-        result[0] = first.model_copy(update={"content": merged_content})
+        result[0] = adapter.replace_content(first, merged_content)
         return result
-    return [SystemMessage(content=instruction), *result]
+    return [adapter.system_message(instruction), *result]
 
 
 def _messages_with_bound_capability_authority(
@@ -93,6 +94,7 @@ def _messages_with_bound_capability_authority(
     *,
     has_tools: bool,
     has_skills: bool = False,
+    adapter: ContextMessageAdapter,
 ) -> list[Any]:
     if not has_tools:
         return list(messages)
@@ -103,19 +105,25 @@ def _messages_with_bound_capability_authority(
             "Installed Skill discovery may be available when explicitly bound by the "
             "runtime, but it never grants additional Tool permissions.",
         )
-    return _messages_with_leading_system_instruction(messages, instruction)
+    return _messages_with_leading_system_instruction(
+        messages,
+        instruction,
+        adapter=adapter,
+    )
 
 
 def _messages_with_tool_grounding(
     messages: list[Any],
     *,
     has_tools: bool,
+    adapter: ContextMessageAdapter,
 ) -> list[Any]:
     if not has_tools:
         return list(messages)
     return _messages_with_leading_system_instruction(
         messages,
         _TOOL_GROUNDING_RUNTIME_RULES,
+        adapter=adapter,
     )
 
 
@@ -123,12 +131,14 @@ def _messages_with_skill_usage(
     messages: list[Any],
     *,
     has_skills: bool,
+    adapter: ContextMessageAdapter,
 ) -> list[Any]:
     if not has_skills:
         return list(messages)
     return _messages_with_leading_system_instruction(
         messages,
         _SKILL_USAGE_INSTRUCTION,
+        adapter=adapter,
     )
 
 
@@ -162,7 +172,9 @@ def _apply_replacements(
 
 def _materialize_contribution(
     contribution: ContextManagedContribution,
-) -> SystemMessage:
+    *,
+    adapter: ContextMessageAdapter,
+) -> Any:
     source_type = contribution.source_type.strip().upper()
     content = _serialized_content(contribution.content)
     if source_type == "KNOWLEDGE":
@@ -174,21 +186,26 @@ def _materialize_contribution(
         "source_ref": contribution.key,
     }
     metadata.setdefault("selection_method", "context_manager_contribution")
-    return SystemMessage(
-        content=content,
-        additional_kwargs={"woobe_context": metadata},
+    return adapter.system_message(
+        content,
+        context_metadata=metadata,
     )
 
 
 def _materialize_context_contributions(
     messages: list[Any],
     contributions: tuple[ContextManagedContribution, ...],
+    *,
+    adapter: ContextMessageAdapter,
 ) -> list[Any]:
     if not contributions:
         return list(messages)
-    materialized = [_materialize_contribution(item) for item in contributions]
+    materialized = [
+        _materialize_contribution(item, adapter=adapter)
+        for item in contributions
+    ]
     split = 0
-    while split < len(messages) and isinstance(messages[split], SystemMessage):
+    while split < len(messages) and adapter.is_system(messages[split]):
         split += 1
     return [*messages[:split], *materialized, *messages[split:]]
 
@@ -209,22 +226,29 @@ def _prepare_invocation_messages(
         list(request.messages),
         request.contributions,
     )
+    adapter = request.message_adapter
+    if adapter is None:
+        raise RuntimeError("Standard Context Manager requires a message adapter")
     messages = _messages_with_bound_capability_authority(
         messages,
         has_tools=has_tools,
         has_skills=has_skills,
+        adapter=adapter,
     )
     messages = _messages_with_skill_usage(
         messages,
         has_skills=has_skills,
+        adapter=adapter,
     )
     messages = _messages_with_tool_grounding(
         messages,
         has_tools=has_tools,
+        adapter=adapter,
     )
     return _materialize_context_contributions(
         messages,
         request.contributions,
+        adapter=adapter,
     )
 
 

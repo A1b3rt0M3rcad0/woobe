@@ -6,6 +6,7 @@ from typing import Any, Mapping
 from uuid import UUID
 
 import uuid6
+from langchain_core.messages import SystemMessage
 
 from modules.agent.application.interfaces.context_manager import (
     ContextManager,
@@ -18,6 +19,7 @@ from modules.agent.application.interfaces.context_manager import (
     ContextInvocationEnvironment,
     ContextManagedContribution,
     ContextManagerCapabilities,
+    ContextMessageAdapter,
 )
 from modules.agent.application.interfaces.context_policy import ContextPolicyV1
 from modules.agent.application.interfaces.execution import (
@@ -26,6 +28,40 @@ from modules.agent.application.interfaces.execution import (
 )
 from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.infra.execution.execution_instrumentation import utc_iso
+
+
+class _LangChainContextMessageAdapter(ContextMessageAdapter):
+    """Keep framework message mechanics outside the programmable Context Manager."""
+
+    def is_system(self, message: Any) -> bool:
+        return isinstance(message, SystemMessage)
+
+    def replace_content(self, message: Any, content: Any) -> Any:
+        copier = getattr(message, "model_copy", None)
+        if not callable(copier):
+            raise TypeError(
+                f"Context message type {type(message).__name__} cannot replace content"
+            )
+        return copier(update={"content": content})
+
+    def system_message(
+        self,
+        content: Any,
+        *,
+        context_metadata: Mapping[str, Any] | None = None,
+    ) -> Any:
+        additional_kwargs = (
+            {"woobe_context": dict(context_metadata)}
+            if context_metadata is not None
+            else {}
+        )
+        return SystemMessage(
+            content=content,
+            additional_kwargs=additional_kwargs,
+        )
+
+
+_MESSAGE_ADAPTER = _LangChainContextMessageAdapter()
 
 
 def _positive_int(value: Any) -> int | None:
@@ -383,6 +419,7 @@ class ContextAssemblyCapability:
                     model=self.model_name,
                     environment=environment,
                     policy=policy,
+                    message_adapter=_MESSAGE_ADAPTER,
                     contributions=contributions,
                 )
             )

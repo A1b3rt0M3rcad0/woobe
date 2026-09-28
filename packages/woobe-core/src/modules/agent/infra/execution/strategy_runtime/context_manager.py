@@ -101,7 +101,6 @@ class RuntimeStrategyContextManager:
         "_capability",
         "_runtime_state",
         "_base_messages",
-        "_final_json_instruction",
         "_model_capabilities",
     )
 
@@ -111,13 +110,11 @@ class RuntimeStrategyContextManager:
         capability: ContextAssemblyCapability,
         runtime_state: StrategyRuntimeState,
         base_messages: list[Any] | None = None,
-        final_json_instruction: str | None = None,
         model_capabilities: _ContextModelCapabilities | None = None,
     ) -> None:
         self._capability = capability
         self._runtime_state = runtime_state
         self._base_messages = list(base_messages or runtime_state.messages)
-        self._final_json_instruction = final_json_instruction
         self._model_capabilities = model_capabilities
         self._sync_execution_context()
 
@@ -340,7 +337,7 @@ class RuntimeStrategyContextManager:
     ) -> RuntimeStrategyInvocation:
         messages = terminal_response_messages(
             list(self._base_messages),
-            self._final_json_instruction,
+            None,
             self._runtime_state.execution.tool_calls,
             reason,
         )

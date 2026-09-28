@@ -1,40 +1,48 @@
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, Protocol
 
+from langchain_core.messages import HumanMessage, SystemMessage
+
+from modules.agent.application.interfaces.execution import InstrumentedExecutionError
 from modules.agent.application.strategy_sdk import (
+    StrategyExecutionError,
     StrategyModelResult,
     StrategyPhase,
+    StrategyToolSelection,
+    StrategyToolSelectionMode,
     strategy_phase_value,
 )
 from modules.agent.infra.execution.capabilities.context_assembly import (
     ContextAssemblyCapability,
 )
 from modules.agent.infra.execution.capabilities.preparation import PreparedExecution
-from modules.agent.infra.execution.structured_json_repair import repair_json_if_needed
-from modules.agent.infra.execution.strategy_runtime.model import (
-    strategy_model_result_from_message,
+from modules.agent.infra.execution.strategy_runtime.invocation import (
+    RuntimeStrategyInvocation,
 )
 from modules.agent.infra.execution.strategy_runtime.runtime_state import StrategyRuntimeState
 
 
+class _OutputModelCapabilities(Protocol):
+    """Minimal Model mechanism available to Output repair."""
+
+    async def invoke_structured_repair(
+        self,
+        invocation: RuntimeStrategyInvocation,
+    ) -> StrategyModelResult: ...
+
+
 class RuntimeStrategyOutput:
-    """Strategy-facing output facade; it never runs unless the Strategy calls it."""
+    """Strategy-facing output policy; Model execution remains owned by Model Runtime."""
 
     __slots__ = (
         "_runtime_state",
         "_json_enabled",
         "_schema",
-        "_llm_factory",
-        "_provider",
-        "_model_name",
-        "_api_key",
-        "_base_url",
-        "_max_tokens",
         "_clean_json_answer",
-        "_pricing_snapshot",
         "_context_capability",
+        "_model_capabilities",
     )
 
     def __init__(
@@ -43,28 +51,16 @@ class RuntimeStrategyOutput:
         runtime_state: StrategyRuntimeState,
         json_enabled: bool,
         schema: dict[str, Any] | None = None,
-        llm_factory: Any | None = None,
-        provider: str = "",
-        model_name: str = "",
-        api_key: str = "",
-        base_url: str | None = None,
-        max_tokens: int = 1000,
         clean_json_answer: Any | None = None,
-        pricing_snapshot: dict[str, Any] | None = None,
         context_capability: ContextAssemblyCapability | None = None,
+        model_capabilities: _OutputModelCapabilities | None = None,
     ) -> None:
         self._runtime_state = runtime_state
         self._json_enabled = json_enabled
         self._schema = dict(schema or {})
-        self._llm_factory = llm_factory
-        self._provider = provider
-        self._model_name = model_name
-        self._api_key = api_key
-        self._base_url = base_url
-        self._max_tokens = max_tokens
         self._clean_json_answer = clean_json_answer
-        self._pricing_snapshot = pricing_snapshot
         self._context_capability = context_capability
+        self._model_capabilities = model_capabilities
 
     @classmethod
     def disabled(cls, *, runtime_state: StrategyRuntimeState) -> "RuntimeStrategyOutput":
@@ -76,25 +72,16 @@ class RuntimeStrategyOutput:
         *,
         prepared: PreparedExecution,
         runtime_state: StrategyRuntimeState,
+        context_capability: ContextAssemblyCapability,
+        model_capabilities: _OutputModelCapabilities,
     ) -> "RuntimeStrategyOutput":
         return cls(
             runtime_state=runtime_state,
             json_enabled=prepared.json_enabled,
             schema=prepared.response_schema,
-            llm_factory=prepared.llm_factory,
-            provider=prepared.provider,
-            model_name=prepared.model_name,
-            api_key=prepared.api_key,
-            base_url=prepared.base_url,
-            max_tokens=prepared.effective_output_tokens,
             clean_json_answer=prepared.clean_json_answer,
-            pricing_snapshot=prepared.pricing_snapshot,
-            context_capability=ContextAssemblyCapability(
-                manager=prepared.context_manager,
-                provider=prepared.provider,
-                model_name=prepared.model_name,
-                pricing_snapshot=prepared.pricing_snapshot,
-            ),
+            context_capability=context_capability,
+            model_capabilities=model_capabilities,
         )
 
     @property
@@ -114,6 +101,22 @@ class RuntimeStrategyOutput:
         except Exception:
             return True
 
+    def _raise_context_error(self, exc: InstrumentedExecutionError) -> None:
+        self._runtime_state.absorb_model_error(exc)
+        execution = self._runtime_state.execution
+        runtime_error = InstrumentedExecutionError(
+            str(exc),
+            llm_calls=list(execution.llm_calls),
+            tool_calls=list(execution.tool_calls),
+            knowledge_calls=list(execution.knowledge_calls),
+            sources=list(execution.sources),
+            timeline=list(execution.timeline),
+            tool_wall_latency_ms=execution.tool_wall_latency_ms,
+            tool_call_duration_sum_ms=execution.tool_call_duration_sum_ms,
+            failure_context=execution.failure_context,
+        )
+        raise StrategyExecutionError(str(exc)) from runtime_error
+
     async def repair(
         self,
         result: StrategyModelResult,
@@ -122,30 +125,42 @@ class RuntimeStrategyOutput:
     ) -> StrategyModelResult:
         if not self._json_enabled:
             return result
-        if self._llm_factory is None or self._context_capability is None:
+        if self._context_capability is None or self._model_capabilities is None:
             raise RuntimeError("Structured output repair is not bound for this Strategy")
 
-        execution = self._runtime_state.execution
-        execution.result = self._runtime_state.last_model_message
-        repaired = await repair_json_if_needed(
-            execution=execution,
-            call_index=self._runtime_state.call_index,
-            llm_factory=self._llm_factory,
-            provider=self._provider,
-            model_name=self._model_name,
-            api_key=self._api_key,
-            base_url=self._base_url,
-            max_tokens=self._max_tokens,
-            schema=self._schema,
-            clean_json_answer=self._clean_json_answer or (lambda value: value),
-            pricing_snapshot=self._pricing_snapshot,
-            context_capability=self._context_capability,
-            phase=strategy_phase_value(phase),
-        )
-        if repaired.llm_calls:
-            self._runtime_state.call_index = max(
-                self._runtime_state.call_index,
-                int(repaired.llm_calls[-1].get("call_index") or 0),
+        answer = result.content
+        if not isinstance(answer, str):
+            answer = str(answer)
+        schema_json = json.dumps(self._schema, indent=2)
+        repair_messages = [
+            SystemMessage(
+                content=(
+                    "Repair the answer into valid JSON matching the schema. "
+                    "Return JSON only.\n"
+                    f"<schema>\n{schema_json}\n</schema>"
+                )
+            ),
+            HumanMessage(content=answer),
+        ]
+        normalized_phase = strategy_phase_value(phase)
+        next_call_index = self._runtime_state.call_index + 1
+        try:
+            assembled = self._context_capability.assemble(
+                messages=repair_messages,
+                phase=normalized_phase,
+                tool_selection_mode=StrategyToolSelectionMode.NONE.value,
+                call_index=next_call_index,
             )
-        self._runtime_state.last_model_message = repaired.result
-        return strategy_model_result_from_message(repaired.result)
+        except InstrumentedExecutionError as exc:
+            self._runtime_state.call_index = next_call_index
+            self._raise_context_error(exc)
+            raise AssertionError("unreachable")
+
+        invocation = RuntimeStrategyInvocation(
+            invocation_id=assembled.invocation_id,
+            phase=normalized_phase,
+            tools=StrategyToolSelection(StrategyToolSelectionMode.NONE),
+            messages=assembled.messages,
+            snapshot=assembled.snapshot,
+        )
+        return await self._model_capabilities.invoke_structured_repair(invocation)

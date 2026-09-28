@@ -124,6 +124,7 @@ def build_strategy_context_from_capabilities(
     initial_phase: str | None = None,
     final_model: Any | None = None,
     final_model_factory: Any | None = None,
+    structured_repair_model_factory: Any | None = None,
     final_json_instruction: str | None = None,
     tool_definitions: list[dict[str, Any]] | None = None,
     bootstrap: dict[str, Any] | None = None,
@@ -160,6 +161,19 @@ def build_strategy_context_from_capabilities(
             )
         },
     )
+    if final_json_instruction:
+        runtime_state.context_contributions.setdefault(
+            "output.structured_contract",
+            StrategyContextContribution(
+                key="output.structured_contract",
+                source_type="SYSTEM",
+                content=final_json_instruction,
+                metadata={
+                    "selection_method": "execution_output_contract",
+                },
+            ),
+        )
+
     if resume is not None:
         runtime_state.context_replacements = {
             key: _restored_replacement_ids(value, runtime_state.messages)
@@ -189,6 +203,7 @@ def build_strategy_context_from_capabilities(
         final_model=final_model,
         final_model_factory=final_model_factory,
         fallback_model_factory=None,
+        structured_repair_model_factory=structured_repair_model_factory,
         tool_definitions=tool_definitions,
     )
     context = RuntimeStrategyContext(
@@ -213,7 +228,6 @@ def build_strategy_context_from_capabilities(
             capability=capabilities.context,
             runtime_state=runtime_state,
             base_messages=base_messages,
-            final_json_instruction=final_json_instruction,
             model_capabilities=runtime_model,
         ),
         output=RuntimeStrategyOutput.disabled(runtime_state=runtime_state),
@@ -241,6 +255,7 @@ def build_strategy_execution(
         messages=prepared.messages,
         final_model=prepared.final_model,
         final_model_factory=prepared.final_model_factory,
+        structured_repair_model_factory=prepared.structured_repair_model_factory,
         final_json_instruction=prepared.final_json_instruction,
         tool_definitions=prepared.tool_definitions,
     )
@@ -250,6 +265,8 @@ def build_strategy_execution(
     built.context.output = RuntimeStrategyOutput.from_prepared(
         prepared=prepared,
         runtime_state=built.runtime_state,
+        context_capability=capabilities.context,
+        model_capabilities=built.context.model,
     )
     return BuiltStrategyExecution(
         context=built.context,

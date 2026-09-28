@@ -76,6 +76,7 @@ class RuntimeStrategyModel:
         "_final_model_factory",
         "_fallback_model_factory",
         "_fallback_binding",
+        "_structured_repair_model_factory",
         "_tool_definitions",
         "_bound_capabilities",
     )
@@ -88,6 +89,7 @@ class RuntimeStrategyModel:
         final_model: Any | None,
         final_model_factory: Any | None,
         fallback_model_factory: Callable[[], PreparedFallbackModel] | None = None,
+        structured_repair_model_factory: Callable[[], Any] | None = None,
         tool_definitions: list[dict[str, Any]] | None = None,
     ) -> None:
         self._capability = capability
@@ -96,6 +98,7 @@ class RuntimeStrategyModel:
         self._final_model_factory = final_model_factory
         self._fallback_model_factory = fallback_model_factory
         self._fallback_binding: PreparedFallbackModel | None = None
+        self._structured_repair_model_factory = structured_repair_model_factory
         self._tool_definitions = list(tool_definitions or [])
         self._bound_capabilities: dict[str, ModelInvocationCapability] = {}
 
@@ -165,6 +168,7 @@ class RuntimeStrategyModel:
         capability: ModelInvocationCapability,
         invocation: RuntimeStrategyInvocation,
         record_message: bool = True,
+        retain_terminal_result: bool = False,
     ) -> StrategyModelResult:
         call_index = self._runtime_state.next_call_index()
         effective_capability = (
@@ -200,6 +204,9 @@ class RuntimeStrategyModel:
         self._runtime_state.record_model_call(call)
         if record_message:
             self._runtime_state.record_model_message(result)
+        elif retain_terminal_result:
+            self._runtime_state.last_model_message = result
+            self._runtime_state.execution.result = result
         return strategy_model_result_from_message(result)
 
     async def invoke_auxiliary(
@@ -221,6 +228,23 @@ class RuntimeStrategyModel:
         return await self._invoke(
             capability=self._capability,
             invocation=_runtime_invocation(invocation),
+        )
+
+    async def invoke_structured_repair(
+        self,
+        invocation: RuntimeStrategyInvocation,
+    ) -> StrategyModelResult:
+        """Execute structured-output repair through the Model boundary."""
+
+        factory = self._structured_repair_model_factory
+        if factory is None:
+            raise RuntimeError("Structured repair Model is not bound for this Strategy")
+        capability = self._capability.for_model(factory())
+        return await self._invoke(
+            capability=capability,
+            invocation=invocation,
+            record_message=False,
+            retain_terminal_result=True,
         )
 
     async def invoke_fallback(

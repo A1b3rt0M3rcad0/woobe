@@ -336,6 +336,7 @@ def test_strategy_runtime_context_facade_does_not_own_context_policy() -> None:
     )
 
     standard_manager = _STANDARD_ASSEMBLER.read_text(encoding="utf-8")
+    assert "langchain_core" not in standard_manager
     assert "_prepare_invocation_messages(request)" in standard_manager
     assert "request.contributions" in standard_manager
     assert "request.environment.active_tool_definitions" in standard_manager

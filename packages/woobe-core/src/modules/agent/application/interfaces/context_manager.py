@@ -135,6 +135,21 @@ class ContextInvocationEnvironment:
     network_node_id: UUID | None = None
 
 
+class ContextMessageAdapter(Protocol):
+    """Framework adapter used by Context Managers to create invocation messages."""
+
+    def is_system(self, message: Any) -> bool: ...
+
+    def replace_content(self, message: Any, content: Any) -> Any: ...
+
+    def system_message(
+        self,
+        content: Any,
+        *,
+        context_metadata: Mapping[str, Any] | None = None,
+    ) -> Any: ...
+
+
 @dataclass(frozen=True, slots=True)
 class ContextAssemblyRequest:
     messages: list[Any]
@@ -146,6 +161,7 @@ class ContextAssemblyRequest:
     environment: ContextInvocationEnvironment
     policy: ContextPolicyV1
     contributions: tuple[ContextManagedContribution, ...] = ()
+    message_adapter: ContextMessageAdapter | None = None
 
 
 class ContextAssemblyOutput(Protocol):
