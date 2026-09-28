@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import ast
 import inspect
+from pathlib import Path
+from runpy import run_path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import uuid4
@@ -99,3 +101,25 @@ def test_create_agent_composer_wires_default_context_manager_setting() -> None:
     assert keyword.value.attr == "default_context_manager"
     assert isinstance(keyword.value.value, ast.Name)
     assert keyword.value.value.id == "SETTINGS"
+
+
+def test_self_host_env_generator_rewrites_legacy_context_manager_name(
+    tmp_path: Path,
+) -> None:
+    repository_root = Path(__file__).resolve().parents[3]
+    generate = run_path(
+        str(repository_root / "scripts" / "generate_self_host_env.py")
+    )["generate"]
+
+    template = tmp_path / "legacy.env"
+    output = tmp_path / ".env"
+    template.write_text(
+        "WOOBE_DEFAULT_CONTEXT_MANAGER=stdcm:v1\n",
+        encoding="utf-8",
+    )
+
+    generate(template, output, force=True)
+
+    generated = output.read_text(encoding="utf-8")
+    assert "WOOBE_DEFAULT_CONTEXT_MANAGER=stdcm\n" in generated
+    assert "stdcm:v1" not in generated
