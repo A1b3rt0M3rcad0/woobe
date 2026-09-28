@@ -33,7 +33,7 @@ vi.mock('@/features/workspace/WorkspaceProvider', () => ({ useWorkspace: () => (
 }) }))
 vi.mock('@/features/agents/hooks', async original => ({ ...await original<typeof import('@/features/agents/hooks')>(),
   useAgents: () => ({ data: fixture.agentsError ? undefined : [fixture.agent], isPending: false, isSuccess: !fixture.agentsError, isError: fixture.agentsError, error: new Error('Agents unavailable'), refetch: vi.fn() }),
-  useContextAssemblers: () => ({ data: fixture.managersError ? [] : [{ name: 'stdcm', version: 'v2', strategy_name: 'stdcm', strategy_version: 'v2', display_name: 'Standard v2', supports_skills: true, recommended_for: [], capabilities: [], limitations: [] }], isPending: false, isError: fixture.managersError, refetch: vi.fn() }),
+  useContextManagers: () => ({ data: fixture.managersError ? [] : [{ name: 'stdcm', display_name: 'Standard Context Manager', description: 'General-purpose context management.', behavior: '', configuration: '', supports_skills: true, recommended_for: [], capabilities: [], limitations: [], is_default: true }], isPending: false, isError: fixture.managersError, refetch: vi.fn() }),
   useCreateRelease: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useUpdateAgent: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }))
