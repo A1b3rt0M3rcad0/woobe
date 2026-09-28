@@ -50,7 +50,7 @@ class _Knowledge:
             history_turns=3,
         )
 
-    async def retrieve(self, *, query=None, phase=None):
+    async def retrieve(self, *, query: str, phase=None):
         self.calls.append((query, str(getattr(phase, "value", phase))))
         return StrategyKnowledgeResult(content=None, query=query)
 
