@@ -122,10 +122,10 @@ def test_registry_accepts_structural_context_manager_factory() -> None:
     registry = ContextManagerRegistry()
     registry.register(key, _AlternateContextManager, descriptor=_descriptor(key))
 
-    assembler = registry.create(key)
+    manager = registry.create(key)
 
-    assert isinstance(assembler, ContextManager)
-    assert isinstance(assembler, _AlternateContextManager)
+    assert isinstance(manager, ContextManager)
+    assert isinstance(manager, _AlternateContextManager)
 
 
 @pytest.mark.parametrize(
@@ -258,7 +258,7 @@ def test_runtime_config_rejects_version_and_strategy_alias_fields() -> None:
 def test_runtime_config_rejects_unregistered_manager() -> None:
     with pytest.raises(
         ValidationError,
-        match="Unsupported context assembler: missing",
+        match="Unsupported context manager: missing",
     ):
         canonicalize_context_manager_runtime_config(
             {"context_manager": {"name": "missing"}}
