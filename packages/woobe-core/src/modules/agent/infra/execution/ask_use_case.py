@@ -452,8 +452,6 @@ class AskAgentUseCase:
         agent_tools: list[dict],
         tool_name_to_id: dict[str, str],
         messages: list,
-        knowledge_query: str | None = None,
-        history: list[Any] | tuple[Any, ...] | None = None,
     ) -> tuple[Any, list[ToolCallInfo], bool, int | None]:
         chat_model = self._llm_factory.create_chat_model(
             provider=(
