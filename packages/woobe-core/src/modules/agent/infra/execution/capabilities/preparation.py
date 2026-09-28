@@ -105,6 +105,11 @@ class PreparedExecution:
     knowledge_query_mode: str
     knowledge_history_turns: int
 
+    @property
+    def context_assembler(self) -> ContextManager | None:
+        """Legacy compatibility view; internal code uses context_manager."""
+        return self.context_manager
+
 
 def configure_skill_runtime(
     snapshots_resolver: Callable[[object, Any], list[dict[str, Any]]],
