@@ -253,7 +253,7 @@ def test_instrumented_context_requires_explicit_assembler_when_execution_is_boun
 
     token = current_execution.set(context)
     try:
-        with pytest.raises(RuntimeError, match="ContextAssembler dependency is required"):
+        with pytest.raises(RuntimeError, match="Context Manager dependency is required"):
             capability.assemble(
                 invocation_id=uuid4(),
                 messages=[HumanMessage(content="original")],
