@@ -67,7 +67,13 @@ def ensure_stable_message_ids(messages: list[Any]) -> list[Any]:
         occurrence = occurrences.get(fingerprint, 0)
         occurrences[fingerprint] = occurrence + 1
         message_id = f"woobe-input-{fingerprint[:24]}-{occurrence}"
-        normalized.append(_with_message_id(message, message_id))
+        try:
+            normalized.append(_with_message_id(message, message_id))
+        except TypeError:
+            # Strategy inputs may contain framework-neutral/opaque values used by
+            # custom Strategies. Stable identity is required only for message
+            # objects that can participate in Runtime compaction/recovery.
+            normalized.append(message)
     return normalized
 
 
