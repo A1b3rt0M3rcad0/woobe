@@ -226,6 +226,12 @@ def _prepare_invocation_messages(
         list(request.messages),
         request.contributions,
     )
+    # Pure pass-through assembly needs no framework message operations. This keeps
+    # direct/custom Context Manager use framework-neutral while invocation-specific
+    # materialization still requires the infrastructure-supplied message port.
+    if not has_tools and not request.contributions:
+        return messages
+
     adapter = request.message_adapter
     if adapter is None:
         raise RuntimeError("Standard Context Manager requires a message adapter")
