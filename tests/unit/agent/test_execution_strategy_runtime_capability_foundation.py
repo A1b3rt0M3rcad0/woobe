@@ -4,7 +4,7 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from modules.agent.application.context_managers.standard import StandardContextManager
 from modules.agent.application.interfaces.execution_context import (
@@ -13,6 +13,7 @@ from modules.agent.application.interfaces.execution_context import (
 )
 from modules.agent.application.strategy_sdk import (
     StrategyContextContribution,
+    StrategyModelResult,
     StrategyToolSelection,
     StrategyToolSelectionMode,
 )
@@ -34,7 +35,11 @@ from modules.agent.infra.execution.strategy_runtime.context_manager import (
 from modules.agent.infra.execution.strategy_runtime.knowledge import (
     RuntimeStrategyKnowledge,
 )
+from modules.agent.infra.execution.strategy_runtime.invocation import (
+    RuntimeStrategyInvocation,
+)
 from modules.agent.infra.execution.strategy_runtime.model import RuntimeStrategyModel
+from modules.agent.infra.execution.strategy_runtime.output import RuntimeStrategyOutput
 from modules.agent.infra.execution.strategy_runtime.runtime_state import (
     StrategyRuntimeState,
 )
@@ -376,3 +381,94 @@ def test_runtime_model_binds_all_authorized_tools_or_none() -> None:
     assert model.bound == [definitions]
     assert all_capability.model.bound_tools == definitions
     assert none_capability is base
+
+
+
+@pytest.mark.asyncio
+async def test_strategy_output_repair_delegates_inference_to_model_runtime() -> None:
+    class _Context:
+        def __init__(self) -> None:
+            self.calls = []
+
+        def assemble(self, **kwargs):
+            self.calls.append(kwargs)
+            return SimpleNamespace(
+                invocation_id=uuid4(),
+                messages=tuple(kwargs["messages"]),
+                snapshot=None,
+            )
+
+    class _Model:
+        def __init__(self) -> None:
+            self.invocations = []
+
+        async def invoke_structured_repair(self, invocation):
+            self.invocations.append(invocation)
+            return StrategyModelResult(content='{"ok": true}')
+
+    context = _Context()
+    model = _Model()
+    output = RuntimeStrategyOutput(
+        runtime_state=StrategyRuntimeState(),
+        json_enabled=True,
+        schema={"type": "object"},
+        clean_json_answer=lambda value: value,
+        context_capability=context,  # type: ignore[arg-type]
+        model_capabilities=model,
+    )
+
+    result = await output.repair(
+        StrategyModelResult(content="not-json"),
+        phase="json_repair",
+    )
+
+    assert result.content == '{"ok": true}'
+    assert len(context.calls) == 1
+    assert context.calls[0]["tool_selection_mode"] == "none"
+    assert len(model.invocations) == 1
+    assert model.invocations[0].phase == "json_repair"
+
+
+@pytest.mark.asyncio
+async def test_model_runtime_owns_structured_repair_model_invocation() -> None:
+    calls = []
+
+    async def invoke(**kwargs):
+        calls.append(kwargs)
+        return AIMessage(content='{"ok": true}'), {
+            "call_id": "repair-1",
+            "call_index": kwargs["call_index"],
+            "phase": kwargs["phase"],
+            "occurred_at": "2026-09-28T00:00:00+00:00",
+            "status": "success",
+        }
+
+    repair_model = object()
+    state = StrategyRuntimeState()
+    runtime = RuntimeStrategyModel(
+        capability=ModelInvocationCapability(
+            model=object(),
+            provider="test",
+            model_name="test-model",
+            invoke_fn=invoke,
+        ),
+        runtime_state=state,
+        final_model=None,
+        final_model_factory=None,
+        structured_repair_model_factory=lambda: repair_model,
+    )
+    invocation = RuntimeStrategyInvocation(
+        invocation_id=uuid4(),
+        phase="json_repair",
+        tools=StrategyToolSelection(StrategyToolSelectionMode.NONE),
+        messages=(HumanMessage(content="repair this"),),
+        snapshot=None,
+    )
+
+    result = await runtime.invoke_structured_repair(invocation)
+
+    assert result.content == '{"ok": true}'
+    assert calls[0]["model"] is repair_model
+    assert state.last_model_message.content == '{"ok": true}'
+    assert state.execution.result.content == '{"ok": true}'
+    assert state.execution.llm_calls[-1]["phase"] == "json_repair"
