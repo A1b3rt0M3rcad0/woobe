@@ -51,14 +51,18 @@ class RuntimeStrategyTools:
         self._runtime_state.record_tool_batch(batch)
         results = tuple(
             StrategyToolResult(
-                tool_call_id=info.tool_call_id,
-                tool_name=info.tool_name,
+                tool_call_id=(
+                    str(value)
+                    if (value := getattr(info, "tool_call_id", None)) is not None
+                    else requested.id
+                ),
+                tool_name=str(getattr(info, "tool_name", None) or requested.name),
                 arguments=dict(requested.arguments),
-                output=info.output,
-                success=bool(info.success),
-                status=info.status,
-                error_code=info.error_code,
-                error=info.error,
+                output=getattr(info, "output", _payload),
+                success=bool(getattr(info, "success", True)),
+                status=getattr(info, "status", None),
+                error_code=getattr(info, "error_code", None),
+                error=getattr(info, "error", None),
             )
             for requested, (info, _message, _payload) in zip(
                 tool_calls,
