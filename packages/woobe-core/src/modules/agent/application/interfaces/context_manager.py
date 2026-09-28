@@ -135,7 +135,7 @@ class ContextInvocationEnvironment:
     network_node_id: UUID | None = None
 
 
-class ContextMessageAdapter(Protocol):
+class ContextMessagePort(Protocol):
     """Framework adapter used by Context Managers to create invocation messages."""
 
     def is_system(self, message: Any) -> bool: ...
@@ -161,7 +161,7 @@ class ContextAssemblyRequest:
     environment: ContextInvocationEnvironment
     policy: ContextPolicyV1
     contributions: tuple[ContextManagedContribution, ...] = ()
-    message_adapter: ContextMessageAdapter | None = None
+    message_adapter: ContextMessagePort | None = None
 
 
 class ContextAssemblyOutput(Protocol):
