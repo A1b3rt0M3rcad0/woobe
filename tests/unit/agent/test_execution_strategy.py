@@ -82,7 +82,7 @@ def test_release_runtime_config_preserves_explicit_execution_strategy() -> None:
     runtime_config = _canonical_runtime_config({"execution_strategy": "STANDARD"})
 
     assert runtime_config["execution_strategy"] == "standard"
-    assert "context_assembler" in runtime_config
+    assert "context_manager" in runtime_config
     assert "context" in runtime_config
     assert "rag" in runtime_config
 
@@ -152,7 +152,7 @@ class _RecordingResolver:
 
 class _RuntimeHost(InstrumentedPrimaryExecutionMixin):
     _llm_factory = "llm-factory"
-    _context_assembler = None
+    _context_manager = None
 
     async def _execute_single_tool(self, tool_call: dict, tool_id: str) -> dict:
         return {"tool_call": tool_call, "tool_id": tool_id}
