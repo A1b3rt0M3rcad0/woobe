@@ -4,7 +4,7 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
-from modules.agent.application.dtos.rag_config_dtos import RAGRuntimeConfig
+from modules.agent.application.dtos.rag_config_dtos import RAGRetrievalConfig
 from modules.agent.application.rag.contracts import RAGCapabilities, RAGRequest
 from modules.agent.application.rag.strategies.classic import ClassicRAGStrategy
 from shared.contracts.errors import ValidationError
@@ -54,7 +54,7 @@ async def test_classic_preserves_final_query_filter_diversity_and_top_k() -> Non
     ]
     embedding = _Embedding()
     vector = _VectorSearch(candidates)
-    config = RAGRuntimeConfig(
+    config = RAGRetrievalConfig(
         candidate_k=4,
         top_k=2,
         min_score=0.80,
@@ -111,9 +111,7 @@ async def test_classic_does_not_reinterpret_execution_query_policy() -> None:
     )
     request = RAGRequest(
         query=final_query,
-        config=RAGRuntimeConfig(
-            query_mode="conversation_context",
-            history_turns=10,
+        config=RAGRetrievalConfig(
             candidate_k=1,
             top_k=1,
             max_context_chunks=1,
@@ -139,7 +137,7 @@ async def test_classic_enforces_context_character_budget() -> None:
     vector = _VectorSearch([_chunk(document_id, "x" * 1500, 0.9)])
     request = RAGRequest(
         query="question",
-        config=RAGRuntimeConfig(
+        config=RAGRetrievalConfig(
             candidate_k=1,
             top_k=1,
             max_context_chunks=1,
@@ -167,7 +165,7 @@ async def test_classic_required_grounding_rejects_empty_retrieval() -> None:
     vector = _VectorSearch([])
     request = RAGRequest(
         query="question",
-        config=RAGRuntimeConfig(grounding_policy="required"),
+        config=RAGRetrievalConfig(grounding_policy="required"),
         vector_snapshot_id=uuid4(),
         snapshot_documents=(),
     )
@@ -185,7 +183,7 @@ async def test_classic_optional_grounding_returns_empty_context() -> None:
     vector = _VectorSearch([])
     request = RAGRequest(
         query="question",
-        config=RAGRuntimeConfig(grounding_policy="optional"),
+        config=RAGRetrievalConfig(grounding_policy="optional"),
         vector_snapshot_id=uuid4(),
         snapshot_documents=(),
     )

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from modules.agent.application.interfaces.embedding_errors import EmbeddingProviderError
+from modules.agent.application.dtos.rag_config_dtos import RAGRetrievalConfig
 from modules.agent.application.interfaces.embedding_factory import EmbeddingFactory
 from modules.agent.application.interfaces.rag import (
     RAGBinding,
@@ -55,7 +56,7 @@ class RAGRuntimeAdapter:
         )
         request = RAGRequest(
             query=query,
-            config=binding.config,
+            config=RAGRetrievalConfig.model_validate(binding.config.model_dump()),
             vector_snapshot_id=binding.snapshot.id,
             snapshot_documents=binding.snapshot_documents,
         )

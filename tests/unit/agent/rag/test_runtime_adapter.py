@@ -105,7 +105,9 @@ async def test_runtime_adapter_consumes_frozen_binding_and_merges_metrics() -> N
 
     assert result.context == "context"
     request, _capabilities = strategy.calls[0]
-    assert request.config.strategy == "classic"
+    assert request.config.candidate_k == 4
+    assert not hasattr(request.config, "query_mode")
+    assert not hasattr(request.config, "history_turns")
     assert request.query == "question"
     assert result.metrics["strategy"] == "classic"
     assert result.metrics["knowledge_version_id"] == str(binding.knowledge.id)
