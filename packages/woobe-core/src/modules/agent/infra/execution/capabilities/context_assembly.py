@@ -19,7 +19,7 @@ from modules.agent.application.interfaces.context_manager import (
     ContextInvocationEnvironment,
     ContextManagedContribution,
     ContextManagerCapabilities,
-    ContextMessageAdapter,
+    ContextMessagePort,
 )
 from modules.agent.application.interfaces.context_policy import ContextPolicyV1
 from modules.agent.application.interfaces.execution import (
@@ -30,7 +30,7 @@ from modules.agent.application.interfaces.execution_context import current_execu
 from modules.agent.infra.execution.execution_instrumentation import utc_iso
 
 
-class _LangChainContextMessageAdapter(ContextMessageAdapter):
+class _LangChainContextMessageAdapter(ContextMessagePort):
     """Keep framework message mechanics outside the programmable Context Manager."""
 
     def is_system(self, message: Any) -> bool:
