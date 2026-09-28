@@ -154,7 +154,7 @@ async def test_context_runtime_materializes_typed_knowledge_before_user_input() 
     )
     runtime = RuntimeStrategyContextManager(
         capability=ContextAssemblyCapability(
-            assembler=None,
+            manager=None,
             provider="test",
             model_name="test-model",
             pricing_snapshot=None,
@@ -191,7 +191,7 @@ async def test_context_runtime_scopes_tool_instructions_to_selected_invocation()
     )
     runtime = RuntimeStrategyContextManager(
         capability=ContextAssemblyCapability(
-            assembler=None,
+            manager=None,
             provider="test",
             model_name="test-model",
             pricing_snapshot=None,
@@ -231,6 +231,53 @@ async def test_context_runtime_scopes_tool_instructions_to_selected_invocation()
     assert "Tool grounding rules" not in without_text
     assert "complete and authoritative" in with_text
     assert "Tool grounding rules" in with_text
+
+
+def test_runtime_state_assigns_deterministic_unique_ids_to_base_messages() -> None:
+    messages = [
+        HumanMessage(content="same"),
+        HumanMessage(content="same"),
+        HumanMessage(content="different"),
+    ]
+
+    first = StrategyRuntimeState(messages=messages)
+    second = StrategyRuntimeState(messages=messages)
+
+    first_ids = [message.id for message in first.messages]
+    second_ids = [message.id for message in second.messages]
+
+    assert first_ids == second_ids
+    assert all(first_ids)
+    assert len(set(first_ids)) == len(first_ids)
+
+
+def test_context_runtime_applies_compaction_replacements_by_message_id() -> None:
+    state = StrategyRuntimeState(
+        messages=[
+            SystemMessage(content="system"),
+            HumanMessage(content="first"),
+            HumanMessage(content="second"),
+        ]
+    )
+    first_user = state.messages[1]
+    second_user = state.messages[2]
+    state.context_replacements["summary.session"] = (str(first_user.id),)
+
+    runtime = RuntimeStrategyContextManager(
+        capability=ContextAssemblyCapability(
+            manager=None,
+            provider="test",
+            model_name="test-model",
+            pricing_snapshot=None,
+        ),
+        runtime_state=state,
+    )
+
+    reordered = [second_user, state.messages[0], first_user]
+    remaining = runtime._apply_replacements(reordered)
+
+    assert [message.content for message in remaining] == ["second", "system"]
+    assert all(message.id != first_user.id for message in remaining)
 
 
 def test_runtime_tools_exposes_only_all_or_none() -> None:
