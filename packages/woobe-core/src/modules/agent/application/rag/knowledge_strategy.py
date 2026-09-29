@@ -80,6 +80,12 @@ class RAGKnowledgeStrategy:
         request: KnowledgeRequest,
         capabilities: KnowledgeCapabilities,
     ) -> KnowledgeResult:
+        if not capabilities.available:
+            return KnowledgeResult(
+                content=None,
+                metadata={"knowledge_strategy": self.name},
+            )
+
         raw_rag = request.runtime_config.get("rag")
         config = RAGRuntimeConfig.model_validate(
             raw_rag if isinstance(raw_rag, dict) else {}
