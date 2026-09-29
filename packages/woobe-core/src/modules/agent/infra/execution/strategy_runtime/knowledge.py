@@ -3,6 +3,7 @@ from __future__ import annotations
 import time
 from collections.abc import Mapping
 
+from modules.agent.application.dtos.runtime_dtos import SourceInfo
 from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.application.interfaces.knowledge import (
     KnowledgeCapabilities,
@@ -171,10 +172,11 @@ class RuntimeStrategyKnowledge:
             )
 
         ended_at = utc_iso()
-        serialized_sources = [
-            source.model_dump(mode="json")
+        serialized_sources = [source.as_dict() for source in result.sources]
+        evidence_sources = tuple(
+            SourceInfo(**source.as_dict())
             for source in result.sources
-        ]
+        )
         metadata = {
             "knowledge_strategy": strategy.name,
             **dict(result.metadata),
@@ -195,7 +197,7 @@ class RuntimeStrategyKnowledge:
             "occurred_at": ended_at,
             "latency_ms": round((time.monotonic() - started) * 1000),
         }
-        self._runtime_state.record_knowledge_call(call, result.sources)
+        self._runtime_state.record_knowledge_call(call, evidence_sources)
 
         if execution_context is not None:
             execution_context.knowledge_sources = list(serialized_sources)
