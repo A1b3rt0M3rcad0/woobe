@@ -70,6 +70,9 @@ class KnowledgeResult:
 class KnowledgeCapabilities(Protocol):
     """Runtime-owned mechanisms a Knowledge Strategy may compose."""
 
+    @property
+    def available(self) -> bool: ...
+
     async def retrieve(
         self,
         *,
