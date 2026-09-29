@@ -23,7 +23,7 @@ interface UseAgentCreationFlowOptions {
   active?: boolean
 }
 
-const supportedProviders = new Set(MODEL_PROVIDER_OPTIONS.map((provider) => provider.value))
+const supportedProviders = new Set<string>(MODEL_PROVIDER_OPTIONS.map((provider) => provider.value))
 
 export const providerLabel = modelProviderLabel
 

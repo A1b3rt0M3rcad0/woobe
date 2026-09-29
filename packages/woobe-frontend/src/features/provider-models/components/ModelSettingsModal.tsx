@@ -95,10 +95,6 @@ const capabilityOptions = [
   { value: 'false', label: 'Not supported' },
 ]
 
-function modelProviderLabel(provider?: string | null) {
-  return provider ? modelProviderLabels[provider] || provider : 'Unknown provider'
-}
-
 function metadataOf(item?: { metadata?: Record<string, unknown> | null } | null): Record<string, unknown> {
   return (item?.metadata || {}) as Record<string, unknown>
 }
@@ -224,7 +220,6 @@ function buildModelMetadata(
       context_window: catalogModel.context_window ?? null,
       max_output_tokens: catalogModel.max_output_tokens ?? null,
     } : base.catalog,
-    provider_model_raw: catalogModel?.raw || base.provider_model_raw,
     capabilities: {
       ...recordOf(base.capabilities),
       max_output_tokens: maxOutput,

@@ -17,7 +17,7 @@ import {
 import { useCreateCredential } from '@/features/provider-credentials/hooks'
 import type { ProviderCredential } from '@/features/provider-credentials/types'
 import { ProviderSecretInput } from '@/features/provider-credentials/components/ProviderSecretInput'
-import { buildModelProviderCredentialMetadata, isOpenAICompatibleProvider, MODEL_PROVIDER_LABELS, MODEL_PROVIDER_OPTIONS } from '@/features/provider-credentials/MODEL_PROVIDER_OPTIONS'
+import { buildModelProviderCredentialMetadata, isOpenAICompatibleProvider, MODEL_PROVIDER_LABELS, MODEL_PROVIDER_OPTIONS } from '@/features/provider-credentials/providers'
 
 interface ProviderCredentialCreateFormProps {
   projectId: string
@@ -28,12 +28,6 @@ interface ProviderCredentialCreateFormProps {
   showActions?: boolean
   onCancel?: () => void
   onPendingChange?: (pending: boolean) => void
-}
-
-function buildModelProviderCredentialMetadata(provider: string, baseUrl: string): Record<string, string> {
-  if (isOpenAICompatibleProvider(provider)) return { provider_family: 'openai', compatibility: 'compatible', base_url: baseUrl.trim(), model_discovery_strategy: 'openai_compatible_models' }
-  if (provider === 'openrouter') return { provider_family: 'openrouter', compatibility: 'native', base_url: OPENROUTER_BASE_URL, model_discovery_strategy: 'openrouter_models' }
-  return { provider_family: 'openai', compatibility: 'native', model_discovery_strategy: 'openai_models' }
 }
 
 function uniqueCredentialName(baseName: string, credentials: ProviderCredential[]) {
@@ -81,7 +75,7 @@ export function ProviderCredentialCreateForm({
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault()
     if (!secret.trim()) return void toast.error('API key is required')
-    if (isOpenAICompatibleProvider(provider) && !baseUrl.trim()) return void toast.error('Base URL is required for OpenAI Compatible MODEL_PROVIDER_OPTIONS')
+    if (isOpenAICompatibleProvider(provider) && !baseUrl.trim()) return void toast.error('Base URL is required for OpenAI Compatible providers')
     const baseName = isOpenAICompatibleProvider(provider)
       ? customName.trim() || customCredentialBaseName(baseUrl)
       : MODEL_PROVIDER_LABELS[provider] || selectedProvider.label

@@ -268,7 +268,7 @@ export function AgentModelManagerModal({ open, projectId, selectedModelId, onClo
                   <div className="grid gap-ui-md">
                     <Field>
                       <FieldLabel>Provider</FieldLabel>
-                      <Select value={provider} onChange={(event) => setProvider(event.target.value)} options={MODEL_PROVIDER_OPTIONS} />
+                      <Select value={provider} onChange={(event) => setProvider(event.target.value)} options={[...MODEL_PROVIDER_OPTIONS]} />
                     </Field>
                     <Field>
                       <FieldLabel>Connection name</FieldLabel>

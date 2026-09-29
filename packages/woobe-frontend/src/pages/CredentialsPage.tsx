@@ -66,10 +66,6 @@ type ConfirmState = null | {
   usage: UsageItem[]
 }
 
-function modelProviderLabel(provider?: string | null) {
-  return provider ? modelProviderLabels[provider] || provider : 'Unknown provider'
-}
-
 function metadataOf(item?: { metadata?: Record<string, unknown> | Record<string, string> | null } | null): Record<string, unknown> {
   return (item?.metadata || {}) as Record<string, unknown>
 }

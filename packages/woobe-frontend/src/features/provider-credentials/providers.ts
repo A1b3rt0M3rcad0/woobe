@@ -4,7 +4,7 @@ export const MODEL_PROVIDER_OPTIONS = [
   { value: 'deepseek', label: 'DeepSeek', description: 'Native DeepSeek models.' },
   { value: 'openrouter', label: 'OpenRouter', description: 'Multi-provider gateway.' },
   { value: 'openai_compatible', label: 'OpenAI Compatible', description: 'Custom OpenAI-compatible endpoint.' },
-  { value: 'custom', label: 'OpenAI Compatible (legacy)', description: 'Legacy alias for an OpenAI-compatible endpoint.' },
+  { value: 'custom', label: 'OpenAI Compatible', description: 'Legacy alias for an OpenAI-compatible endpoint.' },
 ] as const
 
 export const MODEL_PROVIDER_LABELS: Record<string, string> = Object.fromEntries(

@@ -14,7 +14,7 @@ import {
 import { ProviderCredentialCreateForm } from '@/features/provider-credentials/components/ProviderCredentialCreateForm'
 import { useCredentials, useUpdateCredential } from '@/features/provider-credentials/hooks'
 import type { ProviderCredential } from '@/features/provider-credentials/types'
-import { buildModelProviderCredentialMetadata, isOpenAICompatibleProvider, MODEL_PROVIDER_OPTIONS } from '@/features/provider-credentials/MODEL_PROVIDER_OPTIONS'
+import { buildModelProviderCredentialMetadata, isOpenAICompatibleProvider, MODEL_PROVIDER_OPTIONS } from '@/features/provider-credentials/providers'
 
 interface AddProviderCredentialModalProps {
   open: boolean
@@ -43,7 +43,7 @@ export function AddProviderCredentialModal({ open, onClose, projectId, onCredent
     event.preventDefault()
     if (!credential) return
     if (!name.trim()) return void toast.error('Name is required')
-    if (isOpenAICompatibleProvider(provider) && !baseUrl.trim()) return void toast.error('Base URL is required for OpenAI Compatible MODEL_PROVIDER_OPTIONS')
+    if (isOpenAICompatibleProvider(provider) && !baseUrl.trim()) return void toast.error('Base URL is required for OpenAI Compatible providers')
     try {
       await updateCredential.mutateAsync({
         id: credential.id,
@@ -63,7 +63,7 @@ export function AddProviderCredentialModal({ open, onClose, projectId, onCredent
         <form onSubmit={handleEditSubmit} className="grid gap-ui-md">
           <Field>
             <FieldLabel>Provider</FieldLabel>
-            <Select value={provider} onChange={(event) => setProvider(event.target.value)} options={MODEL_PROVIDER_OPTIONS} />
+            <Select value={provider} onChange={(event) => setProvider(event.target.value)} options={[...MODEL_PROVIDER_OPTIONS]} />
           </Field>
           <Field>
             <FieldLabel>Connection name</FieldLabel>
