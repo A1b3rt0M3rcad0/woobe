@@ -1,12 +1,10 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from copy import deepcopy
 from dataclasses import dataclass
 
 from modules.agent.application.interfaces.knowledge import KnowledgeStrategy
 from modules.agent.application.rag.knowledge_strategy import RAGKnowledgeStrategy
-from shared.contracts.errors import ValidationError
 
 
 DEFAULT_KNOWLEDGE_STRATEGY = "rag"
@@ -144,38 +142,6 @@ SUPPORTED_KNOWLEDGE_STRATEGIES = frozenset(
 )
 
 
-def knowledge_strategy_from_runtime_config(value: object) -> str:
-    """Resolve the stable Knowledge Strategy selected by an Agent snapshot."""
-
-    if value is None:
-        return DEFAULT_KNOWLEDGE_STRATEGY
-    if not isinstance(value, dict):
-        raise ValidationError("Agent runtime_config must be an object")
-
-    raw = value.get("knowledge_strategy")
-    if raw is None:
-        return DEFAULT_KNOWLEDGE_STRATEGY
-    if not isinstance(raw, str) or not raw.strip():
-        raise ValidationError("knowledge_strategy must be a non-empty string")
-
-    strategy = raw.strip().lower()
-    if strategy not in SUPPORTED_KNOWLEDGE_STRATEGIES:
-        raise ValidationError(f"Unsupported knowledge strategy: {strategy}")
-    return strategy
-
-
-def canonicalize_knowledge_strategy_runtime_config(value: object) -> dict:
-    """Freeze the explicit Knowledge Strategy selection in mutable Agent config."""
-
-    if value is not None and not isinstance(value, dict):
-        raise ValidationError("Agent runtime_config must be an object")
-    runtime_config = deepcopy(value) if isinstance(value, dict) else {}
-    runtime_config["knowledge_strategy"] = knowledge_strategy_from_runtime_config(
-        runtime_config
-    )
-    return runtime_config
-
-
 def list_knowledge_strategies() -> list[dict[str, object]]:
     return [
         descriptor.as_dict()
@@ -192,7 +158,5 @@ __all__ = [
     "SUPPORTED_KNOWLEDGE_STRATEGIES",
     "UnknownKnowledgeStrategyError",
     "build_knowledge_strategy_registry",
-    "canonicalize_knowledge_strategy_runtime_config",
-    "knowledge_strategy_from_runtime_config",
     "list_knowledge_strategies",
 ]
