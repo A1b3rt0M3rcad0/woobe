@@ -13,6 +13,9 @@ from modules.agent.application.interfaces.execution import InstrumentedExecution
 from modules.agent.application.knowledge_strategy_config import (
     knowledge_strategy_from_runtime_config,
 )
+from modules.agent.application.knowledge_strategy_registry import (
+    build_knowledge_strategy_registry,
+)
 from modules.agent.application.interfaces.execution_strategy import (
     ExecutableExecutionStrategy,
     ExecutionStrategy,
@@ -206,6 +209,7 @@ async def test_agent_runtime_resolves_strategy_from_agent_runtime_config() -> No
     resolver = _RecordingResolver(strategy)
     runtime = _RuntimeHost()
     runtime.configure_execution_strategy_resolver(resolver)
+    runtime.configure_knowledge_strategy_resolver(build_knowledge_strategy_registry())
     agent = SimpleNamespace(
         settings={"runtime_config": {"execution_strategy": "standard"}},
     )
