@@ -53,6 +53,7 @@ from modules.agent.infra.database.provider_model_repositories import (
     _to_entity as provider_model_to_entity,
     _to_model as provider_model_to_model,
 )
+from modules.agent.infra.execution.execution_instrumentation import invoke_llm
 from modules.agent.infra.models.legacy_model_runtime import (
     LangChainLanguageModelRuntime,
 )
@@ -417,3 +418,38 @@ async def test_langchain_runtime_translates_generic_request_tools_result_and_usa
     assert result.usage is not None
     assert result.usage.metrics["input_tokens"] == 10
     assert result.usage.metrics["output_tokens"] == 2
+
+
+@pytest.mark.asyncio
+async def test_instrumentation_records_model_spec_identity_without_changing_usage_contract():
+    spec = _language_spec()
+
+    class FakeModel:
+        async def ainvoke(self, _messages):
+            return AIMessage(
+                content="ok",
+                usage_metadata={
+                    "input_tokens": 3,
+                    "output_tokens": 1,
+                    "total_tokens": 4,
+                },
+            )
+
+    _result, call = await invoke_llm(
+        model=FakeModel(),
+        messages=[HumanMessage(content="hello")],
+        phase="test",
+        call_index=1,
+        provider="openai",
+        model_name="gpt-test",
+        model_spec=spec,
+        context_prepared=True,
+    )
+
+    assert call["status"] == "success"
+    assert call["input_tokens"] == 3
+    assert call["output_tokens"] == 1
+    assert call["total_tokens"] == 4
+    assert call["model_type"] == ModelTypes.LANGUAGE
+    assert call["model_operations"] == [ModelOperations.LANGUAGE_GENERATE]
+    assert call["model_spec_hash"] == model_spec_hash(spec)
