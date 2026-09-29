@@ -19,6 +19,16 @@ const catalog: ExecutionStrategyDescriptor[] = [
     recommended_for: ['General agents'],
     capabilities: ['Tool loops'],
     limitations: ['No explicit planning phase'],
+    compatibility: {
+      operations: ['language.generate'],
+      requires_conversation: true,
+      allowed_input_modalities: ['text'],
+      allowed_output_modalities: ['text'],
+      required_capabilities: [],
+      context_mode: 'required',
+      knowledge_mode: 'optional',
+      tools_mode: 'optional',
+    },
     is_default: true,
   },
   {
@@ -29,6 +39,16 @@ const catalog: ExecutionStrategyDescriptor[] = [
     recommended_for: ['Iterative agents'],
     capabilities: ['Multiple reasoning loops'],
     limitations: ['Higher model usage'],
+    compatibility: {
+      operations: ['language.generate'],
+      requires_conversation: true,
+      allowed_input_modalities: ['text'],
+      allowed_output_modalities: ['text'],
+      required_capabilities: [],
+      context_mode: 'required',
+      knowledge_mode: 'optional',
+      tools_mode: 'optional',
+    },
     is_default: false,
   },
 ]
