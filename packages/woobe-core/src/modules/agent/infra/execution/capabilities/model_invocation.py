@@ -71,6 +71,7 @@ class ModelInvocationCapability:
             provider=self.provider,
             model_name=self.model_name,
             pricing_snapshot=self.pricing_snapshot,
+            model_spec=self.model_spec,
             invocation_id=invocation_id,
             context_snapshot=context_snapshot,
             context_prepared=context_prepared,
