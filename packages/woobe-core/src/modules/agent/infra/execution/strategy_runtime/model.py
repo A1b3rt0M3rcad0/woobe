@@ -158,13 +158,9 @@ class RuntimeStrategyModel:
         if cached is not None:
             return cached
 
-        bind_tools = getattr(self._capability.model, "bind_tools", None)
-        if not callable(bind_tools):
-            raise RuntimeError(
-                "Authorized Tools require a model implementation with bind_tools()"
-            )
-        bound = self._capability.for_model(
-            bind_tools(list(self._tool_definitions), tool_choice="auto")
+        bound = self._capability.with_tools(
+            list(self._tool_definitions),
+            tool_choice="auto",
         )
         self._bound_capabilities[StrategyToolSelectionMode.ALL.value] = bound
         return bound
