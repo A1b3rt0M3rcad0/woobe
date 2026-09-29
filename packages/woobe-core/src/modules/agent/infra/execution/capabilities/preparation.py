@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from types import SimpleNamespace
 from typing import Any, Awaitable, Callable, Coroutine
 
 from modules.agent.application.interfaces.context_manager import ContextManager
@@ -10,6 +11,8 @@ from modules.agent.application.interfaces.execution import InstrumentedExecution
 from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.application.interfaces.execution_strategy import ExecutionStrategyRequest
 from modules.agent.application.interfaces.knowledge import KnowledgeStrategy
+from modules.agent.application.model_spec_compatibility import LegacyModelSpecResolver
+from modules.agent.domain.model_spec import ModelSpec
 from modules.agent.infra.execution.execution_instrumentation import (
     resolve_effective_output_tokens,
 )
@@ -24,6 +27,7 @@ _skill_runtime_factory: Callable[[list[dict[str, Any]], Any, set[str]], Any] | N
 
 @dataclass(frozen=True, slots=True)
 class PreparedFallbackModel:
+    model_spec: ModelSpec
     model: Any
     provider: str
     model_name: str
@@ -79,6 +83,33 @@ def configure_skill_runtime(
     global _skill_snapshots_resolver, _skill_runtime_factory
     _skill_snapshots_resolver = snapshots_resolver
     _skill_runtime_factory = runtime_factory
+
+
+def _primary_model_spec(
+    request: ExecutionStrategyRequest,
+    *,
+    provider: str,
+) -> ModelSpec:
+    settings = request.agent.settings or {}
+    persisted = settings.get("model_spec")
+    if isinstance(persisted, dict):
+        return ModelSpec.from_dict(persisted)
+
+    compatibility_model = SimpleNamespace(
+        id=getattr(request.agent, "provider_model_id", None),
+        provider_credential_id=getattr(
+            request.agent,
+            "provider_credential_id",
+            None,
+        ),
+        name=request.agent.model,
+        model=request.agent.model,
+        metadata={},
+    )
+    return LegacyModelSpecResolver().resolve(
+        compatibility_model,
+        provider=provider,
+    )
 
 
 def _primary_pricing_snapshot(request: ExecutionStrategyRequest) -> dict[str, Any] | None:
@@ -420,6 +451,10 @@ def prepare_execution(request: ExecutionStrategyRequest) -> PreparedExecution:
         if hasattr(agent.provider, "value")
         else str(agent.provider)
     )
+    model_spec = _primary_model_spec(
+        request,
+        provider=provider,
+    )
     raw_runtime_config = (agent.settings or {}).get("runtime_config")
     runtime_config = (
         dict(raw_runtime_config)
@@ -458,6 +493,7 @@ def prepare_execution(request: ExecutionStrategyRequest) -> PreparedExecution:
     )
 
     return PreparedExecution(
+        model_spec=model_spec,
         model=models.primary,
         final_model=models.final,
         final_model_factory=models.final_factory,
