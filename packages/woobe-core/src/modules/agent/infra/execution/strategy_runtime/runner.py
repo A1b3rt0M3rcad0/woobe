@@ -12,6 +12,7 @@ from modules.agent.application.interfaces.execution_strategy import (
     ExecutionStrategy,
     ExecutionStrategyRequest,
 )
+from modules.agent.application.interfaces.knowledge import KnowledgeStrategy
 from modules.agent.application.strategy_sdk import (
     Completed,
     StrategyExecutionError,
@@ -79,6 +80,8 @@ async def execute_strategy_with_capabilities(
     final_model: Any | None = None,
     final_model_factory: Any | None = None,
     bootstrap: dict[str, Any] | None = None,
+    knowledge_strategy: KnowledgeStrategy | None = None,
+    knowledge_runtime_config: dict[str, Any] | None = None,
 ) -> tuple[InstrumentedExecution, int]:
     """Compatibility bridge for legacy focused callers without duplicating algorithms."""
 
@@ -91,6 +94,8 @@ async def execute_strategy_with_capabilities(
         final_model_factory=final_model_factory,
         final_json_instruction=final_json_instruction,
         bootstrap=bootstrap,
+        knowledge_strategy=knowledge_strategy,
+        knowledge_runtime_config=knowledge_runtime_config,
     )
     try:
         outcome = await strategy.execute(built.context)
