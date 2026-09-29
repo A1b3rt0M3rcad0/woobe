@@ -228,6 +228,13 @@ class CreateProviderModelUseCase:
             input_dto.provider_credential_id,
             input_dto.project_id,
         )
+        normalized_name = input_dto.name.strip()
+        normalized_model = input_dto.model.strip()
+        if not normalized_name:
+            raise ValidationError("Provider model name is required")
+        if not normalized_model:
+            raise ValidationError("Provider model identifier is required")
+
         metadata = input_dto.metadata or {}
         spec = _resolve_model_spec(
             explicit=(
@@ -240,8 +247,8 @@ class CreateProviderModelUseCase:
         item = ProviderModel(
             project_id=input_dto.project_id,
             provider_credential_id=input_dto.provider_credential_id,
-            name=input_dto.name.strip(),
-            model=input_dto.model.strip(),
+            name=normalized_name,
+            model=normalized_model,
             model_type=input_dto.model_type,
             spec=input_dto.spec,
             spec_version=input_dto.spec_version,
@@ -259,10 +266,6 @@ class CreateProviderModelUseCase:
             spec = _apply_model_spec_overrides(spec, metadata)
         _apply_normalized_spec(item, spec)
 
-        if not item.name:
-            raise ValidationError("Provider model name is required")
-        if not item.model:
-            raise ValidationError("Provider model identifier is required")
         saved = await self._provider_model_repo.save(item)
         return _provider_model_to_output(saved, credential.provider)
 
@@ -318,6 +321,12 @@ class UpdateProviderModelUseCase:
             item.metadata = data["metadata"] or {}
         if "model_type" in data:
             item.model_type = data["model_type"]
+
+        if not item.name:
+            raise ValidationError("Provider model name is required")
+        if not item.model:
+            raise ValidationError("Provider model identifier is required")
+
         if "spec_version" in data:
             item.spec_version = data["spec_version"]
         if "spec_hash" in data:
@@ -380,10 +389,6 @@ class UpdateProviderModelUseCase:
 
         if "status" in data and data["status"] is not None:
             item.status = data["status"]
-        if not item.name:
-            raise ValidationError("Provider model name is required")
-        if not item.model:
-            raise ValidationError("Provider model identifier is required")
         saved = await self._provider_model_repo.update(item)
         return _provider_model_to_output(saved, credential.provider)
 
