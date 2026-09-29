@@ -53,6 +53,9 @@ from modules.agent.infra.database.provider_model_repositories import (
     _to_entity as provider_model_to_entity,
     _to_model as provider_model_to_model,
 )
+from modules.agent.application.use_cases.auto_compatible_release_lifecycle import (
+    _execution_snapshot_equal,
+)
 from modules.agent.infra.execution.execution_instrumentation import invoke_llm
 from modules.agent.infra.models.legacy_model_runtime import (
     LangChainLanguageModelRuntime,
@@ -453,3 +456,27 @@ async def test_instrumentation_records_model_spec_identity_without_changing_usag
     assert call["model_type"] == ModelTypes.LANGUAGE
     assert call["model_operations"] == [ModelOperations.LANGUAGE_GENERATE]
     assert call["model_spec_hash"] == model_spec_hash(spec)
+
+
+def test_release_execution_equivalence_includes_frozen_model_spec():
+    spec = _language_spec()
+    snapshot = spec.as_dict()
+    digest = model_spec_hash(spec)
+
+    first = AgentRelease(
+        provider_model_id=uuid4(),
+        model_spec_snapshot=snapshot,
+        model_spec_hash=digest,
+        session_mode="stateful",
+    )
+    second = AgentRelease(
+        provider_model_id=first.provider_model_id,
+        model_spec_snapshot=snapshot,
+        model_spec_hash=digest,
+        session_mode="stateful",
+    )
+
+    assert _execution_snapshot_equal(first, second) is True
+
+    second.model_spec_hash = "different"
+    assert _execution_snapshot_equal(first, second) is False
