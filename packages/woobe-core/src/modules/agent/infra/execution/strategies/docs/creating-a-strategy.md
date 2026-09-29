@@ -162,7 +162,7 @@ if knowledge.found:
 
 `ctx.conversation.history`, `ctx.conversation.system_messages` and `ctx.conversation.messages` are also available when the algorithm needs them. Treat the conversation surface as read-only; do not attempt to mutate runtime progression.
 
-Retrieving Knowledge and exposing it to the next Model invocation are separate decisions. The runtime owns the concrete Knowledge implementation and evidence; Knowledge owns query construction and the Strategy owns orchestration.
+Retrieving Knowledge and exposing it to the next Model invocation are separate decisions. The runtime binds the selected Knowledge Strategy and its authorized mechanisms, the Knowledge Strategy owns query construction and Knowledge-level behavior, and the Execution Strategy owns orchestration. A new Execution Strategy must not inspect RAG query policy or call a concrete RAG implementation directly.
 
 ### Inspect or compact Context explicitly
 
