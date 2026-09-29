@@ -141,19 +141,25 @@ function capabilityValue(value: CapabilityChoice): boolean | null {
 }
 
 function capabilitiesOf(model?: ProviderModel | null) {
+  const spec = providerModelSpec(model)
   const metadata = metadataOf(model)
   const catalog = recordOf(metadata.catalog)
   const capabilities = recordOf(metadata.capabilities)
   const { contextWindow, maxOutputTokens } = providerModelCapabilities(model)
+  const specCapability = (name: string) => (
+    spec && Object.prototype.hasOwnProperty.call(spec.capabilities, name)
+      ? spec.capabilities[name]
+      : undefined
+  )
   return {
     contextWindow,
     maxOutputTokens,
-    supportsTools: capabilityChoice(capabilities.supports_tools),
-    supportsJson: capabilityChoice(capabilities.supports_json),
-    supportsStreaming: capabilityChoice(capabilities.supports_streaming),
-    source: typeof metadata.capability_source === 'string'
+    supportsTools: capabilityChoice(specCapability('tool_calling') ?? capabilities.supports_tools),
+    supportsJson: capabilityChoice(specCapability('structured_output') ?? capabilities.supports_json),
+    supportsStreaming: capabilityChoice(specCapability('streaming') ?? capabilities.supports_streaming),
+    source: spec?.source || (typeof metadata.capability_source === 'string'
       ? metadata.capability_source
-      : catalog.context_window != null ? 'provider_catalog' : 'manual',
+      : catalog.context_window != null ? 'provider_catalog' : 'manual'),
   }
 }
 
