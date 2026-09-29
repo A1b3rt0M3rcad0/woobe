@@ -214,9 +214,13 @@ async def test_discovery_service_provider_adapters_normalize_without_shared_disp
 def test_provider_registry_exposes_all_first_class_providers_and_custom_alias():
     registry = build_provider_registry()
 
-    assert registry.keys() == frozenset(
-        {"openai", "openai_compatible", "openrouter", "anthropic", "deepseek"}
-    )
+    assert {manifest.key for manifest in registry.manifests()} == {
+        "openai",
+        "openai_compatible",
+        "openrouter",
+        "anthropic",
+        "deepseek",
+    }
     assert registry.canonical_key("custom") == "openai_compatible"
     assert registry.resolve("custom") is registry.resolve("openai_compatible")
 
