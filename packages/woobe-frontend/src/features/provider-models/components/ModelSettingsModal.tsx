@@ -46,6 +46,7 @@ import {
 } from '@/features/provider-models/hooks'
 import type { AvailableProviderModel, ProviderModel } from '@/features/provider-models/types'
 import { providerModelCapabilities } from '@/features/provider-models/capabilities'
+import { catalogModelSpec, providerModelSpec } from '@/features/provider-models/modelSpec'
 import { get } from '@/lib/api/client'
 
 const SEARCH_THRESHOLD = 6
@@ -482,6 +483,9 @@ export function ModelSettingsModal({
   const technicalName = displayName.trim() || modelId.trim() || selectedModel?.name || 'New model'
   const modelProvider = credential?.provider || selectedModel?.provider || null
   const providerName = modelProviderLabel(modelProvider)
+  const normalizedSpec = catalogModel
+    ? catalogModelSpec(catalogModel.raw)
+    : providerModelSpec(selectedModel)
 
   useEffect(() => {
     if (!open) return
@@ -855,7 +859,8 @@ export function ModelSettingsModal({
   )
 
   const capabilitiesContent = (
-    <SectionBlock
+    <div className="grid gap-ui-md">
+      <SectionBlock
       title="Model capabilities"
       description="Used by Context budgeting and runtime compatibility checks. Unknown values remain unknown; Woobe does not infer them from the model name."
       actions={<Badge variant="outline" size="compact">{capabilitySource}</Badge>}
@@ -890,7 +895,82 @@ export function ModelSettingsModal({
           </Field>
         </div>
       </div>
-    </SectionBlock>
+      </SectionBlock>
+
+      {normalizedSpec ? (
+        <SectionBlock
+          title="Runtime ModelSpec"
+          description="Normalized semantic contract consumed by RuntimePlan and ExecutionStrategy compatibility checks."
+          actions={selectedModel?.spec_hash ? <Badge variant="outline" size="compact">hash {shortId(selectedModel.spec_hash)}</Badge> : undefined}
+          density="compact"
+        >
+          <div className="grid gap-ui-md">
+            <div className="grid gap-ui-md sm:grid-cols-2 lg:grid-cols-3">
+              <ReadOnlyValue label="Model type" value={normalizedSpec.modelType || 'custom'} mono />
+              <ReadOnlyValue label="Interaction" value={normalizedSpec.interaction.mode || 'unknown'} mono />
+              <ReadOnlyValue label="Source" value={normalizedSpec.source || 'unknown'} mono />
+              <ReadOnlyValue label="Operations" value={normalizedSpec.operations.join(', ') || 'none'} mono />
+              <ReadOnlyValue label="Input modalities" value={normalizedSpec.inputModalities.join(', ') || 'none'} mono />
+              <ReadOnlyValue label="Output modalities" value={normalizedSpec.outputModalities.join(', ') || 'none'} mono />
+            </div>
+
+            <div className="grid gap-ui-md border-t border-border pt-ui-md sm:grid-cols-2 lg:grid-cols-3">
+              <ReadOnlyValue
+                label="Conversation"
+                value={normalizedSpec.interaction.supportsConversation === null ? 'unknown' : normalizedSpec.interaction.supportsConversation ? 'supported' : 'unsupported'}
+              />
+              <ReadOnlyValue
+                label="History"
+                value={normalizedSpec.interaction.supportsHistory === null ? 'unknown' : normalizedSpec.interaction.supportsHistory ? 'supported' : 'unsupported'}
+              />
+              <ReadOnlyValue
+                label="System instruction"
+                value={normalizedSpec.interaction.supportsSystemInstruction === null ? 'unknown' : normalizedSpec.interaction.supportsSystemInstruction ? 'supported' : 'unsupported'}
+              />
+              <ReadOnlyValue
+                label="Context injection"
+                value={normalizedSpec.interaction.supportsContextInjection === null ? 'unknown' : normalizedSpec.interaction.supportsContextInjection ? 'supported' : 'unsupported'}
+              />
+              <ReadOnlyValue
+                label="Batch"
+                value={normalizedSpec.interaction.supportsBatch === null ? 'unknown' : normalizedSpec.interaction.supportsBatch ? 'supported' : 'unsupported'}
+              />
+              <ReadOnlyValue
+                label="Realtime"
+                value={normalizedSpec.interaction.supportsRealtime === null ? 'unknown' : normalizedSpec.interaction.supportsRealtime ? 'supported' : 'unsupported'}
+              />
+            </div>
+
+            <div className="border-t border-border pt-ui-md">
+              <p className="font-mono text-system-meta font-semibold uppercase tracking-[0.12em] text-muted-foreground">Declared capabilities</p>
+              <div className="mt-ui-sm flex flex-wrap gap-ui-xs">
+                {Object.keys(normalizedSpec.capabilities).length ? Object.entries(normalizedSpec.capabilities).map(([name, supported]) => (
+                  <Badge key={name} variant={supported === true ? 'success' : 'outline'} size="compact">
+                    {name}: {supported === null ? 'unknown' : supported ? 'yes' : 'no'}
+                  </Badge>
+                )) : <span className="font-sans text-product-caption text-muted-foreground">No capabilities declared.</span>}
+              </div>
+            </div>
+
+            <div className="grid gap-ui-md border-t border-border pt-ui-md sm:grid-cols-2 lg:grid-cols-3">
+              <ReadOnlyValue label="Context window" value={normalizedSpec.limits.context_window?.toLocaleString() || 'unknown'} />
+              <ReadOnlyValue label="Max input tokens" value={normalizedSpec.limits.max_input_tokens?.toLocaleString() || 'unknown'} />
+              <ReadOnlyValue label="Max output tokens" value={normalizedSpec.limits.max_output_tokens?.toLocaleString() || 'unknown'} />
+              <ReadOnlyValue label="Spec version" value={normalizedSpec.specVersion ? String(normalizedSpec.specVersion) : 'unknown'} mono />
+              <ReadOnlyValue label="Default model strategy" value={normalizedSpec.defaultModelStrategy || 'provider/runtime default'} mono />
+              {selectedModel?.spec_hash ? <ReadOnlyValue label="Spec hash" value={selectedModel.spec_hash} mono /> : null}
+            </div>
+          </div>
+        </SectionBlock>
+      ) : (
+        <Alert variant="info">
+          <AlertTitle>Legacy or manually configured model</AlertTitle>
+          <AlertDescription>
+            No normalized ModelSpec is persisted yet. Existing compatibility behavior remains available and the backend resolves legacy semantics at runtime.
+          </AlertDescription>
+        </Alert>
+      )}
+    </div>
   )
 
   const pricingContent = (
