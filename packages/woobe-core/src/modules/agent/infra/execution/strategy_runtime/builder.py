@@ -253,7 +253,12 @@ def _configured_context_strategy(
     prepared: PreparedExecution,
 ) -> str | None:
     if prepared.context_manager is None:
-        return None
+        # Direct/legacy Strategy execution predates explicit Context Manager
+        # selection. It still executes through the runtime Context facade, which
+        # degrades to pass-through assembly outside an instrumented Agent Run.
+        # Represent that compatibility binding explicitly instead of weakening
+        # StandardExecutionStrategy's requirement for Context semantics.
+        return "legacy_passthrough"
     runtime_config = (request.agent.settings or {}).get("runtime_config")
     if isinstance(runtime_config, dict):
         selection = runtime_config.get("context_manager")
