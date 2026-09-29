@@ -2,11 +2,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from modules.agent.application.model_compatibility import (
-    CompatibilityMode,
-    ExecutionStrategySpec,
+from modules.agent.application.interfaces.execution_strategy import (
+    STANDARD_EXECUTION_COMPATIBILITY,
 )
-from modules.agent.domain.model_spec import ModelModalities, ModelOperations
+from modules.agent.application.interfaces.model_compatibility import ExecutionStrategySpec
 
 
 DEFAULT_EXECUTION_STRATEGY = "standard"
@@ -141,16 +140,7 @@ class ExecutionStrategyRegistry:
         )
 
 
-_STANDARD_COMPATIBILITY = ExecutionStrategySpec(
-    name="standard",
-    operations=frozenset({ModelOperations.LANGUAGE_GENERATE}),
-    requires_conversation=True,
-    allowed_input_modalities=frozenset({ModelModalities.TEXT}),
-    allowed_output_modalities=frozenset({ModelModalities.TEXT}),
-    context_mode=CompatibilityMode.REQUIRED,
-    knowledge_mode=CompatibilityMode.OPTIONAL,
-    tools_mode=CompatibilityMode.OPTIONAL,
-)
+_STANDARD_COMPATIBILITY = STANDARD_EXECUTION_COMPATIBILITY
 
 
 _STANDARD_DESCRIPTOR = ExecutionStrategyDescriptor(

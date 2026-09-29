@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from modules.agent.application.interfaces.execution_strategy import ExecutionStrategy
+from modules.agent.application.interfaces.execution_strategy import (
+    ExecutionStrategy,
+    STANDARD_EXECUTION_COMPATIBILITY,
+)
 from modules.agent.application.strategy_sdk import (
     Completed,
     ExecutionCheckpointBoundary,
@@ -85,6 +88,7 @@ class StandardExecutionStrategy(ExecutionStrategy[StandardExecutionState]):
 
     name = "standard"
     state_type = StandardExecutionState
+    compatibility = STANDARD_EXECUTION_COMPATIBILITY
 
     def __init__(self, policy: StandardExecutionPolicy | None = None) -> None:
         self.policy = policy or StandardExecutionPolicy()

@@ -3,13 +3,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from modules.agent.application.execution_strategy_registry import build_execution_strategy_registry
 from modules.agent.application.interfaces.execution import InstrumentedExecution
 from modules.agent.application.interfaces.knowledge import KnowledgeStrategy
-from modules.agent.application.model_runtime_plan import ModelRuntimePlan, ModelRuntimePlanBuilder
+from modules.agent.application.interfaces.model_runtime_plan import ModelRuntimePlan, ModelRuntimePlanBuilder
 from modules.agent.application.interfaces.execution_strategy import (
     ExecutionStrategy,
     ExecutionStrategyRequest,
+    legacy_language_execution_compatibility,
 )
 from modules.agent.domain.model_spec import ModelModalities
 from modules.agent.application.strategy_sdk import (
@@ -283,10 +283,12 @@ def _build_runtime_plan(
     request: ExecutionStrategyRequest,
     prepared: PreparedExecution,
 ) -> ModelRuntimePlan:
-    descriptor = build_execution_strategy_registry().get(strategy.name)
+    compatibility = getattr(strategy, "compatibility", None)
+    if compatibility is None:
+        compatibility = legacy_language_execution_compatibility(strategy.name)
     return ModelRuntimePlanBuilder().build(
         model=prepared.model_spec,
-        execution=descriptor.compatibility,
+        execution=compatibility,
         context_strategy=_configured_context_strategy(request, prepared),
         knowledge_strategy=_configured_knowledge_strategy(prepared),
         output_strategy=(
