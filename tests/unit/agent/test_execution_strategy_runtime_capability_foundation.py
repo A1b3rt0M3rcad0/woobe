@@ -11,6 +11,10 @@ from modules.agent.application.interfaces.execution_context import (
     current_execution,
     new_execution_context,
 )
+from modules.agent.application.interfaces.knowledge import (
+    KnowledgeRequest,
+    KnowledgeResult,
+)
 from modules.agent.application.rag.knowledge_strategy import RAGKnowledgeStrategy
 from modules.agent.application.strategy_sdk import (
     StrategyContextContribution,
@@ -164,6 +168,54 @@ async def test_strategy_knowledge_records_failed_retrieval_before_reraising() ->
     assert call["error"] == "retrieval unavailable"
     assert call["metadata"]["strategy"] == "classic"
     assert state.execution.timeline[0]["kind"] == "knowledge"
+
+
+@pytest.mark.asyncio
+async def test_runtime_can_execute_an_alternate_knowledge_strategy_without_execution_changes() -> None:
+    captured: list[str] = []
+
+    async def retrieve(query: str):
+        captured.append(query)
+        return SimpleNamespace(
+            context="alternate knowledge",
+            sources=(),
+            metrics={"backend": "alternate"},
+        )
+
+    class AlternateKnowledgeStrategy:
+        name = "alternate"
+
+        async def retrieve(self, request: KnowledgeRequest, capabilities) -> KnowledgeResult:
+            current = request.conversation.current_user_message
+            text = str(current.content if current is not None else "")
+            result = await capabilities.retrieve(query=f"alternate:{text}")
+            return KnowledgeResult(
+                content=result.content,
+                query=f"alternate:{text}",
+                sources=result.sources,
+                metadata={"knowledge_strategy": self.name, **dict(result.metadata)},
+            )
+
+    runtime = RuntimeStrategyKnowledge(
+        capability=KnowledgeRetrievalCapability(retrieve_fn=retrieve),
+        runtime_state=StrategyRuntimeState(),
+        strategy=AlternateKnowledgeStrategy(),
+    )
+    result = await runtime.retrieve(
+        conversation=SimpleNamespace(
+            current_user_message=StrategyMessage(
+                id=None,
+                role=StrategyMessageRole.USER,
+                content="question",
+            ),
+            history=(),
+        )
+    )
+
+    assert captured == ["alternate:question"]
+    assert result.content == "alternate knowledge"
+    assert result.query == "alternate:question"
+    assert result.metadata["knowledge_strategy"] == "alternate"
 
 
 @pytest.mark.asyncio
