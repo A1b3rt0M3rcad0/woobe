@@ -6,6 +6,7 @@ from typing import Any, Protocol, TypeAlias
 from modules.agent.application.strategy_sdk.contracts import ExecutionPhase
 from modules.agent.application.strategy_sdk.invocation import StrategyInvocation
 from modules.agent.application.strategy_sdk.tools import StrategyToolCall
+from modules.agent.domain.model_spec import ModelSpec
 
 
 StrategyPhase: TypeAlias = str | ExecutionPhase
@@ -36,6 +37,9 @@ class StrategyModelResult:
 
 class StrategyModel(Protocol):
     """Model operations available to an Execution Strategy."""
+
+    @property
+    def spec(self) -> ModelSpec: ...
 
     @property
     def fallback_available(self) -> bool: ...
