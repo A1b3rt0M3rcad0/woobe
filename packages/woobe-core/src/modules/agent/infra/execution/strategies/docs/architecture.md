@@ -36,6 +36,7 @@ StrategyContext
       ▼
 Strategy Runtime
 ├── Knowledge facade
+├── selected Knowledge Strategy
 ├── Context contribution state
 ├── conversation progression
 ├── State persistence
@@ -46,7 +47,7 @@ Strategy Runtime
       │
       ▼
 Execution Capabilities
-├── Knowledge retrieval
+├── Knowledge mechanisms
 ├── Context assembly
 ├── Model invocation
 └── Tool execution
@@ -87,7 +88,7 @@ The current [`StandardExecutionStrategy`](../standard.py) is a Model/Tool loop. 
 A concrete Strategy must assume these concerns are already handled by `infra/execution/strategy_runtime`:
 
 ```text
-Knowledge implementation binding
+Knowledge Strategy + mechanism binding
 Context Manager implementation binding
 Tool authorization
 Model/Tool conversation progression
@@ -161,7 +162,9 @@ The rule is:
 The runtime resolves and freezes concrete dependencies; the Strategy orchestrates them through the stable SDK.
 
 - Runtime freezes the execution conversation; Strategies inspect it through `ctx.conversation` without mutating runtime message state.
-- Conversation-to-Knowledge query construction belongs to Knowledge; Execution supplies the conversation without interpreting query mode or history limits.
+- Conversation-to-Knowledge query construction belongs to the selected Knowledge Strategy; Execution supplies the conversation without interpreting query mode, history limits or backend retrieval details.
+- Knowledge capabilities expose mechanisms only. They do not own query policy or a concrete Knowledge algorithm.
+- The built-in `rag` Knowledge Strategy may delegate an already-final query to a nested RAG Strategy such as `classic`; RAG selection is independent from Execution Strategy selection.
 - Knowledge retrieval and Knowledge inclusion in Context are separate decisions.
 - Context is assembled for one Model invocation, not globally for an execution.
 - Tool authorization and the complete Tool inventory belong to the Runtime. The Strategy may only enable all authorized Tools or disable Tools for an invocation; it cannot select a subset.
