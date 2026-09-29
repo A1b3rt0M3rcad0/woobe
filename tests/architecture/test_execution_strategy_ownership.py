@@ -219,6 +219,7 @@ def test_execution_preparation_is_composed_from_focused_helpers() -> None:
     }
 
     required = {
+        "_prepare_knowledge",
         "_prepare_tools",
         "_prepare_output_contract",
         "_prepare_models",
