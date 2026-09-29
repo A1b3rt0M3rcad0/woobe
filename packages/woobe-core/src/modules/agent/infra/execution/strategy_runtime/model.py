@@ -268,6 +268,7 @@ class RuntimeStrategyModel:
             provider=binding.provider,
             model_name=binding.model_name,
             pricing_snapshot=binding.pricing_snapshot,
+            model_spec=binding.model_spec,
         )
         result = await self._invoke(
             capability=capability,
