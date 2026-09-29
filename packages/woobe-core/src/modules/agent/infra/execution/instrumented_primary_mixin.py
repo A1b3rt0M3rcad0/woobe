@@ -9,11 +9,11 @@ from uuid import uuid4
 from modules.agent.application.execution_strategy_config import (
     execution_strategy_from_runtime_config,
 )
+from modules.agent.application.knowledge_strategy_config import (
+    knowledge_strategy_from_runtime_config,
+)
 from modules.agent.application.runtime_output_validation import (
     ensure_model_result_has_public_output,
-)
-from modules.agent.application.knowledge_strategy_registry import (
-    knowledge_strategy_from_runtime_config,
 )
 from modules.agent.application.interfaces.context_manager import (
     ContextManager,
@@ -33,6 +33,7 @@ from modules.agent.application.interfaces.execution_strategy import (
     ExecutionStrategyRequest,
     ExecutionStrategyResolver,
 )
+from modules.agent.application.interfaces.knowledge import KnowledgeStrategyResolver
 from modules.agent.application.tool_converter import MCP_PROVIDER_ROUTE_SEPARATOR
 from modules.agent.domain.events import AgentExecutionFailedV1
 from modules.agent.infra.database.runtime_transaction_runner import (
@@ -56,6 +57,7 @@ class _PrimaryExecutionHost(Protocol):
     _transactions: AgentRuntimeTransactionRunner
     _context_manager: ContextManager | None
     _execution_strategy_resolver: ExecutionStrategyResolver | None
+    _knowledge_strategy_resolver: KnowledgeStrategyResolver | None
     async def _execute_single_tool(self, tool_call: dict, tool_id: str) -> dict: ...
     def _clean_json_answer(self, answer: str) -> str: ...
 
@@ -84,6 +86,7 @@ def _copy_http_route_metadata(payload: dict[str, Any]) -> None:
 class InstrumentedPrimaryExecutionMixin:
     _context_manager: ContextManager | None = None
     _execution_strategy_resolver: ExecutionStrategyResolver | None = None
+    _knowledge_strategy_resolver: KnowledgeStrategyResolver | None = None
     _rag_runtime: RAGRuntimeAdapter | None = None
 
     def configure_rag_runtime(self, adapter: RAGRuntimeAdapter) -> None:
@@ -110,6 +113,12 @@ class InstrumentedPrimaryExecutionMixin:
         resolver: ExecutionStrategyResolver,
     ) -> None:
         self._execution_strategy_resolver = resolver
+
+    def configure_knowledge_strategy_resolver(
+        self,
+        resolver: KnowledgeStrategyResolver,
+    ) -> None:
+        self._knowledge_strategy_resolver = resolver
 
     async def execute(self, input_dto: Any) -> Any:
         metadata = input_dto.metadata if isinstance(input_dto.metadata, dict) else {}
@@ -317,16 +326,23 @@ class InstrumentedPrimaryExecutionMixin:
         host = cast(_PrimaryExecutionHost, self)
         settings = getattr(agent, "settings", None)
         settings = settings if isinstance(settings, dict) else {}
-        strategy_name = execution_strategy_from_runtime_config(
-            settings.get("runtime_config")
-        )
+        runtime_config = settings.get("runtime_config")
+        strategy_name = execution_strategy_from_runtime_config(runtime_config)
+        knowledge_strategy_name = knowledge_strategy_from_runtime_config(runtime_config)
         context = current_execution.get()
         if context:
             context.execution_strategy = strategy_name
+            context.knowledge_strategy = knowledge_strategy_name
+
         resolver = host._execution_strategy_resolver
         if resolver is None:
             raise RuntimeError("Agent execution strategy resolver is not configured")
         strategy = resolver.resolve(strategy_name)
+
+        knowledge_resolver = host._knowledge_strategy_resolver
+        if knowledge_resolver is None:
+            raise RuntimeError("Agent Knowledge Strategy resolver is not configured")
+        knowledge_strategy = knowledge_resolver.resolve(knowledge_strategy_name)
 
         rag_runtime = getattr(host, "_rag_runtime", None)
         rag_binding = context.prepared_rag if context is not None else None
@@ -362,6 +378,7 @@ class InstrumentedPrimaryExecutionMixin:
                     tool_name_to_id=tool_name_to_id,
                     messages=messages,
                     knowledge_retrieve=knowledge_retrieve,
+                    knowledge_strategy=knowledge_strategy,
                 )
             )
         except InstrumentedExecutionError as exc:
