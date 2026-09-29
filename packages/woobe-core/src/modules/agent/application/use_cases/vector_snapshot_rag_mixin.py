@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from typing import Any, Protocol, cast
 
 from modules.agent.application.interfaces.execution_context import current_execution
