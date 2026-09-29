@@ -11,6 +11,7 @@ from modules.agent.application.interfaces.execution_context import (
     current_execution,
     new_execution_context,
 )
+from modules.agent.application.rag.knowledge_strategy import RAGKnowledgeStrategy
 from modules.agent.application.strategy_sdk import (
     StrategyContextContribution,
     StrategyKnowledgeResult,
@@ -92,8 +93,9 @@ async def test_strategy_knowledge_records_started_completed_and_execution_eviden
     runtime = RuntimeStrategyKnowledge(
         capability=KnowledgeRetrievalCapability(
             retrieve_fn=retrieve,
-            ),
+        ),
         runtime_state=state,
+        strategy=RAGKnowledgeStrategy(),
     )
     recorder = _Recorder()
     context = new_execution_context()
@@ -131,8 +133,9 @@ async def test_strategy_knowledge_records_failed_retrieval_before_reraising() ->
     runtime = RuntimeStrategyKnowledge(
         capability=KnowledgeRetrievalCapability(
             retrieve_fn=retrieve,
-            ),
+        ),
         runtime_state=state,
+        strategy=RAGKnowledgeStrategy(),
     )
     recorder = _Recorder()
     context = new_execution_context()
@@ -484,6 +487,7 @@ async def test_model_runtime_owns_structured_repair_model_invocation() -> None:
     assert state.execution.llm_calls[-1]["phase"] == "json_repair"
 
 
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("mode", "expected"),
     [
@@ -494,7 +498,10 @@ async def test_model_runtime_owns_structured_repair_model_invocation() -> None:
         ),
     ],
 )
-def test_knowledge_owns_query_mode_history_limit_and_text_extraction(mode, expected):
+async def test_knowledge_strategy_owns_query_mode_history_limit_and_text_extraction(
+    mode,
+    expected,
+):
     def message(role, content):
         return StrategyMessage(id=None, role=role, content=content)
 
@@ -512,10 +519,25 @@ def test_knowledge_owns_query_mode_history_limit_and_text_extraction(mode, expec
             message(StrategyMessageRole.TOOL, "excluded"),
         ),
     )
-    capability = KnowledgeRetrievalCapability(
-        retrieve_fn=None, query_mode=mode, history_turns=1,
+    captured: list[str] = []
+
+    async def retrieve(query: str):
+        captured.append(query)
+        return SimpleNamespace(context=None, sources=(), metrics={})
+
+    runtime = RuntimeStrategyKnowledge(
+        capability=KnowledgeRetrievalCapability(retrieve_fn=retrieve),
+        runtime_state=StrategyRuntimeState(),
+        strategy=RAGKnowledgeStrategy(),
+        runtime_config={
+            "rag": {
+                "query_mode": mode,
+                "history_turns": 1,
+            }
+        },
     )
-    assert capability.build_query(conversation) == expected
+    await runtime.retrieve(conversation=conversation)
+    assert captured == [expected]
 
 
 @pytest.mark.asyncio
@@ -527,6 +549,7 @@ async def test_knowledge_skips_retrieval_without_current_text(content):
     runtime = RuntimeStrategyKnowledge(
         capability=KnowledgeRetrievalCapability(retrieve_fn=retrieve),
         runtime_state=StrategyRuntimeState(),
+        strategy=RAGKnowledgeStrategy(),
     )
     result = await runtime.retrieve(conversation=SimpleNamespace(
         current_user_message=(
