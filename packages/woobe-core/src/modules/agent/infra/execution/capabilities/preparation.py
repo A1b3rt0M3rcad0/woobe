@@ -5,11 +5,11 @@ from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, Coroutine
 
 from modules.agent.application.interfaces.context_manager import ContextManager
-from modules.agent.application.interfaces.knowledge import KnowledgeStrategy
 from modules.agent.application.interfaces.context_policy import resolve_context_policy
 from modules.agent.application.interfaces.execution import InstrumentedExecution
 from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.application.interfaces.execution_strategy import ExecutionStrategyRequest
+from modules.agent.application.interfaces.knowledge import KnowledgeStrategy
 from modules.agent.infra.execution.execution_instrumentation import (
     resolve_effective_output_tokens,
 )
