@@ -3,8 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, Mapping
 
-from modules.agent.application.dtos.runtime_dtos import SourceInfo
-from modules.agent.application.interfaces.knowledge import KnowledgeResult
+from modules.agent.application.interfaces.knowledge import (
+    KnowledgeResult,
+    KnowledgeSource,
+)
 
 
 KnowledgeRetrieveFn = Callable[[str], Awaitable[Any]]
@@ -36,7 +38,15 @@ class KnowledgeRetrievalCapability:
 
         raw_sources = getattr(raw, "sources", ()) or ()
         sources = tuple(
-            source for source in raw_sources if isinstance(source, SourceInfo)
+            KnowledgeSource(
+                document_id=getattr(source, "document_id", None),
+                document_title=getattr(source, "document_title", None),
+                chunk_id=getattr(source, "chunk_id", None),
+                page_number=getattr(source, "page_number", None),
+                score=getattr(source, "score", None),
+                content_preview=getattr(source, "content_preview", None),
+            )
+            for source in raw_sources
         )
 
         metadata: dict[str, Any] = {}
