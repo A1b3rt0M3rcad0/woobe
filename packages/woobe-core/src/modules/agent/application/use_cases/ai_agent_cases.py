@@ -11,7 +11,7 @@ from modules.agent.application.context_manager_registry import (
 from modules.agent.application.execution_strategy_config import (
     canonicalize_execution_strategy_runtime_config,
 )
-from modules.agent.application.knowledge_strategy_registry import (
+from modules.agent.application.knowledge_strategy_config import (
     canonicalize_knowledge_strategy_runtime_config,
 )
 from modules.agent.application.dtos.ai_dtos import (
