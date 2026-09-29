@@ -7,6 +7,7 @@ from modules.agent.application.runtime_output_validation import (
     ensure_model_result_has_public_output,
     ensure_public_output,
     has_public_output,
+    model_result_has_public_output,
 )
 
 
@@ -48,4 +49,18 @@ def test_public_text_block_is_accepted() -> None:
         ]
     )
 
+    assert model_result_has_public_output(result) is True
     ensure_model_result_has_public_output(result)
+
+
+def test_internal_only_model_blocks_are_not_public() -> None:
+    result = SimpleNamespace(
+        content=[
+            {
+                "type": "reasoning_content",
+                "text": "private reasoning",
+            }
+        ]
+    )
+
+    assert model_result_has_public_output(result) is False
