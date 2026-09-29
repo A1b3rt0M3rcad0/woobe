@@ -1123,8 +1123,8 @@ def assemble_context(
         if environment
         else None
     )
-    rag_metadata = (
-        getattr(environment, "rag_metadata", None)
+    knowledge_metadata = (
+        getattr(environment, "knowledge_metadata", None)
         if environment
         else None
     )
@@ -1189,7 +1189,9 @@ def assemble_context(
             dict(selection) if isinstance(selection, dict) else None
         ),
         "knowledge": (
-            dict(rag_metadata) if isinstance(rag_metadata, dict) else None
+            dict(knowledge_metadata)
+            if isinstance(knowledge_metadata, dict)
+            else None
         ),
         "health": _health_manifest(
             pressure=pressure,
