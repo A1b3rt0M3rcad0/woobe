@@ -165,6 +165,19 @@ def _manual_model_spec(
 ) -> ModelSpec:
     metadata = dict(item.metadata or {})
     if explicit_model_type:
+        normalized_type = explicit_model_type.strip().lower()
+        if normalized_type not in {
+            "generation",
+            "language",
+            "llm",
+            "chat",
+            "chat_completion",
+            "embedding",
+            "embeddings",
+        }:
+            raise ValidationError(
+                "Manual non-language/embedding models require an explicit ModelSpec"
+            )
         metadata["model_type"] = explicit_model_type
     compatibility_model = SimpleNamespace(
         id=item.id,
