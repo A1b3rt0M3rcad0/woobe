@@ -39,6 +39,7 @@ class RequestExecutionContext:
     knowledge_strategy: str | None = None
     agent_release_id: UUID | None = None
     agent_release_version: str | None = None
+    knowledge_metadata: dict[str, Any] | None = None
     rag_metadata: dict[str, Any] | None = None
     tool_snapshots: dict[str, dict[str, Any]] | None = None
     tool_metadata: dict[str, Any] | None = None
@@ -90,6 +91,7 @@ class RequestExecutionContext:
     reserved_output_units: int | None = None
     active_tool_definitions: list[dict[str, Any]] | None = None
     context_selection_metadata: dict[str, Any] | None = None
+    knowledge_sources: list[dict[str, Any]] | None = None
     context_rag_sources: list[dict[str, Any]] | None = None
 
     # Ephemeral preparation material. Project Environment secrets remain encrypted
