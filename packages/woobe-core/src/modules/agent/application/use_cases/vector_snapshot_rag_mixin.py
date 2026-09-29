@@ -41,6 +41,26 @@ class VectorSnapshotRAGMixin:
         agent = parent._apply_release_to_agent(agent, release)
         settings = dict(agent.settings or {})
 
+        model_spec_snapshot = getattr(release, "model_spec_snapshot", None)
+        if isinstance(model_spec_snapshot, dict):
+            settings["model_spec"] = deepcopy(model_spec_snapshot)
+            settings["model_spec_frozen"] = True
+        else:
+            settings.pop("model_spec_frozen", None)
+
+        fallback_model_spec_snapshot = getattr(
+            release,
+            "fallback_model_spec_snapshot",
+            None,
+        )
+        if isinstance(fallback_model_spec_snapshot, dict):
+            settings["fallback_model_spec"] = deepcopy(
+                fallback_model_spec_snapshot
+            )
+            settings["fallback_model_spec_frozen"] = True
+        else:
+            settings.pop("fallback_model_spec_frozen", None)
+
         if release.knowledge_version_id is None:
             settings.pop("knowledge_version_id", None)
         else:
@@ -62,6 +82,26 @@ class VectorSnapshotRAGMixin:
         parent = cast(_KnowledgeBindingSuper, super())
         agent = parent._apply_snapshot_override(agent, snapshot)
         settings = dict(agent.settings or {})
+
+        if "model_spec_snapshot" in snapshot:
+            model_spec_snapshot = snapshot.get("model_spec_snapshot")
+            if isinstance(model_spec_snapshot, dict):
+                settings["model_spec"] = deepcopy(model_spec_snapshot)
+                settings["model_spec_frozen"] = True
+            else:
+                settings.pop("model_spec_frozen", None)
+
+        if "fallback_model_spec_snapshot" in snapshot:
+            fallback_model_spec_snapshot = snapshot.get(
+                "fallback_model_spec_snapshot"
+            )
+            if isinstance(fallback_model_spec_snapshot, dict):
+                settings["fallback_model_spec"] = deepcopy(
+                    fallback_model_spec_snapshot
+                )
+                settings["fallback_model_spec_frozen"] = True
+            else:
+                settings.pop("fallback_model_spec_frozen", None)
 
         if "knowledge_version_id" in snapshot:
             value = snapshot.get("knowledge_version_id")
