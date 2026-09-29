@@ -40,6 +40,20 @@ Tools are conditional: a Strategy may allow Tools without requiring them. When T
 
 Output validity is modality-specific. Empty text is invalid for a text-output strategy, but a valid embedding/image/audio/custom output is not considered empty merely because it contains no text.
 
+## ModelSpec resolution and override precedence
+
+Woobe uses one normalized ModelSpec contract rather than maintaining a second global model database.
+
+The composition path is:
+
+1. the ProviderAdapter normalizes remote provider discovery/catalog data into ModelSpec;
+2. explicit Project/manual metadata overrides supported limits, pricing and declared capabilities when a ProviderModel is created or updated;
+3. the effective normalized ModelSpec is persisted with the ProviderModel together with its version/hash;
+4. a Release freezes that effective spec/hash so later provider-catalog changes cannot alter released behavior;
+5. historical ProviderModels/Releases without a normalized spec use LegacyModelSpecResolver as the compatibility fallback.
+
+Provider raw metadata remains provenance/evidence and is not itself the runtime semantic contract. A future curated Woobe model catalog can participate before persistence by producing/augmenting the same ModelSpec; it does not require another runtime abstraction.
+
 ## Backward compatibility
 
 Current ProviderModel, Agent provider/model fields, LangChain-backed language execution and legacy Releases remain supported during migration.
