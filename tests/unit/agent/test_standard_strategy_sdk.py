@@ -128,6 +128,10 @@ class _Tools:
 
 
 class _Output:
+    def has_public_output(self, result) -> bool:
+        content = getattr(result, "content", None)
+        return isinstance(content, str) and bool(content.strip())
+
     def requires_repair(self, _result) -> bool:
         return False
 
