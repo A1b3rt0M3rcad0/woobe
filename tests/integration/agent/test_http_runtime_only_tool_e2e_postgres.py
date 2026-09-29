@@ -7,6 +7,7 @@ import pytest
 from langchain_core.messages import AIMessage, ToolMessage
 
 from modules.agent.application.context_managers.standard import StandardContextAssembler
+from modules.agent.application.knowledge_strategy_registry import build_knowledge_strategy_registry
 from modules.agent.application.dtos.runtime_dtos import AskInput
 from modules.agent.application.execution_snapshot import (
     AgentExecutionSnapshotResolver,
@@ -365,6 +366,7 @@ async def test_existing_draft_session_uses_edited_live_tool_and_runtime_only_val
     )
     runtime.configure_context_assembler(StandardContextAssembler())
     runtime.configure_execution_strategy_resolver(build_execution_strategy_resolver())
+    runtime.configure_knowledge_strategy_resolver(build_knowledge_strategy_registry())
     runtime.configure_runtime_tool_reader(tool_runtime.read_runtime_tools)
 
     try:
