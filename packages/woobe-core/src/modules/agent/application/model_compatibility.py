@@ -186,10 +186,10 @@ class ModelExecutionCompatibilityResolver:
             )
 
         if execution.allowed_input_modalities is not None:
-            unsupported = (
-                model.input_modalities - execution.allowed_input_modalities
-            )
-            if unsupported:
+            if not (
+                model.input_modalities
+                & execution.allowed_input_modalities
+            ):
                 issues.append(
                     CompatibilityIssue(
                         code="execution_input_modality_not_supported",
