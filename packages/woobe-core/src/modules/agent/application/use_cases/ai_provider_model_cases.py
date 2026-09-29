@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import Any, Mapping
 from uuid import UUID
 
 from modules.agent.application.dtos.ai_dtos import (
@@ -14,7 +15,72 @@ from modules.agent.application.interfaces.provider_model_repository import (
 from modules.agent.application.interfaces.repositories import ProviderCredentialRepository
 from modules.agent.domain.entities import ProviderModel
 from modules.agent.domain.enums import CredentialStatus, ProviderModelStatus
+from modules.agent.domain.model_spec import ModelSpec, model_spec_hash
 from shared.contracts.errors import ValidationError
+
+
+_MISSING = object()
+
+
+def _mapping(value: Any) -> dict[str, Any]:
+    return dict(value) if isinstance(value, Mapping) else {}
+
+
+def _embedded_model_spec(metadata: Mapping[str, Any]) -> Mapping[str, Any] | None:
+    direct = metadata.get("model_spec")
+    if isinstance(direct, Mapping):
+        return direct
+
+    raw = metadata.get("provider_model_raw")
+    if isinstance(raw, Mapping):
+        nested = raw.get("woobe_model_spec")
+        if isinstance(nested, Mapping):
+            return nested
+    return None
+
+
+def _parse_model_spec(value: Any) -> ModelSpec | None:
+    if value is None:
+        return None
+    if isinstance(value, ModelSpec):
+        return value
+    if not isinstance(value, Mapping):
+        raise ValidationError("Provider model spec must be an object")
+    try:
+        return ModelSpec.from_dict(value)
+    except (TypeError, ValueError) as exc:
+        raise ValidationError(f"Invalid Provider model spec: {exc}") from exc
+
+
+def _resolve_model_spec(
+    *,
+    explicit: Any = _MISSING,
+    metadata: Mapping[str, Any] | None = None,
+) -> ModelSpec | None:
+    if explicit is not _MISSING:
+        return _parse_model_spec(explicit)
+    embedded = _embedded_model_spec(metadata or {})
+    return _parse_model_spec(embedded) if embedded is not None else None
+
+
+def _apply_normalized_spec(
+    item: ProviderModel,
+    spec: ModelSpec | None,
+    *,
+    clear_when_none: bool = False,
+) -> None:
+    if spec is None:
+        if clear_when_none:
+            item.model_type = None
+            item.spec = None
+            item.spec_version = None
+            item.spec_hash = None
+        return
+
+    item.model_type = spec.model_type
+    item.spec = spec.as_dict()
+    item.spec_version = spec.spec_version
+    item.spec_hash = model_spec_hash(spec)
 
 
 class CreateProviderModelUseCase:
@@ -31,14 +97,29 @@ class CreateProviderModelUseCase:
             input_dto.provider_credential_id,
             input_dto.project_id,
         )
+        metadata = input_dto.metadata or {}
+        spec = _resolve_model_spec(
+            explicit=(
+                input_dto.spec
+                if input_dto.spec is not None
+                else _MISSING
+            ),
+            metadata=metadata,
+        )
         item = ProviderModel(
             project_id=input_dto.project_id,
             provider_credential_id=input_dto.provider_credential_id,
             name=input_dto.name.strip(),
             model=input_dto.model.strip(),
-            metadata=input_dto.metadata or {},
+            model_type=input_dto.model_type,
+            spec=input_dto.spec,
+            spec_version=input_dto.spec_version,
+            spec_hash=input_dto.spec_hash,
+            metadata=metadata,
             status=ProviderModelStatus.active,
         )
+        _apply_normalized_spec(item, spec)
+
         if not item.name:
             raise ValidationError("Provider model name is required")
         if not item.model:
@@ -89,12 +170,33 @@ class UpdateProviderModelUseCase:
                 item.provider_credential_id,
                 item.project_id,
             )
+
         if "name" in data and data["name"] is not None:
             item.name = data["name"].strip()
         if "model" in data and data["model"] is not None:
             item.model = data["model"].strip()
         if "metadata" in data and data["metadata"] is not None:
             item.metadata = data["metadata"] or {}
+        if "model_type" in data:
+            item.model_type = data["model_type"]
+        if "spec_version" in data:
+            item.spec_version = data["spec_version"]
+        if "spec_hash" in data:
+            item.spec_hash = data["spec_hash"]
+
+        explicit_spec = data.get("spec", _MISSING)
+        should_re_resolve = explicit_spec is not _MISSING or "metadata" in data
+        if should_re_resolve:
+            spec = _resolve_model_spec(
+                explicit=explicit_spec,
+                metadata=item.metadata,
+            )
+            _apply_normalized_spec(
+                item,
+                spec,
+                clear_when_none=explicit_spec is None,
+            )
+
         if "status" in data and data["status"] is not None:
             item.status = data["status"]
         if not item.name:
@@ -179,6 +281,10 @@ def _provider_model_to_output(item: ProviderModel, provider=None) -> ProviderMod
         provider=provider,
         name=item.name,
         model=item.model,
+        model_type=item.model_type,
+        spec=item.spec,
+        spec_version=item.spec_version,
+        spec_hash=item.spec_hash,
         status=item.status,
         metadata=item.metadata,
         created_at=item.created_at,
