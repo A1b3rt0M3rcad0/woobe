@@ -4,8 +4,12 @@ import json
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, Coroutine
 
-from modules.agent.application.dtos.rag_config_dtos import RAGRuntimeConfig
 from modules.agent.application.interfaces.context_manager import ContextManager
+from modules.agent.application.interfaces.knowledge import KnowledgeStrategy
+from modules.agent.application.knowledge_strategy_registry import (
+    build_knowledge_strategy_registry,
+    knowledge_strategy_from_runtime_config,
+)
 from modules.agent.application.interfaces.context_policy import resolve_context_policy
 from modules.agent.application.interfaces.execution import InstrumentedExecution
 from modules.agent.application.interfaces.execution_context import current_execution
@@ -62,8 +66,8 @@ class PreparedExecution:
     context_manager: ContextManager | None
     tool_definitions: list[dict]
     knowledge_retrieve: Callable[[str], Awaitable[Any]] | None
-    knowledge_query_mode: str
-    knowledge_history_turns: int
+    knowledge_strategy: KnowledgeStrategy
+    knowledge_runtime_config: dict[str, Any]
 
     @property
     def context_assembler(self) -> ContextManager | None:
@@ -91,24 +95,6 @@ def _fallback_pricing_snapshot(request: ExecutionStrategyRequest) -> dict[str, A
     settings = request.agent.settings or {}
     value = settings.get("fallback_model_pricing")
     return value if isinstance(value, dict) else None
-
-
-def _knowledge_query_policy(
-    runtime_config: Any,
-    *,
-    enabled: bool,
-) -> tuple[str, int]:
-    if not enabled:
-        return "conversation_context", 3
-
-    raw_rag = (
-        runtime_config.get("rag")
-        if isinstance(runtime_config, dict)
-        and isinstance(runtime_config.get("rag"), dict)
-        else {}
-    )
-    config = RAGRuntimeConfig.model_validate(raw_rag)
-    return config.query_mode, config.history_turns
 
 
 def _positive_int(value: Any) -> int | None:
@@ -144,6 +130,22 @@ def _bind_context_runtime(
         "session_max_messages": policy.session.max_messages,
         "session_max_units": policy.session.max_units,
     }
+
+
+@dataclass(frozen=True, slots=True)
+class _PreparedKnowledge:
+    strategy: KnowledgeStrategy
+    runtime_config: dict[str, Any]
+
+
+def _prepare_knowledge(runtime_config: Any) -> _PreparedKnowledge:
+    config = dict(runtime_config) if isinstance(runtime_config, dict) else {}
+    name = knowledge_strategy_from_runtime_config(config)
+    strategy = build_knowledge_strategy_registry().resolve(name)
+    return _PreparedKnowledge(
+        strategy=strategy,
+        runtime_config=config,
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -439,11 +441,7 @@ def prepare_execution(request: ExecutionStrategyRequest) -> PreparedExecution:
         else str(agent.provider)
     )
     runtime_config = (agent.settings or {}).get("runtime_config")
-    knowledge_query_mode, knowledge_history_turns = _knowledge_query_policy(
-        runtime_config,
-        enabled=request.knowledge_retrieve is not None,
-    )
-
+    knowledge = _prepare_knowledge(runtime_config)
     tools = _prepare_tools(request, runtime_config)
     pricing_snapshot = _primary_pricing_snapshot(request)
     effective_output_tokens = resolve_effective_output_tokens(
@@ -498,6 +496,6 @@ def prepare_execution(request: ExecutionStrategyRequest) -> PreparedExecution:
         context_manager=request.context_manager,
         tool_definitions=tools.definitions,
         knowledge_retrieve=request.knowledge_retrieve,
-        knowledge_query_mode=knowledge_query_mode,
-        knowledge_history_turns=knowledge_history_turns,
+        knowledge_strategy=knowledge.strategy,
+        knowledge_runtime_config=knowledge.runtime_config,
     )
