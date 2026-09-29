@@ -269,6 +269,7 @@ async def test_agent_runtime_keeps_legacy_agent_on_standard_strategy() -> None:
     resolver = _RecordingResolver(strategy)
     runtime = _RuntimeHost()
     runtime.configure_execution_strategy_resolver(resolver)
+    runtime.configure_knowledge_strategy_resolver(build_knowledge_strategy_registry())
     agent = SimpleNamespace(settings={})
 
     await runtime._execute_llm(
@@ -292,6 +293,7 @@ async def test_frozen_release_runtime_config_wins_over_mutable_agent_state() -> 
     resolver = _RecordingResolver(strategy)
     runtime = _RuntimeHost()
     runtime.configure_execution_strategy_resolver(resolver)
+    runtime.configure_knowledge_strategy_resolver(build_knowledge_strategy_registry())
     agent = SimpleNamespace(
         settings={"runtime_config": {"execution_strategy": "react"}},
     )
