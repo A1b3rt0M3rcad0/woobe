@@ -259,3 +259,37 @@ def test_manual_provider_model_overrides_update_normalized_spec() -> None:
     assert resolved.capability(ModelCapabilityNames.STREAMING).supported is True
     assert resolved.pricing["input_cost_per_1m_tokens"] == 0.5
     assert resolved.pricing["output_cost_per_1m_tokens"] == 1.5
+
+
+def test_manual_unknown_tool_capability_preserves_legacy_behavior_with_warning() -> None:
+    spec = ModelSpec(
+        provider="openai_compatible",
+        model_id="manual-model",
+        display_name="Manual Model",
+        model_type=ModelTypes.LANGUAGE,
+        operations=frozenset({ModelOperations.LANGUAGE_GENERATE}),
+        input_modalities=frozenset({ModelModalities.TEXT}),
+        output_modalities=frozenset({ModelModalities.TEXT}),
+        interaction=ModelInteractionSpec(
+            mode="conversation",
+            supports_conversation=True,
+            supports_history=True,
+            supports_system_instruction=True,
+            supports_context_injection=True,
+        ),
+        source="manual",
+    )
+
+    report = ModelExecutionCompatibilityResolver().resolve(
+        RuntimeCompatibilityRequest(
+            model=spec,
+            execution=STANDARD_EXECUTION_COMPATIBILITY,
+            tools_enabled=True,
+            context_enabled=True,
+            required_input_modalities=frozenset({ModelModalities.TEXT}),
+            required_output_modalities=frozenset({ModelModalities.TEXT}),
+        )
+    )
+
+    assert report.compatible is True
+    assert [issue.code for issue in report.warnings] == ["model_capability_unknown"]
