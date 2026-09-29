@@ -34,6 +34,7 @@ def test_execution_strategy_catalog_is_backend_owned_and_complete() -> None:
         assert descriptor["recommended_for"]
         assert descriptor["capabilities"]
         assert descriptor["limitations"]
+        assert descriptor["compatibility"]
 
 
 def test_registry_owns_strategy_metadata_contract() -> None:
@@ -59,6 +60,7 @@ def test_registry_rejects_duplicate_and_unknown_strategies() -> None:
         recommended_for=("Tests.",),
         capabilities=("None.",),
         limitations=("Not selectable.",),
+        compatibility=registry.get("standard").compatibility,
     )
 
     with pytest.raises(DuplicateExecutionStrategyError):
