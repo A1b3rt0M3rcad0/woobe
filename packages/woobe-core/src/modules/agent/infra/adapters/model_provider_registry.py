@@ -128,6 +128,7 @@ def _language_spec(
     max_input_tokens: int | None = None,
     max_output_tokens: int | None = None,
     capabilities: Mapping[str, ModelCapability] | None = None,
+    pricing: Mapping[str, Any] | None = None,
     raw: Mapping[str, Any] | None = None,
     source: str = "provider",
 ) -> ModelSpec:
@@ -156,6 +157,7 @@ def _language_spec(
             max_input_tokens=max_input_tokens,
             max_output_tokens=max_output_tokens,
         ),
+        pricing=dict(pricing or {}),
         default_model_strategy=ModelOperations.LANGUAGE_GENERATE,
         source=source,
         metadata={"provider_model_raw": dict(raw or {})},
@@ -168,6 +170,7 @@ def _embedding_spec(
     model_id: str,
     display_name: str,
     max_input_tokens: int | None = None,
+    pricing: Mapping[str, Any] | None = None,
     raw: Mapping[str, Any] | None = None,
     source: str = "provider",
 ) -> ModelSpec:
@@ -185,6 +188,7 @@ def _embedding_spec(
         ),
         capabilities={},
         limits=ModelLimits(max_input_tokens=max_input_tokens),
+        pricing=dict(pricing or {}),
         default_model_strategy=ModelOperations.EMBEDDING_CREATE,
         source=source,
         metadata={"provider_model_raw": dict(raw or {})},
@@ -306,6 +310,10 @@ class _DiscoveryServiceProviderAdapter:
                 model_id=model_id,
                 display_name=display_name,
                 max_input_tokens=getattr(item, "context_window", None),
+                pricing={
+                    "input_cost_per_1m_tokens": getattr(item, "input_cost_per_1m_tokens", None),
+                    "output_cost_per_1m_tokens": getattr(item, "output_cost_per_1m_tokens", None),
+                },
                 raw=raw,
             )
 
@@ -318,6 +326,10 @@ class _DiscoveryServiceProviderAdapter:
             context_window=getattr(item, "context_window", None),
             max_output_tokens=getattr(item, "max_output_tokens", None),
             capabilities=_common_discovery_capabilities(item),
+            pricing={
+                "input_cost_per_1m_tokens": getattr(item, "input_cost_per_1m_tokens", None),
+                "output_cost_per_1m_tokens": getattr(item, "output_cost_per_1m_tokens", None),
+            },
             raw=raw,
         )
 
