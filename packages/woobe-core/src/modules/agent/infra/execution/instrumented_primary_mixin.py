@@ -9,12 +9,6 @@ from uuid import uuid4
 from modules.agent.application.execution_strategy_config import (
     execution_strategy_from_runtime_config,
 )
-from modules.agent.application.knowledge_strategy_config import (
-    knowledge_strategy_from_runtime_config,
-)
-from modules.agent.application.runtime_output_validation import (
-    ensure_model_result_has_public_output,
-)
 from modules.agent.application.interfaces.context_manager import (
     ContextManager,
     context_manager_key_from_runtime_config,
@@ -34,6 +28,12 @@ from modules.agent.application.interfaces.execution_strategy import (
     ExecutionStrategyResolver,
 )
 from modules.agent.application.interfaces.knowledge import KnowledgeStrategyResolver
+from modules.agent.application.knowledge_strategy_config import (
+    knowledge_strategy_from_runtime_config,
+)
+from modules.agent.application.runtime_output_validation import (
+    ensure_model_result_has_public_output,
+)
 from modules.agent.application.tool_converter import MCP_PROVIDER_ROUTE_SEPARATOR
 from modules.agent.domain.events import AgentExecutionFailedV1
 from modules.agent.infra.database.runtime_transaction_runner import (
