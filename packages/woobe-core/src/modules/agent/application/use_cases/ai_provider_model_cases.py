@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import replace
+from types import SimpleNamespace
 from typing import Any, Mapping
 from uuid import UUID
 
@@ -9,13 +11,22 @@ from modules.agent.application.dtos.ai_dtos import (
     ProviderModelOutput,
     UpdateProviderModelInput,
 )
+from modules.agent.application.interfaces.model_spec_compatibility import (
+    LegacyModelSpecResolver,
+)
 from modules.agent.application.interfaces.provider_model_repository import (
     ProviderModelRepository,
 )
 from modules.agent.application.interfaces.repositories import ProviderCredentialRepository
 from modules.agent.domain.entities import ProviderModel
 from modules.agent.domain.enums import CredentialStatus, ProviderModelStatus
-from modules.agent.domain.model_spec import ModelSpec, model_spec_hash
+from modules.agent.domain.model_spec import (
+    ModelCapability,
+    ModelCapabilityNames,
+    ModelLimits,
+    ModelSpec,
+    model_spec_hash,
+)
 from shared.contracts.errors import ValidationError
 
 
@@ -61,6 +72,113 @@ def _resolve_model_spec(
         return _parse_model_spec(explicit)
     embedded = _embedded_model_spec(metadata or {})
     return _parse_model_spec(embedded) if embedded is not None else None
+
+
+def _positive_int(value: Any) -> int | None:
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed > 0 else None
+
+
+def _provider_value(value: Any) -> str:
+    return str(getattr(value, "value", value))
+
+
+def _apply_model_spec_overrides(
+    spec: ModelSpec,
+    metadata: Mapping[str, Any] | None,
+) -> ModelSpec:
+    metadata = _mapping(metadata)
+    capability_metadata = _mapping(metadata.get("capabilities"))
+    capability_source = str(
+        metadata.get("capability_source")
+        or metadata.get("source")
+        or "manual"
+    )
+
+    capabilities = dict(spec.capabilities)
+    capability_keys = {
+        "supports_tools": ModelCapabilityNames.TOOL_CALLING,
+        "supports_json": ModelCapabilityNames.STRUCTURED_OUTPUT,
+        "supports_streaming": ModelCapabilityNames.STREAMING,
+    }
+    for legacy_key, normalized_key in capability_keys.items():
+        supported = capability_metadata.get(legacy_key)
+        if not isinstance(supported, bool):
+            continue
+        existing = capabilities.get(normalized_key)
+        capabilities[normalized_key] = ModelCapability(
+            supported=supported,
+            config=(dict(existing.config) if existing is not None else {}),
+            source=capability_source,
+        )
+
+    context_window = _positive_int(metadata.get("context_window"))
+    max_output_tokens = _positive_int(metadata.get("max_output_tokens"))
+    limits = ModelLimits(
+        context_window=(
+            context_window
+            if context_window is not None
+            else spec.limits.context_window
+        ),
+        max_input_tokens=spec.limits.max_input_tokens,
+        max_output_tokens=(
+            max_output_tokens
+            if max_output_tokens is not None
+            else spec.limits.max_output_tokens
+        ),
+        max_batch_size=spec.limits.max_batch_size,
+        max_input_bytes=spec.limits.max_input_bytes,
+        max_output_bytes=spec.limits.max_output_bytes,
+    )
+
+    pricing = dict(spec.pricing)
+    pricing_override = _mapping(metadata.get("pricing"))
+    for key in (
+        "input_cost_per_1m_tokens",
+        "output_cost_per_1m_tokens",
+        "currency",
+        "billing_unit",
+        "source",
+    ):
+        value = pricing_override.get(key)
+        if value is not None:
+            pricing[key] = value
+
+    return replace(
+        spec,
+        capabilities=capabilities,
+        limits=limits,
+        pricing=pricing,
+    )
+
+
+def _manual_model_spec(
+    item: ProviderModel,
+    *,
+    provider: Any,
+    explicit_model_type: str | None = None,
+) -> ModelSpec:
+    metadata = dict(item.metadata or {})
+    if explicit_model_type:
+        metadata["model_type"] = explicit_model_type
+    compatibility_model = SimpleNamespace(
+        id=item.id,
+        provider_credential_id=item.provider_credential_id,
+        name=item.name,
+        model=item.model,
+        metadata=metadata,
+    )
+    spec = LegacyModelSpecResolver().resolve(
+        compatibility_model,
+        provider=_provider_value(provider),
+    )
+    spec = replace(spec, source="manual")
+    return _apply_model_spec_overrides(spec, metadata)
 
 
 def _apply_normalized_spec(
@@ -118,6 +236,14 @@ class CreateProviderModelUseCase:
             metadata=metadata,
             status=ProviderModelStatus.active,
         )
+        if spec is None:
+            spec = _manual_model_spec(
+                item,
+                provider=credential.provider,
+                explicit_model_type=input_dto.model_type,
+            )
+        else:
+            spec = _apply_model_spec_overrides(spec, metadata)
         _apply_normalized_spec(item, spec)
 
         if not item.name:
@@ -185,12 +311,37 @@ class UpdateProviderModelUseCase:
             item.spec_hash = data["spec_hash"]
 
         explicit_spec = data.get("spec", _MISSING)
-        should_re_resolve = explicit_spec is not _MISSING or "metadata" in data
+        should_re_resolve = (
+            explicit_spec is not _MISSING
+            or "metadata" in data
+            or "model" in data
+            or "model_type" in data
+            or "provider_credential_id" in data
+        )
         if should_re_resolve:
-            spec = _resolve_model_spec(
-                explicit=explicit_spec,
-                metadata=item.metadata,
-            )
+            if explicit_spec is None:
+                spec = None
+            elif explicit_spec is not _MISSING:
+                spec = _resolve_model_spec(
+                    explicit=explicit_spec,
+                    metadata=item.metadata,
+                )
+            elif "metadata" in data:
+                spec = _resolve_model_spec(metadata=item.metadata)
+                if spec is None and item.spec is not None:
+                    spec = _parse_model_spec(item.spec)
+            else:
+                spec = None
+
+            if spec is None and explicit_spec is not None:
+                spec = _manual_model_spec(
+                    item,
+                    provider=credential.provider,
+                    explicit_model_type=item.model_type,
+                )
+            elif spec is not None:
+                spec = _apply_model_spec_overrides(spec, item.metadata)
+
             _apply_normalized_spec(
                 item,
                 spec,

@@ -27,6 +27,9 @@ from modules.agent.application.interfaces.provider_registry import (
     ProviderManifest,
     ProviderRegistry,
 )
+from modules.agent.application.use_cases.ai_provider_model_cases import (
+    _apply_model_spec_overrides,
+)
 from modules.agent.domain.model_spec import (
     ModelCapability,
     ModelCapabilityNames,
@@ -207,3 +210,52 @@ def test_output_validation_is_modality_aware() -> None:
     EmbeddingModelOutputStrategy().validate(result)
     with pytest.raises(ValueError, match="text output"):
         TextModelOutputStrategy().validate(result)
+
+
+def test_manual_provider_model_overrides_update_normalized_spec() -> None:
+    spec = ModelSpec(
+        provider="openai",
+        model_id="language-v1",
+        display_name="Language V1",
+        model_type=ModelTypes.LANGUAGE,
+        operations=frozenset({ModelOperations.LANGUAGE_GENERATE}),
+        input_modalities=frozenset({ModelModalities.TEXT}),
+        output_modalities=frozenset({ModelModalities.TEXT}),
+        interaction=ModelInteractionSpec(
+            mode="conversation",
+            supports_conversation=True,
+        ),
+        capabilities={
+            ModelCapabilityNames.TOOL_CALLING: ModelCapability(
+                supported=True,
+                source="provider",
+            ),
+        },
+    )
+
+    resolved = _apply_model_spec_overrides(
+        spec,
+        {
+            "context_window": 64000,
+            "max_output_tokens": 4096,
+            "capability_source": "manual",
+            "capabilities": {
+                "supports_tools": False,
+                "supports_json": True,
+                "supports_streaming": True,
+            },
+            "pricing": {
+                "input_cost_per_1m_tokens": 0.5,
+                "output_cost_per_1m_tokens": 1.5,
+                "currency": "USD",
+            },
+        },
+    )
+
+    assert resolved.limits.context_window == 64000
+    assert resolved.limits.max_output_tokens == 4096
+    assert resolved.capability(ModelCapabilityNames.TOOL_CALLING).supported is False
+    assert resolved.capability(ModelCapabilityNames.STRUCTURED_OUTPUT).supported is True
+    assert resolved.capability(ModelCapabilityNames.STREAMING).supported is True
+    assert resolved.pricing["input_cost_per_1m_tokens"] == 0.5
+    assert resolved.pricing["output_cost_per_1m_tokens"] == 1.5
