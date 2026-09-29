@@ -1,7 +1,28 @@
 from dataclasses import dataclass, field
 from typing import Any
 
-from modules.agent.application.dtos.runtime_dtos import ToolCallInfo
+from modules.agent.application.dtos.runtime_dtos import SourceInfo, ToolCallInfo
+from modules.agent.application.interfaces.knowledge import KnowledgeSource
+
+
+def source_info_from_knowledge_source(source: KnowledgeSource) -> SourceInfo:
+    """Translate framework-neutral Knowledge provenance at the execution boundary."""
+
+    return SourceInfo(
+        document_id=source.document_id,
+        document_title=source.document_title,
+        chunk_id=source.chunk_id,
+        page_number=source.page_number,
+        score=source.score,
+        content_preview=source.content_preview,
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class ExecutionSuspension:
+    reason: str
+    operation_ref: str | None = None
+    metadata: dict[str, Any] | None = None
 
 
 @dataclass
@@ -9,10 +30,15 @@ class InstrumentedExecution:
     result: Any
     tool_calls: list[ToolCallInfo] = field(default_factory=list)
     llm_calls: list[dict[str, Any]] = field(default_factory=list)
+    knowledge_calls: list[dict[str, Any]] = field(default_factory=list)
+    sources: list[SourceInfo] = field(default_factory=list)
     timeline: list[dict[str, Any]] = field(default_factory=list)
     tool_wall_latency_ms: int = 0
     tool_call_duration_sum_ms: int = 0
     failure_context: dict[str, Any] | None = None
+    fallback_used: bool = False
+    fallback_info: dict[str, Any] | None = None
+    suspension: ExecutionSuspension | None = None
 
 
 class InstrumentedExecutionError(RuntimeError):
@@ -22,6 +48,8 @@ class InstrumentedExecutionError(RuntimeError):
         *,
         llm_calls: list[dict[str, Any]] | None = None,
         tool_calls: list[ToolCallInfo] | None = None,
+        knowledge_calls: list[dict[str, Any]] | None = None,
+        sources: list[SourceInfo] | None = None,
         timeline: list[dict[str, Any]] | None = None,
         tool_wall_latency_ms: int = 0,
         tool_call_duration_sum_ms: int = 0,
@@ -30,6 +58,8 @@ class InstrumentedExecutionError(RuntimeError):
         super().__init__(message)
         self.llm_calls = llm_calls or []
         self.tool_calls = tool_calls or []
+        self.knowledge_calls = knowledge_calls or []
+        self.sources = sources or []
         self.timeline = timeline or []
         self.tool_wall_latency_ms = tool_wall_latency_ms
         self.tool_call_duration_sum_ms = tool_call_duration_sum_ms

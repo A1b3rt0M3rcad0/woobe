@@ -15,9 +15,11 @@ concurrency:
 
 jobs:
   tests:
-    runs-on: ubuntu-24.04
+    name: tests
+    runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 45
     steps:
+
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           fetch-depth: 0
@@ -58,7 +60,7 @@ jobs:
         continue-on-error: true
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
-          name: woobe-backend-test-evidence
+          name: woobe-backend-test-evidence-self-hosted
           path: .test-artifacts
           if-no-files-found: warn
           include-hidden-files: true

@@ -2,12 +2,20 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 from typing import Any
+from uuid import uuid4
 
 import pytest
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, HumanMessage
 
+from modules.agent.application.context_managers.standard import StandardContextManager
+from modules.agent.application.dtos.runtime_dtos import SourceInfo
 from modules.agent.application.interfaces.execution import InstrumentedExecutionError
+from modules.agent.application.interfaces.execution_context import (
+    current_execution,
+    new_execution_context,
+)
 from modules.agent.application.interfaces.execution_strategy import ExecutionStrategyRequest
+from modules.agent.application.knowledge_strategy_registry import build_knowledge_strategy_registry
 from modules.agent.infra.execution.strategies.standard import StandardExecutionStrategy
 from modules.agent.infra.execution.strategy_runtime.runner import execute_strategy
 
@@ -16,12 +24,14 @@ class _SequenceModel:
     def __init__(self, responses: list[AIMessage]) -> None:
         self.responses = responses
         self.invocation_count = 0
+        self.invocations: list[list[Any]] = []
 
     def bind_tools(self, _tools, *, tool_choice):
         assert tool_choice == "auto"
         return self
 
     async def ainvoke(self, _messages):
+        self.invocations.append(list(_messages))
         response = self.responses[self.invocation_count]
         self.invocation_count += 1
         return response
@@ -71,12 +81,15 @@ def _request(
     tool_name_to_id: dict[str, str] | None = None,
     json_enabled: bool = False,
     response_format: dict | None = None,
+    knowledge_retrieve=None,
+    agent: Any | None = None,
+    messages: list[Any] | None = None,
 ) -> ExecutionStrategyRequest:
     return ExecutionStrategyRequest(
         llm_factory=factory,
         execute_single_tool=execute_single_tool,
         clean_json_answer=lambda value: value,
-        agent=_agent(),
+        agent=agent or _agent(),
         api_key="test-key",
         base_url=None,
         response_format=response_format or {},
@@ -84,13 +97,26 @@ def _request(
         has_tools=has_tools,
         agent_tools=agent_tools or [],
         tool_name_to_id=tool_name_to_id or {},
-        messages=[],
-        context_assembler=None,
+        messages=list(messages or []),
+        context_assembler=StandardContextManager(),
+        knowledge_retrieve=knowledge_retrieve,
+        knowledge_strategy=build_knowledge_strategy_registry().resolve("rag"),
     )
 
 
 async def _execute(request: ExecutionStrategyRequest):
-    return await execute_strategy(StandardExecutionStrategy(), request)
+    existing = current_execution.get()
+    if existing is not None:
+        return await execute_strategy(StandardExecutionStrategy(), request)
+
+    context = new_execution_context()
+    context.run_id = uuid4()
+    context.project_id = uuid4()
+    token = current_execution.set(context)
+    try:
+        return await execute_strategy(StandardExecutionStrategy(), request)
+    finally:
+        current_execution.reset(token)
 
 
 @pytest.mark.asyncio
@@ -114,6 +140,106 @@ async def test_standard_strategy_preserves_single_model_execution_without_tools(
     assert execution.result.content == "direct answer"
     assert execution.tool_calls == []
     assert [call["phase"] for call in execution.llm_calls] == ["response_generation"]
+
+
+@pytest.mark.asyncio
+async def test_standard_strategy_retries_one_empty_terminal_output() -> None:
+    model = _SequenceModel(
+        [
+            AIMessage(content=""),
+            AIMessage(content="recovered answer"),
+        ]
+    )
+    factory = _RecordingFactory(model)
+
+    async def execute_single_tool(_tool_call, _tool_id):
+        raise AssertionError("Tool execution must not run")
+
+    execution = await _execute(
+        _request(
+            factory=factory,
+            execute_single_tool=execute_single_tool,
+            has_tools=False,
+        )
+    )
+
+    assert execution.result.content == "recovered answer"
+    assert model.invocation_count == 2
+    assert [call["phase"] for call in execution.llm_calls] == [
+        "response_generation",
+        "final_response_generation",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_standard_strategy_empty_tool_followup_retries_without_replaying_tool() -> None:
+    model = _SequenceModel(
+        [
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "name": "sum",
+                        "args": {"a": 8, "b": 8},
+                        "id": "call-1",
+                        "type": "tool_call",
+                    }
+                ],
+            ),
+            AIMessage(content=""),
+            AIMessage(content="16"),
+        ]
+    )
+    factory = _RecordingFactory(model)
+    executed: list[str] = []
+
+    async def execute_single_tool(_tool_call, resolved_tool_id):
+        executed.append(resolved_tool_id)
+        return {
+            "success": True,
+            "output": {
+                "body": {"result": "16", "error": None},
+                "status_code": 200,
+            },
+            "duration_ms": 1,
+            "error": None,
+        }
+
+    execution = await _execute(
+        _request(
+            factory=factory,
+            execute_single_tool=execute_single_tool,
+            has_tools=True,
+            agent_tools=[
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "sum",
+                        "description": "Sum two integers",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "a": {"type": "integer"},
+                                "b": {"type": "integer"},
+                            },
+                            "required": ["a", "b"],
+                        },
+                    },
+                }
+            ],
+            tool_name_to_id={"sum": "tool-id"},
+        )
+    )
+
+    assert execution.result.content == "16"
+    assert executed == ["tool-id"]
+    assert model.invocation_count == 3
+    assert len(execution.tool_calls) == 1
+    assert [call["phase"] for call in execution.llm_calls] == [
+        "capability_response_generation",
+        "tool_followup_1",
+        "final_response_generation",
+    ]
 
 
 @pytest.mark.asyncio
@@ -255,6 +381,58 @@ async def test_standard_strategy_preserves_structured_json_repair() -> None:
 
 
 @pytest.mark.asyncio
+async def test_standard_strategy_decides_fallback_through_model_capability() -> None:
+    primary = _FailingModel()
+    fallback = _SequenceModel([AIMessage(content="fallback answer")])
+    factory = _MultiModelFactory([primary, fallback])
+    agent = SimpleNamespace(
+        provider="openrouter",
+        model="primary-model",
+        fallback_provider="openai",
+        fallback_model="fallback-model",
+        fallback_credential_id="fallback-credential",
+        fallback_provider_model_id=None,
+        temperature=0.2,
+        max_output_tokens=1000,
+        settings={},
+    )
+
+    async def execute_single_tool(_tool_call, _tool_id):
+        raise AssertionError("Tool execution must not run")
+
+    context = new_execution_context()
+    context.prepared_fallback = {
+        "api_key": "fallback-key",
+        "base_url": None,
+    }
+    token = current_execution.set(context)
+    try:
+        execution = await _execute(
+            _request(
+                factory=factory,
+                execute_single_tool=execute_single_tool,
+                has_tools=False,
+                agent=agent,
+            )
+        )
+    finally:
+        current_execution.reset(token)
+
+    assert execution.result.content == "fallback answer"
+    assert execution.fallback_used is True
+    assert execution.fallback_info is not None
+    assert execution.fallback_info["primary_error"] == "provider down"
+    assert execution.fallback_info["fallback_provider"] == "openai"
+    assert [call["phase"] for call in execution.llm_calls] == [
+        "response_generation",
+        "fallback_response_generation",
+    ]
+    assert len(factory.calls) == 2
+    assert factory.calls[1]["provider"] == "openai"
+    assert factory.calls[1]["model"] == "fallback-model"
+
+
+@pytest.mark.asyncio
 async def test_standard_strategy_preserves_model_failure_instrumentation() -> None:
     factory = _RecordingFactory(_FailingModel())
 
@@ -331,4 +509,95 @@ async def test_standard_strategy_preserves_failed_tool_evidence() -> None:
     assert [call["phase"] for call in execution.llm_calls] == [
         "capability_response_generation",
         "tool_followup_1",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_standard_strategy_retrieves_knowledge_and_materializes_it_in_context_once() -> None:
+    model = _SequenceModel([AIMessage(content="grounded answer")])
+    factory = _RecordingFactory(model)
+    retrievals: list[str] = []
+
+    async def retrieve_knowledge(query: str):
+        retrievals.append(query)
+        return SimpleNamespace(
+            context="Woobe runtime knowledge",
+            sources=(
+                SourceInfo(
+                    document_id="doc-1",
+                    chunk_id="chunk-1",
+                    score=0.93,
+                ),
+            ),
+            metrics={"retrieved_chunks": 1},
+        )
+
+    async def execute_single_tool(_tool_call, _tool_id):
+        raise AssertionError("Tool execution must not run")
+
+    execution = await _execute(
+        _request(
+            factory=factory,
+            execute_single_tool=execute_single_tool,
+            has_tools=False,
+            knowledge_retrieve=retrieve_knowledge,
+            messages=[HumanMessage(content="How does Woobe execute agents?")],
+        )
+    )
+
+    assert retrievals == ["How does Woobe execute agents?"]
+    assert len(execution.knowledge_calls) == 1
+    assert execution.knowledge_calls[0]["found"] is True
+    assert len(execution.sources) == 1
+    assert execution.sources[0].document_id == "doc-1"
+    assert [item["kind"] for item in execution.timeline] == ["knowledge", "llm"]
+
+    serialized = str(model.invocations[0])
+    assert "Woobe runtime knowledge" in serialized
+    assert "source_type" in serialized
+    assert "KNOWLEDGE" in serialized
+
+
+@pytest.mark.asyncio
+async def test_standard_delegates_conversation_query_to_knowledge() -> None:
+    model = _SequenceModel([AIMessage(content="grounded answer")])
+    factory = _RecordingFactory(model)
+    retrievals: list[str] = []
+
+    async def retrieve_knowledge(query: str):
+        retrievals.append(query)
+        return SimpleNamespace(context=None, sources=(), metrics={})
+
+    async def execute_single_tool(_tool_call, _tool_id):
+        raise AssertionError("Tool execution must not run")
+
+    agent = _agent()
+    agent.settings = {
+        "runtime_config": {
+            "rag": {
+                "query_mode": "conversation_context",
+                "history_turns": 1,
+            }
+        }
+    }
+
+    await _execute(
+        _request(
+            factory=factory,
+            execute_single_tool=execute_single_tool,
+            has_tools=False,
+            knowledge_retrieve=retrieve_knowledge,
+            agent=agent,
+            messages=[
+                HumanMessage(content="What is Woobe?"),
+                AIMessage(content="It is an agentic runtime."),
+                HumanMessage(content="How does execution work?"),
+            ],
+        )
+    )
+
+    assert retrievals == [
+        "User: What is Woobe?\n"
+        "Assistant: It is an agentic runtime.\n"
+        "Current user message: How does execution work?"
     ]

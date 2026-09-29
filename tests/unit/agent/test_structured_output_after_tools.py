@@ -2,6 +2,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from modules.agent.application.knowledge_strategy_registry import build_knowledge_strategy_registry
 from modules.agent.infra.execution.strategies.resolver import (
     build_execution_strategy_resolver,
 )
@@ -41,6 +42,9 @@ async def test_tool_followup_returns_structured_result_without_repair_call():
     )
     use_case.configure_execution_strategy_resolver(
         build_execution_strategy_resolver()
+    )
+    use_case.configure_knowledge_strategy_resolver(
+        build_knowledge_strategy_registry()
     )
     use_case._execute_single_tool = AsyncMock(
         return_value={"success": True, "output": {"result": "16"}}

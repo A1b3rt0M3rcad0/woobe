@@ -4,17 +4,20 @@ from copy import deepcopy
 from datetime import datetime, timezone
 from uuid import UUID
 
-from modules.agent.application.context_assembler_registry import (
-    canonicalize_context_assembler_runtime_config,
+from modules.agent.application.context_manager_registry import (
+    canonicalize_context_manager_runtime_config,
 )
 from modules.agent.application.context_policy import canonicalize_context_runtime_config
-from modules.agent.application.execution_strategy_config import (
-    execution_strategy_from_runtime_config,
-)
 from modules.agent.application.dtos.ai_dtos import CreateReleaseInput, CreateReleaseOutput
 from modules.agent.application.dtos.behavior_dtos import canonicalize_behavior_spec
 from modules.agent.application.dtos.rag_config_dtos import RAGRuntimeConfig
+from modules.agent.application.execution_strategy_config import (
+    execution_strategy_from_runtime_config,
+)
 from modules.agent.application.interfaces.repositories import AgentReleaseRepository
+from modules.agent.application.knowledge_strategy_config import (
+    knowledge_strategy_from_runtime_config,
+)
 from modules.agent.application.system_instruction_assembler import assemble_system_instructions
 from modules.agent.domain.entities import AgentRelease
 from modules.agent.domain.enums import ReleaseStatus
@@ -41,13 +44,16 @@ _SNAPSHOT_FIELDS = (
 
 
 def _canonical_runtime_config(value) -> dict:
-    runtime_config = canonicalize_context_assembler_runtime_config(value)
+    runtime_config = canonicalize_context_manager_runtime_config(value)
     # Validate an explicit strategy, but do not backfill historical snapshots that
     # predate this field. Absence is permanently defined as Standard, so preserving
     # it avoids changing old snapshot material/hashes while keeping behavior stable.
     strategy = execution_strategy_from_runtime_config(runtime_config)
     if "execution_strategy" in runtime_config:
         runtime_config["execution_strategy"] = strategy
+    knowledge_strategy = knowledge_strategy_from_runtime_config(runtime_config)
+    if "knowledge_strategy" in runtime_config:
+        runtime_config["knowledge_strategy"] = knowledge_strategy
     runtime_config = canonicalize_context_runtime_config(runtime_config)
     raw_rag = runtime_config.get("rag")
     runtime_config["rag"] = RAGRuntimeConfig.model_validate(

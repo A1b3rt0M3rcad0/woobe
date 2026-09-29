@@ -33,10 +33,14 @@ class _TwoPassToolStrategy(ExecutionStrategy[_TwoPassState]):
         ctx: StrategyContext[_TwoPassState],
     ) -> StrategyOutcome:
         result = None
+        tools = ctx.tools.all()
         for iteration in range(ctx.state.iteration + 1, 3):
-            result = await ctx.model.invoke(
-                phase=strategy_phase_with_iteration("test_multi_loop", iteration),
+            phase = strategy_phase_with_iteration("test_multi_loop", iteration)
+            invocation = await ctx.context.prepare(
+                phase=phase,
+                tools=tools,
             )
+            result = await ctx.model.invoke(invocation)
             ctx.state.iteration = iteration
             if not result.has_tool_calls:
                 return Completed(result)

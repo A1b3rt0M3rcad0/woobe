@@ -4,9 +4,7 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
-from langchain_core.messages import AIMessage, HumanMessage
-
-from modules.agent.application.dtos.rag_config_dtos import RAGRuntimeConfig
+from modules.agent.application.dtos.rag_config_dtos import RAGRetrievalConfig
 from modules.agent.application.rag.contracts import RAGCapabilities, RAGRequest
 from modules.agent.application.rag.strategies.classic import ClassicRAGStrategy
 from shared.contracts.errors import ValidationError
@@ -44,7 +42,7 @@ def _chunk(document_id, content: str, score: float, *, page: int = 1):
 
 
 @pytest.mark.asyncio
-async def test_classic_preserves_query_rewrite_filter_diversity_and_top_k() -> None:
+async def test_classic_preserves_final_query_filter_diversity_and_top_k() -> None:
     doc_a = uuid4()
     doc_b = uuid4()
     doc_c = uuid4()
@@ -56,7 +54,7 @@ async def test_classic_preserves_query_rewrite_filter_diversity_and_top_k() -> N
     ]
     embedding = _Embedding()
     vector = _VectorSearch(candidates)
-    config = RAGRuntimeConfig(
+    config = RAGRetrievalConfig(
         candidate_k=4,
         top_k=2,
         min_score=0.80,
@@ -66,11 +64,7 @@ async def test_classic_preserves_query_rewrite_filter_diversity_and_top_k() -> N
         history_turns=1,
     )
     request = RAGRequest(
-        query="Current question",
-        history=(
-            HumanMessage(content="old question"),
-            AIMessage(content="old answer"),
-        ),
+        query="User: old question\nAssistant: old answer\nCurrent user message: Current question",
         config=config,
         vector_snapshot_id=uuid4(),
         snapshot_documents=(
@@ -84,9 +78,7 @@ async def test_classic_preserves_query_rewrite_filter_diversity_and_top_k() -> N
         RAGCapabilities(embedding=embedding, vector_search=vector),
     )
 
-    assert embedding.queries == [
-        "User: old question\nAssistant: old answer\nCurrent user message: Current question"
-    ]
+    assert embedding.queries == [request.query]
     assert vector.calls == [
         {
             "vector_snapshot_id": request.vector_snapshot_id,
@@ -108,15 +100,18 @@ async def test_classic_preserves_query_rewrite_filter_diversity_and_top_k() -> N
 
 
 @pytest.mark.asyncio
-async def test_classic_current_message_does_not_include_history() -> None:
+async def test_classic_does_not_reinterpret_execution_query_policy() -> None:
     document_id = uuid4()
     embedding = _Embedding()
     vector = _VectorSearch([_chunk(document_id, "answer", 0.9)])
+    final_query = (
+        "User: prior question\n"
+        "Assistant: prior answer\n"
+        "Current user message: only this"
+    )
     request = RAGRequest(
-        query="only this",
-        history=(HumanMessage(content="ignored"),),
-        config=RAGRuntimeConfig(
-            query_mode="current_message",
+        query=final_query,
+        config=RAGRetrievalConfig(
             candidate_k=1,
             top_k=1,
             max_context_chunks=1,
@@ -132,7 +127,7 @@ async def test_classic_current_message_does_not_include_history() -> None:
         RAGCapabilities(embedding=embedding, vector_search=vector),
     )
 
-    assert embedding.queries == ["only this"]
+    assert embedding.queries == [final_query]
 
 
 @pytest.mark.asyncio
@@ -142,8 +137,7 @@ async def test_classic_enforces_context_character_budget() -> None:
     vector = _VectorSearch([_chunk(document_id, "x" * 1500, 0.9)])
     request = RAGRequest(
         query="question",
-        history=(),
-        config=RAGRuntimeConfig(
+        config=RAGRetrievalConfig(
             candidate_k=1,
             top_k=1,
             max_context_chunks=1,
@@ -171,8 +165,7 @@ async def test_classic_required_grounding_rejects_empty_retrieval() -> None:
     vector = _VectorSearch([])
     request = RAGRequest(
         query="question",
-        history=(),
-        config=RAGRuntimeConfig(grounding_policy="required"),
+        config=RAGRetrievalConfig(grounding_policy="required"),
         vector_snapshot_id=uuid4(),
         snapshot_documents=(),
     )
@@ -190,8 +183,7 @@ async def test_classic_optional_grounding_returns_empty_context() -> None:
     vector = _VectorSearch([])
     request = RAGRequest(
         query="question",
-        history=(),
-        config=RAGRuntimeConfig(grounding_policy="optional"),
+        config=RAGRetrievalConfig(grounding_policy="optional"),
         vector_snapshot_id=uuid4(),
         snapshot_documents=(),
     )

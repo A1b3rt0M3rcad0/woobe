@@ -4,7 +4,10 @@ from dataclasses import dataclass, field
 from typing import Any, Mapping, Protocol, runtime_checkable
 from uuid import UUID
 
-from modules.agent.application.dtos.rag_config_dtos import RAGRuntimeConfig
+from modules.agent.application.dtos.rag_config_dtos import (
+    RAGRetrievalConfig,
+    RAGRuntimeConfig,
+)
 from modules.agent.application.dtos.runtime_dtos import SourceInfo
 
 
@@ -30,11 +33,24 @@ class RAGVectorSearchCapability(Protocol):
 
 
 @dataclass(frozen=True, slots=True)
+class RAGBinding:
+    """Frozen Knowledge/RAG binding accepted for one Agent Run."""
+
+    strategy: str
+    config: RAGRetrievalConfig
+    knowledge: Any
+    snapshot: Any
+    provider_model: Any
+    credential: Any
+    snapshot_documents: tuple[Any, ...]
+    metadata: Mapping[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True, slots=True)
 class RAGRequest:
     """Immutable input presented to one RAG strategy invocation."""
 
     query: str
-    history: tuple[Any, ...]
     config: RAGRuntimeConfig
     vector_snapshot_id: UUID
     snapshot_documents: tuple[Any, ...]

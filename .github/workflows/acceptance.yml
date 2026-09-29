@@ -15,9 +15,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  backend-acceptance:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 40
+  ci:
+    name: acceptance
+    runs-on: [self-hosted, Linux, X64]
+    timeout-minutes: 150
     env:
       PYTHONPATH: packages/woobe-core/src:packages/woobe-api/src:packages/woobe-workers/src:.
       WOOBE_SECRET_KEY: acceptance-secret-key-at-least-32-characters
@@ -27,7 +28,16 @@ jobs:
       WOOBE_DEBUG: "false"
       WOOBE_RUN_PERSISTENCE_MODE: legacy_finalization
       PGPASSWORD: postgres
+      COMPOSE_PROJECT_NAME: woobe-core-${{ github.run_id }}
+      WOOBE_API_IMAGE: woobe-api:acceptance-${{ github.run_id }}
+      WOOBE_WORKERS_IMAGE: woobe-workers:acceptance-${{ github.run_id }}
+      WOOBE_FRONTEND_IMAGE: woobe-frontend:acceptance-${{ github.run_id }}
+      WOOBE_EMBED_IMAGE: woobe-embed:acceptance-${{ github.run_id }}
+      WOOBE_UPGRADE_BASE_SHA: ${{ github.event.pull_request.base.sha || github.sha }}
+      WOOBE_CURRENT_API_IMAGE: woobe-api:upgrade-${{ github.run_id }}
     steps:
+      - name: Phase · backend-acceptance
+        run: echo "Running backend-acceptance"
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - name: Prepare Docker access
         run: bash scripts/ci/prepare_docker_access.sh
@@ -382,17 +392,8 @@ jobs:
       - name: Cleanup Docker access
         if: always()
         run: bash scripts/ci/cleanup_docker_access.sh
-
-  core-smoke:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 40
-    env:
-      COMPOSE_PROJECT_NAME: woobe-core-${{ github.run_id }}
-      WOOBE_API_IMAGE: woobe-api:acceptance-${{ github.run_id }}
-      WOOBE_WORKERS_IMAGE: woobe-workers:acceptance-${{ github.run_id }}
-      WOOBE_FRONTEND_IMAGE: woobe-frontend:acceptance-${{ github.run_id }}
-      WOOBE_EMBED_IMAGE: woobe-embed:acceptance-${{ github.run_id }}
-    steps:
+      - name: Phase · core-smoke
+        run: echo "Running core-smoke"
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - name: Prepare Docker access
         run: bash scripts/ci/prepare_docker_access.sh
@@ -502,14 +503,8 @@ jobs:
             core-compose.log
           if-no-files-found: warn
           retention-days: 1
-
-  previous-release-upgrade:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 45
-    env:
-      WOOBE_UPGRADE_BASE_SHA: ${{ github.event.pull_request.base.sha || github.sha }}
-      WOOBE_CURRENT_API_IMAGE: woobe-api:upgrade-${{ github.run_id }}
-    steps:
+      - name: Phase · previous-release-upgrade
+        run: echo "Running previous-release-upgrade"
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           fetch-depth: 0
@@ -528,4 +523,3 @@ jobs:
       - name: Cleanup Docker access
         if: always()
         run: bash scripts/ci/cleanup_docker_access.sh
-

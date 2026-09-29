@@ -9,12 +9,9 @@ from uuid import uuid4
 from modules.agent.application.execution_strategy_config import (
     execution_strategy_from_runtime_config,
 )
-from modules.agent.application.runtime_output_validation import (
-    ensure_model_result_has_public_output,
-)
-from modules.agent.application.interfaces.context_assembler import (
-    ContextAssembler,
-    context_assembler_selection_from_runtime_config,
+from modules.agent.application.interfaces.context_manager import (
+    ContextManager,
+    context_manager_key_from_runtime_config,
 )
 from modules.agent.application.interfaces.embedding_errors import EmbeddingProviderError
 from modules.agent.application.interfaces.execution import (
@@ -30,12 +27,20 @@ from modules.agent.application.interfaces.execution_strategy import (
     ExecutionStrategyRequest,
     ExecutionStrategyResolver,
 )
+from modules.agent.application.interfaces.knowledge import KnowledgeStrategyResolver
+from modules.agent.application.knowledge_strategy_config import (
+    knowledge_strategy_from_runtime_config,
+)
+from modules.agent.application.runtime_output_validation import (
+    ensure_model_result_has_public_output,
+)
 from modules.agent.application.tool_converter import MCP_PROVIDER_ROUTE_SEPARATOR
 from modules.agent.domain.events import AgentExecutionFailedV1
 from modules.agent.infra.database.runtime_transaction_runner import (
     AgentRuntimeTransactionRunner,
 )
 from modules.agent.infra.execution.execution_instrumentation import aggregate_usage
+from modules.agent.infra.execution.rag.runtime_adapter import RAGRuntimeAdapter
 from modules.agent.infra.execution.runtime_streaming import current_runtime_stream
 
 logger = logging.getLogger(__name__)
@@ -48,9 +53,11 @@ class _PrimaryExecutionSuper(Protocol):
 
 class _PrimaryExecutionHost(Protocol):
     _llm_factory: Any
+    _rag_runtime: Any
     _transactions: AgentRuntimeTransactionRunner
-    _context_assembler: ContextAssembler | None
+    _context_manager: ContextManager | None
     _execution_strategy_resolver: ExecutionStrategyResolver | None
+    _knowledge_strategy_resolver: KnowledgeStrategyResolver | None
     async def _execute_single_tool(self, tool_call: dict, tool_id: str) -> dict: ...
     def _clean_json_answer(self, answer: str) -> str: ...
 
@@ -77,17 +84,41 @@ def _copy_http_route_metadata(payload: dict[str, Any]) -> None:
 
 
 class InstrumentedPrimaryExecutionMixin:
-    _context_assembler: ContextAssembler | None = None
+    _context_manager: ContextManager | None = None
     _execution_strategy_resolver: ExecutionStrategyResolver | None = None
+    _knowledge_strategy_resolver: KnowledgeStrategyResolver | None = None
+    _rag_runtime: RAGRuntimeAdapter | None = None
 
-    def configure_context_assembler(self, assembler: ContextAssembler) -> None:
-        self._context_assembler = assembler
+    def configure_rag_runtime(self, adapter: RAGRuntimeAdapter) -> None:
+        self._rag_runtime = adapter
+
+    def configure_context_manager(self, manager: ContextManager) -> None:
+        self._context_manager = manager
+
+    def configure_context_assembler(self, assembler: ContextManager) -> None:
+        """Legacy composition alias; new code uses configure_context_manager."""
+        self.configure_context_manager(assembler)
+
+    @property
+    def _context_assembler(self) -> ContextManager | None:
+        """Legacy runtime alias for tests/hosts migrating to ContextManager."""
+        return self._context_manager
+
+    @_context_assembler.setter
+    def _context_assembler(self, value: ContextManager | None) -> None:
+        self._context_manager = value
 
     def configure_execution_strategy_resolver(
         self,
         resolver: ExecutionStrategyResolver,
     ) -> None:
         self._execution_strategy_resolver = resolver
+
+    def configure_knowledge_strategy_resolver(
+        self,
+        resolver: KnowledgeStrategyResolver,
+    ) -> None:
+        self._knowledge_strategy_resolver = resolver
 
     async def execute(self, input_dto: Any) -> Any:
         metadata = input_dto.metadata if isinstance(input_dto.metadata, dict) else {}
@@ -129,6 +160,11 @@ class InstrumentedPrimaryExecutionMixin:
         project_id = input_dto.project_id
         agent_id = input_dto.agent_id
         rag_metadata = dict(context.rag_metadata or {}) if context else {}
+        failure_rag_metadata = getattr(exc, "rag_metadata", None)
+        if isinstance(failure_rag_metadata, dict):
+            rag_metadata.update(failure_rag_metadata)
+            if context is not None:
+                context.rag_metadata = dict(rag_metadata)
 
         if context:
             context.trace_id = trace_id
@@ -175,16 +211,10 @@ class InstrumentedPrimaryExecutionMixin:
             "agent_release_id": str(context.agent_release_id) if context and context.agent_release_id else None,
             "agent_release_version": context.agent_release_version if context else None,
             "execution_strategy": context.execution_strategy if context else None,
-            "context_assembler": (
-                {
-                    "name": context.context_assembler_name,
-                    "version": context.context_assembler_version,
-                    "strategy_name": context.context_assembler_strategy_name,
-                    "strategy_version": context.context_assembler_strategy_version,
-                }
-                if context
-                and context.context_assembler_name
-                and context.context_assembler_version
+            "knowledge_strategy": context.knowledge_strategy if context else None,
+            "context_manager": (
+                {"name": context.context_manager_name}
+                if context and context.context_manager_name
                 else None
             ),
             "rag_metadata": rag_metadata or None,
@@ -243,16 +273,14 @@ class InstrumentedPrimaryExecutionMixin:
             settings = getattr(agent, "settings", None)
             settings = settings if isinstance(settings, dict) else {}
             runtime_config = settings.get("runtime_config")
-            assembler_selection = context_assembler_selection_from_runtime_config(
-                runtime_config
-            )
+            manager_key = context_manager_key_from_runtime_config(runtime_config)
             context.execution_strategy = execution_strategy_from_runtime_config(
                 runtime_config
             )
-            context.context_assembler_name = assembler_selection.selection_key.name
-            context.context_assembler_version = assembler_selection.selection_key.version
-            context.context_assembler_strategy_name = assembler_selection.strategy_key.name
-            context.context_assembler_strategy_version = assembler_selection.strategy_key.version
+            context.knowledge_strategy = knowledge_strategy_from_runtime_config(
+                runtime_config
+            )
+            context.context_manager_name = manager_key.name
             context.project_id = getattr(agent, "project_id", None)
             context.agent_id = getattr(agent, "id", None)
             context.session_id = getattr(session, "id", None) if session else None
@@ -298,21 +326,46 @@ class InstrumentedPrimaryExecutionMixin:
         host = cast(_PrimaryExecutionHost, self)
         settings = getattr(agent, "settings", None)
         settings = settings if isinstance(settings, dict) else {}
-        strategy_name = execution_strategy_from_runtime_config(
-            settings.get("runtime_config")
-        )
+        runtime_config = settings.get("runtime_config")
+        strategy_name = execution_strategy_from_runtime_config(runtime_config)
+        knowledge_strategy_name = knowledge_strategy_from_runtime_config(runtime_config)
         context = current_execution.get()
         if context:
             context.execution_strategy = strategy_name
+            context.knowledge_strategy = knowledge_strategy_name
+
         resolver = host._execution_strategy_resolver
         if resolver is None:
             raise RuntimeError("Agent execution strategy resolver is not configured")
         strategy = resolver.resolve(strategy_name)
+
+        knowledge_resolver = host._knowledge_strategy_resolver
+        if knowledge_resolver is None:
+            raise RuntimeError("Agent Knowledge Strategy resolver is not configured")
+        knowledge_strategy = knowledge_resolver.resolve(knowledge_strategy_name)
+
+        rag_runtime = getattr(host, "_rag_runtime", None)
+        rag_binding = context.prepared_rag if context is not None else None
+
+        async def retrieve_knowledge(query: str):
+            if rag_runtime is None:
+                raise RuntimeError("RAG runtime is not configured")
+            if rag_binding is None:
+                raise RuntimeError("RAG binding is not prepared")
+            if context is not None:
+                context.rag_metadata = dict(rag_binding.metadata)
+            return await rag_runtime.retrieve(
+                binding=rag_binding,
+                query=query,
+            )
+
+        knowledge_retrieve = retrieve_knowledge if rag_binding is not None else None
+
         try:
             execution = await strategy.execute(
                 ExecutionStrategyRequest(
                     llm_factory=host._llm_factory,
-                    context_assembler=host._context_assembler,
+                    context_assembler=host._context_manager,
                     execute_single_tool=host._execute_single_tool,
                     clean_json_answer=host._clean_json_answer,
                     agent=agent,
@@ -324,6 +377,8 @@ class InstrumentedPrimaryExecutionMixin:
                     agent_tools=agent_tools,
                     tool_name_to_id=tool_name_to_id,
                     messages=messages,
+                    knowledge_retrieve=knowledge_retrieve,
+                    knowledge_strategy=knowledge_strategy,
                 )
             )
         except InstrumentedExecutionError as exc:
@@ -333,6 +388,8 @@ class InstrumentedPrimaryExecutionMixin:
                     result=None,
                     tool_calls=exc.tool_calls,
                     llm_calls=exc.llm_calls,
+                    knowledge_calls=exc.knowledge_calls,
+                    sources=exc.sources,
                     timeline=exc.timeline,
                     tool_wall_latency_ms=exc.tool_wall_latency_ms,
                     tool_call_duration_sum_ms=exc.tool_call_duration_sum_ms,
@@ -363,22 +420,10 @@ class InstrumentedPrimaryExecutionMixin:
                 if snapshot and snapshot.get("snapshot_hash"):
                     payload["tool_snapshot_hash"] = snapshot["snapshot_hash"]
 
-        if context and context.rag_metadata:
-            occurred_at = context.prepare_ended_at or utc_now()
-            execution.timeline.append(
-                {
-                    "kind": "rag",
-                    "occurred_at": occurred_at,
-                    "payload": {
-                        "occurred_at": occurred_at,
-                        "started_at": context.prepare_started_at,
-                        "ended_at": context.prepare_ended_at or occurred_at,
-                        **context.rag_metadata,
-                    },
-                }
-            )
         if context:
             context.execution = execution
+        if execution.suspension is not None:
+            return None, execution.tool_calls, bool(execution.tool_calls), None
         ensure_model_result_has_public_output(execution.result)
         usage, _, _ = aggregate_usage(execution.llm_calls)
         execution.result.usage_metadata = {

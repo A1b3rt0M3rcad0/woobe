@@ -94,7 +94,7 @@ async def test_skill_instructions_cross_real_preparation_and_registry(monkeypatc
         package=package, package_hash=skill_package_hash(package),
     )
     config = {
-        'context_assembler': {'name': 'stdcm', 'version': 'v2'},
+        'context_assembler': {'name': 'stdcm'},
         'context': {'allowed_sources': ['SYSTEM', 'USER_INPUT', 'SESSION', 'TOOL', 'SKILL'], 'skills': {}},
         'skills': {
             'bindings': [{'skill_id': str(version.skill_id), 'skill_version_id': str(version.id), 'enabled': True}],
@@ -147,8 +147,7 @@ async def test_skill_instructions_cross_real_preparation_and_registry(monkeypatc
         assert execution.result.content == 'SKILL_CONTEXT_REACHED_MODEL'
         assert len(model.received) == 2
         assert model.bound_names == {'skills_activate', 'skills_read_resource'}
-        assert context.context_assembler_strategy_name == 'stdcm'
-        assert context.context_assembler_strategy_version == 'v2'
+        assert context.context_assembler_name == 'stdcm'
         assert context.prepare_started_at is not None
         snapshot = execution.llm_calls[-1]['context_snapshot']
         assert snapshot['manifest']['skills']['active_versions'] == [str(version.id)]

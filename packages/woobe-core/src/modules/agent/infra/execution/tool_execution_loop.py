@@ -5,6 +5,10 @@ from typing import Any, Callable, Coroutine
 from modules.agent.application.interfaces.context_assembler import ContextAssembler
 from modules.agent.application.interfaces.execution import InstrumentedExecution
 from modules.agent.infra.execution.capabilities.bundle import ExecutionCapabilities
+from modules.agent.infra.execution.capabilities.context_assembly import ContextAssemblyCapability
+from modules.agent.infra.execution.capabilities.knowledge_retrieval import (
+    KnowledgeRetrievalCapability,
+)
 from modules.agent.infra.execution.capabilities.model_invocation import ModelInvocationCapability
 from modules.agent.infra.execution.capabilities.recovery import StrategyRecoveryCapability
 from modules.agent.infra.execution.capabilities.tool_execution import ToolExecutionCapability
@@ -46,13 +50,19 @@ async def run_tool_loop(
             provider=provider,
             model_name=model_name,
             pricing_snapshot=pricing_snapshot,
-            context_assembler=context_assembler,
             invoke_fn=invoke_llm,
         ),
         tools=ToolExecutionCapability(
             execute_single_tool=execute_single_tool,
             tool_name_to_id=tool_name_to_id,
             execute_fn=execute_tool_call,
+        ),
+        knowledge=KnowledgeRetrievalCapability(retrieve_fn=None),
+        context=ContextAssemblyCapability(
+            assembler=context_assembler,
+            provider=provider,
+            model_name=model_name,
+            pricing_snapshot=pricing_snapshot,
         ),
         recovery=StrategyRecoveryCapability(strategy_name="standard"),
     )

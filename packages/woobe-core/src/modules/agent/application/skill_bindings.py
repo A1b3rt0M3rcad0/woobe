@@ -7,8 +7,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from modules.agent.application.interfaces.context_assembler import (
-    context_assembler_strategy_key_from_runtime_config,
+from modules.agent.application.interfaces.context_manager import (
+    context_manager_key_from_runtime_config,
 )
 from modules.agent.application.interfaces.context_policy import resolve_context_policy
 from modules.agent.application.interfaces.skill_repository import SkillRepository
@@ -39,9 +39,12 @@ def validate_skill_context(
 ) -> None:
     if not any(item.enabled for item in bindings):
         return
-    strategy = context_assembler_strategy_key_from_runtime_config(runtime_config)
-    if str(strategy) != "stdcm:v2":
-        raise ValidationError("Enabled Skills require Standard Context Manager v2")
+    try:
+        manager = context_manager_key_from_runtime_config(runtime_config)
+    except ValueError as exc:
+        raise ValidationError(str(exc)) from exc
+    if str(manager) != "stdcm":
+        raise ValidationError("Enabled Skills require Standard Context Manager")
     policy = resolve_context_policy(runtime_config)
     if "TOOL" not in policy.allowed_sources:
         raise ValidationError("Context Policy must allow TOOL receipts for Skills")

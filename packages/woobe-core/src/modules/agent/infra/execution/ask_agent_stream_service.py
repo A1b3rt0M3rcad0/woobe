@@ -374,6 +374,8 @@ class AskAgentStreamService:
                 result=None,
                 tool_calls=list(execution.tool_calls),
                 llm_calls=snapshot_calls,
+                knowledge_calls=list(execution.knowledge_calls),
+                sources=list(execution.sources),
                 timeline=list(execution.timeline),
                 tool_wall_latency_ms=execution.tool_wall_latency_ms,
                 tool_call_duration_sum_ms=execution.tool_call_duration_sum_ms,

@@ -2,7 +2,13 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.messages import (
+    AIMessage,
+    AIMessageChunk,
+    HumanMessage,
+    SystemMessage,
+    ToolMessage,
+)
 from pydantic import ValidationError
 
 from modules.agent.application.context_assembly import (
@@ -31,8 +37,8 @@ def _runtime_context(**overrides):
         "reserved_output_units": None,
         "active_tool_definitions": [],
         "context_selection_metadata": {},
-        "rag_metadata": {},
-        "context_rag_sources": [],
+        "knowledge_metadata": {},
+        "knowledge_sources": [],
         "parent_invocation_id": None,
         "network_execution_id": None,
         "network_invocation_id": None,
@@ -44,7 +50,7 @@ def _runtime_context(**overrides):
     return SimpleNamespace(**defaults)
 
 
-def _assemble(messages, *, policy=None, runtime_context=None):
+def _assemble(messages, *, policy=None, environment=None):
     return assemble_context(
         messages=messages,
         model_invocation_id=uuid4(),
@@ -52,7 +58,7 @@ def _assemble(messages, *, policy=None, runtime_context=None):
         project_id=uuid4(),
         provider="openai",
         model="test-model",
-        runtime_context=runtime_context or _runtime_context(),
+        environment=environment or _runtime_context(),
         policy=policy or ContextPolicyV1(),
     )
 
@@ -165,7 +171,7 @@ def test_provider_capacity_reaches_persisted_context_budget(
         policy=ContextPolicyV1.model_validate({
             "budget": {"max_input_units": configured_budget, "runtime_reserve_units": 1000},
         }),
-        runtime_context=_runtime_context(
+        environment=_runtime_context(
             model_capacity_units=pricing["context_window"],
             reserved_output_units=4096,
         ),
@@ -209,6 +215,54 @@ def test_context_assembly_keeps_mandatory_input_and_only_recent_session_messages
     ]
 
 
+def test_session_window_counts_historical_tool_messages_without_losing_provenance():
+    policy = ContextPolicyV1.model_validate(
+        {"session": {"max_messages": 2}}
+    )
+    result = _assemble(
+        [
+            SystemMessage(content="system"),
+            HumanMessage(content="old question"),
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "id": "call-1",
+                        "name": "lookup",
+                        "args": {"query": "old"},
+                        "type": "tool_call",
+                    }
+                ],
+            ),
+            ToolMessage(content="old result", tool_call_id="call-1"),
+            HumanMessage(content="current"),
+        ],
+        policy=policy,
+    )
+
+    assert not any(
+        isinstance(message, HumanMessage) and message.content == "old question"
+        for message in result.messages
+    )
+    assistant_index = next(
+        index
+        for index, message in enumerate(result.messages)
+        if isinstance(message, AIMessage) and message.tool_calls
+    )
+    assert isinstance(result.messages[assistant_index + 1], ToolMessage)
+    assert result.messages[assistant_index + 1].tool_call_id == "call-1"
+    tool_contribution = next(
+        item
+        for item in result.snapshot.contributions
+        if item.source_type == ContextSourceType.TOOL
+    )
+    assert tool_contribution.source_type == ContextSourceType.TOOL
+    assert (
+        result.snapshot.manifest["exclusion_reasons"]["session_window"]["SESSION"]
+        == 1
+    )
+
+
 def test_current_user_contribution_uses_durable_message_id_when_available():
     message_id = uuid4()
     runtime = _runtime_context(input_message_id=message_id)
@@ -217,7 +271,7 @@ def test_current_user_contribution_uses_durable_message_id_when_available():
             SystemMessage(content="system"),
             HumanMessage(content="current user"),
         ],
-        runtime_context=runtime,
+        environment=runtime,
     )
 
     current_input = next(
@@ -233,6 +287,17 @@ def test_context_contribution_preserves_tool_compaction_transformation():
         [
             SystemMessage(content="system"),
             HumanMessage(content="current user"),
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "id": "tool-call-1",
+                        "name": "lookup",
+                        "args": {"query": "current"},
+                        "type": "tool_call",
+                    }
+                ],
+            ),
             ToolMessage(
                 content='{"result":"compact"}',
                 tool_call_id="tool-call-1",
@@ -263,11 +328,12 @@ def test_context_contribution_preserves_tool_compaction_transformation():
 
 def test_knowledge_contribution_keeps_vector_and_chunk_provenance():
     runtime = _runtime_context(
-        rag_metadata={
+        knowledge_metadata={
+            "knowledge_strategy": "rag",
             "knowledge_version_id": "knowledge-v1",
             "vector_snapshot_id": "vector-v1",
         },
-        context_rag_sources=[
+        knowledge_sources=[
             {"document_id": "doc-1", "chunk_id": "chunk-1", "score": 0.91}
         ],
     )
@@ -277,7 +343,7 @@ def test_knowledge_contribution_keeps_vector_and_chunk_provenance():
             SystemMessage(content="<context>retrieved fact</context>"),
             HumanMessage(content="current user"),
         ],
-        runtime_context=runtime,
+        environment=runtime,
     )
 
     knowledge = next(
@@ -286,6 +352,8 @@ def test_knowledge_contribution_keeps_vector_and_chunk_provenance():
         if item.source_type == ContextSourceType.KNOWLEDGE
     )
     assert knowledge.source_ref == "vector-v1"
+    assert knowledge.metadata["knowledge"]["knowledge_version_id"] == "knowledge-v1"
+    # Preserve the historical RAG provenance alias for existing snapshots/readers.
     assert knowledge.metadata["rag"]["knowledge_version_id"] == "knowledge-v1"
     assert knowledge.metadata["sources"][0]["chunk_id"] == "chunk-1"
 
@@ -443,7 +511,7 @@ def test_context_budget_metrics_report_fit_and_model_clamp():
     result = _assemble(
         [SystemMessage(content="system"), HumanMessage(content="hello")],
         policy=policy,
-        runtime_context=_runtime_context(
+        environment=_runtime_context(
             model_capacity_units=1000,
             reserved_output_units=200,
         ),
@@ -461,6 +529,122 @@ def test_context_budget_metrics_report_fit_and_model_clamp():
     assert metrics["headroom_units"] == 700 - result.snapshot.estimated_input_units
 
 
+def test_context_budget_drops_orphan_tool_messages_when_parent_tool_call_is_evicted():
+    policy = ContextPolicyV1.model_validate(
+        {"budget": {"max_input_units": 256}}
+    )
+    result = _assemble(
+        [
+            SystemMessage(content="system"),
+            HumanMessage(content="old question"),
+            AIMessage(
+                content="assistant context " * 160,
+                tool_calls=[
+                    {
+                        "id": "call-1",
+                        "name": "lookup",
+                        "args": {"query": "old"},
+                        "type": "tool_call",
+                    }
+                ],
+            ),
+            ToolMessage(
+                content="small result",
+                tool_call_id="call-1",
+            ),
+            HumanMessage(content="current"),
+        ],
+        policy=policy,
+        environment=_runtime_context(
+            model_capacity_units=1000,
+            reserved_output_units=0,
+        ),
+    )
+
+    assert not any(isinstance(message, ToolMessage) for message in result.messages)
+    assert not any(
+        isinstance(message, AIMessage) and message.tool_calls
+        for message in result.messages
+    )
+    assert (
+        result.snapshot.manifest["exclusion_reasons"]["tool_protocol_orphan"]["TOOL"]
+        == 1
+    )
+
+
+def test_context_assembly_preserves_streamed_assistant_tool_protocol_block():
+    result = _assemble(
+        [
+            SystemMessage(content="system"),
+            HumanMessage(content="current"),
+            AIMessageChunk(
+                content="",
+                tool_calls=[
+                    {
+                        "id": "call-stream-1",
+                        "name": "skills_activate",
+                        "args": {"skill_version_id": "skill-v1"},
+                        "type": "tool_call",
+                    }
+                ],
+            ),
+            ToolMessage(
+                content='{"success":true,"activated":true}',
+                tool_call_id="call-stream-1",
+            ),
+        ],
+    )
+
+    assistant_index = next(
+        index
+        for index, message in enumerate(result.messages)
+        if isinstance(message, AIMessageChunk) and message.tool_calls
+    )
+    assert isinstance(result.messages[assistant_index + 1], ToolMessage)
+    assert result.messages[assistant_index + 1].tool_call_id == "call-stream-1"
+    assert "tool_protocol_orphan" not in result.snapshot.manifest["exclusion_reasons"]
+    assert result.snapshot.manifest["sources"]["TOOL"]["count"] == 1
+
+
+def test_context_assembly_preserves_complete_parallel_tool_protocol_block():
+    result = _assemble(
+        [
+            SystemMessage(content="system"),
+            HumanMessage(content="old question"),
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "id": "call-a",
+                        "name": "lookup",
+                        "args": {"query": "a"},
+                        "type": "tool_call",
+                    },
+                    {
+                        "id": "call-b",
+                        "name": "lookup",
+                        "args": {"query": "b"},
+                        "type": "tool_call",
+                    },
+                ],
+            ),
+            ToolMessage(content="a", tool_call_id="call-a"),
+            ToolMessage(content="b", tool_call_id="call-b"),
+            HumanMessage(content="current"),
+        ],
+    )
+
+    assistant_index = next(
+        index
+        for index, message in enumerate(result.messages)
+        if isinstance(message, AIMessage) and message.tool_calls
+    )
+    assert [
+        result.messages[assistant_index + 1].tool_call_id,
+        result.messages[assistant_index + 2].tool_call_id,
+    ] == ["call-a", "call-b"]
+
+
 def test_context_budget_metrics_report_degraded_when_global_budget_reduces_context():
     result = _assemble(
         [
@@ -469,7 +653,7 @@ def test_context_budget_metrics_report_degraded_when_global_budget_reduces_conte
             AIMessage(content="answer " * 120),
             HumanMessage(content="current"),
         ],
-        runtime_context=_runtime_context(
+        environment=_runtime_context(
             model_capacity_units=90,
             reserved_output_units=10,
         ),
@@ -495,7 +679,7 @@ def test_context_assembly_fails_when_mandatory_material_exceeds_model_budget():
                 SystemMessage(content="s" * 120),
                 HumanMessage(content="u" * 120),
             ],
-            runtime_context=runtime_context,
+            environment=runtime_context,
         )
 
     failure = error.value.failure_context()
@@ -512,7 +696,7 @@ def test_reported_provider_usage_replaces_estimate_for_pressure_measurement():
             SystemMessage(content="system"),
             HumanMessage(content="hello"),
         ],
-        runtime_context=_runtime_context(
+        environment=_runtime_context(
             model_capacity_units=1000,
             reserved_output_units=100,
         ),
@@ -549,7 +733,7 @@ def test_exposed_external_context_is_materialized_as_runtime_context() -> None:
             SystemMessage(content="system"),
             HumanMessage(content="sabe meu nome?"),
         ],
-        runtime_context=runtime,
+        environment=runtime,
     )
 
     runtime_message = next(

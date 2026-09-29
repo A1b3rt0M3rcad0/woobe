@@ -372,4 +372,20 @@ Consumers should:
 9. use durable Session/message history for terminal Runs after hot retention expires;
 10. never recover transport by submitting another logical execution once Run identity is known.
 
+The Standalone Playground remembers terminal Run identities for the mounted page.
+Rediscovering one of those Runs through a lagging read model must not start another
+observer. Transport retries remain bounded by the shared runtime client; React
+effects must not restart that retry budget after observer exhaustion. A new Session
+visit or page reload can recover an interrupted observer without creating a Run.
+
+Active Agent Run discovery is wired to the durable journal, so a terminal fact in
+its contiguous durable prefix excludes a stale PostgreSQL `running` row. A pending
+terminal event outside that prefix does not establish completion. The persistence
+worker projects every journal page through the durable watermark before acknowledging
+buffered events; a failed or missing page remains retryable.
+
+Terminal failure snapshots carry public diagnostics under `error`, including
+`failure_code` and `trace_id`. Clients use those fields for actionable error messages;
+raw internal/provider exception text remains excluded from public journal replay.
+
 The central rule is: **the Run belongs to the runtime; the connection belongs to the observer.**

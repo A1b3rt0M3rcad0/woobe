@@ -5,16 +5,26 @@ from uuid import uuid4
 
 import pytest
 
+from modules.agent.application.dtos.rag_config_dtos import RAGRuntimeConfig
 from modules.agent.application.interfaces.execution_context import (
     current_execution,
     new_execution_context,
 )
+from modules.agent.application.interfaces.rag import RAGBinding
+from modules.agent.application.strategy_sdk import StrategyMessage, StrategyMessageRole
 from modules.agent.application.rag.registry import RAGStrategyRegistry
+from modules.agent.application.rag.knowledge_strategy import RAGKnowledgeStrategy
 from modules.agent.application.rag.strategies.classic import ClassicRAGStrategy
 from modules.agent.infra.execution.rag import embedding_capability as embedding_module
+from modules.agent.infra.execution.capabilities.knowledge_retrieval import (
+    KnowledgeRetrievalCapability,
+)
 from modules.agent.infra.execution.rag.runtime_adapter import RAGRuntimeAdapter
-from modules.agent.infra.execution.transaction_bounded_rag import (
-    TransactionBoundedVectorSnapshotRAGMixin,
+from modules.agent.infra.execution.strategy_runtime.knowledge import (
+    RuntimeStrategyKnowledge,
+)
+from modules.agent.infra.execution.strategy_runtime.runtime_state import (
+    StrategyRuntimeState,
 )
 
 
@@ -75,16 +85,10 @@ class _VectorSearch:
         return await self.guard.read(sql_read)
 
 
-class _RAGRuntime(TransactionBoundedVectorSnapshotRAGMixin):
-    pass
-
-
 @pytest.mark.asyncio
 async def test_rag_embedding_is_external_and_vector_search_is_read_only(monkeypatch) -> None:
     guard = _Guard()
     client = _EmbeddingClient(guard)
-    project_id = uuid4()
-    agent_id = uuid4()
     knowledge_id = uuid4()
     snapshot_id = uuid4()
     document_id = uuid4()
@@ -121,51 +125,75 @@ async def test_rag_embedding_is_external_and_vector_search_is_read_only(monkeypa
         vector_search=_VectorSearch(guard, snapshot_id, chunk),
         encryption_key="test-key",
     )
-    runtime = _RAGRuntime()
-    runtime.configure_rag_runtime(adapter)
-    agent = SimpleNamespace(
-        id=agent_id,
-        project_id=project_id,
-        settings={
+    rag_config = RAGRuntimeConfig(
+        top_k=3,
+        candidate_k=5,
+        max_chunks_per_document=3,
+        max_context_chunks=3,
+        max_context_chars=4000,
+    )
+    binding = RAGBinding(
+        strategy=rag_config.strategy,
+        config=rag_config,
+        knowledge=knowledge,
+        snapshot=snapshot,
+        provider_model=provider_model,
+        credential=credential,
+        snapshot_documents=tuple(snapshot_documents),
+        metadata={
+            "strategy": rag_config.strategy,
             "knowledge_version_id": str(knowledge_id),
-            "runtime_config": {
-                "rag": {
-                    "top_k": 3,
-                    "candidate_k": 5,
-                    "max_chunks_per_document": 3,
-                    "max_context_chunks": 3,
-                    "max_context_chars": 4000,
-                }
-            },
+            "knowledge_version": knowledge.version,
+            "vector_snapshot_id": str(snapshot_id),
+            "vector_snapshot_version": snapshot.version,
+            "snapshot_hash": snapshot.snapshot_hash,
+            "embedding_provider_model_id": str(provider_model_id),
+            "embedding_provider": snapshot.embedding_provider,
+            "embedding_model": snapshot.embedding_model,
+            "embedding_dimensions": snapshot.embedding_dimensions,
+            "rag_runtime_config": rag_config.model_dump(),
+            "rag_runtime_config_source": "draft",
+            "retrieval_query_mode": rag_config.query_mode,
         },
     )
     context = new_execution_context()
-    context.execution_context = "playground"
-    context.prepared_rag = {
-        "knowledge": knowledge,
-        "snapshot": snapshot,
-        "provider_model": provider_model,
-        "credential": credential,
-        "snapshot_documents": snapshot_documents,
-    }
 
     monkeypatch.setattr(embedding_module, "decrypt_secret", lambda *_args: "embedding-key")
+    async def retrieve(query: str):
+        return await adapter.retrieve(
+            binding=binding,
+            query=query,
+        )
+
+    state = StrategyRuntimeState()
+    knowledge = RuntimeStrategyKnowledge(
+        capability=KnowledgeRetrievalCapability(
+            retrieve_fn=retrieve,
+        ),
+        runtime_state=state,
+        strategy=RAGKnowledgeStrategy(),
+        runtime_config={"rag": rag_config.model_dump()},
+    )
+
     token = current_execution.set(context)
     try:
-        rag_context, sources = await runtime._load_rag_context(
-            agent,
-            "what is Woobe?",
-            object(),
-        )
+        result = await knowledge.retrieve(conversation=SimpleNamespace(
+            current_user_message=StrategyMessage(
+                id=None, role=StrategyMessageRole.USER, content="what is Woobe?",
+            ),
+            history=(),
+        ))
     finally:
         current_execution.reset(token)
 
     assert client.calls == 1
     assert guard.write_calls == 0
     assert guard.read_calls == 1
-    assert rag_context is not None
-    assert "Woobe is the control plane." in rag_context
-    assert len(sources) == 1
-    assert sources[0].document_id == str(document_id)
+    assert result.content is not None
+    assert "Woobe is the control plane." in result.content
+    assert len(result.sources) == 1
+    assert result.sources[0].document_id == str(document_id)
+    assert len(state.execution.knowledge_calls) == 1
+    assert state.execution.knowledge_calls[0]["status"] == "success"
     assert context.rag_metadata["strategy"] == "classic"
     assert context.rag_metadata["vector_snapshot_id"] == str(snapshot_id)

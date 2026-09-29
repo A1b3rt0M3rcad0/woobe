@@ -3,21 +3,23 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from modules.agent.application.interfaces.execution import InstrumentedExecution
+from modules.agent.application.interfaces.execution import (
+    ExecutionSuspension,
+    InstrumentedExecution,
+    InstrumentedExecutionError,
+)
 from modules.agent.application.interfaces.execution_strategy import (
     ExecutionStrategy,
     ExecutionStrategyRequest,
 )
+from modules.agent.application.interfaces.knowledge import KnowledgeStrategy
 from modules.agent.application.strategy_sdk import (
     Completed,
-    ExecutionCheckpointBoundary,
+    StrategyExecutionError,
     StrategyModelResult,
     Suspended,
 )
 from modules.agent.infra.execution.capabilities.bundle import ExecutionCapabilities
-from modules.agent.infra.execution.capabilities.result_finalization import (
-    finalize_execution_result,
-)
 from modules.agent.infra.execution.strategy_runtime.builder import (
     BuiltStrategyContext,
     BuiltStrategyExecution,
@@ -26,20 +28,15 @@ from modules.agent.infra.execution.strategy_runtime.builder import (
 )
 
 
-async def _run_preflight(built: BuiltStrategyContext | BuiltStrategyExecution) -> None:
-    if built.preflight_tool_call is None:
-        return
-    await built.context.tools.execute_many([built.preflight_tool_call])
-    await built.context.checkpoint(ExecutionCheckpointBoundary.PREFLIGHT)
-
-
 def _apply_completed_result(
     execution: InstrumentedExecution,
     outcome: Completed,
+    *,
+    raw_model_result: Any | None,
 ) -> None:
     result = outcome.result
     execution.result = (
-        result.message if isinstance(result, StrategyModelResult) else result
+        raw_model_result if isinstance(result, StrategyModelResult) else result
     )
 
 
@@ -48,22 +45,29 @@ async def execute_strategy(
     request: ExecutionStrategyRequest,
 ) -> InstrumentedExecution:
     built = build_strategy_execution(strategy=strategy, request=request)
-    await _run_preflight(built)
-    outcome = await strategy.execute(built.context)
+    try:
+        outcome = await strategy.execute(built.context)
+    except StrategyExecutionError as exc:
+        runtime_error = exc.__cause__
+        if isinstance(runtime_error, InstrumentedExecutionError):
+            raise runtime_error from exc
+        raise
     if isinstance(outcome, Suspended):
-        raise RuntimeError(
-            "Execution Strategy suspension is defined by the internal SDK but the outer "
-            "Agent Run WAITING lifecycle is not enabled yet"
+        built.runtime_state.execution.suspension = ExecutionSuspension(
+            reason=outcome.reason.value,
+            operation_ref=outcome.operation_ref,
+            metadata=dict(outcome.metadata or {}),
         )
+        return built.runtime_state.execution
     if not isinstance(outcome, Completed):
         raise RuntimeError("Execution Strategy returned an unsupported outcome")
 
-    _apply_completed_result(built.runtime_state.execution, outcome)
-    return await finalize_execution_result(
-        prepared=built.prepared,
-        execution=built.runtime_state.execution,
-        call_index=built.runtime_state.call_index,
+    _apply_completed_result(
+        built.runtime_state.execution,
+        outcome,
+        raw_model_result=built.runtime_state.last_model_message,
     )
+    return built.runtime_state.execution
 
 
 async def execute_strategy_with_capabilities(
@@ -76,6 +80,8 @@ async def execute_strategy_with_capabilities(
     final_model: Any | None = None,
     final_model_factory: Any | None = None,
     bootstrap: dict[str, Any] | None = None,
+    knowledge_strategy: KnowledgeStrategy | None = None,
+    knowledge_runtime_config: dict[str, Any] | None = None,
 ) -> tuple[InstrumentedExecution, int]:
     """Compatibility bridge for legacy focused callers without duplicating algorithms."""
 
@@ -88,15 +94,31 @@ async def execute_strategy_with_capabilities(
         final_model_factory=final_model_factory,
         final_json_instruction=final_json_instruction,
         bootstrap=bootstrap,
+        knowledge_strategy=knowledge_strategy,
+        knowledge_runtime_config=knowledge_runtime_config,
     )
-    await _run_preflight(built)
-    outcome = await strategy.execute(built.context)
+    try:
+        outcome = await strategy.execute(built.context)
+    except StrategyExecutionError as exc:
+        runtime_error = exc.__cause__
+        if isinstance(runtime_error, InstrumentedExecutionError):
+            raise runtime_error from exc
+        raise
     if isinstance(outcome, Suspended):
-        raise RuntimeError("Legacy Strategy execution does not support suspended outcomes")
+        built.runtime_state.execution.suspension = ExecutionSuspension(
+            reason=outcome.reason.value,
+            operation_ref=outcome.operation_ref,
+            metadata=dict(outcome.metadata or {}),
+        )
+        return built.runtime_state.execution, built.runtime_state.call_index
     if not isinstance(outcome, Completed):
         raise RuntimeError("Execution Strategy returned an unsupported outcome")
 
-    _apply_completed_result(built.runtime_state.execution, outcome)
+    _apply_completed_result(
+        built.runtime_state.execution,
+        outcome,
+        raw_model_result=built.runtime_state.last_model_message,
+    )
     return built.runtime_state.execution, built.runtime_state.call_index
 
 

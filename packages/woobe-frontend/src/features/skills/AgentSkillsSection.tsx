@@ -4,7 +4,7 @@ import { Puzzle, Trash2 } from 'lucide-react'
 import { Checkbox, EmptyStatePanel, PanelHeader } from '@woobe/ui'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
-import { useContextAssemblers } from '@/features/agents/hooks'
+import { useContextManagers } from '@/features/agents/hooks'
 import { useAgentEditor } from '@/features/playground/AgentEditorContext'
 import { workspaceProjectPath } from '@/lib/constants/routes'
 import { enableSkillsContext, installSkill, record, skillsConfig } from './config'
@@ -25,14 +25,14 @@ function SkillBudgetInput({ value, min, max, onCommit }: { value: number; min: n
 
 export function AgentSkillsSection({ projectId }: { projectId: string }) {
   const { state, setField } = useAgentEditor()
-  const { data: managers = [], isPending, isError, refetch } = useContextAssemblers()
+  const { data: managers = [], isPending, isError, refetch } = useContextManagers()
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const [params] = useSearchParams()
   const initialVersionId = params.get('skill_version_id') ?? undefined
   const [open, setOpen] = useState(Boolean(initialVersionId))
   const config = skillsConfig(state.runtimeConfig)
-  const selection = record(state.runtimeConfig.context_assembler)
-  const manager = managers.find(item => item.supports_skills && item.name === selection.name && item.version === selection.version) ?? managers.find(item => item.supports_skills && !item.is_system_default_alias)
+  const selection = record(state.runtimeConfig.context_manager ?? state.runtimeConfig.context_assembler)
+  const manager = managers.find(item => item.supports_skills && item.name === selection.name) ?? managers.find(item => item.supports_skills && item.is_default) ?? managers.find(item => item.supports_skills)
   const enabled = config.bindings.filter(item => item.enabled).length
   const context = record(state.runtimeConfig.context)
   const policy = record(context.skills)

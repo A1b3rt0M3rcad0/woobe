@@ -4,17 +4,23 @@ from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
-from langchain_core.messages import SystemMessage
+from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
 
 from modules.agent.application.context_assembly import ContextBudgetExceeded
+from modules.agent.application.context_managers.standard import StandardContextManager
 from modules.agent.application.interfaces.execution import (
     InstrumentedExecution,
     InstrumentedExecutionError,
 )
-from modules.agent.application.interfaces.execution_context import current_execution
+from modules.agent.application.interfaces.execution_context import (
+    current_execution,
+    new_execution_context,
+)
+from modules.agent.infra.execution.capabilities.context_assembly import (
+    ContextAssemblyCapability,
+)
 from modules.agent.infra.execution.execution_instrumentation import (
     aggregate_usage,
-    invoke_llm,
     resolve_effective_output_tokens,
 )
 from modules.agent.infra.execution.instrumented_execution_runner import (
@@ -56,15 +62,15 @@ async def test_context_budget_unfit_blocks_provider_and_records_invocation_evide
 
     class RejectingAssembler:
         def assemble(self, request):
-            captured["capacity"] = request.runtime_context.model_capacity_units
-            captured["reserved"] = request.runtime_context.reserved_output_units
+            captured["capacity"] = request.environment.model_capacity_units
+            captured["reserved"] = request.environment.reserved_output_units
             raise ContextBudgetExceeded(
                 "mandatory context does not fit",
                 configured_budget_units=64000,
                 effective_budget_units=25904,
                 mandatory_units=28000,
-                model_capacity_units=request.runtime_context.model_capacity_units,
-                reserved_output_units=request.runtime_context.reserved_output_units,
+                model_capacity_units=request.environment.model_capacity_units,
+                reserved_output_units=request.environment.reserved_output_units,
                 runtime_reserve_units=2000,
             )
 
@@ -79,28 +85,26 @@ async def test_context_budget_unfit_blocks_provider_and_records_invocation_evide
         execution=execution,
     )
     token = current_execution.set(context)
-    model = MagicMock()
-    model.ainvoke = AsyncMock()
+    capability = ContextAssemblyCapability(
+        assembler=RejectingAssembler(),
+        provider="custom",
+        model_name="fallback-model",
+        pricing_snapshot={
+            "context_window": 32000,
+            "max_output_tokens": 4096,
+        },
+    )
     try:
         with pytest.raises(InstrumentedExecutionError) as error:
-            await invoke_llm(
-                model=model,
+            capability.assemble(
                 messages=[],
                 phase="final_response_generation",
                 call_index=2,
-                provider="custom",
-                model_name="fallback-model",
-                pricing_snapshot={
-                    "context_window": 32000,
-                    "max_output_tokens": 4096,
-                },
-                context_assembler=RejectingAssembler(),
             )
     finally:
         current_execution.reset(token)
 
     assert captured == {"capacity": 32000, "reserved": 4096}
-    assert model.ainvoke.await_count == 0
     assert error.value.failure_context["code"] == "CONTEXT_BUDGET_EXCEEDED"
     assert error.value.failure_context["provider_called"] is False
     assert execution.llm_calls[0]["context_fit_status"] == "UNFIT"
@@ -142,17 +146,35 @@ async def test_primary_model_factory_uses_effective_output_capability():
 
 @pytest.mark.asyncio
 async def test_parallel_tools_and_no_redundant_json_repair():
-    tool_request = Result(
-        "",
-        [
-            {"id": "a", "name": "sum", "args": {"a": 8, "b": 8}},
-            {"id": "b", "name": "sum", "args": {"a": 9, "b": 8}},
+    tool_request = AIMessage(
+        content="",
+        tool_calls=[
+            {
+                "id": "a",
+                "name": "sum",
+                "args": {"a": 8, "b": 8},
+                "type": "tool_call",
+            },
+            {
+                "id": "b",
+                "name": "sum",
+                "args": {"a": 9, "b": 8},
+                "type": "tool_call",
+            },
         ],
-        {"input_tokens": 10, "output_tokens": 2, "total_tokens": 12},
+        usage_metadata={
+            "input_tokens": 10,
+            "output_tokens": 2,
+            "total_tokens": 12,
+        },
     )
-    structured_followup = Result(
-        '{"message":"ok"}',
-        usage={"input_tokens": 20, "output_tokens": 4, "total_tokens": 24},
+    structured_followup = AIMessage(
+        content='{"message":"ok"}',
+        usage_metadata={
+            "input_tokens": 20,
+            "output_tokens": 4,
+            "total_tokens": 24,
+        },
     )
     tool_model = MagicMock()
     tool_model.bind_tools.return_value = tool_model
@@ -171,20 +193,28 @@ async def test_parallel_tools_and_no_redundant_json_repair():
         active -= 1
         return await _execute_sum(call, tool_id)
 
-    execution = await run_instrumented_execution(
-        llm_factory=factory,
-        execute_single_tool=execute,
-        clean_json_answer=lambda value: value,
-        agent=_agent(),
-        api_key="key",
-        base_url=None,
-        response_format={"schema": {"type": "object"}},
-        json_enabled=True,
-        has_tools=True,
-        agent_tools=[{"type": "function"}],
-        tool_name_to_id={"sum": "id"},
-        messages=[],
-    )
+    context = new_execution_context()
+    context.run_id = uuid4()
+    context.project_id = uuid4()
+    token = current_execution.set(context)
+    try:
+        execution = await run_instrumented_execution(
+            llm_factory=factory,
+            execute_single_tool=execute,
+            clean_json_answer=lambda value: value,
+            agent=_agent(),
+            api_key="key",
+            base_url=None,
+            response_format={"schema": {"type": "object"}},
+            json_enabled=True,
+            has_tools=True,
+            agent_tools=[{"type": "function"}],
+            tool_name_to_id={"sum": "id"},
+            messages=[],
+            context_assembler=StandardContextManager(),
+        )
+    finally:
+        current_execution.reset(token)
 
     assert peak == 2
     assert factory.create_chat_model.call_count == 1
@@ -193,9 +223,27 @@ async def test_parallel_tools_and_no_redundant_json_repair():
         "tool_followup_1",
     ]
     initial_messages = tool_model.ainvoke.await_args_list[0].args[0]
-    assert isinstance(initial_messages[0], SystemMessage)
-    assert "complete and authoritative" in initial_messages[0].content
-    assert "return only valid JSON" in initial_messages[0].content
+    system_messages = [
+        message.content
+        for message in initial_messages
+        if isinstance(message, SystemMessage)
+    ]
+    assert any("complete and authoritative" in content for content in system_messages)
+    assert any("Tool grounding rules" in content for content in system_messages)
+    assert any("return only valid JSON" in content for content in system_messages)
+
+    followup_messages = tool_model.ainvoke.await_args_list[1].args[0]
+    tool_message_indexes = [
+        index
+        for index, message in enumerate(followup_messages)
+        if isinstance(message, ToolMessage)
+    ]
+    assert len(tool_message_indexes) == 2
+    assert tool_message_indexes[1] == tool_message_indexes[0] + 1
+    assert [
+        followup_messages[index].tool_call_id
+        for index in tool_message_indexes
+    ] == ["a", "b"]
     usage, complete, cost_status = aggregate_usage(execution.llm_calls)
     assert (usage.input_tokens, usage.output_tokens, usage.total_tokens) == (30, 6, 36)
     assert complete is True

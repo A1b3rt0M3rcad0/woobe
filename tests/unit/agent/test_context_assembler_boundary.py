@@ -13,6 +13,7 @@ from modules.agent.application.interfaces.context_assembler import (
     ContextAssembler,
     ContextAssemblyOutput,
     ContextAssemblyRequest,
+    ContextInvocationEnvironment,
 )
 from modules.agent.application.interfaces.context_policy import ContextPolicyV1
 from modules.agent.application.interfaces.execution_context import (
@@ -20,14 +21,12 @@ from modules.agent.application.interfaces.execution_context import (
     new_execution_context,
 )
 from modules.agent.domain.context import ContextSnapshot
-from modules.agent.infra.execution.execution_instrumentation import (
-    _assemble_invocation_context,
+from modules.agent.infra.execution.capabilities.context_assembly import (
+    ContextAssemblyCapability,
 )
 
 
 def _request() -> ContextAssemblyRequest:
-    runtime_context = new_execution_context()
-    runtime_context.run_id = uuid4()
     return ContextAssemblyRequest(
         messages=[
             SystemMessage(content="system"),
@@ -38,7 +37,7 @@ def _request() -> ContextAssemblyRequest:
         project_id=uuid4(),
         provider="openai",
         model="test-model",
-        runtime_context=runtime_context,
+        environment=ContextInvocationEnvironment(run_id=uuid4()),
         policy=ContextPolicyV1(),
     )
 
@@ -84,7 +83,7 @@ def test_standard_context_assembler_is_transparent_adapter(monkeypatch) -> None:
         "project_id": request.project_id,
         "provider": request.provider,
         "model": request.model,
-        "runtime_context": request.runtime_context,
+        "environment": request.environment,
         "policy": request.policy,
     }
 
@@ -104,8 +103,8 @@ class _FakeContextAssembler(ContextAssembler):
 
     def assemble(self, request: ContextAssemblyRequest) -> ContextAssemblyOutput:
         self.requests.append(request)
-        self.capacity_seen = request.runtime_context.model_capacity_units
-        active_tools = request.runtime_context.active_tool_definitions
+        self.capacity_seen = request.environment.model_capacity_units
+        active_tools = request.environment.active_tool_definitions
         self.tool_definitions_seen = list(active_tools) if active_tools is not None else None
         return _FakeAssemblyOutput(
             messages=["fake-context"],
@@ -138,23 +137,25 @@ def test_invocation_context_uses_injected_context_assembler() -> None:
     context.active_tool_definitions = [{"type": "function"}]
     invocation_id = uuid4()
     original_messages = [HumanMessage(content="original")]
+    capability = ContextAssemblyCapability(
+        assembler=assembler,
+        provider="openai",
+        model_name="replacement-model",
+        pricing_snapshot={"context_window": 8192},
+    )
 
     token = current_execution.set(context)
     try:
-        messages, snapshot = _assemble_invocation_context(
+        result = capability.assemble(
             invocation_id=invocation_id,
             messages=original_messages,
-            provider="openai",
-            model_name="replacement-model",
             phase="response_generation",
-            pricing_snapshot={"context_window": 8192},
-            context_assembler=assembler,
         )
     finally:
         current_execution.reset(token)
 
-    assert messages == ["fake-context"]
-    assert snapshot is assembler.snapshot
+    assert list(result.messages) == ["fake-context"]
+    assert result.snapshot is assembler.snapshot
     assert len(assembler.requests) == 1
     request = assembler.requests[0]
     assert request.messages == original_messages
@@ -170,7 +171,7 @@ def test_invocation_context_uses_injected_context_assembler() -> None:
 
 
 @pytest.mark.parametrize("phase", ["final_response_generation", "json_repair"])
-def test_terminal_invocations_hide_tools_from_context_assembly_and_restore_state(
+def test_disabled_tool_invocations_hide_tools_without_mutating_runtime_state(
     phase: str,
 ) -> None:
     assembler = _FakeContextAssembler()
@@ -181,17 +182,20 @@ def test_terminal_invocations_hide_tools_from_context_assembly_and_restore_state
     context.active_tool_definitions = [
         {"type": "function", "function": {"name": "lookup"}}
     ]
+    capability = ContextAssemblyCapability(
+        assembler=assembler,
+        provider="openai",
+        model_name="model",
+        pricing_snapshot=None,
+    )
 
     token = current_execution.set(context)
     try:
-        _assemble_invocation_context(
+        capability.assemble(
             invocation_id=uuid4(),
             messages=[HumanMessage(content="original")],
-            provider="openai",
-            model_name="model",
             phase=phase,
-            pricing_snapshot=None,
-            context_assembler=assembler,
+            tool_selection_mode="none",
         )
     finally:
         current_execution.reset(token)
@@ -202,7 +206,7 @@ def test_terminal_invocations_hide_tools_from_context_assembly_and_restore_state
     ]
 
 
-def test_invocation_runtime_state_is_restored_when_context_assembler_fails() -> None:
+def test_invocation_runtime_state_is_not_mutated_when_context_assembler_fails() -> None:
     context = new_execution_context()
     context.run_id = uuid4()
     context.project_id = uuid4()
@@ -211,18 +215,20 @@ def test_invocation_runtime_state_is_restored_when_context_assembler_fails() -> 
     context.active_tool_definitions = [
         {"type": "function", "function": {"name": "lookup"}}
     ]
+    capability = ContextAssemblyCapability(
+        assembler=_FailingContextAssembler(),
+        provider="openai",
+        model_name="replacement-model",
+        pricing_snapshot={"context_window": 8192},
+    )
 
     token = current_execution.set(context)
     try:
         with pytest.raises(RuntimeError, match="context assembly failed"):
-            _assemble_invocation_context(
+            capability.assemble(
                 invocation_id=uuid4(),
                 messages=[HumanMessage(content="original")],
-                provider="openai",
-                model_name="replacement-model",
                 phase="final_response_generation",
-                pricing_snapshot={"context_window": 8192},
-                context_assembler=_FailingContextAssembler(),
             )
     finally:
         current_execution.reset(token)
@@ -238,18 +244,20 @@ def test_instrumented_context_requires_explicit_assembler_when_execution_is_boun
     context.run_id = uuid4()
     context.project_id = uuid4()
     context.context_policy = ContextPolicyV1().model_dump(mode="json")
+    capability = ContextAssemblyCapability(
+        assembler=None,
+        provider="openai",
+        model_name="model",
+        pricing_snapshot=None,
+    )
 
     token = current_execution.set(context)
     try:
-        with pytest.raises(RuntimeError, match="ContextAssembler dependency is required"):
-            _assemble_invocation_context(
+        with pytest.raises(RuntimeError, match="Context Manager dependency is required"):
+            capability.assemble(
                 invocation_id=uuid4(),
                 messages=[HumanMessage(content="original")],
-                provider="openai",
-                model_name="model",
                 phase="response_generation",
-                pricing_snapshot=None,
-                context_assembler=None,
             )
     finally:
         current_execution.reset(token)

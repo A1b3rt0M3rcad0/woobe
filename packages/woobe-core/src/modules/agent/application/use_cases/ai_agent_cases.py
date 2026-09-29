@@ -1,15 +1,9 @@
 from typing import Protocol
 from uuid import UUID
 
-from modules.agent.application.interfaces.skill_repository import SkillRepository
-from modules.agent.application.skill_bindings import freeze_skill_bindings
-
-from modules.agent.application.context_assembler_registry import (
+from modules.agent.application.context_manager_registry import (
     DEFAULT_CONTEXT_MANAGER_SETTING,
-    canonicalize_context_assembler_runtime_config,
-)
-from modules.agent.application.execution_strategy_config import (
-    canonicalize_execution_strategy_runtime_config,
+    canonicalize_context_manager_runtime_config,
 )
 from modules.agent.application.dtos.ai_dtos import (
     CreateAgentInput,
@@ -20,6 +14,9 @@ from modules.agent.application.dtos.ai_dtos import (
     UpdateAgentOutput,
 )
 from modules.agent.application.dtos.behavior_dtos import canonicalize_behavior_spec
+from modules.agent.application.execution_strategy_config import (
+    canonicalize_execution_strategy_runtime_config,
+)
 from modules.agent.application.interfaces.outbox import OutboxEventWriter
 from modules.agent.application.interfaces.provider_model_repository import (
     ProviderModelRepository,
@@ -28,6 +25,11 @@ from modules.agent.application.interfaces.repositories import (
     AgentRepository,
     ProviderCredentialRepository,
 )
+from modules.agent.application.interfaces.skill_repository import SkillRepository
+from modules.agent.application.knowledge_strategy_config import (
+    canonicalize_knowledge_strategy_runtime_config,
+)
+from modules.agent.application.skill_bindings import freeze_skill_bindings
 from modules.agent.application.system_instruction_assembler import assemble_system_instructions
 from modules.agent.domain.entities import Agent
 from modules.agent.domain.enums import CredentialStatus, ProviderModelStatus
@@ -279,12 +281,15 @@ def _force_strict_json_settings(
 ) -> None:
     settings = dict(agent.settings or {})
     if initialize_context_manager or "runtime_config" in settings:
-        runtime_config = canonicalize_context_assembler_runtime_config(
+        runtime_config = canonicalize_context_manager_runtime_config(
             settings.get("runtime_config"),
             default_context_manager=default_context_manager,
             use_current_default_if_missing=initialize_context_manager,
         )
-        settings["runtime_config"] = canonicalize_execution_strategy_runtime_config(
+        runtime_config = canonicalize_execution_strategy_runtime_config(
+            runtime_config
+        )
+        settings["runtime_config"] = canonicalize_knowledge_strategy_runtime_config(
             runtime_config
         )
     response_format = settings.get("response_format")

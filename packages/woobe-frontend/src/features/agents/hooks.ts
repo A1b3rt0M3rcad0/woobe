@@ -11,7 +11,7 @@ import {
   getAgent,
   getAgentRuntimeEnvironments,
   getAgents,
-  getContextAssemblers,
+  getContextManagers,
   getExecutionStrategies,
   getContract,
   getContracts,
@@ -48,13 +48,15 @@ import type {
   UpdateContractRequest,
 } from './types'
 
-export function useContextAssemblers() {
+export function useContextManagers() {
   return useQuery({
-    queryKey: ['context-assemblers'],
-    queryFn: getContextAssemblers,
+    queryKey: ['context-managers'],
+    queryFn: getContextManagers,
     staleTime: Infinity,
   })
 }
+export const useContextAssemblers = useContextManagers
+
 export function useExecutionStrategies() {
   return useQuery({
     queryKey: ['execution-strategies'],

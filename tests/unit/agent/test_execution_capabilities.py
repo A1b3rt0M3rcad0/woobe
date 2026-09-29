@@ -225,6 +225,8 @@ async def test_strategy_can_own_model_tool_model_loop_with_shared_capabilities(
             execute_single_tool=request.execute_single_tool,
             tool_name_to_id={"search": "tool-id"},
         ),
+        knowledge=built.knowledge,
+        context=built.context,
         recovery=built.recovery,
     )
     state = StrategyExecutionState(messages=list(prepared.messages))

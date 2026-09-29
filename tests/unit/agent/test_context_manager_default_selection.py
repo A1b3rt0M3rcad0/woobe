@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import ast
 import inspect
+from pathlib import Path
+from runpy import run_path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import uuid4
@@ -25,13 +27,13 @@ def _deps():
 
 
 @pytest.mark.asyncio
-async def test_create_agent_freezes_system_default_selection_and_strategy() -> None:
+async def test_create_agent_freezes_stdcm_name_only() -> None:
     agent_repo, credential_repo, outbox = _deps()
     use_case = CreateAgentUseCase(
         agent_repo,
         credential_repo,
         outbox,
-        default_context_manager="stdcm:v1",
+        default_context_manager="stdcm",
     )
 
     saved = await use_case.execute(
@@ -42,22 +44,19 @@ async def test_create_agent_freezes_system_default_selection_and_strategy() -> N
         )
     )
 
-    assert saved.settings["runtime_config"]["context_assembler"] == {
-        "name": "default",
-        "version": "v1",
-        "strategy_name": "stdcm",
-        "strategy_version": "v1",
+    assert saved.settings["runtime_config"]["context_manager"] == {
+        "name": "stdcm",
     }
 
 
 @pytest.mark.asyncio
-async def test_create_agent_preserves_explicit_context_manager_selection() -> None:
+async def test_create_agent_preserves_explicit_stdcm_selection() -> None:
     agent_repo, credential_repo, outbox = _deps()
     use_case = CreateAgentUseCase(
         agent_repo,
         credential_repo,
         outbox,
-        default_context_manager="stdcm:v1",
+        default_context_manager="stdcm",
     )
 
     saved = await use_case.execute(
@@ -67,20 +66,14 @@ async def test_create_agent_preserves_explicit_context_manager_selection() -> No
             model="test-model",
             settings={
                 "runtime_config": {
-                    "context_assembler": {
-                        "name": "stdcm",
-                        "version": "v1",
-                    }
+                    "context_assembler": {"name": "stdcm"}
                 }
             },
         )
     )
 
-    assert saved.settings["runtime_config"]["context_assembler"] == {
+    assert saved.settings["runtime_config"]["context_manager"] == {
         "name": "stdcm",
-        "version": "v1",
-        "strategy_name": "stdcm",
-        "strategy_version": "v1",
     }
 
 
@@ -108,3 +101,25 @@ def test_create_agent_composer_wires_default_context_manager_setting() -> None:
     assert keyword.value.attr == "default_context_manager"
     assert isinstance(keyword.value.value, ast.Name)
     assert keyword.value.value.id == "SETTINGS"
+
+
+def test_self_host_env_generator_rewrites_legacy_context_manager_name(
+    tmp_path: Path,
+) -> None:
+    repository_root = Path(__file__).resolve().parents[3]
+    generate = run_path(
+        str(repository_root / "scripts" / "generate_self_host_env.py")
+    )["generate"]
+
+    template = tmp_path / "legacy.env"
+    output = tmp_path / ".env"
+    template.write_text(
+        "WOOBE_DEFAULT_CONTEXT_MANAGER=stdcm:v1\n",
+        encoding="utf-8",
+    )
+
+    generate(template, output, force=True)
+
+    generated = output.read_text(encoding="utf-8")
+    assert "WOOBE_DEFAULT_CONTEXT_MANAGER=stdcm\n" in generated
+    assert "stdcm:v1" not in generated

@@ -14,10 +14,15 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  containers:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 45
+  ci:
+    name: containers
+    runs-on: [self-hosted, Linux, X64]
+    timeout-minutes: 120
+    env:
+      DOCKER_BUILD_RECORD_UPLOAD: "false"
     steps:
+      - name: Phase · containers
+        run: echo "Running containers"
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - name: Prepare Docker access
         run: bash scripts/ci/prepare_docker_access.sh
@@ -207,14 +212,8 @@ jobs:
       - name: Cleanup Docker access
         if: always()
         run: bash scripts/ci/cleanup_docker_access.sh
-
-  release-multiarch-build:
-    name: Release-equivalent multi-arch build
-    runs-on: ubuntu-24.04
-    timeout-minutes: 60
-    env:
-      DOCKER_BUILD_RECORD_UPLOAD: "false"
-    steps:
+      - name: Phase · release-multiarch-build
+        run: echo "Running release-multiarch-build"
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4

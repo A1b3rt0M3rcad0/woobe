@@ -58,6 +58,7 @@ class StrategyRecoveryCapability:
         base_message_count: int,
         execution: InstrumentedExecution,
         cursor: dict[str, Any],
+        context_contributions: dict[str, dict[str, Any]] | None = None,
     ) -> None:
         await self.checkpoint_fn(
             strategy_name=self.strategy_name,
@@ -66,4 +67,5 @@ class StrategyRecoveryCapability:
             base_message_count=base_message_count,
             execution=execution,
             cursor=cursor,
+            context_contributions=context_contributions,
         )

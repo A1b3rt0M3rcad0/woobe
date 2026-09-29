@@ -1,4 +1,4 @@
-import type { ContextAssemblerDescriptor } from '@/features/agents/types'
+import type { ContextManagerDescriptor } from '@/features/agents/types'
 import type { SkillSnapshot, SkillsConfig } from './types'
 
 export const record = (value: unknown): Record<string, unknown> => value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
@@ -9,19 +9,21 @@ export function skillsConfig(runtime: unknown): SkillsConfig {
     snapshots: Array.isArray(raw.snapshots) ? raw.snapshots : [],
   }
 }
-export function enableSkillsContext(runtime: Record<string, unknown>, manager: ContextAssemblerDescriptor): Record<string, unknown> {
+export function enableSkillsContext(runtime: Record<string, unknown>, manager: ContextManagerDescriptor): Record<string, unknown> {
   if (!manager.supports_skills) throw new Error('Choose a Context Manager that supports Skills.')
   const context = record(runtime.context)
   const sources = Array.isArray(context.allowed_sources) ? context.allowed_sources : ['SYSTEM', 'USER_INPUT', 'SESSION', 'KNOWLEDGE', 'TOOL', 'DELEGATION', 'RUNTIME']
+  const nextRuntime = { ...runtime }
+  delete nextRuntime.context_assembler
   return {
-    ...runtime,
-    context_assembler: { name: manager.name, version: manager.version, strategy_name: manager.strategy_name, strategy_version: manager.strategy_version },
+    ...nextRuntime,
+    context_manager: { name: manager.name },
     context: { ...context, allowed_sources: [...new Set([...sources, 'SKILL', 'TOOL'])],
       source_priorities: { ...record(context.source_priorities), SKILL: 'MANDATORY' },
       skills: { max_units: 8000, catalog_max_units: 2000, search_limit: 8, ...record(context.skills) } },
   }
 }
-export function installSkill(runtime: Record<string, unknown>, snapshot: SkillSnapshot, manager: ContextAssemblerDescriptor): Record<string, unknown> {
+export function installSkill(runtime: Record<string, unknown>, snapshot: SkillSnapshot, manager: ContextManagerDescriptor): Record<string, unknown> {
   const config = skillsConfig(runtime)
   return { ...enableSkillsContext(runtime, manager), skills: {
     bindings: [...config.bindings.filter(item => item.skill_id !== snapshot.skill_id), { skill_id: snapshot.skill_id, skill_version_id: snapshot.skill_version_id, enabled: true }],

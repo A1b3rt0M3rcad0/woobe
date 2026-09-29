@@ -14,11 +14,17 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  version-consistency:
-    name: Version consistency
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
+  ci:
+    name: packages
+    runs-on: [self-hosted, Linux, X64]
+    timeout-minutes: 75
+    env:
+      VITE_API_URL: http://127.0.0.1:8000
+      VITE_CHAT_EMBED_URL: http://127.0.0.1:8081
+      VITE_WOOBE_EDITION: core
     steps:
+      - name: Phase · version-consistency
+        run: echo "Running version-consistency"
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
@@ -29,12 +35,8 @@ jobs:
           python scripts/ci/check_package_versions.py
           python scripts/release/set_platform_version.py "$(tr -d '[:space:]' < VERSION)"
           git diff --exit-code
-
-  python-packages:
-    name: Core, API and Workers packages
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    steps:
+      - name: Phase · python-packages
+        run: echo "Running python-packages"
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
@@ -42,16 +44,8 @@ jobs:
       - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
       - name: Build and clean-install Python packages
         run: bash scripts/ci/build_python_packages.sh
-
-  frontend-package:
-    name: Frontend package
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    env:
-      VITE_API_URL: http://127.0.0.1:8000
-      VITE_CHAT_EMBED_URL: http://127.0.0.1:8081
-      VITE_WOOBE_EDITION: core
-    steps:
+      - name: Phase · frontend-package
+        run: echo "Running frontend-package"
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
@@ -68,12 +62,8 @@ jobs:
         run: npm run build
       - name: Verify Frontend artifact
         run: test -d packages/woobe-frontend/dist && test -n "$(find packages/woobe-frontend/dist -type f -print -quit)"
-
-  embed-package:
-    name: Embed package
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    steps:
+      - name: Phase · embed-package
+        run: echo "Running embed-package"
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:

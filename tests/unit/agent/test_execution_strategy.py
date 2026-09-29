@@ -15,6 +15,12 @@ from modules.agent.application.interfaces.execution_strategy import (
     ExecutionStrategy,
     ExecutionStrategyRequest,
 )
+from modules.agent.application.knowledge_strategy_config import (
+    knowledge_strategy_from_runtime_config,
+)
+from modules.agent.application.knowledge_strategy_registry import (
+    build_knowledge_strategy_registry,
+)
 from modules.agent.application.use_cases.ai_agent_cases import _force_strict_json_settings
 from modules.agent.application.use_cases.release_lifecycle_use_cases_v2 import (
     _canonical_runtime_config,
@@ -76,13 +82,20 @@ def test_new_agent_settings_freeze_standard_strategy_explicitly() -> None:
     _force_strict_json_settings(agent, initialize_context_manager=True)
 
     assert agent.settings["runtime_config"]["execution_strategy"] == "standard"
+    assert agent.settings["runtime_config"]["knowledge_strategy"] == "rag"
 
 
 def test_release_runtime_config_preserves_explicit_execution_strategy() -> None:
-    runtime_config = _canonical_runtime_config({"execution_strategy": "STANDARD"})
+    runtime_config = _canonical_runtime_config(
+        {
+            "execution_strategy": "STANDARD",
+            "knowledge_strategy": "RAG",
+        }
+    )
 
     assert runtime_config["execution_strategy"] == "standard"
-    assert "context_assembler" in runtime_config
+    assert runtime_config["knowledge_strategy"] == "rag"
+    assert "context_manager" in runtime_config
     assert "context" in runtime_config
     assert "rag" in runtime_config
 
@@ -92,11 +105,18 @@ def test_legacy_release_snapshot_keeps_absence_with_standard_semantics() -> None
 
     assert "execution_strategy" not in runtime_config
     assert execution_strategy_from_runtime_config(runtime_config) == "standard"
+    assert "knowledge_strategy" not in runtime_config
+    assert knowledge_strategy_from_runtime_config(runtime_config) == "rag"
 
 
 def test_release_runtime_config_rejects_unknown_execution_strategy() -> None:
     with pytest.raises(ValidationError, match="Unsupported execution strategy: react"):
         _canonical_runtime_config({"execution_strategy": "react"})
+
+
+def test_release_runtime_config_rejects_unknown_knowledge_strategy() -> None:
+    with pytest.raises(ValidationError, match="Unsupported knowledge strategy: pageindex"):
+        _canonical_runtime_config({"knowledge_strategy": "pageindex"})
 
 
 def test_standard_strategy_is_self_describing_sdk_strategy() -> None:
@@ -152,7 +172,7 @@ class _RecordingResolver:
 
 class _RuntimeHost(InstrumentedPrimaryExecutionMixin):
     _llm_factory = "llm-factory"
-    _context_assembler = None
+    _context_manager = None
 
     async def _execute_single_tool(self, tool_call: dict, tool_id: str) -> dict:
         return {"tool_call": tool_call, "tool_id": tool_id}
@@ -184,11 +204,37 @@ async def test_agent_runtime_requires_strategy_resolver_from_composition() -> No
 
 
 @pytest.mark.asyncio
+async def test_agent_runtime_requires_knowledge_strategy_resolver_from_composition() -> None:
+    strategy = _RecordingStrategy()
+    resolver = _RecordingResolver(strategy)
+    runtime = _RuntimeHost()
+    runtime.configure_execution_strategy_resolver(resolver)
+    agent = SimpleNamespace(settings={})
+
+    with pytest.raises(
+        RuntimeError,
+        match="Agent Knowledge Strategy resolver is not configured",
+    ):
+        await runtime._execute_llm(
+            agent=agent,
+            api_key="secret",
+            base_url=None,
+            response_format={},
+            json_enabled=False,
+            has_tools=False,
+            agent_tools=[],
+            tool_name_to_id={},
+            messages=["hello"],
+        )
+
+
+@pytest.mark.asyncio
 async def test_agent_runtime_resolves_strategy_from_agent_runtime_config() -> None:
     strategy = _RecordingStrategy()
     resolver = _RecordingResolver(strategy)
     runtime = _RuntimeHost()
     runtime.configure_execution_strategy_resolver(resolver)
+    runtime.configure_knowledge_strategy_resolver(build_knowledge_strategy_registry())
     agent = SimpleNamespace(
         settings={"runtime_config": {"execution_strategy": "standard"}},
     )
@@ -213,6 +259,8 @@ async def test_agent_runtime_resolves_strategy_from_agent_runtime_config() -> No
     assert strategy.request is not None
     assert strategy.request.agent is agent
     assert strategy.request.messages == ["hello"]
+    assert strategy.request.knowledge_strategy is not None
+    assert strategy.request.knowledge_strategy.name == "rag"
 
 
 @pytest.mark.asyncio
@@ -221,6 +269,7 @@ async def test_agent_runtime_keeps_legacy_agent_on_standard_strategy() -> None:
     resolver = _RecordingResolver(strategy)
     runtime = _RuntimeHost()
     runtime.configure_execution_strategy_resolver(resolver)
+    runtime.configure_knowledge_strategy_resolver(build_knowledge_strategy_registry())
     agent = SimpleNamespace(settings={})
 
     await runtime._execute_llm(
@@ -244,6 +293,7 @@ async def test_frozen_release_runtime_config_wins_over_mutable_agent_state() -> 
     resolver = _RecordingResolver(strategy)
     runtime = _RuntimeHost()
     runtime.configure_execution_strategy_resolver(resolver)
+    runtime.configure_knowledge_strategy_resolver(build_knowledge_strategy_registry())
     agent = SimpleNamespace(
         settings={"runtime_config": {"execution_strategy": "react"}},
     )

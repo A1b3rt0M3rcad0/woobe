@@ -148,6 +148,7 @@ def build(payload: dict[str, Any]) -> dict[str, Any]:
         "provider": payload.get("provider"),
         "model": payload.get("model"),
         "execution_strategy": payload.get("execution_strategy"),
+        "knowledge_strategy": payload.get("knowledge_strategy"),
         "provider_model_id": payload.get("provider_model_id"),
         "provider_credential_id": payload.get("provider_credential_id"),
         "fallback_provider_model_id": payload.get("fallback_provider_model_id"),

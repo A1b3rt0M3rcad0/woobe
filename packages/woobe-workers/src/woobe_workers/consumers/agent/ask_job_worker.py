@@ -14,7 +14,7 @@ from modules.agent.background_boundary import (
 from modules.agent.background_boundary import AgentUnitOfWork
 from modules.agent.background_boundary import AgentToolRuntimeGateway
 from modules.agent.background_boundary import build_execution_strategy_resolver
-from modules.agent.background_boundary import build_runtime_context_assembler
+from modules.agent.background_boundary import build_runtime_context_manager
 from modules.agent.background_boundary import (
     TransactionBoundedStructuredOutputRuntime,
 )
@@ -64,8 +64,8 @@ class AskJobWorker:
             encryption_key=settings.encryption_key,
             tool_executor_factory=tool_runtime.execute_tool,
         )
-        execution.configure_context_assembler(
-            build_runtime_context_assembler(settings.default_context_manager)
+        execution.configure_context_manager(
+            build_runtime_context_manager(settings.default_context_manager)
         )
         execution.configure_execution_strategy_resolver(
             build_execution_strategy_resolver()
@@ -101,7 +101,20 @@ class AskJobWorker:
             return
 
         async with AgentUnitOfWork(self._engine) as uow:
-            await SQLAlchemyAskJobRepository(uow).mark_completed(
+            repository = SQLAlchemyAskJobRepository(uow)
+            if result.status == "waiting":
+                await repository.mark_waiting(
+                    job.id,
+                    result.model_dump(),
+                    result.trace_id,
+                )
+                logger.info(
+                    "Job %s is waiting after %.2fs",
+                    job.id,
+                    time.monotonic() - started_at,
+                )
+                return
+            await repository.mark_completed(
                 job.id,
                 result.model_dump(),
                 result.trace_id,

@@ -10,6 +10,9 @@ from modules.agent.application.dtos.runtime_dtos import AskInput
 from modules.agent.application.interfaces.execution import InstrumentedExecution
 from modules.agent.domain.run import AgentRun, AgentRunStatus
 from modules.agent.infra.execution.ask_agent_stream_service import AskAgentStreamService
+from modules.agent.infra.execution.capabilities.context_assembly import (
+    ContextAssemblyCapability,
+)
 from modules.agent.infra.execution.instrumented_fallback_mixin import InstrumentedFallbackMixin
 from modules.agent.infra.execution.runtime_streaming import current_runtime_stream
 from modules.agent.infra.execution.structured_json_repair import repair_json_if_needed
@@ -79,6 +82,11 @@ class _Factory:
     def create_chat_model(self, **kwargs):
         self.kwargs = kwargs
         return self.model
+
+
+class _PassthroughContextAssembler:
+    def assemble(self, request):
+        return SimpleNamespace(messages=list(request.messages), snapshot=None)
 
 
 class _FallbackUseCase(InstrumentedFallbackMixin):
@@ -176,6 +184,12 @@ class _JsonRepairUseCase:
             max_tokens=256,
             schema={"type": "object"},
             clean_json_answer=lambda value: value,
+            context_capability=ContextAssemblyCapability(
+                assembler=_PassthroughContextAssembler(),
+                provider="custom",
+                model_name="repair-model",
+                pricing_snapshot=None,
+            ),
         )
         raise AssertionError("JSON repair should be interrupted by cancellation")
 

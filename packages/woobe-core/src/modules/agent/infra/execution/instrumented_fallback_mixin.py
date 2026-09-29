@@ -3,15 +3,20 @@ from __future__ import annotations
 from modules.agent.application.runtime_output_validation import (
     ensure_model_result_has_public_output,
 )
-from modules.agent.application.interfaces.context_assembler import ContextAssembler
 from modules.agent.application.interfaces.execution import (
     InstrumentedExecution,
     InstrumentedExecutionError,
 )
+from modules.agent.application.interfaces.context_manager import ContextManagedContribution
 from modules.agent.application.interfaces.execution_context import current_execution
+from modules.agent.infra.execution.capabilities.context_assembly import (
+    ContextAssemblyCapability,
+)
+from modules.agent.infra.execution.capabilities.model_invocation import (
+    ModelInvocationCapability,
+)
 from modules.agent.infra.execution.durable_execution_instrumentation import (
     aggregate_usage,
-    invoke_llm,
     resolve_effective_output_tokens,
 )
 from modules.agent.infra.execution.runtime_streaming import (
@@ -70,25 +75,46 @@ class InstrumentedFallbackMixin:
             streaming=runtime_streaming_enabled(),
             response_format={"type": "json_object"} if json_enabled else None,
         )
-        context_assembler: ContextAssembler | None = getattr(
-            self,
-            "_context_assembler",
-            None,
-        )
-
+        contributions: tuple[ContextManagedContribution, ...] = ()
+        if context is not None and context.strategy_context_contributions:
+            contributions = tuple(
+                ContextManagedContribution(
+                    key=item.key,
+                    source_type=item.source_type,
+                    content=item.content,
+                    metadata=dict(item.metadata),
+                )
+                for item in context.strategy_context_contributions.values()
+            )
         try:
-            result, call = await invoke_llm(
+            fallback_context = ContextAssemblyCapability(
+                assembler=getattr(self, "_context_assembler", None),
+                provider=fallback_provider,
+                model_name=agent.fallback_model,
+                pricing_snapshot=pricing_snapshot,
+            ).assemble(
+                messages=list(messages),
+                phase="final_response_generation",
+                contributions=contributions,
+                tool_selection_mode="none",
+                call_index=call_index,
+            )
+            fallback_capability = ModelInvocationCapability(
                 model=fallback_chat_model,
-                messages=messages,
+                provider=fallback_provider,
+                model_name=agent.fallback_model,
+                pricing_snapshot=pricing_snapshot,
+            )
+            result, call = await fallback_capability.invoke(
+                messages=list(fallback_context.messages),
                 # Fallback is a terminal response generation attempt. Reusing the
                 # public final phase keeps standalone and Network streaming semantics
                 # identical while the fallback event preserves provider provenance.
                 phase="final_response_generation",
                 call_index=call_index,
-                provider=fallback_provider,
-                model_name=agent.fallback_model,
-                pricing_snapshot=pricing_snapshot,
-                context_assembler=context_assembler,
+                invocation_id=fallback_context.invocation_id,
+                context_snapshot=fallback_context.snapshot,
+                context_prepared=True,
             )
         except InstrumentedExecutionError as exc:
             existing_call_ids = {
@@ -123,6 +149,8 @@ class InstrumentedFallbackMixin:
                 result=None,
                 tool_calls=list(execution.tool_calls),
                 llm_calls=merged_calls,
+                knowledge_calls=list(execution.knowledge_calls),
+                sources=list(execution.sources),
                 timeline=merged_timeline,
                 tool_wall_latency_ms=execution.tool_wall_latency_ms,
                 tool_call_duration_sum_ms=execution.tool_call_duration_sum_ms,
@@ -134,6 +162,8 @@ class InstrumentedFallbackMixin:
                 str(exc),
                 llm_calls=merged_calls,
                 tool_calls=list(execution.tool_calls),
+                knowledge_calls=list(execution.knowledge_calls),
+                sources=list(execution.sources),
                 timeline=merged_timeline,
                 tool_wall_latency_ms=execution.tool_wall_latency_ms,
                 tool_call_duration_sum_ms=execution.tool_call_duration_sum_ms,

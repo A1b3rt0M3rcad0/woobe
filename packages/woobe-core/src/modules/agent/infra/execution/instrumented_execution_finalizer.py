@@ -73,6 +73,7 @@ def _runtime_binding_payload(context, input_dto) -> dict[str, Any]:
             else input_dto.execution_context
         ),
         "execution_strategy": context.execution_strategy if context else None,
+        "knowledge_strategy": context.knowledge_strategy if context else None,
         "agent_release_id": _id_text(context.agent_release_id if context else None),
         "agent_release_version": context.agent_release_version if context else None,
     }

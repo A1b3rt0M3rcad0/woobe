@@ -6,8 +6,12 @@ from modules.agent.composition.composers.runtime_contract_reader_composer import
     build_agent_runtime_contract_reader,
 )
 
-from modules.agent.application.context_assembler_registry import list_context_assemblers
+from modules.agent.application.context_manager_registry import list_context_managers
+
+# Backwards-compatible public alias. New callers should use list_context_managers.
+list_context_assemblers = list_context_managers
 from modules.agent.application.execution_strategy_config import list_execution_strategies
+from modules.agent.application.knowledge_strategy_registry import list_knowledge_strategies
 from modules.agent.application.dtos import AskInput, UploadDocumentFileInput
 from modules.agent.application.dtos.public_runtime_dtos import PublicRunRequest
 from modules.agent.application.dtos.vector_snapshot_dtos import (
@@ -316,10 +320,12 @@ __all__ = [
     'list_agent_sessions_composer',
     'list_agents_composer',
     'list_collections_composer',
+    'list_context_managers',
     'list_context_assemblers',
     'list_contract_versions_composer',
     'list_documents_composer',
     'list_execution_strategies',
+    'list_knowledge_strategies',
     'list_knowledge_versions_composer',
     'list_messages_composer',
     'list_model_configs_composer',

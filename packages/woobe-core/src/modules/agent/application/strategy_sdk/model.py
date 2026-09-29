@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from typing import Any, Protocol, TypeAlias
 
 from modules.agent.application.strategy_sdk.contracts import ExecutionPhase
+from modules.agent.application.strategy_sdk.invocation import StrategyInvocation
+from modules.agent.application.strategy_sdk.tools import StrategyToolCall
 
 
 StrategyPhase: TypeAlias = str | ExecutionPhase
@@ -21,18 +23,11 @@ def strategy_phase_with_iteration(phase: StrategyPhase, iteration: int) -> str:
 
 @dataclass(frozen=True, slots=True)
 class StrategyModelResult:
-    """Framework-neutral model result exposed to Execution Strategies."""
+    """Framework-neutral Model result exposed to Execution Strategies."""
 
-    message: Any
-
-    @property
-    def content(self) -> Any:
-        return getattr(self.message, "content", None)
-
-    @property
-    def tool_calls(self) -> tuple[dict[str, Any], ...]:
-        value = getattr(self.message, "tool_calls", None) or []
-        return tuple(item for item in value if isinstance(item, dict))
+    content: Any
+    tool_calls: tuple[StrategyToolCall, ...] = ()
+    finish_reason: str | None = None
 
     @property
     def has_tool_calls(self) -> bool:
@@ -42,15 +37,24 @@ class StrategyModelResult:
 class StrategyModel(Protocol):
     """Model operations available to an Execution Strategy."""
 
+    @property
+    def fallback_available(self) -> bool: ...
+
     async def invoke(
         self,
+        invocation: StrategyInvocation,
+    ) -> StrategyModelResult: ...
+
+    async def invoke_fallback(
+        self,
+        invocation: StrategyInvocation,
         *,
-        phase: StrategyPhase | None = None,
+        primary_error: str,
     ) -> StrategyModelResult: ...
 
     async def finalize(
         self,
+        invocation: StrategyInvocation,
         *,
         reason: str,
-        phase: StrategyPhase,
     ) -> StrategyModelResult: ...

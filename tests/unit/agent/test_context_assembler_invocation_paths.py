@@ -13,6 +13,12 @@ from modules.agent.application.interfaces.context_assembler import (
 )
 from modules.agent.application.interfaces.execution import InstrumentedExecution
 from modules.agent.infra.execution import structured_json_repair, tool_execution_loop
+from modules.agent.infra.execution.capabilities.context_assembly import (
+    ContextAssemblyCapability,
+)
+from modules.agent.infra.execution.capabilities.model_invocation import (
+    ModelInvocationCapability,
+)
 
 
 class _UnusedContextAssembler(ContextAssembler):
@@ -21,11 +27,11 @@ class _UnusedContextAssembler(ContextAssembler):
 
 
 @pytest.mark.asyncio
-async def test_tool_loop_propagates_same_assembler_across_model_invocations(
+async def test_tool_loop_does_not_propagate_context_assembler_into_model_invocations(
     monkeypatch,
 ) -> None:
     context_assembler = _UnusedContextAssembler()
-    captured_assemblers: list[ContextAssembler | None] = []
+    prepared_flags: list[bool] = []
     planned_results = [
         SimpleNamespace(
             content="",
@@ -39,8 +45,9 @@ async def test_tool_loop_propagates_same_assembler_across_model_invocations(
     ]
 
     async def fake_invoke_llm(**kwargs):
-        captured_assemblers.append(kwargs.get("context_assembler"))
-        result = planned_results[len(captured_assemblers) - 1]
+        prepared_flags.append(bool(kwargs.get("context_prepared")))
+        assert "context_assembler" not in kwargs
+        result = planned_results[len(prepared_flags) - 1]
         return result, {
             "phase": kwargs["phase"],
             "occurred_at": "2026-09-04T00:00:00+00:00",
@@ -81,11 +88,7 @@ async def test_tool_loop_propagates_same_assembler_across_model_invocations(
         context_assembler=context_assembler,
     )
 
-    assert captured_assemblers == [
-        context_assembler,
-        context_assembler,
-        context_assembler,
-    ]
+    assert prepared_flags == [True, True, True]
     assert [call["phase"] for call in execution.llm_calls] == [
         "capability_response_generation",
         "tool_followup_1",
@@ -99,19 +102,22 @@ class _RepairFactory:
 
 
 @pytest.mark.asyncio
-async def test_json_repair_propagates_context_assembler(monkeypatch) -> None:
+async def test_json_repair_uses_preassembled_context(monkeypatch) -> None:
     context_assembler = _UnusedContextAssembler()
     captured = {}
 
-    async def fake_invoke_llm(**kwargs):
+    async def fake_invoke(self, **kwargs):
         captured.update(kwargs)
+        captured["model"] = self.model
+        captured["provider"] = self.provider
+        captured["model_name"] = self.model_name
         return AIMessage(content='{"ok": true}'), {
             "phase": kwargs["phase"],
             "occurred_at": "2026-09-04T00:00:00+00:00",
             "status": "success",
         }
 
-    monkeypatch.setattr(structured_json_repair, "invoke_llm", fake_invoke_llm)
+    monkeypatch.setattr(ModelInvocationCapability, "invoke", fake_invoke)
 
     execution = InstrumentedExecution(result=AIMessage(content="not-json"))
     result = await structured_json_repair.repair_json_if_needed(
@@ -125,9 +131,15 @@ async def test_json_repair_propagates_context_assembler(monkeypatch) -> None:
         max_tokens=128,
         schema={"type": "object"},
         clean_json_answer=lambda value: value,
-        context_assembler=context_assembler,
+        context_capability=ContextAssemblyCapability(
+            assembler=context_assembler,
+            provider="custom",
+            model_name="test-model",
+            pricing_snapshot=None,
+        ),
     )
 
     assert result.result.content == '{"ok": true}'
     assert captured["phase"] == "json_repair"
-    assert captured["context_assembler"] is context_assembler
+    assert captured["context_prepared"] is True
+    assert "context_assembler" not in captured

@@ -23,14 +23,10 @@ function record(value: unknown): Record<string, unknown> {
 
 function contextManager(runtimeConfig: unknown) {
   const runtime = record(runtimeConfig)
-  const selection = record(runtime.context_assembler)
-  const name = typeof selection.name === 'string' && selection.name.trim()
+  const selection = record(runtime.context_manager ?? runtime.context_assembler)
+  return typeof selection.name === 'string' && selection.name.trim()
     ? selection.name.trim()
-    : 'default'
-  const version = typeof selection.version === 'string' && selection.version.trim()
-    ? selection.version.trim()
-    : 'v1'
-  return `${name}:${version}`
+    : 'stdcm'
 }
 
 function toolNames(runtimeConfig: unknown): string[] {

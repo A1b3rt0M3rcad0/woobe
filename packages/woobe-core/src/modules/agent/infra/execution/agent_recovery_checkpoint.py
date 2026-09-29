@@ -6,8 +6,11 @@ from typing import Any
 
 from langchain_core.messages import AIMessage, ToolMessage
 
-from modules.agent.application.dtos.runtime_dtos import ToolCallInfo
-from modules.agent.application.interfaces.execution import InstrumentedExecution
+from modules.agent.application.dtos.runtime_dtos import SourceInfo, ToolCallInfo
+from modules.agent.application.interfaces.execution import (
+    ExecutionSuspension,
+    InstrumentedExecution,
+)
 from modules.agent.application.interfaces.execution_context import current_execution
 
 _AGENT_CHECKPOINT_PHASES = {
@@ -22,12 +25,14 @@ def _serialize_capability_message(message: Any) -> dict[str, Any]:
     if isinstance(message, AIMessage):
         return {
             "role": "assistant",
+            "id": str(message.id) if getattr(message, "id", None) is not None else None,
             "content": deepcopy(message.content),
             "tool_calls": deepcopy(list(getattr(message, "tool_calls", None) or [])),
         }
     if isinstance(message, ToolMessage):
         return {
             "role": "tool",
+            "id": str(message.id) if getattr(message, "id", None) is not None else None,
             "content": deepcopy(message.content),
             "tool_call_id": str(message.tool_call_id),
             "additional_kwargs": deepcopy(message.additional_kwargs or {}),
@@ -41,6 +46,7 @@ def _restore_capability_message(value: dict[str, Any]) -> Any:
     role = value.get("role")
     if role == "assistant":
         return AIMessage(
+            id=(str(value["id"]) if value.get("id") is not None else None),
             content=deepcopy(value.get("content") or ""),
             tool_calls=deepcopy(value.get("tool_calls") or []),
         )
@@ -49,6 +55,7 @@ def _restore_capability_message(value: dict[str, Any]) -> Any:
         if not tool_call_id:
             raise ValueError("Agent recovery Tool message has no tool_call_id")
         return ToolMessage(
+            id=(str(value["id"]) if value.get("id") is not None else None),
             content=deepcopy(value.get("content") or ""),
             tool_call_id=str(tool_call_id),
             additional_kwargs=deepcopy(value.get("additional_kwargs") or {}),
@@ -60,10 +67,23 @@ def _serialize_execution(execution: InstrumentedExecution) -> dict[str, Any]:
     return {
         "tool_calls": [item.model_dump(mode="json") for item in execution.tool_calls],
         "llm_calls": deepcopy(execution.llm_calls),
+        "knowledge_calls": deepcopy(execution.knowledge_calls),
+        "sources": [item.model_dump(mode="json") for item in execution.sources],
         "timeline": deepcopy(execution.timeline),
         "tool_wall_latency_ms": int(execution.tool_wall_latency_ms or 0),
         "tool_call_duration_sum_ms": int(execution.tool_call_duration_sum_ms or 0),
         "failure_context": deepcopy(execution.failure_context),
+        "fallback_used": bool(execution.fallback_used),
+        "fallback_info": deepcopy(execution.fallback_info),
+        "suspension": (
+            {
+                "reason": execution.suspension.reason,
+                "operation_ref": execution.suspension.operation_ref,
+                "metadata": deepcopy(execution.suspension.metadata),
+            }
+            if execution.suspension is not None
+            else None
+        ),
     }
 
 
@@ -80,6 +100,16 @@ def _restore_execution(value: dict[str, Any]) -> InstrumentedExecution:
             for item in value.get("llm_calls") or []
             if isinstance(item, dict)
         ],
+        knowledge_calls=[
+            deepcopy(item)
+            for item in value.get("knowledge_calls") or []
+            if isinstance(item, dict)
+        ],
+        sources=[
+            SourceInfo.model_validate(item)
+            for item in value.get("sources") or []
+            if isinstance(item, dict)
+        ],
         timeline=[
             deepcopy(item)
             for item in value.get("timeline") or []
@@ -90,6 +120,30 @@ def _restore_execution(value: dict[str, Any]) -> InstrumentedExecution:
         failure_context=(
             deepcopy(value["failure_context"])
             if isinstance(value.get("failure_context"), dict)
+            else None
+        ),
+        fallback_used=bool(value.get("fallback_used")),
+        fallback_info=(
+            deepcopy(value["fallback_info"])
+            if isinstance(value.get("fallback_info"), dict)
+            else None
+        ),
+        suspension=(
+            ExecutionSuspension(
+                reason=str(value["suspension"].get("reason") or ""),
+                operation_ref=(
+                    str(value["suspension"]["operation_ref"])
+                    if value["suspension"].get("operation_ref") is not None
+                    else None
+                ),
+                metadata=(
+                    deepcopy(value["suspension"].get("metadata"))
+                    if isinstance(value["suspension"].get("metadata"), dict)
+                    else None
+                ),
+            )
+            if isinstance(value.get("suspension"), dict)
+            and value["suspension"].get("reason")
             else None
         ),
     )
@@ -130,6 +184,7 @@ class StrategyExecutionResume:
     phase: str
     cursor: dict[str, Any]
     capability_messages: list[Any]
+    context_contributions: dict[str, dict[str, Any]]
     execution: InstrumentedExecution
 
 
@@ -154,6 +209,7 @@ def build_strategy_checkpoint_state(
     base_message_count: int,
     execution: InstrumentedExecution,
     cursor: dict[str, Any],
+    context_contributions: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Build a strategy-neutral durable continuation snapshot.
 
@@ -176,6 +232,7 @@ def build_strategy_checkpoint_state(
         "resume_policy": _STRATEGY_RESUME_POLICY,
         "execution_strategy": strategy_name,
         "strategy_cursor": deepcopy(cursor),
+        "context_contributions": deepcopy(context_contributions or {}),
         "capability_messages": [
             _serialize_capability_message(message)
             for message in messages[base_message_count:]
@@ -206,6 +263,7 @@ def load_strategy_execution_resume(
         phase = value.get("phase")
         cursor = value.get("strategy_cursor")
         raw_execution = value.get("execution")
+        raw_context_contributions = value.get("context_contributions") or {}
         messages = _restore_checkpoint_messages(value.get("capability_messages"))
         if (
             stored_strategy != strategy_name
@@ -213,6 +271,11 @@ def load_strategy_execution_resume(
             or not phase
             or not isinstance(cursor, dict)
             or not isinstance(raw_execution, dict)
+            or not isinstance(raw_context_contributions, dict)
+            or any(
+                not isinstance(key, str) or not isinstance(item, dict)
+                for key, item in raw_context_contributions.items()
+            )
             or messages is None
         ):
             return None
@@ -222,6 +285,7 @@ def load_strategy_execution_resume(
                 phase=phase,
                 cursor=deepcopy(cursor),
                 capability_messages=messages,
+                context_contributions=deepcopy(raw_context_contributions),
                 execution=_restore_execution(raw_execution),
             )
         except (TypeError, ValueError):
@@ -243,6 +307,7 @@ def load_strategy_execution_resume(
             "stopped_reason": legacy.stopped_reason,
         },
         capability_messages=legacy.capability_messages,
+        context_contributions={},
         execution=legacy.execution,
     )
 

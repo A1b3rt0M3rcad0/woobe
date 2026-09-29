@@ -6,6 +6,9 @@ import pytest
 
 from modules.agent.application import execution_strategy_config
 from modules.agent.application.interfaces.execution import InstrumentedExecution
+from modules.agent.application.knowledge_strategy_registry import (
+    build_knowledge_strategy_registry,
+)
 from modules.agent.application.interfaces.execution_context import (
     current_execution,
     new_execution_context,
@@ -117,6 +120,7 @@ async def test_two_agents_can_select_different_strategy_algorithms(monkeypatch) 
     resolver = _MapResolver()
     runtime = _Runtime()
     runtime.configure_execution_strategy_resolver(resolver)
+    runtime.configure_knowledge_strategy_resolver(build_knowledge_strategy_registry())
 
     standard_agent = SimpleNamespace(
         settings={"runtime_config": {"execution_strategy": "standard"}},
@@ -140,6 +144,7 @@ async def test_frozen_release_snapshot_selects_non_standard_test_strategy(monkey
     resolver = _MapResolver()
     runtime = _Runtime()
     runtime.configure_execution_strategy_resolver(resolver)
+    runtime.configure_knowledge_strategy_resolver(build_knowledge_strategy_registry())
     agent = SimpleNamespace(
         settings={"runtime_config": {"execution_strategy": "standard"}},
     )
@@ -167,6 +172,7 @@ async def test_multi_step_strategy_keeps_usage_and_timeline_visible_to_runtime(m
     resolver.strategies["test_iterative"] = _MultiStepUsageStrategy()
     runtime = _Runtime()
     runtime.configure_execution_strategy_resolver(resolver)
+    runtime.configure_knowledge_strategy_resolver(build_knowledge_strategy_registry())
     agent = SimpleNamespace(
         settings={"runtime_config": {"execution_strategy": "test_iterative"}},
     )

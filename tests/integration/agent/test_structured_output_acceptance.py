@@ -7,6 +7,9 @@ from modules.agent.application.interfaces.execution import (
     InstrumentedExecution,
     InstrumentedExecutionError,
 )
+from modules.agent.infra.execution.capabilities.context_assembly import (
+    ContextAssemblyCapability,
+)
 from modules.agent.infra.execution.structured_json_repair import (
     repair_json_if_needed,
 )
@@ -51,6 +54,12 @@ def _arguments(factory, execution):
         "max_tokens": 128,
         "schema": {"type": "object"},
         "clean_json_answer": lambda value: value,
+        "context_capability": ContextAssemblyCapability(
+            assembler=None,
+            provider="compatible-provider",
+            model_name="model-test",
+            pricing_snapshot=None,
+        ),
     }
 
 

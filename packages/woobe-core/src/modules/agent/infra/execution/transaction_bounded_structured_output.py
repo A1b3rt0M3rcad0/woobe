@@ -5,7 +5,7 @@ from typing import Any
 from uuid import UUID
 
 import uuid6
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from modules.agent.application.dtos.runtime_dtos import AskOutput
 from modules.agent.application.interfaces.execution_context import current_execution
@@ -28,11 +28,6 @@ from modules.agent.infra.execution.runtime_preparation import (
 )
 from modules.agent.infra.execution.structured_output_ask_use_case import (
     StructuredOutputAskAgentUseCase,
-    _TOOL_GROUNDING_RUNTIME_RULES,
-)
-from modules.agent.infra.execution.transaction_bounded_rag import (
-    TransactionBoundedVectorSnapshotRAGMixin,
-    _rag_history_context,
 )
 from shared.infra.crypto import decrypt_secret
 from shared.runtime_environment import normalize_runtime_environment
@@ -115,10 +110,7 @@ def _network_hot_session_history(
     return history
 
 
-class TransactionBoundedStructuredOutputRuntime(
-    TransactionBoundedVectorSnapshotRAGMixin,
-    StructuredOutputAskAgentUseCase,
-):
+class TransactionBoundedStructuredOutputRuntime(StructuredOutputAskAgentUseCase):
     """Runtime shared by standalone and Network-deferred Agent executions."""
 
     @staticmethod
@@ -339,14 +331,10 @@ class TransactionBoundedStructuredOutputRuntime(
                 ttl_seconds=self._execution_state_ttl_seconds,
             )
 
-        rag_context, sources = await self._load_rag_context(
-            agent,
-            input_dto.message,
-            self._transactions,
-        )
+        sources = []
         messages = self._build_messages(
             agent,
-            rag_context,
+            None,
             history,
             input_dto.message,
             response_format if json_enabled else None,
@@ -368,45 +356,33 @@ class TransactionBoundedStructuredOutputRuntime(
         )
 
     async def _prepare(self, input_dto):
-        token = _rag_history_context.set([])
-        try:
-            if self._defer_persistence(input_dto):
-                prepared = await self._prepare_with_instrumentation(
-                    input_dto,
-                    self._prepare_deferred_network,
-                )
-            else:
-                prepared = await super(StructuredOutputAskAgentUseCase, self)._prepare(input_dto)
-            updated = list(prepared)
-            context = current_execution.get()
+        if self._defer_persistence(input_dto):
+            prepared = await self._prepare_with_instrumentation(
+                input_dto,
+                self._prepare_deferred_network,
+            )
+        else:
+            prepared = await super(StructuredOutputAskAgentUseCase, self)._prepare(input_dto)
+        updated = list(prepared)
+        context = current_execution.get()
 
-            if context and context.internal_tool_definitions:
-                definitions = list(updated[7])
-                mapping = dict(updated[8])
-                internal_mapping = context.internal_tool_name_to_id or {}
-                collisions = set(mapping).intersection(internal_mapping)
-                if collisions:
-                    raise ValueError(
-                        "Network delegation tool name collides with an Agent Tool: "
-                        + ", ".join(sorted(collisions))
-                    )
-                definitions.extend(context.internal_tool_definitions)
-                mapping.update(internal_mapping)
-                updated[7] = definitions
-                updated[8] = mapping
-                updated[9] = bool(definitions)
-
-            if updated[9]:
-                messages = list(updated[11])
-                insert_at = len(messages) - 1 if messages else 0
-                messages.insert(
-                    insert_at,
-                    SystemMessage(content=_TOOL_GROUNDING_RUNTIME_RULES),
+        if context and context.internal_tool_definitions:
+            definitions = list(updated[7])
+            mapping = dict(updated[8])
+            internal_mapping = context.internal_tool_name_to_id or {}
+            collisions = set(mapping).intersection(internal_mapping)
+            if collisions:
+                raise ValueError(
+                    "Network delegation tool name collides with an Agent Tool: "
+                    + ", ".join(sorted(collisions))
                 )
-                updated[11] = messages
-            return tuple(updated)
-        finally:
-            _rag_history_context.reset(token)
+            definitions.extend(context.internal_tool_definitions)
+            mapping.update(internal_mapping)
+            updated[7] = definitions
+            updated[8] = mapping
+            updated[9] = bool(definitions)
+
+        return tuple(updated)
 
     async def _finalize(
         self,
@@ -428,6 +404,8 @@ class TransactionBoundedStructuredOutputRuntime(
         json_format_latency_ms,
     ):
         context = current_execution.get()
+        if context is not None and context.execution is not None:
+            sources = list(context.execution.sources)
         if context is not None:
             context.persisted_sources = list(sources or [])
         response_format = self._get_response_format(agent)

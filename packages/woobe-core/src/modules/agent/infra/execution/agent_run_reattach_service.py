@@ -12,18 +12,16 @@ from modules.agent.infra.database.runtime_transaction_runner import (
 from shared.contracts.errors import AuthorizationError, ConflictError, NotFoundError
 from shared.contracts.execution_state import ExecutionStateStore
 from shared.contracts.run_event_journal import RunEventJournalPort
-from shared.runtime.contracts import runtime_state_frame
 from shared.runtime import (
     RunReference,
-    RuntimeFrame,
     RuntimeObserver,
     RuntimeStreamGapError,
     format_sse_frame,
 )
+from shared.runtime.contracts import runtime_state_frame
 from shared.runtime.event_schema import EVENT_JOURNAL_STORAGE_VERSION
 from shared.runtime.journal_projection import journal_runtime_state
 from shared.security.principal import AuthenticatedPrincipal, ProjectApiPrincipal
-
 
 _TERMINAL_STATUSES = {"completed", "failed", "cancelled", "timed_out", "uncertain"}
 
@@ -46,7 +44,7 @@ class AgentRunReattachService:
         self._transactions = transactions
         self._state_store = state_store
         self._journal = journal
-        self._observer = RuntimeObserver(state_store)
+        self._observer = RuntimeObserver(state_store, journal=journal)
 
     @staticmethod
     def _runtime_target(
@@ -161,7 +159,14 @@ class AgentRunReattachService:
         # already-finished Run until the projector catches up.
         if self._journal is not None and run.storage_version == EVENT_JOURNAL_STORAGE_VERSION:
             journal_state = await self._journal.get_state(run.id)
-            if journal_state is not None and journal_state.terminal_status in _TERMINAL_STATUSES:
+            if (
+                journal_state is not None
+                and journal_state.run_kind == "agent"
+                and journal_state.storage_version == EVENT_JOURNAL_STORAGE_VERSION
+                and journal_state.terminal_sequence is not None
+                and journal_state.terminal_sequence <= journal_state.durable_sequence
+                and journal_state.terminal_status in _TERMINAL_STATUSES
+            ):
                 return None
 
         return {

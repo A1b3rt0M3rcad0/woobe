@@ -9,17 +9,11 @@ import uuid6
 from langchain_core.messages import ToolMessage
 
 from modules.agent.application.context_assembly import (
-    ContextBudgetExceeded,
     enrich_snapshot_with_reported_usage,
     estimate_input_units,
     snapshot_to_dict,
 )
-from modules.agent.application.context_policy import ContextPolicyV1
 from modules.agent.application.dtos.runtime_dtos import ToolCallInfo, UsageInfo
-from modules.agent.application.interfaces.context_assembler import (
-    ContextAssembler,
-    ContextAssemblyRequest,
-)
 from modules.agent.application.interfaces.execution import (
     InstrumentedExecution,
     InstrumentedExecutionError,
@@ -167,59 +161,6 @@ def _record_live_tool_call(
     )
 
 
-def _assemble_invocation_context(
-    *,
-    invocation_id,
-    messages: list,
-    provider: str,
-    model_name: str,
-    phase: str,
-    pricing_snapshot: dict[str, Any] | None,
-    context_assembler: ContextAssembler | None,
-):
-    context = current_execution.get()
-    if context is None or context.run_id is None or context.project_id is None:
-        return messages, None
-    if context_assembler is None:
-        raise RuntimeError(
-            "ContextAssembler dependency is required for instrumented Agent execution"
-        )
-
-    policy = ContextPolicyV1.model_validate(context.context_policy or {})
-    previous_capacity = context.model_capacity_units
-    previous_reserved = context.reserved_output_units
-    previous_tools = context.active_tool_definitions
-    # Capacity and output reserve are invocation-specific. A fallback must not
-    # inherit the primary model limits when its ProviderModel differs.
-    context.model_capacity_units = _positive_int(
-        (pricing_snapshot or {}).get("context_window")
-    )
-    context.reserved_output_units = resolve_effective_output_tokens(
-        previous_reserved,
-        pricing_snapshot,
-    )
-    if phase in {"final_response_generation", "json_repair"}:
-        context.active_tool_definitions = []
-    try:
-        assembled = context_assembler.assemble(
-            ContextAssemblyRequest(
-                messages=messages,
-                model_invocation_id=invocation_id,
-                agent_run_id=context.run_id,
-                project_id=context.project_id,
-                provider=provider,
-                model=model_name,
-                runtime_context=context,
-                policy=policy,
-            )
-        )
-        return assembled.messages, assembled.snapshot
-    finally:
-        context.model_capacity_units = previous_capacity
-        context.reserved_output_units = previous_reserved
-        context.active_tool_definitions = previous_tools
-
-
 async def invoke_llm(
     *,
     model: Any,
@@ -229,62 +170,26 @@ async def invoke_llm(
     provider: str,
     model_name: str,
     pricing_snapshot: dict[str, Any] | None = None,
-    context_assembler: ContextAssembler | None = None,
+    invocation_id: Any | None = None,
+    context_snapshot: Any | None = None,
+    context_prepared: bool = False,
 ) -> tuple[Any, dict[str, Any]]:
-    call_uuid = uuid6.uuid7()
+    call_uuid = invocation_id or uuid6.uuid7()
     call_id = str(call_uuid)
     started_at = utc_iso()
     started = time.monotonic()
     cost_context = _cost_context(pricing_snapshot)
-    try:
-        invocation_messages, context_snapshot = _assemble_invocation_context(
-            invocation_id=call_uuid,
-            messages=messages,
-            provider=provider,
-            model_name=model_name,
-            phase=phase,
-            pricing_snapshot=pricing_snapshot,
-            context_assembler=context_assembler,
+    invocation_messages = messages
+    execution_context = current_execution.get()
+    if (
+        not context_prepared
+        and execution_context is not None
+        and getattr(execution_context, "run_id", None) is not None
+        and getattr(execution_context, "project_id", None) is not None
+    ):
+        raise RuntimeError(
+            "Instrumented Model invocation requires an explicitly assembled Context"
         )
-    except ContextBudgetExceeded as exc:
-        ended_at = utc_iso()
-        failure_context = {
-            "phase": phase,
-            "call_index": call_index,
-            "provider": provider,
-            "model": model_name,
-            **exc.failure_context(),
-        }
-        call = {
-            "call_id": call_id,
-            "call_index": call_index,
-            "phase": phase,
-            "status": "error",
-            "error": str(exc),
-            "started_at": started_at,
-            "ended_at": ended_at,
-            "occurred_at": ended_at,
-            "latency_ms": round((time.monotonic() - started) * 1000),
-            "input_tokens": None,
-            "output_tokens": None,
-            "total_tokens": None,
-            "cost_usd": None,
-            "cost_status": "unknown_tokens",
-            "cost_reason": "Model invocation was blocked by Context Budget before provider execution",
-            "usage_complete": False,
-            "provider": provider,
-            "model": model_name,
-            "context_snapshot": None,
-            **cost_context,
-            **failure_context,
-        }
-        _record_live_llm_call(call)
-        raise InstrumentedExecutionError(
-            str(exc),
-            llm_calls=[call],
-            timeline=[{"kind": "llm", "occurred_at": ended_at, "payload": call}],
-            failure_context=failure_context,
-        ) from exc
 
     running_call = {
         "call_id": call_id,

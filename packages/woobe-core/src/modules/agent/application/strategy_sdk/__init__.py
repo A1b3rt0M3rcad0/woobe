@@ -1,10 +1,30 @@
+from modules.agent.application.strategy_sdk.bootstrap import StrategyBootstrap
 from modules.agent.application.strategy_sdk.context import StrategyContext
+from modules.agent.application.strategy_sdk.conversation import (
+    StrategyConversation,
+    StrategyMessage,
+    StrategyMessageRole,
+)
+from modules.agent.application.strategy_sdk.context_manager import (
+    StrategyContextCompactionResult,
+    StrategyContextContribution,
+    StrategyContextInspection,
+    StrategyContextManager,
+    StrategyContextTarget,
+)
 from modules.agent.application.strategy_sdk.contracts import (
     ExecutionCheckpointBoundary,
     ExecutionPhase,
     ExecutionPolicy,
     ExecutionState,
     ExecutionStopReason,
+)
+from modules.agent.application.strategy_sdk.errors import StrategyExecutionError
+from modules.agent.application.strategy_sdk.invocation import StrategyInvocation
+from modules.agent.application.strategy_sdk.knowledge import (
+    StrategyKnowledge,
+    StrategyKnowledgeResult,
+    StrategyKnowledgeSource,
 )
 from modules.agent.application.strategy_sdk.model import (
     StrategyModel,
@@ -13,6 +33,7 @@ from modules.agent.application.strategy_sdk.model import (
     strategy_phase_value,
     strategy_phase_with_iteration,
 )
+from modules.agent.application.strategy_sdk.output import StrategyOutput
 from modules.agent.application.strategy_sdk.outcome import (
     Completed,
     StrategyOutcome,
@@ -20,6 +41,10 @@ from modules.agent.application.strategy_sdk.outcome import (
 )
 from modules.agent.application.strategy_sdk.tools import (
     StrategyToolBatch,
+    StrategyToolCall,
+    StrategyToolResult,
+    StrategyToolSelection,
+    StrategyToolSelectionMode,
     StrategyTools,
     SuspensionReason,
 )
@@ -31,12 +56,31 @@ __all__ = [
     "ExecutionPolicy",
     "ExecutionState",
     "ExecutionStopReason",
+    "StrategyBootstrap",
     "StrategyContext",
+    "StrategyConversation",
+    "StrategyContextCompactionResult",
+    "StrategyContextContribution",
+    "StrategyContextInspection",
+    "StrategyContextManager",
+    "StrategyContextTarget",
+    "StrategyExecutionError",
+    "StrategyInvocation",
+    "StrategyKnowledge",
+    "StrategyKnowledgeResult",
+    "StrategyKnowledgeSource",
+    "StrategyMessage",
+    "StrategyMessageRole",
     "StrategyModel",
     "StrategyModelResult",
     "StrategyOutcome",
+    "StrategyOutput",
     "StrategyPhase",
     "StrategyToolBatch",
+    "StrategyToolCall",
+    "StrategyToolResult",
+    "StrategyToolSelection",
+    "StrategyToolSelectionMode",
     "StrategyTools",
     "Suspended",
     "SuspensionReason",

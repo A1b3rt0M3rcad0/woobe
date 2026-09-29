@@ -48,6 +48,7 @@ def generate(template: Path, output: Path, *, force: bool) -> None:
         "WOOBE_MONGODB_URL": "mongodb://mongodb:27017",
         "WOOBE_MONGODB_DATABASE": "woobe",
         "WOOBE_MCP_SESSION_CACHE_ENABLED": "false",
+        "WOOBE_DEFAULT_CONTEXT_MANAGER": "stdcm",
         "WOOBE_STORAGE_DRIVER": "local",
         "WOOBE_UPLOAD_LOCAL_DIR": "/app/storage/uploads",
         "WOOBE_PUBLIC_API_URL": "http://localhost:8000",

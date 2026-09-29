@@ -54,7 +54,6 @@ def test_every_concrete_strategy_uses_strict_import_allowlist() -> None:
         "enum",
         "typing",
         "modules.agent.application.strategy_sdk",
-        "modules.agent.application.interfaces.execution",
         "modules.agent.application.interfaces.execution_strategy",
     )
     violations: list[str] = []

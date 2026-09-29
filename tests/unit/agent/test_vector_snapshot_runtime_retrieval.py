@@ -5,13 +5,9 @@ from uuid import uuid4
 import pytest
 
 from modules.agent.application.dtos.rag_config_dtos import RAGRuntimeConfig
-from modules.agent.application.interfaces.execution_context import (
-    current_execution,
-    new_execution_context,
-)
+from modules.agent.application.interfaces.rag import RAGBinding
 from modules.agent.application.rag.registry import RAGStrategyRegistry
 from modules.agent.application.rag.strategies.classic import ClassicRAGStrategy
-from modules.agent.domain.entities import Agent
 from modules.agent.domain.vector_snapshot_entities import (
     VectorSnapshotChunk,
     VectorSnapshotDocument,
@@ -59,15 +55,6 @@ async def test_vector_snapshot_rag_uses_agent_runtime_config_and_bound_snapshot(
         query_mode="current_message",
     )
 
-    agent = Agent(
-        id=agent_id,
-        project_id=project_id,
-        name="Contracts agent",
-        settings={
-            "knowledge_version_id": str(knowledge_id),
-            "runtime_config": {"rag": rag_config.model_dump()},
-        },
-    )
     knowledge = SimpleNamespace(id=knowledge_id, version="v2")
     snapshot = SimpleNamespace(
         id=snapshot_id,
@@ -118,24 +105,34 @@ async def test_vector_snapshot_rag_uses_agent_runtime_config_and_bound_snapshot(
     vector_search = _VectorSearch([(chunk, 0.91)])
     monkeypatch.setattr(embedding_module, "decrypt_secret", lambda *_args: "api-key")
 
-    execution_context = new_execution_context()
-    execution_context.execution_context = "production"
-    execution_context.prepared_rag = {
-        "knowledge": knowledge,
-        "snapshot": snapshot,
-        "provider_model": provider_model,
-        "credential": credential,
-        "snapshot_documents": [snapshot_document],
-    }
-    token = current_execution.set(execution_context)
-    try:
-        result = await _adapter(embedding_factory, vector_search).retrieve(
-            agent=agent,
-            query="When does it renew?",
-            history=(),
-        )
-    finally:
-        current_execution.reset(token)
+    binding = RAGBinding(
+        strategy=rag_config.strategy,
+        config=rag_config,
+        knowledge=knowledge,
+        snapshot=snapshot,
+        provider_model=provider_model,
+        credential=credential,
+        snapshot_documents=(snapshot_document,),
+        metadata={
+            "strategy": rag_config.strategy,
+            "knowledge_version_id": str(knowledge_id),
+            "knowledge_version": knowledge.version,
+            "vector_snapshot_id": str(snapshot_id),
+            "vector_snapshot_version": snapshot.version,
+            "snapshot_hash": snapshot.snapshot_hash,
+            "embedding_provider_model_id": str(provider_model_id),
+            "embedding_provider": snapshot.embedding_provider,
+            "embedding_model": snapshot.embedding_model,
+            "embedding_dimensions": snapshot.embedding_dimensions,
+            "rag_runtime_config": rag_config.model_dump(),
+            "rag_runtime_config_source": "production",
+            "retrieval_query_mode": rag_config.query_mode,
+        },
+    )
+    result = await _adapter(embedding_factory, vector_search).retrieve(
+        binding=binding,
+        query="When does it renew?",
+    )
 
     embedding_client.aembed_query.assert_awaited_once_with("When does it renew?")
     assert vector_search.calls == [
@@ -150,33 +147,10 @@ async def test_vector_snapshot_rag_uses_agent_runtime_config_and_bound_snapshot(
     assert "2031-04-17" in result.context
     assert result.sources[0].document_title == "Contract A"
     assert result.sources[0].page_number == 4
-    assert execution_context.rag_metadata is not None
-    assert execution_context.rag_metadata["strategy"] == "classic"
-    assert execution_context.rag_metadata["knowledge_version_id"] == str(knowledge_id)
-    assert execution_context.rag_metadata["vector_snapshot_id"] == str(snapshot_id)
-    assert execution_context.rag_metadata["snapshot_hash"] == "immutable-hash"
-    assert execution_context.rag_metadata["rag_runtime_config"] == rag_config.model_dump()
-    assert execution_context.rag_metadata["matched_chunks"] == 1
-
-
-@pytest.mark.asyncio
-async def test_vector_snapshot_rag_skips_retrieval_when_agent_has_no_knowledge():
-    vector_search = _VectorSearch([])
-    embedding_factory = MagicMock()
-    context = new_execution_context()
-    context.rag_metadata = {"stale": True}
-    token = current_execution.set(context)
-    try:
-        result = await _adapter(embedding_factory, vector_search).retrieve(
-            agent=Agent(project_id=uuid4(), settings={}),
-            query="hello",
-            history=(),
-        )
-    finally:
-        current_execution.reset(token)
-
-    assert result.context is None
-    assert result.sources == ()
-    assert context.rag_metadata is None
-    embedding_factory.create_embedding_client.assert_not_called()
-    assert vector_search.calls == []
+    assert result.metrics is not None
+    assert result.metrics["strategy"] == "classic"
+    assert result.metrics["knowledge_version_id"] == str(knowledge_id)
+    assert result.metrics["vector_snapshot_id"] == str(snapshot_id)
+    assert result.metrics["snapshot_hash"] == "immutable-hash"
+    assert result.metrics["rag_runtime_config"] == rag_config.model_dump()
+    assert result.metrics["matched_chunks"] == 1

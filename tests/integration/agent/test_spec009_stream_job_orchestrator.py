@@ -181,7 +181,7 @@ class TestWorkerRegistration:
         assert value.args[0].value == "external_context"
 
 
-    def test_ask_job_worker_resolves_context_assembler_through_public_boundary(self):
+    def test_ask_job_worker_resolves_context_manager_through_public_boundary(self):
         import ast
         import inspect
 
@@ -197,8 +197,8 @@ class TestWorkerRegistration:
             and node.module == "modules.agent.background_boundary"
             for alias in node.names
         }
-        assert "build_runtime_context_assembler" in boundary_names
-        assert "StandardContextAssembler" not in boundary_names
+        assert "build_runtime_context_manager" in boundary_names
+        assert "StandardContextManager" not in boundary_names
 
         tree = ast.parse(inspect.getsource(AskJobWorker))
         assembler_calls = [
@@ -206,7 +206,7 @@ class TestWorkerRegistration:
             for node in ast.walk(tree)
             if isinstance(node, ast.Call)
             and isinstance(node.func, ast.Attribute)
-            and node.func.attr == "configure_context_assembler"
+            and node.func.attr == "configure_context_manager"
         ]
 
         assert len(assembler_calls) == 1
@@ -214,7 +214,7 @@ class TestWorkerRegistration:
         configured = assembler_calls[0].args[0]
         assert isinstance(configured, ast.Call)
         assert isinstance(configured.func, ast.Name)
-        assert configured.func.id == "build_runtime_context_assembler"
+        assert configured.func.id == "build_runtime_context_manager"
         assert len(configured.args) == 1
         assert isinstance(configured.args[0], ast.Attribute)
         assert configured.args[0].attr == "default_context_manager"

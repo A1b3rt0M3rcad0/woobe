@@ -23,7 +23,6 @@ from modules.agent.infra.execution.instrumented_execution_finalizer import (
 from modules.agent.infra.execution.instrumented_failed_finalizer import (
     finalize_failed_instrumented_execution,
 )
-from modules.agent.infra.execution.instrumented_fallback_mixin import InstrumentedFallbackMixin
 from modules.agent.infra.execution.instrumented_primary_mixin import InstrumentedPrimaryExecutionMixin
 from modules.agent.infra.execution.session_continuity_runtime_resolver import (
     SessionContinuityReleaseRuntimeResolver,
@@ -44,21 +43,6 @@ _OUTPUT_CONTRACT_RUNTIME_RULES = (
     "- Return only the final JSON object."
 )
 
-_TOOL_GROUNDING_RUNTIME_RULES = (
-    "Tool grounding rules:\n"
-    "- The Tool definitions attached to this Model Invocation are the complete "
-    "set of runtime Tools available to this Agent. Do not call another Tool just "
-    "to discover which Tools exist.\n"
-    "- Never invent identifiers, owners, repository names, URLs, resource IDs, "
-    "tenant IDs, slugs or keys required by a Tool.\n"
-    "- If a qualified identifier is missing, use a real discovery or search Tool "
-    "when one is explicitly present in the attached Tool definitions.\n"
-    "- If no discovery Tool is available, ask the user for the missing identifier.\n"
-    "- Do not try guessed candidates or fabricated alternatives after a Tool rejects "
-    "an identifier or reports that a resource was not found."
-)
-
-
 def _id_text(value) -> str | None:
     return str(value) if value else None
 
@@ -70,7 +54,6 @@ def _provider_value(value) -> str | None:
 
 
 class StructuredOutputAskAgentUseCase(
-    InstrumentedFallbackMixin,
     InstrumentedPrimaryExecutionMixin,
     ExplicitRuntimePersistenceMixin,
     SessionContinuityReleaseRuntimeResolver,
@@ -131,14 +114,6 @@ class StructuredOutputAskAgentUseCase(
         updated = list(prepared)
         context = current_execution.get()
 
-        if context is not None:
-            raw_sources = updated[10] if len(updated) > 10 else []
-            context.context_rag_sources = [
-                source.model_dump() if hasattr(source, "model_dump") else dict(source)
-                for source in raw_sources or []
-                if hasattr(source, "model_dump") or isinstance(source, dict)
-            ]
-
         if context and context.internal_tool_definitions:
             definitions = list(updated[7])
             mapping = dict(updated[8])
@@ -155,14 +130,6 @@ class StructuredOutputAskAgentUseCase(
             updated[8] = mapping
             updated[9] = bool(definitions)
 
-        if updated[9]:
-            messages = list(updated[11])
-            insert_at = len(messages) - 1 if messages else 0
-            messages.insert(
-                insert_at,
-                SystemMessage(content=_TOOL_GROUNDING_RUNTIME_RULES),
-            )
-            updated[11] = messages
         return tuple(updated)
 
     async def _save_user_message(
@@ -384,6 +351,8 @@ class StructuredOutputAskAgentUseCase(
         json_format_latency_ms,
     ):
         context = current_execution.get()
+        if context is not None and context.execution is not None:
+            sources = list(context.execution.sources)
         if context is not None:
             context.persisted_sources = list(sources or [])
         response_format = self._get_response_format(agent)

@@ -9,6 +9,7 @@ from typing import Any
 from uuid import UUID
 
 from modules.agent.application.interfaces.execution import InstrumentedExecution
+from modules.agent.application.interfaces.rag import RAGBinding
 
 
 def utc_now() -> str:
@@ -35,8 +36,10 @@ class RequestExecutionContext:
     execution: InstrumentedExecution | None = None
     execution_context: str | None = None
     execution_strategy: str | None = None
+    knowledge_strategy: str | None = None
     agent_release_id: UUID | None = None
     agent_release_version: str | None = None
+    knowledge_metadata: dict[str, Any] | None = None
     rag_metadata: dict[str, Any] | None = None
     tool_snapshots: dict[str, dict[str, Any]] | None = None
     tool_metadata: dict[str, Any] | None = None
@@ -75,17 +78,20 @@ class RequestExecutionContext:
     # Run-local procedural content, never serialized as Session history.
     skill_context: list[dict[str, Any]] | None = None
 
+    # Transitional Strategy Runtime bridge for consumers that still execute outside
+    # the Strategy loop (notably provider fallback). This is ephemeral and must never
+    # be persisted as Session state.
+    strategy_context_contributions: dict[str, Any] | None = None
+
     # Context Engineering evidence. These values are configuration/provenance only;
     # raw secrets and full materialized prompts must never be stored here.
     context_policy: dict[str, Any] | None = None
-    context_assembler_name: str | None = None
-    context_assembler_version: str | None = None
-    context_assembler_strategy_name: str | None = None
-    context_assembler_strategy_version: str | None = None
+    context_manager_name: str | None = None
     model_capacity_units: int | None = None
     reserved_output_units: int | None = None
     active_tool_definitions: list[dict[str, Any]] | None = None
     context_selection_metadata: dict[str, Any] | None = None
+    knowledge_sources: list[dict[str, Any]] | None = None
     context_rag_sources: list[dict[str, Any]] | None = None
 
     # Ephemeral preparation material. Project Environment secrets remain encrypted
@@ -95,7 +101,16 @@ class RequestExecutionContext:
     prepared_tools: dict[str, Any] | None = None
     prepared_tool_secrets: dict[str, str] | None = None
     prepared_project_environment: dict[str, Any] | None = None
-    prepared_rag: dict[str, Any] | None = None
+    prepared_rag: RAGBinding | None = None
+
+    @property
+    def context_assembler_name(self) -> str | None:
+        """Legacy runtime alias; new code uses context_manager_name."""
+        return self.context_manager_name
+
+    @context_assembler_name.setter
+    def context_assembler_name(self, value: str | None) -> None:
+        self.context_manager_name = value
 
 
 current_execution: ContextVar[RequestExecutionContext | None] = ContextVar(

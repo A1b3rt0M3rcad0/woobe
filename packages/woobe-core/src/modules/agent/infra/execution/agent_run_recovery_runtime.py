@@ -7,14 +7,13 @@ from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
-from langchain_core.messages import SystemMessage
-
 from modules.agent.application.dtos.runtime_dtos import AskInput, AskOutput
 from modules.agent.application.interfaces.execution_context import (
     current_execution,
     new_execution_context,
 )
-from modules.agent.domain.enums import Provider, SessionMode
+from modules.agent.domain.enums import Provider, SessionMode, SessionStatus
+from modules.agent.domain.run import AgentRunStatus
 from modules.agent.infra.execution.frozen_snapshot_runtime import (
     FrozenSnapshotStructuredOutputRuntime,
     _messages_to_history,
@@ -24,12 +23,6 @@ from modules.agent.infra.execution.runtime_preparation import (
     prepare_rag_binding,
     prepare_skill_state,
     prepare_tool_state,
-)
-from modules.agent.infra.execution.structured_output_ask_use_case import (
-    _TOOL_GROUNDING_RUNTIME_RULES,
-)
-from modules.agent.infra.execution.transaction_bounded_rag import (
-    _rag_history_context,
 )
 from shared.contracts.errors import ConflictError, ValidationError
 from shared.infra.crypto import decrypt_secret
@@ -143,8 +136,8 @@ class AgentRunRecoveryRuntime(FrozenSnapshotStructuredOutputRuntime):
     @staticmethod
     def _validate_run_identity(run: Any, input_dto: AskInput, context: Any) -> None:
         status = str(_value(getattr(run, "status", None)) or "")
-        if status != "running":
-            raise ConflictError("Agent Run is no longer running")
+        if status not in {"running", "waiting"}:
+            raise ConflictError("Agent Run is not resumable")
         if str(getattr(run, "storage_version", "") or "") != EVENT_JOURNAL_STORAGE_VERSION:
             raise ConflictError("Agent Run is not owned by the event journal")
         if getattr(run, "network_execution_id", None) is not None or getattr(
@@ -284,6 +277,28 @@ class AgentRunRecoveryRuntime(FrozenSnapshotStructuredOutputRuntime):
 
         return await self._transactions.read(read_run)
 
+    async def _mark_resuming(
+        self,
+        accepted: _AcceptedRecoveryRun,
+    ) -> None:
+        async def mark(repositories, _outbox) -> None:
+            run = await repositories.runs.get_by_id(accepted.run_id)
+            if run is None:
+                raise ConflictError("Agent Run no longer exists")
+            if run.status not in {AgentRunStatus.RUNNING, AgentRunStatus.WAITING}:
+                raise ConflictError("Agent Run is not resumable")
+            run.status = AgentRunStatus.RUNNING
+            run.result = None
+            await repositories.runs.save(run)
+
+            if accepted.session_id is not None:
+                session = await repositories.sessions.get_by_id(accepted.session_id)
+                if session is not None and session.status == SessionStatus.WAITING:
+                    session.status = SessionStatus.ACTIVE
+                    await repositories.sessions.update(session)
+
+        await self._transactions.run(mark)
+
     async def _prepare_recovery_material(
         self,
         accepted: _AcceptedRecoveryRun,
@@ -408,6 +423,7 @@ class AgentRunRecoveryRuntime(FrozenSnapshotStructuredOutputRuntime):
             raise RuntimeError("Agent Run recovery context is incomplete")
 
         accepted = await self._read_accepted_run(input_dto)
+        await self._mark_resuming(accepted)
         context.project_id = accepted.project_id
         context.agent_id = accepted.agent_id
         context.session_id = accepted.session_id
@@ -428,133 +444,109 @@ class AgentRunRecoveryRuntime(FrozenSnapshotStructuredOutputRuntime):
             execution_snapshot=accepted.execution_snapshot,
         )
 
-        rag_token = _rag_history_context.set([])
         try:
-            try:
-                (
-                    agent,
-                    session,
-                    primary_credential,
-                    fallback_credential,
-                    tools,
-                    encrypted_tool_secrets,
-                    prepared_project_environment,
-                    rag_binding,
-                    history,
-                    response_format,
-                    json_enabled,
-                    definitions,
-                    name_to_id,
-                ) = await self._prepare_recovery_material(accepted, input_dto)
+            (
+                agent,
+                session,
+                primary_credential,
+                fallback_credential,
+                tools,
+                encrypted_tool_secrets,
+                prepared_project_environment,
+                rag_binding,
+                history,
+                response_format,
+                json_enabled,
+                definitions,
+                name_to_id,
+            ) = await self._prepare_recovery_material(accepted, input_dto)
 
-                _rag_history_context.set(history)
-                api_key = self._decrypt_api_key(primary_credential)
-                base_url = self._resolve_base_url(agent, primary_credential)
-                fallback_data = None
-                if fallback_credential is not None:
-                    fallback_provider = _value(agent.fallback_provider)
-                    fallback_data = {
-                        "api_key": self._decrypt_api_key(fallback_credential),
-                        "base_url": self._resolve_base_url_for_provider(
-                            fallback_provider,
-                            fallback_credential,
-                            agent.settings,
+            api_key = self._decrypt_api_key(primary_credential)
+            base_url = self._resolve_base_url(agent, primary_credential)
+            fallback_data = None
+            if fallback_credential is not None:
+                fallback_provider = _value(agent.fallback_provider)
+                fallback_data = {
+                    "api_key": self._decrypt_api_key(fallback_credential),
+                    "base_url": self._resolve_base_url_for_provider(
+                        fallback_provider,
+                        fallback_credential,
+                        agent.settings,
+                    ),
+                }
+            tool_secrets = {
+                name: decrypt_secret(ciphertext, self._encryption_key)
+                for name, ciphertext in encrypted_tool_secrets.items()
+            }
+            context.prepared_fallback = fallback_data
+            context.prepared_tools = {str(tool.id): tool for tool in tools}
+            context.prepared_tool_secrets = tool_secrets
+            context.prepared_project_environment = prepared_project_environment
+            context.prepared_rag = rag_binding
+            context.tool_metadata = {
+                "source": "accepted_run_snapshot",
+                "tool_ids": [str(tool.id) for tool in tools],
+            }
+
+            if self._execution_state_store is not None:
+                await self._execution_state_store.create(
+                    accepted.run_id,
+                    {
+                        "status": "running",
+                        "phase": "recovered",
+                        "project_id": str(accepted.project_id),
+                        "agent_id": str(accepted.agent_id),
+                        "session_id": (
+                            str(accepted.session_id)
+                            if accepted.session_id
+                            else None
                         ),
-                    }
-                tool_secrets = {
-                    name: decrypt_secret(ciphertext, self._encryption_key)
-                    for name, ciphertext in encrypted_tool_secrets.items()
-                }
-                context.prepared_fallback = fallback_data
-                context.prepared_tools = {str(tool.id): tool for tool in tools}
-                context.prepared_tool_secrets = tool_secrets
-                context.prepared_project_environment = prepared_project_environment
-                context.prepared_rag = rag_binding
-                context.tool_metadata = {
-                    "source": "accepted_run_snapshot",
-                    "tool_ids": [str(tool.id) for tool in tools],
-                }
+                        "trace_id": str(accepted.trace_id),
+                        "environment": normalize_runtime_environment(
+                            accepted.environment
+                        ),
+                        "attempt": context.run_attempt,
+                        "storage_version": EVENT_JOURNAL_STORAGE_VERSION,
+                        "recovered": True,
+                    },
+                    ttl_seconds=self._execution_state_ttl_seconds,
+                )
+                await self._execution_state_store.append_event(
+                    accepted.run_id,
+                    "agent.run.recovered",
+                    {
+                        "attempt": context.run_attempt,
+                        "trace_id": str(accepted.trace_id),
+                    },
+                )
 
-                if self._execution_state_store is not None:
-                    await self._execution_state_store.create(
-                        accepted.run_id,
-                        {
-                            "status": "running",
-                            "phase": "recovered",
-                            "project_id": str(accepted.project_id),
-                            "agent_id": str(accepted.agent_id),
-                            "session_id": str(accepted.session_id) if accepted.session_id else None,
-                            "trace_id": str(accepted.trace_id),
-                            "environment": normalize_runtime_environment(accepted.environment),
-                            "attempt": context.run_attempt,
-                            "storage_version": EVENT_JOURNAL_STORAGE_VERSION,
-                            "recovered": True,
-                        },
-                        ttl_seconds=self._execution_state_ttl_seconds,
-                    )
-                    await self._execution_state_store.append_event(
-                        accepted.run_id,
-                        "agent.run.recovered",
-                        {"attempt": context.run_attempt, "trace_id": str(accepted.trace_id)},
-                    )
-
-                rag_context, sources = await self._load_rag_context(
-                    agent,
-                    accepted.input_message,
-                    self._transactions,
-                )
-                if context.run_event_recorder is not None and sources:
-                    await context.run_event_recorder.emit(
-                        "knowledge.retrieval.completed",
-                        {
-                            "source_count": len(sources),
-                            "sources": [
-                                source.model_dump() if hasattr(source, "model_dump") else source
-                                for source in sources
-                            ],
-                        },
-                    )
-                context.context_rag_sources = [
-                    source.model_dump() if hasattr(source, "model_dump") else dict(source)
-                    for source in sources or []
-                    if hasattr(source, "model_dump") or isinstance(source, dict)
-                ]
-                messages = self._build_messages(
-                    agent,
-                    rag_context,
-                    history,
-                    accepted.input_message,
-                    response_format if json_enabled else None,
-                )
-                if definitions:
-                    insert_at = len(messages) - 1 if messages else 0
-                    messages.insert(
-                        insert_at,
-                        SystemMessage(content=_TOOL_GROUNDING_RUNTIME_RULES),
-                    )
-                await self._hot_update(
-                    {"phase": "llm", "rag_sources": len(sources or [])}
-                )
-                return (
-                    agent,
-                    session,
-                    accepted.trace_id,
-                    api_key,
-                    base_url,
-                    response_format,
-                    json_enabled,
-                    definitions,
-                    name_to_id,
-                    bool(definitions),
-                    sources,
-                    messages,
-                    history,
-                )
-            except Exception as exc:
-                await self._persist_prepare_failure(input_dto, exc)
-                raise
-        finally:
-            _rag_history_context.reset(rag_token)
+            sources = []
+            messages = self._build_messages(
+                agent,
+                None,
+                history,
+                accepted.input_message,
+                response_format if json_enabled else None,
+            )
+            await self._hot_update({"phase": "llm", "rag_sources": 0})
+            return (
+                agent,
+                session,
+                accepted.trace_id,
+                api_key,
+                base_url,
+                response_format,
+                json_enabled,
+                definitions,
+                name_to_id,
+                bool(definitions),
+                sources,
+                messages,
+                history,
+            )
+        except Exception as exc:
+            await self._persist_prepare_failure(input_dto, exc)
+            raise
 
 
 class AgentRunRecoveryExecutor:

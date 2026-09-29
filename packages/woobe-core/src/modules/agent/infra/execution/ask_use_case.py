@@ -19,6 +19,8 @@ from modules.agent.application.dtos.runtime_dtos import (
     ToolCallInfo,
     UsageInfo,
 )
+from modules.agent.application.interfaces.execution import InstrumentedExecution
+from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.application.interfaces.llm_factory import LLMFactory
 from modules.agent.application.interfaces.outbox import OutboxEventWriter
 from modules.agent.application.interfaces.repositories import (
@@ -32,8 +34,13 @@ from modules.agent.application.tool_converter import (
     agent_tools_to_openai_definitions_and_mapping,
 )
 from modules.agent.domain.entities import Agent, AgentRelease, Message, ProviderCredential, Session
-from modules.agent.domain.enums import MessageRole, RuntimeSessionMode as SessionMode
+from modules.agent.domain.enums import (
+    MessageRole,
+    RuntimeSessionMode as SessionMode,
+    SessionStatus,
+)
 from modules.agent.domain.errors import AgentNotFoundError, CredentialNotFoundError
+from modules.agent.domain.run import AgentRunStatus
 from modules.agent.domain.events import (
     AgentExecutionCompletedV1,
     AgentExecutionFailedV1,
@@ -122,6 +129,31 @@ class AskAgentUseCase:
             )
             llm_latency_ms = round((time.monotonic() - llm_latency_start) * 1000)
 
+            execution_context = current_execution.get()
+            execution = (
+                execution_context.execution
+                if execution_context is not None
+                else None
+            )
+            if isinstance(execution, InstrumentedExecution):
+                sources = list(execution.sources)
+                fallback_used = bool(execution.fallback_used)
+                fallback_info_result = execution.fallback_info
+                if fallback_info_result:
+                    fallback_provider_val = fallback_info_result.get(
+                        "fallback_provider"
+                    )
+                if execution.suspension is not None:
+                    output = await self._suspend(
+                        session=session,
+                        agent=agent,
+                        input_dto=input_dto,
+                        trace_id=trace_id,
+                        execution=execution,
+                    )
+                    output.latency_ms = round((time.monotonic() - started_at) * 1000)
+                    return output
+
             answer = result.content if hasattr(result, "content") else str(result)
 
             parsed_output = None
@@ -187,100 +219,98 @@ class AskAgentUseCase:
         except Exception as exc:
             llm_error = str(exc)
 
-            if agent.fallback_model and agent.fallback_credential_id:
-                try:
-                    fallback_info_result = {
-                        "primary_model": agent.model,
-                        "primary_provider": (
-                            agent.provider.value
-                            if hasattr(agent.provider, "value")
-                            else agent.provider
-                        ),
-                        "primary_error": llm_error,
-                        "fallback_model": agent.fallback_model,
-                        "fallback_provider": (
-                            agent.fallback_provider.value
-                            if hasattr(agent.fallback_provider, "value")
-                            else agent.fallback_provider
-                        ),
-                    }
-                    (
-                        fallback_result,
-                        fb_provider_val,
-                        fallback_latency,
-                        fallback_info_result,
-                    ) = await self._try_fallback(
-                        agent,
-                        messages,
-                        json_enabled,
-                        llm_error,
-                    )
-                    llm_latency_ms = fallback_latency
-                    fallback_used = True
-                    fallback_provider_val = fb_provider_val
+            execution_context = current_execution.get()
+            failed_execution = (
+                execution_context.execution
+                if execution_context is not None
+                else None
+            )
+            if isinstance(failed_execution, InstrumentedExecution):
+                sources = list(failed_execution.sources)
 
-                    result = fallback_result
-                    answer = result.content if hasattr(result, "content") else str(result)
+            # Fallback is an ExecutionStrategy decision. The outer runtime only
+            # persists the terminal failure when the selected Strategy cannot
+            # complete through its bound capabilities.
+            await self._fail(trace_id, agent, session, llm_error, input_dto)
+            raise ValueError(f"AI provider error: {llm_error}") from exc
 
-                    parsed_output = None
-                    output_parse_error = None
-                    if json_enabled:
-                        try:
-                            cleaned = self._clean_json_answer(answer)
-                            parsed_output = json.loads(cleaned)
-                        except Exception:
-                            pass
+    async def _suspend(
+        self,
+        *,
+        session: Session | None,
+        agent: Agent,
+        input_dto: AskInput,
+        trace_id: UUID,
+        execution: InstrumentedExecution,
+    ) -> AskOutput:
+        suspension = execution.suspension
+        if suspension is None:
+            raise RuntimeError("Suspension persistence requires suspension evidence")
 
-                    raw_usage = normalize_llm_usage(result)
-                    usage = UsageInfo(
-                        input_tokens=raw_usage["input_tokens"],
-                        output_tokens=raw_usage["output_tokens"],
-                        total_tokens=raw_usage["total_tokens"],
-                        cost_usd=raw_usage["cost_usd"],
-                    )
+        context = current_execution.get()
+        payload = {
+            "reason": suspension.reason,
+            "operation_ref": suspension.operation_ref,
+            "metadata": dict(suspension.metadata or {}),
+        }
 
-                    response_meta = getattr(result, "response_metadata", None) or {}
-                    response_model = response_meta.get("model", agent.fallback_model)
-                    response_provider = response_meta.get(
-                        "provider",
-                        fallback_provider_val,
-                    )
+        async def persist_waiting(
+            repositories: AgentRuntimeRepositories,
+            _outbox: OutboxEventWriter,
+        ) -> None:
+            if context is not None and context.run_id is not None:
+                run = await repositories.runs.get_by_id(context.run_id)
+                if run is not None and run.status in {
+                    AgentRunStatus.RUNNING,
+                    AgentRunStatus.WAITING,
+                }:
+                    run.status = AgentRunStatus.WAITING
+                    run.result = {"suspension": payload}
+                    run.failure_code = None
+                    run.failure_detail = None
+                    run.completed_at = None
+                    await repositories.runs.save(run)
 
-                    output = await self._finalize(
-                        session,
-                        agent,
-                        input_dto,
-                        trace_id,
-                        answer,
-                        usage,
-                        response_model,
-                        response_provider,
-                        llm_latency_ms,
-                        sources,
-                        parsed_output,
-                        output_parse_error,
-                        tool_calls_recorded,
-                        fallback_used,
-                        fallback_info_result,
-                        json_format_latency_ms,
-                    )
-                    output.latency_ms = round((time.monotonic() - started_at) * 1000)
-                    return output
-                except Exception as fallback_error:
-                    combined_error = f"Primary: {llm_error} | Fallback: {fallback_error}"
-                    await self._fail(
-                        trace_id,
-                        agent,
-                        session,
-                        combined_error,
-                        input_dto,
-                    )
-                    raise ValueError(
-                        f"AI provider error: {combined_error}"
-                    ) from fallback_error
-            else:
-                await self._fail(trace_id, agent, session, llm_error, input_dto)
-                raise ValueError(f"AI provider error: {llm_error}")
+            if session is not None:
+                current_session = await repositories.sessions.get_by_id(session.id)
+                if current_session is not None:
+                    current_session.status = SessionStatus.WAITING
+                    await repositories.sessions.update(current_session)
+
+        await self._transactions.run(persist_waiting)
+
+        recorder = (
+            context.run_event_recorder
+            if context is not None
+            else None
+        )
+        if recorder is not None:
+            await recorder.emit(
+                "execution.suspended",
+                payload,
+                durable=True,
+            )
+
+        hot_update = getattr(self, "_hot_update", None)
+        if callable(hot_update):
+            await hot_update(
+                {
+                    "status": "waiting",
+                    "phase": "suspended",
+                    "suspension": payload,
+                }
+            )
+
+        return AskOutput(
+            run_id=context.run_id if context is not None else None,
+            status="waiting",
+            answer="",
+            suspension=payload,
+            session_id=session.id if session is not None else None,
+            trace_id=trace_id,
+            sources=list(execution.sources),
+            tool_calls=list(execution.tool_calls),
+        )
 
     async def _prepare(
         self,
@@ -351,15 +381,13 @@ class AskAgentUseCase:
                     agent,
                 )
 
-            rag_context, sources = await self._load_rag_context(
-                agent,
-                input_dto.message,
-                repositories,
-            )
-
+            # Knowledge retrieval is an ExecutionStrategy decision. Preparation
+            # only builds the base conversation; the frozen Knowledge binding is
+            # resolved by the durable runtime and exposed through StrategyKnowledge.
+            sources: list[SourceInfo] = []
             messages = self._build_messages(
                 agent,
-                rag_context,
+                None,
                 history,
                 input_dto.message,
                 response_format if json_enabled else None,
@@ -1092,61 +1120,10 @@ class AskAgentUseCase:
             )
             return []
 
-    async def _load_rag_context(
-        self,
-        agent: Agent,
-        query: str,
-        repositories: AgentRuntimeRepositories,
-    ) -> tuple[str | None, list[SourceInfo]]:
-        try:
-            collections = await repositories.agent_collections.list_by_agent(agent.id)
-            if not collections:
-                return None, []
-
-            all_sources: list[SourceInfo] = []
-            all_chunks: list[str] = []
-
-            for link in collections:
-                try:
-                    results = await repositories.document_chunks.search_similar(
-                        embedding=[0.0] * 1536,
-                        collection_id=link.collection_id,
-                        limit=3,
-                        threshold=0.0,
-                    )
-                except Exception:
-                    continue
-
-                for chunk, score in results:
-                    all_chunks.append(
-                        f"[{len(all_sources) + 1}] {chunk.content[:500]}"
-                    )
-                    all_sources.append(
-                        SourceInfo(
-                            document_id=(
-                                str(chunk.document_id)
-                                if chunk.document_id
-                                else None
-                            ),
-                            chunk_id=str(chunk.id),
-                            page_number=chunk.page_number,
-                            score=round(score, 4),
-                            content_preview=chunk.content[:200],
-                        )
-                    )
-
-            if not all_chunks:
-                return None, []
-
-            context = "\n\n".join(all_chunks)
-            return context, all_sources
-        except Exception:
-            return None, []
-
     def _build_messages(
         self,
         agent: Agent,
-        rag_context: str | None,
+        _rag_context: str | None,
         history: list,
         user_message: str,
         response_format: dict | None = None,
@@ -1168,17 +1145,6 @@ class AskAgentUseCase:
 
         if system_prompt:
             messages.append(SystemMessage(content=system_prompt))
-
-        if rag_context:
-            messages.append(
-                SystemMessage(
-                    content=(
-                        "Use the following context when relevant. "
-                        "If the context is not enough, say you do not know.\n\n"
-                        f"<context>\n{rag_context}\n</context>"
-                    )
-                )
-            )
 
         messages.extend(history)
         messages.append(HumanMessage(content=user_message))

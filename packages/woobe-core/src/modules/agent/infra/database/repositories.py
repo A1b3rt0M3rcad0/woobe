@@ -1204,6 +1204,16 @@ class SQLAlchemyAskJobRepository(AskJobRepository):
             model.status = "running"
             model.started_at = datetime.now(timezone.utc)
 
+    async def mark_waiting(
+        self, job_id: UUID, result: dict, trace_id: UUID | None
+    ) -> None:
+        model = await self._base._get_model_by_id(job_id)
+        if model:
+            model.status = "waiting"
+            model.result = result
+            model.trace_id = trace_id
+            model.completed_at = None
+
     async def mark_completed(
         self, job_id: UUID, result: dict, trace_id: UUID
     ) -> None:

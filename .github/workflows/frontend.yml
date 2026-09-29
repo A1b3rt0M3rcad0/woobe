@@ -20,7 +20,8 @@ concurrency:
 
 jobs:
   frontend:
-    runs-on: ubuntu-24.04
+    name: frontend
+    runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 20
     defaults:
       run:

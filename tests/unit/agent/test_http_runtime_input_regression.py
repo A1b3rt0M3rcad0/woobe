@@ -521,10 +521,11 @@ def test_provider_bind_tools_receives_no_removed_agent_argument() -> None:
         context_assembler=None,
     )
 
-    prepare_execution(request)
+    prepared = prepare_execution(request)
 
-    assert factory.model.bound_tools is not None
-    parameters = factory.model.bound_tools[0]["function"]["parameters"]
+    # Provider binding now happens at the Strategy Runtime invocation boundary.
+    assert factory.model.bound_tools is None
+    parameters = prepared.tool_definitions[0]["function"]["parameters"]
     assert parameters == {
         "type": "object",
         "properties": {},

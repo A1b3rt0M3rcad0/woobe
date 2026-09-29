@@ -1,64 +1,104 @@
 # Context Managers
 
-This package is the explicit extension point for concrete Agent Context Manager strategies.
+This package contains the concrete programmable Context Manager algorithms used by Agent execution.
 
-The Runtime boundary is **not** implemented here. The boundary is:
+The stable boundary lives in:
 
 ```text
 modules/agent/application/interfaces/context_assembler.py
 ```
 
-Runtime/execution code depends only on `ContextAssembler`. Concrete strategies live in this directory and are selected through `context_assembler_registry.py`.
+Despite the historical `ContextAssembler` type name, the interface represents the complete Context Manager surface:
 
-## Add a new built-in Context Manager
+```text
+inspect(...)
+compact(...)
+assemble(...)
+```
 
-1. Create one strategy module here, for example `adaptive.py`.
-2. Implement the structural `ContextAssembler` contract:
+Execution code depends only on that interface. A Context Manager decides how Context is inspected, compacted, summarized, trimmed, replaced, ordered, deduplicated and assembled. Runtime provides mechanisms such as model-assisted summarization, instrumentation and persistence; it does not own Context policy.
 
-   ```python
-   class AdaptiveContextAssembler:
-       def assemble(
-           self,
-           request: ContextAssemblyRequest,
-       ) -> ContextAssemblyOutput:
-           ...
-   ```
+## Identity
 
-3. Give the strategy a stable versioned identity such as `adaptive:v1`.
-4. Add complete backend-owned `ContextAssemblerDescriptor` metadata in `context_assembler_registry.py`.
-5. Register the concrete strategy in `_register_builtin_context_manager_strategies(...)` in `context_assembler_registry.py`.
-6. Add focused strategy/registry tests. The API and frontend catalog are populated from the Registry; do not hardcode the strategy in the frontend.
+Context Managers are identified only by name.
 
-## Versioning rules
+```text
+stdcm
+adaptive
+hierarchical
+memory-first
+```
 
-- Never change the meaning of an identity already referenced by Agent/Release snapshots. Publish a new version instead (`adaptive:v1` -> `adaptive:v2`).
-- `default` is reserved for the System Default alias. Concrete strategies must use their own identity.
-- `WOOBE_DEFAULT_CONTEXT_MANAGER` points to a concrete registered strategy such as `stdcm:v1`, never `default:v1`.
-- Existing snapshots keep both their selection identity and frozen concrete strategy identity for replay and rollback.
+There are no Context Manager version suffixes and no `default` alias. If a different behavior must coexist as a separately selectable manager, give it a different name.
+
+Agent and Release runtime config stores only:
+
+```json
+{
+  "context_assembler": {
+    "name": "stdcm"
+  }
+}
+```
+
+`WOOBE_DEFAULT_CONTEXT_MANAGER` is also a plain registered name:
+
+```text
+WOOBE_DEFAULT_CONTEXT_MANAGER=stdcm
+```
+
+## Add a built-in Context Manager
+
+1. Create a manager module under this package.
+2. Implement the structural `ContextAssembler` contract.
+3. Choose a unique stable name such as `adaptive`.
+4. Add backend-owned `ContextAssemblerDescriptor` metadata in `context_assembler_registry.py`.
+5. Register the manager in `_register_builtin_context_managers(...)`.
+6. Add focused manager and registry tests.
+
+Example:
+
+```python
+class AdaptiveContextManager:
+    def inspect(
+        self,
+        request: ContextInspectionRequest,
+    ) -> ContextInspectionOutput:
+        ...
+
+    async def compact(
+        self,
+        request: ContextCompactionRequest,
+        capabilities: ContextManagerCapabilities,
+    ) -> ContextCompactionOutput:
+        ...
+
+    def assemble(
+        self,
+        request: ContextAssemblyRequest,
+    ) -> ContextAssemblyOutput:
+        ...
+```
 
 ## Runtime rules
 
-- Do not import a concrete Context Manager from `infra/execution`.
-- Do not add strategy-specific branches to Agent Runtime invocation paths.
-- Keep per-invocation mutable state inside `ContextAssemblyRequest`/local call scope. Runtime may share one manager instance across concurrent Runs.
-- Context Managers decide how context is assembled. They do not own model execution, Tool execution, Run lifecycle, Knowledge storage, or Network orchestration.
+- Do not import concrete Context Managers from `infra/execution`.
+- Do not add manager-specific branches to Agent Runtime invocation paths.
+- Keep per-invocation mutable state inside request/local call scope.
+- Runtime may share one manager instance across concurrent Runs.
+- Context Managers may use only explicitly supplied Runtime capabilities.
+- Context Managers do not own general Agent execution, Tool execution, Run lifecycle, Knowledge storage or Network orchestration.
 
-## Current built-in strategy
-
-```text
-stdcm:v1 -> StandardContextAssembler
-```
-
-Implementation:
+## Built-in manager
 
 ```text
-modules/agent/application/context_managers/standard.py
+stdcm
+└── StandardSkillsContextAssembler
+    └── StandardContextAssembler
 ```
 
-The Standard strategy currently delegates to the existing deterministic `context_assembly.py` algorithm. Future strategies may use different internal algorithms while preserving the same `ContextAssembler` boundary.
+`stdcm` is the built-in Standard Context Manager and the system default. It supports Skills, pressure inspection, model-assisted summarize-and-replace compaction, deterministic budgeting, ordering, deduplication, provenance and final Context materialization.
 
-## Standard v2: Skills
+Alternative algorithms use different names.
 
-`stdcm:v2` is composed by the registry as `StandardSkillsContextAssembler` with a standard assembler dependency. It materializes Run-local Skill catalog, instruction and resource contributions, protects complete procedures from compaction and records package/version provenance. Its activation state belongs to the Run, not the shared manager instance. The system default remains `stdcm:v1`; published v1 identities retain their behavior.
-
-See [Agent Skills](../../../../../../../docs/skills/README.md) for package, API, budget and rollout contracts. Manager catalog metadata declares `supports_skills`; the frontend uses that contract to select compatible strategies.
+See [Agent Skills](../../../../../../../docs/skills/README.md) for Skill package and runtime contracts.

@@ -9,6 +9,9 @@ from modules.agent.application.interfaces.context_assembler import (
     ContextAssemblyOutput,
     ContextAssemblyRequest,
 )
+from modules.agent.infra.execution.capabilities.model_invocation import (
+    ModelInvocationCapability,
+)
 from modules.agent.infra.execution.instrumented_fallback_mixin import (
     InstrumentedFallbackMixin,
 )
@@ -50,8 +53,11 @@ async def test_fallback_uses_streaming_model_public_final_phase_and_effective_ou
     runtime = _Runtime(factory, context_assembler)
     captured = {}
 
-    async def fake_invoke_llm(**kwargs):
+    async def fake_invoke(self, **kwargs):
         captured.update(kwargs)
+        captured["model"] = self.model
+        captured["provider"] = self.provider
+        captured["model_name"] = self.model_name
         return (
             SimpleNamespace(content="fallback answer", usage_metadata={}),
             {
@@ -69,10 +75,7 @@ async def test_fallback_uses_streaming_model_public_final_phase_and_effective_ou
             },
         )
 
-    monkeypatch.setattr(
-        "modules.agent.infra.execution.instrumented_fallback_mixin.invoke_llm",
-        fake_invoke_llm,
-    )
+    monkeypatch.setattr(ModelInvocationCapability, "invoke", fake_invoke)
 
     agent = SimpleNamespace(
         provider="custom",
@@ -105,4 +108,5 @@ async def test_fallback_uses_streaming_model_public_final_phase_and_effective_ou
     assert factory.kwargs["max_tokens"] == 64
     assert captured["phase"] == "final_response_generation"
     assert captured["model"] is factory.model
-    assert captured["context_assembler"] is context_assembler
+    assert captured["context_prepared"] is True
+    assert "context_assembler" not in captured

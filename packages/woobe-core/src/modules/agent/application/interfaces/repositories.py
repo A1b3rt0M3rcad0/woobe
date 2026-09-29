@@ -418,6 +418,11 @@ class AskJobRepository(ABC):
     async def mark_started(self, job_id: UUID) -> None: ...
 
     @abstractmethod
+    async def mark_waiting(
+        self, job_id: UUID, result: dict, trace_id: UUID | None
+    ) -> None: ...
+
+    @abstractmethod
     async def mark_completed(
         self, job_id: UUID, result: dict, trace_id: UUID
     ) -> None: ...

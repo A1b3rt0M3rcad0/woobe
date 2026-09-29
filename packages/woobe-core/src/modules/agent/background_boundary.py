@@ -5,9 +5,12 @@ may consume agent background capabilities. It contains no worker
 lifecycle, worker registry, polling, slot or process-bootstrap behavior.
 """
 
-from modules.agent.application.context_assembler_registry import (
-    build_runtime_context_assembler,
+from modules.agent.application.context_manager_registry import (
+    build_runtime_context_manager,
 )
+
+# Legacy host alias; new integrations should import build_runtime_context_manager.
+build_runtime_context_assembler = build_runtime_context_manager
 from modules.agent.application.dtos.runtime_dtos import (
     AskInput,
 )

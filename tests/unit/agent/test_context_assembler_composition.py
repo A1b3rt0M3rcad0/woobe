@@ -3,11 +3,16 @@ from __future__ import annotations
 from typing import Any, cast
 from unittest.mock import MagicMock
 
-from modules.agent.application.context_assembler_registry import RegistryContextAssembler
-from modules.agent.application.interfaces.context_assembler import (
-    ContextAssembler,
+from modules.agent.application.context_manager_registry import RegistryContextManager
+from modules.agent.application.interfaces.context_manager import (
+    ContextManager,
     ContextAssemblyOutput,
     ContextAssemblyRequest,
+    ContextCompactionOutput,
+    ContextCompactionRequest,
+    ContextInspectionOutput,
+    ContextInspectionRequest,
+    ContextManagerCapabilities,
 )
 from modules.agent.composition.factories.ask_agent_runtime_factory import (
     build_ask_agent_handler,
@@ -17,25 +22,43 @@ from modules.agent.composition.factories.ask_agent_runtime_factory import (
 from shared.infra.config import Settings
 
 
-def _assert_registry_context_assembler(runtime) -> None:
+def _assert_registry_context_manager(runtime) -> None:
     assert isinstance(
-        getattr(runtime, "_context_assembler", None),
-        RegistryContextAssembler,
+        getattr(runtime, "_context_manager", None),
+        RegistryContextManager,
     )
 
 
-class _AlternateContextAssembler:
+class _AlternateContextManager:
+    def inspect(self, request: ContextInspectionRequest) -> ContextInspectionOutput:
+        return ContextInspectionOutput(
+            message_count=len(request.messages),
+            contribution_count=len(request.contributions),
+            estimated_input_units=0,
+            usable_input_units=None,
+            utilization=None,
+            pressure="UNKNOWN",
+        )
+
+    async def compact(
+        self,
+        request: ContextCompactionRequest,
+        capabilities: ContextManagerCapabilities,
+    ) -> ContextCompactionOutput:
+        del request, capabilities
+        return ContextCompactionOutput(changed=False)
+
     def assemble(self, request: ContextAssemblyRequest) -> ContextAssemblyOutput:
         raise AssertionError("Composition test does not execute Context Assembly")
 
 
-class _FalsyAlternateContextAssembler(_AlternateContextAssembler):
+class _FalsyAlternateContextManager(_AlternateContextManager):
     def __bool__(self) -> bool:
         return False
 
 
-def test_context_assembler_port_accepts_structural_implementations() -> None:
-    assert isinstance(_AlternateContextAssembler(), ContextAssembler)
+def test_context_manager_port_accepts_structural_implementations() -> None:
+    assert isinstance(_AlternateContextManager(), ContextManager)
 
 
 def test_public_agent_runtime_composition_wires_registry_dispatcher() -> None:
@@ -44,7 +67,7 @@ def test_public_agent_runtime_composition_wires_registry_dispatcher() -> None:
         http_executor=MagicMock(),
     )
 
-    _assert_registry_context_assembler(runtime)
+    _assert_registry_context_manager(runtime)
 
 
 def test_default_composition_builds_snapshot_aware_dispatcher_with_configured_strategy(
@@ -52,7 +75,7 @@ def test_default_composition_builds_snapshot_aware_dispatcher_with_configured_st
 ) -> None:
     from modules.agent.composition.factories import ask_agent_runtime_factory
 
-    assembler = _AlternateContextAssembler()
+    assembler = _AlternateContextManager()
     calls: list[str] = []
 
     def build_dispatcher(default_context_manager: str):
@@ -61,18 +84,18 @@ def test_default_composition_builds_snapshot_aware_dispatcher_with_configured_st
 
     monkeypatch.setattr(
         ask_agent_runtime_factory,
-        "build_runtime_context_assembler",
+        "build_runtime_context_manager",
         build_dispatcher,
     )
 
-    settings = Settings.model_validate({"default_context_manager": "stdcm:v1"})
+    settings = Settings.model_validate({"default_context_manager": "stdcm"})
     runtime, _transactions = ask_agent_runtime_factory.build_ask_agent_use_case(
         settings,
         http_executor=MagicMock(),
     )
 
-    assert runtime._context_assembler is assembler
-    assert calls == ["stdcm:v1"]
+    assert runtime._context_manager is assembler
+    assert calls == ["stdcm"]
 
 
 def test_internal_network_agent_runtime_composition_wires_registry_dispatcher() -> None:
@@ -81,48 +104,48 @@ def test_internal_network_agent_runtime_composition_wires_registry_dispatcher() 
         http_executor=MagicMock(),
     )
 
-    _assert_registry_context_assembler(runtime)
+    _assert_registry_context_manager(runtime)
 
 
-def test_public_agent_runtime_accepts_alternate_context_assembler() -> None:
-    assembler = _AlternateContextAssembler()
+def test_public_agent_runtime_accepts_alternate_context_manager() -> None:
+    assembler = _AlternateContextManager()
     runtime, _transactions = build_ask_agent_use_case(
         Settings.model_validate({}),
         http_executor=MagicMock(),
         context_assembler=assembler,
     )
 
-    assert runtime._context_assembler is assembler
+    assert runtime._context_manager is assembler
 
 
-def test_internal_network_runtime_accepts_alternate_context_assembler() -> None:
-    assembler = _AlternateContextAssembler()
+def test_internal_network_runtime_accepts_alternate_context_manager() -> None:
+    assembler = _AlternateContextManager()
     runtime = build_internal_agent_runtime(
         Settings.model_validate({}),
         http_executor=MagicMock(),
         context_assembler=assembler,
     )
 
-    assert runtime._context_assembler is assembler
+    assert runtime._context_manager is assembler
 
 
-def test_agent_entrypoint_preserves_alternate_context_assembler() -> None:
+def test_agent_entrypoint_preserves_alternate_context_manager() -> None:
     from modules.agent.entrypoint import (
         build_internal_agent_runtime as build_entrypoint_agent_runtime,
     )
 
-    assembler = _AlternateContextAssembler()
+    assembler = _AlternateContextManager()
     runtime = build_entrypoint_agent_runtime(
         Settings.model_validate({}),
         http_executor=MagicMock(),
         context_assembler=assembler,
     )
 
-    assert runtime._context_assembler is assembler
+    assert runtime._context_manager is assembler
 
 
-def test_handler_composition_accepts_alternate_context_assembler() -> None:
-    assembler = _AlternateContextAssembler()
+def test_handler_composition_accepts_alternate_context_manager() -> None:
+    assembler = _AlternateContextManager()
     handler = build_ask_agent_handler(
         Settings.model_validate({}),
         http_executor=MagicMock(),
@@ -130,15 +153,15 @@ def test_handler_composition_accepts_alternate_context_assembler() -> None:
     )
 
     controller = cast(Any, handler).__self__
-    assert controller._use_case._context_assembler is assembler
+    assert controller._use_case._context_manager is assembler
 
 
-def test_composition_preserves_explicit_falsy_context_assembler() -> None:
-    assembler = _FalsyAlternateContextAssembler()
+def test_composition_preserves_explicit_falsy_context_manager() -> None:
+    assembler = _FalsyAlternateContextManager()
     runtime, _transactions = build_ask_agent_use_case(
         Settings.model_validate({}),
         http_executor=MagicMock(),
         context_assembler=assembler,
     )
 
-    assert runtime._context_assembler is assembler
+    assert runtime._context_manager is assembler

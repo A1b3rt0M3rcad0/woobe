@@ -226,3 +226,24 @@ describe('standalone Agent Run reattach streaming', () => {
     }))
   })
 })
+
+it('reports nested terminal diagnostics once without retrying a failed Run', async () => {
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(sse(4, 'run.state', {
+        run_id: 'run-1', status: 'failed', output: '',
+        error: { failure_code: 'prepare_failed', trace_id: 'trace-1' },
+      }))
+      controller.close()
+    },
+  })
+  const fetchMock = vi.fn().mockResolvedValue(new Response(body, { status: 200 }))
+  vi.stubGlobal('fetch', fetchMock)
+  const onError = vi.fn()
+  await reattachAgentRunV1('run-1', {
+    onToken: vi.fn(), onSources: vi.fn(), onMeta: vi.fn(), onDone: vi.fn(), onError,
+  })
+  expect(fetchMock).toHaveBeenCalledTimes(1)
+  expect(onError).toHaveBeenCalledTimes(1)
+  expect(onError.mock.calls[0][0].message).toBe('Run failed · Code: prepare_failed · Trace: trace-1')
+})

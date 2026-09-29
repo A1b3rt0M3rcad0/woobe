@@ -60,8 +60,13 @@ The public algorithm-facing surface should remain approximately:
 
 ```text
 ctx.state
+ctx.bootstrap
+ctx.conversation
+ctx.knowledge
+ctx.context
 ctx.model
 ctx.tools
+ctx.output
 ctx.checkpoint()
 ```
 
@@ -70,6 +75,30 @@ ctx.checkpoint()
 Concrete Strategies must not import one another.
 
 If two Strategies need the same stable concept, evaluate whether that concept belongs in the shared Strategy SDK. Do not create hidden inheritance or utility coupling between concrete algorithms.
+
+## Execution ownership boundary
+
+The outer runner is not a second orchestrator.
+
+Before `ExecutionStrategy.execute(ctx)`, Runtime may resolve, authorize, freeze and restore dependencies/state. After the Strategy returns, Runtime may persist and project terminal evidence. Between those boundaries, only the Strategy may decide to start semantic execution operations.
+
+Forbidden outer-runtime decisions include:
+
+```text
+preflight Tool execution
+Knowledge retrieval
+Context Manager invocation outside the Execution Strategy boundary
+Model invocation
+provider fallback
+structured-output repair
+new semantic checkpoints
+```
+
+Knowledge owns conversation-to-query construction, including query mode and history limits. Execution passes `ctx.conversation` to `ctx.knowledge.retrieve(...)`; it does not inspect a Knowledge query policy.
+
+Capabilities own mechanisms; the Execution Strategy decides when to request Context operations; the selected Context Manager decides how Context is inspected, compacted and assembled.
+
+Tool inventory is not a Strategy policy surface. Runtime authorizes the complete Agent Tool inventory. A Strategy may expose all authorized Tools to a Model invocation or expose none; selecting a named subset is forbidden. The Model decides which exposed Tool to call.
 
 ## State boundary
 

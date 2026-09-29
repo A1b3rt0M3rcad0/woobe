@@ -6,6 +6,9 @@ from uuid import uuid4
 import pytest
 
 from modules.agent.application.interfaces.execution import InstrumentedExecution
+from modules.agent.application.knowledge_strategy_registry import (
+    build_knowledge_strategy_registry,
+)
 from modules.agent.application.interfaces.execution_strategy import ExecutionStrategyRequest
 from modules.agent.application.use_cases.auto_compatible_release_lifecycle import (
     AutoCompatibleReleaseLifecycleUseCase,
@@ -138,6 +141,7 @@ async def test_strategy_survives_draft_staging_production_and_drives_runtime() -
     resolver = _RecordingResolver()
     runtime = _RuntimeHost()
     runtime.configure_execution_strategy_resolver(resolver)
+    runtime.configure_knowledge_strategy_resolver(build_knowledge_strategy_registry())
     result, _, _, _ = await runtime._execute_llm(
         agent=agent,
         api_key="secret",

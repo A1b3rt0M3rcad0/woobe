@@ -49,8 +49,6 @@ class RAGRetrievalConfig(BaseModel):
     max_context_chunks: int = Field(default=5, ge=1, le=20)
     max_chunks_per_document: int = Field(default=2, ge=1, le=20)
     max_context_chars: int = Field(default=24_000, ge=1000, le=100_000)
-    query_mode: QueryMode = "conversation_context"
-    history_turns: int = Field(default=3, ge=1, le=10)
     grounding_policy: GroundingPolicy = "optional"
 
     @model_validator(mode="after")
@@ -63,8 +61,10 @@ class RAGRetrievalConfig(BaseModel):
 
 
 class RAGRuntimeConfig(RAGRetrievalConfig):
-    """Canonical retrieval configuration persisted in Agent runtime_config.rag."""
+    """Canonical Knowledge/RAG configuration persisted in Agent runtime_config.rag."""
 
+    query_mode: QueryMode = "conversation_context"
+    history_turns: int = Field(default=3, ge=1, le=10)
     strategy: str = Field(default="classic", min_length=1, max_length=64)
     strategy_config: dict[str, Any] = Field(default_factory=dict)
 

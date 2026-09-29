@@ -8,36 +8,6 @@ from modules.agent.application.rag.contracts import RAGCapabilities, RAGRequest,
 from shared.contracts.errors import ValidationError
 
 
-def build_retrieval_query(
-    query: str,
-    history: tuple[Any, ...],
-    *,
-    query_mode: str,
-    history_turns: int,
-) -> str:
-    if query_mode != "conversation_context" or not history:
-        return query
-
-    conversational: list[tuple[str, str]] = []
-    for message in history:
-        content = getattr(message, "content", None)
-        if not isinstance(content, str) or not content.strip():
-            continue
-        class_name = type(message).__name__
-        if class_name == "HumanMessage":
-            conversational.append(("User", content.strip()))
-        elif class_name == "AIMessage":
-            conversational.append(("Assistant", content.strip()))
-
-    tail = conversational[-(history_turns * 2) :]
-    if not tail:
-        return query
-
-    lines = [f"{role}: {content}" for role, content in tail]
-    lines.append(f"Current user message: {query}")
-    return "\n".join(lines)
-
-
 class ClassicRAGStrategy:
     """Current Woobe vector retrieval behavior behind the RAG Strategy contract."""
 
@@ -47,14 +17,7 @@ class ClassicRAGStrategy:
         capabilities: RAGCapabilities,
     ) -> RAGResult:
         config = request.config
-        retrieval_query = build_retrieval_query(
-            request.query,
-            request.history,
-            query_mode=config.query_mode,
-            history_turns=config.history_turns,
-        )
-
-        query_embedding = await capabilities.embedding.embed_query(retrieval_query)
+        query_embedding = await capabilities.embedding.embed_query(request.query)
         candidates = await capabilities.vector_search.search(
             vector_snapshot_id=request.vector_snapshot_id,
             embedding=query_embedding,
@@ -121,7 +84,6 @@ class ClassicRAGStrategy:
             )
 
         metrics = {
-            "retrieval_query_mode": config.query_mode,
             "candidate_count": len(candidates),
             "best_score": candidate_scores[0] if candidate_scores else None,
             "top_scores": candidate_scores[:10],

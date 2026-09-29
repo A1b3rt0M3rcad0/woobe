@@ -8,6 +8,7 @@ from sqlalchemy import event
 from sqlalchemy.orm import Session as SyncSession
 
 from modules.agent.application.context_managers.standard import StandardContextAssembler
+from modules.agent.application.knowledge_strategy_registry import build_knowledge_strategy_registry
 from modules.agent.application.dtos.runtime_dtos import AskInput
 from modules.agent.infra.database.models import AgentModel, ProviderCredentialModel
 from modules.agent.infra.database.run_models import AgentRunModel
@@ -121,6 +122,7 @@ async def test_agent_happy_path_uses_exactly_two_postgres_commits() -> None:
     )
     runtime.configure_context_assembler(StandardContextAssembler())
     runtime.configure_execution_strategy_resolver(build_execution_strategy_resolver())
+    runtime.configure_knowledge_strategy_resolver(build_knowledge_strategy_registry())
 
     commits = 0
 

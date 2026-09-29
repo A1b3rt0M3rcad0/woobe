@@ -7,8 +7,10 @@ from enum import Enum
 from typing import Any
 from uuid import UUID
 
+from modules.agent.application.dtos.rag_config_dtos import RAGRuntimeConfig
 from modules.agent.application.interfaces.context_policy import canonicalize_context_runtime_config
 from modules.agent.application.interfaces.execution_context import current_execution
+from modules.agent.application.interfaces.rag import RAGBinding
 from modules.agent.domain.tool_project_environment import (
     collect_tool_project_environment_keys,
 )
@@ -216,7 +218,7 @@ async def prepare_rag_binding(
     repositories: AgentRuntimeRepositories,
     *,
     agent: Any,
-) -> dict[str, Any] | None:
+) -> RAGBinding | None:
     settings = dict(agent.settings or {})
     knowledge_version_id = settings.get("knowledge_version_id")
     if not knowledge_version_id:
@@ -280,20 +282,62 @@ async def prepare_rag_binding(
     snapshot_documents = await repositories.vector_snapshots.list_snapshot_documents(
         snapshot.id
     )
-    return {
-        "knowledge": knowledge,
-        "snapshot": snapshot,
-        "provider_model": provider_model,
-        "credential": credential,
-        "snapshot_documents": snapshot_documents,
+    runtime_config = settings.get("runtime_config")
+    raw_rag = (
+        runtime_config.get("rag")
+        if isinstance(runtime_config, dict)
+        and isinstance(runtime_config.get("rag"), dict)
+        else {}
+    )
+    try:
+        config = RAGRuntimeConfig.model_validate(raw_rag)
+    except Exception as exc:
+        raise ValidationError("Agent RAG runtime configuration is invalid") from exc
+
+    execution_context = current_execution.get()
+    runtime_config_source = "draft"
+    if execution_context is not None:
+        environment = str(execution_context.execution_context or "playground").lower()
+        if environment in {"staging", "production"}:
+            runtime_config_source = environment
+        elif (
+            execution_context.agent_release_version
+            and execution_context.agent_release_version != "draft"
+        ):
+            runtime_config_source = "loaded_release"
+
+    metadata = {
+        "strategy": config.strategy,
+        "knowledge_version_id": str(knowledge.id),
+        "knowledge_version": knowledge.version,
+        "vector_snapshot_id": str(snapshot.id),
+        "vector_snapshot_version": snapshot.version,
+        "snapshot_hash": snapshot.snapshot_hash,
+        "embedding_provider_model_id": str(snapshot.embedding_provider_model_id),
+        "embedding_provider": snapshot.embedding_provider,
+        "embedding_model": snapshot.embedding_model,
+        "embedding_dimensions": snapshot.embedding_dimensions,
+        "rag_runtime_config": config.model_dump(),
+        "rag_runtime_config_source": runtime_config_source,
+        "retrieval_query_mode": config.query_mode,
     }
+    return RAGBinding(
+        strategy=config.strategy,
+        config=config,
+        knowledge=knowledge,
+        snapshot=snapshot,
+        provider_model=provider_model,
+        credential=credential,
+        snapshot_documents=tuple(snapshot_documents),
+        metadata=metadata,
+    )
 
 
 def build_execution_snapshot(
     *,
     agent: Any,
     tools: list[Any],
-    rag_binding: dict[str, Any] | None,
+    rag_binding: RAGBinding | None,
     release_id: UUID | None,
     release_version: str | None,
     tool_to_snapshot: ToolToSnapshot,
@@ -329,8 +373,8 @@ def build_execution_snapshot(
         "tools": [tool_to_snapshot(tool) for tool in tools],
     }
     if rag_binding:
-        knowledge = rag_binding["knowledge"]
-        vector_snapshot = rag_binding["snapshot"]
+        knowledge = rag_binding.knowledge
+        vector_snapshot = rag_binding.snapshot
         snapshot["knowledge"] = {
             "knowledge_version_id": str(knowledge.id),
             "knowledge_version": knowledge.version,
