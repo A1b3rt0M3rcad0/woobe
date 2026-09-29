@@ -2,6 +2,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from modules.agent.application.model_compatibility import (
+    CompatibilityMode,
+    ExecutionStrategySpec,
+)
+from modules.agent.domain.model_spec import ModelModalities, ModelOperations
+
 
 DEFAULT_EXECUTION_STRATEGY = "standard"
 
@@ -17,6 +23,7 @@ class ExecutionStrategyDescriptor:
     recommended_for: tuple[str, ...]
     capabilities: tuple[str, ...]
     limitations: tuple[str, ...]
+    compatibility: ExecutionStrategySpec
     is_default: bool = False
 
     def __post_init__(self) -> None:
@@ -43,6 +50,11 @@ class ExecutionStrategyDescriptor:
                     f"Execution Strategy descriptor {field_name} must contain non-empty values"
                 )
 
+        if self.compatibility.name != self.name:
+            raise ValueError(
+                "Execution Strategy compatibility name must match descriptor name"
+            )
+
     def as_dict(self) -> dict[str, object]:
         return {
             "name": self.name,
@@ -52,6 +64,7 @@ class ExecutionStrategyDescriptor:
             "recommended_for": list(self.recommended_for),
             "capabilities": list(self.capabilities),
             "limitations": list(self.limitations),
+            "compatibility": self.compatibility.as_dict(),
             "is_default": self.is_default,
         }
 
@@ -75,9 +88,9 @@ class InvalidDefaultExecutionStrategyError(ExecutionStrategyRegistryError):
 class ExecutionStrategyRegistry:
     """Explicit backend catalog of selectable Agent execution algorithms.
 
-    The registry owns product-facing metadata only. Concrete runtime implementations
-    stay behind ``ExecutionStrategyResolver`` so the application layer does not depend
-    on infrastructure strategy classes.
+    Product metadata and semantic compatibility are application-owned. Concrete runtime
+    implementations stay behind ExecutionStrategyResolver so this layer does not
+    depend on infrastructure strategy classes.
     """
 
     __slots__ = ("_descriptors",)
@@ -128,30 +141,46 @@ class ExecutionStrategyRegistry:
         )
 
 
+_STANDARD_COMPATIBILITY = ExecutionStrategySpec(
+    name="standard",
+    operations=frozenset({ModelOperations.LANGUAGE_GENERATE}),
+    requires_conversation=True,
+    allowed_input_modalities=frozenset({ModelModalities.TEXT}),
+    allowed_output_modalities=frozenset({ModelModalities.TEXT}),
+    context_mode=CompatibilityMode.REQUIRED,
+    knowledge_mode=CompatibilityMode.OPTIONAL,
+    tools_mode=CompatibilityMode.OPTIONAL,
+)
+
+
 _STANDARD_DESCRIPTOR = ExecutionStrategyDescriptor(
     name="standard",
     display_name="Standard",
     description=(
-        "General-purpose Woobe execution strategy for model and capability orchestration."
+        "General-purpose Woobe execution strategy for conversational language-model "
+        "and capability orchestration."
     ),
     behavior=(
-        "Invokes the configured model, executes bound capabilities when requested, "
-        "feeds durable results back into the model, and continues until terminal output "
-        "or runtime safety limits are reached."
+        "Invokes a compatible language model, executes bound capabilities when "
+        "requested, feeds durable results back into the model, and continues until "
+        "terminal output or runtime safety limits are reached."
     ),
     recommended_for=(
-        "General-purpose Agents that need predictable production behavior.",
-        "Agents that use Tools, Knowledge, structured output, or multi-round capability calls.",
+        "General-purpose conversational language Agents that need predictable production behavior.",
+        "Language Agents that use Tools, Knowledge, structured output, or multi-round capability calls.",
     ),
     capabilities=(
-        "Single-pass and multi-round Model execution.",
-        "Parallel Tool calls within one capability round.",
+        "Single-pass and multi-round conversational language Model execution.",
+        "Parallel Tool calls within one capability round when the Model supports Tool calling.",
         "Durable Tool-boundary recovery without replaying completed Tool side effects.",
-        "Structured output validation and JSON repair.",
+        "Structured output validation and JSON repair for compatible text output.",
     ),
     limitations=(
+        "Requires a conversational language.generate Model with text output.",
+        "Does not execute embedding, image, audio, video, JEV or other non-language operations.",
         "Does not add an explicit planning or reflection phase beyond model-directed capability use.",
     ),
+    compatibility=_STANDARD_COMPATIBILITY,
     is_default=True,
 )
 
