@@ -145,6 +145,9 @@ class RuntimeStrategyKnowledge:
             self._runtime_state.record_knowledge_call(call, ())
 
             if execution_context is not None:
+                execution_context.knowledge_metadata = dict(metadata)
+                execution_context.knowledge_sources = []
+                execution_context.rag_metadata = dict(metadata)
                 execution_context.context_rag_sources = []
             if recorder is not None:
                 await recorder.emit(
@@ -177,6 +180,7 @@ class RuntimeStrategyKnowledge:
             **dict(result.metadata),
         }
         if execution_context is not None:
+            execution_context.knowledge_metadata = dict(metadata)
             execution_context.rag_metadata = dict(metadata)
         call = {
             "phase": normalized_phase,
@@ -194,7 +198,8 @@ class RuntimeStrategyKnowledge:
         self._runtime_state.record_knowledge_call(call, result.sources)
 
         if execution_context is not None:
-            execution_context.context_rag_sources = serialized_sources
+            execution_context.knowledge_sources = list(serialized_sources)
+            execution_context.context_rag_sources = list(serialized_sources)
             if recorder is not None:
                 await recorder.emit(
                     "knowledge.retrieval.completed",
