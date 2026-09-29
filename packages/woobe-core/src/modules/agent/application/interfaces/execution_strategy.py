@@ -5,6 +5,7 @@ from typing import Any, Awaitable, Callable, Coroutine, Generic, Protocol, TypeV
 
 from modules.agent.application.interfaces.context_manager import ContextManager
 from modules.agent.application.interfaces.execution import InstrumentedExecution
+from modules.agent.application.interfaces.knowledge import KnowledgeStrategy
 from modules.agent.application.strategy_sdk import ExecutionState, StrategyContext, StrategyOutcome
 from modules.agent.domain.entities import Agent
 
@@ -35,6 +36,7 @@ class ExecutionStrategyRequest:
     messages: list
     context_assembler: ContextManager | None = None
     knowledge_retrieve: Callable[[str], Awaitable[Any]] | None = None
+    knowledge_strategy: KnowledgeStrategy | None = None
 
     @property
     def context_manager(self) -> ContextManager | None:
