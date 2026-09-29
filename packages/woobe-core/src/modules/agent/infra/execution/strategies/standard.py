@@ -25,6 +25,8 @@ from modules.agent.application.strategy_sdk import (
 DEFAULT_MAX_TOOL_ROUNDS = 5
 DEFAULT_MAX_CONSECUTIVE_SEMANTIC_FAILURE_ROUNDS = 2
 DEFAULT_MAX_EMPTY_OUTPUT_RETRIES = 1
+
+# Legacy public aliases retained by the pre-Strategy execution facade.
 MAX_TOOL_ROUNDS = DEFAULT_MAX_TOOL_ROUNDS
 MAX_CONSECUTIVE_SEMANTIC_FAILURE_ROUNDS = (
     DEFAULT_MAX_CONSECUTIVE_SEMANTIC_FAILURE_ROUNDS
@@ -84,7 +86,16 @@ class StandardExecutionPolicy(ExecutionPolicy[StandardExecutionState]):
 
 
 class StandardExecutionStrategy(ExecutionStrategy[StandardExecutionState]):
-    """General-purpose model/Tool loop expressed only through shared Strategy primitives."""
+    """General-purpose model/Tool loop expressed through shared Strategy primitives.
+
+    The Strategy owns execution order and stop conditions only. Context preparation,
+    Knowledge retrieval, Model invocation, Tool execution, output repair, and runtime
+    instrumentation remain delegated to their respective capabilities.
+
+    Flow:
+        preflight -> knowledge -> context compaction -> model invocation
+        -> bounded Tool follow-ups -> final/fallback response
+    """
 
     name = "standard"
     state_type = StandardExecutionState
@@ -92,6 +103,57 @@ class StandardExecutionStrategy(ExecutionStrategy[StandardExecutionState]):
 
     def __init__(self, policy: StandardExecutionPolicy | None = None) -> None:
         self.policy = policy or StandardExecutionPolicy()
+
+    async def _resolve_preflight(
+        self,
+        ctx: StrategyContext[StandardExecutionState],
+    ) -> None:
+        state = ctx.state
+        if state.preflight_resolved:
+            return
+
+        initial_tool_call = ctx.bootstrap.initial_tool_call
+        if initial_tool_call is not None:
+            await ctx.tools.execute_many([initial_tool_call])
+        state.preflight_resolved = True
+
+        if initial_tool_call is not None:
+            await ctx.checkpoint(ExecutionCheckpointBoundary.PREFLIGHT)
+
+    async def _resolve_knowledge(
+        self,
+        ctx: StrategyContext[StandardExecutionState],
+    ) -> None:
+        state = ctx.state
+        if state.knowledge_resolved:
+            return
+
+        knowledge = await ctx.knowledge.retrieve(
+            conversation=ctx.conversation,
+            phase=StandardPhase.KNOWLEDGE_RETRIEVAL,
+        )
+        if knowledge.found:
+            ctx.context.include_knowledge(knowledge)
+        state.knowledge_resolved = True
+
+    async def _finalize_without_tools(
+        self,
+        ctx: StrategyContext[StandardExecutionState],
+        *,
+        reason: str,
+    ):
+        invocation = await ctx.context.prepare_final(
+            reason=reason,
+            phase=StandardPhase.FINAL_RESPONSE_GENERATION,
+            tools=ctx.tools.none(),
+        )
+        try:
+            return await ctx.model.finalize(
+                invocation,
+                reason=reason,
+            )
+        except StrategyExecutionError as exc:
+            return await self._fallback_or_raise(ctx, exc)
 
     async def _fallback_or_raise(
         self,
@@ -156,15 +218,11 @@ class StandardExecutionStrategy(ExecutionStrategy[StandardExecutionState]):
         self,
         ctx: StrategyContext[StandardExecutionState],
     ) -> StrategyOutcome:
+        """Run the Standard orchestration algorithm without owning capability internals."""
+
         state = ctx.state
 
-        if not state.preflight_resolved:
-            initial_tool_call = ctx.bootstrap.initial_tool_call
-            if initial_tool_call is not None:
-                await ctx.tools.execute_many([initial_tool_call])
-            state.preflight_resolved = True
-            if initial_tool_call is not None:
-                await ctx.checkpoint(ExecutionCheckpointBoundary.PREFLIGHT)
+        await self._resolve_preflight(ctx)
 
         if state.phase is None:
             state.phase = (
@@ -173,14 +231,7 @@ class StandardExecutionStrategy(ExecutionStrategy[StandardExecutionState]):
                 else StandardPhase.RESPONSE_GENERATION.value
             )
 
-        if not state.knowledge_resolved:
-            knowledge = await ctx.knowledge.retrieve(
-                conversation=ctx.conversation,
-                phase=StandardPhase.KNOWLEDGE_RETRIEVAL,
-            )
-            if knowledge.found:
-                ctx.context.include_knowledge(knowledge)
-            state.knowledge_resolved = True
+        await self._resolve_knowledge(ctx)
 
         await ctx.context.compact(
             phase=StandardPhase.CONTEXT_COMPACTION,
@@ -192,19 +243,7 @@ class StandardExecutionStrategy(ExecutionStrategy[StandardExecutionState]):
                 if state.stop_reason is not None
                 else "Capability execution could not complete"
             )
-            no_tools = ctx.tools.none()
-            invocation = await ctx.context.prepare_final(
-                reason=reason,
-                phase=StandardPhase.FINAL_RESPONSE_GENERATION,
-                tools=no_tools,
-            )
-            try:
-                result = await ctx.model.finalize(
-                    invocation,
-                    reason=reason,
-                )
-            except StrategyExecutionError as exc:
-                result = await self._fallback_or_raise(ctx, exc)
+            result = await self._finalize_without_tools(ctx, reason=reason)
             result = await self._recover_empty_public_output(ctx, result)
             return Completed(result)
 
@@ -274,19 +313,10 @@ class StandardExecutionStrategy(ExecutionStrategy[StandardExecutionState]):
             await ctx.context.compact(
                 phase=StandardPhase.CONTEXT_COMPACTION,
             )
-            no_tools = ctx.tools.none()
-            invocation = await ctx.context.prepare_final(
+            result = await self._finalize_without_tools(
+                ctx,
                 reason=state.stop_reason.value,
-                phase=StandardPhase.FINAL_RESPONSE_GENERATION,
-                tools=no_tools,
             )
-            try:
-                result = await ctx.model.finalize(
-                    invocation,
-                    reason=state.stop_reason.value,
-                )
-            except StrategyExecutionError as exc:
-                result = await self._fallback_or_raise(ctx, exc)
 
         result = await self._recover_empty_public_output(ctx, result)
         return Completed(result)
