@@ -450,12 +450,28 @@ def _source_runtime_metadata(
     if environment is None:
         return {}
     if source == ContextSourceType.KNOWLEDGE:
-        rag = getattr(environment, "rag_metadata", None)
-        sources = getattr(environment, "context_rag_sources", None)
-        return {
-            "rag": dict(rag) if isinstance(rag, dict) else None,
+        knowledge = getattr(environment, "knowledge_metadata", None)
+        legacy_rag = getattr(environment, "rag_metadata", None)
+        if not isinstance(knowledge, dict) and isinstance(legacy_rag, dict):
+            knowledge = legacy_rag
+        sources = getattr(environment, "knowledge_sources", None)
+        if not isinstance(sources, (list, tuple)):
+            sources = getattr(environment, "context_rag_sources", None)
+
+        metadata = dict(knowledge) if isinstance(knowledge, dict) else None
+        result = {
+            "knowledge": metadata,
             "sources": list(sources) if isinstance(sources, (list, tuple)) else [],
         }
+        if (
+            isinstance(legacy_rag, dict)
+            or (
+                isinstance(metadata, dict)
+                and metadata.get("knowledge_strategy") == "rag"
+            )
+        ):
+            result["rag"] = dict(metadata or legacy_rag or {})
+        return result
     if source == ContextSourceType.SESSION:
         selection = getattr(environment, "context_selection_metadata", None)
         return dict(selection) if isinstance(selection, dict) else {}
@@ -498,9 +514,14 @@ def _contribution(
     parent_ref = metadata.get("parent_ref")
     runtime_metadata = _source_runtime_metadata(source, environment)
     if source_ref is None and source == ContextSourceType.KNOWLEDGE:
-        rag = runtime_metadata.get("rag")
-        if isinstance(rag, dict):
-            source_ref = rag.get("vector_snapshot_id") or rag.get("knowledge_version_id")
+        knowledge = runtime_metadata.get("knowledge")
+        if not isinstance(knowledge, dict):
+            knowledge = runtime_metadata.get("rag")
+        if isinstance(knowledge, dict):
+            source_ref = (
+                knowledge.get("vector_snapshot_id")
+                or knowledge.get("knowledge_version_id")
+            )
     if source_ref is None and source in {
         ContextSourceType.USER_INPUT,
         ContextSourceType.DELEGATION,
