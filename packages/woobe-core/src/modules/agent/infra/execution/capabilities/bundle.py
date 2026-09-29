@@ -45,8 +45,6 @@ def build_execution_capabilities(
         ),
         knowledge=KnowledgeRetrievalCapability(
             retrieve_fn=prepared.knowledge_retrieve,
-            query_mode=prepared.knowledge_query_mode,
-            history_turns=prepared.knowledge_history_turns,
         ),
         context=ContextAssemblyCapability(
             manager=prepared.context_manager,
