@@ -31,8 +31,8 @@ def _runtime_context(**overrides):
         "reserved_output_units": None,
         "active_tool_definitions": [],
         "context_selection_metadata": {},
-        "rag_metadata": {},
-        "context_rag_sources": [],
+        "knowledge_metadata": {},
+        "knowledge_sources": [],
         "parent_invocation_id": None,
         "network_execution_id": None,
         "network_invocation_id": None,
@@ -322,11 +322,12 @@ def test_context_contribution_preserves_tool_compaction_transformation():
 
 def test_knowledge_contribution_keeps_vector_and_chunk_provenance():
     runtime = _runtime_context(
-        rag_metadata={
+        knowledge_metadata={
+            "knowledge_strategy": "rag",
             "knowledge_version_id": "knowledge-v1",
             "vector_snapshot_id": "vector-v1",
         },
-        context_rag_sources=[
+        knowledge_sources=[
             {"document_id": "doc-1", "chunk_id": "chunk-1", "score": 0.91}
         ],
     )
