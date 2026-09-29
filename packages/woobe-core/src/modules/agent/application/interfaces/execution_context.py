@@ -36,6 +36,7 @@ class RequestExecutionContext:
     execution: InstrumentedExecution | None = None
     execution_context: str | None = None
     execution_strategy: str | None = None
+    knowledge_strategy: str | None = None
     agent_release_id: UUID | None = None
     agent_release_version: str | None = None
     rag_metadata: dict[str, Any] | None = None
