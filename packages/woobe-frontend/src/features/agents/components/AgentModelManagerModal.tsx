@@ -16,6 +16,7 @@ import {
 
 import { useCreateCredential, useCredentials, useUpdateCredential } from '@/features/provider-credentials/hooks'
 import type { ProviderCredential } from '@/features/provider-credentials/types'
+import { buildModelProviderCredentialMetadata, isOpenAICompatibleProvider, modelProviderLabel, MODEL_PROVIDER_OPTIONS } from '@/features/provider-credentials/providers'
 import { useAvailableProviderModels, useCreateProviderModel, useProviderModels, useUpdateProviderModel } from '@/features/provider-models/hooks'
 import type { ProviderModel } from '@/features/provider-models/types'
 
@@ -27,46 +28,6 @@ interface Props {
   selectedModelId: string | null
   onClose: () => void
   onUseModel: (model: ProviderModel, credential?: ProviderCredential | null) => void
-}
-
-const providerOptions = [
-  { value: 'openai', label: 'OpenAI' },
-  { value: 'openrouter', label: 'OpenRouter' },
-  { value: 'custom', label: 'OpenAI Compatible' },
-]
-
-function providerLabel(value?: string | null) {
-  return value === 'openai'
-    ? 'OpenAI'
-    : value === 'openrouter'
-      ? 'OpenRouter'
-      : value === 'custom'
-        ? 'OpenAI Compatible'
-        : value || 'Unknown'
-}
-
-function credentialMetadata(provider: string, baseUrl: string): Record<string, string> {
-  if (provider === 'openrouter') {
-    return {
-      provider_family: 'openrouter',
-      compatibility: 'native',
-      base_url: 'https://openrouter.ai/api/v1',
-      model_discovery_strategy: 'openrouter_models',
-    }
-  }
-  if (provider === 'custom') {
-    return {
-      provider_family: 'openai',
-      compatibility: 'compatible',
-      base_url: baseUrl.trim(),
-      model_discovery_strategy: 'openai_compatible_models',
-    }
-  }
-  return {
-    provider_family: 'openai',
-    compatibility: 'native',
-    model_discovery_strategy: 'openai_models',
-  }
 }
 
 export function AgentModelManagerModal({ open, projectId, selectedModelId, onClose, onUseModel }: Props) {
@@ -144,7 +105,7 @@ export function AgentModelManagerModal({ open, projectId, selectedModelId, onClo
   const saveConnection = async () => {
     if (!connectionName.trim()) return toast.error('Connection name is required')
     if (!editingCredential && !secret.trim()) return toast.error('API key is required')
-    if (provider === 'custom' && !baseUrl.trim()) return toast.error('Base URL is required')
+    if (isOpenAICompatibleProvider(provider) && !baseUrl.trim()) return toast.error('Base URL is required')
 
     try {
       if (editingCredential) {
@@ -154,7 +115,7 @@ export function AgentModelManagerModal({ open, projectId, selectedModelId, onClo
             name: connectionName.trim(),
             provider,
             ...(secret.trim() ? { secret: secret.trim() } : {}),
-            metadata: credentialMetadata(provider, baseUrl),
+            metadata: buildModelProviderCredentialMetadata(provider, baseUrl),
           },
         })
         setCredentialId(editingCredential.id)
@@ -164,7 +125,7 @@ export function AgentModelManagerModal({ open, projectId, selectedModelId, onClo
           provider,
           name: connectionName.trim(),
           secret: secret.trim(),
-          metadata: credentialMetadata(provider, baseUrl),
+          metadata: buildModelProviderCredentialMetadata(provider, baseUrl),
         })
         setCredentialId(created.id)
       }
@@ -182,10 +143,12 @@ export function AgentModelManagerModal({ open, projectId, selectedModelId, onClo
     if (!credentialId) return toast.error('Choose a provider connection')
     if (!resolvedId || !resolvedName) return toast.error('Model name and ID are required')
 
+    const selectedSpec = selectedCatalog?.raw?.woobe_model_spec
     const metadata = {
       ...(editingModel?.metadata || {}),
-      capability: 'generation',
+      capability: selectedCatalog?.model_type || editingModel?.model_type || 'generation',
       source: selectedCatalog ? 'remote' : 'manual',
+      ...(selectedCatalog?.raw ? { provider_model_raw: selectedCatalog.raw } : {}),
       pricing: {
         input_cost_per_1m_tokens: inputCost.trim() ? Number(inputCost) : null,
         output_cost_per_1m_tokens: outputCost.trim() ? Number(outputCost) : null,
@@ -202,6 +165,8 @@ export function AgentModelManagerModal({ open, projectId, selectedModelId, onClo
               provider_credential_id: credentialId,
               name: resolvedName,
               model: resolvedId,
+              ...(selectedCatalog?.model_type ? { model_type: selectedCatalog.model_type } : {}),
+              ...(selectedSpec && typeof selectedSpec === 'object' ? { spec: selectedSpec as Record<string, any> } : {}),
               status,
               metadata,
             },
@@ -211,6 +176,8 @@ export function AgentModelManagerModal({ open, projectId, selectedModelId, onClo
             provider_credential_id: credentialId,
             name: resolvedName,
             model: resolvedId,
+            model_type: selectedCatalog?.model_type || undefined,
+            spec: selectedSpec && typeof selectedSpec === 'object' ? selectedSpec as Record<string, any> : undefined,
             metadata,
           })
       await modelsQuery.refetch()
@@ -261,7 +228,7 @@ export function AgentModelManagerModal({ open, projectId, selectedModelId, onClo
                         key={model.id}
                         label={model.name}
                         description={model.model}
-                        meta={`${providerLabel(model.provider || credential?.provider)} · ${credential?.name || 'Missing connection'}`}
+                        meta={`${modelProviderLabel(model.provider || credential?.provider)} · ${credential?.name || 'Missing connection'}`}
                         selected={selected}
                         leading={(
                           <span className="flex h-control-sm w-control-sm items-center justify-center rounded-control border border-border bg-control text-primary-light">
@@ -301,13 +268,13 @@ export function AgentModelManagerModal({ open, projectId, selectedModelId, onClo
                   <div className="grid gap-ui-md">
                     <Field>
                       <FieldLabel>Provider</FieldLabel>
-                      <Select value={provider} onChange={(event) => setProvider(event.target.value)} options={providerOptions} />
+                      <Select value={provider} onChange={(event) => setProvider(event.target.value)} options={MODEL_PROVIDER_OPTIONS} />
                     </Field>
                     <Field>
                       <FieldLabel>Connection name</FieldLabel>
                       <Input value={connectionName} onChange={(event) => setConnectionName(event.target.value)} />
                     </Field>
-                    {provider === 'custom' ? (
+                    {isOpenAICompatibleProvider(provider) ? (
                       <Field>
                         <FieldLabel>Base URL</FieldLabel>
                         <Input value={baseUrl} onChange={(event) => setBaseUrl(event.target.value)} className="font-mono" />
@@ -349,7 +316,7 @@ export function AgentModelManagerModal({ open, projectId, selectedModelId, onClo
                             { value: '', label: 'Select a connection' },
                             ...credentials
                               .filter((item) => item.status !== 'inactive')
-                              .map((item) => ({ value: item.id, label: `${item.name} · ${providerLabel(item.provider)}` })),
+                              .map((item) => ({ value: item.id, label: `${item.name} · ${modelProviderLabel(item.provider)}` })),
                           ]}
                         />
                       </Field>
