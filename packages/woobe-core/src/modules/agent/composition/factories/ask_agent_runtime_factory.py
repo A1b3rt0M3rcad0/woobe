@@ -10,10 +10,10 @@ from modules.agent.application.execution_snapshot import (
     AgentExecutionSnapshotResolver,
     apply_agent_execution_snapshot,
 )
+from modules.agent.application.interfaces.context_manager import ContextManager
 from modules.agent.application.knowledge_strategy_registry import (
     build_knowledge_strategy_registry,
 )
-from modules.agent.application.interfaces.context_manager import ContextManager
 from modules.agent.application.skill_bindings import (
     freeze_skill_bindings,
     frozen_enabled_skills,
