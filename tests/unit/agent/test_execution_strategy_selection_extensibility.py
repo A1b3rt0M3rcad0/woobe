@@ -144,6 +144,7 @@ async def test_frozen_release_snapshot_selects_non_standard_test_strategy(monkey
     resolver = _MapResolver()
     runtime = _Runtime()
     runtime.configure_execution_strategy_resolver(resolver)
+    runtime.configure_knowledge_strategy_resolver(build_knowledge_strategy_registry())
     agent = SimpleNamespace(
         settings={"runtime_config": {"execution_strategy": "standard"}},
     )
@@ -171,6 +172,7 @@ async def test_multi_step_strategy_keeps_usage_and_timeline_visible_to_runtime(m
     resolver.strategies["test_iterative"] = _MultiStepUsageStrategy()
     runtime = _Runtime()
     runtime.configure_execution_strategy_resolver(resolver)
+    runtime.configure_knowledge_strategy_resolver(build_knowledge_strategy_registry())
     agent = SimpleNamespace(
         settings={"runtime_config": {"execution_strategy": "test_iterative"}},
     )
