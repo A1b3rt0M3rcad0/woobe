@@ -193,7 +193,7 @@ async def test_one_fixed_version_per_skill_and_integrity(version):
 async def test_enabled_skills_require_compatible_context_manager(version):
     config = runtime_config(version)
     config["context_manager"]["version"] = "legacy"
-    with pytest.raises(ValidationError, match="supports only the 'name' field"):
+    with pytest.raises(ValidationError, match="Unsupported legacy"):
         await freeze_skill_bindings(
             None, project_id=version.project_id, runtime_config=config
         )

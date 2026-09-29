@@ -4,7 +4,6 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
-
 from modules.agent.application.context_manager_registry import (
     ContextManagerDescriptor,
     ContextManagerRegistry,
@@ -18,20 +17,19 @@ from modules.agent.application.context_manager_registry import (
     canonicalize_context_manager_runtime_config,
     list_context_managers,
 )
-from modules.agent.application.context_managers.standard import StandardContextManager
 from modules.agent.application.interfaces.context_manager import (
     DEFAULT_CONTEXT_MANAGER_KEY,
     STANDARD_CONTEXT_MANAGER_KEY,
-    ContextManager,
-    ContextManagerKey,
-    ContextInvocationEnvironment,
     ContextAssemblyOutput,
     ContextAssemblyRequest,
     ContextCompactionOutput,
     ContextCompactionRequest,
     ContextInspectionOutput,
     ContextInspectionRequest,
+    ContextInvocationEnvironment,
+    ContextManager,
     ContextManagerCapabilities,
+    ContextManagerKey,
 )
 from modules.agent.application.interfaces.context_policy import ContextPolicyV1
 from shared.contracts.errors import ValidationError
@@ -248,10 +246,10 @@ def test_legacy_context_assembler_selection_is_canonicalized() -> None:
     }
 
 
-def test_runtime_config_rejects_version_and_strategy_alias_fields() -> None:
-    with pytest.raises(ValidationError, match="supports only the 'name' field"):
+def test_runtime_config_rejects_unknown_legacy_version() -> None:
+    with pytest.raises(ValidationError, match="Unsupported legacy"):
         canonicalize_context_manager_runtime_config(
-            {"context_manager": {"name": "stdcm", "version": "v1"}}
+            {"context_manager": {"name": "stdcm", "version": "v999"}}
         )
 
 

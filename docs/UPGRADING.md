@@ -17,6 +17,23 @@ This gate complements fresh-install migration tests. A green upgrade check means
 
 Do not assume that rolling an application version back also makes a database downgrade safe.
 
+## Context Manager selections from older Agents and Releases
+
+The name-only Context Manager contract reads the historical `context_assembler`
+selection (also accepted under `context_manager`) containing `name`, `version`,
+`strategy_name` and `strategy_version`. Known `stdcm:v1` and `stdcm:v2` identities,
+including their `default` aliases, resolve to today's consolidated `stdcm`.
+This upgrades the selection format; it does not preserve the old implementation's
+exact behavior. In particular, current `stdcm` includes Skills and compaction.
+
+Saving an Agent or creating a new Release writes only
+`"context_manager": {"name": "stdcm"}`. Existing immutable Releases and Run
+snapshots are interpreted without rewriting their stored configuration. Unknown
+versions, custom legacy strategies, incomplete strategy identities and conflicting
+selections remain errors rather than silently falling back to the current default.
+`WOOBE_DEFAULT_CONTEXT_MANAGER` continues to require a plain registered name.
+
+
 ## Migration from the legacy ProjectRAI deployment contract
 
 Treat an installation that still uses legacy `PROJECTRAI_*` configuration or historical Compose files as a deployment migration, not as a blind in-place restart.

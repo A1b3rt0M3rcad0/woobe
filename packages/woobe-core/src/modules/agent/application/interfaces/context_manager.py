@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Any, Mapping, Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 from uuid import UUID
 
 from modules.agent.application.interfaces.context_policy import ContextPolicyV1
 from modules.agent.domain.context import ContextSnapshot
+
 
 class ContextBudgetExceeded(RuntimeError):
     """Context assembly could not fit mandatory input within the invocation budget."""
@@ -80,37 +82,66 @@ STANDARD_CONTEXT_MANAGER_KEY = ContextManagerKey(name="stdcm")
 DEFAULT_CONTEXT_MANAGER_KEY = STANDARD_CONTEXT_MANAGER_KEY
 
 
+def _read_context_manager_selection(raw: object) -> ContextManagerKey:
+    if not isinstance(raw, dict):
+        raise ValueError("Context Manager selection must be an object")  # noqa: TRY004 - public config validation contract
+
+    name = raw.get("name")
+    if not isinstance(name, str):
+        raise ValueError("Context Manager selection requires string name")  # noqa: TRY004 - public config validation contract
+
+    if set(raw) == {"name"}:
+        return ContextManagerKey(name=name)
+
+    # Decode only the historical built-in schema. Versions are not reintroduced
+    # into the registry, runtime identity or newly written configuration.
+    unexpected = sorted(set(raw).difference({
+        "name", "version", "strategy_name", "strategy_version",
+    }))
+    if unexpected:
+        raise ValueError(
+            "Context Manager selection has unsupported fields: "
+            + ", ".join(unexpected)
+        )
+    version = raw.get("version")
+    if not isinstance(version, str):
+        raise ValueError("Legacy Context Manager selection requires string version")  # noqa: TRY004 - public config validation contract
+    selection = (name.strip(), version.strip())
+    if selection not in {("default", "v1"), ("default", "v2"), ("stdcm", "v1"), ("stdcm", "v2")}:
+        raise ValueError("Unsupported legacy Context Manager selection")
+
+    strategy_name = raw.get("strategy_name")
+    strategy_version = raw.get("strategy_version")
+    if strategy_name is None and strategy_version is None:
+        # Before resolved strategy identities were stored, default:v1 meant stdcm:v1.
+        strategy = ("stdcm", selection[1])
+    elif isinstance(strategy_name, str) and isinstance(strategy_version, str):
+        strategy = (strategy_name.strip(), strategy_version.strip())
+    else:
+        raise ValueError("Legacy Context Manager strategy_name and strategy_version must be provided together")
+    if selection[0] != "default" and strategy != selection:
+        raise ValueError("Explicit Context Manager selection must match its legacy strategy identity")
+    if strategy not in {("stdcm", "v1"), ("stdcm", "v2")}:
+        raise ValueError("Unsupported legacy Context Manager strategy")
+    # Both historical built-ins were consolidated into the current named stdcm.
+    # This is a format upgrade, not replay of the old implementation's behavior.
+    return STANDARD_CONTEXT_MANAGER_KEY
+
+
 def context_manager_key_from_runtime_config(value: object) -> ContextManagerKey:
-    """Read the Context Manager name frozen in an Agent runtime snapshot."""
+    """Resolve current or known legacy selection without mutating frozen snapshots."""
 
     if value is None:
         return STANDARD_CONTEXT_MANAGER_KEY
     if not isinstance(value, dict):
-        raise ValueError("Agent runtime_config must be an object")
+        raise ValueError("Agent runtime_config must be an object")  # noqa: TRY004 - public config validation contract
 
     canonical = value.get("context_manager")
     legacy = value.get("context_assembler")
     if canonical is not None and legacy is not None and canonical != legacy:
-        raise ValueError(
-            "runtime_config cannot define conflicting context_manager and context_assembler"
-        )
+        raise ValueError("runtime_config cannot define conflicting context_manager and context_assembler")
     raw = canonical if canonical is not None else legacy
-    if raw is None:
-        return STANDARD_CONTEXT_MANAGER_KEY
-    if not isinstance(raw, dict):
-        raise ValueError("Context Manager selection must be an object")
-
-    name = raw.get("name")
-    if not isinstance(name, str):
-        raise ValueError("Context Manager selection requires string name")
-
-    unexpected = sorted(set(raw).difference({"name"}))
-    if unexpected:
-        raise ValueError(
-            "Context Manager selection supports only the 'name' field; unsupported fields: "
-            + ", ".join(unexpected)
-        )
-    return ContextManagerKey(name=name)
+    return _read_context_manager_selection(raw) if raw is not None else STANDARD_CONTEXT_MANAGER_KEY
 
 
 @dataclass(frozen=True, slots=True)
