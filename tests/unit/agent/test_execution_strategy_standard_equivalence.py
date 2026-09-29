@@ -15,6 +15,7 @@ from modules.agent.application.interfaces.execution_context import (
     new_execution_context,
 )
 from modules.agent.application.interfaces.execution_strategy import ExecutionStrategyRequest
+from modules.agent.application.knowledge_strategy_registry import build_knowledge_strategy_registry
 from modules.agent.infra.execution.strategies.standard import StandardExecutionStrategy
 from modules.agent.infra.execution.strategy_runtime.runner import execute_strategy
 
@@ -99,6 +100,7 @@ def _request(
         messages=list(messages or []),
         context_assembler=StandardContextManager(),
         knowledge_retrieve=knowledge_retrieve,
+        knowledge_strategy=build_knowledge_strategy_registry().resolve("rag"),
     )
 
 
