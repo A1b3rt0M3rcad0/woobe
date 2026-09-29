@@ -32,6 +32,26 @@ class ModelInvocationCapability:
             invoke_fn=self.invoke_fn,
         )
 
+    def with_tools(
+        self,
+        tool_definitions: list[dict[str, Any]],
+        *,
+        tool_choice: str = "auto",
+    ) -> ModelInvocationCapability:
+        """Bind authorized Tools behind the Model capability boundary.
+
+        Strategy-facing code decides whether Tools are exposed. Provider/model
+        infrastructure owns how the concrete model implementation represents them.
+        """
+        bind_tools = getattr(self.model, "bind_tools", None)
+        if not callable(bind_tools):
+            raise RuntimeError(
+                "Authorized Tools require a model implementation with Tool binding support"
+            )
+        return self.for_model(
+            bind_tools(list(tool_definitions), tool_choice=tool_choice)
+        )
+
     async def invoke(
         self,
         *,
