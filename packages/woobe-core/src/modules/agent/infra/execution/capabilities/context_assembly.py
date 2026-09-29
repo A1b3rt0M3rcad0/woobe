@@ -295,9 +295,13 @@ class ContextAssemblyCapability:
             context_selection_metadata=_dict_copy(
                 getattr(context, "context_selection_metadata", None)
             ),
-            rag_metadata=_dict_copy(getattr(context, "rag_metadata", None)),
-            context_rag_sources=_tuple_dicts(
-                getattr(context, "context_rag_sources", None)
+            knowledge_metadata=_dict_copy(
+                getattr(context, "knowledge_metadata", None)
+                or getattr(context, "rag_metadata", None)
+            ),
+            knowledge_sources=_tuple_dicts(
+                getattr(context, "knowledge_sources", None)
+                or getattr(context, "context_rag_sources", None)
             ),
             context_manager_name=getattr(context, "context_manager_name", None),
             parent_invocation_id=getattr(context, "parent_invocation_id", None),
