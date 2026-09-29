@@ -57,6 +57,16 @@ export function AgentExecutionStrategyField({
     recommended_for: [],
     capabilities: [],
     limitations: [],
+    compatibility: {
+      operations: ['language.generate'],
+      requires_conversation: true,
+      allowed_input_modalities: ['text'],
+      allowed_output_modalities: ['text'],
+      required_capabilities: [],
+      context_mode: 'required',
+      knowledge_mode: 'optional',
+      tools_mode: 'optional',
+    },
     is_default: false,
   }), [selected])
 
