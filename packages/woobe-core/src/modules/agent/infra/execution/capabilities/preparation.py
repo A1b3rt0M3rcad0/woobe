@@ -11,7 +11,7 @@ from modules.agent.application.interfaces.execution import InstrumentedExecution
 from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.application.interfaces.execution_strategy import ExecutionStrategyRequest
 from modules.agent.application.interfaces.knowledge import KnowledgeStrategy
-from modules.agent.application.model_spec_compatibility import LegacyModelSpecResolver
+from modules.agent.application.interfaces.model_spec_compatibility import LegacyModelSpecResolver
 from modules.agent.domain.model_spec import ModelSpec
 from modules.agent.infra.execution.execution_instrumentation import (
     resolve_effective_output_tokens,
@@ -44,6 +44,7 @@ class PreparedExecution:
     remain owned by the outer runtime.
     """
 
+    model_spec: ModelSpec
     model: Any
     final_model: Any | None
     final_model_factory: Callable[[], Any] | None
@@ -104,6 +105,34 @@ def _primary_model_spec(
         ),
         name=request.agent.model,
         model=request.agent.model,
+        metadata={},
+    )
+    return LegacyModelSpecResolver().resolve(
+        compatibility_model,
+        provider=provider,
+    )
+
+
+def _fallback_model_spec(
+    request: ExecutionStrategyRequest,
+    *,
+    provider: str,
+    model_name: str,
+) -> ModelSpec:
+    settings = request.agent.settings or {}
+    persisted = settings.get("fallback_model_spec")
+    if isinstance(persisted, dict):
+        return ModelSpec.from_dict(persisted)
+
+    compatibility_model = SimpleNamespace(
+        id=getattr(request.agent, "fallback_provider_model_id", None),
+        provider_credential_id=getattr(
+            request.agent,
+            "fallback_credential_id",
+            None,
+        ),
+        name=model_name,
+        model=model_name,
         metadata={},
     )
     return LegacyModelSpecResolver().resolve(
@@ -375,6 +404,11 @@ def _prepare_fallback_model_factory(
         else str(fallback_provider_value)
     )
     fallback_pricing = _fallback_pricing_snapshot(request)
+    fallback_spec = _fallback_model_spec(
+        request,
+        provider=fallback_provider,
+        model_name=str(fallback_model_name),
+    )
     fallback_output_tokens = resolve_effective_output_tokens(
         agent.max_output_tokens,
         fallback_pricing,
@@ -403,6 +437,7 @@ def _prepare_fallback_model_factory(
             ),
         )
         return PreparedFallbackModel(
+            model_spec=fallback_spec,
             model=fallback_model,
             provider=fallback_provider,
             model_name=str(fallback_model_name),

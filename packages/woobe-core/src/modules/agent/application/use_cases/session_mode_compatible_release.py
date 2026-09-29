@@ -153,13 +153,17 @@ def _sync_agent_projection(agent: Any, draft: Any) -> None:
     agent.provider = Provider(str(draft.provider))
     agent.model = str(draft.model)
     agent.provider_credential_id = draft.provider_credential_id
-    agent.provider_model_id = draft.provider_model_id
+    agent.provider_model_id = getattr(draft, "provider_model_id", None)
     agent.fallback_provider = (
         Provider(str(draft.fallback_provider)) if draft.fallback_provider else None
     )
     agent.fallback_model = draft.fallback_model
     agent.fallback_credential_id = draft.fallback_credential_id
-    agent.fallback_provider_model_id = draft.fallback_provider_model_id
+    agent.fallback_provider_model_id = getattr(
+        draft,
+        "fallback_provider_model_id",
+        None,
+    )
     agent.temperature = draft.temperature
     agent.max_output_tokens = draft.max_output_tokens
 
@@ -168,15 +172,21 @@ def _sync_agent_projection(agent: Any, draft: Any) -> None:
     agent.session_mode = SessionMode(str(draft.session_mode))
 
     settings = dict(agent.settings or {})
-    if draft.model_spec_snapshot is None:
+    model_spec_snapshot = getattr(draft, "model_spec_snapshot", None)
+    if model_spec_snapshot is None:
         settings.pop("model_spec", None)
     else:
-        settings["model_spec"] = deepcopy(draft.model_spec_snapshot)
-    if draft.fallback_model_spec_snapshot is None:
+        settings["model_spec"] = deepcopy(model_spec_snapshot)
+    fallback_model_spec_snapshot = getattr(
+        draft,
+        "fallback_model_spec_snapshot",
+        None,
+    )
+    if fallback_model_spec_snapshot is None:
         settings.pop("fallback_model_spec", None)
     else:
         settings["fallback_model_spec"] = deepcopy(
-            draft.fallback_model_spec_snapshot
+            fallback_model_spec_snapshot
         )
     if draft.response_format is None:
         settings.pop("response_format", None)

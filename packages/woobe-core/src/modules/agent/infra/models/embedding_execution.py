@@ -2,21 +2,21 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from modules.agent.application.model_compatibility import (
+from modules.agent.application.interfaces.model_compatibility import (
     CompatibilityMode,
     ExecutionStrategySpec,
 )
-from modules.agent.application.model_output import (
+from modules.agent.application.interfaces.model_output import (
     EmbeddingModelOutputStrategy,
 )
-from modules.agent.application.model_runtime import (
+from modules.agent.application.interfaces.model_runtime import (
     ModelInput,
     ModelOperationStrategy,
     ModelRequest,
     ModelResult,
     ModelRuntime,
 )
-from modules.agent.application.model_runtime_plan import (
+from modules.agent.application.interfaces.model_runtime_plan import (
     ModelRuntimePlan,
     ModelRuntimePlanBuilder,
 )

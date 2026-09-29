@@ -5,7 +5,7 @@ from typing import Any
 from langchain_core.messages import AIMessage, HumanMessage
 
 from modules.agent.application.interfaces.embedding_factory import EmbeddingClient
-from modules.agent.application.model_runtime import (
+from modules.agent.application.interfaces.model_runtime import (
     ModelInput,
     ModelOutput,
     ModelRequest,

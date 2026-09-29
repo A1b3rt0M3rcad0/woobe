@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from modules.agent.application.model_runtime import (
+from modules.agent.application.interfaces.model_runtime import (
     ModelOperationStrategy,
     ModelOperationStrategyRegistry,
     ModelRequest,
