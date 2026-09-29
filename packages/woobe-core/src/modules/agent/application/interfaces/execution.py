@@ -2,6 +2,20 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from modules.agent.application.dtos.runtime_dtos import SourceInfo, ToolCallInfo
+from modules.agent.application.interfaces.knowledge import KnowledgeSource
+
+
+def source_info_from_knowledge_source(source: KnowledgeSource) -> SourceInfo:
+    """Translate framework-neutral Knowledge provenance at the execution boundary."""
+
+    return SourceInfo(
+        document_id=source.document_id,
+        document_title=source.document_title,
+        chunk_id=source.chunk_id,
+        page_number=source.page_number,
+        score=source.score,
+        content_preview=source.content_preview,
+    )
 
 
 @dataclass(frozen=True, slots=True)
