@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import hashlib
+import json
 from typing import Any, Mapping
 
 
@@ -361,6 +363,17 @@ class ModelSpec:
         )
 
 
+def model_spec_hash(spec: ModelSpec) -> str:
+    payload = json.dumps(
+        spec.as_dict(),
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        default=str,
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
 __all__ = [
     "MODEL_SPEC_VERSION",
     "ModelCapability",
@@ -371,4 +384,5 @@ __all__ = [
     "ModelOperations",
     "ModelSpec",
     "ModelTypes",
+    "model_spec_hash",
 ]
