@@ -10,16 +10,16 @@ from modules.agent.application.execution_strategy_config import (
     execution_strategy_from_runtime_config,
 )
 from modules.agent.application.interfaces.execution import InstrumentedExecution
+from modules.agent.application.interfaces.execution_strategy import (
+    ExecutableExecutionStrategy,
+    ExecutionStrategy,
+    ExecutionStrategyRequest,
+)
 from modules.agent.application.knowledge_strategy_config import (
     knowledge_strategy_from_runtime_config,
 )
 from modules.agent.application.knowledge_strategy_registry import (
     build_knowledge_strategy_registry,
-)
-from modules.agent.application.interfaces.execution_strategy import (
-    ExecutableExecutionStrategy,
-    ExecutionStrategy,
-    ExecutionStrategyRequest,
 )
 from modules.agent.application.use_cases.ai_agent_cases import _force_strict_json_settings
 from modules.agent.application.use_cases.release_lifecycle_use_cases_v2 import (
