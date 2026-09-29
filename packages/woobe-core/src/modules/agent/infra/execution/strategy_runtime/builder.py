@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from modules.agent.application.interfaces.execution import InstrumentedExecution
+from modules.agent.application.interfaces.knowledge import KnowledgeStrategy
 from modules.agent.application.interfaces.execution_strategy import (
     ExecutionStrategy,
     ExecutionStrategyRequest,
@@ -128,6 +129,8 @@ def build_strategy_context_from_capabilities(
     final_json_instruction: str | None = None,
     tool_definitions: list[dict[str, Any]] | None = None,
     bootstrap: dict[str, Any] | None = None,
+    knowledge_strategy: KnowledgeStrategy | None = None,
+    knowledge_runtime_config: dict[str, Any] | None = None,
 ) -> BuiltStrategyContext:
     resume = capabilities.recovery.load()
     cursor = dict(resume.cursor) if resume is not None else None
@@ -223,6 +226,8 @@ def build_strategy_context_from_capabilities(
         knowledge=RuntimeStrategyKnowledge(
             capability=capabilities.knowledge,
             runtime_state=runtime_state,
+            strategy=knowledge_strategy,
+            runtime_config=knowledge_runtime_config,
         ),
         context=RuntimeStrategyContextManager(
             capability=capabilities.context,
@@ -258,6 +263,8 @@ def build_strategy_execution(
         structured_repair_model_factory=prepared.structured_repair_model_factory,
         final_json_instruction=prepared.final_json_instruction,
         tool_definitions=prepared.tool_definitions,
+        knowledge_strategy=prepared.knowledge_strategy,
+        knowledge_runtime_config=prepared.knowledge_runtime_config,
     )
     built.context.model.set_fallback_model_factory(
         prepared.fallback_model_factory
