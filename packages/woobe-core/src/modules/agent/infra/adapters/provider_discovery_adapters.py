@@ -73,6 +73,14 @@ def _spec_to_available_output(
             spec,
             ModelCapabilityNames.STREAMING,
         ),
+        model_type=spec.model_type,
+        operations=sorted(spec.operations),
+        input_modalities=sorted(spec.input_modalities),
+        output_modalities=sorted(spec.output_modalities),
+        capabilities={
+            name: capability.as_dict()
+            for name, capability in spec.capabilities.items()
+        },
         raw={
             **(raw if isinstance(raw, dict) else {}),
             "woobe_model_spec": spec.as_dict(),
