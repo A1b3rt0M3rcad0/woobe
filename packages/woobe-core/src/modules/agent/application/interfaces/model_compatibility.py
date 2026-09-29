@@ -311,10 +311,11 @@ class ModelExecutionCompatibilityResolver:
         if capability is not None and capability.supported:
             return
 
-        # Existing ProviderModels may predate explicit capability metadata. Preserve
-        # current behavior during migration but surface the uncertainty. New normalized
-        # specs fail closed when a required capability is absent.
-        if capability is None and model.source == "legacy":
+        # Existing ProviderModels and manually configured endpoints may not have an
+        # authoritative capability catalog. Preserve current behavior while surfacing
+        # uncertainty. Provider/catalog specs fail closed when a required capability is
+        # absent.
+        if capability is None and model.source in {"legacy", "manual"}:
             issues.append(
                 CompatibilityIssue(
                     code="model_capability_unknown",
