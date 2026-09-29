@@ -23,15 +23,10 @@ import { AddProviderCredentialModal } from '@/features/provider-credentials/comp
 import { RotateProviderCredentialDialog } from '@/features/provider-credentials/components/RotateProviderCredentialDialog'
 import { useCredentials, useUpdateCredential } from '@/features/provider-credentials/hooks'
 import type { ProviderCredential } from '@/features/provider-credentials/types'
+import { modelProviderLabel } from '@/features/provider-credentials/providers'
 import { useProviderModels } from '@/features/provider-models/hooks'
 import type { ProviderModel } from '@/features/provider-models/types'
 import { get } from '@/lib/api/client'
-
-const providerLabels: Record<string, string> = {
-  openai: 'OpenAI',
-  custom: 'OpenAI Compatible',
-  openrouter: 'OpenRouter',
-}
 
 type CredentialStatusFilter = 'all' | 'active' | 'revoked'
 
@@ -71,8 +66,8 @@ type ConfirmState = null | {
   usage: UsageItem[]
 }
 
-function providerLabel(provider?: string | null) {
-  return provider ? providerLabels[provider] || provider : 'Unknown provider'
+function modelProviderLabel(provider?: string | null) {
+  return provider ? modelProviderLabels[provider] || provider : 'Unknown provider'
 }
 
 function metadataOf(item?: { metadata?: Record<string, unknown> | Record<string, string> | null } | null): Record<string, unknown> {
@@ -89,6 +84,8 @@ function stringMetadata(value: Record<string, unknown>): Record<string, string> 
 }
 
 function isEmbeddingModel(model: ProviderModel) {
+  if (model.model_type) return model.model_type === 'embedding'
+  if (Array.isArray(model.spec?.operations) && model.spec?.operations.includes('embedding.create')) return true
   const metadata = metadataOf(model)
   const capability = String(metadata.capability || metadata.type || '').trim().toLowerCase()
   if (capability) return capability === 'embedding' || capability === 'embeddings'
@@ -166,7 +163,7 @@ function CredentialCard({ credential, generationCount, embeddingCount, onClick }
       aria-label={`Open provider connection ${credential.name}`}
       icon={<Cable className="h-4 w-4" />}
       title={credential.name}
-      subtitle={`${providerLabel(credential.provider)}${baseUrl ? ` · ${baseUrl}` : ''}`}
+      subtitle={`${modelProviderLabel(credential.provider)}${baseUrl ? ` · ${baseUrl}` : ''}`}
       status={<StatusBadge status={credential.status || 'active'} size="compact" />}
       metadata={(
         <>
@@ -207,7 +204,7 @@ function CredentialDetailsDialog({
     <Dialog open={open} onClose={onClose} title={credential.name}>
       <div className="grid gap-ui-md">
         <SectionBlock
-          title={providerLabel(credential.provider)}
+          title={modelProviderLabel(credential.provider)}
           description={baseUrl}
           density="compact"
           actions={<StatusBadge status={credential.status || 'active'} size="compact" />}
@@ -334,7 +331,7 @@ export default function CredentialsPage() {
     const normalizedStatus = credential.status?.toLowerCase() || 'active'
     const matchesStatus = statusFilter === 'all' || normalizedStatus === statusFilter
     const matchesProvider = providerFilter === 'all' || credential.provider === providerFilter
-    const matchesQuery = !normalizedQuery || `${credential.name} ${providerLabel(credential.provider)} ${String(metadataOf(credential).base_url || '')}`.toLowerCase().includes(normalizedQuery)
+    const matchesQuery = !normalizedQuery || `${credential.name} ${modelProviderLabel(credential.provider)} ${String(metadataOf(credential).base_url || '')}`.toLowerCase().includes(normalizedQuery)
     return matchesStatus && matchesProvider && matchesQuery
   }), [visibleCredentialBase, normalizedQuery, providerFilter, statusFilter])
 
@@ -411,7 +408,7 @@ export default function CredentialsPage() {
         />
         <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px]">
           <ResourceSearch value={query} onChange={setQuery} placeholder="Search Credentials, providers or endpoints..." label="Search Credentials" />
-          <Select value={providerFilter} onChange={(event) => setProviderFilter(event.target.value)} className="h-10" options={[{ value: 'all', label: 'All providers' }, ...providerOptions.map((provider) => ({ value: provider, label: providerLabel(provider) }))]} />
+          <Select value={providerFilter} onChange={(event) => setProviderFilter(event.target.value)} className="h-10" options={[{ value: 'all', label: 'All providers' }, ...providerOptions.map((provider) => ({ value: provider, label: modelProviderLabel(provider) }))]} />
         </div>
       </ResourceToolbar>
 
