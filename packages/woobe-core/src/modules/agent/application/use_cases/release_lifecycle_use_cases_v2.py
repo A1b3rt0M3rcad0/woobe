@@ -11,7 +11,7 @@ from modules.agent.application.context_policy import canonicalize_context_runtim
 from modules.agent.application.execution_strategy_config import (
     execution_strategy_from_runtime_config,
 )
-from modules.agent.application.knowledge_strategy_registry import (
+from modules.agent.application.knowledge_strategy_config import (
     knowledge_strategy_from_runtime_config,
 )
 from modules.agent.application.dtos.ai_dtos import CreateReleaseInput, CreateReleaseOutput
