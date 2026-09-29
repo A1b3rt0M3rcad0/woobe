@@ -1,10 +1,19 @@
 from __future__ import annotations
 
-from langchain_core.language_models import BaseChatModel
+from typing import Any
+
 from langchain_openai import ChatOpenAI
 
+from modules.agent.infra.llm.anthropic_chat_model import AnthropicChatModel
 
-_OPENAI_COMPATIBLE_PROVIDERS = {"openai", "custom", "openrouter"}
+
+_OPENAI_COMPATIBLE_PROVIDERS = {
+    "openai",
+    "custom",
+    "openai_compatible",
+    "openrouter",
+    "deepseek",
+}
 
 
 def create_chat_model(
@@ -16,9 +25,9 @@ def create_chat_model(
     max_tokens: int = 1000,
     streaming: bool = False,
     response_format: dict | None = None,
-) -> BaseChatModel:
+) -> Any:
     if provider in _OPENAI_COMPATIBLE_PROVIDERS:
-        kwargs: dict = {
+        kwargs: dict[str, Any] = {
             "model": model,
             "api_key": api_key,
             "temperature": temperature,
@@ -27,6 +36,8 @@ def create_chat_model(
         resolved_base_url = base_url
         if provider == "openrouter" and not resolved_base_url:
             resolved_base_url = "https://openrouter.ai/api/v1"
+        elif provider == "deepseek" and not resolved_base_url:
+            resolved_base_url = "https://api.deepseek.com"
         if streaming:
             kwargs["streaming"] = True
             kwargs["stream_usage"] = True
@@ -37,9 +48,13 @@ def create_chat_model(
         return ChatOpenAI(**kwargs)
 
     if provider == "anthropic":
-        raise NotImplementedError(
-            "Provider anthropic is not implemented yet. "
-            "Install langchain-anthropic and add support."
+        return AnthropicChatModel(
+            model=model,
+            api_key=api_key,
+            base_url=base_url,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            response_format=response_format,
         )
 
     if provider == "google":
