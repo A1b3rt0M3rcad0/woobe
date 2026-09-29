@@ -13,6 +13,7 @@ from modules.agent.application.interfaces.execution_context import (
 from modules.agent.application.interfaces.rag import RAGBinding
 from modules.agent.application.strategy_sdk import StrategyMessage, StrategyMessageRole
 from modules.agent.application.rag.registry import RAGStrategyRegistry
+from modules.agent.application.rag.knowledge_strategy import RAGKnowledgeStrategy
 from modules.agent.application.rag.strategies.classic import ClassicRAGStrategy
 from modules.agent.infra.execution.rag import embedding_capability as embedding_module
 from modules.agent.infra.execution.capabilities.knowledge_retrieval import (
@@ -170,6 +171,8 @@ async def test_rag_embedding_is_external_and_vector_search_is_read_only(monkeypa
             retrieve_fn=retrieve,
         ),
         runtime_state=state,
+        strategy=RAGKnowledgeStrategy(),
+        runtime_config={"rag": rag_config.model_dump()},
     )
 
     token = current_execution.set(context)
