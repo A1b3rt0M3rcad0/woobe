@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Any
-
 from modules.agent.application.dtos.rag_config_dtos import RAGRuntimeConfig
 from modules.agent.application.interfaces.knowledge import (
     KnowledgeCapabilities,
