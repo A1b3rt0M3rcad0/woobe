@@ -3,11 +3,13 @@ from __future__ import annotations
 import pytest
 
 from modules.agent.application.interfaces.knowledge import KnowledgeStrategy
+from modules.agent.application.knowledge_strategy_config import (
+    canonicalize_knowledge_strategy_runtime_config,
+    knowledge_strategy_from_runtime_config,
+)
 from modules.agent.application.knowledge_strategy_registry import (
     DEFAULT_KNOWLEDGE_STRATEGY,
     build_knowledge_strategy_registry,
-    canonicalize_knowledge_strategy_runtime_config,
-    knowledge_strategy_from_runtime_config,
     list_knowledge_strategies,
 )
 from shared.contracts.errors import ValidationError
