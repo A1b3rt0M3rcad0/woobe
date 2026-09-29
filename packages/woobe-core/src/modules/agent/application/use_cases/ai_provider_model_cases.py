@@ -333,7 +333,24 @@ class UpdateProviderModelUseCase:
             else:
                 spec = None
 
-            if spec is None and explicit_spec is not None:
+            provider_key = _provider_value(credential.provider)
+            stale_implicit_spec = (
+                explicit_spec is _MISSING
+                and spec is not None
+                and (
+                    spec.model_id != item.model
+                    or spec.provider != provider_key
+                    or (
+                        "model_type" in data
+                        and item.model_type is not None
+                        and spec.model_type != item.model_type
+                    )
+                )
+            )
+            if (
+                (spec is None and explicit_spec is not None)
+                or stale_implicit_spec
+            ):
                 spec = _manual_model_spec(
                     item,
                     provider=credential.provider,
