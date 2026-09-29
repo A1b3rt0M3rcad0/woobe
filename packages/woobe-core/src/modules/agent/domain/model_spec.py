@@ -210,6 +210,7 @@ class ModelSpec:
     interaction: ModelInteractionSpec
     capabilities: Mapping[str, ModelCapability] = field(default_factory=dict)
     limits: ModelLimits = field(default_factory=ModelLimits)
+    pricing: Mapping[str, Any] = field(default_factory=dict)
     default_model_strategy: str | None = None
     source: str = "catalog"
     metadata: Mapping[str, Any] = field(default_factory=dict)
@@ -252,6 +253,7 @@ class ModelSpec:
             ),
         )
         object.__setattr__(self, "capabilities", dict(self.capabilities or {}))
+        object.__setattr__(self, "pricing", dict(self.pricing or {}))
         object.__setattr__(self, "metadata", dict(self.metadata or {}))
 
     def supports_operation(self, operation: str) -> bool:
@@ -286,6 +288,7 @@ class ModelSpec:
                 for name, capability in sorted(self.capabilities.items())
             },
             "limits": self.limits.as_dict(),
+            "pricing": dict(self.pricing),
             "default_model_strategy": self.default_model_strategy,
             "source": self.source,
             "metadata": dict(self.metadata),
@@ -338,6 +341,11 @@ class ModelSpec:
             capabilities=capabilities,
             limits=ModelLimits.from_dict(
                 limits if isinstance(limits, Mapping) else {}
+            ),
+            pricing=(
+                dict(value.get("pricing") or {})
+                if isinstance(value.get("pricing"), Mapping)
+                else {}
             ),
             default_model_strategy=(
                 str(value["default_model_strategy"])
