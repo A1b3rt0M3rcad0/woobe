@@ -308,3 +308,18 @@ def test_legacy_chat_provider_registry_is_extensible_without_dispatch_branching(
 
     assert registry.resolve("example").create(model="m") == "m"
     assert registry.resolve("example_alias").create(model="m") == "m"
+
+
+def test_embedding_provider_registry_supports_aliases_and_extensions() -> None:
+    from modules.agent.infra.models.embedding_providers import EmbeddingProviderRegistry
+
+    class Provider:
+        def create(self, **kwargs):
+            return kwargs["model"]
+
+    registry = EmbeddingProviderRegistry()
+    registry.register("example", Provider())
+    registry.register_alias("example_alias", "example")
+
+    assert registry.resolve("example").create(model="embed") == "embed"
+    assert registry.resolve("example_alias").create(model="embed") == "embed"
