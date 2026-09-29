@@ -9,6 +9,19 @@ from modules.agent.entrypoint import list_execution_strategies
 router = APIRouter(prefix="/ai", tags=["ai", "agent"])
 
 
+class ExecutionStrategyCompatibilityResponse(BaseModel):
+    """Semantic ModelSpec requirements exposed with one Execution Strategy."""
+
+    operations: list[str] = Field(min_length=1)
+    requires_conversation: bool = False
+    allowed_input_modalities: list[str] | None = None
+    allowed_output_modalities: list[str] | None = None
+    required_capabilities: list[str] = Field(default_factory=list)
+    context_mode: Literal["required", "optional", "unsupported"]
+    knowledge_mode: Literal["required", "optional", "unsupported"]
+    tools_mode: Literal["required", "optional", "unsupported"]
+
+
 class ExecutionStrategyDescriptorResponse(BaseModel):
     """HTTP contract for backend-owned Execution Strategy presentation metadata."""
 
@@ -19,6 +32,7 @@ class ExecutionStrategyDescriptorResponse(BaseModel):
     recommended_for: list[str] = Field(min_length=1)
     capabilities: list[str] = Field(min_length=1)
     limitations: list[str] = Field(min_length=1)
+    compatibility: ExecutionStrategyCompatibilityResponse
     is_default: bool
 
 
