@@ -38,6 +38,7 @@ import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { ProviderCredentialCreateForm } from '@/features/provider-credentials/components/ProviderCredentialCreateForm'
 import type { ProviderCredential } from '@/features/provider-credentials/types'
+import { modelProviderLabel, MODEL_PROVIDER_OPTIONS } from '@/features/provider-credentials/providers'
 import {
   useAvailableProviderModels,
   useCreateProviderModel,
@@ -88,20 +89,14 @@ interface ModelSettingsModalProps {
   layer?: DialogLayer
 }
 
-const providerLabels: Record<string, string> = {
-  openai: 'OpenAI',
-  custom: 'OpenAI Compatible',
-  openrouter: 'OpenRouter',
-}
-
 const capabilityOptions = [
   { value: 'unknown', label: 'Unknown / not declared' },
   { value: 'true', label: 'Supported' },
   { value: 'false', label: 'Not supported' },
 ]
 
-function providerLabel(provider?: string | null) {
-  return provider ? providerLabels[provider] || provider : 'Unknown provider'
+function modelProviderLabel(provider?: string | null) {
+  return provider ? modelProviderLabels[provider] || provider : 'Unknown provider'
 }
 
 function metadataOf(item?: { metadata?: Record<string, unknown> | null } | null): Record<string, unknown> {
@@ -115,11 +110,11 @@ function recordOf(value: unknown): Record<string, unknown> {
 }
 
 function isCredentialUsable(credential: ProviderCredential) {
-  return (!credential.status || credential.status === 'active') && ['openai', 'custom', 'openrouter'].includes(credential.provider)
+  return (!credential.status || credential.status === 'active') && MODEL_PROVIDER_OPTIONS.some((provider) => provider.value === credential.provider)
 }
 
 function supportsCatalog(credential?: ProviderCredential | null) {
-  return credential?.provider === 'openai' || credential?.provider === 'openrouter'
+  return Boolean(credential && MODEL_PROVIDER_OPTIONS.some((provider) => provider.value === credential.provider))
 }
 
 function numberOrNull(value: unknown): number | null {
@@ -212,7 +207,7 @@ function buildModelMetadata(
 
   return {
     ...base,
-    capability: 'generation',
+    capability: catalogModel?.model_type || selectedModel?.model_type || 'generation',
     source,
     capability_source: capabilitySource,
     context_window: context,
@@ -222,9 +217,14 @@ function buildModelMetadata(
       model_id: catalogModel.id,
       label: catalogModel.label,
       owned_by: catalogModel.owned_by ?? null,
+      model_type: catalogModel.model_type ?? null,
+      operations: catalogModel.operations ?? [],
+      input_modalities: catalogModel.input_modalities ?? [],
+      output_modalities: catalogModel.output_modalities ?? [],
       context_window: catalogModel.context_window ?? null,
       max_output_tokens: catalogModel.max_output_tokens ?? null,
     } : base.catalog,
+    provider_model_raw: catalogModel?.raw || base.provider_model_raw,
     capabilities: {
       ...recordOf(base.capabilities),
       max_output_tokens: maxOutput,
@@ -357,7 +357,7 @@ function CatalogList({
             <TechnicalListItem
               key={model.id}
               label={model.label}
-              description={`${providerLabel(model.provider)} · ${model.id}`}
+              description={`${modelProviderLabel(model.provider)} · ${model.id}`}
               selected={model.id === selectedId}
               density="compact"
               trailing={model.id === selectedId ? <Check className="h-icon w-icon text-primary-light" /> : null}
@@ -486,7 +486,7 @@ export function ModelSettingsModal({
       : 'Manual'
   const technicalName = displayName.trim() || modelId.trim() || selectedModel?.name || 'New model'
   const modelProvider = credential?.provider || selectedModel?.provider || null
-  const providerName = providerLabel(modelProvider)
+  const providerName = modelProviderLabel(modelProvider)
 
   useEffect(() => {
     if (!open) return
@@ -602,6 +602,7 @@ export function ModelSettingsModal({
       supportsStreaming,
       capabilitiesChanged,
     )
+    const selectedSpec = catalogModel?.raw?.woobe_model_spec
 
     try {
       if (selectedModel) {
@@ -611,6 +612,8 @@ export function ModelSettingsModal({
             provider_credential_id: credential.id,
             name: resolvedName,
             model: resolvedModel,
+            ...(catalogModel?.model_type ? { model_type: catalogModel.model_type } : {}),
+            ...(selectedSpec && typeof selectedSpec === 'object' ? { spec: selectedSpec as Record<string, any> } : {}),
             status,
             metadata,
           },
@@ -622,6 +625,8 @@ export function ModelSettingsModal({
           provider_credential_id: credential.id,
           name: resolvedName,
           model: resolvedModel,
+          model_type: catalogModel?.model_type || undefined,
+          spec: selectedSpec && typeof selectedSpec === 'object' ? selectedSpec as Record<string, any> : undefined,
           metadata,
         })
         toast.success('Model created')
@@ -771,7 +776,7 @@ export function ModelSettingsModal({
             ) : usableCredentials.length === 1 ? (
               <TechnicalListItem
                 label={usableCredentials[0].name}
-                description={providerLabel(usableCredentials[0].provider)}
+                description={modelProviderLabel(usableCredentials[0].provider)}
                 meta="Project provider credential"
                 selected
                 density="compact"
@@ -783,7 +788,7 @@ export function ModelSettingsModal({
                   <TechnicalListItem
                     key={item.id}
                     label={item.name}
-                    description={providerLabel(item.provider)}
+                    description={modelProviderLabel(item.provider)}
                     meta="Project provider credential"
                     selected={item.id === credentialId}
                     density="compact"
@@ -800,7 +805,7 @@ export function ModelSettingsModal({
               title="Generation model"
               description={selectedModel
                 ? 'Edit the provider model identifier bound to this reusable Model.'
-                : `Choose a generation model from ${providerLabel(credential.provider)}.`}
+                : `Choose a generation model from ${modelProviderLabel(credential.provider)}.`}
               density="compact"
             >
               {shouldUseCatalog ? (
