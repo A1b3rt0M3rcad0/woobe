@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable
 
+from modules.agent.domain.model_spec import ModelSpec
+
 from modules.agent.infra.execution.durable_execution_instrumentation import invoke_llm
 
 ModelInvokeFn = Callable[..., Awaitable[tuple[Any, dict[str, Any]]]]
@@ -16,6 +18,7 @@ class ModelInvocationCapability:
     provider: str
     model_name: str
     pricing_snapshot: dict[str, Any] | None = None
+    model_spec: ModelSpec | None = None
     invoke_fn: ModelInvokeFn | None = None
 
     def for_model(self, model: Any) -> ModelInvocationCapability:
@@ -25,6 +28,7 @@ class ModelInvocationCapability:
             provider=self.provider,
             model_name=self.model_name,
             pricing_snapshot=self.pricing_snapshot,
+            model_spec=self.model_spec,
             invoke_fn=self.invoke_fn,
         )
 
