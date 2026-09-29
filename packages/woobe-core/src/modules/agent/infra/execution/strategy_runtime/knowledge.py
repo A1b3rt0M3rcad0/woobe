@@ -93,6 +93,8 @@ class RuntimeStrategyKnowledge:
     ) -> StrategyKnowledgeResult:
         strategy = self._strategy
         if strategy is None:
+            if not self._capability.available:
+                return StrategyKnowledgeResult(content=None)
             raise RuntimeError("No Knowledge Strategy was selected for this execution")
 
         normalized_phase = strategy_phase_value(phase or "knowledge_retrieval")
