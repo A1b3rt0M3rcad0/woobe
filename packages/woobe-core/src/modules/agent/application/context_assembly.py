@@ -451,26 +451,19 @@ def _source_runtime_metadata(
         return {}
     if source == ContextSourceType.KNOWLEDGE:
         knowledge = getattr(environment, "knowledge_metadata", None)
-        legacy_rag = getattr(environment, "rag_metadata", None)
-        if not isinstance(knowledge, dict) and isinstance(legacy_rag, dict):
-            knowledge = legacy_rag
         sources = getattr(environment, "knowledge_sources", None)
-        if not isinstance(sources, (list, tuple)):
-            sources = getattr(environment, "context_rag_sources", None)
-
         metadata = dict(knowledge) if isinstance(knowledge, dict) else None
         result = {
             "knowledge": metadata,
             "sources": list(sources) if isinstance(sources, (list, tuple)) else [],
         }
-        if (
-            isinstance(legacy_rag, dict)
-            or (
-                isinstance(metadata, dict)
-                and metadata.get("knowledge_strategy") == "rag"
-            )
+        if isinstance(metadata, dict) and (
+            metadata.get("knowledge_strategy") == "rag"
+            or "vector_snapshot_id" in metadata
         ):
-            result["rag"] = dict(metadata or legacy_rag or {})
+            # Context Snapshot compatibility only. The Context Manager contract itself
+            # is Knowledge-generic and does not expose RAG-specific environment fields.
+            result["rag"] = dict(metadata)
         return result
     if source == ContextSourceType.SESSION:
         selection = getattr(environment, "context_selection_metadata", None)
