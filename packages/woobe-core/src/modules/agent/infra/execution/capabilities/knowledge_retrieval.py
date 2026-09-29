@@ -12,6 +12,12 @@ from modules.agent.application.interfaces.knowledge import (
 KnowledgeRetrieveFn = Callable[[str], Awaitable[Any]]
 
 
+def _source_value(source: Any, key: str) -> Any:
+    if isinstance(source, Mapping):
+        return source.get(key)
+    return getattr(source, key, None)
+
+
 @dataclass(frozen=True, slots=True)
 class KnowledgeRetrievalCapability:
     """Runtime-governed retrieval mechanism available to Knowledge Strategies.
@@ -39,12 +45,12 @@ class KnowledgeRetrievalCapability:
         raw_sources = getattr(raw, "sources", ()) or ()
         sources = tuple(
             KnowledgeSource(
-                document_id=getattr(source, "document_id", None),
-                document_title=getattr(source, "document_title", None),
-                chunk_id=getattr(source, "chunk_id", None),
-                page_number=getattr(source, "page_number", None),
-                score=getattr(source, "score", None),
-                content_preview=getattr(source, "content_preview", None),
+                document_id=_source_value(source, "document_id"),
+                document_title=_source_value(source, "document_title"),
+                chunk_id=_source_value(source, "chunk_id"),
+                page_number=_source_value(source, "page_number"),
+                score=_source_value(source, "score"),
+                content_preview=_source_value(source, "content_preview"),
             )
             for source in raw_sources
         )
