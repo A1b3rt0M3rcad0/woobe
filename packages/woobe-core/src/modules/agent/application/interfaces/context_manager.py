@@ -157,8 +157,8 @@ class ContextInvocationEnvironment:
     external_context_contract: Mapping[str, Any] | None = None
     model_external_context: Mapping[str, Any] | None = None
     context_selection_metadata: Mapping[str, Any] | None = None
-    rag_metadata: Mapping[str, Any] | None = None
-    context_rag_sources: tuple[Mapping[str, Any], ...] = ()
+    knowledge_metadata: Mapping[str, Any] | None = None
+    knowledge_sources: tuple[Mapping[str, Any], ...] = ()
     context_manager_name: str | None = None
     parent_invocation_id: UUID | None = None
     network_execution_id: UUID | None = None
