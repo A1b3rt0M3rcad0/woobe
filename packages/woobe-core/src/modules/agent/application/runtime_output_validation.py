@@ -57,5 +57,13 @@ def ensure_public_output(answer: Any, parsed_output: Any = None) -> None:
     raise EmptyModelOutputError("Model completed without producing public output")
 
 
+def model_result_has_public_output(result: Any) -> bool:
+    """Return whether a Model result contains user-facing output."""
+
+    return has_public_output(_public_result_text(result))
+
+
 def ensure_model_result_has_public_output(result: Any) -> None:
-    ensure_public_output(_public_result_text(result))
+    if model_result_has_public_output(result):
+        return
+    raise EmptyModelOutputError("Model completed without producing public output")
