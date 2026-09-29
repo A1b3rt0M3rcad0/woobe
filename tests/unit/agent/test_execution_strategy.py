@@ -204,6 +204,31 @@ async def test_agent_runtime_requires_strategy_resolver_from_composition() -> No
 
 
 @pytest.mark.asyncio
+async def test_agent_runtime_requires_knowledge_strategy_resolver_from_composition() -> None:
+    strategy = _RecordingStrategy()
+    resolver = _RecordingResolver(strategy)
+    runtime = _RuntimeHost()
+    runtime.configure_execution_strategy_resolver(resolver)
+    agent = SimpleNamespace(settings={})
+
+    with pytest.raises(
+        RuntimeError,
+        match="Agent Knowledge Strategy resolver is not configured",
+    ):
+        await runtime._execute_llm(
+            agent=agent,
+            api_key="secret",
+            base_url=None,
+            response_format={},
+            json_enabled=False,
+            has_tools=False,
+            agent_tools=[],
+            tool_name_to_id={},
+            messages=["hello"],
+        )
+
+
+@pytest.mark.asyncio
 async def test_agent_runtime_resolves_strategy_from_agent_runtime_config() -> None:
     strategy = _RecordingStrategy()
     resolver = _RecordingResolver(strategy)
@@ -234,6 +259,8 @@ async def test_agent_runtime_resolves_strategy_from_agent_runtime_config() -> No
     assert strategy.request is not None
     assert strategy.request.agent is agent
     assert strategy.request.messages == ["hello"]
+    assert strategy.request.knowledge_strategy is not None
+    assert strategy.request.knowledge_strategy.name == "rag"
 
 
 @pytest.mark.asyncio
