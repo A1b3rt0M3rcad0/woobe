@@ -21,6 +21,7 @@ from modules.agent.application.strategy_sdk import (
 
 DEFAULT_MAX_TOOL_ROUNDS = 5
 DEFAULT_MAX_CONSECUTIVE_SEMANTIC_FAILURE_ROUNDS = 2
+DEFAULT_MAX_EMPTY_OUTPUT_RETRIES = 1
 MAX_TOOL_ROUNDS = DEFAULT_MAX_TOOL_ROUNDS
 MAX_CONSECUTIVE_SEMANTIC_FAILURE_ROUNDS = (
     DEFAULT_MAX_CONSECUTIVE_SEMANTIC_FAILURE_ROUNDS
@@ -58,12 +59,15 @@ class StandardExecutionState(ExecutionState):
 class StandardExecutionPolicy(ExecutionPolicy[StandardExecutionState]):
     max_tool_rounds: int = DEFAULT_MAX_TOOL_ROUNDS
     max_consecutive_failures: int = DEFAULT_MAX_CONSECUTIVE_SEMANTIC_FAILURE_ROUNDS
+    max_empty_output_retries: int = DEFAULT_MAX_EMPTY_OUTPUT_RETRIES
 
     def __post_init__(self) -> None:
         if self.max_tool_rounds <= 0:
             raise ValueError("max_tool_rounds must be positive")
         if self.max_consecutive_failures <= 0:
             raise ValueError("max_consecutive_failures must be positive")
+        if self.max_empty_output_retries < 0:
+            raise ValueError("max_empty_output_retries must not be negative")
 
     def stop_reason(
         self,
@@ -102,6 +106,47 @@ class StandardExecutionStrategy(ExecutionStrategy[StandardExecutionState]):
             invocation,
             primary_error=str(error),
         )
+
+    async def _repair_output_if_required(
+        self,
+        ctx: StrategyContext[StandardExecutionState],
+        result,
+    ):
+        if ctx.output.requires_repair(result):
+            return await ctx.output.repair(result, phase="json_repair")
+        return result
+
+    async def _recover_empty_public_output(
+        self,
+        ctx: StrategyContext[StandardExecutionState],
+        result,
+    ):
+        """Give a terminal empty response one bounded generation retry.
+
+        Capability results are reused through prepare_final and Tools stay disabled,
+        so recovery cannot replay side effects. The outer runtime retains its terminal
+        empty-output guard as defense in depth if the bounded retry also returns empty.
+        """
+
+        result = await self._repair_output_if_required(ctx, result)
+        attempts = 0
+        while (
+            not ctx.output.has_public_output(result)
+            and attempts < self.policy.max_empty_output_retries
+        ):
+            attempts += 1
+            reason = "Model completed without producing public output"
+            invocation = await ctx.context.prepare_final(
+                reason=reason,
+                phase=StandardPhase.FINAL_RESPONSE_GENERATION,
+                tools=ctx.tools.none(),
+            )
+            try:
+                result = await ctx.model.invoke(invocation)
+            except StrategyExecutionError as exc:
+                result = await self._fallback_or_raise(ctx, exc)
+            result = await self._repair_output_if_required(ctx, result)
+        return result
 
     async def execute(
         self,
@@ -156,8 +201,7 @@ class StandardExecutionStrategy(ExecutionStrategy[StandardExecutionState]):
                 )
             except StrategyExecutionError as exc:
                 result = await self._fallback_or_raise(ctx, exc)
-            if ctx.output.requires_repair(result):
-                result = await ctx.output.repair(result, phase="json_repair")
+            result = await self._recover_empty_public_output(ctx, result)
             return Completed(result)
 
         tools = ctx.tools.all()
@@ -240,12 +284,12 @@ class StandardExecutionStrategy(ExecutionStrategy[StandardExecutionState]):
             except StrategyExecutionError as exc:
                 result = await self._fallback_or_raise(ctx, exc)
 
-        if ctx.output.requires_repair(result):
-            result = await ctx.output.repair(result, phase="json_repair")
+        result = await self._recover_empty_public_output(ctx, result)
         return Completed(result)
 
 
 __all__ = [
+    "DEFAULT_MAX_EMPTY_OUTPUT_RETRIES",
     "MAX_CONSECUTIVE_SEMANTIC_FAILURE_ROUNDS",
     "MAX_TOOL_ROUNDS",
     "StandardExecutionPolicy",
