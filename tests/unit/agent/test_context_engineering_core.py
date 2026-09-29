@@ -2,7 +2,13 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.messages import (
+    AIMessage,
+    AIMessageChunk,
+    HumanMessage,
+    SystemMessage,
+    ToolMessage,
+)
 from pydantic import ValidationError
 
 from modules.agent.application.context_assembly import (
@@ -564,6 +570,40 @@ def test_context_budget_drops_orphan_tool_messages_when_parent_tool_call_is_evic
         result.snapshot.manifest["exclusion_reasons"]["tool_protocol_orphan"]["TOOL"]
         == 1
     )
+
+
+def test_context_assembly_preserves_streamed_assistant_tool_protocol_block():
+    result = _assemble(
+        [
+            SystemMessage(content="system"),
+            HumanMessage(content="current"),
+            AIMessageChunk(
+                content="",
+                tool_calls=[
+                    {
+                        "id": "call-stream-1",
+                        "name": "skills_activate",
+                        "args": {"skill_version_id": "skill-v1"},
+                        "type": "tool_call",
+                    }
+                ],
+            ),
+            ToolMessage(
+                content='{"success":true,"activated":true}',
+                tool_call_id="call-stream-1",
+            ),
+        ],
+    )
+
+    assistant_index = next(
+        index
+        for index, message in enumerate(result.messages)
+        if isinstance(message, AIMessageChunk) and message.tool_calls
+    )
+    assert isinstance(result.messages[assistant_index + 1], ToolMessage)
+    assert result.messages[assistant_index + 1].tool_call_id == "call-stream-1"
+    assert "tool_protocol_orphan" not in result.snapshot.manifest["exclusion_reasons"]
+    assert result.snapshot.manifest["sources"]["TOOL"]["count"] == 1
 
 
 def test_context_assembly_preserves_complete_parallel_tool_protocol_block():
