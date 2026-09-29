@@ -11,6 +11,9 @@ from modules.agent.application.context_manager_registry import (
 from modules.agent.application.execution_strategy_config import (
     canonicalize_execution_strategy_runtime_config,
 )
+from modules.agent.application.knowledge_strategy_registry import (
+    canonicalize_knowledge_strategy_runtime_config,
+)
 from modules.agent.application.dtos.ai_dtos import (
     CreateAgentInput,
     GetAgentInput,
@@ -284,7 +287,10 @@ def _force_strict_json_settings(
             default_context_manager=default_context_manager,
             use_current_default_if_missing=initialize_context_manager,
         )
-        settings["runtime_config"] = canonicalize_execution_strategy_runtime_config(
+        runtime_config = canonicalize_execution_strategy_runtime_config(
+            runtime_config
+        )
+        settings["runtime_config"] = canonicalize_knowledge_strategy_runtime_config(
             runtime_config
         )
     response_format = settings.get("response_format")
