@@ -26,6 +26,7 @@ from modules.agent.application.interfaces.repositories import (
     ProviderCredentialRepository,
 )
 from modules.agent.application.interfaces.skill_repository import SkillRepository
+from modules.agent.application.model_spec_compatibility import LegacyModelSpecResolver
 from modules.agent.application.knowledge_strategy_config import (
     canonicalize_knowledge_strategy_runtime_config,
 )
@@ -34,6 +35,7 @@ from modules.agent.application.system_instruction_assembler import assemble_syst
 from modules.agent.domain.entities import Agent
 from modules.agent.domain.enums import CredentialStatus, ProviderModelStatus
 from modules.agent.domain.events import AgentCreatedV1, AgentUpdatedV1
+from modules.agent.domain.model_spec import ModelSpec
 from shared.contracts.errors import ConflictError, ValidationError
 
 
@@ -337,6 +339,22 @@ async def _resolve_implicit_provider_model_bindings(
             agent.fallback_provider_model_id = sorted(matches, key=lambda item: str(item.id))[0].id
 
 
+def _provider_model_spec(provider_model, provider) -> ModelSpec:
+    if isinstance(getattr(provider_model, "spec", None), dict):
+        return ModelSpec.from_dict(provider_model.spec)
+    provider_value = getattr(provider, "value", provider)
+    return LegacyModelSpecResolver().resolve(
+        provider_model,
+        provider=str(provider_value),
+    )
+
+
+def _set_agent_model_spec(agent: Agent, key: str, spec: ModelSpec) -> None:
+    settings = dict(agent.settings or {})
+    settings[key] = spec.as_dict()
+    agent.settings = settings
+
+
 async def _resolve_provider_model_bindings(
     agent: Agent,
     provider_model_repo: ProviderModelRepository | None,
@@ -361,6 +379,11 @@ async def _resolve_provider_model_bindings(
         agent.provider_credential_id = credential.id
         agent.provider = credential.provider
         agent.model = provider_model.model
+        _set_agent_model_spec(
+            agent,
+            "model_spec",
+            _provider_model_spec(provider_model, credential.provider),
+        )
 
     if agent.fallback_provider_model_id:
         fallback_model = await provider_model_repo.get_by_id(agent.fallback_provider_model_id)
@@ -375,3 +398,8 @@ async def _resolve_provider_model_bindings(
         agent.fallback_credential_id = credential.id
         agent.fallback_provider = credential.provider
         agent.fallback_model = fallback_model.model
+        _set_agent_model_spec(
+            agent,
+            "fallback_model_spec",
+            _provider_model_spec(fallback_model, credential.provider),
+        )
