@@ -5,7 +5,7 @@ from typing import Any
 from modules.agent.application.dtos.model_discovery_dtos import (
     AvailableProviderModelOutput,
 )
-from modules.agent.application.provider_registry import ProviderConnection
+from modules.agent.application.interfaces.provider_registry import ProviderConnection
 from modules.agent.domain.model_spec import (
     ModelCapabilityNames,
     ModelSpec,

@@ -6,7 +6,7 @@ from typing import Any, Mapping
 from urllib.error import HTTPError, URLError
 from urllib.request import Request as UrlRequest, urlopen
 
-from modules.agent.application.provider_registry import (
+from modules.agent.application.interfaces.provider_registry import (
     ProviderAdapter,
     ProviderConnection,
     ProviderManifest,
