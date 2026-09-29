@@ -219,7 +219,6 @@ def test_execution_preparation_is_composed_from_focused_helpers() -> None:
     }
 
     required = {
-        "_prepare_knowledge",
         "_prepare_tools",
         "_prepare_output_contract",
         "_prepare_models",
@@ -229,6 +228,7 @@ def test_execution_preparation_is_composed_from_focused_helpers() -> None:
     assert required.issubset(calls)
     assert "create_chat_model" not in calls
     assert "_messages_with_leading_system_instruction" not in calls
+    assert "knowledge_strategy_registry" not in PREPARATION.read_text(encoding="utf-8")
 
 
 def test_knowledge_owns_query_construction() -> None:
