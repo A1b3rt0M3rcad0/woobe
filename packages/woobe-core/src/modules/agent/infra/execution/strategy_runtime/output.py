@@ -6,9 +6,6 @@ from typing import Any, Protocol
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from modules.agent.application.interfaces.execution import InstrumentedExecutionError
-from modules.agent.application.strategy_sdk.output import (
-    model_result_has_public_output,
-)
 from modules.agent.application.strategy_sdk import (
     StrategyExecutionError,
     StrategyModelResult,
@@ -16,6 +13,9 @@ from modules.agent.application.strategy_sdk import (
     StrategyToolSelection,
     StrategyToolSelectionMode,
     strategy_phase_value,
+)
+from modules.agent.application.strategy_sdk.output import (
+    model_result_has_public_output,
 )
 from modules.agent.infra.execution.capabilities.context_assembly import (
     ContextAssemblyCapability,
