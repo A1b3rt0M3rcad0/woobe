@@ -143,6 +143,106 @@ async def test_standard_strategy_preserves_single_model_execution_without_tools(
 
 
 @pytest.mark.asyncio
+async def test_standard_strategy_retries_one_empty_terminal_output() -> None:
+    model = _SequenceModel(
+        [
+            AIMessage(content=""),
+            AIMessage(content="recovered answer"),
+        ]
+    )
+    factory = _RecordingFactory(model)
+
+    async def execute_single_tool(_tool_call, _tool_id):
+        raise AssertionError("Tool execution must not run")
+
+    execution = await _execute(
+        _request(
+            factory=factory,
+            execute_single_tool=execute_single_tool,
+            has_tools=False,
+        )
+    )
+
+    assert execution.result.content == "recovered answer"
+    assert model.invocation_count == 2
+    assert [call["phase"] for call in execution.llm_calls] == [
+        "response_generation",
+        "final_response_generation",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_standard_strategy_empty_tool_followup_retries_without_replaying_tool() -> None:
+    model = _SequenceModel(
+        [
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "name": "sum",
+                        "args": {"a": 8, "b": 8},
+                        "id": "call-1",
+                        "type": "tool_call",
+                    }
+                ],
+            ),
+            AIMessage(content=""),
+            AIMessage(content="16"),
+        ]
+    )
+    factory = _RecordingFactory(model)
+    executed: list[str] = []
+
+    async def execute_single_tool(_tool_call, resolved_tool_id):
+        executed.append(resolved_tool_id)
+        return {
+            "success": True,
+            "output": {
+                "body": {"result": "16", "error": None},
+                "status_code": 200,
+            },
+            "duration_ms": 1,
+            "error": None,
+        }
+
+    execution = await _execute(
+        _request(
+            factory=factory,
+            execute_single_tool=execute_single_tool,
+            has_tools=True,
+            agent_tools=[
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "sum",
+                        "description": "Sum two integers",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "a": {"type": "integer"},
+                                "b": {"type": "integer"},
+                            },
+                            "required": ["a", "b"],
+                        },
+                    },
+                }
+            ],
+            tool_name_to_id={"sum": "tool-id"},
+        )
+    )
+
+    assert execution.result.content == "16"
+    assert executed == ["tool-id"]
+    assert model.invocation_count == 3
+    assert len(execution.tool_calls) == 1
+    assert [call["phase"] for call in execution.llm_calls] == [
+        "capability_response_generation",
+        "tool_followup_1",
+        "final_response_generation",
+    ]
+
+
+@pytest.mark.asyncio
 async def test_standard_strategy_preserves_model_tool_model_execution() -> None:
     model = _SequenceModel(
         [
