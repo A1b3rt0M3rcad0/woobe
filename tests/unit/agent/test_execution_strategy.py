@@ -10,6 +10,9 @@ from modules.agent.application.execution_strategy_config import (
     execution_strategy_from_runtime_config,
 )
 from modules.agent.application.interfaces.execution import InstrumentedExecution
+from modules.agent.application.knowledge_strategy_registry import (
+    knowledge_strategy_from_runtime_config,
+)
 from modules.agent.application.interfaces.execution_strategy import (
     ExecutableExecutionStrategy,
     ExecutionStrategy,
@@ -76,12 +79,19 @@ def test_new_agent_settings_freeze_standard_strategy_explicitly() -> None:
     _force_strict_json_settings(agent, initialize_context_manager=True)
 
     assert agent.settings["runtime_config"]["execution_strategy"] == "standard"
+    assert agent.settings["runtime_config"]["knowledge_strategy"] == "rag"
 
 
 def test_release_runtime_config_preserves_explicit_execution_strategy() -> None:
-    runtime_config = _canonical_runtime_config({"execution_strategy": "STANDARD"})
+    runtime_config = _canonical_runtime_config(
+        {
+            "execution_strategy": "STANDARD",
+            "knowledge_strategy": "RAG",
+        }
+    )
 
     assert runtime_config["execution_strategy"] == "standard"
+    assert runtime_config["knowledge_strategy"] == "rag"
     assert "context_manager" in runtime_config
     assert "context" in runtime_config
     assert "rag" in runtime_config
@@ -92,11 +102,18 @@ def test_legacy_release_snapshot_keeps_absence_with_standard_semantics() -> None
 
     assert "execution_strategy" not in runtime_config
     assert execution_strategy_from_runtime_config(runtime_config) == "standard"
+    assert "knowledge_strategy" not in runtime_config
+    assert knowledge_strategy_from_runtime_config(runtime_config) == "rag"
 
 
 def test_release_runtime_config_rejects_unknown_execution_strategy() -> None:
     with pytest.raises(ValidationError, match="Unsupported execution strategy: react"):
         _canonical_runtime_config({"execution_strategy": "react"})
+
+
+def test_release_runtime_config_rejects_unknown_knowledge_strategy() -> None:
+    with pytest.raises(ValidationError, match="Unsupported knowledge strategy: pageindex"):
+        _canonical_runtime_config({"knowledge_strategy": "pageindex"})
 
 
 def test_standard_strategy_is_self_describing_sdk_strategy() -> None:
