@@ -17,6 +17,7 @@ import {
 import { StatusBadge } from '@/components/common/StatusBadge'
 import { useCredentials } from '@/features/provider-credentials/hooks'
 import type { ProviderCredential } from '@/features/provider-credentials/types'
+import { modelProviderLabel } from '@/features/provider-credentials/providers'
 import { ModelSettingsModal } from '@/features/provider-models/components/ModelSettingsModal'
 import { providerModelCapabilities } from '@/features/provider-models/capabilities'
 import { useProviderModels } from '@/features/provider-models/hooks'
@@ -24,21 +25,13 @@ import type { ProviderModel } from '@/features/provider-models/types'
 
 type ModelStatusFilter = 'all' | 'active' | 'inactive'
 
-const providerLabels: Record<string, string> = {
-  openai: 'OpenAI',
-  custom: 'OpenAI Compatible',
-  openrouter: 'OpenRouter',
-}
-
-function providerLabel(provider?: string | null) {
-  return provider ? providerLabels[provider] || provider : 'Unknown provider'
-}
-
 function metadataOf(item?: { metadata?: Record<string, unknown> | null } | null): Record<string, unknown> {
   return (item?.metadata || {}) as Record<string, unknown>
 }
 
 function isEmbeddingModel(model: ProviderModel) {
+  if (model.model_type) return model.model_type === 'embedding'
+  if (Array.isArray(model.spec?.operations) && model.spec?.operations.includes('embedding.create')) return true
   const metadata = metadataOf(model)
   const capability = String(metadata.capability || metadata.type || '').trim().toLowerCase()
   if (capability) return capability === 'embedding' || capability === 'embeddings'
@@ -99,7 +92,7 @@ function ModelCard({
       status={<StatusBadge status={model.status || 'active'} size="compact" />}
       metadata={(
         <>
-          <ResourcePill tone="primary">{providerLabel(model.provider || credential?.provider)}</ResourcePill>
+          <ResourcePill tone="primary">{modelProviderLabel(model.provider || credential?.provider)}</ResourcePill>
           {credential?.name && <ResourcePill>{credential.name}</ResourcePill>}
           <ResourcePill>{capacityText(capabilities.contextWindow)}</ResourcePill>
           <ResourcePill>In · {priceText(pricing.input, pricing.currency)}</ResourcePill>
@@ -145,7 +138,7 @@ export default function ModelsPage() {
       const provider = model.provider || credential?.provider || ''
       const matchesStatus = statusFilter === 'all' || model.status?.toLowerCase() === statusFilter
       const matchesProvider = providerFilter === 'all' || provider === providerFilter
-      const matchesQuery = !normalizedQuery || `${model.name} ${model.model} ${providerLabel(provider)} ${credential?.name || ''}`.toLowerCase().includes(normalizedQuery)
+      const matchesQuery = !normalizedQuery || `${model.name} ${model.model} ${modelProviderLabel(provider)} ${credential?.name || ''}`.toLowerCase().includes(normalizedQuery)
       return matchesStatus && matchesProvider && matchesQuery
     })
   }, [generationModels, credentialsById, normalizedQuery, providerFilter, statusFilter])
@@ -195,7 +188,7 @@ export default function ModelsPage() {
             onChange={(event) => setProviderFilter(event.target.value)}
             options={[
               { value: 'all', label: 'All providers' },
-              ...providerOptions.map((provider) => ({ value: provider, label: providerLabel(provider) })),
+              ...providerOptions.map((provider) => ({ value: provider, label: modelProviderLabel(provider) })),
             ]}
           />
         </div>
