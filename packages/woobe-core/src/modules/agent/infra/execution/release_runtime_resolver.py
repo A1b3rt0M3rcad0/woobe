@@ -608,6 +608,9 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
         provider_model: ProviderModel,
         provider,
     ) -> None:
+        settings = dict(agent.settings or {})
+        if settings.get(f"{key}_frozen") is True:
+            return
         try:
             spec = (
                 ModelSpec.from_dict(provider_model.spec)
@@ -622,7 +625,6 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
                 f"Provider model contains an invalid ModelSpec: {exc}"
             ) from exc
 
-        settings = dict(agent.settings or {})
         settings[key] = spec.as_dict()
         agent.settings = settings
 
@@ -634,6 +636,9 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
         provider,
         model: str,
     ) -> None:
+        settings = dict(agent.settings or {})
+        if settings.get(f"{key}_frozen") is True:
+            return
         compatibility_model = ProviderModel(
             project_id=agent.project_id,
             name=model,
@@ -644,7 +649,6 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
             compatibility_model,
             provider=str(_value(provider)),
         )
-        settings = dict(agent.settings or {})
         settings[key] = spec.as_dict()
         agent.settings = settings
 
