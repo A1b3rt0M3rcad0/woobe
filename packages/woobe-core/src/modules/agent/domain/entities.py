@@ -55,6 +55,10 @@ class ProviderModel:
     provider_credential_id: UUID = field(default_factory=uuid6.uuid7)
     name: str = ""
     model: str = ""
+    model_type: str | None = None
+    spec: dict[str, Any] | None = None
+    spec_version: int | None = None
+    spec_hash: str | None = None
     status: ProviderModelStatus = ProviderModelStatus.active
     metadata: dict[str, Any] = field(default_factory=dict)
     created_at: datetime | None = None
