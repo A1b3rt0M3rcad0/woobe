@@ -293,3 +293,18 @@ def test_manual_unknown_tool_capability_preserves_legacy_behavior_with_warning()
 
     assert report.compatible is True
     assert [issue.code for issue in report.warnings] == ["model_capability_unknown"]
+
+
+def test_legacy_chat_provider_registry_is_extensible_without_dispatch_branching() -> None:
+    from modules.agent.infra.llm.providers import LegacyChatProviderRegistry
+
+    class Provider:
+        def create(self, **kwargs):
+            return kwargs["model"]
+
+    registry = LegacyChatProviderRegistry()
+    registry.register("example", Provider())
+    registry.register_alias("example_alias", "example")
+
+    assert registry.resolve("example").create(model="m") == "m"
+    assert registry.resolve("example_alias").create(model="m") == "m"
