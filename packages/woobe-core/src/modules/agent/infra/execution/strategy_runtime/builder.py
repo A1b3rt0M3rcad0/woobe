@@ -308,7 +308,6 @@ def build_strategy_execution(
         strategy=strategy,
         request=request,
         prepared=prepared,
-        runtime_plan=runtime_plan,
     )
     capabilities = build_execution_capabilities(
         prepared=prepared,
@@ -339,4 +338,5 @@ def build_strategy_execution(
         context=built.context,
         runtime_state=built.runtime_state,
         prepared=prepared,
+        runtime_plan=runtime_plan,
     )
