@@ -6,10 +6,6 @@ from typing import Any, Awaitable, Callable, Coroutine
 
 from modules.agent.application.interfaces.context_manager import ContextManager
 from modules.agent.application.interfaces.knowledge import KnowledgeStrategy
-from modules.agent.application.knowledge_strategy_registry import (
-    build_knowledge_strategy_registry,
-    knowledge_strategy_from_runtime_config,
-)
 from modules.agent.application.interfaces.context_policy import resolve_context_policy
 from modules.agent.application.interfaces.execution import InstrumentedExecution
 from modules.agent.application.interfaces.execution_context import current_execution
@@ -66,7 +62,7 @@ class PreparedExecution:
     context_manager: ContextManager | None
     tool_definitions: list[dict]
     knowledge_retrieve: Callable[[str], Awaitable[Any]] | None
-    knowledge_strategy: KnowledgeStrategy
+    knowledge_strategy: KnowledgeStrategy | None
     knowledge_runtime_config: dict[str, Any]
 
     @property
@@ -130,22 +126,6 @@ def _bind_context_runtime(
         "session_max_messages": policy.session.max_messages,
         "session_max_units": policy.session.max_units,
     }
-
-
-@dataclass(frozen=True, slots=True)
-class _PreparedKnowledge:
-    strategy: KnowledgeStrategy
-    runtime_config: dict[str, Any]
-
-
-def _prepare_knowledge(runtime_config: Any) -> _PreparedKnowledge:
-    config = dict(runtime_config) if isinstance(runtime_config, dict) else {}
-    name = knowledge_strategy_from_runtime_config(config)
-    strategy = build_knowledge_strategy_registry().resolve(name)
-    return _PreparedKnowledge(
-        strategy=strategy,
-        runtime_config=config,
-    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -440,8 +420,12 @@ def prepare_execution(request: ExecutionStrategyRequest) -> PreparedExecution:
         if hasattr(agent.provider, "value")
         else str(agent.provider)
     )
-    runtime_config = (agent.settings or {}).get("runtime_config")
-    knowledge = _prepare_knowledge(runtime_config)
+    raw_runtime_config = (agent.settings or {}).get("runtime_config")
+    runtime_config = (
+        dict(raw_runtime_config)
+        if isinstance(raw_runtime_config, dict)
+        else {}
+    )
     tools = _prepare_tools(request, runtime_config)
     pricing_snapshot = _primary_pricing_snapshot(request)
     effective_output_tokens = resolve_effective_output_tokens(
@@ -496,6 +480,6 @@ def prepare_execution(request: ExecutionStrategyRequest) -> PreparedExecution:
         context_manager=request.context_manager,
         tool_definitions=tools.definitions,
         knowledge_retrieve=request.knowledge_retrieve,
-        knowledge_strategy=knowledge.strategy,
-        knowledge_runtime_config=knowledge.runtime_config,
+        knowledge_strategy=request.knowledge_strategy,
+        knowledge_runtime_config=runtime_config,
     )
