@@ -12,6 +12,9 @@ from modules.agent.application.execution_strategy_config import (
 from modules.agent.application.runtime_output_validation import (
     ensure_model_result_has_public_output,
 )
+from modules.agent.application.knowledge_strategy_registry import (
+    knowledge_strategy_from_runtime_config,
+)
 from modules.agent.application.interfaces.context_manager import (
     ContextManager,
     context_manager_key_from_runtime_config,
@@ -199,6 +202,7 @@ class InstrumentedPrimaryExecutionMixin:
             "agent_release_id": str(context.agent_release_id) if context and context.agent_release_id else None,
             "agent_release_version": context.agent_release_version if context else None,
             "execution_strategy": context.execution_strategy if context else None,
+            "knowledge_strategy": context.knowledge_strategy if context else None,
             "context_manager": (
                 {"name": context.context_manager_name}
                 if context and context.context_manager_name
@@ -262,6 +266,9 @@ class InstrumentedPrimaryExecutionMixin:
             runtime_config = settings.get("runtime_config")
             manager_key = context_manager_key_from_runtime_config(runtime_config)
             context.execution_strategy = execution_strategy_from_runtime_config(
+                runtime_config
+            )
+            context.knowledge_strategy = knowledge_strategy_from_runtime_config(
                 runtime_config
             )
             context.context_manager_name = manager_key.name
