@@ -9,6 +9,7 @@ from langchain_core.messages import HumanMessage
 from modules.agent.application.context_assembler_registry import build_context_assembler
 from modules.agent.application.dtos.runtime_dtos import AskInput
 from modules.agent.application.interfaces.context_assembler import ContextAssemblerKey
+from modules.agent.application.knowledge_strategy_registry import build_knowledge_strategy_registry
 from modules.agent.application.interfaces.execution_context import (
     current_execution,
     new_execution_context,
@@ -246,6 +247,7 @@ class _Runtime(InstrumentedPrimaryExecutionMixin, TransactionalAskAgentUseCase):
             tool_executor_factory=tool_executor_factory,
         )
         self.configure_execution_strategy_resolver(BuiltinExecutionStrategyResolver())
+        self.configure_knowledge_strategy_resolver(build_knowledge_strategy_registry())
         self.configure_context_assembler(
             build_context_assembler(ContextAssemblerKey("stdcm"))
         )
