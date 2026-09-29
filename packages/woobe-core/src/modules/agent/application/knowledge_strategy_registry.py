@@ -24,6 +24,30 @@ class KnowledgeStrategyDescriptor:
     limitations: tuple[str, ...]
     is_default: bool = False
 
+    def __post_init__(self) -> None:
+        required_text = {
+            "name": self.name,
+            "display_name": self.display_name,
+            "description": self.description,
+            "behavior": self.behavior,
+        }
+        for field_name, value in required_text.items():
+            if not value.strip():
+                raise ValueError(
+                    f"Knowledge Strategy descriptor {field_name} must not be empty"
+                )
+
+        required_lists = {
+            "recommended_for": self.recommended_for,
+            "capabilities": self.capabilities,
+            "limitations": self.limitations,
+        }
+        for field_name, values in required_lists.items():
+            if not values or any(not item.strip() for item in values):
+                raise ValueError(
+                    f"Knowledge Strategy descriptor {field_name} must contain non-empty values"
+                )
+
     def as_dict(self) -> dict[str, object]:
         return {
             "name": self.name,
@@ -46,6 +70,14 @@ class DuplicateKnowledgeStrategyError(KnowledgeStrategyRegistryError):
 
 
 class UnknownKnowledgeStrategyError(KnowledgeStrategyRegistryError):
+    pass
+
+
+class InvalidKnowledgeStrategyFactoryError(TypeError):
+    pass
+
+
+class InvalidDefaultKnowledgeStrategyError(KnowledgeStrategyRegistryError):
     pass
 
 
@@ -84,10 +116,22 @@ class KnowledgeStrategyRegistry:
             )
         strategy = entry[0]()
         if not isinstance(strategy, KnowledgeStrategy):
-            raise TypeError(
+            raise InvalidKnowledgeStrategyFactoryError(
                 f"Knowledge Strategy factory for {key} returned an incompatible object"
             )
         return strategy
+
+    def current_default(self) -> KnowledgeStrategyDescriptor:
+        defaults = [
+            descriptor
+            for _factory, descriptor in self._entries.values()
+            if descriptor.is_default
+        ]
+        if len(defaults) != 1:
+            raise InvalidDefaultKnowledgeStrategyError(
+                "Knowledge Strategy registry must contain exactly one default"
+            )
+        return defaults[0]
 
     def list_descriptors(self) -> tuple[KnowledgeStrategyDescriptor, ...]:
         return tuple(
@@ -133,6 +177,10 @@ _RAG_DESCRIPTOR = KnowledgeStrategyDescriptor(
 def build_knowledge_strategy_registry() -> KnowledgeStrategyRegistry:
     registry = KnowledgeStrategyRegistry()
     registry.register(_RAG_DESCRIPTOR, RAGKnowledgeStrategy)
+    if registry.current_default().name != DEFAULT_KNOWLEDGE_STRATEGY:
+        raise InvalidDefaultKnowledgeStrategyError(
+            "Historical Knowledge fallback must remain the registered 'rag' Strategy"
+        )
     return registry
 
 
@@ -155,6 +203,8 @@ __all__ = [
     "KnowledgeStrategyDescriptor",
     "KnowledgeStrategyRegistry",
     "KnowledgeStrategyRegistryError",
+    "InvalidDefaultKnowledgeStrategyError",
+    "InvalidKnowledgeStrategyFactoryError",
     "SUPPORTED_KNOWLEDGE_STRATEGIES",
     "UnknownKnowledgeStrategyError",
     "build_knowledge_strategy_registry",
