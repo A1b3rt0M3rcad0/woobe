@@ -102,6 +102,13 @@ class RuntimeStrategyModel:
         self._tool_definitions = list(tool_definitions or [])
         self._bound_capabilities: dict[str, ModelInvocationCapability] = {}
 
+    @property
+    def spec(self):
+        spec = self._capability.model_spec
+        if spec is None:
+            raise RuntimeError("ModelSpec is not bound for this Strategy runtime")
+        return spec
+
     def set_fallback_model_factory(
         self,
         factory: Callable[[], PreparedFallbackModel] | None,
