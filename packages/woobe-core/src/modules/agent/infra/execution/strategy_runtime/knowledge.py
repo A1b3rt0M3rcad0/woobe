@@ -45,6 +45,10 @@ class _ObservedKnowledgeCapabilities(KnowledgeCapabilities):
         self._recorder = recorder
         self.query: str | None = None
 
+    @property
+    def available(self) -> bool:
+        return self._capability.available
+
     async def retrieve(self, *, query: str) -> KnowledgeResult:
         self.query = query
         if self._recorder is not None:
@@ -87,14 +91,9 @@ class RuntimeStrategyKnowledge:
         conversation: StrategyConversation,
         phase: StrategyPhase | None = None,
     ) -> StrategyKnowledgeResult:
-        if not self._capability.available:
-            return StrategyKnowledgeResult(content=None)
-
         strategy = self._strategy
         if strategy is None:
-            raise RuntimeError(
-                "Knowledge retrieval is bound but no Knowledge Strategy was selected"
-            )
+            raise RuntimeError("No Knowledge Strategy was selected for this execution")
 
         normalized_phase = strategy_phase_value(phase or "knowledge_retrieval")
         execution_context = current_execution.get()
