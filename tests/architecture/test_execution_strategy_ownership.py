@@ -33,6 +33,18 @@ RAG_CLASSIC = (
     / "strategies"
     / "classic.py"
 )
+RAG_KNOWLEDGE = (
+    ROOT
+    / "packages"
+    / "woobe-core"
+    / "src"
+    / "modules"
+    / "agent"
+    / "application"
+    / "rag"
+    / "knowledge_strategy.py"
+)
+KNOWLEDGE_CAPABILITY = EXECUTION / "capabilities" / "knowledge_retrieval.py"
 RAG_RUNTIME_ADAPTER = EXECUTION / "rag" / "runtime_adapter.py"
 STRATEGY_KNOWLEDGE = (
     ROOT
@@ -221,6 +233,8 @@ def test_execution_preparation_is_composed_from_focused_helpers() -> None:
 def test_knowledge_owns_query_construction() -> None:
     standard_source = STANDARD.read_text(encoding="utf-8")
     classic_source = RAG_CLASSIC.read_text(encoding="utf-8")
+    knowledge_strategy_source = RAG_KNOWLEDGE.read_text(encoding="utf-8")
+    knowledge_capability_source = KNOWLEDGE_CAPABILITY.read_text(encoding="utf-8")
     adapter_source = RAG_RUNTIME_ADAPTER.read_text(encoding="utf-8")
     knowledge_source = STRATEGY_KNOWLEDGE.read_text(encoding="utf-8")
     rag_interfaces_source = RAG_INTERFACES.read_text(encoding="utf-8")
@@ -237,6 +251,13 @@ def test_knowledge_owns_query_construction() -> None:
     assert "history_turns" not in classic_source
     assert "query_mode" not in classic_source
     assert "request.history" not in classic_source
+
+    assert "def _build_query(" in knowledge_strategy_source
+    assert "history_turns" in knowledge_strategy_source
+    assert "query_mode" in knowledge_strategy_source
+    assert "build_query" not in knowledge_capability_source
+    assert "history_turns" not in knowledge_capability_source
+    assert "query_mode" not in knowledge_capability_source
 
     assert "history:" not in adapter_source
     assert "history=" not in adapter_source
