@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 from collections.abc import Mapping
 
-from modules.agent.application.dtos.runtime_dtos import SourceInfo
+from modules.agent.application.interfaces.execution import source_info_from_knowledge_source
 from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.application.interfaces.knowledge import (
     KnowledgeCapabilities,
@@ -175,7 +175,7 @@ class RuntimeStrategyKnowledge:
         ended_at = utc_iso()
         serialized_sources = [source.as_dict() for source in result.sources]
         evidence_sources = tuple(
-            SourceInfo(**source.as_dict())
+            source_info_from_knowledge_source(source)
             for source in result.sources
         )
         metadata = {
