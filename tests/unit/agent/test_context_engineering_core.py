@@ -345,6 +345,8 @@ def test_knowledge_contribution_keeps_vector_and_chunk_provenance():
         if item.source_type == ContextSourceType.KNOWLEDGE
     )
     assert knowledge.source_ref == "vector-v1"
+    assert knowledge.metadata["knowledge"]["knowledge_version_id"] == "knowledge-v1"
+    # Preserve the historical RAG provenance alias for existing snapshots/readers.
     assert knowledge.metadata["rag"]["knowledge_version_id"] == "knowledge-v1"
     assert knowledge.metadata["sources"][0]["chunk_id"] == "chunk-1"
 
