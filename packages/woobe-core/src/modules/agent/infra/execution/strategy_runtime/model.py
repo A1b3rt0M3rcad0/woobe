@@ -102,6 +102,13 @@ class RuntimeStrategyModel:
         self._tool_definitions = list(tool_definitions or [])
         self._bound_capabilities: dict[str, ModelInvocationCapability] = {}
 
+    @property
+    def spec(self):
+        spec = self._capability.model_spec
+        if spec is None:
+            raise RuntimeError("ModelSpec is not bound for this Strategy runtime")
+        return spec
+
     def set_fallback_model_factory(
         self,
         factory: Callable[[], PreparedFallbackModel] | None,
@@ -151,13 +158,9 @@ class RuntimeStrategyModel:
         if cached is not None:
             return cached
 
-        bind_tools = getattr(self._capability.model, "bind_tools", None)
-        if not callable(bind_tools):
-            raise RuntimeError(
-                "Authorized Tools require a model implementation with bind_tools()"
-            )
-        bound = self._capability.for_model(
-            bind_tools(list(self._tool_definitions), tool_choice="auto")
+        bound = self._capability.with_tools(
+            list(self._tool_definitions),
+            tool_choice="auto",
         )
         self._bound_capabilities[StrategyToolSelectionMode.ALL.value] = bound
         return bound
@@ -265,6 +268,7 @@ class RuntimeStrategyModel:
             provider=binding.provider,
             model_name=binding.model_name,
             pricing_snapshot=binding.pricing_snapshot,
+            model_spec=binding.model_spec,
         )
         result = await self._invoke(
             capability=capability,

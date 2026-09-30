@@ -14,19 +14,7 @@ import {
 import { ProviderCredentialCreateForm } from '@/features/provider-credentials/components/ProviderCredentialCreateForm'
 import { useCredentials, useUpdateCredential } from '@/features/provider-credentials/hooks'
 import type { ProviderCredential } from '@/features/provider-credentials/types'
-
-const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1'
-const providers = [
-  { value: 'openai', label: 'OpenAI' },
-  { value: 'custom', label: 'OpenAI Compatible' },
-  { value: 'openrouter', label: 'OpenRouter' },
-]
-
-function buildCredentialMetadata(provider: string, baseUrl: string): Record<string, string> {
-  if (provider === 'custom') return { provider_family: 'openai', compatibility: 'compatible', base_url: baseUrl.trim(), model_discovery_strategy: 'openai_compatible_models' }
-  if (provider === 'openrouter') return { provider_family: 'openrouter', compatibility: 'native', base_url: OPENROUTER_BASE_URL, model_discovery_strategy: 'openrouter_models' }
-  return { provider_family: 'openai', compatibility: 'native', model_discovery_strategy: 'openai_models' }
-}
+import { buildModelProviderCredentialMetadata, isOpenAICompatibleProvider, MODEL_PROVIDER_OPTIONS } from '@/features/provider-credentials/providers'
 
 interface AddProviderCredentialModalProps {
   open: boolean
@@ -55,11 +43,11 @@ export function AddProviderCredentialModal({ open, onClose, projectId, onCredent
     event.preventDefault()
     if (!credential) return
     if (!name.trim()) return void toast.error('Name is required')
-    if (provider === 'custom' && !baseUrl.trim()) return void toast.error('Base URL is required for OpenAI Compatible providers')
+    if (isOpenAICompatibleProvider(provider) && !baseUrl.trim()) return void toast.error('Base URL is required for OpenAI Compatible providers')
     try {
       await updateCredential.mutateAsync({
         id: credential.id,
-        data: { name: name.trim(), provider, metadata: buildCredentialMetadata(provider, baseUrl) },
+        data: { name: name.trim(), provider, metadata: buildModelProviderCredentialMetadata(provider, baseUrl) },
       })
       toast.success('Credential updated')
       onCredentialCreated(credential.id)
@@ -75,13 +63,13 @@ export function AddProviderCredentialModal({ open, onClose, projectId, onCredent
         <form onSubmit={handleEditSubmit} className="grid gap-ui-md">
           <Field>
             <FieldLabel>Provider</FieldLabel>
-            <Select value={provider} onChange={(event) => setProvider(event.target.value)} options={providers} />
+            <Select value={provider} onChange={(event) => setProvider(event.target.value)} options={[...MODEL_PROVIDER_OPTIONS]} />
           </Field>
           <Field>
             <FieldLabel>Connection name</FieldLabel>
             <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Provider connection" />
           </Field>
-          {provider === 'custom' ? (
+          {isOpenAICompatibleProvider(provider) ? (
             <Field>
               <FieldLabel>Base URL</FieldLabel>
               <Input value={baseUrl} onChange={(event) => setBaseUrl(event.target.value)} placeholder="https://api.example.com/v1" autoCapitalize="none" autoCorrect="off" spellCheck={false} />

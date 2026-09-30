@@ -38,6 +38,7 @@ import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { ProviderCredentialCreateForm } from '@/features/provider-credentials/components/ProviderCredentialCreateForm'
 import type { ProviderCredential } from '@/features/provider-credentials/types'
+import { modelProviderLabel, MODEL_PROVIDER_OPTIONS } from '@/features/provider-credentials/providers'
 import {
   useAvailableProviderModels,
   useCreateProviderModel,
@@ -45,6 +46,7 @@ import {
 } from '@/features/provider-models/hooks'
 import type { AvailableProviderModel, ProviderModel } from '@/features/provider-models/types'
 import { providerModelCapabilities } from '@/features/provider-models/capabilities'
+import { catalogModelSpec, providerModelSpec } from '@/features/provider-models/modelSpec'
 import { get } from '@/lib/api/client'
 
 const SEARCH_THRESHOLD = 6
@@ -88,21 +90,11 @@ interface ModelSettingsModalProps {
   layer?: DialogLayer
 }
 
-const providerLabels: Record<string, string> = {
-  openai: 'OpenAI',
-  custom: 'OpenAI Compatible',
-  openrouter: 'OpenRouter',
-}
-
 const capabilityOptions = [
   { value: 'unknown', label: 'Unknown / not declared' },
   { value: 'true', label: 'Supported' },
   { value: 'false', label: 'Not supported' },
 ]
-
-function providerLabel(provider?: string | null) {
-  return provider ? providerLabels[provider] || provider : 'Unknown provider'
-}
 
 function metadataOf(item?: { metadata?: Record<string, unknown> | null } | null): Record<string, unknown> {
   return (item?.metadata || {}) as Record<string, unknown>
@@ -115,11 +107,11 @@ function recordOf(value: unknown): Record<string, unknown> {
 }
 
 function isCredentialUsable(credential: ProviderCredential) {
-  return (!credential.status || credential.status === 'active') && ['openai', 'custom', 'openrouter'].includes(credential.provider)
+  return (!credential.status || credential.status === 'active') && MODEL_PROVIDER_OPTIONS.some((provider) => provider.value === credential.provider)
 }
 
 function supportsCatalog(credential?: ProviderCredential | null) {
-  return credential?.provider === 'openai' || credential?.provider === 'openrouter'
+  return Boolean(credential && MODEL_PROVIDER_OPTIONS.some((provider) => provider.value === credential.provider))
 }
 
 function numberOrNull(value: unknown): number | null {
@@ -149,19 +141,25 @@ function capabilityValue(value: CapabilityChoice): boolean | null {
 }
 
 function capabilitiesOf(model?: ProviderModel | null) {
+  const spec = providerModelSpec(model)
   const metadata = metadataOf(model)
   const catalog = recordOf(metadata.catalog)
   const capabilities = recordOf(metadata.capabilities)
   const { contextWindow, maxOutputTokens } = providerModelCapabilities(model)
+  const specCapability = (name: string) => (
+    spec && Object.prototype.hasOwnProperty.call(spec.capabilities, name)
+      ? spec.capabilities[name]
+      : undefined
+  )
   return {
     contextWindow,
     maxOutputTokens,
-    supportsTools: capabilityChoice(capabilities.supports_tools),
-    supportsJson: capabilityChoice(capabilities.supports_json),
-    supportsStreaming: capabilityChoice(capabilities.supports_streaming),
-    source: typeof metadata.capability_source === 'string'
+    supportsTools: capabilityChoice(specCapability('tool_calling') ?? capabilities.supports_tools),
+    supportsJson: capabilityChoice(specCapability('structured_output') ?? capabilities.supports_json),
+    supportsStreaming: capabilityChoice(specCapability('streaming') ?? capabilities.supports_streaming),
+    source: spec?.source || (typeof metadata.capability_source === 'string'
       ? metadata.capability_source
-      : catalog.context_window != null ? 'provider_catalog' : 'manual',
+      : catalog.context_window != null ? 'provider_catalog' : 'manual'),
   }
 }
 
@@ -212,7 +210,7 @@ function buildModelMetadata(
 
   return {
     ...base,
-    capability: 'generation',
+    capability: catalogModel?.model_type || selectedModel?.model_type || 'generation',
     source,
     capability_source: capabilitySource,
     context_window: context,
@@ -222,6 +220,10 @@ function buildModelMetadata(
       model_id: catalogModel.id,
       label: catalogModel.label,
       owned_by: catalogModel.owned_by ?? null,
+      model_type: catalogModel.model_type ?? null,
+      operations: catalogModel.operations ?? [],
+      input_modalities: catalogModel.input_modalities ?? [],
+      output_modalities: catalogModel.output_modalities ?? [],
       context_window: catalogModel.context_window ?? null,
       max_output_tokens: catalogModel.max_output_tokens ?? null,
     } : base.catalog,
@@ -357,7 +359,7 @@ function CatalogList({
             <TechnicalListItem
               key={model.id}
               label={model.label}
-              description={`${providerLabel(model.provider)} · ${model.id}`}
+              description={`${modelProviderLabel(model.provider)} · ${model.id}`}
               selected={model.id === selectedId}
               density="compact"
               trailing={model.id === selectedId ? <Check className="h-icon w-icon text-primary-light" /> : null}
@@ -486,7 +488,10 @@ export function ModelSettingsModal({
       : 'Manual'
   const technicalName = displayName.trim() || modelId.trim() || selectedModel?.name || 'New model'
   const modelProvider = credential?.provider || selectedModel?.provider || null
-  const providerName = providerLabel(modelProvider)
+  const providerName = modelProviderLabel(modelProvider)
+  const normalizedSpec = catalogModel
+    ? catalogModelSpec(catalogModel.raw)
+    : providerModelSpec(selectedModel)
 
   useEffect(() => {
     if (!open) return
@@ -602,6 +607,7 @@ export function ModelSettingsModal({
       supportsStreaming,
       capabilitiesChanged,
     )
+    const selectedSpec = catalogModel?.raw?.woobe_model_spec
 
     try {
       if (selectedModel) {
@@ -611,6 +617,8 @@ export function ModelSettingsModal({
             provider_credential_id: credential.id,
             name: resolvedName,
             model: resolvedModel,
+            ...(catalogModel?.model_type ? { model_type: catalogModel.model_type } : {}),
+            ...(selectedSpec && typeof selectedSpec === 'object' ? { spec: selectedSpec as Record<string, any> } : {}),
             status,
             metadata,
           },
@@ -622,6 +630,8 @@ export function ModelSettingsModal({
           provider_credential_id: credential.id,
           name: resolvedName,
           model: resolvedModel,
+          model_type: catalogModel?.model_type || undefined,
+          spec: selectedSpec && typeof selectedSpec === 'object' ? selectedSpec as Record<string, any> : undefined,
           metadata,
         })
         toast.success('Model created')
@@ -771,7 +781,7 @@ export function ModelSettingsModal({
             ) : usableCredentials.length === 1 ? (
               <TechnicalListItem
                 label={usableCredentials[0].name}
-                description={providerLabel(usableCredentials[0].provider)}
+                description={modelProviderLabel(usableCredentials[0].provider)}
                 meta="Project provider credential"
                 selected
                 density="compact"
@@ -783,7 +793,7 @@ export function ModelSettingsModal({
                   <TechnicalListItem
                     key={item.id}
                     label={item.name}
-                    description={providerLabel(item.provider)}
+                    description={modelProviderLabel(item.provider)}
                     meta="Project provider credential"
                     selected={item.id === credentialId}
                     density="compact"
@@ -800,7 +810,7 @@ export function ModelSettingsModal({
               title="Generation model"
               description={selectedModel
                 ? 'Edit the provider model identifier bound to this reusable Model.'
-                : `Choose a generation model from ${providerLabel(credential.provider)}.`}
+                : `Choose a generation model from ${modelProviderLabel(credential.provider)}.`}
               density="compact"
             >
               {shouldUseCatalog ? (
@@ -855,7 +865,8 @@ export function ModelSettingsModal({
   )
 
   const capabilitiesContent = (
-    <SectionBlock
+    <div className="grid gap-ui-md">
+      <SectionBlock
       title="Model capabilities"
       description="Used by Context budgeting and runtime compatibility checks. Unknown values remain unknown; Woobe does not infer them from the model name."
       actions={<Badge variant="outline" size="compact">{capabilitySource}</Badge>}
@@ -890,7 +901,82 @@ export function ModelSettingsModal({
           </Field>
         </div>
       </div>
-    </SectionBlock>
+      </SectionBlock>
+
+      {normalizedSpec ? (
+        <SectionBlock
+          title="Runtime ModelSpec"
+          description="Normalized semantic contract consumed by RuntimePlan and ExecutionStrategy compatibility checks."
+          actions={selectedModel?.spec_hash ? <Badge variant="outline" size="compact">hash {shortId(selectedModel.spec_hash)}</Badge> : undefined}
+          density="compact"
+        >
+          <div className="grid gap-ui-md">
+            <div className="grid gap-ui-md sm:grid-cols-2 lg:grid-cols-3">
+              <ReadOnlyValue label="Model type" value={normalizedSpec.modelType || 'custom'} mono />
+              <ReadOnlyValue label="Interaction" value={normalizedSpec.interaction.mode || 'unknown'} mono />
+              <ReadOnlyValue label="Source" value={normalizedSpec.source || 'unknown'} mono />
+              <ReadOnlyValue label="Operations" value={normalizedSpec.operations.join(', ') || 'none'} mono />
+              <ReadOnlyValue label="Input modalities" value={normalizedSpec.inputModalities.join(', ') || 'none'} mono />
+              <ReadOnlyValue label="Output modalities" value={normalizedSpec.outputModalities.join(', ') || 'none'} mono />
+            </div>
+
+            <div className="grid gap-ui-md border-t border-border pt-ui-md sm:grid-cols-2 lg:grid-cols-3">
+              <ReadOnlyValue
+                label="Conversation"
+                value={normalizedSpec.interaction.supportsConversation === null ? 'unknown' : normalizedSpec.interaction.supportsConversation ? 'supported' : 'unsupported'}
+              />
+              <ReadOnlyValue
+                label="History"
+                value={normalizedSpec.interaction.supportsHistory === null ? 'unknown' : normalizedSpec.interaction.supportsHistory ? 'supported' : 'unsupported'}
+              />
+              <ReadOnlyValue
+                label="System instruction"
+                value={normalizedSpec.interaction.supportsSystemInstruction === null ? 'unknown' : normalizedSpec.interaction.supportsSystemInstruction ? 'supported' : 'unsupported'}
+              />
+              <ReadOnlyValue
+                label="Context injection"
+                value={normalizedSpec.interaction.supportsContextInjection === null ? 'unknown' : normalizedSpec.interaction.supportsContextInjection ? 'supported' : 'unsupported'}
+              />
+              <ReadOnlyValue
+                label="Batch"
+                value={normalizedSpec.interaction.supportsBatch === null ? 'unknown' : normalizedSpec.interaction.supportsBatch ? 'supported' : 'unsupported'}
+              />
+              <ReadOnlyValue
+                label="Realtime"
+                value={normalizedSpec.interaction.supportsRealtime === null ? 'unknown' : normalizedSpec.interaction.supportsRealtime ? 'supported' : 'unsupported'}
+              />
+            </div>
+
+            <div className="border-t border-border pt-ui-md">
+              <p className="font-mono text-system-meta font-semibold uppercase tracking-[0.12em] text-muted-foreground">Declared capabilities</p>
+              <div className="mt-ui-sm flex flex-wrap gap-ui-xs">
+                {Object.keys(normalizedSpec.capabilities).length ? Object.entries(normalizedSpec.capabilities).map(([name, supported]) => (
+                  <Badge key={name} variant={supported === true ? 'success' : 'outline'} size="compact">
+                    {name}: {supported === null ? 'unknown' : supported ? 'yes' : 'no'}
+                  </Badge>
+                )) : <span className="font-sans text-product-caption text-muted-foreground">No capabilities declared.</span>}
+              </div>
+            </div>
+
+            <div className="grid gap-ui-md border-t border-border pt-ui-md sm:grid-cols-2 lg:grid-cols-3">
+              <ReadOnlyValue label="Context window" value={normalizedSpec.limits.context_window?.toLocaleString() || 'unknown'} />
+              <ReadOnlyValue label="Max input tokens" value={normalizedSpec.limits.max_input_tokens?.toLocaleString() || 'unknown'} />
+              <ReadOnlyValue label="Max output tokens" value={normalizedSpec.limits.max_output_tokens?.toLocaleString() || 'unknown'} />
+              <ReadOnlyValue label="Spec version" value={normalizedSpec.specVersion ? String(normalizedSpec.specVersion) : 'unknown'} mono />
+              <ReadOnlyValue label="Default model strategy" value={normalizedSpec.defaultModelStrategy || 'provider/runtime default'} mono />
+              {selectedModel?.spec_hash ? <ReadOnlyValue label="Spec hash" value={selectedModel.spec_hash} mono /> : null}
+            </div>
+          </div>
+        </SectionBlock>
+      ) : (
+        <Alert variant="info">
+          <AlertTitle>Legacy or manually configured model</AlertTitle>
+          <AlertDescription>
+            No normalized ModelSpec is persisted yet. Existing compatibility behavior remains available and the backend resolves legacy semantics at runtime.
+          </AlertDescription>
+        </Alert>
+      )}
+    </div>
   )
 
   const pricingContent = (

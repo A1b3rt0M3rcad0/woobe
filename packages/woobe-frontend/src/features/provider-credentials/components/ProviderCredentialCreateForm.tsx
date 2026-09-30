@@ -17,14 +17,7 @@ import {
 import { useCreateCredential } from '@/features/provider-credentials/hooks'
 import type { ProviderCredential } from '@/features/provider-credentials/types'
 import { ProviderSecretInput } from '@/features/provider-credentials/components/ProviderSecretInput'
-
-const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1'
-const providers = [
-  { value: 'openai', label: 'OpenAI', description: 'Native OpenAI models.' },
-  { value: 'openrouter', label: 'OpenRouter', description: 'Multi-provider gateway.' },
-  { value: 'custom', label: 'OpenAI Compatible', description: 'Custom OpenAI-compatible endpoint.' },
-]
-const providerNames: Record<string, string> = { openai: 'OpenAI', openrouter: 'OpenRouter', custom: 'OpenAI Compatible' }
+import { buildModelProviderCredentialMetadata, isOpenAICompatibleProvider, MODEL_PROVIDER_LABELS, MODEL_PROVIDER_OPTIONS } from '@/features/provider-credentials/providers'
 
 interface ProviderCredentialCreateFormProps {
   projectId: string
@@ -35,12 +28,6 @@ interface ProviderCredentialCreateFormProps {
   showActions?: boolean
   onCancel?: () => void
   onPendingChange?: (pending: boolean) => void
-}
-
-function buildCredentialMetadata(provider: string, baseUrl: string): Record<string, string> {
-  if (provider === 'custom') return { provider_family: 'openai', compatibility: 'compatible', base_url: baseUrl.trim(), model_discovery_strategy: 'openai_compatible_models' }
-  if (provider === 'openrouter') return { provider_family: 'openrouter', compatibility: 'native', base_url: OPENROUTER_BASE_URL, model_discovery_strategy: 'openrouter_models' }
-  return { provider_family: 'openai', compatibility: 'native', model_discovery_strategy: 'openai_models' }
 }
 
 function uniqueCredentialName(baseName: string, credentials: ProviderCredential[]) {
@@ -54,9 +41,9 @@ function uniqueCredentialName(baseName: string, credentials: ProviderCredential[
 function customCredentialBaseName(baseUrl: string) {
   try {
     const hostname = new URL(baseUrl.trim()).hostname
-    return hostname || providerNames.custom
+    return hostname || MODEL_PROVIDER_LABELS.openai_compatible
   } catch {
-    return providerNames.custom
+    return MODEL_PROVIDER_LABELS.custom
   }
 }
 
@@ -75,11 +62,11 @@ export function ProviderCredentialCreateForm({
   const [secret, setSecret] = useState('')
   const [baseUrl, setBaseUrl] = useState('')
   const [customName, setCustomName] = useState('')
-  const selectedProvider = useMemo(() => providers.find((item) => item.value === provider) || providers[0], [provider])
+  const selectedProvider = useMemo(() => MODEL_PROVIDER_OPTIONS.find((item) => item.value === provider) || MODEL_PROVIDER_OPTIONS[0], [provider])
 
   useEffect(() => { onPendingChange?.(createCredential.isPending) }, [createCredential.isPending, onPendingChange])
   useEffect(() => {
-    if (provider !== 'custom') {
+    if (!isOpenAICompatibleProvider(provider)) {
       setBaseUrl('')
       setCustomName('')
     }
@@ -88,10 +75,10 @@ export function ProviderCredentialCreateForm({
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault()
     if (!secret.trim()) return void toast.error('API key is required')
-    if (provider === 'custom' && !baseUrl.trim()) return void toast.error('Base URL is required for OpenAI Compatible providers')
-    const baseName = provider === 'custom'
+    if (isOpenAICompatibleProvider(provider) && !baseUrl.trim()) return void toast.error('Base URL is required for OpenAI Compatible providers')
+    const baseName = isOpenAICompatibleProvider(provider)
       ? customName.trim() || customCredentialBaseName(baseUrl)
-      : providerNames[provider] || selectedProvider.label
+      : MODEL_PROVIDER_LABELS[provider] || selectedProvider.label
     const name = uniqueCredentialName(baseName, existingCredentials)
     try {
       const credential = await createCredential.mutateAsync({
@@ -99,7 +86,7 @@ export function ProviderCredentialCreateForm({
         provider,
         name,
         secret: secret.trim(),
-        metadata: buildCredentialMetadata(provider, baseUrl),
+        metadata: buildModelProviderCredentialMetadata(provider, baseUrl),
       })
       setSecret('')
       setBaseUrl('')
@@ -115,7 +102,7 @@ export function ProviderCredentialCreateForm({
       <Field density="technical">
         <FieldLabel>Provider</FieldLabel>
         <div className="grid gap-ui-xs md:grid-cols-3">
-          {providers.map((option) => {
+          {MODEL_PROVIDER_OPTIONS.map((option) => {
             const selected = provider === option.value
             return (
               <TechnicalListItem
@@ -135,7 +122,7 @@ export function ProviderCredentialCreateForm({
         </div>
       </Field>
 
-      {provider === 'custom' ? (
+      {isOpenAICompatibleProvider(provider) ? (
         <div className="grid gap-ui-md sm:grid-cols-2">
           <Field density="technical">
             <FieldLabel>Base URL</FieldLabel>

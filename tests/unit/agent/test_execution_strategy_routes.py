@@ -2,6 +2,9 @@ import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
+from modules.agent.application.execution_strategy_registry import (
+    list_execution_strategies,
+)
 from woobe_api.http.agent.execution_strategy_routes import router
 
 
@@ -20,31 +23,9 @@ async def test_execution_strategy_catalog_uses_api_envelope_and_backend_metadata
     payload = response.json()
     assert payload["success"] is True
     assert payload["message"] == "ok"
-    assert payload["data"] == [
-        {
-            "name": "standard",
-            "display_name": "Standard",
-            "description": (
-                "General-purpose Woobe execution strategy for model and capability orchestration."
-            ),
-            "behavior": (
-                "Invokes the configured model, executes bound capabilities when requested, "
-                "feeds durable results back into the model, and continues until terminal output "
-                "or runtime safety limits are reached."
-            ),
-            "recommended_for": [
-                "General-purpose Agents that need predictable production behavior.",
-                "Agents that use Tools, Knowledge, structured output, or multi-round capability calls.",
-            ],
-            "capabilities": [
-                "Single-pass and multi-round Model execution.",
-                "Parallel Tool calls within one capability round.",
-                "Durable Tool-boundary recovery without replaying completed Tool side effects.",
-                "Structured output validation and JSON repair.",
-            ],
-            "limitations": [
-                "Does not add an explicit planning or reflection phase beyond model-directed capability use."
-            ],
-            "is_default": True,
-        }
-    ]
+    assert payload["data"] == list_execution_strategies()
+    standard = payload["data"][0]
+    assert standard["compatibility"]["operations"] == ["language.generate"]
+    assert standard["compatibility"]["requires_conversation"] is True
+    assert standard["compatibility"]["context_mode"] == "required"
+

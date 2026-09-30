@@ -25,4 +25,9 @@ class AvailableProviderModelOutput(BaseModel):
     supports_tools: bool | None = None
     supports_json: bool | None = None
     supports_streaming: bool | None = None
+    model_type: str | None = None
+    operations: list[str] = []
+    input_modalities: list[str] = []
+    output_modalities: list[str] = []
+    capabilities: dict[str, Any] = {}
     raw: dict[str, Any] = {}

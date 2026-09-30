@@ -224,6 +224,10 @@ class AgentReleaseModel(BaseModel):
     provider_credential_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("agent.provider_credentials.id")
     )
+    model_spec_snapshot: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    model_spec_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    fallback_model_spec_snapshot: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    fallback_model_spec_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     fallback_provider: Mapped[str | None] = mapped_column(String(64))
     fallback_model: Mapped[str | None] = mapped_column(String(255))
     fallback_credential_id: Mapped[UUID | None] = mapped_column(

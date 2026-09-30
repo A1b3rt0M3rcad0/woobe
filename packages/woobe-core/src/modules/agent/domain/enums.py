@@ -3,7 +3,9 @@ from enum import StrEnum, auto
 
 class Provider(StrEnum):
     openai = auto()
+    openai_compatible = auto()
     anthropic = auto()
+    deepseek = auto()
     google = auto()
     azure = auto()
     aws_bedrock = auto()

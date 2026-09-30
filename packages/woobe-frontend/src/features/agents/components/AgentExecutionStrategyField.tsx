@@ -1,6 +1,9 @@
 import { useMemo, useState } from 'react'
 import { Check, Route, Settings2 } from 'lucide-react'
 import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
   Badge,
   Button,
   Dialog,
@@ -16,7 +19,9 @@ import {
   withExecutionStrategy,
 } from '@/features/agents/executionStrategy'
 import { useExecutionStrategies } from '@/features/agents/hooks'
+import { executionStrategyCompatibilityForModel } from '@/features/agents/modelStrategyCompatibility'
 import type { ExecutionStrategyDescriptor } from '@/features/agents/types'
+import { useProviderModel } from '@/features/provider-models/hooks'
 import { useAgentEditor } from '@/features/playground/AgentEditorContext'
 import { cn } from '@/lib/utils'
 
@@ -46,6 +51,7 @@ export function AgentExecutionStrategyField({
 }) {
   const { state, setField } = useAgentEditor()
   const { data: strategies = [], isLoading, isError } = useExecutionStrategies()
+  const { data: selectedModel } = useProviderModel(state.providerModelId)
   const selected = executionStrategyFromRuntimeConfig(state.runtimeConfig)
   const selectedDescriptor = executionStrategyDescriptor(strategies, selected)
 
@@ -57,6 +63,16 @@ export function AgentExecutionStrategyField({
     recommended_for: [],
     capabilities: [],
     limitations: [],
+    compatibility: {
+      operations: ['language.generate'],
+      requires_conversation: true,
+      allowed_input_modalities: ['text'],
+      allowed_output_modalities: ['text'],
+      required_capabilities: [],
+      context_mode: 'required',
+      knowledge_mode: 'optional',
+      tools_mode: 'optional',
+    },
     is_default: false,
   }), [selected])
 
@@ -71,8 +87,28 @@ export function AgentExecutionStrategyField({
   const focusedIsCurrent = focusedDescriptor.name === selected
   const focusedCatalogBacked = strategies.some((strategy) => strategy.name === focusedDescriptor.name)
   const catalogReady = !isLoading && !isError && strategies.length > 0
-  const canApplySelection = !readOnly && catalogReady && focusedCatalogBacked && !focusedIsCurrent
   const currentDescriptor = selectedDescriptor ?? selectedFallback
+  const runtimeCompatibilityState = useMemo(() => ({
+    toolsEnabled: state.toolIds.length > 0,
+    contextEnabled: true,
+    knowledgeEnabled: Boolean(state.knowledgeVersionId || state.collectionIds.length),
+  }), [state.toolIds.length, state.knowledgeVersionId, state.collectionIds.length])
+  const currentCompatibility = executionStrategyCompatibilityForModel(
+    selectedModel,
+    currentDescriptor,
+    runtimeCompatibilityState,
+  )
+  const focusedCompatibility = executionStrategyCompatibilityForModel(
+    selectedModel,
+    focusedDescriptor,
+    runtimeCompatibilityState,
+  )
+  const canApplySelection =
+    !readOnly &&
+    catalogReady &&
+    focusedCatalogBacked &&
+    !focusedIsCurrent &&
+    focusedCompatibility.compatible
 
   const openSelector = () => {
     setFocusedName(selected)
@@ -107,6 +143,7 @@ export function AgentExecutionStrategyField({
               <>
                 <Badge variant="outline" size="compact">{selected}</Badge>
                 {currentDescriptor.is_default ? <Badge variant="success" size="compact">Default</Badge> : null}
+                {currentCompatibility.known && !currentCompatibility.compatible ? <Badge variant="outline" size="compact">Incompatible</Badge> : null}
                 {readOnly ? <Badge variant="outline" size="compact">Snapshot</Badge> : null}
               </>
             )}
@@ -118,6 +155,14 @@ export function AgentExecutionStrategyField({
             )}
           />
         </div>
+        {currentCompatibility.known && !currentCompatibility.compatible ? (
+          <Alert variant="warning" className="mt-ui-md">
+            <AlertTitle>Current model and execution strategy are incompatible</AlertTitle>
+            <AlertDescription>
+              {currentCompatibility.issues.filter((issue) => issue.severity === 'error').map((issue) => issue.message).join(' ')}
+            </AlertDescription>
+          </Alert>
+        ) : null}
       </section>
 
       <Dialog
@@ -142,17 +187,27 @@ export function AgentExecutionStrategyField({
                   const active = strategy.name === focusedDescriptor.name
                   const current = strategy.name === selected
                   const catalogBacked = strategies.some((item) => item.name === strategy.name)
+                  const compatibility = executionStrategyCompatibilityForModel(
+                    selectedModel,
+                    strategy,
+                    runtimeCompatibilityState,
+                  )
+                  const incompatible = compatibility.known && !compatibility.compatible
                   return (
                     <TechnicalListItem
                       key={strategy.name}
                       selected={active}
-                      disabled={!catalogBacked && !current}
+                      disabled={(!catalogBacked && !current) || (incompatible && !current)}
                       onClick={() => setFocusedName(strategy.name)}
                       leading={<Route className="h-icon w-icon text-primary-light" />}
                       label={strategy.display_name}
-                      description={strategy.name}
+                      description={incompatible ? `${strategy.name} · incompatible with selected model` : strategy.name}
                       meta={strategy.is_default ? 'System default' : undefined}
-                      trailing={current ? <span className="flex items-center gap-ui-xs font-mono text-system-meta uppercase text-primary-light"><Check className="h-icon-sm w-icon-sm" />Selected</span> : null}
+                      trailing={current
+                        ? <span className="flex items-center gap-ui-xs font-mono text-system-meta uppercase text-primary-light"><Check className="h-icon-sm w-icon-sm" />Selected</span>
+                        : incompatible
+                          ? <span className="font-mono text-system-meta uppercase text-muted-foreground">Blocked</span>
+                          : null}
                     />
                   )
                 })}
@@ -180,6 +235,28 @@ export function AgentExecutionStrategyField({
                   </div>
                 </div>
 
+                {focusedCompatibility.issues.length ? (
+                  <Alert variant={focusedCompatibility.compatible ? 'info' : 'warning'} className="mt-ui-lg">
+                    <AlertTitle>
+                      {focusedCompatibility.compatible
+                        ? focusedCompatibility.known ? 'Compatible with selected model' : 'Compatibility delegated to runtime'
+                        : 'Incompatible with selected model'}
+                    </AlertTitle>
+                    <AlertDescription>
+                      <div className="space-y-ui-xs">
+                        {focusedCompatibility.issues.map((issue, index) => (
+                          <p key={`${issue.code}-${index}`}>{issue.message}</p>
+                        ))}
+                      </div>
+                    </AlertDescription>
+                  </Alert>
+                ) : (
+                  <Alert variant="info" className="mt-ui-lg">
+                    <AlertTitle>Compatible with selected model</AlertTitle>
+                    <AlertDescription>The normalized ModelSpec satisfies this strategy contract.</AlertDescription>
+                  </Alert>
+                )}
+
                 {catalogReady && focusedCatalogBacked ? (
                   <>
                     <div className="mt-ui-lg grid gap-ui-lg border-t border-border/75 pt-ui-lg md:grid-cols-2">
@@ -190,6 +267,33 @@ export function AgentExecutionStrategyField({
                       <div>
                         <p className="font-mono text-system-meta font-semibold uppercase tracking-[0.12em] text-muted-foreground">How it operates</p>
                         <p className="mt-ui-sm font-sans text-product-body text-slate-300">{focusedDescriptor.behavior}</p>
+                      </div>
+                    </div>
+
+                    <div className="mt-ui-lg grid gap-ui-lg border-t border-border/75 pt-ui-lg md:grid-cols-2">
+                      <div>
+                        <p className="font-mono text-system-meta font-semibold uppercase tracking-[0.12em] text-muted-foreground">Model contract</p>
+                        <div className="mt-ui-sm">
+                          <DetailList items={[
+                            `Operations: ${focusedDescriptor.compatibility.operations.join(', ')}`,
+                            `Conversation: ${focusedDescriptor.compatibility.requires_conversation ? 'required' : 'not required'}`,
+                            `Input: ${focusedDescriptor.compatibility.allowed_input_modalities?.join(', ') || 'any'}`,
+                            `Output: ${focusedDescriptor.compatibility.allowed_output_modalities?.join(', ') || 'any'}`,
+                          ]} />
+                        </div>
+                      </div>
+                      <div>
+                        <p className="font-mono text-system-meta font-semibold uppercase tracking-[0.12em] text-muted-foreground">Capability modes</p>
+                        <div className="mt-ui-sm">
+                          <DetailList items={[
+                            `Context: ${focusedDescriptor.compatibility.context_mode}`,
+                            `Knowledge: ${focusedDescriptor.compatibility.knowledge_mode}`,
+                            `Tools: ${focusedDescriptor.compatibility.tools_mode}`,
+                            focusedDescriptor.compatibility.required_capabilities.length
+                              ? `Required capabilities: ${focusedDescriptor.compatibility.required_capabilities.join(', ')}`
+                              : 'Required capabilities: none',
+                          ]} />
+                        </div>
                       </div>
                     </div>
 

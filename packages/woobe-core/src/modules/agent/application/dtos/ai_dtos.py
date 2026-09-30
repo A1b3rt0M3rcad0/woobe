@@ -77,6 +77,10 @@ class CreateProviderModelInput(BaseModel):
     provider_credential_id: UUID
     name: str
     model: str
+    model_type: str | None = None
+    spec: dict[str, Any] | None = None
+    spec_version: int | None = None
+    spec_hash: str | None = None
     metadata: dict[str, Any] = {}
 
 
@@ -84,6 +88,10 @@ class UpdateProviderModelInput(BaseModel):
     provider_credential_id: UUID | None = None
     name: str | None = None
     model: str | None = None
+    model_type: str | None = None
+    spec: dict[str, Any] | None = None
+    spec_version: int | None = None
+    spec_hash: str | None = None
     metadata: dict[str, Any] | None = None
     status: ProviderModelStatus | None = None
 
@@ -100,6 +108,10 @@ class ProviderModelOutput(BaseModel):
     provider: Provider | None = None
     name: str
     model: str
+    model_type: str | None = None
+    spec: dict[str, Any] | None = None
+    spec_version: int | None = None
+    spec_hash: str | None = None
     status: ProviderModelStatus
     metadata: dict[str, Any] = {}
     created_at: datetime | None = None
@@ -380,6 +392,10 @@ class CreateReleaseInput(BaseModel):
     provider: str | None = None
     model: str | None = None
     provider_credential_id: UUID | None = None
+    model_spec_snapshot: dict[str, Any] | None = None
+    model_spec_hash: str | None = None
+    fallback_model_spec_snapshot: dict[str, Any] | None = None
+    fallback_model_spec_hash: str | None = None
     fallback_provider: str | None = None
     fallback_model: str | None = None
     fallback_credential_id: UUID | None = None
@@ -418,6 +434,10 @@ class CreateReleaseOutput(BaseModel):
     provider: str | None = None
     model: str | None = None
     provider_credential_id: UUID | None = None
+    model_spec_snapshot: dict[str, Any] | None = None
+    model_spec_hash: str | None = None
+    fallback_model_spec_snapshot: dict[str, Any] | None = None
+    fallback_model_spec_hash: str | None = None
     fallback_provider: str | None = None
     fallback_model: str | None = None
     fallback_credential_id: UUID | None = None

@@ -19,6 +19,7 @@ from modules.agent.application.interfaces.execution import (
     InstrumentedExecutionError,
 )
 from modules.agent.application.interfaces.execution_context import current_execution
+from modules.agent.domain.model_spec import ModelSpec, model_spec_hash
 from modules.agent.application.skill_runtime import SKILL_TOOL_NAMES
 from modules.agent.application.use_cases.tool_output_compaction import (
     compact_tool_output_for_llm,
@@ -170,6 +171,7 @@ async def invoke_llm(
     provider: str,
     model_name: str,
     pricing_snapshot: dict[str, Any] | None = None,
+    model_spec: ModelSpec | None = None,
     invocation_id: Any | None = None,
     context_snapshot: Any | None = None,
     context_prepared: bool = False,
@@ -210,6 +212,13 @@ async def invoke_llm(
         "usage_complete": False,
         "provider": provider,
         "model": model_name,
+        "model_type": model_spec.model_type if model_spec is not None else None,
+        "model_operations": (
+            sorted(model_spec.operations) if model_spec is not None else None
+        ),
+        "model_spec_hash": (
+            model_spec_hash(model_spec) if model_spec is not None else None
+        ),
         "context_snapshot": (
             snapshot_to_dict(context_snapshot)
             if context_snapshot is not None

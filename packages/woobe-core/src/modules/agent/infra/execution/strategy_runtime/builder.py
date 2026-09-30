@@ -5,10 +5,13 @@ from typing import Any
 
 from modules.agent.application.interfaces.execution import InstrumentedExecution
 from modules.agent.application.interfaces.knowledge import KnowledgeStrategy
+from modules.agent.application.interfaces.model_runtime_plan import ModelRuntimePlan, ModelRuntimePlanBuilder
 from modules.agent.application.interfaces.execution_strategy import (
     ExecutionStrategy,
     ExecutionStrategyRequest,
+    legacy_language_execution_compatibility,
 )
+from modules.agent.domain.model_spec import ModelModalities
 from modules.agent.application.strategy_sdk import (
     StrategyBootstrap,
     StrategyContextContribution,
@@ -51,6 +54,7 @@ class BuiltStrategyExecution:
     context: RuntimeStrategyContext[Any]
     runtime_state: StrategyRuntimeState
     prepared: PreparedExecution
+    runtime_plan: ModelRuntimePlan
 
 
 def _next_call_index(cursor: dict[str, Any] | None) -> int:
@@ -244,12 +248,74 @@ def build_strategy_context_from_capabilities(
     )
 
 
+def _configured_context_strategy(
+    request: ExecutionStrategyRequest,
+    prepared: PreparedExecution,
+) -> str | None:
+    if prepared.context_manager is None:
+        # Direct/legacy Strategy execution predates explicit Context Manager
+        # selection. It still executes through the runtime Context facade, which
+        # degrades to pass-through assembly outside an instrumented Agent Run.
+        # Represent that compatibility binding explicitly instead of weakening
+        # StandardExecutionStrategy's requirement for Context semantics.
+        return "legacy_passthrough"
+    runtime_config = (request.agent.settings or {}).get("runtime_config")
+    if isinstance(runtime_config, dict):
+        selection = runtime_config.get("context_manager")
+        if isinstance(selection, dict):
+            name = selection.get("name")
+            if isinstance(name, str) and name.strip():
+                return name.strip()
+        if isinstance(selection, str) and selection.strip():
+            return selection.strip()
+    return "configured"
+
+
+def _configured_knowledge_strategy(
+    prepared: PreparedExecution,
+) -> str | None:
+    if prepared.knowledge_strategy is not None:
+        name = getattr(prepared.knowledge_strategy, "name", None)
+        return str(name).strip() if name else "configured"
+    if prepared.knowledge_retrieve is not None:
+        return "legacy"
+    return None
+
+
+def _build_runtime_plan(
+    *,
+    strategy: ExecutionStrategy[Any],
+    request: ExecutionStrategyRequest,
+    prepared: PreparedExecution,
+) -> ModelRuntimePlan:
+    compatibility = getattr(strategy, "compatibility", None)
+    if compatibility is None:
+        compatibility = legacy_language_execution_compatibility(strategy.name)
+    return ModelRuntimePlanBuilder().build(
+        model=prepared.model_spec,
+        execution=compatibility,
+        context_strategy=_configured_context_strategy(request, prepared),
+        knowledge_strategy=_configured_knowledge_strategy(prepared),
+        output_strategy=(
+            "structured_json" if prepared.json_enabled else "text"
+        ),
+        tools_enabled=bool(prepared.tool_definitions),
+        required_input_modalities=frozenset({ModelModalities.TEXT}),
+        required_output_modalities=frozenset({ModelModalities.TEXT}),
+    )
+
+
 def build_strategy_execution(
     *,
     strategy: ExecutionStrategy[Any],
     request: ExecutionStrategyRequest,
 ) -> BuiltStrategyExecution:
     prepared = prepare_execution(request)
+    runtime_plan = _build_runtime_plan(
+        strategy=strategy,
+        request=request,
+        prepared=prepared,
+    )
     capabilities = build_execution_capabilities(
         prepared=prepared,
         strategy_name=strategy.name,
@@ -279,4 +345,5 @@ def build_strategy_execution(
         context=built.context,
         runtime_state=built.runtime_state,
         prepared=prepared,
+        runtime_plan=runtime_plan,
     )

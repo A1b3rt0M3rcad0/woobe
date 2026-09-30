@@ -2,14 +2,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from langchain_openai import OpenAIEmbeddings
-
 from modules.agent.application.interfaces.embedding_errors import (
     as_embedding_provider_error,
 )
 from modules.agent.application.interfaces.embedding_factory import EmbeddingFactory
-
-_OPENAI_COMPATIBLE_PROVIDERS = {"openai", "custom", "openrouter"}
+from modules.agent.infra.models.embedding_providers import (
+    EmbeddingProviderRegistry,
+    build_embedding_provider_registry,
+)
 
 
 class _SafeEmbeddingClient:
@@ -33,6 +33,14 @@ class _SafeEmbeddingClient:
 
 
 class LangchainEmbeddingFactory(EmbeddingFactory):
+    def __init__(
+        self,
+        provider_registry: EmbeddingProviderRegistry | None = None,
+    ) -> None:
+        self._provider_registry = (
+            provider_registry or build_embedding_provider_registry()
+        )
+
     def create_embedding_client(
         self,
         *,
@@ -43,18 +51,14 @@ class LangchainEmbeddingFactory(EmbeddingFactory):
         dimensions: int = 1536,
     ):
         try:
-            if provider not in _OPENAI_COMPATIBLE_PROVIDERS:
-                raise ValueError(f"Embedding provider is not supported for MVP: {provider}")
-
-            resolved_base_url = base_url
-            if provider == "openrouter" and not resolved_base_url:
-                resolved_base_url = "https://openrouter.ai/api/v1"
-
-            kwargs: dict = {"model": model, "api_key": api_key}
-            if dimensions:
-                kwargs["dimensions"] = dimensions
-            if resolved_base_url:
-                kwargs["base_url"] = resolved_base_url
-            return _SafeEmbeddingClient(OpenAIEmbeddings(**kwargs))
+            implementation = self._provider_registry.resolve(provider)
+            return _SafeEmbeddingClient(
+                implementation.create(
+                    model=model,
+                    api_key=api_key,
+                    base_url=base_url,
+                    dimensions=dimensions,
+                )
+            )
         except Exception as exc:
             raise as_embedding_provider_error(exc) from exc

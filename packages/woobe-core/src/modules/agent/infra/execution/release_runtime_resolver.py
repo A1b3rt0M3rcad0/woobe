@@ -7,6 +7,7 @@ from typing import Any
 from uuid import UUID
 
 from modules.agent.application.dtos.runtime_dtos import AskInput
+from modules.agent.application.model_spec_compatibility import LegacyModelSpecResolver
 from modules.agent.application.use_cases.vector_snapshot_rag_mixin import VectorSnapshotRAGMixin
 from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.application.tool_converter import agent_tools_to_openai_definitions_and_mapping
@@ -17,6 +18,7 @@ from modules.agent.application.tool_release_snapshots import (
 )
 from modules.agent.domain.entities import Agent, AgentRelease, ProviderModel
 from modules.agent.domain.enums import CredentialStatus, ProviderModelStatus, ReleaseStatus, ToolStatus
+from modules.agent.domain.model_spec import ModelSpec
 from modules.agent.domain.errors import RuntimeEnvironmentNotReadyError
 from modules.agent.domain.external_context_contract import (
     ExternalContextContractError,
@@ -598,6 +600,58 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
             value = snapshot["fallback_provider_model_id"]
             agent.fallback_provider_model_id = UUID(value) if isinstance(value, str) else value
 
+    def _set_model_spec_snapshot(
+        self,
+        agent: Agent,
+        *,
+        key: str,
+        provider_model: ProviderModel,
+        provider,
+    ) -> None:
+        settings = dict(agent.settings or {})
+        if settings.get(f"{key}_frozen") is True:
+            return
+        try:
+            spec = (
+                ModelSpec.from_dict(provider_model.spec)
+                if isinstance(provider_model.spec, dict)
+                else LegacyModelSpecResolver().resolve(
+                    provider_model,
+                    provider=str(_value(provider)),
+                )
+            )
+        except (TypeError, ValueError) as exc:
+            raise ValidationError(
+                f"Provider model contains an invalid ModelSpec: {exc}"
+            ) from exc
+
+        settings[key] = spec.as_dict()
+        agent.settings = settings
+
+    def _set_direct_model_spec_snapshot(
+        self,
+        agent: Agent,
+        *,
+        key: str,
+        provider,
+        model: str,
+    ) -> None:
+        settings = dict(agent.settings or {})
+        if settings.get(f"{key}_frozen") is True:
+            return
+        compatibility_model = ProviderModel(
+            project_id=agent.project_id,
+            name=model,
+            model=model,
+            metadata={},
+        )
+        spec = LegacyModelSpecResolver().resolve(
+            compatibility_model,
+            provider=str(_value(provider)),
+        )
+        settings[key] = spec.as_dict()
+        agent.settings = settings
+
     def _set_pricing_snapshot(
         self,
         agent: Agent,
@@ -632,6 +686,23 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
     async def _resolve_provider_model_refs(self, uow: Any, agent: Agent) -> Agent:
         provider_model_repo = getattr(uow, "provider_models", None)
         if provider_model_repo is None:
+            if getattr(agent, "model", None):
+                self._set_direct_model_spec_snapshot(
+                    agent,
+                    key="model_spec",
+                    provider=agent.provider,
+                    model=agent.model,
+                )
+            if (
+                getattr(agent, "fallback_model", None)
+                and getattr(agent, "fallback_provider", None)
+            ):
+                self._set_direct_model_spec_snapshot(
+                    agent,
+                    key="fallback_model_spec",
+                    provider=agent.fallback_provider,
+                    model=agent.fallback_model,
+                )
             self._validate_runtime_model(agent)
             return agent
         if agent.provider_model_id:
@@ -657,6 +728,12 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
                 provider_model=provider_model,
                 provider=credential.provider,
             )
+            self._set_model_spec_snapshot(
+                agent,
+                key="model_spec",
+                provider_model=provider_model,
+                provider=credential.provider,
+            )
 
         if agent.fallback_provider_model_id:
             fallback_model = await provider_model_repo.get_by_id(agent.fallback_provider_model_id)
@@ -678,6 +755,31 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
                 key="fallback_model_pricing",
                 provider_model=fallback_model,
                 provider=credential.provider,
+            )
+            self._set_model_spec_snapshot(
+                agent,
+                key="fallback_model_spec",
+                provider_model=fallback_model,
+                provider=credential.provider,
+            )
+
+        if not agent.provider_model_id and getattr(agent, "model", None):
+            self._set_direct_model_spec_snapshot(
+                agent,
+                key="model_spec",
+                provider=agent.provider,
+                model=agent.model,
+            )
+        if (
+            not agent.fallback_provider_model_id
+            and getattr(agent, "fallback_model", None)
+            and getattr(agent, "fallback_provider", None)
+        ):
+            self._set_direct_model_spec_snapshot(
+                agent,
+                key="fallback_model_spec",
+                provider=agent.fallback_provider,
+                model=agent.fallback_model,
             )
 
         self._validate_runtime_model(agent)

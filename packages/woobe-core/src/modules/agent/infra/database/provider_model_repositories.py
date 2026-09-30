@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import ForeignKey, Index, String, UniqueConstraint, select
+from sqlalchemy import ForeignKey, Index, Integer, String, UniqueConstraint, select
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, add_mapped_attribute, mapped_column
 
@@ -47,6 +47,10 @@ class ProviderModelModel(BaseModel):
     )
     name: Mapped[str] = mapped_column(String(255))
     model: Mapped[str] = mapped_column(String(255))
+    model_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    spec: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    spec_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    spec_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     status: Mapped[str] = mapped_column(String(32), default="active")
     meta: Mapped[dict[str, Any] | None] = mapped_column(
         "metadata", JSONB, nullable=True
@@ -74,6 +78,10 @@ def _to_entity(model: ProviderModelModel) -> ProviderModel:
         provider_credential_id=model.provider_credential_id,
         name=model.name,
         model=model.model,
+        model_type=model.model_type,
+        spec=model.spec,
+        spec_version=model.spec_version,
+        spec_hash=model.spec_hash,
         status=ProviderModelStatus(model.status),
         metadata=model.meta or {},
         created_at=model.created_at,
@@ -88,6 +96,10 @@ def _to_model(entity: ProviderModel) -> ProviderModelModel:
         provider_credential_id=entity.provider_credential_id,
         name=entity.name,
         model=entity.model,
+        model_type=entity.model_type,
+        spec=entity.spec,
+        spec_version=entity.spec_version,
+        spec_hash=entity.spec_hash,
         status=getattr(entity.status, "value", entity.status),
         meta=entity.metadata or None,
     )
@@ -179,6 +191,10 @@ class SQLAlchemyProviderModelRepository(
         model.provider_credential_id = provider_model.provider_credential_id
         model.name = provider_model.name
         model.model = provider_model.model
+        model.model_type = provider_model.model_type
+        model.spec = provider_model.spec
+        model.spec_version = provider_model.spec_version
+        model.spec_hash = provider_model.spec_hash
         model.status = getattr(
             provider_model.status, "value", provider_model.status
         )

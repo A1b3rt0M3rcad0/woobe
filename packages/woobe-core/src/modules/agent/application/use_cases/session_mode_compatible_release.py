@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from types import SimpleNamespace
 from typing import Any
 from uuid import UUID
 
+from modules.agent.application.model_spec_compatibility import LegacyModelSpecResolver
 from modules.agent.domain.enums import Provider, SessionMode
+from modules.agent.domain.model_spec import ModelSpec, model_spec_hash
 from modules.agent.domain.errors import AgentNotFoundError
 from shared.contracts.errors import ConflictError, ValidationError
 
@@ -22,9 +25,48 @@ def _uuid_or_none(value: Any) -> UUID | None:
         raise ValidationError("Agent Draft contains an invalid UUID reference") from exc
 
 
+def _effective_model_spec(
+    agent: Any,
+    *,
+    settings_key: str,
+    provider: Any,
+    model: str | None,
+) -> ModelSpec | None:
+    if not model:
+        return None
+    settings = dict(agent.settings or {})
+    raw_spec = settings.get(settings_key)
+    if isinstance(raw_spec, dict):
+        return ModelSpec.from_dict(raw_spec)
+
+    compatibility_model = SimpleNamespace(
+        id=None,
+        provider_credential_id=None,
+        name=model,
+        model=model,
+        metadata={},
+    )
+    return LegacyModelSpecResolver().resolve(
+        compatibility_model,
+        provider=str(_enum_value(provider)),
+    )
+
+
 def _draft_defaults_from_agent(agent: Any) -> dict[str, Any]:
     settings = dict(agent.settings or {})
     response_format = deepcopy(settings.get("response_format"))
+    model_spec = _effective_model_spec(
+        agent,
+        settings_key="model_spec",
+        provider=agent.provider,
+        model=agent.model,
+    )
+    fallback_model_spec = _effective_model_spec(
+        agent,
+        settings_key="fallback_model_spec",
+        provider=agent.fallback_provider,
+        model=agent.fallback_model,
+    )
     output_schema = (
         deepcopy(response_format.get("schema"))
         if isinstance(response_format, dict)
@@ -44,6 +86,22 @@ def _draft_defaults_from_agent(agent: Any) -> dict[str, Any]:
         "model": agent.model,
         "provider_credential_id": agent.provider_credential_id,
         "provider_model_id": getattr(agent, "provider_model_id", None),
+        "model_spec_snapshot": (
+            model_spec.as_dict() if model_spec is not None else None
+        ),
+        "model_spec_hash": (
+            model_spec_hash(model_spec) if model_spec is not None else None
+        ),
+        "fallback_model_spec_snapshot": (
+            fallback_model_spec.as_dict()
+            if fallback_model_spec is not None
+            else None
+        ),
+        "fallback_model_spec_hash": (
+            model_spec_hash(fallback_model_spec)
+            if fallback_model_spec is not None
+            else None
+        ),
         "fallback_provider": _enum_value(agent.fallback_provider),
         "fallback_model": agent.fallback_model,
         "fallback_credential_id": agent.fallback_credential_id,
@@ -95,13 +153,17 @@ def _sync_agent_projection(agent: Any, draft: Any) -> None:
     agent.provider = Provider(str(draft.provider))
     agent.model = str(draft.model)
     agent.provider_credential_id = draft.provider_credential_id
-    agent.provider_model_id = draft.provider_model_id
+    agent.provider_model_id = getattr(draft, "provider_model_id", None)
     agent.fallback_provider = (
         Provider(str(draft.fallback_provider)) if draft.fallback_provider else None
     )
     agent.fallback_model = draft.fallback_model
     agent.fallback_credential_id = draft.fallback_credential_id
-    agent.fallback_provider_model_id = draft.fallback_provider_model_id
+    agent.fallback_provider_model_id = getattr(
+        draft,
+        "fallback_provider_model_id",
+        None,
+    )
     agent.temperature = draft.temperature
     agent.max_output_tokens = draft.max_output_tokens
 
@@ -110,6 +172,22 @@ def _sync_agent_projection(agent: Any, draft: Any) -> None:
     agent.session_mode = SessionMode(str(draft.session_mode))
 
     settings = dict(agent.settings or {})
+    model_spec_snapshot = getattr(draft, "model_spec_snapshot", None)
+    if model_spec_snapshot is None:
+        settings.pop("model_spec", None)
+    else:
+        settings["model_spec"] = deepcopy(model_spec_snapshot)
+    fallback_model_spec_snapshot = getattr(
+        draft,
+        "fallback_model_spec_snapshot",
+        None,
+    )
+    if fallback_model_spec_snapshot is None:
+        settings.pop("fallback_model_spec", None)
+    else:
+        settings["fallback_model_spec"] = deepcopy(
+            fallback_model_spec_snapshot
+        )
     if draft.response_format is None:
         settings.pop("response_format", None)
     else:

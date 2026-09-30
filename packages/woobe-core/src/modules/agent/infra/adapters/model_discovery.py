@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Awaitable, Callable
 from urllib.error import HTTPError, URLError
 from urllib.request import Request as UrlRequest, urlopen
 
@@ -103,19 +103,89 @@ def _supports_parameter(raw: dict[str, Any], names: set[str]) -> bool | None:
     return None
 
 
+ModelDiscoveryHandler = Callable[
+    [ModelDiscoveryContext],
+    Awaitable[list[AvailableProviderModelOutput]],
+]
+
+
 class ModelDiscoveryService:
-    async def list_models(self, context: ModelDiscoveryContext) -> list[AvailableProviderModelOutput]:
-        provider = context.provider
-        if provider == "openai":
-            return self._normalize_openai(await _async_json_get(OPENAI_MODELS_URL, context.api_key), provider="openai")
-        if provider == "custom":
-            base_url = str(context.metadata.get("base_url") or "")
-            url = _base_url_with_models_path(base_url)
-            return self._normalize_openai(await _async_json_get(url, context.api_key), provider="custom")
-        if provider == "openrouter":
-            base_url = str(context.metadata.get("base_url") or OPENROUTER_BASE_URL).rstrip("/")
-            return self._normalize_openrouter(await _async_json_get(f"{base_url}/models", context.api_key))
-        raise ValidationError(f"Provider {provider} does not support model discovery")
+    """Compatibility discovery service with an extensible provider-handler registry."""
+
+    def __init__(
+        self,
+        handlers: dict[str, ModelDiscoveryHandler] | None = None,
+    ) -> None:
+        self._handlers: dict[str, ModelDiscoveryHandler] = {}
+        self.register_provider("openai", self._discover_openai)
+        self.register_provider("custom", self._discover_custom)
+        self.register_provider("openrouter", self._discover_openrouter)
+        for key, handler in (handlers or {}).items():
+            self.register_provider(key, handler, replace=True)
+
+    @staticmethod
+    def _provider_key(value: str) -> str:
+        key = str(value).strip().lower()
+        if not key:
+            raise ValueError("Model discovery provider key must not be empty")
+        return key
+
+    def register_provider(
+        self,
+        key: str,
+        handler: ModelDiscoveryHandler,
+        *,
+        replace: bool = False,
+    ) -> None:
+        normalized = self._provider_key(key)
+        if normalized in self._handlers and not replace:
+            raise ValueError(
+                f"Model discovery provider already registered: {normalized}"
+            )
+        self._handlers[normalized] = handler
+
+    async def list_models(
+        self,
+        context: ModelDiscoveryContext,
+    ) -> list[AvailableProviderModelOutput]:
+        provider = self._provider_key(context.provider)
+        handler = self._handlers.get(provider)
+        if handler is None:
+            raise ValidationError(
+                f"Provider {provider} does not support model discovery"
+            )
+        return await handler(context)
+
+    async def _discover_openai(
+        self,
+        context: ModelDiscoveryContext,
+    ) -> list[AvailableProviderModelOutput]:
+        return self._normalize_openai(
+            await _async_json_get(OPENAI_MODELS_URL, context.api_key),
+            provider="openai",
+        )
+
+    async def _discover_custom(
+        self,
+        context: ModelDiscoveryContext,
+    ) -> list[AvailableProviderModelOutput]:
+        base_url = str(context.metadata.get("base_url") or "")
+        url = _base_url_with_models_path(base_url)
+        return self._normalize_openai(
+            await _async_json_get(url, context.api_key),
+            provider="custom",
+        )
+
+    async def _discover_openrouter(
+        self,
+        context: ModelDiscoveryContext,
+    ) -> list[AvailableProviderModelOutput]:
+        base_url = str(
+            context.metadata.get("base_url") or OPENROUTER_BASE_URL
+        ).rstrip("/")
+        return self._normalize_openrouter(
+            await _async_json_get(f"{base_url}/models", context.api_key)
+        )
 
     def _normalize_openai(self, payload: dict[str, Any], *, provider: str) -> list[AvailableProviderModelOutput]:
         items = payload.get("data")

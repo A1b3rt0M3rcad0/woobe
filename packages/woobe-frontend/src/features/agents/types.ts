@@ -47,6 +47,17 @@ export interface ContextManagerDescriptor {
 
 export type ContextAssemblerDescriptor = ContextManagerDescriptor
 
+export interface ExecutionStrategyCompatibility {
+  operations: string[]
+  requires_conversation: boolean
+  allowed_input_modalities?: string[] | null
+  allowed_output_modalities?: string[] | null
+  required_capabilities: string[]
+  context_mode: 'required' | 'optional' | 'unsupported'
+  knowledge_mode: 'required' | 'optional' | 'unsupported'
+  tools_mode: 'required' | 'optional' | 'unsupported'
+}
+
 /** Backend-owned presentation contract for one selectable Execution Strategy. */
 export interface ExecutionStrategyDescriptor {
   name: string
@@ -56,6 +67,7 @@ export interface ExecutionStrategyDescriptor {
   recommended_for: string[]
   capabilities: string[]
   limitations: string[]
+  compatibility: ExecutionStrategyCompatibility
   is_default: boolean
 }
 

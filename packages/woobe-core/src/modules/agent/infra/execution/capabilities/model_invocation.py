@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable
 
+from modules.agent.domain.model_spec import ModelSpec
+
 from modules.agent.infra.execution.durable_execution_instrumentation import invoke_llm
 
 ModelInvokeFn = Callable[..., Awaitable[tuple[Any, dict[str, Any]]]]
@@ -16,6 +18,7 @@ class ModelInvocationCapability:
     provider: str
     model_name: str
     pricing_snapshot: dict[str, Any] | None = None
+    model_spec: ModelSpec | None = None
     invoke_fn: ModelInvokeFn | None = None
 
     def for_model(self, model: Any) -> ModelInvocationCapability:
@@ -25,7 +28,28 @@ class ModelInvocationCapability:
             provider=self.provider,
             model_name=self.model_name,
             pricing_snapshot=self.pricing_snapshot,
+            model_spec=self.model_spec,
             invoke_fn=self.invoke_fn,
+        )
+
+    def with_tools(
+        self,
+        tool_definitions: list[dict[str, Any]],
+        *,
+        tool_choice: str = "auto",
+    ) -> ModelInvocationCapability:
+        """Bind authorized Tools behind the Model capability boundary.
+
+        Strategy-facing code decides whether Tools are exposed. Provider/model
+        infrastructure owns how the concrete model implementation represents them.
+        """
+        bind_tools = getattr(self.model, "bind_tools", None)
+        if not callable(bind_tools):
+            raise RuntimeError(
+                "Authorized Tools require a model implementation with Tool binding support"
+            )
+        return self.for_model(
+            bind_tools(list(tool_definitions), tool_choice=tool_choice)
         )
 
     async def invoke(
@@ -47,6 +71,7 @@ class ModelInvocationCapability:
             provider=self.provider,
             model_name=self.model_name,
             pricing_snapshot=self.pricing_snapshot,
+            model_spec=self.model_spec,
             invocation_id=invocation_id,
             context_snapshot=context_snapshot,
             context_prepared=context_prepared,

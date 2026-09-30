@@ -7,6 +7,7 @@ from modules.agent.application.dtos.model_discovery_dtos import (
     ListAvailableProviderModelsInput,
 )
 from modules.agent.domain.enums import CredentialStatus
+from modules.agent.domain.model_spec import ModelOperations, ModelTypes
 from modules.agent.application.interfaces.repositories import ProviderCredentialRepository
 from shared.contracts.errors import ValidationError
 
@@ -15,6 +16,21 @@ SecretResolverCallable = Callable[[str], str]
 
 
 def _is_embedding_model(model: AvailableProviderModelOutput) -> bool:
+    if model.model_type:
+        return model.model_type == ModelTypes.EMBEDDING
+    if ModelOperations.EMBEDDING_CREATE in (model.operations or []):
+        return True
+
+    spec = model.raw.get("woobe_model_spec") if isinstance(model.raw, dict) else None
+    if isinstance(spec, dict):
+        model_type = str(spec.get("model_type") or "").strip().lower()
+        if model_type:
+            return model_type == ModelTypes.EMBEDDING
+        operations = spec.get("operations")
+        if isinstance(operations, list):
+            return ModelOperations.EMBEDDING_CREATE in operations
+
+    # Compatibility only for discovery payloads that predate ModelSpec semantics.
     value = f"{model.id} {model.label}".lower()
     return "embed" in value
 

@@ -6,11 +6,34 @@ from typing import Any, Awaitable, Callable, Coroutine, Generic, Protocol, TypeV
 from modules.agent.application.interfaces.context_manager import ContextManager
 from modules.agent.application.interfaces.execution import InstrumentedExecution
 from modules.agent.application.interfaces.knowledge import KnowledgeStrategy
+from modules.agent.application.interfaces.model_compatibility import (
+    CompatibilityMode,
+    ExecutionStrategySpec,
+)
 from modules.agent.application.strategy_sdk import ExecutionState, StrategyContext, StrategyOutcome
 from modules.agent.domain.entities import Agent
+from modules.agent.domain.model_spec import ModelModalities, ModelOperations
 
 
 StateT = TypeVar("StateT", bound=ExecutionState)
+
+
+def legacy_language_execution_compatibility(name: str) -> ExecutionStrategySpec:
+    """Compatibility fallback for Strategies created before manifests existed."""
+
+    return ExecutionStrategySpec(
+        name=name,
+        operations=frozenset({ModelOperations.LANGUAGE_GENERATE}),
+        requires_conversation=True,
+        allowed_input_modalities=frozenset({ModelModalities.TEXT}),
+        allowed_output_modalities=frozenset({ModelModalities.TEXT}),
+        context_mode=CompatibilityMode.REQUIRED,
+        knowledge_mode=CompatibilityMode.OPTIONAL,
+        tools_mode=CompatibilityMode.OPTIONAL,
+    )
+
+
+STANDARD_EXECUTION_COMPATIBILITY = legacy_language_execution_compatibility("standard")
 
 
 @dataclass(frozen=True, slots=True)

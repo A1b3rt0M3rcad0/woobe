@@ -6,6 +6,7 @@ import { useCreateAgent } from '@/features/agents/hooks'
 import type { Agent } from '@/features/agents/types'
 import { useCredentials } from '@/features/provider-credentials/hooks'
 import type { ProviderCredential } from '@/features/provider-credentials/types'
+import { modelProviderLabel, MODEL_PROVIDER_OPTIONS } from '@/features/provider-credentials/providers'
 import {
   useAvailableProviderModels,
   useCreateProviderModel,
@@ -22,21 +23,17 @@ interface UseAgentCreationFlowOptions {
   active?: boolean
 }
 
-const supportedProviders = new Set(['openai', 'custom', 'openrouter'])
+const supportedProviders = new Set<string>(MODEL_PROVIDER_OPTIONS.map((provider) => provider.value))
 
-export function providerLabel(provider?: string | null) {
-  if (!provider) return 'Provider'
-  if (provider === 'openai') return 'OpenAI'
-  if (provider === 'openrouter') return 'OpenRouter'
-  if (provider === 'custom') return 'OpenAI Compatible'
-  return provider
-}
+export const providerLabel = modelProviderLabel
 
 export function supportsModelCatalog(credential?: ProviderCredential | null) {
-  return credential?.provider === 'openai' || credential?.provider === 'openrouter'
+  return Boolean(credential && supportedProviders.has(credential.provider))
 }
 
 export function isEmbeddingProviderModel(model: ProviderModel) {
+  if (model.model_type) return model.model_type === 'embedding'
+  if (Array.isArray(model.spec?.operations) && model.spec.operations.includes('embedding.create')) return true
   const metadata = model.metadata || {}
   const capability = String(metadata.capability || metadata.type || '').trim().toLowerCase()
   if (capability) return capability === 'embedding' || capability === 'embeddings'
@@ -59,13 +56,17 @@ export function buildModelMetadata(catalogModel: AvailableProviderModel | null) 
   }
 
   return {
-    capability: 'generation',
+    capability: catalogModel.model_type || 'generation',
     source: 'remote',
     catalog: {
       provider: catalogModel.provider,
       model_id: catalogModel.id,
       label: catalogModel.label,
       owned_by: catalogModel.owned_by ?? null,
+      model_type: catalogModel.model_type ?? null,
+      operations: catalogModel.operations ?? [],
+      input_modalities: catalogModel.input_modalities ?? [],
+      output_modalities: catalogModel.output_modalities ?? [],
       context_window: catalogModel.context_window ?? null,
     },
     capabilities: {
@@ -275,12 +276,18 @@ export function useAgentCreationFlow({ projectId, onCreated, active = true }: Us
     }
 
     try {
+      const catalogModel = modelMode === 'catalog' ? selectedCatalogModel : null
+      const selectedSpec = catalogModel?.raw?.woobe_model_spec
       const model = await createModel.mutateAsync({
         project_id: projectId,
         provider_credential_id: selectedCredential.id,
         name: resolvedName,
         model: resolvedModel,
-        metadata: buildModelMetadata(modelMode === 'catalog' ? selectedCatalogModel : null),
+        model_type: catalogModel?.model_type || undefined,
+        spec: selectedSpec && typeof selectedSpec === 'object'
+          ? selectedSpec as Record<string, any>
+          : undefined,
+        metadata: buildModelMetadata(catalogModel),
       })
       setCreatedModel(model)
       setSelectedModelId(model.id)
