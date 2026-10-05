@@ -94,6 +94,17 @@ def test_etag_captures_exact_revision():
     assert expected_revision(request, kind="category", resource_id=category_id) == 7
 
 
+@pytest.mark.parametrize("revision", ["9" * 5000, "2147483648", "0", "01"])
+def test_etag_rejects_out_of_range_revision_without_server_error(revision):
+    category_id = uuid4()
+    request = Request({"type": "http", "headers": [
+        (b"if-match", f'"category:{category_id}:{revision}"'.encode())
+    ]})
+    with pytest.raises(HTTPException) as exc:
+        expected_revision(request, kind="category", resource_id=category_id)
+    assert exc.value.status_code == 412
+
+
 @pytest.mark.parametrize(
     "model,field",
     [
