@@ -154,3 +154,25 @@ def test_null_cannot_clear_non_nullable_authority_fields(model, field):
 def test_agent_session_listing_is_an_explicit_read_operation(method, permission):
     assert resolve_operation(method, f"/runtime/agents/{uuid4()}/sessions")[0] == permission
     assert resolve_operation(method, f"/runtime/agents/{uuid4()}/sessions/hidden")[0] is None
+
+
+def test_verified_run_filters_match_preflight_and_request_authority():
+    from woobe_api.security.operation_catalog import verified_query_context
+    from shared.security.tenancy import TenantAuthorizer
+    agent_id = uuid4()
+    query = {"agent_id": str(agent_id), "environment": "staging", "target_type": "network"}
+    path = verified_query_context("GET", "/runtime/runs", {}, query)
+    TenantAuthorizer._require_conditions({"target_ids": [str(agent_id)], "environments": ["staging"]},
+        permission="run:read", path_context=path)
+    assert "target_type" not in path
+    assert verified_query_context("POST", "/runtime/runs", {}, query) == {}
+    assert verified_query_context("GET", f"/network/{uuid4()}/sessions", {}, query) == {}
+
+
+def test_agent_session_preflight_uses_the_same_default_and_filter_as_the_guard():
+    from woobe_api.security.operation_catalog import verified_query_context
+    agent_id = str(uuid4())
+    path = f"/runtime/agents/{agent_id}/sessions"
+    assert verified_query_context("GET", path, {"agent_id": agent_id}, {})["environment"] == "draft"
+    assert verified_query_context("GET", path, {"agent_id": agent_id},
+        {"environment": "staging"})["environment"] == "staging"

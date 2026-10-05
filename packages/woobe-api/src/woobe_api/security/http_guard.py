@@ -29,7 +29,7 @@ from shared.security.rate_limit import (
     ApiKeyConcurrencyLimiter,
     LoginRateLimiter,
 )
-from woobe_api.security.operation_catalog import resolve_operation
+from woobe_api.security.operation_catalog import resolve_operation, verified_query_context
 
 PUBLIC_PATHS = {
     "/identity/auth/login",
@@ -234,6 +234,9 @@ class HttpSecurityGuard:
             path_params,
         )
 
+        authorization_path_params = verified_query_context(
+            request.method, path, authorization_path_params, query_params
+        )
         authorization = request.headers.get("authorization", "")
         scheme, _, credentials = authorization.partition(" ")
         if scheme.lower() == "bearer" and credentials:

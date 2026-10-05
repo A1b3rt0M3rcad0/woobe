@@ -261,13 +261,13 @@ async def effective_authority(
 
 @router.post("/access/check")
 async def check_authority(payload: AccessCheckRequest, request: Request):
-    from woobe_api.security.operation_catalog import resolve_operation
+    from woobe_api.security.operation_catalog import resolve_operation, verified_query_context
 
     permission, params = resolve_operation(payload.method, payload.path, payload.body)
     decision = await build_authority_service().check_access(
         actor=_actor(request),
         permission=permission,
-        path_params=params,
+        path_params=verified_query_context(payload.method, payload.path, params, payload.query),
         query_params=payload.query,
         body=payload.body,
         mutation=payload.method != "GET",

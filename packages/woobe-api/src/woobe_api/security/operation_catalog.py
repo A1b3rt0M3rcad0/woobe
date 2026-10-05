@@ -496,3 +496,16 @@ def operation_catalog(routes) -> dict[str, Any]:
                 }
             )
     return {"revision": CATALOG_REVISION, "operations": items}
+
+
+def verified_query_context(
+    method: str, path: str, path_params: dict[str, Any], query_params: dict[str, Any]
+) -> dict[str, Any]:
+    """Expose only filters that the exact reviewed collection handler consumes."""
+    if (method.upper() == "GET" and path_params.get("agent_id") is not None
+        and path == f"/runtime/agents/{path_params['agent_id']}/sessions"):
+        return {**path_params, "environment": query_params.get("environment") or "draft"}
+    if method.upper() == "GET" and path == "/runtime/runs":
+        return {**path_params, **{name: query_params[name] for name in
+            ("agent_id", "session_id", "environment") if query_params.get(name) is not None}}
+    return path_params
