@@ -9,7 +9,9 @@ API Keys, target-bound Runtime Keys and ChatSurface Access Keys.
 
 `GET /identity/permissions` returns the versioned permission catalog and the
 reviewed HTTP method/path pairs. An unreviewed operation is unsupported for
-Control Keys. A prefix match never grants authority to a future endpoint.
+Control Keys. Runtime submissions are advertised as execution effects. Network
+promotion preview requires the same environment authority as promotion: staging
+uses `network:version`, and production uses `network:production`. A prefix match never grants authority to a future endpoint.
 
 `GET /identity/access/me` accepts `workspace_id` and optionally `project_id` and
 returns current permissions, conditions and category provenance. Human callers
@@ -46,6 +48,18 @@ Conditions restrict environments, target types, target IDs and runtime interface
 Delegation must preserve or narrow every restriction; removing a constrained
 dimension broadens authority and is rejected. Arbitrary body IDs cannot turn an
 unfiltered collection operation into an authorized target-specific request.
+Equivalent UUID representations are compared using their canonical identity.
+
+Conditional reads of stored Agent Runs, Runs resolved by trace, Network executions
+and Network session history use the persisted target and runtime environment.
+A supplied body or query environment cannot replace that stored environment, and
+a session under a different Network cannot be selected through a parent path.
+Environment-restricted runtime grants deny collections whose environment is
+unknown. Run-list filters (`agent_id`, `session_id`, `environment`) and active
+Network execution filters (`network_id`, `network_session_id`, `environment`) are
+used by authorization because those exact handlers consume them. Unrelated query
+parameters do not narrow an unfiltered operation. Preflight uses the same filters
+and persisted resource checks as actual requests.
 
 Creating a Project with a Control Key materializes only its explicit
 `on_project_create_permissions`. Creating or rotating a Project/Runtime Key checks
@@ -54,6 +68,13 @@ The delegated expiration ceiling is stored on the issued key and preserved acros
 human and machine rotations. Rotating a credential cannot extend its delegated
 lifetime. Child Control Keys retain their delegation ceiling and parent credential
 lineage across rotations.
+
+An inactive Workspace blocks both human authority and delegated credential
+issuance. Issuance rechecks the Control Workspace inside the transaction.
+Administrative Control authority is checked against locked current permissions,
+expiration and delegation ceiling; a changed authenticated snapshot requires
+reauthentication. Owner discovery reports structural authority without applying
+restrictions from an assignment retained after promotion to owner.
 
 ## Revision preconditions
 
@@ -68,6 +89,11 @@ Category and Control Key mutations use strong resource ETags:
 Send the observed ETag in `If-Match`. Missing preconditions return HTTP 428;
 malformed, weak, wrong-resource or stale preconditions return HTTP 412. To create
 an assignment, use `If-None-Match: *`; updates require its current ETag.
+Creation and update headers cannot be combined, and duplicate revision headers
+are rejected. The catalog advertises assignment creation/update preconditions.
+Revisions and revision selectors are positive integers bounded by the database
+range (2,147,483,647). System-profile history observes the same exclusive revision
+cursor as custom category history.
 Category history and audit responses contain their own pagination/completeness
 fields. Callers must not infer collection completeness from HTTP success.
 
