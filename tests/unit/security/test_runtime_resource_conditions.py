@@ -70,3 +70,20 @@ async def test_network_execution_uses_session_environment(runtime_db):
         authorizer._require_conditions(conditions, permission="run:read", path_context=path)
         with pytest.raises(AuthorizationError):
             authorizer._require_conditions({"environments": ["staging"]}, permission="run:read", path_context=path)
+
+
+@pytest.mark.asyncio
+async def test_network_history_rejects_session_under_another_target(runtime_db):
+    network, session_id = uuid4(), uuid4()
+    async with runtime_db() as session:
+        await session.execute(text("INSERT INTO network.network_sessions VALUES (:id, :network, 'production')"),
+                              {"id": session_id.hex, "network": network.hex})
+        authorizer = TenantAuthorizer(session)
+        conditions = {"environments": ["staging"]}
+        with pytest.raises(NotFoundError):
+            await authorizer._condition_path_context(conditions, "run:read",
+                {"network_session_id": session_id, "network_id": uuid4()})
+        path = await authorizer._condition_path_context(conditions, "run:read",
+            {"network_session_id": session_id, "network_id": network, "environment": "staging"})
+        with pytest.raises(AuthorizationError):
+            authorizer._require_conditions(conditions, permission="run:read", path_context=path)

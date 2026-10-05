@@ -105,6 +105,7 @@ for _version_alias in (
 # Conditions for stored runtime resources come from persisted lineage, never
 # caller-supplied body or query fields.
 RUNTIME_CONDITION_QUERIES: dict[str, str] = {
+    "network_session_id": "SELECT network_id, environment FROM network.network_sessions WHERE id = :resource_id",
     "execution_id": """SELECT executions.network_id, sessions.environment
         FROM network.network_executions AS executions
         JOIN network.network_sessions AS sessions ON sessions.id = executions.network_session_id
