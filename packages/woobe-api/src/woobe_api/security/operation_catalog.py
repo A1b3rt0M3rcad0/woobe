@@ -508,4 +508,7 @@ def verified_query_context(
     if method.upper() == "GET" and path == "/runtime/runs":
         return {**path_params, **{name: query_params[name] for name in
             ("agent_id", "session_id", "environment") if query_params.get(name) is not None}}
+    if method.upper() == "GET" and path == "/network/executions/active":
+        return {**path_params, **{name: query_params[name] for name in
+            ("network_id", "network_session_id", "environment") if query_params.get(name) is not None}}
     return path_params

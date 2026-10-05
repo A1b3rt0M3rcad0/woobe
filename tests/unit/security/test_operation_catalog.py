@@ -176,3 +176,15 @@ def test_agent_session_preflight_uses_the_same_default_and_filter_as_the_guard()
     assert verified_query_context("GET", path, {"agent_id": agent_id}, {})["environment"] == "draft"
     assert verified_query_context("GET", path, {"agent_id": agent_id},
         {"environment": "staging"})["environment"] == "staging"
+
+
+def test_active_network_filters_are_verified_without_authorizing_other_lists():
+    from woobe_api.security.operation_catalog import verified_query_context
+    from shared.security.tenancy import TenantAuthorizer
+    network_id = uuid4()
+    query = {"network_id": network_id, "environment": "production", "agent_id": uuid4()}
+    path = verified_query_context("GET", "/network/executions/active", {}, query)
+    TenantAuthorizer._require_conditions({"target_ids": [str(network_id)], "target_types": ["network"],
+        "environments": ["production"]}, permission="run:read", path_context=path)
+    assert "agent_id" not in path
+    assert verified_query_context("GET", f"/network/executions/{uuid4()}/events", {}, query) == {}
