@@ -34,7 +34,7 @@ class SqlApiKeyDelegationPolicy:
         scopes: list[str],
         conditions: dict[str, Any],
         expires_at: datetime | None,
-    ) -> None:
+    ) -> datetime | None:
         session = (
             self._session_or_uow.session
             if isinstance(self._session_or_uow, UnitOfWork)
@@ -95,3 +95,5 @@ class SqlApiKeyDelegationPolicy:
             require_expiration_ceiling(expires_at, min(ceilings) if ceilings else None)
         except ValueError as exc:
             raise AuthorizationError(str(exc)) from exc
+
+        return min(ceilings) if ceilings else None

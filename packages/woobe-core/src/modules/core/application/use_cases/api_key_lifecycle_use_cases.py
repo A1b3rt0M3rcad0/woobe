@@ -1,4 +1,5 @@
 from shared.security.delegation import ApiKeyDelegationPolicy
+from shared.security.control_plane import require_expiration_ceiling
 from shared.contracts.errors import AuthorizationError
 from datetime import UTC, datetime
 
@@ -108,6 +109,13 @@ class RotateApiKeyUseCase:
         except ValueError as exc:
             raise ValidationError(str(exc)) from exc
 
+        expires_at = input_dto.expires_at or current.expires_at
+        delegation_expires_at = current.delegation_expires_at
+        try:
+            require_expiration_ceiling(expires_at, delegation_expires_at)
+        except ValueError as exc:
+            raise AuthorizationError(str(exc)) from exc
+
         if input_dto.rotated_by_control_key_id is not None:
             if self._delegation_policy is None:
                 raise AuthorizationError("Control key delegation policy is required")
@@ -121,13 +129,20 @@ class RotateApiKeyUseCase:
                 if current.kind == ApiKeyKind.runtime
                 else {}
             )
-            await self._delegation_policy.validate(
+            actor_ceiling = await self._delegation_policy.validate(
                 actor_key_id=input_dto.rotated_by_control_key_id,
                 project_id=current.project_id,
                 scopes=scopes,
                 conditions=conditions,
-                expires_at=input_dto.expires_at or current.expires_at,
+                expires_at=expires_at,
             )
+
+            ceilings = [
+                value
+                for value in (delegation_expires_at, actor_ceiling)
+                if value is not None
+            ]
+            delegation_expires_at = min(ceilings) if ceilings else None
 
         if current.kind == ApiKeyKind.runtime:
             if current.environment is None:
@@ -162,6 +177,7 @@ class RotateApiKeyUseCase:
                 if input_dto.expires_at is not None
                 else current.expires_at
             ),
+            delegation_expires_at=delegation_expires_at,
             created_by_user_id=input_dto.rotated_by_user_id,
             created_by_control_key_id=input_dto.rotated_by_control_key_id,
             rotated_from_id=current.id,

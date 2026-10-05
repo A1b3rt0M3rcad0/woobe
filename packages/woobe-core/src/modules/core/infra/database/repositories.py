@@ -113,6 +113,7 @@ class SQLAlchemyApiKeyRepository(
         model.status = api_key.status.value
         model.last_used_at = api_key.last_used_at
         model.expires_at = api_key.expires_at
+        model.delegation_expires_at = api_key.delegation_expires_at
         model.revoked_at = api_key.revoked_at
         model.updated_at = api_key.updated_at or model.updated_at
         await self._flush()

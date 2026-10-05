@@ -26,6 +26,102 @@ from shared.security.rate_limit import (
 from woobe_api.security.http_guard import HttpSecurityGuard
 
 
+@pytest.mark.asyncio
+async def test_delegation_ceiling_survives_database_roundtrip_and_human_rotation(
+    control_key_graph,
+):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+    from modules.core.application.dtos.create_api_key_dtos import CreateApiKeyInput
+    from modules.core.application.dtos.api_key_lifecycle_dtos import RotateApiKeyInput
+    from modules.core.application.use_cases.create_api_key_use_case import (
+        CreateApiKeyUseCase,
+    )
+    from modules.core.application.use_cases.api_key_lifecycle_use_cases import (
+        RotateApiKeyUseCase,
+    )
+    from modules.core.infra.database.models import ApiKeyModel
+    from modules.core.infra.database.repositories import (
+        SQLAlchemyApiKeyRepository,
+        SQLAlchemyProjectRepository,
+    )
+    from modules.core.infra.services.api_key_delegation import SqlApiKeyDelegationPolicy
+    from shared.contracts.errors import AuthorizationError
+
+    graph = control_key_graph
+    ceiling = datetime.now(UTC) + timedelta(hours=2)
+    ids = []
+    try:
+        async with graph["session_factory"]() as session:
+            await session.execute(
+                text(
+                    "UPDATE core.workspace_control_keys SET expires_at=:ceiling WHERE id=:id"
+                ),
+                {"ceiling": ceiling, "id": graph["control_key_id"]},
+            )
+            await session.execute(
+                text(
+                    'UPDATE core.workspace_control_key_project_grants SET permissions=\'["api_key:write","observability:read"]\'::jsonb WHERE control_key_id=:id'
+                ),
+                {"id": graph["control_key_id"]},
+            )
+            repo = SQLAlchemyApiKeyRepository(session)
+            result = await CreateApiKeyUseCase(
+                SQLAlchemyProjectRepository(session),
+                repo,
+                SimpleNamespace(write=AsyncMock()),
+                delegation_policy=SqlApiKeyDelegationPolicy(session),
+            ).execute(
+                CreateApiKeyInput(
+                    project_id=graph["project_id"],
+                    name="Persistent ceiling",
+                    scopes=["traces:read"],
+                    expires_at=ceiling - timedelta(minutes=10),
+                    created_by_control_key_id=graph["control_key_id"],
+                )
+            )
+            ids.append(result.id)
+            await session.commit()
+        async with graph["session_factory"]() as session:
+            repo = SQLAlchemyApiKeyRepository(session)
+            saved = await repo.get_by_id(ids[0])
+            assert saved.delegation_expires_at == ceiling
+            with pytest.raises(AuthorizationError, match="delegation ceiling"):
+                await RotateApiKeyUseCase(
+                    repo, SimpleNamespace(write=AsyncMock())
+                ).execute(
+                    RotateApiKeyInput(
+                        project_id=graph["project_id"],
+                        api_key_id=ids[0],
+                        rotated_by_user_id=uuid4(),
+                        expires_at=ceiling + timedelta(seconds=1),
+                    )
+                )
+            await session.rollback()
+        async with graph["session_factory"]() as session:
+            repo = SQLAlchemyApiKeyRepository(session)
+            rotated = await RotateApiKeyUseCase(
+                repo, SimpleNamespace(write=AsyncMock())
+            ).execute(
+                RotateApiKeyInput(
+                    project_id=graph["project_id"],
+                    api_key_id=ids[0],
+                    rotated_by_user_id=uuid4(),
+                    expires_at=ceiling,
+                )
+            )
+            ids.append(rotated.id)
+            await session.commit()
+        async with graph["session_factory"]() as session:
+            assert (
+                await SQLAlchemyApiKeyRepository(session).get_by_id(ids[-1])
+            ).delegation_expires_at == ceiling
+    finally:
+        async with graph["session_factory"]() as session:
+            await session.execute(delete(ApiKeyModel).where(ApiKeyModel.id.in_(ids)))
+            await session.commit()
+
+
 def _request(api_key: str, project_id) -> Request:
     path = f"/core/projects/{project_id}"
     return Request(

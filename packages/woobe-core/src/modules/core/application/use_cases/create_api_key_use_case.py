@@ -38,10 +38,17 @@ class CreateApiKeyUseCase:
         except ValueError as exc:
             raise ValidationError(str(exc)) from exc
 
+        delegation_expires_at = None
         if input_dto.created_by_control_key_id is not None:
             if self._delegation_policy is None:
                 raise AuthorizationError("Control key delegation policy is required")
-            await self._delegation_policy.validate(actor_key_id=input_dto.created_by_control_key_id, project_id=input_dto.project_id, scopes=scopes, conditions={}, expires_at=input_dto.expires_at)
+            delegation_expires_at = await self._delegation_policy.validate(
+                actor_key_id=input_dto.created_by_control_key_id,
+                project_id=input_dto.project_id,
+                scopes=scopes,
+                conditions={},
+                expires_at=input_dto.expires_at,
+            )
 
         issued = issue_project_api_key()
         api_key = ApiKey(
@@ -53,6 +60,7 @@ class CreateApiKeyUseCase:
             key_version=issued.key_version,
             scopes=scopes,
             expires_at=input_dto.expires_at,
+            delegation_expires_at=delegation_expires_at,
             created_by_user_id=input_dto.created_by_user_id,
             created_by_control_key_id=input_dto.created_by_control_key_id,
         )
@@ -101,4 +109,3 @@ class CreateApiKeyUseCase:
             expires_at=saved.expires_at,
             created_at=saved.created_at,
         )
-

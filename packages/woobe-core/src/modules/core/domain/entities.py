@@ -48,6 +48,7 @@ class ApiKey:
     status: ApiKeyStatus = ApiKeyStatus.active
     last_used_at: datetime | None = None
     expires_at: datetime | None = None
+    delegation_expires_at: datetime | None = None
     revoked_at: datetime | None = None
     created_by_user_id: UUID | None = None
     created_by_control_key_id: UUID | None = None
