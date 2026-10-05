@@ -824,12 +824,13 @@ class ControlKeyService:
                 "A control key cannot delegate Workspace permissions it does not own"
             )
         actor_grants = {
-            item["project_id"]: set(item["permissions"])
+            item["project_id"]: item
             for item in await self._grants_for_key(session, actor.api_key_id)
         }
         for grant in grants:
             project_id = grant["project_id"]
-            available = actor_grants.get(project_id)
+            actor_grant = actor_grants.get(project_id)
+            available = set(actor_grant["permissions"]) if actor_grant else None
             if available is None:
                 raise AuthorizationError(
                     "A control key cannot delegate access to an ungranted Project"
@@ -838,14 +839,7 @@ class ControlKeyService:
                 raise AuthorizationError(
                     "A control key cannot delegate Project permissions it does not own"
                 )
-            actor_conditions = next(
-                (
-                    item.get("conditions", {})
-                    for item in await self._grants_for_key(session, actor.api_key_id)
-                    if item["project_id"] == project_id
-                ),
-                {},
-            )
+            actor_conditions = actor_grant.get("conditions", {})
             if not conditions_are_subset(grant.get("conditions", {}), actor_conditions):
                 raise AuthorizationError(
                     "A control key cannot broaden grant conditions"

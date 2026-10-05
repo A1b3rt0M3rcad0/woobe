@@ -86,3 +86,16 @@ async def test_control_key_cannot_manage_key_with_broader_project_grant() -> Non
                 }
             ],
         )
+
+
+@pytest.mark.asyncio
+async def test_multi_project_delegation_uses_one_authority_snapshot():
+    actor = _principal()
+    projects = [uuid4(), uuid4()]
+    grants = [{"project_id": project, "permissions": ["agent:read"],
+               "conditions": {"environments": ["staging"]}} for project in projects]
+    service = ControlKeyService.__new__(ControlKeyService)
+    service._grants_for_key = AsyncMock(side_effect=[grants, []])
+    await service._validate_delegation(object(), actor=actor,
+        workspace_id=actor.workspace_id, workspace_permissions=[], grants=grants)
+    service._grants_for_key.assert_awaited_once()
