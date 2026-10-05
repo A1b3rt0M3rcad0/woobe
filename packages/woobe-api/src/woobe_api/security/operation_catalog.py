@@ -484,6 +484,11 @@ def operation_catalog(routes) -> dict[str, Any]:
                         "create_control_key",
                         "rotate_control_key",
                     },
+                    "assignment_preconditions": {
+                        "create": "If-None-Match: *",
+                        "update": "If-Match: assignment ETag",
+                        "simultaneous_headers_allowed": False,
+                    } if permission == "categories:assign" else None,
                     "requires_if_match": permission
                     in {
                         "keys:update",

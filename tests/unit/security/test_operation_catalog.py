@@ -214,3 +214,14 @@ def test_assignment_rejects_ambiguous_creation_preconditions(headers):
     assert exc.value.status_code == 412
     assert assignment_revision(Request({"type": "http", "headers": [(b"if-none-match", b"*")]}),
                                assignment_id=assignment_id) == 0
+
+
+def test_catalog_describes_conditional_assignment_creation_and_updates():
+    from woobe_api.http.identity.authority_routes import router
+    app = FastAPI()
+    app.include_router(router)
+    item = next(item for item in operation_catalog(app.routes)["operations"]
+                if item["permission"] == "categories:assign")
+    assert item["assignment_preconditions"] == {"create": "If-None-Match: *",
+        "update": "If-Match: assignment ETag", "simultaneous_headers_allowed": False}
+    assert not item["requires_if_match"]
