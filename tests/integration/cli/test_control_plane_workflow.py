@@ -472,7 +472,7 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
                 "label": "Root",
                 "capability_description": "Answer",
                 "position": {"x": 0, "y": 0},
-                "binding": {"source": "production", "release_id": production["id"]},
+                "binding": {"source": "release", "release_id": production["id"]},
             }
         ],
         "edges": [],
