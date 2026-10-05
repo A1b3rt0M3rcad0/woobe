@@ -188,3 +188,14 @@ def test_active_network_filters_are_verified_without_authorizing_other_lists():
         "environments": ["production"]}, permission="run:read", path_context=path)
     assert "agent_id" not in path
     assert verified_query_context("GET", f"/network/executions/{uuid4()}/events", {}, query) == {}
+
+
+def test_duplicate_revision_headers_cannot_select_an_arbitrary_precondition():
+    category_id = uuid4()
+    request = Request({"type": "http", "headers": [
+        (b"if-match", f'"category:{category_id}:7"'.encode()),
+        (b"if-match", f'"category:{category_id}:8"'.encode()),
+    ]})
+    with pytest.raises(HTTPException) as exc:
+        expected_revision(request, kind="category", resource_id=category_id)
+    assert exc.value.status_code == 412
