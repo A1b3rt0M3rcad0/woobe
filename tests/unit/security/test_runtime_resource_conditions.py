@@ -16,10 +16,12 @@ async def runtime_db():
     def attach(connection, _):
         connection.execute("ATTACH DATABASE ':memory:' AS agent")
         connection.execute("ATTACH DATABASE ':memory:' AS network")
+        connection.execute("ATTACH DATABASE ':memory:' AS core")
     async with engine.begin() as conn:
         await conn.execute(text("CREATE TABLE agent.agent_runs (id TEXT PRIMARY KEY, agent_id TEXT, environment TEXT, trace_id TEXT)"))
         await conn.execute(text("CREATE TABLE network.network_sessions (id TEXT PRIMARY KEY, network_id TEXT, environment TEXT)"))
         await conn.execute(text("CREATE TABLE network.network_executions (id TEXT PRIMARY KEY, network_id TEXT, network_session_id TEXT)"))
+        await conn.execute(text("CREATE TABLE core.workspace_control_key_project_grants (control_key_id TEXT, project_id TEXT, permissions TEXT, conditions TEXT)"))
     yield async_sessionmaker(engine)
     await engine.dispose()
 
@@ -94,3 +96,21 @@ def test_unfiltered_runtime_collections_cannot_claim_a_body_environment(body):
     with pytest.raises(AuthorizationError, match="verified environment"):
         TenantAuthorizer._require_conditions({"environments": ["staging"]},
             permission="run:read", path_context={"network_id": uuid4()}, context=body)
+
+
+@pytest.mark.asyncio
+async def test_control_grant_decodes_json_and_enforces_persisted_runtime_conditions(runtime_db):
+    import json
+    key, project, run, agent = uuid4(), uuid4(), uuid4(), uuid4()
+    async with runtime_db() as session:
+        await session.execute(text("INSERT INTO agent.agent_runs VALUES (:id, :agent, 'production', :trace)"),
+            {"id": run.hex, "agent": agent.hex, "trace": uuid4().hex})
+        await session.execute(text("INSERT INTO core.workspace_control_key_project_grants VALUES (:key, :project, :permissions, :conditions)"),
+            {"key": key.hex, "project": project.hex, "permissions": json.dumps(["run:read"]),
+             "conditions": json.dumps({"target_ids": [str(agent)], "environments": ["production"]})})
+        authorizer = TenantAuthorizer(session)
+        await authorizer._require_control_key_project_permission(api_key_id=key, project_id=project,
+            permission="run:read", path_context={"run_id": run})
+        with pytest.raises(AuthorizationError, match="not sufficient"):
+            await authorizer._require_control_key_project_permission(api_key_id=key, project_id=project,
+                permission="run:cancel", path_context={"run_id": run})

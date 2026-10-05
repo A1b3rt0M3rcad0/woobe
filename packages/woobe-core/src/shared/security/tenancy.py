@@ -515,6 +515,9 @@ class TenantAuthorizer:
                 WHERE control_key_id = :api_key_id
                   AND project_id = :project_id
                 """
+            ).bindparams(
+                bindparam("api_key_id", type_=Uuid()),
+                bindparam("project_id", type_=Uuid()),
             ),
             {"api_key_id": api_key_id, "project_id": project_id},
         )
@@ -522,6 +525,11 @@ class TenantAuthorizer:
         if row is None:
             raise NotFoundError("Resource not found")
         permissions, conditions = row
+        import json
+        if isinstance(permissions, str):
+            permissions = json.loads(permissions)
+        if isinstance(conditions, str):
+            conditions = json.loads(conditions)
         granted = {str(item) for item in (permissions or [])}
         if permission not in granted:
             raise AuthorizationError("Control key Project permission is not sufficient")
