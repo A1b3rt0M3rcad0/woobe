@@ -809,6 +809,7 @@ class ControlKeyService:
                         workspace_id=workspace_id,
                         project_id=grant["project_id"],
                         permission=permission,
+                        delegated_conditions=grant.get("conditions", {}),
                     )
             return
         if not isinstance(actor, ControlPlanePrincipal):

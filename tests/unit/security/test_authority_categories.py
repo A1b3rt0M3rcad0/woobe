@@ -1,4 +1,5 @@
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
@@ -388,6 +389,58 @@ def test_missing_or_out_of_scope_conditions_fail_closed(
     with pytest.raises(AuthorizationError):
         TenantAuthorizer._require_conditions(
             conditions, permission=permission, context=body, path_context=path
+        )
+
+
+@pytest.mark.parametrize(
+    "permission",
+    ["agent:read", "agent:write", "network:read", "network:write", "run:execute"],
+)
+def test_body_target_cannot_bypass_a_target_restricted_collection(permission):
+    from shared.security.tenancy import TenantAuthorizer
+
+    target_id = str(uuid4())
+    with pytest.raises(AuthorizationError, match="explicit target"):
+        TenantAuthorizer._require_conditions(
+            {"target_ids": [target_id]},
+            permission=permission,
+            context={
+                "agent_id": target_id,
+                "network_id": target_id,
+                "target_id": target_id,
+            },
+            path_context={},
+        )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "requested,allowed",
+    [
+        ({}, {"environments": ["staging"]}),
+        ({"environments": ["production"]}, {"environments": ["staging"]}),
+    ],
+)
+async def test_human_delegation_cannot_remove_or_broaden_assigned_conditions(
+    requested, allowed
+):
+    from unittest.mock import AsyncMock, Mock
+    from shared.security.tenancy import TenantAuthorizer
+
+    result = Mock()
+    result.first.return_value = (["agent:read"], allowed)
+    authorizer = TenantAuthorizer(
+        SimpleNamespace(execute=AsyncMock(return_value=result))
+    )
+    authorizer._workspace_role = AsyncMock(return_value="member")
+    authorizer._require_project_access = AsyncMock()
+    with pytest.raises(AuthorizationError, match="broaden assigned conditions"):
+        await authorizer.require_human_permission(
+            user_id=uuid4(),
+            workspace_id=uuid4(),
+            project_id=uuid4(),
+            permission="agent:read",
+            delegated_conditions=requested,
         )
 
 

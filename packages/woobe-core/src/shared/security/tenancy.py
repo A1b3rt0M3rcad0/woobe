@@ -21,6 +21,7 @@ from shared.security.control_plane import (
     SELF_CONTROL_PERMISSIONS,
     is_read_permission,
     conditions_allow,
+    conditions_are_subset,
 )
 
 DIRECT_PROJECT_RESOURCES: dict[str, str] = {
@@ -50,6 +51,9 @@ DIRECT_PROJECT_RESOURCES: dict[str, str] = {
     "contract_id": "agent.agent_contracts",
     "config_id": "agent.agent_model_configs",
     "prompt_id": "agent.agent_prompts",
+    "prompt_version_id": "agent.agent_prompts",
+    "contract_version_id": "agent.agent_contracts",
+    "model_config_version_id": "agent.agent_model_configs",
     # The current prompt-version route names this identifier `version_id`.
     "version_id": "agent.agent_prompts",
     "knowledge_version_id": "agent.knowledge_versions",
@@ -87,6 +91,16 @@ INDIRECT_PROJECT_RESOURCE_QUERIES: dict[str, str] = {
         WHERE links.id = :resource_id
     """,
 }
+
+for _version_alias in (
+    "source_version_id",
+    "target_version_id",
+    "expected_network_version_id",
+    "expected_current_production_version_id",
+):
+    INDIRECT_PROJECT_RESOURCE_QUERIES[_version_alias] = (
+        INDIRECT_PROJECT_RESOURCE_QUERIES["network_version_id"]
+    )
 
 WORKSPACE_KEYS = {"workspace_id"}
 PROJECT_KEYS = {"project_id", "access_project_id"}
@@ -397,6 +411,7 @@ class TenantAuthorizer:
         permission: str,
         context: Any = None,
         path_context: Mapping[str, Any] | None = None,
+        delegated_conditions: dict[str, Any] | None = None,
     ) -> None:
         role = await self._workspace_role(user_id, workspace_id)
         if role is None:
@@ -455,6 +470,12 @@ class TenantAuthorizer:
                 import json
 
                 conditions = json.loads(conditions)
+            if delegated_conditions is not None:
+                if not conditions_are_subset(delegated_conditions, conditions or {}):
+                    raise AuthorizationError(
+                        "Delegation cannot broaden assigned conditions"
+                    )
+                return
             self._require_conditions(
                 conditions,
                 permission=permission,
@@ -470,6 +491,7 @@ class TenantAuthorizer:
         permission: str,
         context: Any = None,
         path_context: Mapping[str, Any] | None = None,
+        delegated_conditions: dict[str, Any] | None = None,
     ) -> None:
         result = await self._session.execute(
             text(
@@ -489,6 +511,10 @@ class TenantAuthorizer:
         granted = {str(item) for item in (permissions or [])}
         if permission not in granted:
             raise AuthorizationError("Control key Project permission is not sufficient")
+        if delegated_conditions is not None:
+            if not conditions_are_subset(delegated_conditions, conditions or {}):
+                raise AuthorizationError("Delegation cannot broaden grant conditions")
+            return
         self._require_conditions(
             conditions or {},
             permission=permission,
@@ -506,20 +532,28 @@ class TenantAuthorizer:
     ) -> None:
         data = context if isinstance(context, Mapping) else {}
         path_data = path_context or {}
-        target_id = (
-            data.get("target_id")
-            or data.get("agent_id")
-            or data.get("network_id")
-            or path_data.get("agent_id")
-            or path_data.get("network_id")
-        )
-        target_type = data.get("target_type") or (
+        # Entity collection handlers do not filter by arbitrary body identifiers.
+        # Only version creation and runtime credential binding consume body targets.
+        body_target = permission.endswith(":version") or permission == "api_key:write"
+        target_id = path_data.get("agent_id") or path_data.get("network_id")
+        target_type = (
             "agent"
-            if data.get("agent_id") or path_data.get("agent_id")
+            if path_data.get("agent_id")
             else "network"
-            if data.get("network_id") or path_data.get("network_id")
+            if path_data.get("network_id")
             else None
         )
+        if body_target and target_id is None:
+            target_id = (
+                data.get("target_id") or data.get("agent_id") or data.get("network_id")
+            )
+            target_type = data.get("target_type") or (
+                "agent"
+                if data.get("agent_id")
+                else "network"
+                if data.get("network_id")
+                else None
+            )
         environment = (
             path_data.get("environment")
             or data.get("environment")

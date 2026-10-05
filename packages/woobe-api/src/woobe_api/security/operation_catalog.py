@@ -164,7 +164,7 @@ _REVIEWED = [
     ("POST", "/agent/knowledge/documents/upload", "knowledge:write"),
     ("DELETE", "/agent/knowledge/documents/{document_id}", "knowledge:delete"),
     ("GET", "/agent/knowledge/documents/{document_id}", "knowledge:read"),
-    ("POST", "/agent/knowledge/search", "knowledge:write"),
+    ("POST", "/agent/knowledge/search", "knowledge:read"),
     (
         "POST",
         "/agent/knowledge/agents/{agent_id}/knowledge-versions",

@@ -44,6 +44,14 @@ class AuthorityService:
     def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
         self._session_factory = session_factory
 
+    @staticmethod
+    async def _serialize_identity(session: AsyncSession, identity: str) -> None:
+        if session.get_bind().dialect.name == "postgresql":
+            await session.execute(
+                text("SELECT pg_advisory_xact_lock(hashtextextended(:identity, 0))"),
+                {"identity": f"woobe:authority:{identity}"},
+            )
+
     async def require_permission(
         self,
         session: AsyncSession,
@@ -530,6 +538,8 @@ class AuthorityService:
         if not isinstance(transaction, AsyncSession):
             raise TypeError("Category resolution requires the grant transaction")
         session = transaction
+        if self._profile(workspace_id, category_id) is not None:
+            await self._serialize_identity(session, f"profile:{category_id}")
         category = await self._category(session, workspace_id, category_id, lock=True)
         if category is None:
             profile = self._profile(workspace_id, category_id)
@@ -746,6 +756,10 @@ class AuthorityService:
             await self.require_permission(
                 session, actor, workspace_id, "categories:assign"
             )
+            await self._serialize_identity(
+                session,
+                f"assignment:{workspace_id}:{subject_user_id}:{project_id or workspace_id}",
+            )
             authorizer = TenantAuthorizer(session)
             role = await authorizer._workspace_role(subject_user_id, workspace_id)
             if role is None:
@@ -789,6 +803,14 @@ class AuthorityService:
                         workspace_id=workspace_id,
                         project_id=project_id,
                         permission=permission,
+                        delegated_conditions=category["conditions"],
+                    )
+                elif project_id is not None:
+                    await authorizer._require_control_key_project_permission(
+                        api_key_id=actor.api_key_id,
+                        project_id=project_id,
+                        permission=permission,
+                        delegated_conditions=category["conditions"],
                     )
                 else:
                     await authorizer.authorize_control_key(
