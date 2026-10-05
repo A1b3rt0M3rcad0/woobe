@@ -135,11 +135,33 @@ async def test_control_authority_rejects_an_expiry_changed_after_authentication(
         permissions=frozenset({"keys:create"}))
     row = {"status": "active", "revoked_at": None, "workspace_status": "active",
            "expires_at": expiry - timedelta(hours=1), "permissions": ["keys:create"],
-           "on_project_create_permissions": []}
+           "on_project_create_permissions": [], "delegation_expires_at": None}
     result = Mock()
     result.mappings.return_value.first.return_value = row
     session = SimpleNamespace(bind=None, execute=AsyncMock(return_value=result))
     with pytest.raises(AuthenticationError, match="retry authentication"):
         await TenantAuthorizer(session).require_active_control(actor)
     row["expires_at"] = expiry
+    await TenantAuthorizer(session).require_active_control(actor)
+
+
+@pytest.mark.asyncio
+async def test_control_authority_rejects_changed_delegation_ceiling():
+    from datetime import UTC, datetime, timedelta
+    from unittest.mock import AsyncMock, Mock
+    from types import SimpleNamespace
+    from shared.security.principal import ControlPlanePrincipal
+    from shared.contracts.errors import AuthenticationError
+    ceiling = datetime.now(UTC) + timedelta(hours=2)
+    actor = ControlPlanePrincipal(api_key_id=uuid4(), credential_id=uuid4(), workspace_id=uuid4(),
+        key_prefix="fixture", authenticated_at=datetime.now(UTC), delegation_expires_at=ceiling)
+    row = {"status": "active", "revoked_at": None, "workspace_status": "active",
+           "expires_at": None, "permissions": [], "on_project_create_permissions": [],
+           "delegation_expires_at": ceiling - timedelta(hours=1)}
+    result = Mock()
+    result.mappings.return_value.first.return_value = row
+    session = SimpleNamespace(bind=None, execute=AsyncMock(return_value=result))
+    with pytest.raises(AuthenticationError, match="retry authentication"):
+        await TenantAuthorizer(session).require_active_control(actor)
+    row["delegation_expires_at"] = ceiling.isoformat()
     await TenantAuthorizer(session).require_active_control(actor)

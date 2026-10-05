@@ -161,7 +161,7 @@ class TenantAuthorizer:
         self._session = session
 
     async def require_active_control(self, actor: ControlPlanePrincipal) -> None:
-        statement = """SELECT keys.permissions, keys.status, keys.revoked_at, keys.expires_at,
+        statement = """SELECT keys.permissions, keys.status, keys.revoked_at, keys.expires_at, keys.delegation_expires_at,
             keys.on_project_create_permissions, workspaces.status AS workspace_status
             FROM core.workspace_control_keys AS keys
             JOIN identity.workspaces AS workspaces ON workspaces.id = keys.workspace_id
@@ -200,6 +200,13 @@ class TenantAuthorizer:
             raise AuthenticationError("Control credential is expired")
         normalized_expiry = expiry.replace(tzinfo=expiry.tzinfo or UTC) if expiry else None
         if normalized_expiry != actor.expires_at:
+            raise AuthenticationError("Control credential changed; retry authentication")
+        delegation_expiry = row["delegation_expires_at"]
+        if isinstance(delegation_expiry, str):
+            delegation_expiry = datetime.fromisoformat(delegation_expiry)
+        if delegation_expiry is not None:
+            delegation_expiry = delegation_expiry.replace(tzinfo=delegation_expiry.tzinfo or UTC)
+        if delegation_expiry != actor.delegation_expires_at:
             raise AuthenticationError("Control credential changed; retry authentication")
         import json
 
