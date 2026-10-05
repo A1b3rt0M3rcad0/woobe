@@ -106,6 +106,29 @@ docker compose -f compose.test.yaml up --build --exit-code-from tests tests
 
 CI only adds lifecycle and evidence handling around that command: cleanup, Compose validation, failure logs, teardown and artifact upload. Frontend/E2E, container, security, release and production acceptance remain separate validation surfaces.
 
+## Live Go CLI contract
+
+Backend CI checks out `woobe-cli` at the immutable revision declared in
+`.github/workflows/tests.yml`, builds a Linux binary with that revision embedded,
+and mounts it at `/artifacts/woobe`. `WOOBE_REQUIRE_CLI_E2E=true` makes absence of
+that binary a failure rather than a skipped test. The live contract starts the
+API and workers inside the integration container and uses the Compose services
+for persistence, messaging and deterministic model responses.
+
+To run the same contract locally, build that CLI checkout into
+`.test-artifacts/woobe` with the same `internal/cli.Commit` linker value. Then run:
+
+```bash
+WOOBE_REQUIRE_CLI_E2E=true docker compose -f compose.test.yaml up --build --exit-code-from tests tests
+```
+
+Without a compiled binary, the normal local command skips only the live CLI
+contract; the backend unit and integration suites still execute. Redacted CLI
+command metadata is written to `.test-artifacts/cli-contract-*.json`. Issued keys
+are stored only in private temporary files and never included in those reports.
+The CLI revision is pinned deliberately; update the workflow and test pin
+together when changing the client contract.
+
 ## Verifying CI before a backend change
 
 Open a draft pull request targeting `master` from a focused branch based on the current master. Backend, acceptance, package-build, container and security workflows subscribe to the PR opened/synchronize events; draft status does not disable those workflows. The CLA check also evaluates draft PRs. The architecture Quality Gate is path-filtered and includes this test-topology document; the frontend workflow runs only when its declared frontend/runtime-client paths change.

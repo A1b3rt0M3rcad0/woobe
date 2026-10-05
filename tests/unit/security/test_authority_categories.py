@@ -465,3 +465,39 @@ async def test_renaming_preserves_historical_category_name(authority):
             revision=1,
         )
     )["name"] == "custom-editor"
+
+
+@pytest.mark.asyncio
+async def test_human_discovery_preserves_conditional_permissions(authority, monkeypatch):
+    from unittest.mock import AsyncMock
+    from shared.security.tenancy import TenantAuthorizer
+
+    service, actor, workspace_id, factory = authority
+    project_id, target_id = uuid4(), uuid4()
+    category = await service.create_category(
+        actor=actor,
+        workspace_id=workspace_id,
+        data=category_data(conditions={"target_ids": [str(target_id)]}),
+    )
+    async with factory() as session:
+        member = (await session.execute(select(WorkspaceMemberModel))).scalar_one()
+        member.role = "member"
+        session.add(AuthorityAssignmentModel(
+            workspace_id=workspace_id, subject_user_id=actor.user_id,
+            scope_id=project_id, project_id=project_id,
+            category_id=category["id"], category_revision=1,
+            permissions=["agent:read", "agent:write"],
+            conditions={"target_ids": [str(target_id)]}, status="active",
+        ))
+        await session.commit()
+    monkeypatch.setattr(TenantAuthorizer, "_project_workspace_id", AsyncMock(return_value=workspace_id))
+    monkeypatch.setattr(TenantAuthorizer, "_require_project_access", AsyncMock())
+    result = await service.effective_access(actor=actor, workspace_id=workspace_id, project_id=project_id)
+    assert set(result["permissions"]) == {"access:self", "catalog:self", "agent:read", "agent:write", "workspace:read", "categories:read"}
+    assert result["conditions"] == {"target_ids": [str(target_id)]}
+    # Discovery advertises conditional authority; actual unfiltered use is denied.
+    denied = await service.check_access(
+        actor=actor, permission="agent:read", path_params={},
+        query_params={"project_id": str(project_id)}, body={}, mutation=False,
+    )
+    assert denied["allowed"] is False

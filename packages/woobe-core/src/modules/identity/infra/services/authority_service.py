@@ -648,6 +648,17 @@ class AuthorityService:
                         project_id=project_id,
                         allow_workspace_admin=False,
                     )
+                assignment = (
+                    await session.execute(
+                        select(AuthorityAssignmentModel).where(
+                            AuthorityAssignmentModel.workspace_id == workspace_id,
+                            AuthorityAssignmentModel.subject_user_id == actor.user_id,
+                            AuthorityAssignmentModel.scope_id
+                            == (project_id or workspace_id),
+                            AuthorityAssignmentModel.status == "active",
+                        )
+                    )
+                ).scalar_one_or_none()
                 candidates = WORKSPACE_CONTROL_PERMISSIONS | (
                     PROJECT_CONTROL_PERMISSIONS if project_id else frozenset()
                 )
@@ -660,21 +671,15 @@ class AuthorityService:
                             if permission in PROJECT_CONTROL_PERMISSIONS
                             else None,
                             permission=permission,
+                            delegated_conditions=(
+                                dict(assignment.conditions)
+                                if assignment and project_id is not None
+                                else None
+                            ),
                         )
                         permissions.add(permission)
                     except AuthorizationError:
                         pass
-                assignment = (
-                    await session.execute(
-                        select(AuthorityAssignmentModel).where(
-                            AuthorityAssignmentModel.workspace_id == workspace_id,
-                            AuthorityAssignmentModel.subject_user_id == actor.user_id,
-                            AuthorityAssignmentModel.scope_id
-                            == (project_id or workspace_id),
-                            AuthorityAssignmentModel.status == "active",
-                        )
-                    )
-                ).scalar_one_or_none()
                 if assignment:
                     origin = {
                         "category_id": assignment.category_id,

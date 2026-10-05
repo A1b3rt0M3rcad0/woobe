@@ -7,6 +7,7 @@ public HTTP commands. CLI absence is a failure in the backend CI contract.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -22,6 +23,7 @@ from sqlalchemy import delete
 
 from modules.core.infra.database.control_key_models import WorkspaceControlKeyModel
 from modules.identity.infra.database.models import WorkspaceModel
+from modules.identity.infra.database import authority_models  # noqa: F401 -- register FK targets before bootstrap ORM flush
 from shared.infra.config import Settings
 from shared.infra.database.session import create_engine, create_session_factory
 from shared.security.api_keys import issue_control_api_key
@@ -40,6 +42,7 @@ class Cli:
         self.project_id = None
         self.secret_values = {credential}
         self.evidence = []
+        self.openapi_sha256 = None
 
     async def run(self, *arguments, body=None, key=None, runtime_key=None, expected=0):
         args = [
@@ -90,7 +93,7 @@ class Cli:
         error = payload.get("error") or {}
         self.evidence.append(
             {
-                "command": arguments[0],
+                "command": list(arguments),
                 "exit_code": process.returncode,
                 "http_status": error.get("http_status"),
                 "request_id": error.get("request_id"),
@@ -191,7 +194,9 @@ async def cli(tmp_path):
             for _ in range(120):
                 assert processes[0].returncode is None, "API startup failed"
                 try:
-                    if (await client.get(f"{origin}/openapi.json")).status_code == 200:
+                    schema = await client.get(f"{origin}/openapi.json")
+                    if schema.status_code == 200:
+                        harness.openapi_sha256 = hashlib.sha256(schema.content).hexdigest()
                         break
                 except httpx.TransportError:
                     pass
@@ -218,7 +223,13 @@ async def cli(tmp_path):
         if evidence_dir.is_dir():
             (evidence_dir / f"cli-contract-{workspace_id}.json").write_text(
                 json.dumps(
-                    {"cli_commit": CLI_COMMIT, "requests": harness.evidence}, indent=2
+                    {
+                        "cli_commit": CLI_COMMIT,
+                        "server_commit": os.environ.get("WOOBE_TEST_SERVER_SHA"),
+                        "database_revision": "0077",
+                        "openapi_sha256": harness.openapi_sha256,
+                        "requests": harness.evidence,
+                    }, indent=2
                 )
             )
         # PostgreSQL is disposable in Compose. Retain failed resources for diagnosis;
@@ -580,3 +591,83 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
     assert rotated_key == replay_key
     await cli.run("project", "agent", "get", agent_id, key=builder_key, expected=3)
     await cli.data("project", "agent", "get", agent_id, key=rotated_key)
+
+
+@pytest.mark.asyncio
+async def test_cli_categories_pin_authority_and_preflight_matches_requests(cli):
+    project = await cli.data(
+        "project", "create",
+        body={"workspace_id": cli.workspace_id, "name": "Authority contract", "slug": str(uuid4())},
+    )
+    cli.project_id = project["id"]
+    catalog = await cli.data("permission", "list")
+    assert "agent:read" in catalog["permissions"]["project"]
+    category = await cli.data(
+        "workspace", "authority", "category", "create",
+        body={"name": "Scoped reader", "scope": "project", "permissions": ["agent:read"]},
+    )
+    category_id = category["id"]
+    etag = f'"category:{category_id}:{category["revision"]}"'
+    _, reader_key = await cli.issue(
+        "workspace", "control-key", "create",
+        body={
+            "name": "Pinned reader",
+            "expires_at": (datetime.now(UTC) + timedelta(hours=1)).isoformat(),
+            "on_project_create_permissions": [],
+            "project_grants": [{"project_id": cli.project_id, "category_id": category_id, "category_revision": 1}],
+        },
+    )
+    changed = await cli.data(
+        "workspace", "authority", "category", "update", category_id, "--if-match", etag,
+        body={"permissions": ["agent:read", "agent:write"]},
+    )
+    assert changed["revision"] == 2
+    stale = await cli.run(
+        "workspace", "authority", "category", "update", category_id, "--if-match", etag,
+        body={"name": "Rejected stale edit"}, expected=6,
+    )
+    assert stale["error"]["http_status"] == 412
+    pinned = await cli.data(
+        "workspace", "authority", "category", "get", category_id, "--query", "revision=1",
+    )
+    assert pinned["permissions"] == ["agent:read"]
+    authority = await cli.data(
+        "permission", "effective", "--query", f"project_id={cli.project_id}", key=reader_key,
+    )
+    assert "agent:write" not in authority["permissions"]
+    assert authority["origin"]["revision"] == 1
+    for method, path, allowed in [("GET", "/ai/agents", True), ("POST", "/ai/agents", False)]:
+        decision = await cli.data(
+            "permission", "check", key=reader_key,
+            body={"method": method, "path": path, "query": {"project_id": cli.project_id}, "body": {"project_id": cli.project_id}},
+        )
+        assert decision["allowed"] is allowed
+        if allowed:
+            await cli.run("request", method, path, "--query", f"project_id={cli.project_id}", key=reader_key)
+        else:
+            await cli.run("request", method, path, body={"project_id": cli.project_id}, key=reader_key, expected=4)
+    history = await cli.data(
+        "workspace", "authority", "category", "history", category_id, "--query", "limit=1",
+    )
+    assert history["complete"] is False
+    assert history["next_revision"] == 2
+    page = await cli.data(
+        "workspace", "authority", "category", "history", category_id,
+        "--query", "limit=1", "--query", "before_revision=2",
+    )
+    assert page["complete"] is True
+    assert page["items"][0]["permissions"] == ["agent:read"]
+    clone = await cli.data(
+        "workspace", "authority", "category", "clone", category_id,
+        body={"name": "Unused clone", "revision": 1},
+    )
+    assert clone["permissions"] == ["agent:read"]
+    archived = await cli.data(
+        "workspace", "authority", "category", "archive", clone["id"],
+        "--if-match", f'"category:{clone["id"]}:1"', body={},
+    )
+    assert archived["status"] == "archived"
+    await cli.run(
+        "workspace", "authority", "category", "delete", clone["id"],
+        "--if-match", f'"category:{clone["id"]}:{archived["revision"]}"',
+    )

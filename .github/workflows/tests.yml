@@ -64,6 +64,7 @@ jobs:
       - name: Run the local/CI backend test contract
         env:
           WOOBE_REQUIRE_CLI_E2E: 'true'
+          WOOBE_TEST_SERVER_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: docker compose -f compose.test.yaml up --build --exit-code-from tests tests
 
       - name: Capture Compose diagnostics
