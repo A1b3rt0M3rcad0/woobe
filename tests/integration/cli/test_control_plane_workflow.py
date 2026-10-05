@@ -32,7 +32,7 @@ from shared.security.control_plane import (
     WORKSPACE_CONTROL_PERMISSIONS,
 )
 
-CLI_COMMIT = "659baea23458380b84bc7059d2a544c9c06fc1f5"
+CLI_COMMIT = "c8560182360b0e7ec9a95c63705cdc0855287b18"
 
 
 class Cli:
@@ -252,8 +252,22 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
         "name": "CLI workflow",
         "slug": unique,
     }
+    invalid_project = await cli.run(
+        "project", "create", "--validate-body",
+        body={**project_body, "workspace_id": "not-a-uuid"},
+        expected=2,
+    )
+    assert invalid_project["error"]["write_outcome"] == "not_attempted"
+    assert invalid_project["error"].get("http_status") is None
+    validated_project = await cli.run(
+        "validate-input", "--command", "project create", body=project_body
+    )
+    assert validated_project["data"]["valid"] is True
+    assert validated_project["data"]["validation_direction"] == "request"
+    assert validated_project["data"]["executed"] is False
     project = await cli.data(
-        "project", "create", "--idempotency-key", "project-create", body=project_body
+        "project", "create", "--validate-body",
+        "--idempotency-key", "project-create", body=project_body
     )
     replay = await cli.data(
         "project", "create", "--idempotency-key", "project-create", body=project_body
@@ -330,28 +344,42 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
         agent_id,
         body={"project_id": cli.project_id, "agent_id": agent_id, "version": "auto"},
     )
+    builder_body = {
+        "name": "Staging builder",
+        "expires_at": expiry,
+        "on_project_create_permissions": [],
+        "project_grants": [
+            {
+                "project_id": cli.project_id,
+                "permissions": [
+                    "agent:read",
+                    "agent:write",
+                    "agent:version",
+                    "api_key:write",
+                    "run:execute",
+                ],
+                "conditions": {"environments": ["staging"]},
+            }
+        ],
+    }
+    invalid_expiration = await cli.run(
+        "validate-input", "--command", "workspace control-key create",
+        body={**builder_body, "expires_at": "2026-02-29T00:00:00Z"},
+        expected=2,
+    )
+    assert invalid_expiration["error"].get("http_status") is None
+    valid_expiration = await cli.run(
+        "validate-input", "--command", "workspace control-key create",
+        body=builder_body,
+    )
+    assert valid_expiration["data"]["valid"] is True
+    assert valid_expiration["data"]["executed"] is False
     builder, builder_key = await cli.issue(
         "workspace",
         "control-key",
         "create",
-        body={
-            "name": "Staging builder",
-            "expires_at": expiry,
-            "on_project_create_permissions": [],
-            "project_grants": [
-                {
-                    "project_id": cli.project_id,
-                    "permissions": [
-                        "agent:read",
-                        "agent:write",
-                        "agent:version",
-                        "api_key:write",
-                        "run:execute",
-                    ],
-                    "conditions": {"environments": ["staging"]},
-                }
-            ],
-        },
+        "--validate-body",
+        body=builder_body,
     )
     staging = await cli.data(
         "project",

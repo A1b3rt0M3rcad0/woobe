@@ -146,3 +146,10 @@ Open a draft pull request targeting `master` from a focused branch based on the 
 Distinguish an instantiated workflow from a running or successful job. These workflows use self-hosted Linux X64 runners: `queued` confirms event dispatch but does not prove runner availability. Record the head SHA, run links and final job conclusions in the PR. A skipped, cancelled or failed job is not successful validation. Do not move the PR out of draft merely to make the normal validation jobs start.
 
 Use the same canonical Compose command above for backend validation. Acceptance and container workflows remain separate, broader checks; their success does not establish contracts or permissions that have not been implemented and tested. Workflow artifacts are conditional on `WOOBE_UPLOAD_CI_ARTIFACTS`; consult each workflow for whether evidence is uploaded on PRs or only manual dispatch. The workflow result and logs remain the primary initial CI evidence.
+
+The request-validation pin adds live OpenAPI checks for UUID Project ownership
+and Control Key expiration timestamps. Invalid inputs must return CLI exit 2
+with no HTTP mutation/status and retain not_attempted evidence. Valid bodies
+are checked read-only and then submitted through opt-in --validate-body. Native
+package smoke independently exercises readOnly request direction; the backend
+does not manufacture readOnly annotations in its DTOs to claim live coverage.
