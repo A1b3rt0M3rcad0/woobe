@@ -99,3 +99,22 @@ async def test_multi_project_delegation_uses_one_authority_snapshot():
     await service._validate_delegation(object(), actor=actor,
         workspace_id=actor.workspace_id, workspace_permissions=[], grants=grants)
     service._grants_for_key.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_key_management_uses_one_consistent_grant_snapshot():
+    actor = _principal()
+    grant = {"project_id": uuid4(), "permissions": ["agent:read"],
+             "conditions": {"environments": ["staging"]}}
+    service = ControlKeyService.__new__(ControlKeyService)
+    service._grants_for_key = AsyncMock(side_effect=[[grant], []])
+    await service._assert_target_manageable(object(), actor=actor,
+        workspace_id=actor.workspace_id,
+        target={"credential_id": uuid4(), "permissions": []}, target_grants=[grant])
+    service._grants_for_key.assert_awaited_once()
+    unrestricted = {**grant, "conditions": {}}
+    service._grants_for_key = AsyncMock(return_value=[grant])
+    with pytest.raises(AuthorizationError, match="broader grant conditions"):
+        await service._assert_target_manageable(object(), actor=actor,
+            workspace_id=actor.workspace_id,
+            target={"credential_id": uuid4(), "permissions": []}, target_grants=[unrestricted])

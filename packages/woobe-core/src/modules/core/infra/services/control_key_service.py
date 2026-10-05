@@ -877,11 +877,12 @@ class ControlKeyService:
                 "A control key cannot manage a key with broader Workspace permissions"
             )
         actor_grants = {
-            item["project_id"]: set(item["permissions"])
+            item["project_id"]: item
             for item in await self._grants_for_key(session, actor.api_key_id)
         }
         for grant in target_grants:
-            available = actor_grants.get(grant["project_id"])
+            actor_grant = actor_grants.get(grant["project_id"])
+            available = set(actor_grant["permissions"]) if actor_grant else None
             if available is None or not is_permission_subset(
                 set(grant["permissions"]),
                 available,
@@ -896,14 +897,10 @@ class ControlKeyService:
             raise AuthorizationError(
                 "A control key cannot manage broader Project creation authority"
             )
-        actor_condition_map = {
-            item["project_id"]: item.get("conditions", {})
-            for item in await self._grants_for_key(session, actor.api_key_id)
-        }
         for grant in target_grants:
             if not conditions_are_subset(
                 grant.get("conditions", {}),
-                actor_condition_map.get(grant["project_id"], {}),
+                actor_grants[grant["project_id"]].get("conditions", {}),
             ):
                 raise AuthorizationError(
                     "A control key cannot manage broader grant conditions"
