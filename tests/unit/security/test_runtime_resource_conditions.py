@@ -17,11 +17,13 @@ async def runtime_db():
         connection.execute("ATTACH DATABASE ':memory:' AS agent")
         connection.execute("ATTACH DATABASE ':memory:' AS network")
         connection.execute("ATTACH DATABASE ':memory:' AS core")
+        connection.execute("ATTACH DATABASE ':memory:' AS identity")
     async with engine.begin() as conn:
         await conn.execute(text("CREATE TABLE agent.agent_runs (id TEXT PRIMARY KEY, agent_id TEXT, environment TEXT, trace_id TEXT)"))
         await conn.execute(text("CREATE TABLE network.network_sessions (id TEXT PRIMARY KEY, network_id TEXT, environment TEXT)"))
         await conn.execute(text("CREATE TABLE network.network_executions (id TEXT PRIMARY KEY, network_id TEXT, network_session_id TEXT)"))
         await conn.execute(text("CREATE TABLE core.workspace_control_key_project_grants (control_key_id TEXT, project_id TEXT, permissions TEXT, conditions TEXT)"))
+        await conn.execute(text("CREATE TABLE identity.authority_assignments (workspace_id TEXT, subject_user_id TEXT, scope_id TEXT, permissions TEXT, conditions TEXT, status TEXT)"))
     yield async_sessionmaker(engine)
     await engine.dispose()
 
@@ -114,3 +116,48 @@ async def test_control_grant_decodes_json_and_enforces_persisted_runtime_conditi
         with pytest.raises(AuthorizationError, match="not sufficient"):
             await authorizer._require_control_key_project_permission(api_key_id=key, project_id=project,
                 permission="run:cancel", path_context={"run_id": run})
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("principal_type", ["human", "control"])
+async def test_preflight_and_actual_authorization_apply_the_same_persisted_run_policy(runtime_db, monkeypatch, principal_type):
+    import json
+    from datetime import UTC, datetime, timedelta
+    from unittest.mock import AsyncMock
+    from modules.identity.infra.services.authority_service import AuthorityService
+    from shared.security.principal import AuthenticatedPrincipal, ControlPlanePrincipal
+    key, user, workspace, project, run, agent = [uuid4() for _ in range(6)]
+    monkeypatch.setattr(TenantAuthorizer, "require_active_control", AsyncMock())
+    monkeypatch.setattr(TenantAuthorizer, "_workspace_role", AsyncMock(return_value="member"))
+    monkeypatch.setattr(TenantAuthorizer, "_require_project_access", AsyncMock())
+    monkeypatch.setattr(TenantAuthorizer, "_project_workspace_id", AsyncMock(return_value=workspace))
+    monkeypatch.setattr(TenantAuthorizer, "_project_id_for_resource", AsyncMock(return_value=project))
+    now = datetime.now(UTC)
+    actor = (AuthenticatedPrincipal(user_id=user, session_id=uuid4(), issued_at=now,
+        expires_at=now + timedelta(hours=1)) if principal_type == "human" else
+        ControlPlanePrincipal(api_key_id=key, credential_id=uuid4(), workspace_id=workspace,
+            key_prefix="fixture", authenticated_at=now))
+    async with runtime_db() as session:
+        await session.execute(text("INSERT INTO agent.agent_runs VALUES (:id, :agent, 'production', :trace)"),
+            {"id": run.hex, "agent": agent.hex, "trace": uuid4().hex})
+        conditions = json.dumps({"environments": ["staging"], "target_ids": [str(agent)]})
+        permissions = json.dumps(["run:read"])
+        await session.execute(text("INSERT INTO core.workspace_control_key_project_grants VALUES (:key, :project, :permissions, :conditions)"),
+            {"key": key.hex, "project": project.hex, "permissions": permissions, "conditions": conditions})
+        await session.execute(text("INSERT INTO identity.authority_assignments VALUES (:workspace, :user, :project, :permissions, :conditions, 'active')"),
+            {"workspace": workspace.hex, "user": user.hex, "project": project.hex,
+             "permissions": permissions, "conditions": conditions})
+        await session.commit()
+    args = dict(path_params={"run_id": run}, query_params={"environment": "staging"},
+                body={"environment": "staging"})
+    decision = await AuthorityService(runtime_db).check_access(actor=actor,
+        permission="run:read", mutation=False, **args)
+    assert not decision["allowed"]
+    async with runtime_db() as session:
+        authorizer = TenantAuthorizer(session)
+        with pytest.raises(AuthorizationError):
+            if principal_type == "human":
+                await authorizer.authorize(user_id=user, required_permission="run:read", **args)
+            else:
+                await authorizer.authorize_control_key(api_key_id=key, workspace_id=workspace,
+                    workspace_permissions=frozenset(), required_permission="run:read", **args)
