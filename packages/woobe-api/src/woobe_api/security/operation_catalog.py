@@ -417,6 +417,11 @@ def operation_catalog(routes) -> dict[str, Any]:
                 or (permission is not None and is_read_permission(permission))
                 else "execute"
                 if permission == "tool:execute"
+                or (
+                    method == "POST"
+                    and public_runtime_interface(method, route.path)
+                    in {"http", "stream", "jobs"}
+                )
                 else "mutate"
             )
             variants = {}

@@ -84,6 +84,16 @@ def test_network_preview_catalog_advertises_production_permission_variant():
     assert preview["permission_variants"]["environment=production"] == "network:production"
 
 
+@pytest.mark.parametrize("path", ["/v1/run", "/v1/run/stream", "/v1/jobs"])
+def test_catalog_marks_public_run_submission_as_execution(path):
+    app = FastAPI()
+    app.add_api_route(path, lambda: None, methods=["POST"])
+    item = operation_catalog(app.routes)["operations"][0]
+    assert item["effect"] == "execute"
+    assert item["principal_types"] == ["runtime"]
+    assert not item["control_key_supported"]
+
+
 @pytest.mark.parametrize(
     "header,status",
     [
