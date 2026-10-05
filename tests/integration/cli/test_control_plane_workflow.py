@@ -400,6 +400,12 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
         runtime_key=staging_key,
     )
     assert result["data"]["success"] is True
+    # Publication still enforces the Agent lifecycle DTO/domain validation.
+    missing_notes = await cli.run(
+        "project", "agent", "release", "promote", agent_id, staging["id"],
+        body={"target_status": "production"}, expected=2,
+    )
+    assert missing_notes["error"]["http_status"] == 422
     production = await cli.data(
         "project",
         "agent",
@@ -407,9 +413,33 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
         "promote",
         agent_id,
         staging["id"],
-        body={"target_status": "production"},
+        body={"target_status": "production", "release_notes": "Validated CLI publication"},
     )
     assert production["id"] != staging["id"]
+    second_draft = await cli.data(
+        "project", "agent", "release", "create", agent_id,
+        body={"project_id": cli.project_id, "agent_id": agent_id, "version": "auto", "system_prompt": "Second version."},
+    )
+    second_stage = await cli.data(
+        "project", "agent", "release", "promote", agent_id, second_draft["id"],
+        body={"target_status": "staging"},
+    )
+    second_release = await cli.data(
+        "project", "agent", "release", "promote", agent_id, second_stage["id"],
+        body={"target_status": "production", "release_notes": "Second CLI publication"},
+    )
+    assert second_release["id"] != production["id"]
+    await cli.run(
+        "project", "agent", "release", "rollback", agent_id, production["id"],
+        body={"change_description": "Restore first release"}, key=builder_key, expected=4,
+    )
+    restored = await cli.data(
+        "project", "agent", "release", "rollback", agent_id, production["id"],
+        body={"change_description": "Restore first release"},
+    )
+    assert restored["id"] == production["id"]
+    activations = await cli.data("project", "agent", "release", "activations", agent_id)
+    assert any(item["action"] == "rollback" and item["release_id"] == production["id"] for item in activations)
     await cli.run("request", "POST", "/v1/run", body={"message": "Hello"}, expected=4)
     await cli.run("project", "agent", "list", key=staging_key, expected=4)
     network_body = {"name": "CLI network"}
@@ -604,7 +634,7 @@ async def test_cli_categories_pin_authority_and_preflight_matches_requests(cli):
     assert "agent:read" in catalog["permissions"]["project"]
     category = await cli.data(
         "workspace", "authority", "category", "create",
-        body={"name": "Scoped reader", "scope": "project", "permissions": ["agent:read"]},
+        body={"name": "scoped-reader", "scope": "project", "permissions": ["agent:read"]},
     )
     category_id = category["id"]
     etag = f'"category:{category_id}:{category["revision"]}"'
@@ -659,7 +689,7 @@ async def test_cli_categories_pin_authority_and_preflight_matches_requests(cli):
     assert page["items"][0]["permissions"] == ["agent:read"]
     clone = await cli.data(
         "workspace", "authority", "category", "clone", category_id,
-        body={"name": "Unused clone", "revision": 1},
+        body={"name": "unused-clone", "revision": 1},
     )
     assert clone["permissions"] == ["agent:read"]
     archived = await cli.data(
