@@ -129,6 +129,13 @@ are stored only in private temporary files and never included in those reports.
 The CLI revision is pinned deliberately; update the workflow and test pin
 together when changing the client contract.
 
+The pinned client now covers body pagination for category list/history/audit and
+Agent sessions. The live authority contract exercises --all with limit=1,
+revision history ordering, category cursor traversal, built-in side projections,
+audit traversal, a max-pages partial result and initial-marker remaining scope.
+A successful single-page response must not claim complete collection evidence.
+Native CLI package smoke covers cursor traversal separately on three runner OSes.
+
 ## Verifying CI before a backend change
 
 Open a draft pull request targeting `master` from a focused branch based on the current master. Backend, acceptance, package-build, container and security workflows subscribe to the PR opened/synchronize events; draft status does not disable those workflows. The CLA check also evaluates draft PRs. The architecture Quality Gate is path-filtered and includes this test-topology document; the frontend workflow runs only when its declared frontend/runtime-client paths change.

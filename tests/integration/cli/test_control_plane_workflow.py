@@ -32,7 +32,7 @@ from shared.security.control_plane import (
     WORKSPACE_CONTROL_PERMISSIONS,
 )
 
-CLI_COMMIT = "a9c6ace053ea1f3e57abbb5d372f77010211ad56"
+CLI_COMMIT = "659baea23458380b84bc7059d2a544c9c06fc1f5"
 
 
 class Cli:
@@ -731,9 +731,13 @@ async def test_cli_categories_pin_authority_and_preflight_matches_requests(cli):
             await cli.run("request", method, path, "--query", f"project_id={cli.project_id}", key=reader_key)
         else:
             await cli.run("request", method, path, body={"project_id": cli.project_id}, key=reader_key, expected=4)
-    history = await cli.data(
-        "workspace", "authority", "category", "history", category_id, "--query", "limit=1",
+    history_response = await cli.run(
+        "workspace", "authority", "category", "history", category_id, "--limit", "1",
     )
+    assert history_response["success"] is True
+    assert history_response["meta"]["complete"] is False
+    assert history_response["meta"]["collection_complete"] == "partial"
+    history = history_response["data"]["data"]
     assert history["complete"] is False
     assert history["next_revision"] == 2
     page = await cli.data(
@@ -742,11 +746,61 @@ async def test_cli_categories_pin_authority_and_preflight_matches_requests(cli):
     )
     assert page["complete"] is True
     assert page["items"][0]["permissions"] == ["agent:read"]
+    history_all = await cli.run(
+        "workspace", "authority", "category", "history", category_id, "--limit", "1", "--all",
+    )
+    assert history_all["meta"]["complete"] is True
+    assert history_all["data"]["page_count"] == 2
+    assert [
+        item["revision"]
+        for received in history_all["data"]["pages"]
+        for item in received["data"]["items"]
+    ] == [2, 1]
+    history_remaining = await cli.run(
+        "workspace", "authority", "category", "history", category_id,
+        "--limit", "1", "--before-revision", "2", "--all",
+    )
+    assert history_remaining["meta"]["complete"] is False
+    assert history_remaining["meta"]["collection_complete"] == "remaining"
+    bounded_history = await cli.run(
+        "workspace", "authority", "category", "history", category_id,
+        "--limit", "1", "--all", "--max-pages", "1", expected=10,
+    )
+    assert bounded_history["data"]["page_count"] == 1
+    assert bounded_history["data"]["next_query"]["before_revision"] == ["2"]
+    assert bounded_history["meta"]["complete"] is False
     clone = await cli.data(
         "workspace", "authority", "category", "clone", category_id,
         body={"name": "unused-clone", "revision": 1},
     )
     assert clone["permissions"] == ["agent:read"]
+    categories_all = await cli.run(
+        "workspace", "authority", "category", "list", "--limit", "1", "--all",
+    )
+    assert categories_all["meta"]["complete"] is True
+    assert categories_all["data"]["page_count"] == 2
+    assert {
+        item["id"]
+        for received in categories_all["data"]["pages"]
+        for item in received["data"]["items"]
+    } == {category_id, clone["id"]}
+    # Side projections remain per page; built-in profiles are not counted as
+    # separately persisted categories and do not interfere with cursors.
+    assert all(
+        received["data"]["system_categories"]
+        for received in categories_all["data"]["pages"]
+    )
+    audit_all = await cli.run(
+        "workspace", "authority", "audit", "--limit", "1", "--all",
+    )
+    assert audit_all["meta"]["complete"] is True
+    audit_items = [
+        item
+        for received in audit_all["data"]["pages"]
+        for item in received["data"]["items"]
+    ]
+    assert len(audit_items) >= 3
+    assert len({item["id"] for item in audit_items}) == len(audit_items)
     archived = await cli.data(
         "workspace", "authority", "category", "archive", clone["id"],
         "--if-match", f'"category:{clone["id"]}:1"', body={},
