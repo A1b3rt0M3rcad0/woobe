@@ -18,6 +18,8 @@ async def runtime_db():
         connection.execute("ATTACH DATABASE ':memory:' AS network")
     async with engine.begin() as conn:
         await conn.execute(text("CREATE TABLE agent.agent_runs (id TEXT PRIMARY KEY, agent_id TEXT, environment TEXT, trace_id TEXT)"))
+        await conn.execute(text("CREATE TABLE network.network_sessions (id TEXT PRIMARY KEY, network_id TEXT, environment TEXT)"))
+        await conn.execute(text("CREATE TABLE network.network_executions (id TEXT PRIMARY KEY, network_id TEXT, network_session_id TEXT)"))
     yield async_sessionmaker(engine)
     await engine.dispose()
 
@@ -52,3 +54,19 @@ async def test_run_trace_lookup_preserves_target_restrictions(runtime_db):
         authorizer._require_conditions(conditions, permission="run:read", path_context=path)
         with pytest.raises(AuthorizationError):
             authorizer._require_conditions({"target_ids": [str(uuid4())]}, permission="run:read", path_context=path)
+
+
+@pytest.mark.asyncio
+async def test_network_execution_uses_session_environment(runtime_db):
+    execution, network, session_id = uuid4(), uuid4(), uuid4()
+    async with runtime_db() as session:
+        await session.execute(text("INSERT INTO network.network_sessions VALUES (:id, :network, 'production')"),
+                              {"id": session_id.hex, "network": network.hex})
+        await session.execute(text("INSERT INTO network.network_executions VALUES (:id, :network, :session)"),
+                              {"id": execution.hex, "network": network.hex, "session": session_id.hex})
+        authorizer = TenantAuthorizer(session)
+        conditions = {"target_ids": [str(network)], "target_types": ["network"], "environments": ["production"]}
+        path = await authorizer._condition_path_context(conditions, "run:read", {"execution_id": execution})
+        authorizer._require_conditions(conditions, permission="run:read", path_context=path)
+        with pytest.raises(AuthorizationError):
+            authorizer._require_conditions({"environments": ["staging"]}, permission="run:read", path_context=path)
