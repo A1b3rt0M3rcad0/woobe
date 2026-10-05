@@ -453,7 +453,9 @@ class AuthorityService:
             category = await self._category(session, workspace_id, category_id)
             if category is None:
                 return {
-                    "items": [self._profile(workspace_id, category_id)],
+                    "items": [self._profile(workspace_id, category_id)]
+                    if before_revision is None or before_revision > 1
+                    else [],
                     "next_revision": None,
                     "complete": True,
                 }

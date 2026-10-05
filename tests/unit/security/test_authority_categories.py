@@ -36,6 +36,21 @@ from shared.security.control_plane import (
 from shared.security.principal import AuthenticatedPrincipal
 
 
+@pytest.mark.asyncio
+async def test_system_profile_history_respects_exclusive_revision_cursor(authority):
+    service, actor, workspace_id, _ = authority
+    profile_id = service._profile_id(workspace_id, "project-reader")
+    first = await service.category_history(
+        actor=actor, workspace_id=workspace_id, category_id=profile_id, limit=1,
+    )
+    assert [item["revision"] for item in first["items"]] == [1]
+    last = await service.category_history(
+        actor=actor, workspace_id=workspace_id, category_id=profile_id,
+        before_revision=1, limit=1,
+    )
+    assert last == {"items": [], "next_revision": None, "complete": True}
+
+
 @pytest_asyncio.fixture
 async def authority():
     engine = create_async_engine("sqlite+aiosqlite:///:memory:")
