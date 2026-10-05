@@ -66,6 +66,24 @@ def test_new_route_is_advertised_as_unsupported_until_reviewed():
     assert operation["permission"] is None
 
 
+@pytest.mark.parametrize("suffix", ["promotions", "promotions/preview"])
+@pytest.mark.parametrize("environment,permission", [
+    ("staging", "network:version"), ("production", "network:production"),
+])
+def test_network_preview_and_publication_require_the_same_environment_authority(suffix, environment, permission):
+    assert resolve_operation("POST", f"/network/{uuid4()}/{suffix}",
+        {"environment": environment})[0] == permission
+
+
+def test_network_preview_catalog_advertises_production_permission_variant():
+    from woobe_api.http.network.runtime_routes import router
+    app = FastAPI()
+    app.include_router(router)
+    preview = next(item for item in operation_catalog(app.routes)["operations"]
+        if item["path"].endswith("/promotions/preview"))
+    assert preview["permission_variants"]["environment=production"] == "network:production"
+
+
 @pytest.mark.parametrize(
     "header,status",
     [

@@ -359,7 +359,7 @@ def resolve_operation(
                 if data.get("target_status") == "staging"
                 else "agent:production"
             )
-        if template.endswith("/promotions"):
+        if template.endswith(("/promotions", "/promotions/preview")):
             permission = (
                 "network:production"
                 if environment == "production"
@@ -420,7 +420,7 @@ def operation_catalog(routes) -> dict[str, Any]:
                 else "mutate"
             )
             variants = {}
-            if route.path.endswith("/promotions"):
+            if route.path.endswith(("/promotions", "/promotions/preview")):
                 variants = {
                     "environment=staging": "network:version",
                     "environment=production": "network:production",
