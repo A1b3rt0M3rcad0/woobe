@@ -20,7 +20,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install --python /opt/venv/bin/python \
     "python-multipart>=0.0.20" \
     "boto3>=1.35.0" \
-    "pypdf>=6.0.0"
+    "pypdf>=6.19.0"
 RUN /opt/venv/bin/python -c "from pypdf import PdfReader; from pymongo import AsyncMongoClient; print('runtime dependencies available')"
 
 FROM dependency-builder AS core-builder

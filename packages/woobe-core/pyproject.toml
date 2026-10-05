@@ -22,10 +22,11 @@ dependencies = [
     "pydantic>=2.13.4",
     "pydantic-settings>=2.14.1",
     "pymongo>=4.11.0",
-    "pypdf>=6.0.0",
+    "pypdf>=6.19.0",
     "pyyaml>=6.0.3",
     "redis>=6.4.0",
     "sqlalchemy>=2.0.50",
+    "urllib3>=2.8.0",
     "uuid6>=2025.0.1",
 ]
 
