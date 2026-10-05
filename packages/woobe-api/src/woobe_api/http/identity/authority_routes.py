@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from modules.identity.entrypoint import build_authority_service
 from shared.contracts.errors import AuthenticationError
-from woobe_api.http.shared.preconditions import expected_revision
+from woobe_api.http.shared.preconditions import expected_revision, assignment_revision
 
 router = APIRouter(prefix="/identity", tags=["authority"])
 
@@ -288,11 +288,7 @@ async def assign_authority(
         NAMESPACE_URL,
         f"woobe:{workspace_id}:assignment:{subject_user_id}:{payload.project_id or workspace_id}",
     )
-    revision = (
-        0
-        if request.headers.get("if-none-match") == "*"
-        else expected_revision(request, kind="assignment", resource_id=assignment_id)
-    )
+    revision = assignment_revision(request, assignment_id=assignment_id)
     data = await build_authority_service().assign_category(
         actor=_actor(request),
         workspace_id=workspace_id,

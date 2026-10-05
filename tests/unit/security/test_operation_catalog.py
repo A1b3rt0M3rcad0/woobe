@@ -199,3 +199,18 @@ def test_duplicate_revision_headers_cannot_select_an_arbitrary_precondition():
     with pytest.raises(HTTPException) as exc:
         expected_revision(request, kind="category", resource_id=category_id)
     assert exc.value.status_code == 412
+
+
+@pytest.mark.parametrize("headers", [
+    [(b"if-none-match", b"*"), (b"if-match", b"*")],
+    [(b"if-none-match", b"*"), (b"if-none-match", b"*")],
+    [(b"if-none-match", b'"unsupported"')],
+])
+def test_assignment_rejects_ambiguous_creation_preconditions(headers):
+    from woobe_api.http.shared.preconditions import assignment_revision
+    assignment_id = uuid4()
+    with pytest.raises(HTTPException) as exc:
+        assignment_revision(Request({"type": "http", "headers": headers}), assignment_id=assignment_id)
+    assert exc.value.status_code == 412
+    assert assignment_revision(Request({"type": "http", "headers": [(b"if-none-match", b"*")]}),
+                               assignment_id=assignment_id) == 0
