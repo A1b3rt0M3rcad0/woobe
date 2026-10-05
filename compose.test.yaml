@@ -133,6 +133,8 @@ services:
       WOOBE_MONGODB_URL: mongodb://mongodb:27017
       WOOBE_MONGODB_DATABASE: woobe_test
       WOOBE_TEST_FAKE_PROVIDER_URL: http://fake-provider:8000/v1
+      WOOBE_CLI_BINARY: /artifacts/woobe
+      WOOBE_REQUIRE_CLI_E2E: ${WOOBE_REQUIRE_CLI_E2E:-false}
     depends_on:
       db:
         condition: service_healthy
