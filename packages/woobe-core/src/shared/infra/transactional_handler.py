@@ -40,7 +40,9 @@ class TransactionalHandler(Generic[RequestT, ResponseT]):
                             workspace_id=request.principal.workspace_id,
                             workspace_permissions=request.principal.permissions,
                             required_permission=request.metadata["required_permission"],
-                            path_params=request.path_params,
+                            path_params=request.metadata.get(
+                                "authorization_path_params", request.path_params
+                            ),
                             query_params=request.query_params,
                             body=request.body,
                         )

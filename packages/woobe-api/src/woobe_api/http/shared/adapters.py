@@ -44,13 +44,21 @@ async def request_adapter(
     route = getattr(fastapi_request, "scope", {}).get("route")
     operation_name = getattr(route, "name", None)
     if route is not None:
-        from woobe_api.security.operation_catalog import resolve_operation
+        from woobe_api.security.operation_catalog import resolve_operation, verified_query_context
+        from woobe_api.security.http_guard import HttpSecurityGuard
 
         permission, _ = resolve_operation(
             fastapi_request.method, fastapi_request.url.path, body
         )
         if permission is not None:
             operation_metadata["required_permission"] = permission
+            operation_metadata["authorization_path_params"] = verified_query_context(
+                fastapi_request.method, fastapi_request.url.path,
+                HttpSecurityGuard._authorization_path_params(
+                    fastapi_request, dict(fastapi_request.path_params)
+                ),
+                dict(fastapi_request.query_params),
+            )
     if operation_name in {
         "create_project",
         "create_agent",
