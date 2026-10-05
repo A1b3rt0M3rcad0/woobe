@@ -532,7 +532,59 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
             "approved_action_ids": [a["id"] for a in preview.get("actions", [])],
         },
     )
-    await cli.data(
+    production_preview = await cli.data(
+        "project", "network", "promotion", "preview", network_id,
+        body={"project_id": cli.project_id, "environment": "production"},
+    )
+    network_release = await cli.data(
+        "project", "network", "promotion", "create", network_id,
+        body={
+            "project_id": cli.project_id,
+            "environment": "production",
+            "expected_network_version_id": stage_version["id"],
+            "approved_action_ids": [a["id"] for a in production_preview.get("actions", [])],
+        },
+    )
+    assert network_release["kind"] == "release"
+    # Activation restores an existing immutable Release; it does not publish Staging.
+    definition["settings"]["max_invocations"] = 5
+    network = await cli.data(
+        "project", "network", "draft", "update", network_id,
+        body={
+            "project_id": cli.project_id,
+            "name": "CLI network second release",
+            "expected_revision": network["draft_revision"],
+            "definition": definition,
+        },
+    )
+    second_preview = await cli.data(
+        "project", "network", "promotion", "preview", network_id,
+        body={"project_id": cli.project_id, "environment": "staging"},
+    )
+    second_network_stage = await cli.data(
+        "project", "network", "promotion", "create", network_id,
+        body={
+            "project_id": cli.project_id,
+            "environment": "staging",
+            "expected_revision": network["draft_revision"],
+            "approved_action_ids": [a["id"] for a in second_preview.get("actions", [])],
+        },
+    )
+    second_production_preview = await cli.data(
+        "project", "network", "promotion", "preview", network_id,
+        body={"project_id": cli.project_id, "environment": "production"},
+    )
+    second_network_release = await cli.data(
+        "project", "network", "promotion", "create", network_id,
+        body={
+            "project_id": cli.project_id,
+            "environment": "production",
+            "expected_network_version_id": second_network_stage["id"],
+            "approved_action_ids": [a["id"] for a in second_production_preview.get("actions", [])],
+        },
+    )
+    assert second_network_release["id"] != network_release["id"]
+    network_restored = await cli.data(
         "project",
         "network",
         "activation",
@@ -540,10 +592,13 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
         network_id,
         body={
             "project_id": cli.project_id,
-            "source_version_id": stage_version["id"],
-            "change_description": "Validated CLI release",
+            "source_version_id": network_release["id"],
+            "expected_current_production_version_id": second_network_release["id"],
+            "change_description": "Restore first CLI Network release",
         },
     )
+    assert network_restored["version"]["id"] == network_release["id"]
+    assert network_restored["activation"]["activation_kind"] == "rollback"
     _, network_key = await cli.issue(
         "project",
         "runtime-key",
