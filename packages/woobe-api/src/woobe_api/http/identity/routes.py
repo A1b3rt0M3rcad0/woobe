@@ -27,7 +27,12 @@ from woobe_api.http.identity.auth_endpoints import (
     refresh_endpoint,
     register_endpoint,
 )
-from shared.infra.errors import AuthenticationError, AuthorizationError, NotFoundError, ValidationError
+from shared.infra.errors import (
+    AuthenticationError,
+    AuthorizationError,
+    NotFoundError,
+    ValidationError,
+)
 from woobe_api.http.shared.adapters import request_adapter, response_adapter
 from shared.security.workspace_access import WorkspaceAccessService
 
@@ -129,7 +134,9 @@ async def logout(request: FastAPIRequest):
 @router.post("/users")
 async def create_user(request: FastAPIRequest):
     del request
-    raise AuthorizationError("Users can only be created through registration or invitation")
+    raise AuthorizationError(
+        "Users can only be created through registration or invitation"
+    )
 
 
 @router.post("/workspaces")
@@ -140,7 +147,9 @@ async def create_workspace(request: FastAPIRequest):
 @router.post("/workspaces/{workspace_id}/members")
 async def add_member(request: FastAPIRequest, workspace_id: str):
     del request, workspace_id
-    raise AuthorizationError("Workspace membership is created by accepting an invitation")
+    raise AuthorizationError(
+        "Workspace membership is created by accepting an invitation"
+    )
 
 
 @router.get("/workspaces/{workspace_id}")
@@ -172,7 +181,9 @@ async def list_members(request: FastAPIRequest, workspace_id: str):
 
 
 @router.delete("/workspaces/{workspace_id}/members/{target_user_id}")
-async def remove_member(request: FastAPIRequest, workspace_id: str, target_user_id: UUID):
+async def remove_member(
+    request: FastAPIRequest, workspace_id: str, target_user_id: UUID
+):
     data = await _workspace_access(request).remove_member(
         actor_user_id=_principal_user_id(request),
         workspace_id=_uuid(workspace_id, "workspace id"),
@@ -200,8 +211,10 @@ async def create_invite(request: FastAPIRequest, workspace_id: str):
         project_ids = [UUID(str(value)) for value in project_values]
     except (ValueError, TypeError) as exc:
         raise ValidationError("Invalid invite role or Project id") from exc
-    if role not in {MemberRole.member, MemberRole.admin}:
-        raise ValidationError("Only member and admin invitation roles are supported in the MVP")
+    if role not in {MemberRole.member, MemberRole.admin, MemberRole.viewer}:
+        raise ValidationError(
+            "Only viewer, member and admin invitation roles are supported"
+        )
 
     await _workspace_access(request).require_role_assignment(
         actor_user_id=principal_user_id,

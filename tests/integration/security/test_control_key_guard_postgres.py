@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime, timedelta
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import delete, text
@@ -432,7 +432,12 @@ async def test_categories_pin_grants_and_key_revisions_on_postgres(
             control_key_id=created["id"],
             expected_revision=1,
             name="Renamed",
-            description=None, description_supplied=False, permissions=None, project_grants=None, expires_at=None, expires_at_supplied=False,
+            description=None,
+            description_supplied=False,
+            permissions=None,
+            project_grants=None,
+            expires_at=None,
+            expires_at_supplied=False,
         )
         assert updated["revision"] == 2
         with pytest.raises(PreconditionFailedError):
@@ -609,3 +614,162 @@ async def test_project_grant_failure_rolls_back_project_and_outbox(
                 {"slug": slug},
             )
         ).scalar_one() == 0
+
+
+@pytest.mark.asyncio
+async def test_http_control_key_matrix_and_authoritative_preflight(
+    control_key_graph, owner_actor, monkeypatch
+):
+    from httpx import ASGITransport, AsyncClient
+    from main import create_app
+    from modules.identity.infra.services.authority_service import AuthorityService
+    from woobe_api.http.identity import authority_routes
+    from woobe_api.http.core import control_key_routes
+
+    graph = control_key_graph
+    authority = AuthorityService(graph["session_factory"])
+    service = ControlKeyService(graph["session_factory"], authority)
+    created = await service.create_key(
+        actor=owner_actor,
+        workspace_id=graph["workspace_id"],
+        name="Reader",
+        description=None,
+        permissions=["categories:read", "keys:read"],
+        project_grants=[
+            {
+                "project_id": graph["project_id"],
+                "permissions": ["project:read", "agent:read", "knowledge:read"],
+            }
+        ],
+        expires_at=datetime.now(UTC) + timedelta(hours=1),
+    )
+    app = create_app()
+    app.state.security_guard = _guard(graph["session_factory"], graph["settings"])
+    monkeypatch.setattr(authority_routes, "build_authority_service", lambda: authority)
+    monkeypatch.setattr(control_key_routes, "_service", lambda: service)
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+            headers={"Authorization": f"Bearer {created['key']}"},
+        ) as client:
+            cases = [
+                ("GET", f"/core/projects/{graph['project_id']}", None, 200),
+                ("GET", f"/core/projects/{graph['ungranted_project_id']}", None, 404),
+                (
+                    "GET",
+                    f"/core/projects/{graph['project_id']}?project_id={graph['ungranted_project_id']}",
+                    None,
+                    409,
+                ),
+                (
+                    "POST",
+                    "/ai/agents",
+                    {"project_id": str(graph["project_id"]), "name": "denied"},
+                    403,
+                ),
+                (
+                    "PATCH",
+                    f"/ai/agents/{uuid4()}",
+                    {"project_id": str(graph["project_id"])},
+                    404,
+                ),
+                (
+                    "POST",
+                    "/agent/ai/agents",
+                    {"project_id": str(graph["project_id"])},
+                    403,
+                ),
+                ("POST", "/v1/run", {"target": "agent", "input": "denied"}, 403),
+                ("GET", "/identity/permissions", None, 200),
+                (
+                    "GET",
+                    f"/identity/access/me?project_id={graph['project_id']}",
+                    None,
+                    200,
+                ),
+            ]
+            for method, path, body, status in cases:
+                response = await client.request(method, path, json=body)
+                assert response.status_code == status, (
+                    method,
+                    path,
+                    response.status_code,
+                    response.text,
+                )
+            decision = await client.post(
+                "/identity/access/check",
+                json={
+                    "method": "POST",
+                    "path": "/ai/agents",
+                    "body": {"project_id": str(graph["project_id"]), "name": "denied"},
+                },
+            )
+            assert decision.status_code == 200
+            assert decision.json()["data"]["allowed"] is False
+            listed = await client.get(
+                f"/core/workspaces/{graph['workspace_id']}/control-keys"
+            )
+            assert listed.status_code == 200
+            assert created["key"] not in listed.text
+            assert "key_hash" not in listed.text
+    finally:
+        async with graph["session_factory"]() as session:
+            await session.execute(
+                text("DELETE FROM core.workspace_control_keys WHERE id=:id"),
+                {"id": created["id"]},
+            )
+            await session.commit()
+
+
+@pytest.mark.asyncio
+async def test_key_issue_and_rotation_recover_once_on_postgres(
+    control_key_graph, owner_actor
+):
+    import asyncio
+
+    graph = control_key_graph
+    service = ControlKeyService(graph["session_factory"])
+    key = f"issue-{uuid4()}"
+    args = dict(
+        actor=owner_actor,
+        workspace_id=graph["workspace_id"],
+        name="Recoverable",
+        description=None,
+        permissions=[],
+        project_grants=[],
+        expires_at=datetime.now(UTC) + timedelta(hours=1),
+        idempotency_key=key,
+    )
+    first, second = await asyncio.gather(
+        service.create_key(**args), service.create_key(**args)
+    )
+    assert str(first["id"]) == str(second["id"])
+    assert first["key"] == second["key"]
+    assert bool(first.get("idempotency_replayed")) != bool(
+        second.get("idempotency_replayed")
+    )
+    try:
+        rotate = dict(
+            actor=owner_actor,
+            workspace_id=graph["workspace_id"],
+            control_key_id=UUID(str(first["id"])),
+            expected_revision=1,
+            idempotency_key=f"rotate-{uuid4()}",
+        )
+        rotated = await service.rotate_key(**rotate)
+        recovered = await service.rotate_key(**rotate)
+        assert str(rotated["id"]) == recovered["id"]
+        assert rotated["key"] == recovered["key"]
+        assert recovered["idempotency_replayed"]
+        from shared.contracts.errors import ConflictError
+
+        with pytest.raises(ConflictError):
+            await service.create_key(**{**args, "name": "Changed payload"})
+    finally:
+        async with graph["session_factory"]() as session:
+            await session.execute(
+                text("DELETE FROM core.workspace_control_keys WHERE credential_id=:id"),
+                {"id": UUID(str(first["credential_id"]))},
+            )
+            await session.commit()

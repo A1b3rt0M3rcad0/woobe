@@ -12,7 +12,9 @@ from modules.agent.infra.database.skill_models import *  # noqa: F401,F403
 from modules.agent.infra.database.context_models import *  # noqa: F401,F403
 from modules.agent.infra.database.models import *  # noqa: F401,F403
 from modules.agent.infra.database.provider_model_repositories import ProviderModelModel  # noqa: F401
-from modules.agent.infra.database.release_activation_repository import AgentReleaseActivationModel  # noqa: F401
+from modules.agent.infra.database.release_activation_repository import (
+    AgentReleaseActivationModel,  # noqa: F401
+)
 from modules.agent.infra.database.run_models import *  # noqa: F401,F403
 from modules.agent.infra.database.vector_snapshot_models import *  # noqa: F401,F403
 from modules.chat_surface.infra.database.models import *  # noqa: F401,F403
@@ -24,6 +26,7 @@ from modules.metering.infra.database.models import *  # noqa: F401,F403
 from modules.network.infra.database.models import *  # noqa: F401,F403
 from modules.network.infra.database.schema_extensions import *  # noqa: F401,F403
 from modules.observability.infra.database.models import *  # noqa: F401,F403
+from shared.infra.database.admin_idempotency import AdministrativeOperationModel  # noqa: F401
 from shared.infra.database.base import Base
 
 

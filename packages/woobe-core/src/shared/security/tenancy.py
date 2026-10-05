@@ -261,6 +261,8 @@ class TenantAuthorizer:
                         workspace_id=workspace_id,
                         project_id=project_id,
                         permission=permission,
+                        context=body,
+                        path_context=path_params,
                     )
             else:
                 for workspace_id in checked_workspaces:
@@ -393,6 +395,8 @@ class TenantAuthorizer:
         workspace_id: UUID,
         project_id: UUID | None,
         permission: str,
+        context: Any = None,
+        path_context: Mapping[str, Any] | None = None,
     ) -> None:
         role = await self._workspace_role(user_id, workspace_id)
         if role is None:
@@ -421,7 +425,7 @@ class TenantAuthorizer:
             )
         scope_id = project_id or workspace_id
         statement = text(
-            "SELECT permissions FROM identity.authority_assignments WHERE workspace_id = :workspace_id AND subject_user_id = :user_id AND scope_id = :scope_id AND status = 'active'"
+            "SELECT permissions, conditions FROM identity.authority_assignments WHERE workspace_id = :workspace_id AND subject_user_id = :user_id AND scope_id = :scope_id AND status = 'active'"
         ).bindparams(
             bindparam("workspace_id", type_=Uuid()),
             bindparam("user_id", type_=Uuid()),
@@ -436,8 +440,9 @@ class TenantAuthorizer:
                     "scope_id": scope_id,
                 },
             )
-        ).scalar_one_or_none()
+        ).first()
         if grants is not None:
+            grants, conditions = grants
             if isinstance(grants, str):
                 import json
 
@@ -446,6 +451,16 @@ class TenantAuthorizer:
                 raise AuthorizationError(
                     "Assigned authority does not allow this operation"
                 )
+            if isinstance(conditions, str):
+                import json
+
+                conditions = json.loads(conditions)
+            self._require_conditions(
+                conditions,
+                permission=permission,
+                context=context,
+                path_context=path_context,
+            )
 
     async def _require_control_key_project_permission(
         self,
@@ -474,6 +489,21 @@ class TenantAuthorizer:
         granted = {str(item) for item in (permissions or [])}
         if permission not in granted:
             raise AuthorizationError("Control key Project permission is not sufficient")
+        self._require_conditions(
+            conditions or {},
+            permission=permission,
+            context=context,
+            path_context=path_context,
+        )
+
+    @staticmethod
+    def _require_conditions(
+        conditions: dict[str, Any],
+        *,
+        permission: str,
+        context: Any = None,
+        path_context: Mapping[str, Any] | None = None,
+    ) -> None:
         data = context if isinstance(context, Mapping) else {}
         path_data = path_context or {}
         target_id = (
@@ -490,7 +520,22 @@ class TenantAuthorizer:
             if data.get("network_id") or path_data.get("network_id")
             else None
         )
-        environment = data.get("environment")
+        environment = (
+            path_data.get("environment")
+            or data.get("environment")
+            or data.get("target_status")
+        )
+        if permission.endswith(":write") or permission.endswith(":version"):
+            environment = environment or "staging"
+        if permission.split(":")[0] in {"agent", "network", "run"}:
+            if "target_ids" in conditions and target_id is None:
+                raise AuthorizationError(
+                    "A target-constrained grant requires an explicit target"
+                )
+            if "target_types" in conditions and target_type is None:
+                raise AuthorizationError(
+                    "A target-constrained grant requires an explicit target type"
+                )
         if permission.endswith(":production"):
             environment = "production"
         if not conditions_allow(

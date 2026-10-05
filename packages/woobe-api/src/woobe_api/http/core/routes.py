@@ -9,9 +9,6 @@ from modules.core.entrypoint import (
     create_api_key_composer,
 )
 from modules.core.entrypoint import (
-    create_project_composer,
-)
-from modules.core.entrypoint import (
     create_runtime_api_key_composer,
 )
 from modules.core.entrypoint import get_project_composer
@@ -140,27 +137,19 @@ async def create_project(request: FastAPIRequest):
         user_id = _principal_user_id(request)
         await access.require_workspace_admin(user_id, workspace_uuid)
 
-    if control_principal is not None:
-        data = await build_control_key_service().create_project_atomically(principal=control_principal, payload=payload)
-        return JSONResponse(status_code=201, content={"success": True, "message": "created", "data": data})
-
-    handler = create_project_composer()
-    response = await request_adapter(request, handler)
-    if response.status_code == 201 and isinstance(response.body, dict):
-        data = response.body.get("data")
-        if isinstance(data, dict) and data.get("id"):
-            project_id = UUID(str(data["id"]))
-            if control_principal is not None:
-                await build_control_key_service().grant_created_project(
-                    principal=control_principal,
-                    project_id=project_id,
-                )
-            elif user_id is not None:
-                await access.ensure_creator_access(
-                    actor_user_id=user_id,
-                    project_id=project_id,
-                )
-    return response_adapter(response)
+    data = await build_control_key_service().create_project_atomically(
+        principal=principal,
+        payload=payload,
+        idempotency_key=request.headers.get("idempotency-key"),
+    )
+    headers = (
+        {"Idempotency-Replayed": "true"} if data.get("idempotency_replayed") else {}
+    )
+    return JSONResponse(
+        status_code=201,
+        content={"success": True, "message": "created", "data": data},
+        headers=headers,
+    )
 
 
 @router.get("/workspaces/{workspace_id}/project-access")
@@ -168,7 +157,9 @@ async def list_projects_for_access_management(
     request: FastAPIRequest,
     workspace_id: UUID,
 ):
-    projects = await _project_access_service(request).list_projects_for_access_management(
+    projects = await _project_access_service(
+        request
+    ).list_projects_for_access_management(
         user_id=_principal_user_id(request),
         workspace_id=workspace_id,
     )
@@ -187,7 +178,9 @@ async def list_project_members(request: FastAPIRequest, access_project_id: UUID)
 
 
 @router.post("/projects/{access_project_id}/access", status_code=201)
-async def grant_project_subject_access(request: FastAPIRequest, access_project_id: UUID):
+async def grant_project_subject_access(
+    request: FastAPIRequest, access_project_id: UUID
+):
     payload = await request.json()
     subject_type = payload.get("subject_type") if isinstance(payload, dict) else None
     subject_id = payload.get("subject_id") if isinstance(payload, dict) else None

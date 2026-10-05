@@ -63,6 +63,7 @@ class AuthorityCategoryVersionModel(BaseModel):
         ForeignKey("identity.authority_categories.id", ondelete="CASCADE")
     )
     revision: Mapped[int] = mapped_column(Integer)
+    name: Mapped[str] = mapped_column(String(128))
     permissions: Mapped[list[str]] = mapped_column(_JSON, default=list)
     conditions: Mapped[dict[str, Any]] = mapped_column(_JSON, default=dict)
     catalog_revision: Mapped[str] = mapped_column(String(64))

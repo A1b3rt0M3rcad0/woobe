@@ -1,3 +1,5 @@
+from shared.security.delegation import ApiKeyDelegationPolicy
+from shared.contracts.errors import AuthorizationError
 from datetime import UTC, datetime
 
 from modules.core.application.dtos.api_key_lifecycle_dtos import (
@@ -77,9 +79,11 @@ class RotateApiKeyUseCase:
         self,
         api_key_repo: ApiKeyRepository,
         outbox: OutboxEventWriter,
+        delegation_policy: ApiKeyDelegationPolicy | None = None,
     ) -> None:
         self._api_key_repo = api_key_repo
         self._outbox = outbox
+        self._delegation_policy = delegation_policy
 
     async def execute(self, input_dto: RotateApiKeyInput) -> RotateApiKeyOutput:
         current = await self._api_key_repo.get_by_id(input_dto.api_key_id)
@@ -103,6 +107,27 @@ class RotateApiKeyUseCase:
             scopes = normalize_project_api_key_scopes(requested_scopes)
         except ValueError as exc:
             raise ValidationError(str(exc)) from exc
+
+        if input_dto.rotated_by_control_key_id is not None:
+            if self._delegation_policy is None:
+                raise AuthorizationError("Control key delegation policy is required")
+            conditions = (
+                {
+                    "environments": [current.environment.value],
+                    "target_types": [current.target_type.value],
+                    "target_ids": [str(current.target_id)],
+                    "interfaces": list(current.interfaces),
+                }
+                if current.kind == ApiKeyKind.runtime
+                else {}
+            )
+            await self._delegation_policy.validate(
+                actor_key_id=input_dto.rotated_by_control_key_id,
+                project_id=current.project_id,
+                scopes=scopes,
+                conditions=conditions,
+                expires_at=input_dto.expires_at or current.expires_at,
+            )
 
         if current.kind == ApiKeyKind.runtime:
             if current.environment is None:
@@ -260,4 +285,3 @@ class UpdateApiKeyCredentialUseCase:
             environment=saved.environment,
             updated_at=now,
         )
-

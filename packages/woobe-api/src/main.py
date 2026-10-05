@@ -213,6 +213,7 @@ def create_app() -> FastAPI:
         ],
         expose_headers=[
             "ETag",
+            "Idempotency-Replayed",
             "X-Request-ID",
             "X-Correlation-ID",
             "X-Network-Execution-ID",
@@ -243,10 +244,16 @@ def create_app() -> FastAPI:
     app.add_exception_handler(DomainError, cast(ExceptionHandler, domain_error_handler))
     app.add_exception_handler(NotFoundError, cast(ExceptionHandler, not_found_handler))
     app.add_exception_handler(ConflictError, cast(ExceptionHandler, conflict_handler))
-    async def precondition_handler(request: Request, exc: PreconditionFailedError):
-        return JSONResponse(status_code=412, content={"success": False, "message": str(exc), "data": None})
 
-    app.add_exception_handler(PreconditionFailedError, cast(ExceptionHandler, precondition_handler))
+    async def precondition_handler(request: Request, exc: PreconditionFailedError):
+        return JSONResponse(
+            status_code=412,
+            content={"success": False, "message": str(exc), "data": None},
+        )
+
+    app.add_exception_handler(
+        PreconditionFailedError, cast(ExceptionHandler, precondition_handler)
+    )
     app.add_exception_handler(
         ValidationError, cast(ExceptionHandler, validation_handler)
     )

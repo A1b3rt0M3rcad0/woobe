@@ -29,6 +29,8 @@ from shared.security.control_plane import (
 )
 from shared.security.authority import CategoryResolver
 from shared.security.tenancy import TenantAuthorizer
+from shared.infra.admin_idempotency import AdministrativeIdempotency
+from shared.infra.config import Settings
 from shared.contracts.errors import PreconditionFailedError
 from shared.security.principal import (
     AuthenticatedPrincipal,
@@ -96,6 +98,7 @@ class ControlKeyService:
         on_project_create_permissions: list[str] | None = None,
         category_id: UUID | None = None,
         category_revision: int | None = None,
+        idempotency_key: str | None = None,
     ) -> dict[str, Any]:
         normalized_name = name.strip()
         if not normalized_name:
@@ -120,6 +123,27 @@ class ControlKeyService:
                 workspace_id=workspace_id,
                 permission="keys:create",
             )
+            ledger = AdministrativeIdempotency(
+                session, encryption_key=Settings.model_validate({}).encryption_key
+            )
+            replay = await ledger.begin(
+                key=idempotency_key,
+                actor=actor,
+                workspace_id=workspace_id,
+                operation="control_key.create",
+                payload={
+                    "name": name,
+                    "description": description,
+                    "permissions": permissions,
+                    "project_grants": project_grants,
+                    "expires_at": expires_at,
+                    "on_project_create_permissions": on_project_create_permissions,
+                    "category_id": category_id,
+                    "category_revision": category_revision,
+                },
+            )
+            if replay is not None:
+                return replay
             workspace_permissions, category_revision = await self._workspace_category(
                 session,
                 workspace_id,
@@ -191,9 +215,7 @@ class ControlKeyService:
                 grants=normalized_grants,
                 now=now,
             )
-            await session.commit()
-
-            return {
+            result = {
                 "id": key_id,
                 "credential_id": key_id,
                 "workspace_id": workspace_id,
@@ -213,6 +235,9 @@ class ControlKeyService:
                 "etag": f'"control-key:{key_id}:1"',
                 "created_at": now,
             }
+            await ledger.save(result)
+            await session.commit()
+            return result
 
     async def update_key(
         self,
@@ -414,6 +439,7 @@ class ControlKeyService:
         expires_at: datetime | None = None,
         expires_at_supplied: bool = False,
         expected_revision: int | None = None,
+        idempotency_key: str | None = None,
     ) -> dict[str, Any]:
         async with self._session_factory() as session:
             await self._require_workspace_permission(
@@ -422,6 +448,24 @@ class ControlKeyService:
                 workspace_id=workspace_id,
                 permission="keys:rotate",
             )
+            ledger = AdministrativeIdempotency(
+                session, encryption_key=Settings.model_validate({}).encryption_key
+            )
+            replay = await ledger.begin(
+                key=idempotency_key,
+                actor=actor,
+                workspace_id=workspace_id,
+                operation="control_key.rotate",
+                payload={
+                    "id": control_key_id,
+                    "name": name,
+                    "expires_at": expires_at,
+                    "expires_at_supplied": expires_at_supplied,
+                    "expected_revision": expected_revision,
+                },
+            )
+            if replay is not None:
+                return replay
             target = await self._target_row(
                 session,
                 workspace_id=workspace_id,
@@ -522,8 +566,7 @@ class ControlKeyService:
                 grants=grants,
                 now=now,
             )
-            await session.commit()
-            return {
+            result = {
                 "id": replacement_id,
                 "credential_id": target["credential_id"],
                 "workspace_id": workspace_id,
@@ -544,9 +587,16 @@ class ControlKeyService:
                 "revision": int(target.get("revision", 1)) + 1,
                 "etag": f'"control-key:{replacement_id}:{int(target.get("revision", 1)) + 1}"',
             }
+            await ledger.save(result)
+            await session.commit()
+            return result
 
     async def create_project_atomically(
-        self, *, principal: ControlPlanePrincipal, payload: dict[str, Any]
+        self,
+        *,
+        principal: SecurityPrincipal,
+        payload: dict[str, Any],
+        idempotency_key: str | None = None,
     ) -> dict[str, Any]:
         from modules.core.application.dtos.create_project_dtos import CreateProjectInput
         from modules.core.application.use_cases.create_project_use_case import (
@@ -565,16 +615,44 @@ class ControlKeyService:
                 workspace_id=input_dto.workspace_id,
                 permission="projects:create",
             )
+            ledger = AdministrativeIdempotency(
+                session, encryption_key=Settings.model_validate({}).encryption_key
+            )
+            replay = await ledger.begin(
+                key=idempotency_key,
+                actor=principal,
+                workspace_id=input_dto.workspace_id,
+                operation="project.create",
+                payload=input_dto.model_dump(mode="json"),
+            )
+            if replay is not None:
+                return replay
             use_case = CreateProjectUseCase(
                 SQLAlchemyProjectRepository(session),
                 SQLAlchemyOutboxEventWriter(session),
             )
             project = await use_case.execute(input_dto)
-            await self._grant_created_project(
-                session, principal=principal, project_id=project.id
-            )
+            if isinstance(principal, ControlPlanePrincipal):
+                await self._grant_created_project(
+                    session, principal=principal, project_id=project.id
+                )
+            elif isinstance(principal, AuthenticatedPrincipal):
+                from modules.core.infra.database.models import ProjectMemberModel
+
+                session.add(
+                    ProjectMemberModel(
+                        project_id=project.id,
+                        user_id=principal.user_id,
+                        status="active",
+                        granted_by_user_id=principal.user_id,
+                    )
+                )
+            else:
+                raise AuthorizationError("Administrative authentication required")
+            result = project.model_dump(mode="json")
+            await ledger.save(result)
             await session.commit()
-            return project.model_dump(mode="json")
+            return result
 
     async def grant_created_project(
         self, *, principal: ControlPlanePrincipal, project_id: UUID

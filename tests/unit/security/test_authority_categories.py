@@ -29,7 +29,6 @@ from shared.security.control_plane import (
     CATALOG_REVISION,
     conditions_are_subset,
     expand_permissions,
-    normalize_conditions,
     require_expiration_ceiling,
     system_profiles,
 )
@@ -332,3 +331,84 @@ def test_delegated_expiration_cannot_be_removed_or_extended(offset):
     with pytest.raises(ValueError, match="ceiling"):
         require_expiration_ceiling(expiry, ceiling)
     require_expiration_ceiling(ceiling - timedelta(hours=1), ceiling)
+
+
+@pytest.mark.parametrize(
+    "permission",
+    [
+        "agent:write",
+        "agent:version",
+        "agent:production",
+        "network:production",
+        "tool:execute",
+        "keys:create",
+        "project:environment:write",
+    ],
+)
+@pytest.mark.asyncio
+async def test_viewer_role_denies_every_mutation_family(permission):
+    from unittest.mock import AsyncMock
+    from shared.security.tenancy import TenantAuthorizer
+
+    authorizer = TenantAuthorizer(object())
+    authorizer._workspace_role = AsyncMock(return_value="viewer")
+    with pytest.raises(AuthorizationError, match="read-only"):
+        await authorizer.require_human_permission(
+            user_id=uuid4(),
+            workspace_id=uuid4(),
+            project_id=uuid4(),
+            permission=permission,
+        )
+
+
+@pytest.mark.parametrize(
+    "conditions,permission,body,path",
+    [
+        (
+            {"environments": ["staging"]},
+            "agent:production",
+            {},
+            {"agent_id": str(uuid4())},
+        ),
+        ({"target_ids": [str(uuid4())]}, "agent:read", {}, {}),
+        (
+            {"target_types": ["agent"]},
+            "network:write",
+            {},
+            {"network_id": str(uuid4())},
+        ),
+        ({"interfaces": []}, "agent:read", {}, {"agent_id": str(uuid4())}),
+    ],
+)
+def test_missing_or_out_of_scope_conditions_fail_closed(
+    conditions, permission, body, path
+):
+    from shared.security.tenancy import TenantAuthorizer
+
+    with pytest.raises(AuthorizationError):
+        TenantAuthorizer._require_conditions(
+            conditions, permission=permission, context=body, path_context=path
+        )
+
+
+@pytest.mark.asyncio
+async def test_renaming_preserves_historical_category_name(authority):
+    service, actor, workspace_id, _ = authority
+    created = await service.create_category(
+        actor=actor, workspace_id=workspace_id, data=category_data()
+    )
+    await service.update_category(
+        actor=actor,
+        workspace_id=workspace_id,
+        category_id=created["id"],
+        expected_revision=1,
+        changes={"name": "renamed"},
+    )
+    assert (
+        await service.get_category(
+            actor=actor,
+            workspace_id=workspace_id,
+            category_id=created["id"],
+            revision=1,
+        )
+    )["name"] == "custom-editor"

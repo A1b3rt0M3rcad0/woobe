@@ -245,6 +245,8 @@ def conditions_allow(
     target_id: UUID | str | None = None,
     interfaces: list[str] | None = None,
 ) -> bool:
+    if any(not values for values in conditions.values()):
+        return False
     checks = {
         "environments": environment,
         "target_types": target_type,

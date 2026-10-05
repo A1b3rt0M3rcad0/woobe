@@ -2,7 +2,12 @@ from __future__ import annotations
 
 from typing import Any
 from starlette.routing import compile_path
-from shared.security.control_plane import CATALOG_REVISION
+from shared.security.control_plane import (
+    CATALOG_REVISION,
+    WORKSPACE_CONTROL_PERMISSIONS,
+    PROJECT_CONTROL_PERMISSIONS,
+    is_read_permission,
+)
 
 # Explicitly reviewed method/template pairs. Never derive authority from a prefix.
 _REVIEWED = [
@@ -317,6 +322,20 @@ _REVIEWED = [
     ),
     ("GET", "/identity/workspaces/{workspace_id}/authority-audit", "audit:read"),
 ]
+_REVIEWED += [
+    ("GET", path, "catalog:self")
+    for path in (
+        "/ai/context-assemblers",
+        "/ai/context-managers",
+        "/ai/rag-strategies",
+        "/ai/knowledge-strategies",
+        "/ai/execution-strategies",
+    )
+]
+_REVIEWED = [
+    (method, path, "tool:read" if path == "/tools/mcp/oauth/status" else permission)
+    for method, path, permission in _REVIEWED
+]
 _COMPILED = [
     (method, path, permission, compile_path(path)[0])
     for method, path, permission in _REVIEWED
@@ -333,6 +352,12 @@ def resolve_operation(
         params = match.groupdict()
         data = body if isinstance(body, dict) else {}
         environment = params.get("environment") or data.get("environment")
+        if template.startswith("/ai/agents/") and template.endswith("/promote"):
+            permission = (
+                "agent:version"
+                if data.get("target_status") == "staging"
+                else "agent:production"
+            )
         if template.endswith("/promotions"):
             permission = (
                 "network:production"
@@ -359,12 +384,62 @@ def operation_catalog(routes) -> dict[str, Any]:
     from fastapi.routing import APIRoute
 
     reviewed = {(method, path): permission for method, path, permission in _REVIEWED}
+    from woobe_api.security.http_guard import (
+        PUBLIC_PATHS,
+        is_chat_surface_public_path,
+        public_runtime_interface,
+        is_runtime_path,
+        _required_api_key_scope,
+    )
+
     items = []
     for route in routes:
         if not isinstance(route, APIRoute) or not route.include_in_schema:
             continue
         for method in sorted(route.methods):
             permission = reviewed.get((method, route.path))
+            principal_types = ["human", "control"] if permission else ["human"]
+            if public_runtime_interface(method, route.path) is not None:
+                principal_types = ["runtime"]
+            elif (
+                is_runtime_path(route.path)
+                or _required_api_key_scope(method, route.path) is not None
+            ):
+                principal_types = list(dict.fromkeys(principal_types + ["project"]))
+            if route.path in PUBLIC_PATHS:
+                principal_types = ["anonymous"]
+            if is_chat_surface_public_path(route.path):
+                principal_types = ["chat_surface"]
+            effect = (
+                "read"
+                if method == "GET"
+                or (permission is not None and is_read_permission(permission))
+                else "execute"
+                if permission == "tool:execute"
+                else "mutate"
+            )
+            variants = {}
+            if route.path.endswith("/promotions"):
+                variants = {
+                    "environment=staging": "network:version",
+                    "environment=production": "network:production",
+                }
+            elif route.path.startswith("/ai/agents/") and route.path.endswith(
+                "/promote"
+            ):
+                variants = {
+                    "target_status=staging": "agent:version",
+                    "target_status=production": "agent:production",
+                }
+            elif method == "PATCH" and route.path.endswith(
+                "/runtime-environments/{environment}"
+            ):
+                variants = {
+                    "environment=production": "network:production"
+                    if route.path.startswith("/network/")
+                    else "agent:production",
+                    "environment=staging": permission,
+                }
             items.append(
                 {
                     "operation_id": route.unique_id,
@@ -372,13 +447,16 @@ def operation_catalog(routes) -> dict[str, Any]:
                     "path": route.path,
                     "permission": permission,
                     "control_key_supported": permission is not None,
-                    "principal_types": ["human", "control"]
+                    "principal_types": principal_types,
+                    "scope": "workspace"
+                    if permission in WORKSPACE_CONTROL_PERMISSIONS
+                    else "project"
+                    if permission in PROJECT_CONTROL_PERMISSIONS
+                    else "self"
                     if permission
-                    else ["human"],
-                    "effect": "read"
-                    if method == "GET"
-                    or permission in {"knowledge:read", "access:self"}
-                    else "mutate",
+                    else None,
+                    "effect": effect,
+                    "permission_variants": variants,
                     "conditions": [
                         "environments",
                         "interfaces",
@@ -389,6 +467,17 @@ def operation_catalog(routes) -> dict[str, Any]:
                     and permission.split(":")[0]
                     in {"agent", "network", "run", "api_key"}
                     else [],
+                    "supports_idempotency": route.name
+                    in {
+                        "create_project",
+                        "create_agent",
+                        "create_project_network",
+                        "create_api_key",
+                        "create_runtime_api_key",
+                        "rotate_api_key",
+                        "create_control_key",
+                        "rotate_control_key",
+                    },
                     "requires_if_match": permission
                     in {
                         "keys:update",

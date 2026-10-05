@@ -141,7 +141,7 @@ class AuthorityService:
         return {
             "id": category.id,
             "workspace_id": category.workspace_id,
-            "name": category.name,
+            "name": version.name,
             "scope": category.scope,
             "description": version.description,
             "revision": version.revision,
@@ -295,6 +295,7 @@ class AuthorityService:
                 version = AuthorityCategoryVersionModel(
                     category_id=category.id,
                     revision=1,
+                    name=category.name,
                     permissions=permissions,
                     conditions=conditions,
                     catalog_revision=CATALOG_REVISION,
@@ -390,6 +391,7 @@ class AuthorityService:
             version = AuthorityCategoryVersionModel(
                 category_id=category.id,
                 revision=next_revision,
+                name=name,
                 permissions=permissions,
                 conditions=conditions,
                 catalog_revision=CATALOG_REVISION,
@@ -551,6 +553,7 @@ class AuthorityService:
             version = AuthorityCategoryVersionModel(
                 category_id=category_id,
                 revision=1,
+                name=profile["name"],
                 permissions=profile["permissions"],
                 conditions={},
                 catalog_revision=CATALOG_REVISION,
@@ -815,6 +818,10 @@ class AuthorityService:
                 raise PreconditionFailedError("Assignment revision has changed")
             if assignment is None:
                 assignment = AuthorityAssignmentModel(
+                    id=uuid5(
+                        NAMESPACE_URL,
+                        f"woobe:{workspace_id}:assignment:{subject_user_id}:{project_id or workspace_id}",
+                    ),
                     workspace_id=workspace_id,
                     subject_user_id=subject_user_id,
                     scope_id=project_id or workspace_id,

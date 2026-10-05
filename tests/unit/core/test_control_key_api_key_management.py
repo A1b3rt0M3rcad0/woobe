@@ -23,12 +23,12 @@ async def test_control_key_can_be_audited_as_project_key_creator() -> None:
     project_repo = SimpleNamespace(
         get_by_id=AsyncMock(return_value=SimpleNamespace(id=project_id))
     )
-    api_key_repo = SimpleNamespace(
-        save=AsyncMock(side_effect=lambda item: item)
-    )
+    api_key_repo = SimpleNamespace(save=AsyncMock(side_effect=lambda item: item))
     outbox = SimpleNamespace(write=AsyncMock())
     policy = SimpleNamespace(validate=AsyncMock())
-    use_case = CreateApiKeyUseCase(project_repo, api_key_repo, outbox, delegation_policy=policy)
+    use_case = CreateApiKeyUseCase(
+        project_repo, api_key_repo, outbox, delegation_policy=policy
+    )
 
     await use_case.execute(
         CreateApiKeyInput(
@@ -39,7 +39,13 @@ async def test_control_key_can_be_audited_as_project_key_creator() -> None:
         )
     )
 
-    policy.validate.assert_awaited_once_with(actor_key_id=actor_key_id, project_id=project_id, scopes=["traces:read"], conditions={}, expires_at=None)
+    policy.validate.assert_awaited_once_with(
+        actor_key_id=actor_key_id,
+        project_id=project_id,
+        scopes=["traces:read"],
+        conditions={},
+        expires_at=None,
+    )
     saved = api_key_repo.save.await_args.args[0]
     assert saved.created_by_user_id is None
     assert saved.created_by_control_key_id == actor_key_id
@@ -65,7 +71,8 @@ async def test_control_key_can_be_audited_as_rotation_actor() -> None:
         save=AsyncMock(side_effect=lambda item: item),
     )
     outbox = SimpleNamespace(write=AsyncMock())
-    use_case = RotateApiKeyUseCase(repo, outbox)
+    policy = SimpleNamespace(validate=AsyncMock())
+    use_case = RotateApiKeyUseCase(repo, outbox, delegation_policy=policy)
 
     await use_case.execute(
         RotateApiKeyInput(

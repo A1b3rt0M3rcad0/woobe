@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Request, status
@@ -105,6 +104,8 @@ def _service():
 
 def _response(data: dict, code: int = 200):
     headers = {"ETag": data["etag"]} if data.get("etag") else {}
+    if data.get("idempotency_replayed"):
+        headers["Idempotency-Replayed"] = "true"
     return JSONResponse(
         jsonable_encoder({"success": True, "data": data}),
         status_code=code,
@@ -138,6 +139,7 @@ async def create_control_key(
         on_project_create_permissions=payload.on_project_create_permissions,
         category_id=payload.category_id,
         category_revision=payload.category_revision,
+        idempotency_key=request.headers.get("idempotency-key"),
     )
     return _response(data, 201)
 
@@ -196,6 +198,7 @@ async def rotate_control_key(
         actor=_principal(request),
         workspace_id=workspace_id,
         control_key_id=control_key_id,
+        idempotency_key=request.headers.get("idempotency-key"),
         name=payload.name,
         expires_at=payload.expires_at,
         expires_at_supplied="expires_at" in payload.model_fields_set,

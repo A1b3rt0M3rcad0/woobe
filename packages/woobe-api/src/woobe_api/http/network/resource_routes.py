@@ -104,8 +104,22 @@ async def create_project_network(
         project_id=project_id,
         name=payload.name,
         description=payload.description,
+        actor=getattr(request.state, "principal", None),
+        idempotency_key=request.headers.get("idempotency-key"),
     )
-    return {"success": True, "data": network_payload(network)}
+    from fastapi.encoders import jsonable_encoder
+    from fastapi.responses import JSONResponse
+
+    headers = (
+        {"Idempotency-Replayed": "true"}
+        if getattr(network, "idempotency_replayed", False)
+        else {}
+    )
+    return JSONResponse(
+        jsonable_encoder({"success": True, "data": network_payload(network)}),
+        status_code=201,
+        headers=headers,
+    )
 
 
 @router.delete("/{project_id}/networks/{network_id}")
