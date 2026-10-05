@@ -26,3 +26,31 @@ async def test_runtime_issuance_rechecks_active_workspace_in_transaction(status)
         await SqlApiKeyDelegationPolicy(session).validate(actor_key_id=uuid4(),
             project_id=uuid4(), scopes=["runtime:execute"], conditions={}, expires_at=None)
     assert session.execute.await_count == 2
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("violation", ["workspace", "scope", "condition", "expiration"])
+async def test_sql_delegation_policy_rejects_authority_escalation_before_issuance(violation):
+    issuing_actor = actor()
+    project_id = uuid4()
+    expiry = datetime.now(UTC) + timedelta(hours=1)
+    issuing_actor.delegation_expires_at = expiry
+    grant = SimpleNamespace(permissions=["api_key:write", "run:execute"],
+                            conditions={"environments": ["staging"]})
+    project_workspace = uuid4() if violation == "workspace" else issuing_actor.workspace_id
+    session = SimpleNamespace(bind=None, execute=AsyncMock(side_effect=[result(issuing_actor),
+        result("active"), result(project_workspace), result(grant)]))
+    scopes = ["traces:read"] if violation == "scope" else ["runtime:execute"]
+    conditions = {} if violation == "condition" else {"environments": ["staging"]}
+    requested_expiry = None if violation == "expiration" else expiry
+    error = NotFoundError if violation == "workspace" else AuthorizationError
+    with pytest.raises(error):
+        await SqlApiKeyDelegationPolicy(session).validate(actor_key_id=uuid4(),
+            project_id=project_id, scopes=scopes, conditions=conditions, expires_at=requested_expiry)
+    if violation == "workspace":
+        assert session.execute.await_count == 3
+    session.execute = AsyncMock(side_effect=[result(issuing_actor), result("active"),
+        result(issuing_actor.workspace_id), result(grant)])
+    assert await SqlApiKeyDelegationPolicy(session).validate(actor_key_id=uuid4(),
+        project_id=project_id, scopes=["runtime:execute"], conditions={"environments": ["staging"]},
+        expires_at=expiry) == expiry
