@@ -3,6 +3,8 @@ from __future__ import annotations
 from typing import Any, Literal
 from uuid import UUID
 
+from shared.security.control_plane import MAX_AUTHORITY_REVISION
+
 from fastapi import APIRouter, Query, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
@@ -38,7 +40,7 @@ class CategoryCloneRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     name: str = Field(min_length=1, max_length=128)
     description: str | None = Field(default=None, max_length=500)
-    revision: int | None = Field(default=None, ge=1)
+    revision: int | None = Field(default=None, ge=1, le=MAX_AUTHORITY_REVISION)
 
 
 def _actor(request: Request):
@@ -86,7 +88,7 @@ async def get_authority_category(
     workspace_id: UUID,
     category_id: UUID,
     request: Request,
-    revision: int | None = Query(default=None, ge=1),
+    revision: int | None = Query(default=None, ge=1, le=MAX_AUTHORITY_REVISION),
 ):
     return _category_response(
         await build_authority_service().get_category(
@@ -158,7 +160,7 @@ async def authority_category_history(
     category_id: UUID,
     request: Request,
     limit: int = Query(default=100, ge=1, le=200),
-    before_revision: int | None = Query(default=None, ge=1),
+    before_revision: int | None = Query(default=None, ge=1, le=MAX_AUTHORITY_REVISION),
 ):
     return {
         "success": True,
@@ -216,7 +218,7 @@ class AccessCheckRequest(BaseModel):
 class AssignmentRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     category_id: UUID
-    category_revision: int | None = Field(default=None, ge=1)
+    category_revision: int | None = Field(default=None, ge=1, le=MAX_AUTHORITY_REVISION)
     project_id: UUID | None = None
 
 

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from uuid import UUID
 
+from shared.security.control_plane import MAX_AUTHORITY_REVISION
+
 from fastapi import APIRouter, Request, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
@@ -30,7 +32,7 @@ class ProjectGrantRequest(BaseModel):
     permissions: list[str] = Field(default_factory=list, max_length=64)
     conditions: dict[str, list[str]] | None = None
     category_id: UUID | None = None
-    category_revision: int | None = Field(default=None, ge=1)
+    category_revision: int | None = Field(default=None, ge=1, le=MAX_AUTHORITY_REVISION)
 
 
 class CreateControlKeyRequest(BaseModel):
@@ -44,7 +46,7 @@ class CreateControlKeyRequest(BaseModel):
     expires_at: AwareDatetime | None = None
     on_project_create_permissions: list[str] | None = Field(default=None, max_length=64)
     category_id: UUID | None = None
-    category_revision: int | None = Field(default=None, ge=1)
+    category_revision: int | None = Field(default=None, ge=1, le=MAX_AUTHORITY_REVISION)
 
     @field_validator("name")
     @classmethod

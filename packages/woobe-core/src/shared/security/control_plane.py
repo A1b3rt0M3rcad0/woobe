@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
+MAX_AUTHORITY_REVISION = 2_147_483_647
 CATALOG_REVISION = "2026-10-05.2"
 SELF_CONTROL_PERMISSIONS = frozenset({"access:self", "catalog:self"})
 

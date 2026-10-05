@@ -225,3 +225,18 @@ def test_catalog_describes_conditional_assignment_creation_and_updates():
     assert item["assignment_preconditions"] == {"create": "If-None-Match: *",
         "update": "If-Match: assignment ETag", "simultaneous_headers_allowed": False}
     assert not item["requires_if_match"]
+
+
+@pytest.mark.parametrize("model_name,field,required", [
+    ("CategoryCloneRequest", "revision", {"name": "clone"}),
+    ("AssignmentRequest", "category_revision", {"category_id": str(uuid4())}),
+    ("CreateControlKeyRequest", "category_revision", {"name": "key"}),
+    ("ProjectGrantRequest", "category_revision", {"project_id": str(uuid4())}),
+])
+def test_category_revision_selectors_reject_values_above_database_range(model_name, field, required):
+    from woobe_api.http.identity import authority_routes
+    from woobe_api.http.core import control_key_routes
+    model = getattr(authority_routes, model_name, None) or getattr(control_key_routes, model_name)
+    assert getattr(model.model_validate({**required, field: 2_147_483_647}), field) == 2_147_483_647
+    with pytest.raises(ValidationError):
+        model.model_validate({**required, field: 2_147_483_648})
