@@ -661,6 +661,9 @@ class AuthorityService:
                         )
                     )
                 ).scalar_one_or_none()
+                # Ownership is an implicit authority source and bypasses assignments.
+                if role == "owner":
+                    assignment = None
                 candidates = WORKSPACE_CONTROL_PERMISSIONS | (
                     PROJECT_CONTROL_PERMISSIONS if project_id else frozenset()
                 )

@@ -51,6 +51,30 @@ async def test_system_profile_history_respects_exclusive_revision_cursor(authori
     assert last == {"items": [], "next_revision": None, "complete": True}
 
 
+@pytest.mark.asyncio
+async def test_owner_discovery_does_not_claim_ignored_assignment_conditions(authority, monkeypatch):
+    from unittest.mock import AsyncMock
+    from shared.security.tenancy import TenantAuthorizer
+    service, actor, workspace_id, factory = authority
+    project_id = uuid4()
+    category = await service.create_category(actor=actor, workspace_id=workspace_id,
+        data={"name": "owner-assignment", "scope": "project",
+              "permissions": ["agent:read"], "conditions": {"environments": ["staging"]}})
+    # An assignment can survive a member's later promotion to structural owner.
+    async with factory() as session:
+        session.add(AuthorityAssignmentModel(workspace_id=workspace_id,
+            subject_user_id=actor.user_id, scope_id=project_id, project_id=project_id,
+            category_id=category["id"], category_revision=1, permissions=["agent:read"],
+            conditions={"environments": ["staging"]}, status="active"))
+        await session.commit()
+    monkeypatch.setattr(TenantAuthorizer, "_project_workspace_id", AsyncMock(return_value=workspace_id))
+    monkeypatch.setattr(TenantAuthorizer, "_require_project_access", AsyncMock())
+    effective = await service.effective_access(actor=actor, workspace_id=workspace_id, project_id=project_id)
+    assert effective["origin"] is None
+    assert effective["conditions"] == {}
+    assert "agent:production" in effective["permissions"]
+
+
 @pytest_asyncio.fixture
 async def authority():
     engine = create_async_engine("sqlite+aiosqlite:///:memory:")
