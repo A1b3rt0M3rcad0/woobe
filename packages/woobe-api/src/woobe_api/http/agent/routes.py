@@ -151,6 +151,17 @@ async def update_agent(request: FastAPIRequest):
     return response_adapter(response)
 
 
+@router.delete("/agents/{agent_id}")
+async def delete_agent(request: FastAPIRequest):
+    handler = update_agent_composer()
+    response = await request_adapter(
+        request,
+        handler,
+        metadata={"agent_operation": "archive"},
+    )
+    return response_adapter(response)
+
+
 @router.post("/agents/{agent_id}/prompts", status_code=201)
 async def create_prompt(request: FastAPIRequest):
     handler = create_prompt_version_composer()
@@ -305,6 +316,17 @@ async def get_collection(request: FastAPIRequest):
 async def update_collection(request: FastAPIRequest):
     handler = update_collection_composer()
     response = await request_adapter(request, handler)
+    return response_adapter(response)
+
+
+@knowledge_router.delete("/collections/{collection_id}")
+async def delete_collection(request: FastAPIRequest):
+    handler = update_collection_composer()
+    response = await request_adapter(
+        request,
+        handler,
+        metadata={"collection_operation": "delete"},
+    )
     return response_adapter(response)
 
 

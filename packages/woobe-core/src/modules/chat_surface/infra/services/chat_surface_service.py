@@ -431,7 +431,8 @@ class ChatSurfaceService:
         self,
         surface_id: UUID,
         *,
-        actor_id: UUID,
+        actor_user_id: UUID | None,
+        actor_control_key_id: UUID | None,
         payload: CreateSurfaceAccessKeyRequest,
     ) -> tuple[ApiKeyModel, str, str]:
         async with self._session_factory() as session, session.begin():
@@ -459,7 +460,8 @@ class ChatSurfaceService:
                 environment=None,
                 interfaces=[],
                 status="active",
-                created_by_user_id=actor_id,
+                created_by_user_id=actor_user_id,
+                created_by_control_key_id=actor_control_key_id,
             )
             session.add(api_key)
             await session.flush()
@@ -499,7 +501,8 @@ class ChatSurfaceService:
         surface_id: UUID,
         api_key_id: UUID,
         *,
-        actor_id: UUID,
+        actor_user_id: UUID | None,
+        actor_control_key_id: UUID | None,
     ) -> tuple[ApiKeyModel, str, str]:
         async with self._session_factory() as session, session.begin():
             current = await session.get(
@@ -537,7 +540,8 @@ class ChatSurfaceService:
                 interfaces=[],
                 status="active",
                 expires_at=current.expires_at,
-                created_by_user_id=actor_id,
+                created_by_user_id=actor_user_id,
+                created_by_control_key_id=actor_control_key_id,
                 rotated_from_id=current.id,
             )
             session.add(replacement)

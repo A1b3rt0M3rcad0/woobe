@@ -172,6 +172,57 @@ class NetworkBoundaryService(NetworkApplicationService):
                 ) from exc
             return network
 
+    async def delete_project_network(
+        self,
+        *,
+        project_id: UUID,
+        network_id: UUID,
+    ) -> None:
+        async with self._session_factory() as session, session.begin():
+            network = await session.scalar(
+                select(NetworkModel)
+                .where(
+                    NetworkModel.id == network_id,
+                    NetworkModel.project_id == project_id,
+                )
+                .with_for_update()
+            )
+            if network is None:
+                raise NotFoundError("Network not found")
+
+            version_id = await session.scalar(
+                select(NetworkVersionModel.id)
+                .where(NetworkVersionModel.network_id == network_id)
+                .limit(1)
+            )
+            session_id = await session.scalar(
+                select(NetworkSessionModel.id)
+                .where(NetworkSessionModel.network_id == network_id)
+                .limit(1)
+            )
+            execution_id = await session.scalar(
+                select(NetworkExecutionModel.id)
+                .where(NetworkExecutionModel.network_id == network_id)
+                .limit(1)
+            )
+            activation_id = await session.scalar(
+                select(NetworkProductionActivationModel.id)
+                .where(NetworkProductionActivationModel.network_id == network_id)
+                .limit(1)
+            )
+            if (
+                version_id is not None
+                or session_id is not None
+                or execution_id is not None
+                or activation_id is not None
+            ):
+                raise ConflictError(
+                    "Network has version or runtime history and cannot be deleted"
+                )
+
+            await session.delete(network)
+            await session.flush()
+
     async def list_managed_versions(
         self,
         *,

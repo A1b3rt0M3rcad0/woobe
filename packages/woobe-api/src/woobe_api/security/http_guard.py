@@ -29,6 +29,7 @@ from shared.security.rate_limit import (
     ApiKeyConcurrencyLimiter,
     LoginRateLimiter,
 )
+from woobe_api.security.control_plane_permissions import control_plane_permission
 
 PUBLIC_PATHS = {
     "/identity/auth/login",
@@ -228,6 +229,11 @@ class HttpSecurityGuard:
         if is_runtime_path(path):
             self._validate_runtime_payload(request, body)
 
+        authorization_path_params = self._authorization_path_params(
+            request,
+            path_params,
+        )
+
         authorization = request.headers.get("authorization", "")
         scheme, _, credentials = authorization.partition(" ")
         if scheme.lower() == "bearer" and credentials:
@@ -237,7 +243,7 @@ class HttpSecurityGuard:
                     credentials=credentials,
                     body=body,
                     query_params=query_params,
-                    path_params=path_params,
+                    path_params=authorization_path_params,
                 )
             access_token = credentials
             token_source = "header"
@@ -250,7 +256,7 @@ class HttpSecurityGuard:
 
         principal = await self._authenticator.authenticate_user(
             access_token=access_token,
-            path_params=path_params,
+            path_params=authorization_path_params,
             query_params=query_params,
             body=body,
         )
@@ -260,6 +266,20 @@ class HttpSecurityGuard:
 
         return principal
 
+    @staticmethod
+    def _authorization_path_params(
+        request: Request,
+        path_params: dict[str, Any],
+    ) -> dict[str, Any]:
+        if (
+            request.url.path.startswith("/runtime/runs/by-trace/")
+            and "trace_id" in path_params
+        ):
+            normalized = dict(path_params)
+            normalized["run_trace_id"] = normalized.pop("trace_id")
+            return normalized
+        return path_params
+
     async def _authenticate_api_key(
         self,
         *,
@@ -268,7 +288,7 @@ class HttpSecurityGuard:
         body: Any,
         query_params: dict[str, Any],
         path_params: dict[str, Any],
-    ) -> ProjectApiPrincipal:
+    ) -> SecurityPrincipal:
         required_scope = _required_api_key_scope(request.method, request.url.path)
         return await self._authenticator.authenticate_api_key(
             credentials=credentials,
@@ -280,6 +300,11 @@ class HttpSecurityGuard:
             path_params=path_params,
             query_params=query_params,
             body=body,
+            control_permission=control_plane_permission(
+                request.method,
+                request.url.path,
+                body,
+            ),
         )
 
     def _validate_csrf(self, request: Request) -> None:

@@ -8,8 +8,9 @@ class AgentRunListingUseCase(Protocol):
     async def execute(
         self,
         *,
-        user_id: UUID,
+        user_id: UUID | None,
         project_id: UUID,
+        control_plane_authorized: bool = False,
         agent_id: UUID,
         session_id: UUID | None = None,
         environment: str | None = None,

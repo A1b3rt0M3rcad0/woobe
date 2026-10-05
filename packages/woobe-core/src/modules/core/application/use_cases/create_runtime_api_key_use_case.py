@@ -77,6 +77,7 @@ class CreateRuntimeApiKeyUseCase:
             interfaces=interfaces,
             expires_at=input_dto.expires_at,
             created_by_user_id=input_dto.created_by_user_id,
+            created_by_control_key_id=input_dto.created_by_control_key_id,
         )
         api_key.credential_id = api_key.id
         saved = await self._api_key_repo.save(api_key)
@@ -96,6 +97,16 @@ class CreateRuntimeApiKeyUseCase:
                 "environment": saved.environment.value if saved.environment else None,
                 "interfaces": list(saved.interfaces),
                 "key_prefix": issued.display_prefix,
+                "created_by_user_id": (
+                    str(input_dto.created_by_user_id)
+                    if input_dto.created_by_user_id
+                    else None
+                ),
+                "created_by_control_key_id": (
+                    str(input_dto.created_by_control_key_id)
+                    if input_dto.created_by_control_key_id
+                    else None
+                ),
                 "expires_at": saved.expires_at.isoformat()
                 if saved.expires_at
                 else None,

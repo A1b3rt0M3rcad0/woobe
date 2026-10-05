@@ -5,7 +5,7 @@ from shared.presentation.contracts import OperationOutcome
 from shared.presentation.contracts import OperationRequest
 from shared.presentation.contracts import OperationResult
 from shared.presentation.interface.controller import Controller
-from shared.security.principal import AuthenticatedPrincipal
+from shared.security.principal import AuthenticatedPrincipal, ControlPlanePrincipal
 
 
 class RevokeApiKeyController(Controller):
@@ -14,13 +14,18 @@ class RevokeApiKeyController(Controller):
 
     async def handle(self, request: OperationRequest) -> OperationResult:
         principal = request.principal
-        if not isinstance(principal, AuthenticatedPrincipal):
-            raise AuthenticationError("User authentication required")
+        actor = {}
+        if isinstance(principal, AuthenticatedPrincipal):
+            actor["revoked_by_user_id"] = principal.user_id
+        elif isinstance(principal, ControlPlanePrincipal):
+            actor["revoked_by_control_key_id"] = principal.api_key_id
+        else:
+            raise AuthenticationError("Authentication required")
         result = await self._use_case.execute(
             RevokeApiKeyInput(
                 project_id=request.path_params["project_id"],
                 api_key_id=request.path_params["api_key_id"],
-                revoked_by_user_id=principal.user_id,
+                **actor,
             )
         )
         return OperationResult(

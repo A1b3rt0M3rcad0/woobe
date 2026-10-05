@@ -645,6 +645,20 @@ class SQLAlchemyAgentCollectionRepository(AgentCollectionRepository):
         model = result.scalar_one_or_none()
         return agent_collection_model_to_entity(model) if model else None
 
+    async def list_by_collection(
+        self, collection_id: UUID
+    ) -> list[AgentCollection]:
+        stmt = (
+            select(AgentCollectionModel)
+            .where(AgentCollectionModel.collection_id == collection_id)
+            .order_by(AgentCollectionModel.created_at.desc())
+        )
+        result = await self._session.execute(stmt)
+        return [
+            agent_collection_model_to_entity(model)
+            for model in result.scalars().all()
+        ]
+
     async def create(self, link: AgentCollection) -> AgentCollection:
         model = agent_collection_to_model(link)
         await self._base._add_model(model)
@@ -680,7 +694,7 @@ class SQLAlchemyDocumentCollectionRepository(DocumentCollectionRepository):
 
     async def get_by_id(self, collection_id: UUID) -> DocumentCollection:
         model = await self._base._get_model_by_id(collection_id)
-        if model is None:
+        if model is None or str(model.status).lower() == "deleted":
             raise CollectionNotFoundError(collection_id)
         return model_to_collection(model)
 
@@ -692,6 +706,8 @@ class SQLAlchemyDocumentCollectionRepository(DocumentCollectionRepository):
         )
         if status:
             stmt = stmt.where(DocumentCollectionModel.status == status)
+        else:
+            stmt = stmt.where(DocumentCollectionModel.status != "deleted")
         stmt = stmt.order_by(DocumentCollectionModel.created_at.desc())
         result = await self._session.execute(stmt)
         return [model_to_collection(m) for m in result.scalars().all()]
@@ -704,6 +720,8 @@ class SQLAlchemyDocumentCollectionRepository(DocumentCollectionRepository):
         )
         if status:
             stmt = stmt.where(DocumentCollectionModel.status == status)
+        else:
+            stmt = stmt.where(DocumentCollectionModel.status != "deleted")
         stmt = stmt.order_by(DocumentCollectionModel.id.desc())
         page = await self._base._paginate_models(stmt, limit=limit, cursor=cursor)
         return CursorPage(

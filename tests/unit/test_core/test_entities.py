@@ -57,7 +57,8 @@ class TestApiKey:
         assert k.last_used_at is None
         assert k.expires_at is None
         assert k.revoked_at is None
-        assert isinstance(k.created_by_user_id, UUID)
+        assert k.created_by_user_id is None
+        assert k.created_by_control_key_id is None
         assert k.created_at is None
         assert k.updated_at is None
 

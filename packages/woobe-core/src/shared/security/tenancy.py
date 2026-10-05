@@ -8,6 +8,10 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.infra.errors import AuthorizationError, ConflictError, NotFoundError
+from shared.security.control_plane import (
+    PROJECT_CONTROL_PERMISSIONS,
+    WORKSPACE_CONTROL_PERMISSIONS,
+)
 
 DIRECT_PROJECT_RESOURCES: dict[str, str] = {
     "api_key_id": "core.api_keys",
@@ -40,9 +44,17 @@ DIRECT_PROJECT_RESOURCES: dict[str, str] = {
     "version_id": "agent.agent_prompts",
     "knowledge_version_id": "agent.knowledge_versions",
     "trace_id": "observability.traces",
+    "run_id": "agent.agent_runs",
+    "network_id": "network.networks",
 }
 
 INDIRECT_PROJECT_RESOURCE_QUERIES: dict[str, str] = {
+    "run_trace_id": """
+        SELECT project_id
+        FROM agent.agent_runs
+        WHERE trace_id = :resource_id
+        LIMIT 1
+    """,
     "skill_version_id": """
         SELECT skills.project_id
         FROM agent.skill_versions AS versions
@@ -59,13 +71,14 @@ INDIRECT_PROJECT_RESOURCE_QUERIES: dict[str, str] = {
     """,
 }
 
-WORKSPACE_KEYS = {"workspace_id", "workspace_id"}
+WORKSPACE_KEYS = {"workspace_id"}
+PROJECT_KEYS = {"project_id", "access_project_id"}
 
 
 def _is_identifier_key(key: object) -> bool:
     return (
         key in WORKSPACE_KEYS
-        or key == "project_id"
+        or key in PROJECT_KEYS
         or key in DIRECT_PROJECT_RESOURCES
         or key in INDIRECT_PROJECT_RESOURCE_QUERIES
     )
@@ -138,7 +151,7 @@ class TenantAuthorizer:
 
             project_id = (
                 resource_id
-                if key == "project_id"
+                if key in PROJECT_KEYS
                 else await self._project_id_for_resource(key, resource_id)
             )
             if project_id is None:
@@ -182,7 +195,7 @@ class TenantAuthorizer:
                 raise NotFoundError("Resource not found")
             resolved_project_id = (
                 resource_id
-                if key == "project_id"
+                if key in PROJECT_KEYS
                 else await self._project_id_for_resource(key, resource_id)
             )
             if resolved_project_id is None or resolved_project_id != project_id:
@@ -191,6 +204,99 @@ class TenantAuthorizer:
 
         if not checked_context:
             raise AuthorizationError("Project context is required for API key access")
+
+    async def authorize_control_key(
+        self,
+        *,
+        api_key_id: UUID,
+        workspace_id: UUID,
+        workspace_permissions: frozenset[str],
+        required_permission: str,
+        path_params: Mapping[str, Any],
+        query_params: Mapping[str, Any],
+        body: Any,
+    ) -> None:
+        identifiers = self._identifiers(path_params, query_params, body)
+        self._require_consistent_identifiers(
+            self._consistency_identifiers(path_params, query_params, body)
+        )
+
+        if required_permission in WORKSPACE_CONTROL_PERMISSIONS:
+            if required_permission not in workspace_permissions:
+                raise AuthorizationError("Control key permission is not sufficient")
+        elif required_permission not in PROJECT_CONTROL_PERMISSIONS:
+            raise AuthorizationError("Control key access is not allowed for this endpoint")
+
+        checked_projects: set[UUID] = set()
+        request_projects: set[UUID] = set()
+        checked_context = False
+
+        for key, raw_value in identifiers:
+            resource_id = _uuid(raw_value)
+            if resource_id is None:
+                continue
+
+            if key in WORKSPACE_KEYS:
+                if resource_id != workspace_id:
+                    raise NotFoundError("Resource not found")
+                checked_context = True
+                continue
+
+            project_id = (
+                resource_id
+                if key in PROJECT_KEYS
+                else await self._project_id_for_resource(key, resource_id)
+            )
+            if project_id is None:
+                raise NotFoundError("Resource not found")
+
+            request_projects.add(project_id)
+            if len(request_projects) > 1:
+                raise ConflictError("Resources from different projects cannot be combined")
+
+            project_workspace_id = await self._project_workspace_id(project_id)
+            if project_workspace_id is None or project_workspace_id != workspace_id:
+                raise NotFoundError("Resource not found")
+
+            checked_context = True
+            if required_permission in PROJECT_CONTROL_PERMISSIONS:
+                if project_id not in checked_projects:
+                    await self._require_control_key_project_permission(
+                        api_key_id=api_key_id,
+                        project_id=project_id,
+                        permission=required_permission,
+                    )
+                    checked_projects.add(project_id)
+
+        if required_permission in PROJECT_CONTROL_PERMISSIONS and not checked_projects:
+            raise AuthorizationError("Project context is required for control key access")
+        if required_permission in WORKSPACE_CONTROL_PERMISSIONS and not checked_context:
+            raise AuthorizationError("Workspace context is required for control key access")
+
+    async def _require_control_key_project_permission(
+        self,
+        *,
+        api_key_id: UUID,
+        project_id: UUID,
+        permission: str,
+    ) -> None:
+        result = await self._session.execute(
+            text(
+                """
+                SELECT permissions
+                FROM core.workspace_control_key_project_grants
+                WHERE control_key_id = :api_key_id
+                  AND project_id = :project_id
+                """
+            ),
+            {"api_key_id": api_key_id, "project_id": project_id},
+        )
+        permissions = result.scalar_one_or_none()
+        if permissions is None:
+            raise NotFoundError("Resource not found")
+        granted = {str(item) for item in (permissions or [])}
+        if permission not in granted:
+            raise AuthorizationError("Control key Project permission is not sufficient")
 
     @staticmethod
     def _identifiers(

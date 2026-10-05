@@ -20,6 +20,8 @@ from modules.agent.composition.public_api import (
     agent_run_context_composer,
     agent_run_detail_by_trace_composer,
     agent_run_detail_composer,
+    archive_credential_composer,
+    archive_provider_model_composer,
     ask_agent_composer,
     attach_collection_composer,
     bulk_update_mcp_tool_permissions_composer,
@@ -132,6 +134,8 @@ from modules.agent.composition.factories.rag_runtime_factory import (
 )
 
 __all__ = [
+    'archive_credential_composer',
+    'archive_provider_model_composer',
     "skill_catalog_composer",
     'agent_run_context_by_trace_composer',
     'agent_run_context_composer',

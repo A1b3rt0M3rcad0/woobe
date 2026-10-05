@@ -279,7 +279,8 @@ class ApiKeyModel(BaseModel):
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    created_by_user_id: Mapped[UUID]
+    created_by_user_id: Mapped[UUID | None] = mapped_column(nullable=True)
+    created_by_control_key_id: Mapped[UUID | None] = mapped_column(nullable=True)
     rotated_from_id: Mapped[UUID | None] = mapped_column(nullable=True)
 
 

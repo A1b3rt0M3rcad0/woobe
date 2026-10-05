@@ -12,7 +12,11 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from shared.infra.errors import AuthenticationError, AuthorizationError
 from shared.security.access_tokens import AccessTokenCodec
 from shared.security.api_keys import hash_api_key, parse_project_api_key
-from shared.security.principal import AuthenticatedPrincipal, ProjectApiPrincipal
+from shared.security.principal import (
+    AuthenticatedPrincipal,
+    ControlPlanePrincipal,
+    ProjectApiPrincipal,
+)
 from shared.security.rate_limit import ApiKeyRequestLimiter
 from shared.security.tenancy import TenantAuthorizer
 
@@ -65,10 +69,22 @@ class SqlSecurityAuthenticator:
         path_params: Mapping[str, Any],
         query_params: Mapping[str, Any],
         body: Any,
-    ) -> ProjectApiPrincipal:
+        control_permission: str | None = None,
+    ) -> ProjectApiPrincipal | ControlPlanePrincipal:
         parsed = parse_project_api_key(credentials)
         if parsed is None:
             raise AuthenticationError("Invalid API key")
+        if parsed.kind == "control":
+            if control_permission is None:
+                raise AuthorizationError("Control key access is not allowed for this endpoint")
+            return await self._authenticate_control_key(
+                credentials=credentials,
+                parsed=parsed,
+                required_permission=control_permission,
+                path_params=path_params,
+                query_params=query_params,
+                body=body,
+            )
         if required_scope is None:
             raise AuthorizationError("API key access is not allowed for this endpoint")
 
@@ -201,6 +217,90 @@ class SqlSecurityAuthenticator:
                 text(
                     """
                     UPDATE core.api_keys
+                    SET last_used_at = :last_used_at,
+                        updated_at = :last_used_at
+                    WHERE id = :api_key_id
+                    """
+                ),
+                {"last_used_at": now, "api_key_id": principal.api_key_id},
+            )
+            await session.commit()
+            return principal
+
+    async def _authenticate_control_key(
+        self,
+        *,
+        credentials: str,
+        parsed,
+        required_permission: str,
+        path_params: Mapping[str, Any],
+        query_params: Mapping[str, Any],
+        body: Any,
+    ) -> ControlPlanePrincipal:
+        supplied_digest = hash_api_key(credentials)
+        now = datetime.now(UTC)
+
+        async with self._session_factory() as session:
+            result = await session.execute(
+                text(
+                    """
+                    SELECT id, credential_id, workspace_id, key_prefix, key_hash,
+                           key_version, permissions, status, revoked_at, expires_at
+                    FROM core.workspace_control_keys
+                    WHERE key_prefix = :key_prefix
+                      AND key_version = :key_version
+                    """
+                ),
+                {
+                    "key_prefix": parsed.public_prefix,
+                    "key_version": parsed.key_version,
+                },
+            )
+            matching_row = None
+            for row in result.all():
+                if compare_digest(bytes(row.key_hash), supplied_digest):
+                    matching_row = row
+                    break
+            if matching_row is None:
+                raise AuthenticationError("Invalid API key")
+
+            expires_at = matching_row.expires_at
+            if (
+                matching_row.status != "active"
+                or matching_row.revoked_at is not None
+                or (expires_at is not None and _as_utc(expires_at) <= now)
+            ):
+                raise AuthenticationError("API key is inactive")
+
+            if not parsed.matches_binding(kind="control", environment=None):
+                raise AuthenticationError("Invalid API key")
+
+            permissions = frozenset(
+                str(permission) for permission in (matching_row.permissions or [])
+            )
+            principal = ControlPlanePrincipal(
+                api_key_id=UUID(str(matching_row.id)),
+                credential_id=UUID(str(matching_row.credential_id)),
+                workspace_id=UUID(str(matching_row.workspace_id)),
+                key_prefix=parsed.display_prefix,
+                permissions=permissions,
+                authenticated_at=now,
+            )
+
+            await TenantAuthorizer(session).authorize_control_key(
+                api_key_id=principal.api_key_id,
+                workspace_id=principal.workspace_id,
+                workspace_permissions=principal.permissions,
+                required_permission=required_permission,
+                path_params=path_params,
+                query_params=query_params,
+                body=body,
+            )
+            await self._api_key_rate_limiter.consume(str(principal.api_key_id))
+            await session.execute(
+                text(
+                    """
+                    UPDATE core.workspace_control_keys
                     SET last_used_at = :last_used_at,
                         updated_at = :last_used_at
                     WHERE id = :api_key_id
