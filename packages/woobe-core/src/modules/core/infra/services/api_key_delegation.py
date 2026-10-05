@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 from uuid import UUID
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import Uuid, bindparam, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from modules.core.infra.database.control_key_models import (
@@ -55,6 +55,17 @@ class SqlApiKeyDelegationPolicy:
             or (actor.expires_at is not None and actor.expires_at <= now)
         ):
             raise AuthenticationError("Control credential is inactive")
+        workspace_query = "SELECT status FROM identity.workspaces WHERE id = :workspace_id"
+        if session.bind is not None and session.bind.dialect.name == "postgresql":
+            workspace_query += " FOR SHARE"
+        workspace_status = (
+            await session.execute(
+                text(workspace_query).bindparams(bindparam("workspace_id", type_=Uuid())),
+                {"workspace_id": actor.workspace_id},
+            )
+        ).scalar_one_or_none()
+        if workspace_status != "active":
+            raise AuthenticationError("Control workspace is inactive")
         project_workspace = (
             await session.execute(
                 select(ProjectModel.workspace_id).where(ProjectModel.id == project_id)
