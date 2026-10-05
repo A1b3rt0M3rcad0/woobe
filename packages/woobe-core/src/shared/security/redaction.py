@@ -63,6 +63,10 @@ def redact_url(value: str) -> str:
 
 
 def redact_sensitive_data(value: Any, *, key: str | None = None) -> Any:
+    # A non-negative integer fencing counter is public coordination metadata,
+    # not an authentication credential. Keep every other token-like value secret.
+    if key == "fencing_token" and type(value) is int and value >= 0:
+        return value
     if key is not None and is_sensitive_key(key):
         return REDACTED
     if isinstance(value, str):

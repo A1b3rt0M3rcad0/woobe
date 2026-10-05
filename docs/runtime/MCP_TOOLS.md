@@ -58,3 +58,7 @@ The supported Core Compose topology includes Redis and enables the shared MCP se
 ## Security
 
 Never log MCP session IDs, Authorization headers, API keys, OAuth code/state/verifier, device codes, access tokens, refresh tokens or unredacted sensitive request/response bodies. MCP remote calls use the same guarded outbound HTTP boundary as HTTP Tools and must not bypass private-network or redirect protections.
+
+## Public fencing counters
+
+A non-negative integer named `fencing_token` is public coordination metadata, not an authentication credential. HTTP/MCP response redaction preserves this numeric counter so a consumer can submit it on a later guarded mutation. Strings, booleans, negative numbers, non-integers and containers under that name remain redacted. Credential/session/OAuth token fields remain redacted regardless of value type; a sensitive parent object cannot expose nested counters. This does not change permission checks, private-network validation or redirect policy.
