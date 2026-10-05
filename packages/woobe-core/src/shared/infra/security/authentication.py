@@ -48,6 +48,8 @@ class SqlSecurityAuthenticator:
         path_params: Mapping[str, Any],
         query_params: Mapping[str, Any],
         body: Any,
+        required_permission: str | None = None,
+        mutation: bool = False,
     ) -> AuthenticatedPrincipal:
         principal = self._token_codec.decode(access_token)
         async with self._session_factory() as session:
@@ -57,6 +59,8 @@ class SqlSecurityAuthenticator:
                 path_params=path_params,
                 query_params=query_params,
                 body=body,
+                required_permission=required_permission,
+                mutation=mutation,
             )
         return principal
 
@@ -245,7 +249,8 @@ class SqlSecurityAuthenticator:
                 text(
                     """
                     SELECT id, credential_id, workspace_id, key_prefix, key_hash,
-                           key_version, permissions, status, revoked_at, expires_at
+                           key_version, permissions, status, revoked_at, expires_at,
+                           delegation_expires_at, on_project_create_permissions
                     FROM core.workspace_control_keys
                     WHERE key_prefix = :key_prefix
                       AND key_version = :key_version
@@ -284,6 +289,9 @@ class SqlSecurityAuthenticator:
                 workspace_id=UUID(str(matching_row.workspace_id)),
                 key_prefix=parsed.display_prefix,
                 permissions=permissions,
+                expires_at=matching_row.expires_at,
+                delegation_expires_at=matching_row.delegation_expires_at,
+                on_project_create_permissions=frozenset(matching_row.on_project_create_permissions or []),
                 authenticated_at=now,
             )
 

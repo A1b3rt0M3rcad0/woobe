@@ -29,7 +29,7 @@ from shared.security.rate_limit import (
     ApiKeyConcurrencyLimiter,
     LoginRateLimiter,
 )
-from woobe_api.security.control_plane_permissions import control_plane_permission
+from woobe_api.security.operation_catalog import resolve_operation
 
 PUBLIC_PATHS = {
     "/identity/auth/login",
@@ -259,6 +259,8 @@ class HttpSecurityGuard:
             path_params=authorization_path_params,
             query_params=query_params,
             body=body,
+            required_permission=resolve_operation(request.method, path, body)[0],
+            mutation=request.method.upper() in _CSRF_METHODS,
         )
 
         if token_source == "cookie":
@@ -271,6 +273,10 @@ class HttpSecurityGuard:
         request: Request,
         path_params: dict[str, Any],
     ) -> dict[str, Any]:
+        if request.url.path.startswith("/core/projects/") and "resource_id" in path_params:
+            normalized = dict(path_params)
+            normalized["project_id"] = normalized.pop("resource_id")
+            return normalized
         if (
             request.url.path.startswith("/runtime/runs/by-trace/")
             and "trace_id" in path_params
@@ -300,11 +306,11 @@ class HttpSecurityGuard:
             path_params=path_params,
             query_params=query_params,
             body=body,
-            control_permission=control_plane_permission(
+            control_permission=resolve_operation(
                 request.method,
                 request.url.path,
                 body,
-            ),
+            )[0],
         )
 
     def _validate_csrf(self, request: Request) -> None:

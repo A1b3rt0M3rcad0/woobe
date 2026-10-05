@@ -11,6 +11,23 @@ def control_plane_permission(
 ) -> str | None:
     method = method.upper()
 
+    if path == "/identity/permissions":
+        return "catalog:self" if method == "GET" else None
+    if path == "/identity/access/me":
+        return "access:self" if method == "GET" else None
+    if path == "/identity/access/check":
+        return "access:self" if method == "POST" else None
+    if path.startswith("/identity/workspaces/") and "/authority-categories" in path:
+        if method == "GET":
+            return "categories:read"
+        if method == "PATCH":
+            return "categories:update"
+        if method == "DELETE":
+            return "categories:delete"
+        if method == "POST":
+            return "categories:archive" if path.endswith("/archive") else "categories:create"
+        return None
+
     if path.startswith("/core/workspaces/") and "/control-keys" in path:
         if method == "GET":
             return "keys:read"

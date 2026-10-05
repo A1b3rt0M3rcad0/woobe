@@ -1,3 +1,5 @@
+from shared.security.delegation import ApiKeyDelegationPolicy
+from shared.contracts.errors import AuthorizationError
 from modules.core.application.dtos.create_api_key_dtos import (
     CreateApiKeyInput,
     CreateApiKeyOutput,
@@ -19,10 +21,12 @@ class CreateApiKeyUseCase:
         project_repo: ProjectRepository,
         api_key_repo: ApiKeyRepository,
         outbox: OutboxEventWriter,
+        delegation_policy: ApiKeyDelegationPolicy | None = None,
     ) -> None:
         self._project_repo = project_repo
         self._api_key_repo = api_key_repo
         self._outbox = outbox
+        self._delegation_policy = delegation_policy
 
     async def execute(self, input_dto: CreateApiKeyInput) -> CreateApiKeyOutput:
         project = await self._project_repo.get_by_id(input_dto.project_id)
@@ -33,6 +37,11 @@ class CreateApiKeyUseCase:
             scopes = normalize_project_api_key_scopes(input_dto.scopes)
         except ValueError as exc:
             raise ValidationError(str(exc)) from exc
+
+        if input_dto.created_by_control_key_id is not None:
+            if self._delegation_policy is None:
+                raise AuthorizationError("Control key delegation policy is required")
+            await self._delegation_policy.validate(actor_key_id=input_dto.created_by_control_key_id, project_id=input_dto.project_id, scopes=scopes, conditions={}, expires_at=input_dto.expires_at)
 
         issued = issue_project_api_key()
         api_key = ApiKey(

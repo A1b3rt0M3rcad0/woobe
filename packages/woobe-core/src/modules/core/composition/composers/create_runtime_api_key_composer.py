@@ -1,3 +1,4 @@
+from modules.core.infra.services.api_key_delegation import SqlApiKeyDelegationPolicy
 from modules.core.composition.resources import DATABASE_ENGINE
 from modules.core.infra.database.repositories import SQLAlchemyApiKeyRepository
 from modules.core.infra.database.repositories import SQLAlchemyOutboxEventWriter
@@ -20,6 +21,7 @@ def create_runtime_api_key_composer() -> TransactionalHandler:
         RuntimeKeyTargetReader(uow),
         SQLAlchemyApiKeyRepository(uow),
         SQLAlchemyOutboxEventWriter(uow),
+        delegation_policy=SqlApiKeyDelegationPolicy(uow),
     )
     controller = CreateRuntimeApiKeyController(use_case)
     return TransactionalHandler(uow, controller.handle)

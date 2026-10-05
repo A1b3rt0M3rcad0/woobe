@@ -4,9 +4,20 @@ from datetime import datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Request, status
-from pydantic import BaseModel, Field, field_validator
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import JSONResponse
+from pydantic import (
+    AwareDatetime,
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_validator,
+)
 
 from modules.core.entrypoint import build_control_key_service
+from modules.identity.entrypoint import build_authority_service
+from woobe_api.http.shared.preconditions import expected_revision
 from shared.infra.errors import AuthenticationError
 from shared.security.principal import SecurityPrincipal
 
@@ -15,16 +26,26 @@ router = APIRouter(prefix="/workspaces/{workspace_id}/control-keys", tags=["core
 
 
 class ProjectGrantRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     project_id: UUID
-    permissions: list[str] = Field(min_length=1, max_length=64)
+    permissions: list[str] = Field(default_factory=list, max_length=64)
+    conditions: dict[str, list[str]] | None = None
+    category_id: UUID | None = None
+    category_revision: int | None = Field(default=None, ge=1)
 
 
 class CreateControlKeyRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     name: str = Field(min_length=1, max_length=255)
     description: str | None = Field(default=None, max_length=500)
     permissions: list[str] = Field(default_factory=list, max_length=32)
-    project_grants: list[ProjectGrantRequest] = Field(default_factory=list, max_length=128)
-    expires_at: datetime | None = None
+    project_grants: list[ProjectGrantRequest] = Field(
+        default_factory=list, max_length=128
+    )
+    expires_at: AwareDatetime | None = None
+    on_project_create_permissions: list[str] | None = Field(default=None, max_length=64)
+    category_id: UUID | None = None
+    category_revision: int | None = Field(default=None, ge=1)
 
     @field_validator("name")
     @classmethod
@@ -36,16 +57,33 @@ class CreateControlKeyRequest(BaseModel):
 
 
 class UpdateControlKeyRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     name: str | None = Field(default=None, min_length=1, max_length=255)
     description: str | None = Field(default=None, max_length=500)
     permissions: list[str] | None = Field(default=None, max_length=32)
-    project_grants: list[ProjectGrantRequest] | None = Field(default=None, max_length=128)
-    expires_at: datetime | None = None
+    project_grants: list[ProjectGrantRequest] | None = Field(
+        default=None, max_length=128
+    )
+    expires_at: AwareDatetime | None = None
+    on_project_create_permissions: list[str] | None = Field(default=None, max_length=64)
+
+    @model_validator(mode="after")
+    def non_nullable_updates(self):
+        for field in (
+            "name",
+            "permissions",
+            "project_grants",
+            "on_project_create_permissions",
+        ):
+            if field in self.model_fields_set and getattr(self, field) is None:
+                raise ValueError(f"{field} cannot be null")
+        return self
 
 
 class RotateControlKeyRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     name: str | None = Field(default=None, min_length=1, max_length=255)
-    expires_at: datetime | None = None
+    expires_at: AwareDatetime | None = None
 
 
 def _principal(request: Request) -> SecurityPrincipal:
@@ -58,18 +96,25 @@ def _principal(request: Request) -> SecurityPrincipal:
 def _grants(items: list[ProjectGrantRequest] | None) -> list[dict] | None:
     if items is None:
         return None
-    return [
-        {
-            "project_id": item.project_id,
-            "permissions": list(item.permissions),
-        }
-        for item in items
-    ]
+    return [item.model_dump(exclude_none=True) for item in items]
+
+
+def _service():
+    return build_control_key_service(category_resolver=build_authority_service())
+
+
+def _response(data: dict, code: int = 200):
+    headers = {"ETag": data["etag"]} if data.get("etag") else {}
+    return JSONResponse(
+        jsonable_encoder({"success": True, "data": data}),
+        status_code=code,
+        headers=headers,
+    )
 
 
 @router.get("")
 async def list_control_keys(workspace_id: UUID, request: Request):
-    data = await build_control_key_service().list_keys(
+    data = await _service().list_keys(
         actor=_principal(request),
         workspace_id=workspace_id,
     )
@@ -82,7 +127,7 @@ async def create_control_key(
     payload: CreateControlKeyRequest,
     request: Request,
 ):
-    data = await build_control_key_service().create_key(
+    data = await _service().create_key(
         actor=_principal(request),
         workspace_id=workspace_id,
         name=payload.name,
@@ -90,8 +135,11 @@ async def create_control_key(
         permissions=list(payload.permissions),
         project_grants=_grants(payload.project_grants) or [],
         expires_at=payload.expires_at,
+        on_project_create_permissions=payload.on_project_create_permissions,
+        category_id=payload.category_id,
+        category_revision=payload.category_revision,
     )
-    return {"success": True, "message": "created", "data": data}
+    return _response(data, 201)
 
 
 @router.patch("/{control_key_id}")
@@ -101,7 +149,7 @@ async def update_control_key(
     payload: UpdateControlKeyRequest,
     request: Request,
 ):
-    data = await build_control_key_service().update_key(
+    data = await _service().update_key(
         actor=_principal(request),
         workspace_id=workspace_id,
         control_key_id=control_key_id,
@@ -112,8 +160,12 @@ async def update_control_key(
         project_grants=_grants(payload.project_grants),
         expires_at=payload.expires_at,
         expires_at_supplied="expires_at" in payload.model_fields_set,
+        expected_revision=expected_revision(
+            request, kind="control-key", resource_id=control_key_id
+        ),
+        on_project_create_permissions=payload.on_project_create_permissions,
     )
-    return {"success": True, "message": "ok", "data": data}
+    return _response(data)
 
 
 @router.post("/{control_key_id}/revoke")
@@ -122,10 +174,13 @@ async def revoke_control_key(
     control_key_id: UUID,
     request: Request,
 ):
-    data = await build_control_key_service().revoke_key(
+    data = await _service().revoke_key(
         actor=_principal(request),
         workspace_id=workspace_id,
         control_key_id=control_key_id,
+        expected_revision=expected_revision(
+            request, kind="control-key", resource_id=control_key_id
+        ),
     )
     return {"success": True, "message": "revoked", "data": data}
 
@@ -137,12 +192,15 @@ async def rotate_control_key(
     payload: RotateControlKeyRequest,
     request: Request,
 ):
-    data = await build_control_key_service().rotate_key(
+    data = await _service().rotate_key(
         actor=_principal(request),
         workspace_id=workspace_id,
         control_key_id=control_key_id,
         name=payload.name,
         expires_at=payload.expires_at,
         expires_at_supplied="expires_at" in payload.model_fields_set,
+        expected_revision=expected_revision(
+            request, kind="control-key", resource_id=control_key_id
+        ),
     )
-    return {"success": True, "message": "rotated", "data": data}
+    return _response(data, 201)

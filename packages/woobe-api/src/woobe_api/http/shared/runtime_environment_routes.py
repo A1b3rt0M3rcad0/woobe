@@ -10,7 +10,7 @@ from shared.runtime_environment import (
     build_runtime_environment_service,
     runtime_states_payload,
 )
-from shared.security.principal import AuthenticatedPrincipal, ProjectApiPrincipal
+from shared.security.principal import AuthenticatedPrincipal, ControlPlanePrincipal, ProjectApiPrincipal
 
 router = APIRouter(tags=["runtime environments"])
 
@@ -25,6 +25,8 @@ def _authorize_project(request: Request, project_id: UUID, *, write: bool) -> UU
     principal = getattr(request.state, "principal", None)
     if isinstance(principal, AuthenticatedPrincipal):
         return principal.user_id
+    if isinstance(principal, ControlPlanePrincipal):
+        return None
     if isinstance(principal, ProjectApiPrincipal):
         if principal.project_id != project_id:
             raise AuthorizationError("Runtime key does not belong to this Project")

@@ -1,3 +1,4 @@
+from fastapi.responses import JSONResponse
 from uuid import UUID
 
 from fastapi import APIRouter, Request as FastAPIRequest
@@ -138,6 +139,10 @@ async def create_project(request: FastAPIRequest):
     if control_principal is None:
         user_id = _principal_user_id(request)
         await access.require_workspace_admin(user_id, workspace_uuid)
+
+    if control_principal is not None:
+        data = await build_control_key_service().create_project_atomically(principal=control_principal, payload=payload)
+        return JSONResponse(status_code=201, content={"success": True, "message": "created", "data": data})
 
     handler = create_project_composer()
     response = await request_adapter(request, handler)

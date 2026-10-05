@@ -277,16 +277,25 @@ async def test_control_key_rejects_missing_project_permission(
 
 
 @pytest.mark.asyncio
-async def test_project_creator_control_key_receives_full_grant(
+async def test_project_creator_control_key_receives_explicit_limited_grant(
     control_key_graph,
 ) -> None:
     graph = control_key_graph
+    async with graph["session_factory"]() as session:
+        await session.execute(
+            text(
+                "UPDATE core.workspace_control_keys SET on_project_create_permissions='[\"project:read\"]'::jsonb WHERE id=:id"
+            ),
+            {"id": graph["control_key_id"]},
+        )
+        await session.commit()
     principal = ControlPlanePrincipal(
         api_key_id=graph["control_key_id"],
         credential_id=graph["control_key_id"],
         workspace_id=graph["workspace_id"],
         key_prefix="woobe_control_test",
         permissions=frozenset({"workspace:read", "projects:create"}),
+        on_project_create_permissions=frozenset({"project:read"}),
         authenticated_at=datetime.now(UTC),
     )
 
@@ -312,7 +321,291 @@ async def test_project_creator_control_key_receives_full_grant(
         )
         permissions = set(result.scalar_one())
 
-    assert "project:update" in permissions
-    assert "agent:write" in permissions
-    assert "network:production" in permissions
-    assert "api_key:write" in permissions
+    assert permissions == {"project:read"}
+
+
+@pytest.fixture
+async def owner_actor(control_key_graph):
+    from modules.identity.infra.database.models import UserModel, WorkspaceMemberModel
+    from shared.security.principal import AuthenticatedPrincipal
+
+    graph = control_key_graph
+    actor = AuthenticatedPrincipal(
+        user_id=uuid4(),
+        session_id=uuid4(),
+        issued_at=datetime.now(UTC),
+        expires_at=datetime.now(UTC) + timedelta(hours=1),
+    )
+    async with graph["session_factory"]() as session:
+        session.add(
+            UserModel(
+                id=actor.user_id,
+                email=f"{actor.user_id}@integration.example",
+                password=b"not-a-login",
+            )
+        )
+        await session.flush()
+        session.add(
+            WorkspaceMemberModel(
+                user_id=actor.user_id,
+                workspace_id=graph["workspace_id"],
+                role="owner",
+                joined_at=datetime.now(UTC),
+            )
+        )
+        await session.commit()
+    yield actor
+    async with graph["session_factory"]() as session:
+        await session.execute(
+            delete(WorkspaceMemberModel).where(
+                WorkspaceMemberModel.user_id == actor.user_id
+            )
+        )
+        await session.execute(delete(UserModel).where(UserModel.id == actor.user_id))
+        await session.commit()
+
+
+@pytest.mark.asyncio
+async def test_categories_pin_grants_and_key_revisions_on_postgres(
+    control_key_graph, owner_actor
+):
+    from modules.identity.infra.services.authority_service import AuthorityService
+    from shared.contracts.errors import PreconditionFailedError
+
+    graph = control_key_graph
+    authority = AuthorityService(graph["session_factory"])
+    service = ControlKeyService(graph["session_factory"], authority)
+    category = await authority.create_category(
+        actor=owner_actor,
+        workspace_id=graph["workspace_id"],
+        data={
+            "name": "ci-editor",
+            "scope": "project",
+            "permissions": ["agent:read", "agent:write"],
+            "conditions": {"environments": ["staging"]},
+        },
+    )
+    created = await service.create_key(
+        actor=owner_actor,
+        workspace_id=graph["workspace_id"],
+        name="Pinned",
+        description=None,
+        permissions=[],
+        project_grants=[
+            {
+                "project_id": graph["project_id"],
+                "category_id": category["id"],
+                "category_revision": 1,
+            }
+        ],
+        expires_at=datetime.now(UTC) + timedelta(hours=1),
+    )
+    try:
+        assert created["project_grants"][0]["permissions"] == [
+            "agent:read",
+            "agent:write",
+        ]
+        await authority.update_category(
+            actor=owner_actor,
+            workspace_id=graph["workspace_id"],
+            category_id=category["id"],
+            expected_revision=1,
+            changes={
+                "permissions": ["agent:read", "agent:production"],
+                "conditions": {},
+            },
+        )
+        keys = await service.list_keys(
+            actor=owner_actor, workspace_id=graph["workspace_id"]
+        )
+        pinned = next(key for key in keys if key["id"] == created["id"])
+        assert pinned["project_grants"][0]["permissions"] == [
+            "agent:read",
+            "agent:write",
+        ]
+        assert pinned["project_grants"][0]["conditions"] == {
+            "environments": ["staging"]
+        }
+        updated = await service.update_key(
+            actor=owner_actor,
+            workspace_id=graph["workspace_id"],
+            control_key_id=created["id"],
+            expected_revision=1,
+            name="Renamed",
+            description=None, description_supplied=False, permissions=None, project_grants=None, expires_at=None, expires_at_supplied=False,
+        )
+        assert updated["revision"] == 2
+        with pytest.raises(PreconditionFailedError):
+            await service.revoke_key(
+                actor=owner_actor,
+                workspace_id=graph["workspace_id"],
+                control_key_id=created["id"],
+                expected_revision=1,
+            )
+        replacement = await service.rotate_key(
+            actor=owner_actor,
+            workspace_id=graph["workspace_id"],
+            control_key_id=created["id"],
+            expected_revision=2,
+        )
+        assert replacement["revision"] == 3
+        assert replacement["project_grants"][0]["category_revision"] == 1
+        await service.revoke_key(
+            actor=owner_actor,
+            workspace_id=graph["workspace_id"],
+            control_key_id=replacement["id"],
+            expected_revision=3,
+        )
+    finally:
+        async with graph["session_factory"]() as session:
+            await session.execute(
+                text("DELETE FROM core.workspace_control_keys WHERE credential_id=:id"),
+                {"id": created["credential_id"]},
+            )
+            await session.commit()
+
+
+@pytest.mark.asyncio
+async def test_control_delegation_preserves_expiration_and_conditions(
+    control_key_graph, owner_actor
+):
+    graph = control_key_graph
+    service = ControlKeyService(graph["session_factory"])
+    expiry = datetime.now(UTC) + timedelta(hours=1)
+    parent = await service.create_key(
+        actor=owner_actor,
+        workspace_id=graph["workspace_id"],
+        name="Parent",
+        description=None,
+        permissions=["keys:create", "keys:rotate", "keys:update"],
+        project_grants=[
+            {
+                "project_id": graph["project_id"],
+                "permissions": ["agent:read"],
+                "conditions": {"environments": ["staging"]},
+            }
+        ],
+        expires_at=expiry,
+    )
+    actor = ControlPlanePrincipal(
+        api_key_id=parent["id"],
+        credential_id=parent["credential_id"],
+        workspace_id=graph["workspace_id"],
+        key_prefix=parent["key_prefix"],
+        permissions=frozenset(parent["permissions"]),
+        expires_at=expiry,
+        on_project_create_permissions=frozenset(
+            parent["on_project_create_permissions"]
+        ),
+        authenticated_at=datetime.now(UTC),
+    )
+    created_ids = [parent["id"]]
+    try:
+        for expires in (None, expiry + timedelta(hours=1)):
+            with pytest.raises(AuthorizationError, match="ceiling"):
+                await service.create_key(
+                    actor=actor,
+                    workspace_id=graph["workspace_id"],
+                    name="Denied expiry",
+                    description=None,
+                    permissions=[],
+                    project_grants=[],
+                    expires_at=expires,
+                )
+        with pytest.raises(AuthorizationError, match="conditions"):
+            await service.create_key(
+                actor=actor,
+                workspace_id=graph["workspace_id"],
+                name="Denied production",
+                description=None,
+                permissions=[],
+                project_grants=[
+                    {
+                        "project_id": graph["project_id"],
+                        "permissions": ["agent:read"],
+                        "conditions": {},
+                    }
+                ],
+                expires_at=expiry,
+            )
+        child = await service.create_key(
+            actor=actor,
+            workspace_id=graph["workspace_id"],
+            name="Child",
+            description=None,
+            permissions=[],
+            project_grants=[
+                {
+                    "project_id": graph["project_id"],
+                    "permissions": ["agent:read"],
+                    "conditions": {"environments": ["staging"]},
+                }
+            ],
+            expires_at=expiry,
+        )
+        created_ids.append(child["id"])
+        with pytest.raises(AuthorizationError, match="ceiling"):
+            await service.rotate_key(
+                actor=owner_actor,
+                workspace_id=graph["workspace_id"],
+                control_key_id=child["id"],
+                expected_revision=1,
+                expires_at_supplied=True,
+                expires_at=None,
+            )
+    finally:
+        async with graph["session_factory"]() as session:
+            for key_id in reversed(created_ids):
+                await session.execute(
+                    text("DELETE FROM core.workspace_control_keys WHERE id=:id"),
+                    {"id": key_id},
+                )
+            await session.commit()
+
+
+@pytest.mark.asyncio
+async def test_project_grant_failure_rolls_back_project_and_outbox(
+    control_key_graph, monkeypatch
+):
+    from unittest.mock import AsyncMock
+
+    graph = control_key_graph
+    service = ControlKeyService(graph["session_factory"])
+    actor = ControlPlanePrincipal(
+        api_key_id=graph["control_key_id"],
+        credential_id=graph["control_key_id"],
+        workspace_id=graph["workspace_id"],
+        key_prefix="woobe_control_test",
+        permissions=frozenset({"workspace:read", "projects:create"}),
+        authenticated_at=datetime.now(UTC),
+    )
+    slug = f"atomic-{uuid4()}"
+    monkeypatch.setattr(
+        service,
+        "_grant_created_project",
+        AsyncMock(side_effect=RuntimeError("simulated grant persistence failure")),
+    )
+    with pytest.raises(RuntimeError, match="simulated"):
+        await service.create_project_atomically(
+            principal=actor,
+            payload={
+                "workspace_id": graph["workspace_id"],
+                "name": "Atomic",
+                "slug": slug,
+            },
+        )
+    async with graph["session_factory"]() as session:
+        assert (
+            await session.execute(
+                text("SELECT count(*) FROM core.projects WHERE slug=:slug"),
+                {"slug": slug},
+            )
+        ).scalar_one() == 0
+        assert (
+            await session.execute(
+                text(
+                    "SELECT count(*) FROM core.outbox_events WHERE payload->>'slug'=:slug"
+                ),
+                {"slug": slug},
+            )
+        ).scalar_one() == 0

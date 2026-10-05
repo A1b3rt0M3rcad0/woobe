@@ -34,6 +34,7 @@ from shared.infra.errors import (
     ValidationError,
 )
 from shared.infra.security import SqlSecurityAuthenticator
+from shared.contracts.errors import PreconditionFailedError
 from shared.observability.logging_config import configure_logging
 from shared.security.rate_limit import (
     ApiKeyConcurrencyLimiter,
@@ -48,6 +49,7 @@ from woobe_api.http.chat_surface.routes import router as chat_surface_router
 from woobe_api.http.core.routes import router as core_router
 from woobe_api.http.identity.instance_routes import router as instance_router
 from woobe_api.http.identity.routes import router as identity_router
+from woobe_api.http.identity.authority_routes import router as authority_router
 from woobe_api.http.metering.routes import router as metering_router
 from woobe_api.http.network.routes import router as network_router
 from woobe_api.http.observability.routes import router as observability_router
@@ -205,9 +207,12 @@ def create_app() -> FastAPI:
             "X-Correlation-ID",
             "Last-Event-ID",
             "Idempotency-Key",
+            "If-Match",
+            "If-None-Match",
             "X-Woobe-Host-Origin",
         ],
         expose_headers=[
+            "ETag",
             "X-Request-ID",
             "X-Correlation-ID",
             "X-Network-Execution-ID",
@@ -238,6 +243,10 @@ def create_app() -> FastAPI:
     app.add_exception_handler(DomainError, cast(ExceptionHandler, domain_error_handler))
     app.add_exception_handler(NotFoundError, cast(ExceptionHandler, not_found_handler))
     app.add_exception_handler(ConflictError, cast(ExceptionHandler, conflict_handler))
+    async def precondition_handler(request: Request, exc: PreconditionFailedError):
+        return JSONResponse(status_code=412, content={"success": False, "message": str(exc), "data": None})
+
+    app.add_exception_handler(PreconditionFailedError, cast(ExceptionHandler, precondition_handler))
     app.add_exception_handler(
         ValidationError, cast(ExceptionHandler, validation_handler)
     )
@@ -260,6 +269,7 @@ def create_app() -> FastAPI:
     app.router.dependencies.append(security_dependency)
     try:
         app.include_router(identity_router)
+        app.include_router(authority_router)
         app.include_router(core_router)
         app.include_router(chat_surface_router)
         app.include_router(chat_surface_reattach_router)

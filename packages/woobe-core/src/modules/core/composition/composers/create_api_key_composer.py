@@ -1,3 +1,4 @@
+from modules.core.infra.services.api_key_delegation import SqlApiKeyDelegationPolicy
 from modules.core.composition.resources import DATABASE_ENGINE
 from modules.core.infra.database.repositories import SQLAlchemyApiKeyRepository
 from modules.core.infra.database.repositories import SQLAlchemyOutboxEventWriter
@@ -10,6 +11,6 @@ from shared.infra.transactional_handler import TransactionalHandler
 
 def create_api_key_composer() -> TransactionalHandler:
     uow = CoreUnitOfWork(DATABASE_ENGINE)
-    use_case = CreateApiKeyUseCase(SQLAlchemyProjectRepository(uow), SQLAlchemyApiKeyRepository(uow), SQLAlchemyOutboxEventWriter(uow))
+    use_case = CreateApiKeyUseCase(SQLAlchemyProjectRepository(uow), SQLAlchemyApiKeyRepository(uow), SQLAlchemyOutboxEventWriter(uow), delegation_policy=SqlApiKeyDelegationPolicy(uow))
     controller = CreateApiKeyController(use_case)
     return TransactionalHandler(uow, controller.handle)

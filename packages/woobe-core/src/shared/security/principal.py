@@ -24,6 +24,9 @@ class ControlPlanePrincipal(BaseModel):
     permissions: frozenset[str] = Field(default_factory=frozenset)
     kind: str = "control"
     authenticated_at: datetime
+    expires_at: datetime | None = None
+    delegation_expires_at: datetime | None = None
+    on_project_create_permissions: frozenset[str] = Field(default_factory=frozenset)
 
     def has_permission(self, permission: str) -> bool:
         return permission in self.permissions

@@ -20,6 +20,8 @@ class SecurityAuthenticator(Protocol):
         path_params: Mapping[str, Any],
         query_params: Mapping[str, Any],
         body: Any,
+        required_permission: str | None = None,
+        mutation: bool = False,
     ) -> AuthenticatedPrincipal: ...
 
     async def authenticate_api_key(

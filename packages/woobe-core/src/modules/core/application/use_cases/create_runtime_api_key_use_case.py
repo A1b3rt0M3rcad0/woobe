@@ -1,3 +1,5 @@
+from shared.security.delegation import ApiKeyDelegationPolicy
+from shared.contracts.errors import AuthorizationError
 from typing import Protocol
 from uuid import UUID
 
@@ -32,11 +34,13 @@ class CreateRuntimeApiKeyUseCase:
         target_reader: RuntimeKeyTargetReader,
         api_key_repo: ApiKeyRepository,
         outbox: OutboxEventWriter,
+        delegation_policy: ApiKeyDelegationPolicy | None = None,
     ) -> None:
         self._project_repo = project_repo
         self._target_reader = target_reader
         self._api_key_repo = api_key_repo
         self._outbox = outbox
+        self._delegation_policy = delegation_policy
 
     async def execute(
         self, input_dto: CreateRuntimeApiKeyInput
@@ -56,6 +60,11 @@ class CreateRuntimeApiKeyUseCase:
             raise NotFoundError(
                 f"{input_dto.target_type.value.title()} not found: {target_id}"
             )
+
+        if input_dto.created_by_control_key_id is not None:
+            if self._delegation_policy is None:
+                raise AuthorizationError("Control key delegation policy is required")
+            await self._delegation_policy.validate(actor_key_id=input_dto.created_by_control_key_id, project_id=input_dto.project_id, scopes=[API_KEY_SCOPE_RUNTIME_EXECUTE], conditions={"environments":[input_dto.environment.value], "target_types":[input_dto.target_type.value], "target_ids":[str(target_id)], "interfaces":[interface.value for interface in input_dto.interfaces]}, expires_at=input_dto.expires_at)
 
         issued = issue_runtime_api_key(input_dto.environment.value)
         interfaces = [interface.value for interface in input_dto.interfaces]

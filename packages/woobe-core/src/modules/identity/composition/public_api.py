@@ -8,6 +8,7 @@ from modules.identity.application.dtos import (
 )
 from modules.identity.infra.services.instance_service import InstanceService
 from modules.identity.composition.services import (
+    build_authority_service,
     build_access_token_codec,
     build_authentication_service,
     build_instance_service,
@@ -23,6 +24,7 @@ from modules.identity.composition.composers.update_workspace_composer import (
 from modules.identity.domain.enums import MemberRole
 
 __all__ = [
+    "build_authority_service",
     "AuthenticationService",
     "CreateWorkspaceInput",
     "InstanceService",

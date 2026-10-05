@@ -1,16 +1,26 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import text
+from sqlalchemy import Uuid, bindparam, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from shared.infra.errors import AuthorizationError, ConflictError, NotFoundError
+from shared.infra.errors import (
+    AuthenticationError,
+    AuthorizationError,
+    ConflictError,
+    NotFoundError,
+)
+from shared.security.principal import ControlPlanePrincipal
 from shared.security.control_plane import (
     PROJECT_CONTROL_PERMISSIONS,
     WORKSPACE_CONTROL_PERMISSIONS,
+    SELF_CONTROL_PERMISSIONS,
+    is_read_permission,
+    conditions_allow,
 )
 
 DIRECT_PROJECT_RESOURCES: dict[str, str] = {
@@ -46,9 +56,16 @@ DIRECT_PROJECT_RESOURCES: dict[str, str] = {
     "trace_id": "observability.traces",
     "run_id": "agent.agent_runs",
     "network_id": "network.networks",
+    "execution_id": "network.network_executions",
+    "network_session_id": "network.network_sessions",
 }
 
 INDIRECT_PROJECT_RESOURCE_QUERIES: dict[str, str] = {
+    "network_version_id": """
+        SELECT networks.project_id FROM network.network_versions AS versions
+        JOIN network.networks AS networks ON networks.id = versions.network_id
+        WHERE versions.id = :resource_id
+    """,
     "run_trace_id": """
         SELECT project_id
         FROM agent.agent_runs
@@ -101,11 +118,7 @@ def _identifier_values(value: Any) -> list[tuple[str, Any]]:
 def _direct_identifier_values(value: Any) -> list[tuple[str, Any]]:
     if not isinstance(value, Mapping):
         return []
-    return [
-        (str(key), item)
-        for key, item in value.items()
-        if _is_identifier_key(key)
-    ]
+    return [(str(key), item) for key, item in value.items() if _is_identifier_key(key)]
 
 
 def _uuid(value: Any) -> UUID | None:
@@ -113,13 +126,67 @@ def _uuid(value: Any) -> UUID | None:
         return None
     try:
         return UUID(str(value))
-    except (ValueError, TypeError, AttributeError):
+    except ValueError, TypeError, AttributeError:
         return None
 
 
 class TenantAuthorizer:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
+
+    async def require_active_control(self, actor: ControlPlanePrincipal) -> None:
+        statement = """SELECT keys.permissions, keys.status, keys.revoked_at, keys.expires_at,
+            keys.on_project_create_permissions, workspaces.status AS workspace_status
+            FROM core.workspace_control_keys AS keys
+            JOIN identity.workspaces AS workspaces ON workspaces.id = keys.workspace_id
+            WHERE keys.id = :id AND keys.workspace_id = :workspace_id"""
+        if (
+            self._session.bind is not None
+            and self._session.bind.dialect.name == "postgresql"
+        ):
+            statement += " FOR SHARE OF keys, workspaces"
+        row = (
+            (
+                await self._session.execute(
+                    text(statement).bindparams(
+                        bindparam("id", type_=Uuid()),
+                        bindparam("workspace_id", type_=Uuid()),
+                    ),
+                    {"id": actor.api_key_id, "workspace_id": actor.workspace_id},
+                )
+            )
+            .mappings()
+            .first()
+        )
+        if (
+            row is None
+            or row["status"] != "active"
+            or row["revoked_at"] is not None
+            or row["workspace_status"] != "active"
+        ):
+            raise AuthenticationError("Control credential is inactive")
+        expiry = row["expires_at"]
+        if isinstance(expiry, str):
+            expiry = datetime.fromisoformat(expiry)
+        if expiry is not None and expiry.replace(
+            tzinfo=expiry.tzinfo or UTC
+        ) <= datetime.now(UTC):
+            raise AuthenticationError("Control credential is expired")
+        import json
+
+        permissions = row["permissions"]
+        creation = row["on_project_create_permissions"]
+        if isinstance(permissions, str):
+            permissions = json.loads(permissions)
+        if isinstance(creation, str):
+            creation = json.loads(creation)
+        if (
+            frozenset(permissions) != actor.permissions
+            or frozenset(creation) != actor.on_project_create_permissions
+        ):
+            raise AuthenticationError(
+                "Control credential changed; retry authentication"
+            )
 
     async def authorize(
         self,
@@ -129,6 +196,8 @@ class TenantAuthorizer:
         query_params: Mapping[str, Any],
         body: Any,
         allow_workspace_admin_for_projects: bool = False,
+        required_permission: str | None = None,
+        mutation: bool = False,
     ) -> None:
         identifiers = self._identifiers(path_params, query_params, body)
         self._require_consistent_identifiers(
@@ -157,8 +226,13 @@ class TenantAuthorizer:
             if project_id is None:
                 raise NotFoundError("Resource not found")
             request_projects.add(project_id)
-            if len(request_projects) > 1:
-                raise ConflictError("Resources from different projects cannot be combined")
+            if len(request_projects) > 1 and required_permission not in {
+                "keys:create",
+                "keys:update",
+            }:
+                raise ConflictError(
+                    "Resources from different projects cannot be combined"
+                )
             if project_id in checked_projects:
                 continue
 
@@ -173,6 +247,29 @@ class TenantAuthorizer:
             )
             checked_projects.add(project_id)
             checked_workspaces.add(workspace_id)
+
+        if required_permission is not None or mutation:
+            permission = required_permission or "operation:mutation"
+            if (
+                checked_projects
+                and required_permission not in WORKSPACE_CONTROL_PERMISSIONS
+            ):
+                for project_id in checked_projects:
+                    workspace_id = await self._project_workspace_id(project_id)
+                    await self.require_human_permission(
+                        user_id=user_id,
+                        workspace_id=workspace_id,
+                        project_id=project_id,
+                        permission=permission,
+                    )
+            else:
+                for workspace_id in checked_workspaces:
+                    await self.require_human_permission(
+                        user_id=user_id,
+                        workspace_id=workspace_id,
+                        project_id=None,
+                        permission=permission,
+                    )
 
     async def authorize_api_key(
         self,
@@ -224,8 +321,13 @@ class TenantAuthorizer:
         if required_permission in WORKSPACE_CONTROL_PERMISSIONS:
             if required_permission not in workspace_permissions:
                 raise AuthorizationError("Control key permission is not sufficient")
-        elif required_permission not in PROJECT_CONTROL_PERMISSIONS:
-            raise AuthorizationError("Control key access is not allowed for this endpoint")
+        elif (
+            required_permission not in PROJECT_CONTROL_PERMISSIONS
+            and required_permission not in SELF_CONTROL_PERMISSIONS
+        ):
+            raise AuthorizationError(
+                "Control key access is not allowed for this endpoint"
+            )
 
         checked_projects: set[UUID] = set()
         request_projects: set[UUID] = set()
@@ -251,8 +353,13 @@ class TenantAuthorizer:
                 raise NotFoundError("Resource not found")
 
             request_projects.add(project_id)
-            if len(request_projects) > 1:
-                raise ConflictError("Resources from different projects cannot be combined")
+            if len(request_projects) > 1 and required_permission not in {
+                "keys:create",
+                "keys:update",
+            }:
+                raise ConflictError(
+                    "Resources from different projects cannot be combined"
+                )
 
             project_workspace_id = await self._project_workspace_id(project_id)
             if project_workspace_id is None or project_workspace_id != workspace_id:
@@ -265,13 +372,80 @@ class TenantAuthorizer:
                         api_key_id=api_key_id,
                         project_id=project_id,
                         permission=required_permission,
+                        context=body,
+                        path_context=path_params,
                     )
                     checked_projects.add(project_id)
 
         if required_permission in PROJECT_CONTROL_PERMISSIONS and not checked_projects:
-            raise AuthorizationError("Project context is required for control key access")
+            raise AuthorizationError(
+                "Project context is required for control key access"
+            )
         if required_permission in WORKSPACE_CONTROL_PERMISSIONS and not checked_context:
-            raise AuthorizationError("Workspace context is required for control key access")
+            raise AuthorizationError(
+                "Workspace context is required for control key access"
+            )
+
+    async def require_human_permission(
+        self,
+        *,
+        user_id: UUID,
+        workspace_id: UUID,
+        project_id: UUID | None,
+        permission: str,
+    ) -> None:
+        role = await self._workspace_role(user_id, workspace_id)
+        if role is None:
+            raise NotFoundError("Resource not found")
+        if role == "owner":
+            return
+        if role == "viewer" and not is_read_permission(permission):
+            raise AuthorizationError("Viewer membership is read-only")
+        if permission in SELF_CONTROL_PERMISSIONS or (
+            project_id is None and permission in {"workspace:read", "categories:read"}
+        ):
+            return
+        if project_id is None:
+            if role != "admin":
+                raise AuthorizationError(
+                    "Workspace administrative authority is required"
+                )
+        else:
+            if role == "admin" and permission.startswith("project:access:"):
+                return
+            await self._require_project_access(
+                user_id=user_id,
+                workspace_id=workspace_id,
+                project_id=project_id,
+                allow_workspace_admin=False,
+            )
+        scope_id = project_id or workspace_id
+        statement = text(
+            "SELECT permissions FROM identity.authority_assignments WHERE workspace_id = :workspace_id AND subject_user_id = :user_id AND scope_id = :scope_id AND status = 'active'"
+        ).bindparams(
+            bindparam("workspace_id", type_=Uuid()),
+            bindparam("user_id", type_=Uuid()),
+            bindparam("scope_id", type_=Uuid()),
+        )
+        grants = (
+            await self._session.execute(
+                statement,
+                {
+                    "workspace_id": workspace_id,
+                    "user_id": user_id,
+                    "scope_id": scope_id,
+                },
+            )
+        ).scalar_one_or_none()
+        if grants is not None:
+            if isinstance(grants, str):
+                import json
+
+                grants = json.loads(grants)
+            if permission not in grants:
+                raise AuthorizationError(
+                    "Assigned authority does not allow this operation"
+                )
 
     async def _require_control_key_project_permission(
         self,
@@ -279,11 +453,13 @@ class TenantAuthorizer:
         api_key_id: UUID,
         project_id: UUID,
         permission: str,
+        context: Any = None,
+        path_context: Mapping[str, Any] | None = None,
     ) -> None:
         result = await self._session.execute(
             text(
                 """
-                SELECT permissions
+                SELECT permissions, conditions
                 FROM core.workspace_control_key_project_grants
                 WHERE control_key_id = :api_key_id
                   AND project_id = :project_id
@@ -291,12 +467,40 @@ class TenantAuthorizer:
             ),
             {"api_key_id": api_key_id, "project_id": project_id},
         )
-        permissions = result.scalar_one_or_none()
-        if permissions is None:
+        row = result.first()
+        if row is None:
             raise NotFoundError("Resource not found")
+        permissions, conditions = row
         granted = {str(item) for item in (permissions or [])}
         if permission not in granted:
             raise AuthorizationError("Control key Project permission is not sufficient")
+        data = context if isinstance(context, Mapping) else {}
+        path_data = path_context or {}
+        target_id = (
+            data.get("target_id")
+            or data.get("agent_id")
+            or data.get("network_id")
+            or path_data.get("agent_id")
+            or path_data.get("network_id")
+        )
+        target_type = data.get("target_type") or (
+            "agent"
+            if data.get("agent_id") or path_data.get("agent_id")
+            else "network"
+            if data.get("network_id") or path_data.get("network_id")
+            else None
+        )
+        environment = data.get("environment")
+        if permission.endswith(":production"):
+            environment = "production"
+        if not conditions_allow(
+            conditions or {},
+            environment=environment,
+            target_type=target_type,
+            target_id=target_id,
+            interfaces=data.get("interfaces"),
+        ):
+            raise AuthorizationError("Grant conditions do not allow this operation")
 
     @staticmethod
     def _identifiers(
@@ -363,7 +567,9 @@ class TenantAuthorizer:
 
     async def _project_workspace_id(self, project_id: UUID) -> UUID | None:
         result = await self._session.execute(
-            text("SELECT workspace_id FROM core.projects WHERE id = :project_id"),
+            text(
+                "SELECT workspace_id FROM core.projects WHERE id = :project_id"
+            ).bindparams(bindparam("project_id", type_=Uuid())),
             {"project_id": project_id},
         )
         value = result.scalar_one_or_none()
@@ -379,6 +585,9 @@ class TenantAuthorizer:
                   AND workspace_id = :workspace_id
                   AND status = 'active'
                 """
+            ).bindparams(
+                bindparam("user_id", type_=Uuid()),
+                bindparam("workspace_id", type_=Uuid()),
             ),
             {"user_id": user_id, "workspace_id": workspace_id},
         )
@@ -412,6 +621,9 @@ class TenantAuthorizer:
                   AND project_id = :project_id
                   AND status = 'active'
                 """
+            ).bindparams(
+                bindparam("user_id", type_=Uuid()),
+                bindparam("project_id", type_=Uuid()),
             ),
             {"user_id": user_id, "project_id": project_id},
         )

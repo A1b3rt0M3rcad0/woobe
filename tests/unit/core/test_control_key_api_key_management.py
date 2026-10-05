@@ -27,7 +27,8 @@ async def test_control_key_can_be_audited_as_project_key_creator() -> None:
         save=AsyncMock(side_effect=lambda item: item)
     )
     outbox = SimpleNamespace(write=AsyncMock())
-    use_case = CreateApiKeyUseCase(project_repo, api_key_repo, outbox)
+    policy = SimpleNamespace(validate=AsyncMock())
+    use_case = CreateApiKeyUseCase(project_repo, api_key_repo, outbox, delegation_policy=policy)
 
     await use_case.execute(
         CreateApiKeyInput(
@@ -38,6 +39,7 @@ async def test_control_key_can_be_audited_as_project_key_creator() -> None:
         )
     )
 
+    policy.validate.assert_awaited_once_with(actor_key_id=actor_key_id, project_id=project_id, scopes=["traces:read"], conditions={}, expires_at=None)
     saved = api_key_repo.save.await_args.args[0]
     assert saved.created_by_user_id is None
     assert saved.created_by_control_key_id == actor_key_id

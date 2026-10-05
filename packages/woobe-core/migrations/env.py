@@ -16,6 +16,8 @@ from modules.agent.infra.database.release_activation_repository import AgentRele
 from modules.agent.infra.database.run_models import *  # noqa: F401,F403
 from modules.agent.infra.database.vector_snapshot_models import *  # noqa: F401,F403
 from modules.chat_surface.infra.database.models import *  # noqa: F401,F403
+from modules.core.infra.database.control_key_models import *  # noqa: F401,F403
+from modules.identity.infra.database.authority_models import *  # noqa: F401,F403
 from modules.core.infra.database.models import *  # noqa: F401,F403
 from modules.identity.infra.database.models import *  # noqa: F401,F403
 from modules.metering.infra.database.models import *  # noqa: F401,F403
