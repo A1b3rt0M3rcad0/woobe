@@ -1,6 +1,9 @@
 from uuid import uuid4
 
 import pytest
+
+
+
 from starlette.requests import Request
 
 from shared.infra.errors import AuthorizationError
@@ -116,3 +119,27 @@ def test_unreviewed_queries_do_not_become_path_authority() -> None:
         _request(f"/ai/agents/{agent_id}", b"environment=staging"), original
     )
     assert normalized == original
+
+
+@pytest.mark.asyncio
+async def test_control_authority_rejects_an_expiry_changed_after_authentication():
+    from datetime import UTC, datetime, timedelta
+    from unittest.mock import AsyncMock, Mock
+    from types import SimpleNamespace
+    import pytest
+    from shared.security.principal import ControlPlanePrincipal
+    from shared.contracts.errors import AuthenticationError
+    expiry = datetime.now(UTC) + timedelta(hours=2)
+    actor = ControlPlanePrincipal(api_key_id=uuid4(), credential_id=uuid4(), workspace_id=uuid4(),
+        key_prefix="fixture", authenticated_at=datetime.now(UTC), expires_at=expiry,
+        permissions=frozenset({"keys:create"}))
+    row = {"status": "active", "revoked_at": None, "workspace_status": "active",
+           "expires_at": expiry - timedelta(hours=1), "permissions": ["keys:create"],
+           "on_project_create_permissions": []}
+    result = Mock()
+    result.mappings.return_value.first.return_value = row
+    session = SimpleNamespace(bind=None, execute=AsyncMock(return_value=result))
+    with pytest.raises(AuthenticationError, match="retry authentication"):
+        await TenantAuthorizer(session).require_active_control(actor)
+    row["expires_at"] = expiry
+    await TenantAuthorizer(session).require_active_control(actor)

@@ -198,6 +198,9 @@ class TenantAuthorizer:
             tzinfo=expiry.tzinfo or UTC
         ) <= datetime.now(UTC):
             raise AuthenticationError("Control credential is expired")
+        normalized_expiry = expiry.replace(tzinfo=expiry.tzinfo or UTC) if expiry else None
+        if normalized_expiry != actor.expires_at:
+            raise AuthenticationError("Control credential changed; retry authentication")
         import json
 
         permissions = row["permissions"]
