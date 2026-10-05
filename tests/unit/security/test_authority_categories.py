@@ -550,3 +550,19 @@ def test_target_conditions_accept_equivalent_uuid_representations(representation
     assert conditions_allow({"target_ids": [str(target)]}, target_id=value)
     assert not conditions_allow({"target_ids": [str(uuid4())]}, target_id=value)
     assert not conditions_allow({"target_ids": [str(target)]}, target_id="invalid")
+
+
+@pytest.mark.asyncio
+async def test_inactive_workspace_blocks_human_owner_authority(authority):
+    from shared.security.tenancy import TenantAuthorizer
+    service, actor, workspace_id, factory = authority
+    async with factory() as session:
+        workspace = await session.get(WorkspaceModel, workspace_id)
+        workspace.status = "inactive"
+        await session.commit()
+    with pytest.raises(NotFoundError):
+        await service.effective_access(actor=actor, workspace_id=workspace_id)
+    async with factory() as session:
+        with pytest.raises(NotFoundError):
+            await TenantAuthorizer(session).require_human_permission(
+                user_id=actor.user_id, workspace_id=workspace_id, project_id=None, permission="keys:create")

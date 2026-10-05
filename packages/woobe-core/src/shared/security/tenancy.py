@@ -710,11 +710,13 @@ class TenantAuthorizer:
         result = await self._session.execute(
             text(
                 """
-                SELECT role
-                FROM identity.workspace_members
-                WHERE user_id = :user_id
-                  AND workspace_id = :workspace_id
-                  AND status = 'active'
+                SELECT members.role
+                FROM identity.workspace_members AS members
+                JOIN identity.workspaces AS workspaces ON workspaces.id = members.workspace_id
+                WHERE members.user_id = :user_id
+                  AND members.workspace_id = :workspace_id
+                  AND members.status = 'active'
+                  AND workspaces.status = 'active'
                 """
             ).bindparams(
                 bindparam("user_id", type_=Uuid()),
