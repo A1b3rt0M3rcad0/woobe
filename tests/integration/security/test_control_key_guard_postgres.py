@@ -184,6 +184,7 @@ async def control_key_graph():
     control_key_id = uuid4()
     grant_id = uuid4()
     issued = issue_control_api_key()
+    control_expires_at = datetime.now(UTC) + timedelta(days=1)
 
     async with session_factory() as session:
         session.add(
@@ -238,7 +239,7 @@ async def control_key_graph():
                 "key_hash": issued.digest,
                 "key_version": issued.key_version,
                 "permissions": json.dumps(["workspace:read", "projects:create"]),
-                "expires_at": datetime.now(UTC) + timedelta(days=1),
+                "expires_at": control_expires_at,
                 "now": datetime.now(UTC),
             },
         )
@@ -269,6 +270,7 @@ async def control_key_graph():
             "session_factory": session_factory,
             "api_key": issued.value,
             "control_key_id": control_key_id,
+            "expires_at": control_expires_at,
             "workspace_id": workspace_id,
             "project_id": project_id,
             "ungranted_project_id": ungranted_project_id,
@@ -390,6 +392,7 @@ async def test_project_creator_control_key_receives_explicit_limited_grant(
         credential_id=graph["control_key_id"],
         workspace_id=graph["workspace_id"],
         key_prefix="woobe_control_test",
+        expires_at=graph["expires_at"],
         permissions=frozenset({"workspace:read", "projects:create"}),
         on_project_create_permissions=frozenset({"project:read"}),
         authenticated_at=datetime.now(UTC),
@@ -677,6 +680,7 @@ async def test_project_grant_failure_rolls_back_project_and_outbox(
         credential_id=graph["control_key_id"],
         workspace_id=graph["workspace_id"],
         key_prefix="woobe_control_test",
+        expires_at=graph["expires_at"],
         permissions=frozenset({"workspace:read", "projects:create"}),
         authenticated_at=datetime.now(UTC),
     )
