@@ -109,3 +109,9 @@ def test_null_cannot_clear_non_nullable_authority_fields(model, field):
     with pytest.raises(ValidationError):
         model.model_validate({field: None})
     assert model.model_validate({}).model_dump(exclude_unset=True) == {}
+
+
+@pytest.mark.parametrize("method,permission", [("GET", "run:read"), ("POST", None)])
+def test_agent_session_listing_is_an_explicit_read_operation(method, permission):
+    assert resolve_operation(method, f"/runtime/agents/{uuid4()}/sessions")[0] == permission
+    assert resolve_operation(method, f"/runtime/agents/{uuid4()}/sessions/hidden")[0] is None

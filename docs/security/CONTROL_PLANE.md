@@ -98,3 +98,17 @@ See [Compose tests](../testing/COMPOSE_TESTS.md) for the exact invocation and
 local CLI setup. CI success certifies the tested revision and scenarios; it does
 not certify all CLI manifest, pagination, credential-provider or stream-recovery
 features.
+
+## Agent session listing
+
+The reviewed administrative GET /runtime/agents/{agent_id}/sessions requires
+run:read in the Agent's owning Project. It lists existing sessions and does not
+execute the Agent. Project consistency and target constraints remain enforced
+through the same ownership guard.
+
+The environment query is the actual collection filter. Authority evaluates its
+effective value, including the handler's default draft environment when omitted
+or empty. A staging-only key must explicitly query environment=staging; it cannot
+use omission to read draft sessions or query production. Unreviewed routes do not
+gain authority from arbitrary environment query values. This catalog addition is
+recorded in revision 2026-10-05.2.

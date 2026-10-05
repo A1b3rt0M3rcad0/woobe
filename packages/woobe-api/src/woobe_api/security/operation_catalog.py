@@ -238,6 +238,7 @@ _REVIEWED = [
         "knowledge:read",
     ),
     ("GET", "/agent/knowledge/vector-snapshots/{snapshot_id}", "knowledge:read"),
+    ("GET", "/runtime/agents/{agent_id}/sessions", "run:read"),
     ("GET", "/runtime/runs", "run:read"),
     ("GET", "/runtime/runs/by-trace/{trace_id}/model-invocations", "run:read"),
     ("GET", "/runtime/runs/by-trace/{trace_id}", "run:read"),

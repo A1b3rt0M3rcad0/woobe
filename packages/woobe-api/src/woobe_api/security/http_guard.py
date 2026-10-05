@@ -284,6 +284,18 @@ class HttpSecurityGuard:
             normalized = dict(path_params)
             normalized["run_trace_id"] = normalized.pop("trace_id")
             return normalized
+        if (
+            request.method == "GET"
+            and path_params.get("agent_id") is not None
+            and request.url.path
+            == f"/runtime/agents/{path_params['agent_id']}/sessions"
+        ):
+            # This reviewed collection handler filters by the same query value.
+            # Grant conditions must authorize that environment before listing.
+            environment = request.query_params.get("environment") or "draft"
+            normalized = dict(path_params)
+            normalized["environment"] = environment
+            return normalized
         return path_params
 
     async def _authenticate_api_key(

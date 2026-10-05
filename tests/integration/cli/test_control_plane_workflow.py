@@ -400,6 +400,50 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
         runtime_key=staging_key,
     )
     assert result["data"]["success"] is True
+    second_run = await cli.run(
+        "runtime", "target", "run", "staging-agent", "--target-kind", "agent",
+        body={"input": "Second independent session"}, runtime_key=staging_key,
+    )
+    assert second_run["data"]["success"] is True
+    _, session_reader = await cli.issue(
+        "workspace", "control-key", "create",
+        body={
+            "name": "Scoped session observer",
+            "expires_at": expiry,
+            "on_project_create_permissions": [],
+            "project_grants": [{
+                "project_id": cli.project_id,
+                "permissions": ["run:read"],
+                "conditions": {
+                    "environments": ["staging"],
+                    "target_types": ["agent"],
+                    "target_ids": [agent_id],
+                },
+            }],
+        },
+    )
+    sessions_all = await cli.run(
+        "runtime", "agent", "sessions", agent_id, "--query", "environment=staging",
+        "--limit", "1", "--all", key=session_reader,
+    )
+    assert sessions_all["meta"]["complete"] is True
+    sessions = [
+        item
+        for received in sessions_all["data"]["pages"]
+        for item in received["data"]["items"]
+    ]
+    assert len(sessions) >= 2
+    assert all(item["runtime_environment"] == "staging" for item in sessions)
+    assert len({item["id"] for item in sessions}) == len(sessions)
+    for query in ([], ["--query", "environment=production"]):
+        await cli.run(
+            "runtime", "agent", "sessions", agent_id, *query,
+            "--limit", "1", "--all", key=session_reader, expected=4,
+        )
+    await cli.run(
+        "runtime", "agent", "sessions", str(uuid4()),
+        "--query", "environment=staging", "--all", key=session_reader, expected=5,
+    )
     # Publication still enforces the Agent lifecycle DTO/domain validation.
     missing_notes = await cli.run(
         "project", "agent", "release", "promote", agent_id, staging["id"],

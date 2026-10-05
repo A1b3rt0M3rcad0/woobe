@@ -134,7 +134,10 @@ Agent sessions. The live authority contract exercises --all with limit=1,
 revision history ordering, category cursor traversal, built-in side projections,
 audit traversal, a max-pages partial result and initial-marker remaining scope.
 A successful single-page response must not claim complete collection evidence.
-Native CLI package smoke covers cursor traversal separately on three runner OSes.
+The Agent workflow creates two independent staging sessions, traverses them
+with a run:read key constrained to the Agent and staging, and rejects production,
+the default draft filter and an unknown Agent. Native CLI package smoke covers
+cursor traversal separately on three runner OSes.
 
 ## Verifying CI before a backend change
 
