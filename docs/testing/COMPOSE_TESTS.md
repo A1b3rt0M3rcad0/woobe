@@ -105,3 +105,11 @@ docker compose -f compose.test.yaml up --build --exit-code-from tests tests
 ```
 
 CI only adds lifecycle and evidence handling around that command: cleanup, Compose validation, failure logs, teardown and artifact upload. Frontend/E2E, container, security, release and production acceptance remain separate validation surfaces.
+
+## Verifying CI before a backend change
+
+Open a draft pull request targeting `master` from a focused branch based on the current master. Backend, acceptance, package-build, container and security workflows subscribe to the PR opened/synchronize events; draft status does not disable those workflows. The CLA check also evaluates draft PRs. The architecture Quality Gate is path-filtered and includes this test-topology document; the frontend workflow runs only when its declared frontend/runtime-client paths change.
+
+Distinguish an instantiated workflow from a running or successful job. These workflows use self-hosted Linux X64 runners: `queued` confirms event dispatch but does not prove runner availability. Record the head SHA, run links and final job conclusions in the PR. A skipped, cancelled or failed job is not successful validation. Do not move the PR out of draft merely to make the normal validation jobs start.
+
+Use the same canonical Compose command above for backend validation. Acceptance and container workflows remain separate, broader checks; their success does not establish contracts or permissions that have not been implemented and tested. Workflow artifacts are conditional on `WOOBE_UPLOAD_CI_ARTIFACTS`; consult each workflow for whether evidence is uploaded on PRs or only manual dispatch. The workflow result and logs remain the primary initial CI evidence.

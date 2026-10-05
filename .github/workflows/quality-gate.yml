@@ -18,6 +18,7 @@ on:
       - "pyproject.toml"
       - "pytest.ini"
       - "uv.lock"
+      - "docs/testing/COMPOSE_TESTS.md"
       - ".github/workflows/tests.yml"
       - ".github/workflows/quality-gate.yml"
       - ".github/workflows/prepare-release.yml"
