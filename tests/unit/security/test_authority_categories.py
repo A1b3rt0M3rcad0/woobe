@@ -540,3 +540,13 @@ async def test_human_discovery_preserves_conditional_permissions(authority, monk
         query_params={"project_id": str(project_id)}, body={}, mutation=False,
     )
     assert denied["allowed"] is False
+
+
+@pytest.mark.parametrize("representation", ["upper", "hex", "urn"])
+def test_target_conditions_accept_equivalent_uuid_representations(representation):
+    from shared.security.control_plane import conditions_allow
+    target = uuid4()
+    value = {"upper": str(target).upper(), "hex": target.hex, "urn": target.urn}[representation]
+    assert conditions_allow({"target_ids": [str(target)]}, target_id=value)
+    assert not conditions_allow({"target_ids": [str(uuid4())]}, target_id=value)
+    assert not conditions_allow({"target_ids": [str(target)]}, target_id="invalid")

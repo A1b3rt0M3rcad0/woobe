@@ -247,10 +247,16 @@ def conditions_allow(
 ) -> bool:
     if any(not values for values in conditions.values()):
         return False
+    canonical_target = None
+    if target_id is not None:
+        try:
+            canonical_target = str(UUID(str(target_id)))
+        except (ValueError, TypeError, AttributeError):
+            return False
     checks = {
         "environments": environment,
         "target_types": target_type,
-        "target_ids": str(target_id) if target_id is not None else None,
+        "target_ids": canonical_target,
     }
     for name, item in checks.items():
         if item is not None and name in conditions and item not in conditions[name]:
