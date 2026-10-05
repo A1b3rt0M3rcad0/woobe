@@ -38,3 +38,17 @@ async def test_stored_run_conditions_override_supplied_environment(runtime_db):
                                        permission="run:read", path_context=path)
         with pytest.raises(NotFoundError):
             await authorizer._condition_path_context(conditions, "run:read", {"run_id": uuid4()})
+
+
+@pytest.mark.asyncio
+async def test_run_trace_lookup_preserves_target_restrictions(runtime_db):
+    run, agent, trace = uuid4(), uuid4(), uuid4()
+    async with runtime_db() as session:
+        await session.execute(text("INSERT INTO agent.agent_runs VALUES (:id, :agent, 'production', :trace)"),
+                              {"id": run.hex, "agent": agent.hex, "trace": trace.hex})
+        authorizer = TenantAuthorizer(session)
+        conditions = {"target_ids": [str(agent)]}
+        path = await authorizer._condition_path_context(conditions, "run:read", {"run_trace_id": trace})
+        authorizer._require_conditions(conditions, permission="run:read", path_context=path)
+        with pytest.raises(AuthorizationError):
+            authorizer._require_conditions({"target_ids": [str(uuid4())]}, permission="run:read", path_context=path)

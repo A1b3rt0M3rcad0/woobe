@@ -105,6 +105,7 @@ for _version_alias in (
 # Conditions for stored runtime resources come from persisted lineage, never
 # caller-supplied body or query fields.
 RUNTIME_CONDITION_QUERIES: dict[str, str] = {
+    "run_trace_id": "SELECT agent_id, environment FROM agent.agent_runs WHERE trace_id = :resource_id LIMIT 1",
     "run_id": "SELECT agent_id, environment FROM agent.agent_runs WHERE id = :resource_id",
 }
 
