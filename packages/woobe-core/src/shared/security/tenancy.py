@@ -102,6 +102,12 @@ for _version_alias in (
         INDIRECT_PROJECT_RESOURCE_QUERIES["network_version_id"]
     )
 
+# Conditions for stored runtime resources come from persisted lineage, never
+# caller-supplied body or query fields.
+RUNTIME_CONDITION_QUERIES: dict[str, str] = {
+    "run_id": "SELECT agent_id, environment FROM agent.agent_runs WHERE id = :resource_id",
+}
+
 WORKSPACE_KEYS = {"workspace_id"}
 PROJECT_KEYS = {"project_id", "access_project_id"}
 
@@ -480,7 +486,9 @@ class TenantAuthorizer:
                 conditions,
                 permission=permission,
                 context=context,
-                path_context=path_context,
+                path_context=await self._condition_path_context(
+                    conditions or {}, permission, path_context
+                ),
             )
 
     async def _require_control_key_project_permission(
@@ -519,8 +527,40 @@ class TenantAuthorizer:
             conditions or {},
             permission=permission,
             context=context,
-            path_context=path_context,
+            path_context=await self._condition_path_context(
+                conditions or {}, permission, path_context
+            ),
         )
+
+    async def _condition_path_context(
+        self,
+        conditions: dict[str, Any],
+        permission: str,
+        path_context: Mapping[str, Any] | None,
+    ) -> Mapping[str, Any] | None:
+        if not conditions or not permission.startswith("run:"):
+            return path_context
+        resolved = dict(path_context or {})
+        for key, query in RUNTIME_CONDITION_QUERIES.items():
+            resource_id = _uuid(resolved.get(key))
+            if resource_id is None:
+                continue
+            row = (await self._session.execute(
+                text(query).bindparams(bindparam("resource_id", type_=Uuid())),
+                {"resource_id": resource_id},
+            )).mappings().first()
+            if row is None:
+                raise NotFoundError("Resource not found")
+            for target_key in ("agent_id", "network_id"):
+                if target_key not in row:
+                    continue
+                existing = _uuid(resolved.get(target_key))
+                actual = _uuid(row[target_key])
+                if existing is not None and existing != actual:
+                    raise NotFoundError("Resource not found")
+                resolved[target_key] = actual
+            resolved["environment"] = row["environment"]
+        return resolved
 
     @staticmethod
     def _require_conditions(
