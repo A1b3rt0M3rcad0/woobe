@@ -220,3 +220,21 @@ async def test_recovery_survives_control_rotation_but_not_a_different_lineage(le
     async with factory() as session:
         assert await AdministrativeIdempotency(session, encryption_key=KEY).begin(
             **{**args, "actor": different_lineage}) is None
+
+
+@pytest.mark.asyncio
+async def test_oversized_secret_response_rolls_back_its_replay_reservation(ledger):
+    factory, actor, workspace_id = ledger
+    args = dict(key="oversized-response", actor=actor, workspace_id=workspace_id,
+                operation="key.create", payload={})
+    async with factory() as session:
+        store = AdministrativeIdempotency(session, encryption_key=KEY)
+        await store.begin(**args)
+        # Multibyte content verifies the byte limit instead of character count.
+        with pytest.raises(ValidationError, match="retention limit"):
+            await store.save({"key": "é" * (600 * 1024)})
+        await session.rollback()
+    async with factory() as session:
+        assert await AdministrativeIdempotency(session, encryption_key=KEY).begin(**args) is None
+        await session.rollback()
+        assert (await session.execute(select(AdministrativeOperationModel))).scalars().all() == []
