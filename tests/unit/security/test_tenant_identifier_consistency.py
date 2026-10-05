@@ -60,3 +60,34 @@ def test_nested_project_identifiers_remain_visible_to_project_authorization() ->
     assert ("project_id", outer_project_id) in all_identifiers
     assert ("project_id", nested_project_id) in all_identifiers
     assert consistency_identifiers == [("project_id", outer_project_id)]
+
+
+@pytest.mark.asyncio
+async def test_project_key_ownership_resolves_direct_and_indirect_uuid_bindings():
+    from sqlalchemy import event, text
+    from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+    from shared.contracts.errors import NotFoundError
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    @event.listens_for(engine.sync_engine, "connect")
+    def attach(connection, _):
+        connection.execute("ATTACH DATABASE ':memory:' AS agent")
+        connection.execute("ATTACH DATABASE ':memory:' AS network")
+    project, agent, network, version = uuid4(), uuid4(), uuid4(), uuid4()
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text("CREATE TABLE agent.agents (id TEXT, project_id TEXT)"))
+            await conn.execute(text("CREATE TABLE network.networks (id TEXT, project_id TEXT)"))
+            await conn.execute(text("CREATE TABLE network.network_versions (id TEXT, network_id TEXT)"))
+            await conn.execute(text("INSERT INTO agent.agents VALUES (:id, :project)"), {"id": agent.hex, "project": project.hex})
+            await conn.execute(text("INSERT INTO network.networks VALUES (:id, :project)"), {"id": network.hex, "project": project.hex})
+            await conn.execute(text("INSERT INTO network.network_versions VALUES (:id, :network)"), {"id": version.hex, "network": network.hex})
+        async with async_sessionmaker(engine)() as session:
+            authorizer = TenantAuthorizer(session)
+            for key, resource in [("agent_id", agent), ("source_version_id", version)]:
+                await authorizer.authorize_api_key(project_id=project,
+                    path_params={key: resource}, query_params={}, body={})
+                with pytest.raises(NotFoundError):
+                    await authorizer.authorize_api_key(project_id=uuid4(),
+                        path_params={key: resource}, query_params={}, body={})
+    finally:
+        await engine.dispose()

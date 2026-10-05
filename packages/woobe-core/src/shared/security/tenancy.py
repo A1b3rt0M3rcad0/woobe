@@ -695,7 +695,7 @@ class TenantAuthorizer:
         indirect_query = INDIRECT_PROJECT_RESOURCE_QUERIES.get(key)
         if indirect_query is not None:
             result = await self._session.execute(
-                text(indirect_query),
+                text(indirect_query).bindparams(bindparam("resource_id", type_=Uuid())),
                 {"resource_id": resource_id},
             )
             value = result.scalar_one_or_none()
@@ -708,7 +708,9 @@ class TenantAuthorizer:
         if table not in allowed_tables:
             raise RuntimeError("Unsupported tenant resource mapping")
         result = await self._session.execute(
-            text(f"SELECT project_id FROM {table} WHERE id = :resource_id"),
+            text(f"SELECT project_id FROM {table} WHERE id = :resource_id").bindparams(
+                bindparam("resource_id", type_=Uuid())
+            ),
             {"resource_id": resource_id},
         )
         value = result.scalar_one_or_none()
