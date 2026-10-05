@@ -11,7 +11,7 @@ from shared.infra.admin_idempotency import AdministrativeIdempotency, canonical_
 from shared.infra.database.admin_idempotency import AdministrativeOperationModel
 from shared.security.principal import AuthenticatedPrincipal
 
-KEY = "test-encryption-at-least-32-characters"
+KEY = "0" * 32  # Deliberately public fixture; never a deployment credential.
 
 
 @pytest_asyncio.fixture
