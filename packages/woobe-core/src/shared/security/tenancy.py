@@ -605,6 +605,12 @@ class TenantAuthorizer:
             or data.get("environment")
             or data.get("target_status")
         )
+        if permission.startswith("run:"):
+            environment = path_data.get("environment")
+            if "environments" in conditions and environment is None:
+                raise AuthorizationError(
+                    "An environment-constrained runtime grant requires a verified environment"
+                )
         if permission.endswith(":write") or permission.endswith(":version"):
             environment = environment or "staging"
         if permission.split(":")[0] in {"agent", "network", "run"}:

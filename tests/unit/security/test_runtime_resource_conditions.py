@@ -87,3 +87,10 @@ async def test_network_history_rejects_session_under_another_target(runtime_db):
             {"network_session_id": session_id, "network_id": network, "environment": "staging"})
         with pytest.raises(AuthorizationError):
             authorizer._require_conditions(conditions, permission="run:read", path_context=path)
+
+
+@pytest.mark.parametrize("body", [{}, {"environment": "staging"}, {"target_status": "staging"}])
+def test_unfiltered_runtime_collections_cannot_claim_a_body_environment(body):
+    with pytest.raises(AuthorizationError, match="verified environment"):
+        TenantAuthorizer._require_conditions({"environments": ["staging"]},
+            permission="run:read", path_context={"network_id": uuid4()}, context=body)
