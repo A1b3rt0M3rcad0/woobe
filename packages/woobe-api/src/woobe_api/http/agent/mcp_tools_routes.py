@@ -1,3 +1,5 @@
+from modules.agent.entrypoint import (McpDiscoverInput, RefreshMcpProviderToolsInput)
+from woobe_api.http.shared.openapi_contracts import request_body_contract
 from fastapi import APIRouter, Request as FastAPIRequest
 
 from modules.agent.entrypoint import (
@@ -17,14 +19,14 @@ from woobe_api.http.shared.adapters import request_adapter, response_adapter
 router = APIRouter(prefix="/tools", tags=["tools"])
 
 
-@router.post("/mcp/discover")
+@router.post("/mcp/discover", openapi_extra=request_body_contract(McpDiscoverInput, '/tools/mcp/discover', 'post', required=True))
 async def discover_mcp_tools(request: FastAPIRequest):
     handler = discover_mcp_tools_composer()
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
-@router.post("/mcp/refresh")
+@router.post("/mcp/refresh", openapi_extra=request_body_contract(RefreshMcpProviderToolsInput, '/tools/mcp/refresh', 'post', required=True))
 async def refresh_mcp_tools(request: FastAPIRequest):
     handler = refresh_mcp_tools_composer()
     response = await request_adapter(request, handler)

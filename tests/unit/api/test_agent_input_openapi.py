@@ -9,6 +9,8 @@ from woobe_api.http.agent import routes
 from woobe_api.http.shared.openapi_contracts import request_body_contract
 
 
+from woobe_api.http.agent import mcp_tools_routes
+
 CONTRACT_OPTIONS = {}
 EXTRA_ROUTERS = []
 
@@ -22,7 +24,15 @@ CONTRACT_OPTIONS['tools_test_tool'] = {'required': True}
 
 CONTRACT_OPTIONS['tools_execute_tool'] = {'required': True}
 
+EXTRA_ROUTERS.append(mcp_tools_routes.router)
+
+CONTRACT_OPTIONS['discover_mcp_tools'] = {'required': True}
+
+CONTRACT_OPTIONS['refresh_mcp_tools'] = {'required': True}
+
 CONTRACTS = [
+    ('refresh_mcp_tools', 'RefreshMcpProviderToolsInput', '/tools/mcp/refresh', 'post'),
+    ('discover_mcp_tools', 'McpDiscoverInput', '/tools/mcp/discover', 'post'),
     ('tools_execute_tool', 'ExecuteToolInput', '/tools/tools/execute', 'post'),
     ('tools_test_tool', 'TestToolInput', '/tools/tools/test', 'post'),
     ('tools_update_tool_status', 'UpdateToolStatusInput', '/tools/tools/{tool_id}/status', 'patch'),
