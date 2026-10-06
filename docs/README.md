@@ -6,6 +6,7 @@
 
 - `ARCHITECTURE.md` — current high-level product, package and runtime architecture.
 - `SELF_HOSTING.md` and `UPGRADING.md` — operator guidance for Community installations.
+- [`CLI.md`](CLI.md) — native installation, Workspace CLI Keys, contexts, manifests and runtime credentials.
 - [`../RELEASING.md`](../RELEASING.md) — canonical platform release procedure and publication gates.
 - `CONTRIBUTING_PROVIDERS.md` — provider contribution guidance.
 - `adr/` — accepted/proposed Architecture Decision Records and their rationale.
