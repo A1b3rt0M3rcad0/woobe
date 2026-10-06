@@ -8,44 +8,13 @@ from modules.agent.application.use_cases.release_lifecycle_use_cases import (
     _release_to_output,
 )
 from modules.agent.domain.entities import AgentRelease
+from modules.agent.domain.execution_definition import AGENT_EXECUTION_FIELDS
 from modules.agent.domain.enums import ReleaseStatus
 from modules.agent.domain.release_compatibility import classify_release_change
 from shared.contracts.errors import ConflictError
 
 
-_EXECUTION_FIELDS = (
-    "prompt_version_id",
-    "contract_version_id",
-    "knowledge_version_id",
-    "model_config_version_id",
-    "provider_model_id",
-    "fallback_provider_model_id",
-    "name",
-    "description",
-    "behavior_spec",
-    "system_prompt",
-    "response_format",
-    "output_schema",
-    "external_context_contract",
-    "provider",
-    "model",
-    "provider_credential_id",
-    "model_spec_snapshot",
-    "model_spec_hash",
-    "fallback_model_spec_snapshot",
-    "fallback_model_spec_hash",
-    "fallback_provider",
-    "fallback_model",
-    "fallback_credential_id",
-    "base_url",
-    "temperature",
-    "max_output_tokens",
-    "session_mode",
-    "agent_status",
-    "collection_ids",
-    "runtime_config",
-    "risk_score",
-)
+_EXECUTION_FIELDS = AGENT_EXECUTION_FIELDS
 
 
 def _release_time(release: AgentRelease) -> float:

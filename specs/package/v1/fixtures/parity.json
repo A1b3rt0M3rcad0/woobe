@@ -1,0 +1,106 @@
+[
+  {
+    "name": "minimal-model",
+    "file": "model.yaml",
+    "input": "{\"format\": \"woobe-package\", \"schema_version\": \"1.0\", \"kind\": \"Model\", \"metadata\": {\"key\": \"primary\", \"name\": \"Primary\"}, \"spec\": {\"provider\": \"openai_compatible\", \"model\": \"fake-language\", \"model_type\": \"language\", \"credential\": {\"ref\": \"primary-key\"}}}",
+    "expected": {
+      "format": "woobe-package",
+      "schema_version": "1.0",
+      "kind": "Model",
+      "metadata": {
+        "key": "primary",
+        "name": "Primary"
+      },
+      "spec": {
+        "provider": "openai_compatible",
+        "model": "fake-language",
+        "model_type": "language",
+        "credential": {
+          "ref": "primary-key"
+        }
+      }
+    }
+  },
+  {
+    "name": "scalar-semantics",
+    "file": "scalar.yaml",
+    "input": "on: off\nyes: no\ndate: 2026-10-06\ntruth: true\nexponent: 1e3\n",
+    "expected": {
+      "on": "off",
+      "yes": "no",
+      "date": "2026-10-06",
+      "truth": true,
+      "exponent": 1000
+    }
+  },
+  {
+    "name": "duplicate",
+    "file": "invalid.yaml",
+    "input": "name: a\nname: b\n",
+    "error": "PACKAGE_PARSE_INVALID"
+  },
+  {
+    "name": "alias",
+    "file": "invalid.yaml",
+    "input": "value: &a hello\nother: *a\n",
+    "error": "PACKAGE_PARSE_INVALID"
+  },
+  {
+    "name": "tag",
+    "file": "invalid.yaml",
+    "input": "value: !custom hello\n",
+    "error": "PACKAGE_PARSE_INVALID"
+  },
+  {
+    "name": "multiple",
+    "file": "invalid.yaml",
+    "input": "a: b\n---\nc: d\n",
+    "error": "PACKAGE_PARSE_INVALID"
+  },
+  {
+    "name": "nonfinite",
+    "file": "invalid.yaml",
+    "input": "a: .nan\n",
+    "error": "PACKAGE_PARSE_INVALID"
+  },
+  {
+    "name": "overflow",
+    "file": "invalid.yaml",
+    "input": "a: 9007199254740992\n",
+    "error": "PACKAGE_PARSE_INVALID"
+  },
+  {
+    "name": "merge",
+    "file": "invalid.yaml",
+    "input": "value: {<<: {a: b}}\n",
+    "error": "PACKAGE_PARSE_INVALID"
+  },
+  {
+    "name": "numeric-schema",
+    "file": "model.yaml",
+    "input": "{\"format\": \"woobe-package\", \"schema_version\": 1.0, \"kind\": \"Model\", \"metadata\": {\"key\": \"primary\", \"name\": \"Primary\"}, \"spec\": {\"provider\": \"openai_compatible\", \"model\": \"fake-language\", \"model_type\": \"language\", \"credential\": {\"ref\": \"primary-key\"}}}",
+    "error": "PACKAGE_SCHEMA_UNSUPPORTED",
+    "validate": true
+  },
+  {
+    "name": "unknown-kind",
+    "file": "model.yaml",
+    "input": "{\"format\": \"woobe-package\", \"schema_version\": \"1.0\", \"kind\": \"model\", \"metadata\": {\"key\": \"primary\", \"name\": \"Primary\"}, \"spec\": {\"provider\": \"openai_compatible\", \"model\": \"fake-language\", \"model_type\": \"language\", \"credential\": {\"ref\": \"primary-key\"}}}",
+    "error": "PACKAGE_SCHEMA_UNSUPPORTED",
+    "validate": true
+  },
+  {
+    "name": "unknown-field",
+    "file": "model.yaml",
+    "input": "{\"format\": \"woobe-package\", \"schema_version\": \"1.0\", \"kind\": \"Model\", \"metadata\": {\"key\": \"primary\", \"name\": \"Primary\"}, \"spec\": {\"provider\": \"openai_compatible\", \"model\": \"fake-language\", \"model_type\": \"language\", \"credential\": {\"ref\": \"primary-key\"}}, \"unsupported\": true}",
+    "error": "PACKAGE_SCHEMA_INVALID",
+    "validate": true
+  },
+  {
+    "name": "unknown-spec-field",
+    "file": "model.yaml",
+    "input": "{\"format\": \"woobe-package\", \"schema_version\": \"1.0\", \"kind\": \"Model\", \"metadata\": {\"key\": \"primary\", \"name\": \"Primary\"}, \"spec\": {\"provider\": \"openai_compatible\", \"model\": \"fake-language\", \"model_type\": \"language\", \"credential\": {\"ref\": \"primary-key\"}, \"unsupported\": true}}",
+    "error": "PACKAGE_SCHEMA_INVALID",
+    "validate": true
+  }
+]

@@ -1,0 +1,4041 @@
+{
+  "Agent": {
+    "$defs": {
+      "AgentContext": {
+        "additionalProperties": false,
+        "properties": {
+          "manager": {
+            "$ref": "#/$defs/ContextManager"
+          },
+          "policy": {
+            "$ref": "#/$defs/ContextPolicyV1"
+          }
+        },
+        "title": "AgentContext",
+        "type": "object"
+      },
+      "AgentKnowledge": {
+        "additionalProperties": false,
+        "properties": {
+          "rag": {
+            "$ref": "#/$defs/RAGRuntimeConfig"
+          },
+          "source": {
+            "$ref": "#/$defs/Ref"
+          },
+          "strategy": {
+            "default": "rag",
+            "title": "Strategy",
+            "type": "string"
+          },
+          "strategy_config": {
+            "additionalProperties": true,
+            "title": "Strategy Config",
+            "type": "object"
+          }
+        },
+        "required": [
+          "source"
+        ],
+        "title": "AgentKnowledge",
+        "type": "object"
+      },
+      "AgentModels": {
+        "additionalProperties": false,
+        "properties": {
+          "fallback": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Ref"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "parameters": {
+            "$ref": "#/$defs/ModelParameters"
+          },
+          "primary": {
+            "$ref": "#/$defs/Ref"
+          }
+        },
+        "required": [
+          "primary"
+        ],
+        "title": "AgentModels",
+        "type": "object"
+      },
+      "AgentOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "contract_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Contract Ref"
+          },
+          "output_schema": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Output Schema"
+          },
+          "response_format": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Response Format"
+          }
+        },
+        "title": "AgentOutput",
+        "type": "object"
+      },
+      "AgentSession": {
+        "additionalProperties": false,
+        "properties": {
+          "mode": {
+            "default": "stateless",
+            "enum": [
+              "stateful",
+              "stateless"
+            ],
+            "title": "Mode",
+            "type": "string"
+          }
+        },
+        "title": "AgentSession",
+        "type": "object"
+      },
+      "AgentSpecV1": {
+        "additionalProperties": false,
+        "properties": {
+          "behavior": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/BehaviorSpecification"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "context": {
+            "$ref": "#/$defs/AgentContext"
+          },
+          "execution": {
+            "$ref": "#/$defs/StrategySelection"
+          },
+          "external_context": {
+            "additionalProperties": {
+              "$ref": "#/$defs/ExternalField"
+            },
+            "title": "External Context",
+            "type": "object"
+          },
+          "knowledge": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/AgentKnowledge"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "legacy_system_prompt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Legacy System Prompt"
+          },
+          "model": {
+            "$ref": "#/$defs/AgentModels"
+          },
+          "output": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/AgentOutput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "prompt_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Prompt Ref"
+          },
+          "session": {
+            "$ref": "#/$defs/AgentSession"
+          },
+          "skills": {
+            "items": {
+              "$ref": "#/$defs/SkillBinding"
+            },
+            "title": "Skills",
+            "type": "array"
+          },
+          "tools": {
+            "items": {
+              "$ref": "#/$defs/Ref"
+            },
+            "title": "Tools",
+            "type": "array"
+          },
+          "type": {
+            "const": "chat",
+            "default": "chat",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "model"
+        ],
+        "title": "AgentSpecV1",
+        "type": "object"
+      },
+      "ArtifactContextPolicy": {
+        "additionalProperties": false,
+        "properties": {
+          "max_units": {
+            "anyOf": [
+              {
+                "maximum": 1000000,
+                "minimum": 64,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Max Units"
+          },
+          "strategy": {
+            "default": "reference_first",
+            "enum": [
+              "reference_first",
+              "materialize"
+            ],
+            "title": "Strategy",
+            "type": "string"
+          }
+        },
+        "title": "ArtifactContextPolicy",
+        "type": "object"
+      },
+      "BehaviorSpecification": {
+        "additionalProperties": false,
+        "description": "Versioned semantic instructions; identity remains on the Agent.",
+        "properties": {
+          "additional_instructions": {
+            "default": "",
+            "title": "Additional Instructions",
+            "type": "string"
+          },
+          "allowed_behaviors": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Allowed Behaviors",
+            "type": "array"
+          },
+          "disallowed_behaviors": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Disallowed Behaviors",
+            "type": "array"
+          },
+          "objective": {
+            "default": "",
+            "title": "Objective",
+            "type": "string"
+          },
+          "operating_instructions": {
+            "default": "",
+            "title": "Operating Instructions",
+            "type": "string"
+          },
+          "response_guidelines": {
+            "default": "",
+            "title": "Response Guidelines",
+            "type": "string"
+          },
+          "responsibilities": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Responsibilities",
+            "type": "array"
+          },
+          "schema_version": {
+            "const": 1,
+            "default": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          }
+        },
+        "title": "BehaviorSpecification",
+        "type": "object"
+      },
+      "CheckpointContextPolicy": {
+        "additionalProperties": false,
+        "properties": {
+          "max_units": {
+            "anyOf": [
+              {
+                "maximum": 1000000,
+                "minimum": 128,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Max Units"
+          }
+        },
+        "title": "CheckpointContextPolicy",
+        "type": "object"
+      },
+      "ContextBudgetPolicy": {
+        "additionalProperties": false,
+        "properties": {
+          "max_input_units": {
+            "anyOf": [
+              {
+                "maximum": 4000000,
+                "minimum": 256,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Max Input Units"
+          },
+          "runtime_reserve_units": {
+            "default": 0,
+            "maximum": 1000000,
+            "minimum": 0,
+            "title": "Runtime Reserve Units",
+            "type": "integer"
+          }
+        },
+        "title": "ContextBudgetPolicy",
+        "type": "object"
+      },
+      "ContextDeduplicationPolicy": {
+        "additionalProperties": false,
+        "properties": {
+          "sources": {
+            "items": {
+              "$ref": "#/$defs/ContextSourceType"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "strategy": {
+            "default": "none",
+            "enum": [
+              "none",
+              "content_hash"
+            ],
+            "title": "Strategy",
+            "type": "string"
+          }
+        },
+        "title": "ContextDeduplicationPolicy",
+        "type": "object"
+      },
+      "ContextManager": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "ContextManager",
+        "type": "object"
+      },
+      "ContextOrderingPolicy": {
+        "additionalProperties": false,
+        "properties": {
+          "strategy": {
+            "default": "preserve_input",
+            "enum": [
+              "preserve_input",
+              "source_priority"
+            ],
+            "title": "Strategy",
+            "type": "string"
+          }
+        },
+        "title": "ContextOrderingPolicy",
+        "type": "object"
+      },
+      "ContextPolicyV1": {
+        "additionalProperties": false,
+        "properties": {
+          "allowed_sources": {
+            "items": {
+              "$ref": "#/$defs/ContextSourceType"
+            },
+            "title": "Allowed Sources",
+            "type": "array"
+          },
+          "artifacts": {
+            "$ref": "#/$defs/ArtifactContextPolicy"
+          },
+          "budget": {
+            "$ref": "#/$defs/ContextBudgetPolicy"
+          },
+          "checkpoints": {
+            "$ref": "#/$defs/CheckpointContextPolicy"
+          },
+          "deduplication": {
+            "$ref": "#/$defs/ContextDeduplicationPolicy"
+          },
+          "delegation": {
+            "$ref": "#/$defs/DelegationContextPolicy"
+          },
+          "knowledge": {
+            "$ref": "#/$defs/KnowledgeContextPolicy"
+          },
+          "memory": {
+            "$ref": "#/$defs/MemoryContextPolicy"
+          },
+          "ordering": {
+            "$ref": "#/$defs/ContextOrderingPolicy"
+          },
+          "pressure": {
+            "$ref": "#/$defs/ContextPressurePolicy"
+          },
+          "retention": {
+            "$ref": "#/$defs/ContextRetentionPolicy"
+          },
+          "schema_version": {
+            "const": 1,
+            "default": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "session": {
+            "$ref": "#/$defs/SessionContextPolicy"
+          },
+          "skills": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/SkillContextPolicy"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "source_priorities": {
+            "additionalProperties": {
+              "$ref": "#/$defs/ContextPriority"
+            },
+            "propertyNames": {
+              "$ref": "#/$defs/ContextSourceType"
+            },
+            "title": "Source Priorities",
+            "type": "object"
+          },
+          "tools": {
+            "$ref": "#/$defs/ToolContextPolicy"
+          }
+        },
+        "title": "ContextPolicyV1",
+        "type": "object"
+      },
+      "ContextPressurePolicy": {
+        "additionalProperties": false,
+        "properties": {
+          "critical_at": {
+            "default": 0.9,
+            "exclusiveMinimum": 0,
+            "maximum": 1,
+            "title": "Critical At",
+            "type": "number"
+          },
+          "high_at": {
+            "default": 0.75,
+            "exclusiveMaximum": 1,
+            "exclusiveMinimum": 0,
+            "title": "High At",
+            "type": "number"
+          },
+          "moderate_at": {
+            "default": 0.4,
+            "exclusiveMaximum": 1,
+            "exclusiveMinimum": 0,
+            "title": "Moderate At",
+            "type": "number"
+          }
+        },
+        "title": "ContextPressurePolicy",
+        "type": "object"
+      },
+      "ContextPriority": {
+        "enum": [
+          "MANDATORY",
+          "HIGH",
+          "DYNAMIC",
+          "OPTIONAL",
+          "DISCARDABLE"
+        ],
+        "title": "ContextPriority",
+        "type": "string"
+      },
+      "ContextRetentionMode": {
+        "enum": [
+          "references_only",
+          "redacted",
+          "full"
+        ],
+        "title": "ContextRetentionMode",
+        "type": "string"
+      },
+      "ContextRetentionPolicy": {
+        "additionalProperties": false,
+        "properties": {
+          "materialized_content": {
+            "$ref": "#/$defs/ContextRetentionMode",
+            "default": "references_only"
+          }
+        },
+        "title": "ContextRetentionPolicy",
+        "type": "object"
+      },
+      "ContextSourceType": {
+        "enum": [
+          "SKILL",
+          "SYSTEM",
+          "USER_INPUT",
+          "SESSION",
+          "CHECKPOINT",
+          "MEMORY",
+          "KNOWLEDGE",
+          "TOOL",
+          "ARTIFACT",
+          "DELEGATION",
+          "RUNTIME"
+        ],
+        "title": "ContextSourceType",
+        "type": "string"
+      },
+      "DelegationContextPolicy": {
+        "additionalProperties": false,
+        "properties": {
+          "max_units": {
+            "anyOf": [
+              {
+                "maximum": 1000000,
+                "minimum": 64,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Max Units"
+          }
+        },
+        "title": "DelegationContextPolicy",
+        "type": "object"
+      },
+      "ExternalField": {
+        "additionalProperties": false,
+        "properties": {
+          "default": {
+            "default": null,
+            "title": "Default"
+          },
+          "description": {
+            "default": "",
+            "title": "Description",
+            "type": "string"
+          },
+          "model": {
+            "$ref": "#/$defs/ModelExposure"
+          },
+          "required": {
+            "default": false,
+            "title": "Required",
+            "type": "boolean"
+          },
+          "schema": {
+            "additionalProperties": true,
+            "title": "Schema",
+            "type": "object"
+          },
+          "scope": {
+            "default": "run",
+            "enum": [
+              "run",
+              "session"
+            ],
+            "title": "Scope",
+            "type": "string"
+          }
+        },
+        "required": [
+          "schema"
+        ],
+        "title": "ExternalField",
+        "type": "object"
+      },
+      "KnowledgeContextPolicy": {
+        "additionalProperties": false,
+        "properties": {
+          "max_units": {
+            "anyOf": [
+              {
+                "maximum": 1000000,
+                "minimum": 128,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Max Units"
+          }
+        },
+        "title": "KnowledgeContextPolicy",
+        "type": "object"
+      },
+      "MemoryContextPolicy": {
+        "additionalProperties": false,
+        "properties": {
+          "max_units": {
+            "anyOf": [
+              {
+                "maximum": 1000000,
+                "minimum": 128,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Max Units"
+          }
+        },
+        "title": "MemoryContextPolicy",
+        "type": "object"
+      },
+      "Metadata": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "default": "",
+            "title": "Description",
+            "type": "string"
+          },
+          "key": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.-]*$",
+            "title": "Key",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Version"
+          }
+        },
+        "required": [
+          "key",
+          "name"
+        ],
+        "title": "Metadata",
+        "type": "object"
+      },
+      "ModelExposure": {
+        "additionalProperties": false,
+        "properties": {
+          "expose": {
+            "default": false,
+            "title": "Expose",
+            "type": "boolean"
+          }
+        },
+        "title": "ModelExposure",
+        "type": "object"
+      },
+      "ModelParameters": {
+        "additionalProperties": false,
+        "properties": {
+          "max_output_tokens": {
+            "anyOf": [
+              {
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Max Output Tokens"
+          },
+          "temperature": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Temperature"
+          }
+        },
+        "title": "ModelParameters",
+        "type": "object"
+      },
+      "Provenance": {
+        "additionalProperties": false,
+        "properties": {
+          "exporter": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Exporter"
+          },
+          "snapshot_schema_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Snapshot Schema Version"
+          },
+          "source_release": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Source Release"
+          }
+        },
+        "title": "Provenance",
+        "type": "object"
+      },
+      "RAGRuntimeConfig": {
+        "additionalProperties": false,
+        "description": "Canonical Knowledge/RAG configuration persisted in Agent runtime_config.rag.",
+        "properties": {
+          "candidate_k": {
+            "default": 20,
+            "maximum": 100,
+            "minimum": 1,
+            "title": "Candidate K",
+            "type": "integer"
+          },
+          "grounding_policy": {
+            "default": "optional",
+            "enum": [
+              "optional",
+              "required"
+            ],
+            "title": "Grounding Policy",
+            "type": "string"
+          },
+          "history_turns": {
+            "default": 3,
+            "maximum": 10,
+            "minimum": 1,
+            "title": "History Turns",
+            "type": "integer"
+          },
+          "max_chunks_per_document": {
+            "default": 2,
+            "maximum": 20,
+            "minimum": 1,
+            "title": "Max Chunks Per Document",
+            "type": "integer"
+          },
+          "max_context_chars": {
+            "default": 24000,
+            "maximum": 100000,
+            "minimum": 1000,
+            "title": "Max Context Chars",
+            "type": "integer"
+          },
+          "max_context_chunks": {
+            "default": 5,
+            "maximum": 20,
+            "minimum": 1,
+            "title": "Max Context Chunks",
+            "type": "integer"
+          },
+          "min_score": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Min Score"
+          },
+          "query_mode": {
+            "default": "conversation_context",
+            "enum": [
+              "current_message",
+              "conversation_context"
+            ],
+            "title": "Query Mode",
+            "type": "string"
+          },
+          "search_strategy": {
+            "const": "similarity",
+            "default": "similarity",
+            "title": "Search Strategy",
+            "type": "string"
+          },
+          "strategy": {
+            "default": "classic",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Strategy",
+            "type": "string"
+          },
+          "strategy_config": {
+            "additionalProperties": true,
+            "title": "Strategy Config",
+            "type": "object"
+          },
+          "top_k": {
+            "default": 5,
+            "maximum": 20,
+            "minimum": 1,
+            "title": "Top K",
+            "type": "integer"
+          }
+        },
+        "title": "RAGRuntimeConfig",
+        "type": "object"
+      },
+      "Ref": {
+        "additionalProperties": false,
+        "properties": {
+          "ref": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ref"
+        ],
+        "title": "Ref",
+        "type": "object"
+      },
+      "SessionContextPolicy": {
+        "additionalProperties": false,
+        "properties": {
+          "max_messages": {
+            "default": 20,
+            "maximum": 200,
+            "minimum": 1,
+            "title": "Max Messages",
+            "type": "integer"
+          },
+          "max_units": {
+            "anyOf": [
+              {
+                "maximum": 1000000,
+                "minimum": 128,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Max Units"
+          },
+          "strategy": {
+            "const": "recent",
+            "default": "recent",
+            "title": "Strategy",
+            "type": "string"
+          }
+        },
+        "title": "SessionContextPolicy",
+        "type": "object"
+      },
+      "SkillBinding": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "ref": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Ref",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ref",
+          "version"
+        ],
+        "title": "SkillBinding",
+        "type": "object"
+      },
+      "SkillContextPolicy": {
+        "additionalProperties": false,
+        "properties": {
+          "catalog_max_units": {
+            "default": 2000,
+            "maximum": 100000,
+            "minimum": 128,
+            "title": "Catalog Max Units",
+            "type": "integer"
+          },
+          "max_units": {
+            "default": 8000,
+            "maximum": 1000000,
+            "minimum": 256,
+            "title": "Max Units",
+            "type": "integer"
+          },
+          "search_limit": {
+            "default": 8,
+            "maximum": 50,
+            "minimum": 1,
+            "title": "Search Limit",
+            "type": "integer"
+          }
+        },
+        "title": "SkillContextPolicy",
+        "type": "object"
+      },
+      "StrategySelection": {
+        "additionalProperties": false,
+        "properties": {
+          "config": {
+            "additionalProperties": true,
+            "title": "Config",
+            "type": "object"
+          },
+          "strategy": {
+            "title": "Strategy",
+            "type": "string"
+          }
+        },
+        "required": [
+          "strategy"
+        ],
+        "title": "StrategySelection",
+        "type": "object"
+      },
+      "ToolContextPolicy": {
+        "additionalProperties": false,
+        "properties": {
+          "max_result_units": {
+            "anyOf": [
+              {
+                "maximum": 1000000,
+                "minimum": 64,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Max Result Units"
+          }
+        },
+        "title": "ToolContextPolicy",
+        "type": "object"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "format": {
+        "const": "woobe-package",
+        "title": "Format",
+        "type": "string"
+      },
+      "kind": {
+        "const": "Agent",
+        "title": "Kind",
+        "type": "string"
+      },
+      "metadata": {
+        "$ref": "#/$defs/Metadata"
+      },
+      "provenance": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/Provenance"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "schema_version": {
+        "const": "1.0",
+        "title": "Schema Version",
+        "type": "string"
+      },
+      "spec": {
+        "$ref": "#/$defs/AgentSpecV1"
+      }
+    },
+    "required": [
+      "format",
+      "schema_version",
+      "metadata",
+      "kind",
+      "spec"
+    ],
+    "title": "AgentDocument",
+    "type": "object"
+  },
+  "Contract": {
+    "$defs": {
+      "ContractSpecV1": {
+        "additionalProperties": false,
+        "properties": {
+          "additional_instructions": {
+            "default": "",
+            "title": "Additional Instructions",
+            "type": "string"
+          },
+          "input_schema": {
+            "additionalProperties": true,
+            "title": "Input Schema",
+            "type": "object"
+          },
+          "output_schema": {
+            "additionalProperties": true,
+            "title": "Output Schema",
+            "type": "object"
+          },
+          "repair_attempts": {
+            "default": 0,
+            "minimum": 0,
+            "title": "Repair Attempts",
+            "type": "integer"
+          },
+          "validation_mode": {
+            "default": "strict",
+            "enum": [
+              "strict",
+              "lenient"
+            ],
+            "title": "Validation Mode",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "version"
+        ],
+        "title": "ContractSpecV1",
+        "type": "object"
+      },
+      "Metadata": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "default": "",
+            "title": "Description",
+            "type": "string"
+          },
+          "key": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.-]*$",
+            "title": "Key",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Version"
+          }
+        },
+        "required": [
+          "key",
+          "name"
+        ],
+        "title": "Metadata",
+        "type": "object"
+      },
+      "Provenance": {
+        "additionalProperties": false,
+        "properties": {
+          "exporter": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Exporter"
+          },
+          "snapshot_schema_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Snapshot Schema Version"
+          },
+          "source_release": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Source Release"
+          }
+        },
+        "title": "Provenance",
+        "type": "object"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "format": {
+        "const": "woobe-package",
+        "title": "Format",
+        "type": "string"
+      },
+      "kind": {
+        "const": "Contract",
+        "title": "Kind",
+        "type": "string"
+      },
+      "metadata": {
+        "$ref": "#/$defs/Metadata"
+      },
+      "provenance": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/Provenance"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "schema_version": {
+        "const": "1.0",
+        "title": "Schema Version",
+        "type": "string"
+      },
+      "spec": {
+        "$ref": "#/$defs/ContractSpecV1"
+      }
+    },
+    "required": [
+      "format",
+      "schema_version",
+      "metadata",
+      "kind",
+      "spec"
+    ],
+    "title": "ContractDocument",
+    "type": "object"
+  },
+  "ImportBindings": {
+    "$defs": {
+      "BindingsMetadata": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "default": "",
+            "title": "Description",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "BindingsMetadata",
+        "type": "object"
+      },
+      "BindingsSpec": {
+        "additionalProperties": false,
+        "properties": {
+          "credentials": {
+            "additionalProperties": {
+              "$ref": "#/$defs/CredentialBinding"
+            },
+            "title": "Credentials",
+            "type": "object"
+          },
+          "knowledge": {
+            "additionalProperties": {
+              "$ref": "#/$defs/KnowledgeBinding"
+            },
+            "title": "Knowledge",
+            "type": "object"
+          },
+          "project_environment": {
+            "additionalProperties": {
+              "$ref": "#/$defs/EnvironmentBinding"
+            },
+            "title": "Project Environment",
+            "type": "object"
+          },
+          "secrets": {
+            "additionalProperties": {
+              "$ref": "#/$defs/SecretBinding"
+            },
+            "title": "Secrets",
+            "type": "object"
+          }
+        },
+        "title": "BindingsSpec",
+        "type": "object"
+      },
+      "CredentialBinding": {
+        "additionalProperties": false,
+        "properties": {
+          "credential_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Credential Id"
+          },
+          "protected_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Protected Ref"
+          }
+        },
+        "title": "CredentialBinding",
+        "type": "object"
+      },
+      "EnvironmentBinding": {
+        "additionalProperties": false,
+        "properties": {
+          "existing_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Existing Key"
+          },
+          "protected_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Protected Ref"
+          }
+        },
+        "title": "EnvironmentBinding",
+        "type": "object"
+      },
+      "KnowledgeBinding": {
+        "additionalProperties": false,
+        "properties": {
+          "vector_snapshot_id": {
+            "title": "Vector Snapshot Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "vector_snapshot_id"
+        ],
+        "title": "KnowledgeBinding",
+        "type": "object"
+      },
+      "SecretBinding": {
+        "additionalProperties": false,
+        "properties": {
+          "existing_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Existing Key"
+          },
+          "protected_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Protected Ref"
+          }
+        },
+        "title": "SecretBinding",
+        "type": "object"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "format": {
+        "const": "woobe-package",
+        "title": "Format",
+        "type": "string"
+      },
+      "kind": {
+        "const": "ImportBindings",
+        "title": "Kind",
+        "type": "string"
+      },
+      "metadata": {
+        "$ref": "#/$defs/BindingsMetadata"
+      },
+      "schema_version": {
+        "const": "1.0",
+        "title": "Schema Version",
+        "type": "string"
+      },
+      "spec": {
+        "$ref": "#/$defs/BindingsSpec"
+      }
+    },
+    "required": [
+      "format",
+      "schema_version",
+      "kind",
+      "metadata",
+      "spec"
+    ],
+    "title": "ImportBindingsV1",
+    "type": "object"
+  },
+  "Knowledge": {
+    "$defs": {
+      "CollectionSpec": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "default": "",
+            "title": "Description",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "CollectionSpec",
+        "type": "object"
+      },
+      "EmbeddingSelection": {
+        "additionalProperties": false,
+        "properties": {
+          "model_ref": {
+            "title": "Model Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "model_ref"
+        ],
+        "title": "EmbeddingSelection",
+        "type": "object"
+      },
+      "KnowledgeFile": {
+        "additionalProperties": false,
+        "properties": {
+          "content_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Content Type"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "title"
+        ],
+        "title": "KnowledgeFile",
+        "type": "object"
+      },
+      "KnowledgeSpecV1": {
+        "additionalProperties": false,
+        "properties": {
+          "binding": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Ref"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "collection": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/CollectionSpec"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "documents": {
+            "items": {
+              "$ref": "#/$defs/KnowledgeFile"
+            },
+            "title": "Documents",
+            "type": "array"
+          },
+          "embedding": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/EmbeddingSelection"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "mode": {
+            "enum": [
+              "portable",
+              "binding"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "vector_snapshot": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/RAGBuildConfig"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "mode"
+        ],
+        "title": "KnowledgeSpecV1",
+        "type": "object"
+      },
+      "Metadata": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "default": "",
+            "title": "Description",
+            "type": "string"
+          },
+          "key": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.-]*$",
+            "title": "Key",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Version"
+          }
+        },
+        "required": [
+          "key",
+          "name"
+        ],
+        "title": "Metadata",
+        "type": "object"
+      },
+      "Provenance": {
+        "additionalProperties": false,
+        "properties": {
+          "exporter": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Exporter"
+          },
+          "snapshot_schema_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Snapshot Schema Version"
+          },
+          "source_release": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Source Release"
+          }
+        },
+        "title": "Provenance",
+        "type": "object"
+      },
+      "RAGBuildConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "chunking": {
+            "$ref": "#/$defs/RAGChunkingConfig",
+            "default": {
+              "chunk_overlap": 120,
+              "chunk_size": 800,
+              "min_chunk_size": 100,
+              "preserve_headings": true,
+              "preserve_page_boundaries": true,
+              "preserve_paragraphs": true,
+              "preset": "balanced",
+              "strategy": "recursive_text"
+            }
+          },
+          "parser": {
+            "$ref": "#/$defs/RAGParserConfig",
+            "default": {
+              "implementation": "woobe-document-parser",
+              "include_docx_tables": true,
+              "normalize_whitespace": true,
+              "preserve_page_boundaries": true,
+              "version": "2"
+            }
+          }
+        },
+        "title": "RAGBuildConfig",
+        "type": "object"
+      },
+      "RAGChunkingConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "chunk_overlap": {
+            "default": 120,
+            "maximum": 1000,
+            "minimum": 0,
+            "title": "Chunk Overlap",
+            "type": "integer"
+          },
+          "chunk_size": {
+            "default": 800,
+            "maximum": 4000,
+            "minimum": 200,
+            "title": "Chunk Size",
+            "type": "integer"
+          },
+          "min_chunk_size": {
+            "default": 100,
+            "maximum": 1000,
+            "minimum": 20,
+            "title": "Min Chunk Size",
+            "type": "integer"
+          },
+          "preserve_headings": {
+            "default": true,
+            "title": "Preserve Headings",
+            "type": "boolean"
+          },
+          "preserve_page_boundaries": {
+            "default": true,
+            "title": "Preserve Page Boundaries",
+            "type": "boolean"
+          },
+          "preserve_paragraphs": {
+            "default": true,
+            "title": "Preserve Paragraphs",
+            "type": "boolean"
+          },
+          "preset": {
+            "default": "balanced",
+            "enum": [
+              "precise",
+              "balanced",
+              "broad",
+              "custom"
+            ],
+            "title": "Preset",
+            "type": "string"
+          },
+          "strategy": {
+            "default": "recursive_text",
+            "enum": [
+              "recursive_text",
+              "paragraph",
+              "markdown_headings"
+            ],
+            "title": "Strategy",
+            "type": "string"
+          }
+        },
+        "title": "RAGChunkingConfig",
+        "type": "object"
+      },
+      "RAGParserConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "implementation": {
+            "const": "woobe-document-parser",
+            "default": "woobe-document-parser",
+            "title": "Implementation",
+            "type": "string"
+          },
+          "include_docx_tables": {
+            "default": true,
+            "title": "Include Docx Tables",
+            "type": "boolean"
+          },
+          "normalize_whitespace": {
+            "default": true,
+            "title": "Normalize Whitespace",
+            "type": "boolean"
+          },
+          "preserve_page_boundaries": {
+            "default": true,
+            "title": "Preserve Page Boundaries",
+            "type": "boolean"
+          },
+          "version": {
+            "const": "2",
+            "default": "2",
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "title": "RAGParserConfig",
+        "type": "object"
+      },
+      "Ref": {
+        "additionalProperties": false,
+        "properties": {
+          "ref": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ref"
+        ],
+        "title": "Ref",
+        "type": "object"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "format": {
+        "const": "woobe-package",
+        "title": "Format",
+        "type": "string"
+      },
+      "kind": {
+        "const": "Knowledge",
+        "title": "Kind",
+        "type": "string"
+      },
+      "metadata": {
+        "$ref": "#/$defs/Metadata"
+      },
+      "provenance": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/Provenance"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "schema_version": {
+        "const": "1.0",
+        "title": "Schema Version",
+        "type": "string"
+      },
+      "spec": {
+        "$ref": "#/$defs/KnowledgeSpecV1"
+      }
+    },
+    "required": [
+      "format",
+      "schema_version",
+      "metadata",
+      "kind",
+      "spec"
+    ],
+    "title": "KnowledgeDocument",
+    "type": "object"
+  },
+  "Model": {
+    "$defs": {
+      "Metadata": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "default": "",
+            "title": "Description",
+            "type": "string"
+          },
+          "key": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.-]*$",
+            "title": "Key",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Version"
+          }
+        },
+        "required": [
+          "key",
+          "name"
+        ],
+        "title": "Metadata",
+        "type": "object"
+      },
+      "ModelSpecRefV1": {
+        "additionalProperties": false,
+        "properties": {
+          "base_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Base Url"
+          },
+          "credential": {
+            "$ref": "#/$defs/Ref"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "model_spec_hint": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Model Spec Hint"
+          },
+          "model_type": {
+            "default": "language",
+            "title": "Model Type",
+            "type": "string"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "model",
+          "credential"
+        ],
+        "title": "ModelSpecRefV1",
+        "type": "object"
+      },
+      "Provenance": {
+        "additionalProperties": false,
+        "properties": {
+          "exporter": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Exporter"
+          },
+          "snapshot_schema_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Snapshot Schema Version"
+          },
+          "source_release": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Source Release"
+          }
+        },
+        "title": "Provenance",
+        "type": "object"
+      },
+      "Ref": {
+        "additionalProperties": false,
+        "properties": {
+          "ref": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ref"
+        ],
+        "title": "Ref",
+        "type": "object"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "format": {
+        "const": "woobe-package",
+        "title": "Format",
+        "type": "string"
+      },
+      "kind": {
+        "const": "Model",
+        "title": "Kind",
+        "type": "string"
+      },
+      "metadata": {
+        "$ref": "#/$defs/Metadata"
+      },
+      "provenance": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/Provenance"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "schema_version": {
+        "const": "1.0",
+        "title": "Schema Version",
+        "type": "string"
+      },
+      "spec": {
+        "$ref": "#/$defs/ModelSpecRefV1"
+      }
+    },
+    "required": [
+      "format",
+      "schema_version",
+      "metadata",
+      "kind",
+      "spec"
+    ],
+    "title": "ModelDocument",
+    "type": "object"
+  },
+  "Network": {
+    "$defs": {
+      "Metadata": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "default": "",
+            "title": "Description",
+            "type": "string"
+          },
+          "key": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.-]*$",
+            "title": "Key",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Version"
+          }
+        },
+        "required": [
+          "key",
+          "name"
+        ],
+        "title": "Metadata",
+        "type": "object"
+      },
+      "NetworkEdge": {
+        "additionalProperties": false,
+        "properties": {
+          "from": {
+            "title": "From",
+            "type": "string"
+          },
+          "to": {
+            "title": "To",
+            "type": "string"
+          }
+        },
+        "required": [
+          "from",
+          "to"
+        ],
+        "title": "NetworkEdge",
+        "type": "object"
+      },
+      "NetworkNode": {
+        "additionalProperties": false,
+        "properties": {
+          "agent_ref": {
+            "title": "Agent Ref",
+            "type": "string"
+          },
+          "binding": {
+            "$ref": "#/$defs/NodeBinding"
+          },
+          "capability_description": {
+            "default": "",
+            "title": "Capability Description",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "default": "",
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "agent_ref"
+        ],
+        "title": "NetworkNode",
+        "type": "object"
+      },
+      "NetworkSettings": {
+        "additionalProperties": false,
+        "properties": {
+          "max_depth": {
+            "default": 4,
+            "minimum": 1,
+            "title": "Max Depth",
+            "type": "integer"
+          },
+          "max_invocations": {
+            "default": 16,
+            "minimum": 1,
+            "title": "Max Invocations",
+            "type": "integer"
+          },
+          "session_mode": {
+            "default": "stateless",
+            "enum": [
+              "stateful",
+              "stateless"
+            ],
+            "title": "Session Mode",
+            "type": "string"
+          },
+          "timeout_seconds": {
+            "default": 90,
+            "minimum": 1,
+            "title": "Timeout Seconds",
+            "type": "integer"
+          },
+          "tool_result_max_chars": {
+            "default": 16000,
+            "minimum": 1,
+            "title": "Tool Result Max Chars",
+            "type": "integer"
+          }
+        },
+        "title": "NetworkSettings",
+        "type": "object"
+      },
+      "NetworkSpecV1": {
+        "additionalProperties": false,
+        "properties": {
+          "edges": {
+            "items": {
+              "$ref": "#/$defs/NetworkEdge"
+            },
+            "title": "Edges",
+            "type": "array"
+          },
+          "nodes": {
+            "items": {
+              "$ref": "#/$defs/NetworkNode"
+            },
+            "minItems": 1,
+            "title": "Nodes",
+            "type": "array"
+          },
+          "root": {
+            "title": "Root",
+            "type": "string"
+          },
+          "settings": {
+            "$ref": "#/$defs/NetworkSettings"
+          }
+        },
+        "required": [
+          "root",
+          "nodes"
+        ],
+        "title": "NetworkSpecV1",
+        "type": "object"
+      },
+      "NodeBinding": {
+        "additionalProperties": false,
+        "properties": {
+          "source": {
+            "default": "draft",
+            "enum": [
+              "draft",
+              "staging",
+              "release"
+            ],
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "title": "NodeBinding",
+        "type": "object"
+      },
+      "Provenance": {
+        "additionalProperties": false,
+        "properties": {
+          "exporter": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Exporter"
+          },
+          "snapshot_schema_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Snapshot Schema Version"
+          },
+          "source_release": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Source Release"
+          }
+        },
+        "title": "Provenance",
+        "type": "object"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "format": {
+        "const": "woobe-package",
+        "title": "Format",
+        "type": "string"
+      },
+      "kind": {
+        "const": "Network",
+        "title": "Kind",
+        "type": "string"
+      },
+      "metadata": {
+        "$ref": "#/$defs/Metadata"
+      },
+      "provenance": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/Provenance"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "schema_version": {
+        "const": "1.0",
+        "title": "Schema Version",
+        "type": "string"
+      },
+      "spec": {
+        "$ref": "#/$defs/NetworkSpecV1"
+      }
+    },
+    "required": [
+      "format",
+      "schema_version",
+      "metadata",
+      "kind",
+      "spec"
+    ],
+    "title": "NetworkDocument",
+    "type": "object"
+  },
+  "Package": {
+    "$defs": {
+      "CredentialRequirement": {
+        "additionalProperties": false,
+        "properties": {
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "ref": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ref",
+          "provider"
+        ],
+        "title": "CredentialRequirement",
+        "type": "object"
+      },
+      "Entrypoint": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "enum": [
+              "Agent",
+              "Network"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "ref": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ref",
+          "kind"
+        ],
+        "title": "Entrypoint",
+        "type": "object"
+      },
+      "EnvironmentRequirement": {
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "value",
+              "secret"
+            ],
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "kind"
+        ],
+        "title": "EnvironmentRequirement",
+        "type": "object"
+      },
+      "Integrity": {
+        "additionalProperties": false,
+        "properties": {
+          "algorithm": {
+            "const": "sha256",
+            "default": "sha256",
+            "title": "Algorithm",
+            "type": "string"
+          }
+        },
+        "title": "Integrity",
+        "type": "object"
+      },
+      "PackageMetadata": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "default": "",
+            "title": "Description",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "version": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "version"
+        ],
+        "title": "PackageMetadata",
+        "type": "object"
+      },
+      "PackageSpec": {
+        "additionalProperties": false,
+        "properties": {
+          "entrypoint": {
+            "$ref": "#/$defs/Entrypoint"
+          },
+          "integrity": {
+            "$ref": "#/$defs/Integrity"
+          },
+          "requires": {
+            "$ref": "#/$defs/Requirements"
+          },
+          "resources": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 1023,
+            "minItems": 1,
+            "title": "Resources",
+            "type": "array"
+          }
+        },
+        "required": [
+          "entrypoint",
+          "resources"
+        ],
+        "title": "PackageSpec",
+        "type": "object"
+      },
+      "Provenance": {
+        "additionalProperties": false,
+        "properties": {
+          "exporter": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Exporter"
+          },
+          "snapshot_schema_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Snapshot Schema Version"
+          },
+          "source_release": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Source Release"
+          }
+        },
+        "title": "Provenance",
+        "type": "object"
+      },
+      "Ref": {
+        "additionalProperties": false,
+        "properties": {
+          "ref": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ref"
+        ],
+        "title": "Ref",
+        "type": "object"
+      },
+      "Requirements": {
+        "additionalProperties": false,
+        "properties": {
+          "credentials": {
+            "items": {
+              "$ref": "#/$defs/CredentialRequirement"
+            },
+            "title": "Credentials",
+            "type": "array"
+          },
+          "knowledge": {
+            "items": {
+              "$ref": "#/$defs/Ref"
+            },
+            "title": "Knowledge",
+            "type": "array"
+          },
+          "project_environment": {
+            "items": {
+              "$ref": "#/$defs/EnvironmentRequirement"
+            },
+            "title": "Project Environment",
+            "type": "array"
+          },
+          "secrets": {
+            "items": {
+              "$ref": "#/$defs/Ref"
+            },
+            "title": "Secrets",
+            "type": "array"
+          }
+        },
+        "title": "Requirements",
+        "type": "object"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "format": {
+        "const": "woobe-package",
+        "title": "Format",
+        "type": "string"
+      },
+      "kind": {
+        "const": "Package",
+        "title": "Kind",
+        "type": "string"
+      },
+      "metadata": {
+        "$ref": "#/$defs/PackageMetadata"
+      },
+      "provenance": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/Provenance"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "schema_version": {
+        "const": "1.0",
+        "title": "Schema Version",
+        "type": "string"
+      },
+      "spec": {
+        "$ref": "#/$defs/PackageSpec"
+      }
+    },
+    "required": [
+      "format",
+      "schema_version",
+      "kind",
+      "metadata",
+      "spec"
+    ],
+    "title": "PackageManifestV1",
+    "type": "object"
+  },
+  "PackageLock": {
+    "$defs": {
+      "InventoryFile": {
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "sha256": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Sha256",
+            "type": "string"
+          },
+          "size_bytes": {
+            "minimum": 0,
+            "title": "Size Bytes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "path",
+          "size_bytes",
+          "sha256"
+        ],
+        "title": "InventoryFile",
+        "type": "object"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "algorithm": {
+        "const": "sha256",
+        "title": "Algorithm",
+        "type": "string"
+      },
+      "artifact_digest": {
+        "pattern": "^[a-f0-9]{64}$",
+        "title": "Artifact Digest",
+        "type": "string"
+      },
+      "format": {
+        "const": "woobe-package",
+        "title": "Format",
+        "type": "string"
+      },
+      "inventory": {
+        "items": {
+          "$ref": "#/$defs/InventoryFile"
+        },
+        "title": "Inventory",
+        "type": "array"
+      },
+      "kind": {
+        "const": "PackageLock",
+        "title": "Kind",
+        "type": "string"
+      },
+      "schema_version": {
+        "const": "1.0",
+        "title": "Schema Version",
+        "type": "string"
+      }
+    },
+    "required": [
+      "format",
+      "schema_version",
+      "kind",
+      "algorithm",
+      "inventory",
+      "artifact_digest"
+    ],
+    "title": "PackageLockV1",
+    "type": "object"
+  },
+  "Prompt": {
+    "$defs": {
+      "Metadata": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "default": "",
+            "title": "Description",
+            "type": "string"
+          },
+          "key": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.-]*$",
+            "title": "Key",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Version"
+          }
+        },
+        "required": [
+          "key",
+          "name"
+        ],
+        "title": "Metadata",
+        "type": "object"
+      },
+      "PromptSpecV1": {
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "version",
+          "content"
+        ],
+        "title": "PromptSpecV1",
+        "type": "object"
+      },
+      "Provenance": {
+        "additionalProperties": false,
+        "properties": {
+          "exporter": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Exporter"
+          },
+          "snapshot_schema_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Snapshot Schema Version"
+          },
+          "source_release": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Source Release"
+          }
+        },
+        "title": "Provenance",
+        "type": "object"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "format": {
+        "const": "woobe-package",
+        "title": "Format",
+        "type": "string"
+      },
+      "kind": {
+        "const": "Prompt",
+        "title": "Kind",
+        "type": "string"
+      },
+      "metadata": {
+        "$ref": "#/$defs/Metadata"
+      },
+      "provenance": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/Provenance"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "schema_version": {
+        "const": "1.0",
+        "title": "Schema Version",
+        "type": "string"
+      },
+      "spec": {
+        "$ref": "#/$defs/PromptSpecV1"
+      }
+    },
+    "required": [
+      "format",
+      "schema_version",
+      "metadata",
+      "kind",
+      "spec"
+    ],
+    "title": "PromptDocument",
+    "type": "object"
+  },
+  "Skill": {
+    "$defs": {
+      "Metadata": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "default": "",
+            "title": "Description",
+            "type": "string"
+          },
+          "key": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.-]*$",
+            "title": "Key",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Version"
+          }
+        },
+        "required": [
+          "key",
+          "name"
+        ],
+        "title": "Metadata",
+        "type": "object"
+      },
+      "Provenance": {
+        "additionalProperties": false,
+        "properties": {
+          "exporter": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Exporter"
+          },
+          "snapshot_schema_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Snapshot Schema Version"
+          },
+          "source_release": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Source Release"
+          }
+        },
+        "title": "Provenance",
+        "type": "object"
+      },
+      "SkillDescriptorV1": {
+        "additionalProperties": false,
+        "properties": {
+          "package": {
+            "$ref": "#/$defs/SkillFiles"
+          },
+          "required_tools": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Required Tools",
+            "type": "array"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "version",
+          "package"
+        ],
+        "title": "SkillDescriptorV1",
+        "type": "object"
+      },
+      "SkillFiles": {
+        "additionalProperties": false,
+        "properties": {
+          "manifest": {
+            "title": "Manifest",
+            "type": "string"
+          },
+          "resources": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Resources",
+            "type": "array"
+          }
+        },
+        "required": [
+          "manifest"
+        ],
+        "title": "SkillFiles",
+        "type": "object"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "format": {
+        "const": "woobe-package",
+        "title": "Format",
+        "type": "string"
+      },
+      "kind": {
+        "const": "Skill",
+        "title": "Kind",
+        "type": "string"
+      },
+      "metadata": {
+        "$ref": "#/$defs/Metadata"
+      },
+      "provenance": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/Provenance"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "schema_version": {
+        "const": "1.0",
+        "title": "Schema Version",
+        "type": "string"
+      },
+      "spec": {
+        "$ref": "#/$defs/SkillDescriptorV1"
+      }
+    },
+    "required": [
+      "format",
+      "schema_version",
+      "metadata",
+      "kind",
+      "spec"
+    ],
+    "title": "SkillDocument",
+    "type": "object"
+  },
+  "Tool": {
+    "$defs": {
+      "HttpAuthConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "credentials": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Credentials"
+          },
+          "type": {
+            "default": "none",
+            "enum": [
+              "none",
+              "api_key",
+              "bearer",
+              "basic"
+            ],
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "title": "HttpAuthConfig",
+        "type": "object"
+      },
+      "HttpHeaderConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "minLength": 1,
+            "title": "Key",
+            "type": "string"
+          },
+          "mode": {
+            "default": "set",
+            "enum": [
+              "set",
+              "remove"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "sensitive": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Sensitive"
+          },
+          "value": {
+            "default": "",
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key"
+        ],
+        "title": "HttpHeaderConfig",
+        "type": "object"
+      },
+      "HttpRouteConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "bindings": {
+            "additionalProperties": {
+              "$ref": "#/$defs/ToolInputBinding"
+            },
+            "title": "Bindings",
+            "type": "object"
+          },
+          "body": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Body"
+          },
+          "contract_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Contract Hash"
+          },
+          "contract_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Contract Version"
+          },
+          "default_permission": {
+            "default": "review",
+            "enum": [
+              "allow",
+              "deny",
+              "review"
+            ],
+            "title": "Default Permission",
+            "type": "string"
+          },
+          "description": {
+            "minLength": 1,
+            "title": "Description",
+            "type": "string"
+          },
+          "headers": {
+            "items": {
+              "$ref": "#/$defs/HttpHeaderConfig"
+            },
+            "title": "Headers",
+            "type": "array"
+          },
+          "id": {
+            "minLength": 1,
+            "title": "Id",
+            "type": "string"
+          },
+          "input_schema": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Input Schema"
+          },
+          "method": {
+            "default": "GET",
+            "enum": [
+              "GET",
+              "POST",
+              "PUT",
+              "PATCH",
+              "DELETE",
+              "HEAD"
+            ],
+            "title": "Method",
+            "type": "string"
+          },
+          "name": {
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "operation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Operation Id"
+          },
+          "output_schema": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Output Schema"
+          },
+          "path": {
+            "minLength": 1,
+            "title": "Path",
+            "type": "string"
+          },
+          "permission": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Permission"
+          },
+          "risk_level": {
+            "default": "low",
+            "enum": [
+              "low",
+              "medium",
+              "high",
+              "critical"
+            ],
+            "title": "Risk Level",
+            "type": "string"
+          },
+          "status": {
+            "default": "active",
+            "enum": [
+              "active",
+              "inactive"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "timeout_ms": {
+            "anyOf": [
+              {
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Timeout Ms"
+          },
+          "variables": {
+            "additionalProperties": true,
+            "title": "Variables",
+            "type": "object"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "path"
+        ],
+        "title": "HttpRouteConfig",
+        "type": "object"
+      },
+      "HttpToolConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "auth": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/HttpAuthConfig"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "base_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Base Url"
+          },
+          "bindings": {
+            "additionalProperties": {
+              "$ref": "#/$defs/ToolInputBinding"
+            },
+            "title": "Bindings",
+            "type": "object"
+          },
+          "body": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Body"
+          },
+          "headers": {
+            "items": {
+              "$ref": "#/$defs/HttpHeaderConfig"
+            },
+            "title": "Headers",
+            "type": "array"
+          },
+          "method": {
+            "default": "GET",
+            "enum": [
+              "GET",
+              "POST",
+              "PUT",
+              "PATCH",
+              "DELETE",
+              "HEAD"
+            ],
+            "title": "Method",
+            "type": "string"
+          },
+          "mode": {
+            "default": "single",
+            "enum": [
+              "single",
+              "group"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "protocol": {
+            "anyOf": [
+              {
+                "const": "http",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Protocol"
+          },
+          "routes": {
+            "items": {
+              "$ref": "#/$defs/HttpRouteConfig"
+            },
+            "title": "Routes",
+            "type": "array"
+          },
+          "schema_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Schema Version"
+          },
+          "timeout_ms": {
+            "anyOf": [
+              {
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Timeout Ms"
+          },
+          "url": {
+            "default": "",
+            "title": "Url",
+            "type": "string"
+          },
+          "variables": {
+            "additionalProperties": true,
+            "title": "Variables",
+            "type": "object"
+          }
+        },
+        "title": "HttpToolConfig",
+        "type": "object"
+      },
+      "McpDiscoveredToolConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "bindings": {
+            "additionalProperties": {
+              "$ref": "#/$defs/ToolInputBinding"
+            },
+            "title": "Bindings",
+            "type": "object"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Description"
+          },
+          "input_schema": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Input Schema"
+          },
+          "name": {
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "permission": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Permission"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Title"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "McpDiscoveredToolConfig",
+        "type": "object"
+      },
+      "McpPermission": {
+        "additionalProperties": false,
+        "properties": {
+          "permission": {
+            "title": "Permission",
+            "type": "string"
+          },
+          "remote_name": {
+            "title": "Remote Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "remote_name",
+          "permission"
+        ],
+        "title": "McpPermission",
+        "type": "object"
+      },
+      "McpServerConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "args": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Args"
+          },
+          "command": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Command"
+          },
+          "env_secret_refs": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Env Secret Refs"
+          },
+          "headers": {
+            "items": {
+              "$ref": "#/$defs/HttpHeaderConfig"
+            },
+            "title": "Headers",
+            "type": "array"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Name"
+          },
+          "transport": {
+            "const": "streamable_http",
+            "default": "streamable_http",
+            "title": "Transport",
+            "type": "string"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Url"
+          }
+        },
+        "title": "McpServerConfig",
+        "type": "object"
+      },
+      "McpToolConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "bindings": {
+            "additionalProperties": {
+              "$ref": "#/$defs/ToolInputBinding"
+            },
+            "title": "Bindings",
+            "type": "object"
+          },
+          "discovered_input_schema": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Discovered Input Schema"
+          },
+          "discovered_tools": {
+            "items": {
+              "$ref": "#/$defs/McpDiscoveredToolConfig"
+            },
+            "title": "Discovered Tools",
+            "type": "array"
+          },
+          "discovery_cache_ttl_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Discovery Cache Ttl Seconds"
+          },
+          "exposure": {
+            "default": "single",
+            "enum": [
+              "single",
+              "all_discovered"
+            ],
+            "title": "Exposure",
+            "type": "string"
+          },
+          "input_schema_source": {
+            "default": "manual",
+            "enum": [
+              "discovered",
+              "manual"
+            ],
+            "title": "Input Schema Source",
+            "type": "string"
+          },
+          "mode": {
+            "default": "tool",
+            "enum": [
+              "tool",
+              "server"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "protocol": {
+            "anyOf": [
+              {
+                "const": "mcp",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Protocol"
+          },
+          "server": {
+            "$ref": "#/$defs/McpServerConfig"
+          },
+          "server_headers": {
+            "items": {
+              "$ref": "#/$defs/HttpHeaderConfig"
+            },
+            "title": "Server Headers",
+            "type": "array"
+          },
+          "timeout_ms": {
+            "anyOf": [
+              {
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Timeout Ms"
+          },
+          "tool_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Tool Name"
+          }
+        },
+        "required": [
+          "server"
+        ],
+        "title": "McpToolConfig",
+        "type": "object"
+      },
+      "Metadata": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "default": "",
+            "title": "Description",
+            "type": "string"
+          },
+          "key": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.-]*$",
+            "title": "Key",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Version"
+          }
+        },
+        "required": [
+          "key",
+          "name"
+        ],
+        "title": "Metadata",
+        "type": "object"
+      },
+      "Provenance": {
+        "additionalProperties": false,
+        "properties": {
+          "exporter": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Exporter"
+          },
+          "snapshot_schema_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Snapshot Schema Version"
+          },
+          "source_release": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Source Release"
+          }
+        },
+        "title": "Provenance",
+        "type": "object"
+      },
+      "ToolBindingSource": {
+        "additionalProperties": false,
+        "properties": {
+          "field": {
+            "minLength": 1,
+            "title": "Field",
+            "type": "string"
+          },
+          "kind": {
+            "default": "context",
+            "enum": [
+              "context",
+              "project_environment"
+            ],
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "field"
+        ],
+        "title": "ToolBindingSource",
+        "type": "object"
+      },
+      "ToolInputBinding": {
+        "additionalProperties": false,
+        "properties": {
+          "source": {
+            "$ref": "#/$defs/ToolBindingSource"
+          }
+        },
+        "required": [
+          "source"
+        ],
+        "title": "ToolInputBinding",
+        "type": "object"
+      },
+      "ToolSpecV1": {
+        "additionalProperties": false,
+        "properties": {
+          "config": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/HttpToolConfig"
+              },
+              {
+                "$ref": "#/$defs/McpToolConfig"
+              }
+            ],
+            "title": "Config"
+          },
+          "description": {
+            "default": "",
+            "title": "Description",
+            "type": "string"
+          },
+          "input_schema": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Input Schema"
+          },
+          "output_schema": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Output Schema"
+          },
+          "permission": {
+            "default": "allow",
+            "title": "Permission",
+            "type": "string"
+          },
+          "permissions": {
+            "items": {
+              "$ref": "#/$defs/McpPermission"
+            },
+            "title": "Permissions",
+            "type": "array"
+          },
+          "risk": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Risk"
+          },
+          "timeout_ms": {
+            "default": 10000,
+            "minimum": 1,
+            "title": "Timeout Ms",
+            "type": "integer"
+          },
+          "type": {
+            "enum": [
+              "http",
+              "mcp"
+            ],
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "config"
+        ],
+        "title": "ToolSpecV1",
+        "type": "object"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "format": {
+        "const": "woobe-package",
+        "title": "Format",
+        "type": "string"
+      },
+      "kind": {
+        "const": "Tool",
+        "title": "Kind",
+        "type": "string"
+      },
+      "metadata": {
+        "$ref": "#/$defs/Metadata"
+      },
+      "provenance": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/Provenance"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "schema_version": {
+        "const": "1.0",
+        "title": "Schema Version",
+        "type": "string"
+      },
+      "spec": {
+        "$ref": "#/$defs/ToolSpecV1"
+      }
+    },
+    "required": [
+      "format",
+      "schema_version",
+      "metadata",
+      "kind",
+      "spec"
+    ],
+    "title": "ToolDocument",
+    "type": "object"
+  }
+}
