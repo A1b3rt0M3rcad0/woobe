@@ -1,3 +1,5 @@
+from modules.identity.entrypoint import LoginInput, RegisterInput, CreateWorkspaceInput
+from woobe_api.http.shared.openapi_contracts import request_body_contract
 from uuid import UUID
 
 from fastapi import APIRouter, Request as FastAPIRequest
@@ -106,12 +108,12 @@ async def csrf(request: FastAPIRequest):
     return await csrf_endpoint(request)
 
 
-@router.post("/auth/login")
+@router.post("/auth/login", openapi_extra=request_body_contract(LoginInput, "/identity/auth/login", "post"))
 async def login(request: FastAPIRequest):
     return await login_endpoint(request)
 
 
-@router.post("/auth/register")
+@router.post("/auth/register", openapi_extra=request_body_contract(RegisterInput, "/identity/auth/register", "post"))
 async def register(request: FastAPIRequest):
     payload = dict(await request.json())
     email = payload.get("email")
@@ -139,7 +141,7 @@ async def create_user(request: FastAPIRequest):
     )
 
 
-@router.post("/workspaces")
+@router.post("/workspaces", openapi_extra=request_body_contract(CreateWorkspaceInput, "/identity/workspaces", "post"))
 async def create_workspace(request: FastAPIRequest):
     return await create_workspace_endpoint(request)
 
