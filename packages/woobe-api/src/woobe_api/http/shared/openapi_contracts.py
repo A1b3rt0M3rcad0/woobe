@@ -19,8 +19,9 @@ def request_body_contract(model: type[BaseModel], path: str, method: str, *, req
             ref = value.get("$ref")
             if isinstance(ref, str) and ref.startswith("#/$defs/"):
                 value["$ref"] = pointer + ref[1:]
-            for child in value.values():
-                relocate(child)
+            for key, child in value.items():
+                if key not in {"default", "const", "enum", "examples", "example"}:
+                    relocate(child)
         elif isinstance(value, list):
             for child in value:
                 relocate(child)

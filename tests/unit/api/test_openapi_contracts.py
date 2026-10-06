@@ -26,3 +26,16 @@ def test_body_contract_advertises_path_identity_without_adding_body_fields() -> 
     assert contract["requestBody"]["required"] is False
     assert contract["parameters"] == [{"name": "agent_id", "in": "path", "required": True, "schema": {"type": "string", "format": "uuid"}}]
     assert "agent_id" not in contract["requestBody"]["content"]["application/json"]["schema"]["properties"]
+
+
+def test_relocation_preserves_literal_json_reference_values() -> None:
+    class WithLiteral(Parent):
+        @classmethod
+        def model_json_schema(cls, **kwargs):
+            schema = Parent.model_json_schema(**kwargs)
+            schema["properties"]["config"] = {"type": "object", "default": {"$ref": "#/$defs/External"}}
+            return schema
+
+    schema = request_body_contract(WithLiteral, "/ai/agents", "post")["requestBody"]["content"]["application/json"]["schema"]
+    assert schema["properties"]["config"]["default"] == {"$ref": "#/$defs/External"}
+    assert schema["properties"]["child"]["$ref"].startswith("#/paths/~1ai~1agents/")

@@ -67,3 +67,28 @@ def test_agent_session_query_contract_describes_the_consumed_dto_filters():
         assert item["required"] is (name in {"agent_id", "project_id"})
     assert parameters["agent_id"]["in"] == "path"
     assert parameters["limit"]["schema"]["maximum"] == 100
+
+
+def test_all_advertised_dto_references_resolve_in_the_openapi_document():
+    app = FastAPI()
+    for router in (routes.router, routes.knowledge_router, routes.runtime_router, routes.tools_router):
+        app.include_router(router)
+    document = app.openapi()
+
+    def inspect_references(value):
+        if isinstance(value, dict):
+            if "$ref" in value:
+                target = document
+                assert value["$ref"].startswith("#/")
+                for segment in value["$ref"][2:].split("/"):
+                    target = target[segment.replace("~1", "/").replace("~0", "~")]
+                assert isinstance(target, dict)
+            for key, child in value.items():
+                if key not in {"default", "const", "enum", "examples", "example"}:
+                    inspect_references(child)
+        elif isinstance(value, list):
+            for child in value:
+                inspect_references(child)
+
+    for _, _, path, method in CONTRACTS:
+        inspect_references(document["paths"][path][method]["requestBody"])
