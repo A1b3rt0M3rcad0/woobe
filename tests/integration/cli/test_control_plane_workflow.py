@@ -275,23 +275,38 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
     assert project["id"] == replay["id"]
     cli.project_id = project["id"]
     expiry = (datetime.now(UTC) + timedelta(hours=1)).isoformat()
-    credential = await cli.data(
-        "project",
-        "provider-credential",
-        "create", "--validate-body",
-        body={
-            "project_id": cli.project_id,
-            "provider": "custom",
-            "name": "Fake provider",
-            "secret": "fake-api-key",
-            "metadata": {
-                "provider_family": "openai",
-                "compatibility": "compatible",
-                "base_url": os.environ["WOOBE_TEST_FAKE_PROVIDER_URL"],
-                "model_discovery_strategy": "openai_compatible_models",
-            },
-        },
-    )
+    provider_secret = "fake-api-key"
+    cli.secret_values.add(provider_secret)
+    protected_store = cli.directory / "credentials"
+    protected_store.mkdir(mode=0o700)
+    protected_file = protected_store / "fake-provider.json"
+    protected_file.write_text(provider_secret)
+    protected_file.chmod(0o600)
+    credential_plan = {
+        "schema_version": "1", "project_id": cli.project_id,
+        "steps": [{"id": "provider", "command": "project provider-credential create", "body": {
+            "project_id": cli.project_id, "provider": "custom", "name": "Fake provider",
+            "secret": {"$secret_ref": "fake-provider"},
+            "metadata": {"provider_family": "openai", "compatibility": "compatible",
+                         "base_url": os.environ["WOOBE_TEST_FAKE_PROVIDER_URL"],
+                         "model_discovery_strategy": "openai_compatible_models"},
+        }}],
+    }
+    protected_preflight = await cli.run("manifest", "preflight", body=credential_plan)
+    assert protected_preflight["data"]["complete"] is False
+    assert protected_preflight["data"]["operations"][0]["body_validation"] == "deferred_protected_credential"
+    provider_checkpoint = cli.directory / "provider.checkpoint.json"
+    applied = await cli.run("manifest", "apply", "--validate-body", "--checkpoint", str(provider_checkpoint), body=credential_plan)
+    credential = applied["data"]["results"]["provider"]
+    resumed = await cli.run("manifest", "apply", "--validate-body", "--checkpoint", str(provider_checkpoint), body=credential_plan)
+    assert resumed["data"]["results"]["provider"]["id"] == credential["id"]
+    assert provider_secret not in provider_checkpoint.read_text()
+    assert provider_checkpoint.stat().st_mode & 0o777 == 0o600
+    listed_credentials = await cli.data("project", "provider-credential", "list", "--validate-parameters")
+    assert [item["id"] for item in listed_credentials] == [credential["id"]]
+    protected_file.write_text("rotated-local-fixture")
+    await cli.run("manifest", "apply", "--checkpoint", str(provider_checkpoint), body=credential_plan, expected=6)
+    protected_file.write_text(provider_secret)
     model = await cli.data(
         "project",
         "provider-model",
