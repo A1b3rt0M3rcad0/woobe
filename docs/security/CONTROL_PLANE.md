@@ -40,6 +40,10 @@ revision is created. They do not authorize future catalog additions.
 
 Control Keys are managed at `/core/workspaces/{workspace_id}/control-keys`.
 The browser exposes this management under **Workspace settings → CLI Keys**.
+Creation uses adjacent identity/expiration and permission panels. Expiration
+defaults to 90 days and shares the existing API key presets and custom calendar
+with a time picker. Permissions are grouped by resource, and Project grants use
+selectable Project rows with a separate permission selection for each Project.
 Workspace owners and admins with the required effective key permissions can
 list, create, rotate and revoke keys there. Creation uses the live permission
 catalog and separate Project grants; no permissions are selected by default.

@@ -140,19 +140,20 @@ describe('Workspace CLI key management', () => {
     await render()
     await click(button('Create CLI key'))
     await type('cli-key-name', 'Workstation')
-    const labels = [...container.querySelectorAll('label')]
-    expect(labels.some((node) => node.textContent === 'secret:write')).toBe(
-      false,
-    )
+    await click(button('No expiration'))
     await click(
-      labels
-        .find((node) => node.textContent === 'workspace:read')!
-        .querySelector('input')!,
+      container.querySelector<HTMLInputElement>(
+        'input[aria-label="workspace:read"]',
+      )!,
     )
+    await click(button('Projects (0)'))
+    expect(
+      container.querySelector('input[aria-label="secret:write"]'),
+    ).toBeNull()
     await click(
-      labels
-        .find((node) => node.textContent === 'agent:read')!
-        .querySelector('input')!,
+      container.querySelector<HTMLInputElement>(
+        'input[aria-label="agent:read"]',
+      )!,
     )
     await click(button('Create key'))
     expect(api.createControlKey).toHaveBeenCalledWith(

@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { KeyRound } from 'lucide-react'
+import { Check, FolderKanban, KeyRound, ShieldCheck } from 'lucide-react'
 import {
   Alert,
   AlertDescription,
@@ -14,9 +14,17 @@ import {
   FieldLabel,
   Input,
   SectionBlock,
+  SegmentedControl,
+  Textarea,
   TechnicalListItem,
 } from '@woobe/ui'
 import { CopyButton } from '@/components/common/CopyButton'
+import {
+  ApiKeyExpirationField,
+  DEFAULT_API_KEY_EXPIRATION,
+  resolveApiKeyExpiration,
+  type ApiKeyExpirationValue,
+} from '@/features/api-keys/components/ApiKeyExpirationField'
 import { API_BASE_URL } from '@/lib/api/client'
 import type { Project } from '@/features/projects/types'
 import {
@@ -31,6 +39,13 @@ import {
   type ProjectGrant,
 } from './api'
 
+function permissionName(value: string) {
+  return value
+    .replaceAll('_', ' ')
+    .replaceAll(':', ' ')
+    .replace(/\b\w/g, (letter) => letter.toUpperCase())
+}
+
 function PermissionChoices({
   title,
   permissions,
@@ -42,32 +57,22 @@ function PermissionChoices({
   selected: string[]
   onChange: (value: string[]) => void
 }) {
+  const groups = new Map<string, string[]>()
+  for (const permission of permissions) {
+    const family = permission.slice(0, permission.lastIndexOf(':'))
+    groups.set(family, [...(groups.get(family) ?? []), permission])
+  }
   return (
-    <details className="rounded-panel border border-border p-ui-sm">
-      <summary className="cursor-pointer text-system-control font-medium">
-        {title} ({selected.length} selected)
-      </summary>
-      <div className="mt-ui-sm grid gap-ui-xs sm:grid-cols-2">
-        {permissions.map((permission) => (
-          <label
-            key={permission}
-            className="flex items-center gap-ui-sm text-system-label"
-          >
-            <Checkbox
-              checked={selected.includes(permission)}
-              onChange={() =>
-                onChange(
-                  selected.includes(permission)
-                    ? selected.filter((value) => value !== permission)
-                    : [...selected, permission],
-                )
-              }
-            />
-            <span className="font-mono">{permission}</span>
-          </label>
-        ))}
+    <div className="grid min-w-0 gap-ui-sm">
+      <div className="flex flex-wrap items-center justify-between gap-ui-xs">
+        <p className="font-mono text-system-label text-muted-foreground">
+          {title}
+        </p>
+        <Badge variant="outline" size="compact">
+          {selected.length} selected
+        </Badge>
       </div>
-      <div className="mt-ui-sm flex gap-ui-xs">
+      <div className="flex flex-wrap gap-ui-xs">
         <Button
           size="sm"
           variant="outline"
@@ -82,14 +87,63 @@ function PermissionChoices({
         >
           Read permissions
         </Button>
-        <Button size="sm" variant="outline" onClick={() => onChange(permissions)}>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => onChange(permissions)}
+        >
           All available permissions
         </Button>
-        <Button size="sm" variant="outline" onClick={() => onChange([])}>
+        <Button size="sm" variant="ghost" onClick={() => onChange([])}>
           Clear
         </Button>
       </div>
-    </details>
+      <div className="scrollbar-thin grid max-h-60 gap-ui-md overflow-y-auto pr-ui-xs">
+        {[...groups].map(([family, items]) => (
+          <div key={family} className="grid gap-ui-xs">
+            <p className="font-mono text-system-meta uppercase tracking-ui-eyebrow text-muted-foreground">
+              {permissionName(family)}
+            </p>
+            <div className="grid gap-ui-xs sm:grid-cols-2">
+              {items.map((permission) => {
+                const checked = selected.includes(permission)
+                return (
+                  <label
+                    key={permission}
+                    className={`flex min-w-0 cursor-pointer items-center gap-ui-sm rounded-control border p-ui-sm transition-colors ${checked ? 'border-primary/40 bg-primary/10' : 'border-border bg-control hover:border-primary/30'}`}
+                  >
+                    <Checkbox
+                      aria-label={permission}
+                      checked={checked}
+                      onChange={() =>
+                        onChange(
+                          checked
+                            ? selected.filter((value) => value !== permission)
+                            : [...selected, permission],
+                        )
+                      }
+                    />
+                    <span className="min-w-0">
+                      <span className="block text-system-label font-medium">
+                        {permissionName(
+                          permission.slice(permission.lastIndexOf(':') + 1),
+                        )}
+                      </span>
+                      <span className="block truncate font-mono text-system-meta text-muted-foreground">
+                        {permission}
+                      </span>
+                    </span>
+                  </label>
+                )
+              })}
+            </div>
+          </div>
+        ))}
+        {!permissions.length ? (
+          <EmptyStatePanel compact title="No delegable permissions" />
+        ) : null}
+      </div>
+    </div>
   )
 }
 
@@ -156,9 +210,11 @@ function date(value?: string | null) {
 export function WorkspaceCliKeys({
   workspaceId,
   projects,
+  onConfigurationChange,
 }: {
   workspaceId: string
   projects: Project[]
+  onConfigurationChange?: (active: boolean) => void
 }) {
   const queryClient = useQueryClient()
   const access = useQuery({
@@ -183,11 +239,25 @@ export function WorkspaceCliKeys({
   const [creating, setCreating] = useState(false)
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
-  const [expiration, setExpiration] = useState('')
+  const [expiration, setExpiration] = useState<ApiKeyExpirationValue>({
+    ...DEFAULT_API_KEY_EXPIRATION,
+  })
+  const expiresAt = useMemo(
+    () => resolveApiKeyExpiration(expiration),
+    [expiration],
+  )
+  const [permissionScope, setPermissionScope] = useState('workspace')
+  const [selectedProjectId, setSelectedProjectId] = useState('')
+  const selectedProject =
+    projects.find((project) => project.id === selectedProjectId) ?? projects[0]
   const [workspacePermissions, setWorkspacePermissions] = useState<string[]>([])
   const [creationPermissions, setCreationPermissions] = useState<string[]>([])
   const [grants, setGrants] = useState<ProjectGrant[]>([])
   const [issued, setIssued] = useState<IssuedControlKey | null>(null)
+  useEffect(() => {
+    onConfigurationChange?.(creating || Boolean(issued))
+  }, [creating, issued, onConfigurationChange])
+  useEffect(() => () => onConfigurationChange?.(false), [onConfigurationChange])
   const [action, setAction] = useState<{
     kind: 'rotate' | 'revoke'
     key: ControlKey
@@ -223,7 +293,7 @@ export function WorkspaceCliKeys({
       const body = {
         name: name.trim(),
         description: description.trim() || null,
-        expires_at: expiration ? new Date(expiration).toISOString() : null,
+        expires_at: expiresAt?.toISOString() ?? null,
         permissions: workspacePermissions,
         project_grants: grants.filter((grant) => grant.permissions.length > 0),
         on_project_create_permissions: workspacePermissions.includes(
@@ -242,7 +312,7 @@ export function WorkspaceCliKeys({
         setCreating(false)
         setName('')
         setDescription('')
-        setExpiration('')
+        setExpiration({ ...DEFAULT_API_KEY_EXPIRATION })
         setWorkspacePermissions([])
         setCreationPermissions([])
         setGrants([])
@@ -376,13 +446,19 @@ export function WorkspaceCliKeys({
   return (
     <div className="grid gap-ui-md">
       <SectionBlock
-        title="CLI Keys"
-        description="Control Keys authenticate woobe-cli and automation. Choose Workspace permissions and separate grants for each Project. Runtime Keys in Project settings are for Agent and Network execution."
+        title={creating ? 'Create CLI key' : 'CLI Keys'}
+        description={
+          creating
+            ? 'Configure identity, expiration and access for this integration.'
+            : 'Manage credentials for woobe-cli and automation in this Workspace.'
+        }
         actions={
           !creating && permissions.includes('keys:create') ? (
             <Button
               onClick={() => {
                 setCreating(true)
+                setExpiration({ ...DEFAULT_API_KEY_EXPIRATION })
+                setPermissionScope('workspace')
                 setError(null)
               }}
             >
@@ -398,80 +474,165 @@ export function WorkspaceCliKeys({
         </Alert>
       ) : null}
       {creating ? (
-        <SectionBlock
-          title="Create CLI key"
-          description="Only the selected permissions are granted. No permissions are selected by default."
-        >
-          <div className="grid gap-ui-md">
-            <Field>
-              <FieldLabel htmlFor="cli-key-name">Name</FieldLabel>
-              <Input
-                id="cli-key-name"
-                value={name}
-                maxLength={255}
-                onChange={(event) => setName(event.target.value)}
-                placeholder="My workstation"
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="cli-key-description">
-                Description (optional)
-              </FieldLabel>
-              <Input
-                id="cli-key-description"
-                value={description}
-                maxLength={500}
-                onChange={(event) => setDescription(event.target.value)}
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="cli-key-expiration">
-                Expiration (optional)
-              </FieldLabel>
-              <Input
-                id="cli-key-expiration"
-                type="datetime-local"
-                value={expiration}
-                onChange={(event) => setExpiration(event.target.value)}
-              />
-              <p className="text-system-label text-muted-foreground">
-                Leave blank for no expiration.
-              </p>
-            </Field>
-            {catalog.isError ? (
-              <Alert variant="destructive">
-                <AlertTitle>Unable to load permission catalog</AlertTitle>
-                <Button
-                  variant="outline"
-                  onClick={() => void catalog.refetch()}
-                >
-                  Retry
-                </Button>
-              </Alert>
-            ) : catalog.data ? (
-              <>
-                <PermissionChoices
-                  title="Workspace permissions"
-                  permissions={catalog.data.permissions.workspace.filter(
-                    (permission) => permissions.includes(permission),
-                  )}
-                  selected={workspacePermissions}
-                  onChange={setWorkspacePermissions}
+        <div className="grid gap-ui-md">
+          <div className="grid items-start gap-ui-md lg:grid-cols-2">
+            <div className="grid min-w-0 gap-ui-md">
+              <SectionBlock
+                title="Key identity"
+                description="Name the workstation or integration that will use this key."
+                density="compact"
+                actions={
+                  <Badge variant="outline" size="compact">
+                    Control Key
+                  </Badge>
+                }
+              >
+                <div className="grid gap-ui-md">
+                  <Field>
+                    <FieldLabel htmlFor="cli-key-name">Name</FieldLabel>
+                    <Input
+                      id="cli-key-name"
+                      value={name}
+                      maxLength={255}
+                      onChange={(event) => setName(event.target.value)}
+                      placeholder="My workstation"
+                      autoFocus
+                    />
+                  </Field>
+                  <Field>
+                    <div className="flex items-center justify-between gap-ui-sm">
+                      <FieldLabel htmlFor="cli-key-description">
+                        Description{' '}
+                        <span className="font-normal text-muted-foreground">
+                          Optional
+                        </span>
+                      </FieldLabel>
+                      <span className="font-mono text-system-meta text-muted-foreground">
+                        {description.length}/500
+                      </span>
+                    </div>
+                    <Textarea
+                      id="cli-key-description"
+                      value={description}
+                      maxLength={500}
+                      rows={2}
+                      onChange={(event) => setDescription(event.target.value)}
+                      placeholder="Which workstation, service or automation uses this key?"
+                    />
+                  </Field>
+                </div>
+              </SectionBlock>
+              <SectionBlock
+                title="Expiration"
+                description="Choose how long this credential remains valid."
+                density="compact"
+              >
+                <ApiKeyExpirationField
+                  value={expiration}
+                  onChange={setExpiration}
+                  error={
+                    expiration.preset === 'custom' &&
+                    (!expiresAt || expiresAt.getTime() <= Date.now())
+                      ? 'Select a future date and time.'
+                      : null
+                  }
                 />
-                <SectionBlock
-                  title="Project grants"
-                  description="Permissions apply only to the Projects selected below."
-                  density="compact"
-                >
-                  <div className="grid gap-ui-xs">
-                    {projects.map((project) => (
+              </SectionBlock>
+            </div>
+            <SectionBlock
+              title="Access permissions"
+              description="Choose the scope, then select only the permissions this integration needs."
+              density="compact"
+              actions={
+                <ShieldCheck className="h-icon w-icon text-primary-light" />
+              }
+            >
+              <div className="grid min-w-0 gap-ui-md">
+                <div className="max-w-full overflow-x-auto">
+                  <SegmentedControl
+                    ariaLabel="CLI key permission scope"
+                    size="compact"
+                    items={[
+                      { value: 'workspace', label: 'Workspace' },
+                      {
+                        value: 'projects',
+                        label: `Projects (${grants.filter((grant) => grant.permissions.length).length})`,
+                      },
+                      ...(workspacePermissions.includes('projects:create')
+                        ? [{ value: 'new-projects', label: 'New Projects' }]
+                        : []),
+                    ]}
+                    value={permissionScope}
+                    onValueChange={setPermissionScope}
+                  />
+                </div>
+                {catalog.isError ? (
+                  <Alert variant="destructive">
+                    <AlertTitle>Unable to load permission catalog</AlertTitle>
+                    <Button
+                      variant="outline"
+                      onClick={() => void catalog.refetch()}
+                    >
+                      Retry
+                    </Button>
+                  </Alert>
+                ) : !catalog.data ? (
+                  <p role="status">Loading permission catalog…</p>
+                ) : permissionScope === 'workspace' ? (
+                  <PermissionChoices
+                    title="Workspace permissions"
+                    permissions={catalog.data.permissions.workspace.filter(
+                      (permission) => permissions.includes(permission),
+                    )}
+                    selected={workspacePermissions}
+                    onChange={(value) => {
+                      setWorkspacePermissions(value)
+                      if (!value.includes('projects:create'))
+                        setCreationPermissions([])
+                    }}
+                  />
+                ) : permissionScope === 'new-projects' &&
+                  workspacePermissions.includes('projects:create') ? (
+                  <PermissionChoices
+                    title="Permissions on newly created Projects"
+                    permissions={catalog.data.permissions.project}
+                    selected={creationPermissions}
+                    onChange={setCreationPermissions}
+                  />
+                ) : (
+                  <div className="grid gap-ui-md">
+                    <div
+                      className="scrollbar-thin grid max-h-36 gap-ui-xs overflow-y-auto"
+                      role="group"
+                      aria-label="Choose a Project"
+                    >
+                      {projects.map((project) => (
+                        <TechnicalListItem
+                          key={project.id}
+                          label={project.name}
+                          description={`${grants.find((grant) => grant.project_id === project.id)?.permissions.length ?? 0} permissions selected`}
+                          density="compact"
+                          selected={selectedProject?.id === project.id}
+                          leading={
+                            <FolderKanban className="h-icon w-icon text-primary-light" />
+                          }
+                          trailing={
+                            selectedProject?.id === project.id ? (
+                              <Check className="h-icon w-icon text-primary-light" />
+                            ) : undefined
+                          }
+                          onClick={() => setSelectedProjectId(project.id)}
+                        />
+                      ))}
+                    </div>
+                    {selectedProject ? (
                       <ProjectPermissions
-                        key={project.id}
+                        key={selectedProject.id}
                         workspaceId={workspaceId}
-                        project={project}
-                        catalog={catalog.data!.permissions.project}
+                        project={selectedProject}
+                        catalog={catalog.data.permissions.project}
                         grant={grants.find(
-                          (grant) => grant.project_id === project.id,
+                          (grant) => grant.project_id === selectedProject.id,
                         )}
                         onChange={(grant) =>
                           setGrants((current) => [
@@ -482,28 +643,25 @@ export function WorkspaceCliKeys({
                           ])
                         }
                       />
-                    ))}
+                    ) : (
+                      <EmptyStatePanel
+                        compact
+                        title="No Projects available"
+                        description="You can grant Workspace permissions now."
+                      />
+                    )}
                   </div>
-                  {!projects.length ? (
-                    <p className="text-system-label text-muted-foreground">
-                      No Projects available. You can grant Workspace permissions
-                      now.
-                    </p>
-                  ) : null}
-                </SectionBlock>
-                {workspacePermissions.includes('projects:create') ? (
-                  <PermissionChoices
-                    title="Permissions on newly created Projects"
-                    permissions={catalog.data.permissions.project}
-                    selected={creationPermissions}
-                    onChange={setCreationPermissions}
-                  />
-                ) : null}
-              </>
-            ) : (
-              <p role="status">Loading permission catalog…</p>
-            )}
-            <div className="flex justify-end gap-ui-sm">
+                )}
+              </div>
+            </SectionBlock>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-ui-sm border-t border-border pt-ui-md">
+            <p className="text-system-label text-muted-foreground">
+              {workspacePermissions.length} Workspace permissions ·{' '}
+              {grants.filter((grant) => grant.permissions.length > 0).length}{' '}
+              Project grants
+            </p>
+            <div className="flex gap-ui-sm">
               <Button
                 variant="outline"
                 disabled={pending}
@@ -516,9 +674,8 @@ export function WorkspaceCliKeys({
                 disabled={
                   !name.trim() ||
                   !catalog.data ||
-                  Boolean(
-                    expiration && new Date(expiration).getTime() <= Date.now(),
-                  )
+                  (expiration.preset === 'custom' &&
+                    (!expiresAt || expiresAt.getTime() <= Date.now()))
                 }
                 onClick={() => void submitCreate()}
               >
@@ -526,7 +683,7 @@ export function WorkspaceCliKeys({
               </Button>
             </div>
           </div>
-        </SectionBlock>
+        </div>
       ) : null}
       {action ? (
         <Alert variant="warning">
@@ -556,7 +713,7 @@ export function WorkspaceCliKeys({
           </div>
         </Alert>
       ) : null}
-      {keys.isPending ? (
+      {creating ? null : keys.isPending ? (
         <p role="status">Loading CLI keys…</p>
       ) : keys.isError ? (
         <Alert variant="destructive">
@@ -605,7 +762,7 @@ export function WorkspaceCliKeys({
                 <p className="mt-ui-xs break-all font-mono text-system-label">
                   Workspace: {key.permissions.join(', ') || 'No permissions'}
                 </p>
-          {key.project_grants.map((grant) => (
+                {key.project_grants.map((grant) => (
                   <p
                     key={grant.project_id}
                     className="mt-ui-xs break-all font-mono text-system-label"
