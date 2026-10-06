@@ -1,3 +1,4 @@
+from modules.agent.entrypoint import (CreateProviderCredentialInput,UpdateProviderCredentialInput,CreateProviderModelInput,UpdateProviderModelInput)
 from modules.agent.entrypoint import (CreateAgentInput,UpdateAgentInput)
 from woobe_api.http.shared.openapi_contracts import request_body_contract
 from uuid import UUID
@@ -76,14 +77,14 @@ from woobe_api.http.agent.controllers.ask_agent_stream_controller import (
 router = APIRouter(prefix="/ai", tags=["ai", "agent"])
 
 
-@router.post("/credentials")
+@router.post("/credentials", openapi_extra=request_body_contract(CreateProviderCredentialInput, "/ai/credentials", "post", required=True))
 async def create_provider_credential(request: FastAPIRequest):
     handler = create_provider_credential_composer()
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
-@router.patch("/credentials/{credential_id}")
+@router.patch("/credentials/{credential_id}", openapi_extra=request_body_contract(UpdateProviderCredentialInput, "/ai/credentials/{credential_id}", "patch", required=False))
 async def update_provider_credential(request: FastAPIRequest):
     handler = update_provider_credential_composer()
     response = await request_adapter(request, handler)
@@ -97,7 +98,7 @@ async def list_provider_credentials(request: FastAPIRequest):
     return response_adapter(response)
 
 
-@router.post("/provider-models", status_code=201)
+@router.post("/provider-models", status_code=201, openapi_extra=request_body_contract(CreateProviderModelInput, "/ai/provider-models", "post", required=True))
 async def create_provider_model(request: FastAPIRequest):
     handler = create_provider_model_composer()
     response = await request_adapter(request, handler)
@@ -118,7 +119,7 @@ async def get_provider_model(request: FastAPIRequest):
     return response_adapter(response)
 
 
-@router.patch("/provider-models/{provider_model_id}")
+@router.patch("/provider-models/{provider_model_id}", openapi_extra=request_body_contract(UpdateProviderModelInput, "/ai/provider-models/{provider_model_id}", "patch", required=False))
 async def update_provider_model(request: FastAPIRequest):
     handler = update_provider_model_composer()
     response = await request_adapter(request, handler)

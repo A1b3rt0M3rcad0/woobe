@@ -10,6 +10,11 @@ from woobe_api.http.shared.openapi_contracts import request_body_contract
 
 
 CONTRACTS = [
+    ('create_provider_credential', 'CreateProviderCredentialInput', '/ai/credentials', 'post'),
+    ('update_provider_credential', 'UpdateProviderCredentialInput', '/ai/credentials/{credential_id}', 'patch'),
+    ('create_provider_model', 'CreateProviderModelInput', '/ai/provider-models', 'post'),
+    ('update_provider_model', 'UpdateProviderModelInput', '/ai/provider-models/{provider_model_id}', 'patch'),
+
     ('create_agent', 'CreateAgentInput', '/ai/agents', 'post'),
     ('update_agent', 'UpdateAgentInput', '/ai/agents/{agent_id}', 'patch'),
 ]

@@ -1,4 +1,10 @@
 from modules.agent.composition.public_api import (
+    CreateProviderCredentialInput,
+    UpdateProviderCredentialInput,
+    CreateProviderModelInput,
+    UpdateProviderModelInput,
+)
+from modules.agent.composition.public_api import (
     CreateAgentInput,
     UpdateAgentInput,
 )
@@ -138,6 +144,10 @@ from modules.agent.composition.factories.rag_runtime_factory import (
 )
 
 __all__ = [
+    'CreateProviderCredentialInput',
+    'UpdateProviderCredentialInput',
+    'CreateProviderModelInput',
+    'UpdateProviderModelInput',
     'CreateAgentInput',
     'UpdateAgentInput',
     'archive_credential_composer',

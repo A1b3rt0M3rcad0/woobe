@@ -1,4 +1,10 @@
 from modules.agent.application.dtos import (
+    CreateProviderCredentialInput,
+    UpdateProviderCredentialInput,
+    CreateProviderModelInput,
+    UpdateProviderModelInput,
+)
+from modules.agent.application.dtos import (
     CreateAgentInput,
     UpdateAgentInput,
 )
@@ -260,6 +266,10 @@ from modules.agent.composition.composers.public_runtime_composers import (
 
 
 __all__ = [
+    'CreateProviderCredentialInput',
+    'UpdateProviderCredentialInput',
+    'CreateProviderModelInput',
+    'UpdateProviderModelInput',
     'CreateAgentInput',
     'UpdateAgentInput',
     'archive_credential_composer',
