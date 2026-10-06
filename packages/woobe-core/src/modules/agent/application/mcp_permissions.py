@@ -60,10 +60,12 @@ class UpdateMcpToolPermissionsUseCase:
         config = dict(tool.config or {})
         discovered_tools = normalize_discovered_tools(config.get("discovered_tools"))
         by_name = {item["name"]: item for item in discovered_tools}
+        if len(by_name) != len(discovered_tools):
+            raise ValueError("MCP discovery contains ambiguous remote tool names")
+        if any(item.remote_tool_name not in by_name for item in input_dto.permissions):
+            raise ValueError("MCP permission references an undiscovered remote tool")
         for permission in input_dto.permissions:
             item = by_name.get(permission.remote_tool_name)
-            if item is None:
-                continue
             next_permission = {"mode": permission.mode}
             if permission.risk_level:
                 next_permission["risk_level"] = permission.risk_level
