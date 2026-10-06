@@ -157,3 +157,17 @@ does not manufacture readOnly annotations in its DTOs to claim live coverage.
 POST /core/projects explicitly advertises the validation schema from the same
 CreateProjectInput DTO used by its transactional service. OpenAPI metadata does
 not add a second DTO or change the existing authorization/dispatch ordering.
+
+### DTO and parameter acceptance continuation
+
+The required Go CLI tests additionally validate advertised provider credential,
+provider model and Agent create schemas; Agent PATCH body/path; and Agent session
+path/query pagination under the constrained reader. OpenAPI reference regression
+tests verify all advertised DTO references resolve inside the real document.
+Request metadata never bypasses the existing authorization/transaction boundary.
+
+Local validation for the continuation: 285 API/Core/security/health tests passed;
+all seven governed module architecture checks reported zero violations. Native
+Go race/vet/module checks and packaged Linux smoke passed separately. Remote
+workflow results must be associated with the exact new backend/client SHAs;
+previous approved commits do not qualify the new head automatically.

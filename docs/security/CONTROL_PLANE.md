@@ -138,3 +138,28 @@ or empty. A staging-only key must explicitly query environment=staging; it canno
 use omission to read draft sessions or query production. Unreviewed routes do not
 gain authority from arbitrary environment query values. This catalog addition is
 recorded in revision 2026-10-05.2.
+
+## Advertised CLI validation contracts (2026-10-05 continuation)
+
+The CLI can opt into request-body validation and separate path/query validation.
+These checks use OpenAPI DTO schemas and supported serialization rules; they do
+not authenticate, authorize, coerce values on behalf of the server, or reproduce
+custom DTO validators. Backend authority and transactional rechecks remain the
+source of truth. Parsing/dispatch still happens through the existing handlers.
+
+Previously opaque Agent/provider/model, prompt/contract, Knowledge, Tools,
+session/message/job and identity writes now advertise their existing DTO input
+schemas. Nested DTO definitions use document-relative pointers into each inline
+request schema. Path identities are separately described; Agent session list
+parameters reflect the actual project/environment/cursor/limit DTO consumed by
+the controller. Exporting metadata does not introduce a new persistence path.
+
+The live CLI acceptance now requires body validation for provider/model/Agent
+creation, body and path validation for Agent edits, and advertised query/path
+validation for constrained session pagination. Unsupported DTO schemas or
+parameters must fail before the operation rather than silently approve input.
+
+Worker health probe diagnostics report safe reasons and stopped worker indexes,
+never arbitrary heartbeat payloads or worker errors. The failed historical smoke
+at 0aa81da was followed by successful smoke/restart on a74ebc9; its root cause
+was not reproduced and is not asserted fixed by adding diagnostics.
