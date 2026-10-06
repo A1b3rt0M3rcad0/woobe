@@ -1,3 +1,4 @@
+from modules.agent.entrypoint import (PromoteReleaseInput, RollbackReleaseInput)
 from modules.agent.entrypoint import (UpdateToolStatusInput, TestToolInput, ExecuteToolInput)
 from modules.agent.entrypoint import (UpdateCollectionInput, CreateKnowledgeVersionInput)
 from modules.agent.entrypoint import ListAgentSessionsInput
@@ -265,14 +266,14 @@ async def get_release(request: FastAPIRequest):
     return response_adapter(response)
 
 
-@router.post("/agents/{agent_id}/releases/{release_id}/promote")
+@router.post("/agents/{agent_id}/releases/{release_id}/promote", openapi_extra=request_body_contract(PromoteReleaseInput, '/ai/agents/{agent_id}/releases/{release_id}/promote', 'post', required=False))
 async def promote_release(request: FastAPIRequest):
     handler = promote_release_composer()
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
-@router.post("/agents/{agent_id}/releases/{release_id}/rollback")
+@router.post("/agents/{agent_id}/releases/{release_id}/rollback", openapi_extra=request_body_contract(RollbackReleaseInput, '/ai/agents/{agent_id}/releases/{release_id}/rollback', 'post', required=False))
 async def rollback_release(request: FastAPIRequest):
     handler = rollback_release_composer()
     response = await request_adapter(request, handler)

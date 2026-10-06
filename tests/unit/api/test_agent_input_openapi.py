@@ -48,7 +48,13 @@ EXTRA_ROUTERS.append(credential_routes.router)
 
 CONTRACT_OPTIONS['rotate_provider_credential'] = {'required': True}
 
+CONTRACT_OPTIONS['promote_release'] = {'required': False}
+
+CONTRACT_OPTIONS['rollback_release'] = {'required': False}
+
 CONTRACTS = [
+    ('rollback_release', 'RollbackReleaseInput', '/ai/agents/{agent_id}/releases/{release_id}/rollback', 'post'),
+    ('promote_release', 'PromoteReleaseInput', '/ai/agents/{agent_id}/releases/{release_id}/promote', 'post'),
     ('rotate_provider_credential', 'RotateProviderCredentialInput', '/ai/credentials/{credential_id}/rotate', 'post'),
     ('create_vector_snapshot', 'CreateVectorSnapshotInput', '/agent/knowledge/collections/{collection_id}/vector-snapshots', 'post'),
     ('preview_vector_snapshot', 'PreviewVectorSnapshotInput', '/agent/knowledge/collections/{collection_id}/vector-preview', 'post'),
