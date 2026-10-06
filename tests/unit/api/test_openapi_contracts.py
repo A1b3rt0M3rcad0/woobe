@@ -39,3 +39,19 @@ def test_relocation_preserves_literal_json_reference_values() -> None:
     schema = request_body_contract(WithLiteral, "/ai/agents", "post")["requestBody"]["content"]["application/json"]["schema"]
     assert schema["properties"]["config"]["default"] == {"$ref": "#/$defs/External"}
     assert schema["properties"]["child"]["$ref"].startswith("#/paths/~1ai~1agents/")
+
+
+def test_route_injected_dto_identity_is_not_required_in_body():
+    from uuid import UUID
+    import pytest
+    class BoundInput(BaseModel):
+        collection_id: UUID
+        name: str
+    contract = request_body_contract(BoundInput, "/collections/{collection_id}", "patch", path_fields=("collection_id",))
+    schema = contract["requestBody"]["content"]["application/json"]["schema"]
+    assert schema["required"] == ["name"]
+    assert "collection_id" not in schema["properties"]
+    assert contract["parameters"][0]["schema"]["format"] == "uuid"
+    assert "collection_id" in BoundInput.model_json_schema()["properties"]
+    with pytest.raises(ValueError):
+        request_body_contract(BoundInput, "/collections", "post", path_fields=("collection_id",))
