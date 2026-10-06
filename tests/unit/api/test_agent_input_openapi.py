@@ -16,7 +16,16 @@ CONTRACT_OPTIONS['update_collection'] = {'required': False, 'path_fields': ('col
 
 CONTRACT_OPTIONS['create_knowledge_version'] = {'required': True, 'path_fields': ('agent_id',)}
 
+CONTRACT_OPTIONS['tools_update_tool_status'] = {'required': False}
+
+CONTRACT_OPTIONS['tools_test_tool'] = {'required': True}
+
+CONTRACT_OPTIONS['tools_execute_tool'] = {'required': True}
+
 CONTRACTS = [
+    ('tools_execute_tool', 'ExecuteToolInput', '/tools/tools/execute', 'post'),
+    ('tools_test_tool', 'TestToolInput', '/tools/tools/test', 'post'),
+    ('tools_update_tool_status', 'UpdateToolStatusInput', '/tools/tools/{tool_id}/status', 'patch'),
     ('create_knowledge_version', 'CreateKnowledgeVersionInput', '/knowledge/agents/{agent_id}/knowledge-versions', 'post'),
     ('update_collection', 'UpdateCollectionInput', '/knowledge/collections/{collection_id}', 'patch'),
     ('tools_create_tool', 'CreateToolInput', '/tools/tools', 'post'),

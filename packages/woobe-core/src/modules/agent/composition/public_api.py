@@ -1,3 +1,6 @@
+from modules.agent.application.dtos.tools_dtos import UpdateToolStatusInput
+from modules.agent.application.dtos.tools_dtos import TestToolInput
+from modules.agent.application.dtos.tools_dtos import ExecuteToolInput
 from modules.agent.application.dtos.knowledge_dtos import UpdateCollectionInput
 from modules.agent.application.dtos.knowledge_dtos import CreateKnowledgeVersionInput
 from modules.agent.application.dtos import ListAgentSessionsInput
@@ -296,6 +299,10 @@ from modules.agent.composition.composers.public_runtime_composers import (
 
 
 __all__ = [
+    'UpdateToolStatusInput',
+    'TestToolInput',
+    'ExecuteToolInput',
+
     'UpdateCollectionInput',
     'CreateKnowledgeVersionInput',
 

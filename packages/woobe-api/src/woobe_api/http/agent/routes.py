@@ -1,3 +1,4 @@
+from modules.agent.entrypoint import (UpdateToolStatusInput, TestToolInput, ExecuteToolInput)
 from modules.agent.entrypoint import (UpdateCollectionInput, CreateKnowledgeVersionInput)
 from modules.agent.entrypoint import ListAgentSessionsInput
 from modules.agent.entrypoint import (CreateToolInput,UpdateToolInput,CreateSecretInput)
@@ -513,7 +514,7 @@ async def tools_update_tool(request: FastAPIRequest):
     return response_adapter(response)
 
 
-@tools_router.patch("/tools/{tool_id}/status")
+@tools_router.patch("/tools/{tool_id}/status", openapi_extra=request_body_contract(UpdateToolStatusInput, '/tools/tools/{tool_id}/status', 'patch', required=False))
 async def tools_update_tool_status(request: FastAPIRequest):
     handler = update_tool_status_composer()
     response = await request_adapter(request, handler)
@@ -527,7 +528,7 @@ async def tools_delete_tool(request: FastAPIRequest):
     return response_adapter(response)
 
 
-@tools_router.post("/tools/test")
+@tools_router.post("/tools/test", openapi_extra=request_body_contract(TestToolInput, '/tools/tools/test', 'post', required=True))
 async def tools_test_tool(request: FastAPIRequest):
     payload = await request.json()
     project_id = payload.get("project_id") if isinstance(payload, dict) else None
@@ -552,7 +553,7 @@ async def tools_test_tool(request: FastAPIRequest):
     return response_adapter(response)
 
 
-@tools_router.post("/tools/execute")
+@tools_router.post("/tools/execute", openapi_extra=request_body_contract(ExecuteToolInput, '/tools/tools/execute', 'post', required=True))
 async def tools_execute_tool(request: FastAPIRequest):
     handler = execute_tool_composer()
     response = await request_adapter(request, handler)

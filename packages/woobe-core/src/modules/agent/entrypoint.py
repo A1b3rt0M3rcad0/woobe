@@ -1,3 +1,4 @@
+from modules.agent.composition.public_api import (UpdateToolStatusInput, TestToolInput, ExecuteToolInput)
 from modules.agent.composition.public_api import (UpdateCollectionInput, CreateKnowledgeVersionInput)
 from modules.agent.composition.public_api import ListAgentSessionsInput
 from modules.agent.composition.public_api import (
@@ -173,6 +174,10 @@ from modules.agent.composition.factories.rag_runtime_factory import (
 )
 
 __all__ = [
+    'UpdateToolStatusInput',
+    'TestToolInput',
+    'ExecuteToolInput',
+
     'UpdateCollectionInput',
     'CreateKnowledgeVersionInput',
 
