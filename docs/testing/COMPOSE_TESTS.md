@@ -182,3 +182,16 @@ permission preflight accepts `review` and refuses an unsupported mode without
 performing Tool execution. These scenarios are enforced by the pinned client in
 `tests/integration/cli/test_control_plane_workflow.py`; unit-schema fixtures do not
 substitute for a successful required live run.
+
+### Protected input and MCP permission acceptance
+
+The required live Go CLI contract imports the deterministic provider credential
+through a protected local reference, checks deferred preflight, validated apply,
+private/redacted checkpoint, duplicate-free resume and refusal after local value
+rotation. It also validates read filters using the advertised server query schema.
+
+MCP permission acceptance seeds previously discovered remote-tool metadata as
+fixture setup, then uses the real API/CLI for selective and bulk allow/deny/review
+transitions. It verifies that an undiscovered name cannot partially apply a
+selection. This qualifies permission persistence and refusal; seeded discovery
+is not a remote MCP connectivity or OAuth-provider acceptance test.

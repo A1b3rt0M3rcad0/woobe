@@ -191,3 +191,26 @@ literals from property names that happen to be JSON Schema keywords.
 MCP permission modes remain `allow`, `deny` and `review`. Advertising Tool/MCP
 execution input does not confer execution authority. Release DTO preflight does
 not replace publication lifecycle rules, including required production notes.
+
+## Protected CLI inputs and MCP permission validation
+
+The CLI can resolve exact protected credential references for Tool and provider
+configuration at apply time. They are local POSIX private-file references, not
+server-side secret handles. The backend receives the normal DTO field value and
+retains its encryption, ownership and projection rules. Checkpoints bind the
+local value snapshot; redacted reads cannot certify an uncertain secret write.
+No category import, protected reference or client validation grants authority.
+
+MCP permission DTOs accept only allow/deny/review and forbid unknown fields,
+blank/padded names, duplicate remote names and empty/unbounded selective lists.
+The application requires a valid MCP provider discovery and checks the entire
+selection before mutating anything; an unknown remote name rejects the whole
+request. Bulk updates affect exactly the discovered provider set. Review keeps
+remote capabilities unavailable and does not introduce a per-call approval UI.
+Existing immutable release tool snapshots retain their policies.
+
+Reviewed DTO query contracts cover Agent/provider/Knowledge/Tool metadata and
+session messages. Message pages use offset 0..1,000,000 and limit 1..1000.
+Skill imports and catalog paging, and the six existing MCP OAuth operation bodies,
+are advertised without moving parsing ahead of authorization. Custom validators,
+network readiness and OAuth success still require backend evaluation.
