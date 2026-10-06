@@ -1,3 +1,7 @@
+from modules.agent.application.dtos.knowledge_dtos import GetDocumentInput
+from modules.agent.application.dtos.knowledge_dtos import ListDocumentsInput
+from modules.agent.application.dtos.knowledge_dtos import GetCollectionInput
+from modules.agent.application.dtos.knowledge_dtos import ListCollectionsInput
 from modules.agent.application.dtos.ai_dtos import ListProviderModelsInput
 from modules.agent.application.dtos.ai_dtos import ListProviderCredentialsInput
 from modules.agent.application.dtos.ai_dtos import GetAgentInput
@@ -310,6 +314,10 @@ from modules.agent.composition.composers.public_runtime_composers import (
 
 
 __all__ = [
+    'GetDocumentInput',
+    'ListDocumentsInput',
+    'GetCollectionInput',
+    'ListCollectionsInput',
     'ListProviderModelsInput',
     'ListProviderCredentialsInput',
     'GetAgentInput',

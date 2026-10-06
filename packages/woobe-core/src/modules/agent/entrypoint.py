@@ -1,3 +1,7 @@
+from modules.agent.composition.public_api import GetDocumentInput
+from modules.agent.composition.public_api import ListDocumentsInput
+from modules.agent.composition.public_api import GetCollectionInput
+from modules.agent.composition.public_api import ListCollectionsInput
 from modules.agent.composition.public_api import ListProviderModelsInput
 from modules.agent.composition.public_api import ListProviderCredentialsInput
 from modules.agent.composition.public_api import GetAgentInput
@@ -182,6 +186,10 @@ from modules.agent.composition.factories.rag_runtime_factory import (
 )
 
 __all__ = [
+    'GetDocumentInput',
+    'ListDocumentsInput',
+    'GetCollectionInput',
+    'ListCollectionsInput',
     'ListProviderModelsInput',
     'ListProviderCredentialsInput',
     'GetAgentInput',

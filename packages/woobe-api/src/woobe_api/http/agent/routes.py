@@ -1,3 +1,5 @@
+from modules.agent.entrypoint import (ListCollectionsInput, GetCollectionInput, ListDocumentsInput, GetDocumentInput)
+from woobe_api.http.shared.openapi_contracts import query_parameter_contract
 from modules.agent.entrypoint import (ListProviderCredentialsInput, ListProviderModelsInput)
 from woobe_api.http.shared.openapi_contracts import query_parameter_contract
 from modules.agent.entrypoint import (ListAgentsInput, GetAgentInput)
@@ -309,7 +311,7 @@ async def list_release_tests(request: FastAPIRequest):
 knowledge_router = APIRouter(prefix="/knowledge", tags=["knowledge", "agent"])
 
 
-@knowledge_router.get("/collections")
+@knowledge_router.get("/collections", openapi_extra=query_parameter_contract(ListCollectionsInput, "/knowledge/collections"))
 async def list_collections(request: FastAPIRequest):
     handler = list_collections_composer()
     response = await request_adapter(request, handler)
@@ -323,7 +325,7 @@ async def create_collection(request: FastAPIRequest):
     return response_adapter(response)
 
 
-@knowledge_router.get("/collections/{collection_id}")
+@knowledge_router.get("/collections/{collection_id}", openapi_extra=query_parameter_contract(GetCollectionInput, "/knowledge/collections/{collection_id}"))
 async def get_collection(request: FastAPIRequest):
     handler = get_collection_composer()
     response = await request_adapter(request, handler)
@@ -369,7 +371,7 @@ async def detach_collection(request: FastAPIRequest):
     return response_adapter(response)
 
 
-@knowledge_router.get("/documents")
+@knowledge_router.get("/documents", openapi_extra=query_parameter_contract(ListDocumentsInput, "/knowledge/documents"))
 async def list_documents(request: FastAPIRequest):
     handler = list_documents_composer()
     response = await request_adapter(request, handler)
@@ -403,7 +405,7 @@ async def delete_document(document_id: UUID):
     return await knowledge_files.delete_document(document_id=document_id)
 
 
-@knowledge_router.get("/documents/{document_id}")
+@knowledge_router.get("/documents/{document_id}", openapi_extra=query_parameter_contract(GetDocumentInput, "/knowledge/documents/{document_id}"))
 async def get_document(request: FastAPIRequest):
     handler = get_document_composer()
     response = await request_adapter(request, handler)
