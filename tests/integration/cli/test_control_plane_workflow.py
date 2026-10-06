@@ -386,6 +386,7 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
         "agent",
         "release",
         "promote",
+        "--validate-body", "--validate-parameters",
         agent_id,
         draft["id"],
         body={"target_status": "staging"},
@@ -396,6 +397,7 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
         "agent",
         "release",
         "promote",
+        "--validate-body", "--validate-parameters",
         agent_id,
         staging["id"],
         body={"target_status": "production"},
@@ -474,7 +476,7 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
     )
     # Publication still enforces the Agent lifecycle DTO/domain validation.
     missing_notes = await cli.run(
-        "project", "agent", "release", "promote", agent_id, staging["id"],
+        "project", "agent", "release", "promote", "--validate-body", "--validate-parameters", agent_id, staging["id"],
         body={"target_status": "production"}, expected=2,
     )
     assert missing_notes["error"]["http_status"] == 422
@@ -483,6 +485,7 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
         "agent",
         "release",
         "promote",
+        "--validate-body", "--validate-parameters",
         agent_id,
         staging["id"],
         body={"target_status": "production", "release_notes": "Validated CLI publication"},
@@ -493,20 +496,20 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
         body={"project_id": cli.project_id, "agent_id": agent_id, "version": "auto", "system_prompt": "Second version."},
     )
     second_stage = await cli.data(
-        "project", "agent", "release", "promote", agent_id, second_draft["id"],
+        "project", "agent", "release", "promote", "--validate-body", "--validate-parameters", agent_id, second_draft["id"],
         body={"target_status": "staging"},
     )
     second_release = await cli.data(
-        "project", "agent", "release", "promote", agent_id, second_stage["id"],
+        "project", "agent", "release", "promote", "--validate-body", "--validate-parameters", agent_id, second_stage["id"],
         body={"target_status": "production", "release_notes": "Second CLI publication"},
     )
     assert second_release["id"] != production["id"]
     await cli.run(
-        "project", "agent", "release", "rollback", agent_id, production["id"],
+        "project", "agent", "release", "rollback", "--validate-body", "--validate-parameters", agent_id, production["id"],
         body={"change_description": "Restore first release"}, key=builder_key, expected=4,
     )
     restored = await cli.data(
-        "project", "agent", "release", "rollback", agent_id, production["id"],
+        "project", "agent", "release", "rollback", "--validate-body", "--validate-parameters", agent_id, production["id"],
         body={"change_description": "Restore first release"},
     )
     assert restored["id"] == production["id"]
@@ -758,6 +761,12 @@ async def test_cli_categories_pin_authority_and_preflight_matches_requests(cli):
     )
     cli.project_id = project["id"]
     catalog = await cli.data("permission", "list")
+    mcp_permission = {"tool_id": str(uuid4()), "permissions": [{"remote_tool_name": "search", "mode": "review"}]}
+    mcp_preflight = await cli.run("validate-input", "--command", "project tool mcp set", body=mcp_permission)
+    assert mcp_preflight["data"]["valid"] is True
+    assert mcp_preflight["data"]["executed"] is False
+    invalid_mcp = await cli.run("validate-input", "--command", "project tool mcp set", body={**mcp_permission, "permissions": [{"remote_tool_name": "search", "mode": "allow-everything"}]}, expected=2)
+    assert invalid_mcp["error"].get("http_status") is None
     assert "agent:read" in catalog["permissions"]["project"]
     definition = {
         "schema_version": "2", "workspace_id": cli.workspace_id,
