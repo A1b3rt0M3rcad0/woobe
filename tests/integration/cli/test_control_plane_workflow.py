@@ -776,6 +776,37 @@ async def test_cli_categories_pin_authority_and_preflight_matches_requests(cli):
     )
     cli.project_id = project["id"]
     catalog = await cli.data("permission", "list")
+    # Seed remote discovery evidence without making an external MCP network call.
+    from modules.agent.infra.database.models import AgentToolModel
+    tool_id = uuid4()
+    tool_engine = create_engine(Settings())
+    tool_factory = create_session_factory(tool_engine)
+    try:
+        async with tool_factory() as session:
+            session.add(AgentToolModel(id=tool_id, project_id=cli.project_id, name="CLI MCP permissions", type="mcp", config={
+                "protocol": "mcp", "discovered_tools": [
+                    {"name":"search", "permission":{"mode":"review"}},
+                    {"name":"write", "permission":{"mode":"deny"}},
+                ],
+            }))
+            await session.commit()
+    finally:
+        await tool_engine.dispose()
+    for mode in ["allow", "deny", "review"]:
+        permissions = await cli.data("project", "tool", "mcp", "set", "--validate-body", body={
+            "tool_id":str(tool_id), "permissions":[{"remote_tool_name":"search","mode":mode}],
+        })
+        assert {item["name"]:item["mode"] for item in permissions["permissions"]} == {"search":mode,"write":"deny"}
+    await cli.run("project", "tool", "mcp", "set", body={"tool_id":str(tool_id),"permissions":[
+        {"remote_tool_name":"search","mode":"allow"},{"remote_tool_name":"missing","mode":"allow"},
+    ]}, expected=2)
+    observed = await cli.data("project", "tool", "list", "--validate-parameters")
+    provider = next(item for item in observed if item["id"]==str(tool_id))
+    assert {item["name"]:item["permission"]["mode"] for item in provider["config"]["discovered_tools"]} == {"search":"review","write":"deny"}
+    for mode in ["allow", "deny", "review"]:
+        bulk = await cli.data("project", "tool", "mcp", "bulk", "--validate-body", body={"tool_id":str(tool_id),"mode":mode})
+        assert all(item["mode"]==mode for item in bulk["permissions"])
+
     mcp_permission = {"tool_id": str(uuid4()), "permissions": [{"remote_tool_name": "search", "mode": "review"}]}
     mcp_preflight = await cli.run("validate-input", "--command", "project tool mcp set", body=mcp_permission)
     assert mcp_preflight["data"]["valid"] is True
