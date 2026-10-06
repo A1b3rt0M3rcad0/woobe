@@ -7,7 +7,7 @@ from shared.contracts.errors import AuthorizationError
 from shared.presentation.contracts import OperationOutcome
 from shared.presentation.contracts import OperationRequest
 from shared.presentation.contracts import OperationResult
-from shared.security.principal import AuthenticatedPrincipal
+from shared.security.principal import AuthenticatedPrincipal, ControlPlanePrincipal
 
 
 class ListAgentRunsController:
@@ -15,11 +15,13 @@ class ListAgentRunsController:
         self._use_case = use_case
 
     @staticmethod
-    def _user_id(request: OperationRequest) -> UUID:
+    def _actor(request: OperationRequest) -> tuple[UUID | None, bool]:
         principal = request.principal
-        if not isinstance(principal, AuthenticatedPrincipal):
-            raise AuthorizationError("Control-plane authentication required")
-        return principal.user_id
+        if isinstance(principal, AuthenticatedPrincipal):
+            return principal.user_id, False
+        if isinstance(principal, ControlPlanePrincipal):
+            return None, True
+        raise AuthorizationError("Control-plane authentication required")
 
     async def handle(self, request: OperationRequest) -> OperationResult:
         query = request.query_params
@@ -33,9 +35,11 @@ class ListAgentRunsController:
         except (TypeError, ValueError):
             limit = 100
 
+        user_id, control_plane_authorized = self._actor(request)
         data = await self._use_case.execute(
-            user_id=self._user_id(request),
+            user_id=user_id,
             project_id=project_id,
+            control_plane_authorized=control_plane_authorized,
             agent_id=agent_id,
             session_id=UUID(str(raw_session_id)) if raw_session_id else None,
             environment=str(raw_environment) if raw_environment else None,

@@ -75,3 +75,20 @@ def test_worker_health_file_is_atomic_and_checkable(tmp_path) -> None:
     path = tmp_path / "worker-health.json"
     write_worker_health(str(path), Runner())
     assert check_worker_health(str(path), max_age_seconds=5) == 0
+
+
+def test_worker_health_diagnostic_reports_failure_without_exporting_payload(tmp_path) -> None:
+    from woobe_workers.runtime.health import worker_health_diagnostic
+
+    path = tmp_path / "health.json"
+    assert worker_health_diagnostic(str(path), 5)["reason"] == "heartbeat_missing"
+    for value in ([], {"workers": [None]}, {"workers": []}):
+        path.write_text(json.dumps(value))
+        assert check_worker_health(str(path), 5) == 1
+    path.write_text(json.dumps({"workers": [{"is_running": False, "error": "secret-value"}]}))
+    diagnostic = worker_health_diagnostic(str(path), 5)
+    assert diagnostic["reason"] == "workers_stopped"
+    assert diagnostic["stopped_worker_indexes"] == [0]
+    assert "secret-value" not in json.dumps(diagnostic)
+    path.write_text(json.dumps({"workers": [{"is_running": "yes"}]}))
+    assert check_worker_health(str(path), 5) == 1

@@ -1,3 +1,5 @@
+from shared.security.delegation import ApiKeyDelegationPolicy
+from shared.contracts.errors import AuthorizationError
 from modules.core.application.dtos.create_api_key_dtos import (
     CreateApiKeyInput,
     CreateApiKeyOutput,
@@ -19,10 +21,12 @@ class CreateApiKeyUseCase:
         project_repo: ProjectRepository,
         api_key_repo: ApiKeyRepository,
         outbox: OutboxEventWriter,
+        delegation_policy: ApiKeyDelegationPolicy | None = None,
     ) -> None:
         self._project_repo = project_repo
         self._api_key_repo = api_key_repo
         self._outbox = outbox
+        self._delegation_policy = delegation_policy
 
     async def execute(self, input_dto: CreateApiKeyInput) -> CreateApiKeyOutput:
         project = await self._project_repo.get_by_id(input_dto.project_id)
@@ -34,6 +38,18 @@ class CreateApiKeyUseCase:
         except ValueError as exc:
             raise ValidationError(str(exc)) from exc
 
+        delegation_expires_at = None
+        if input_dto.created_by_control_key_id is not None:
+            if self._delegation_policy is None:
+                raise AuthorizationError("Control key delegation policy is required")
+            delegation_expires_at = await self._delegation_policy.validate(
+                actor_key_id=input_dto.created_by_control_key_id,
+                project_id=input_dto.project_id,
+                scopes=scopes,
+                conditions={},
+                expires_at=input_dto.expires_at,
+            )
+
         issued = issue_project_api_key()
         api_key = ApiKey(
             project_id=input_dto.project_id,
@@ -44,7 +60,9 @@ class CreateApiKeyUseCase:
             key_version=issued.key_version,
             scopes=scopes,
             expires_at=input_dto.expires_at,
+            delegation_expires_at=delegation_expires_at,
             created_by_user_id=input_dto.created_by_user_id,
+            created_by_control_key_id=input_dto.created_by_control_key_id,
         )
         api_key.credential_id = api_key.id
         saved = await self._api_key_repo.save(api_key)
@@ -60,6 +78,16 @@ class CreateApiKeyUseCase:
                 "description": saved.description,
                 "key_prefix": issued.display_prefix,
                 "scopes": list(saved.scopes),
+                "created_by_user_id": (
+                    str(input_dto.created_by_user_id)
+                    if input_dto.created_by_user_id
+                    else None
+                ),
+                "created_by_control_key_id": (
+                    str(input_dto.created_by_control_key_id)
+                    if input_dto.created_by_control_key_id
+                    else None
+                ),
                 "expires_at": saved.expires_at.isoformat()
                 if saved.expires_at
                 else None,
@@ -81,4 +109,3 @@ class CreateApiKeyUseCase:
             expires_at=saved.expires_at,
             created_at=saved.created_at,
         )
-

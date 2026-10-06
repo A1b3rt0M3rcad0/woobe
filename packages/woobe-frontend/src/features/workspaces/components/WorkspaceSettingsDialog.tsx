@@ -40,8 +40,9 @@ import {
 } from '@/features/projects/hooks'
 import type { Invite, Member } from '@/features/workspaces/types'
 import type { ProjectAccessSubject } from '@/features/projects/types'
+import { WorkspaceCliKeys } from '@/features/control-keys/WorkspaceCliKeys'
 
-type SettingsTab = 'overview' | 'people' | 'access'
+type SettingsTab = 'overview' | 'people' | 'access' | 'cli-keys'
 type SettingsView = 'main' | 'invite' | 'remove'
 
 interface WorkspaceSettingsDialogProps {
@@ -101,6 +102,7 @@ export function WorkspaceSettingsDialog({ open, onClose, workspaceId }: Workspac
   const inviteHistory = invites.filter((invite) => invite.status !== 'pending')
 
   const [tab, setTab] = useState<SettingsTab>('overview')
+  const [configuringCliKey, setConfiguringCliKey] = useState(false)
   const [view, setView] = useState<SettingsView>('main')
   const [name, setName] = useState('')
   const [slug, setSlug] = useState('')
@@ -127,6 +129,7 @@ export function WorkspaceSettingsDialog({ open, onClose, workspaceId }: Workspac
 
   useEffect(() => {
     if (!open) {
+      setConfiguringCliKey(false)
       setTab('overview')
       setView('main')
       setMemberToRemove(null)
@@ -415,7 +418,7 @@ export function WorkspaceSettingsDialog({ open, onClose, workspaceId }: Workspac
 
   const mainView = workspace ? (
     <div className="grid gap-ui-md">
-      <TechnicalListItem
+      {!configuringCliKey ? <TechnicalListItem
         label={workspace.name}
         description={`/${workspace.slug}`}
         leading={(
@@ -429,14 +432,14 @@ export function WorkspaceSettingsDialog({ open, onClose, workspaceId }: Workspac
             {workspace.status ? <Badge variant={badgeVariant(workspace.status)} size="compact">{workspace.status}</Badge> : null}
           </>
         )}
-      />
+      /> : null}
 
-      <div className="grid gap-ui-xs sm:grid-cols-2 xl:grid-cols-4">
+      {!configuringCliKey ? <div className="grid gap-ui-xs sm:grid-cols-2 xl:grid-cols-4">
         <MetricTile label="People" value={peopleCount} detail={`${members.length} active · ${pendingInvites.length} pending`} icon={<Users className="h-icon-sm w-icon-sm" />} />
         <MetricTile label="Projects" value={projectCount} detail="Accessible boundaries" icon={<FolderKanban className="h-icon-sm w-icon-sm" />} />
         <MetricTile label="Access grants" value={explicitProjectAccesses} detail="Explicit assignments" icon={<ShieldCheck className="h-icon-sm w-icon-sm" />} />
         <MetricTile label="Role" value={currentRole.toUpperCase()} detail={canManageWorkspace ? 'Workspace management' : 'Read-only view'} icon={<Building2 className="h-icon-sm w-icon-sm" />} />
-      </div>
+      </div> : null}
 
       <div className="max-w-full overflow-x-auto">
         <SegmentedControl
@@ -444,6 +447,7 @@ export function WorkspaceSettingsDialog({ open, onClose, workspaceId }: Workspac
             { value: 'overview', label: 'Overview' },
             { value: 'people', label: `People (${peopleCount})` },
             { value: 'access', label: 'Project Access' },
+            { value: 'cli-keys', label: 'CLI Keys' },
           ]}
           value={tab}
           onValueChange={(value) => setTab(value as SettingsTab)}
@@ -455,6 +459,7 @@ export function WorkspaceSettingsDialog({ open, onClose, workspaceId }: Workspac
       {tab === 'overview' ? overview : null}
       {tab === 'people' ? people : null}
       {tab === 'access' ? projectAccess : null}
+      {open && tab === 'cli-keys' ? <WorkspaceCliKeys key={workspaceId} workspaceId={workspaceId} projects={projects} onConfigurationChange={setConfiguringCliKey} /> : null}
     </div>
   ) : null
 

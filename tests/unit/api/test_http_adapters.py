@@ -102,3 +102,37 @@ def test_response_adapter_maps_semantic_outcomes(
 
     assert response.status_code == status_code
     assert response.headers["x-woobe-test"] == "preserved"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("environment", ["staging", "production", ""])
+async def test_transactional_recheck_receives_verified_session_filter(environment, monkeypatch):
+    from sqlalchemy.ext.asyncio import AsyncSession
+    from unittest.mock import AsyncMock
+    from shared.infra.transactional_handler import TransactionalHandler
+    from shared.security.principal import ControlPlanePrincipal
+    from shared.security.tenancy import TenantAuthorizer
+    agent = str(uuid4())
+    request = Request({"type": "http", "method": "GET", "path": f"/runtime/agents/{agent}/sessions",
+        "headers": [], "query_string": f"environment={environment}".encode(),
+        "path_params": {"agent_id": agent}, "route": SimpleNamespace(name="list_agent_sessions")})
+    request.state.principal = ControlPlanePrincipal(api_key_id=uuid4(), credential_id=uuid4(),
+        workspace_id=uuid4(), key_prefix="fixture", authenticated_at=datetime.now(UTC))
+    checked = AsyncMock()
+    monkeypatch.setattr(TenantAuthorizer, "require_active_control", AsyncMock())
+    monkeypatch.setattr(TenantAuthorizer, "authorize_control_key", checked)
+    class Uow:
+        def __init__(self):
+            self.session = AsyncSession()
+        async def __aenter__(self):
+            return self
+        async def __aexit__(self, *args):
+            await self.session.close()
+    async def handler(operation):
+        assert operation.path_params == {"agent_id": agent}
+        assert operation.query_params["environment"] == environment
+        return OperationResult(body={"ok": True})
+    await request_adapter(request, TransactionalHandler(Uow(), handler))
+    assert checked.await_args.kwargs["path_params"] == {
+        "agent_id": agent, "environment": environment or "draft"}
+    assert checked.await_args.kwargs["required_permission"] == "run:read"

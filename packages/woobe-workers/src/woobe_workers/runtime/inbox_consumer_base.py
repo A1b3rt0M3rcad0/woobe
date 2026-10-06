@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from abc import abstractmethod
 from dataclasses import dataclass
@@ -24,6 +25,9 @@ class InboxRecord:
 class BaseInboxConsumer(BaseWorker):
     async def run(self) -> None:
         await self.consume()
+        # RabbitMQ registration returns while callbacks keep consuming. Keep the
+        # runner task alive until shutdown cancels it, as for blocking consumers.
+        await asyncio.Event().wait()
 
     @abstractmethod
     async def consume(self) -> None:

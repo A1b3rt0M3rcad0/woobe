@@ -40,12 +40,42 @@ async def request_adapter(
         body = None
 
     principal = getattr(fastapi_request.state, "principal", None)
+    operation_metadata = dict(metadata or {})
+    route = getattr(fastapi_request, "scope", {}).get("route")
+    operation_name = getattr(route, "name", None)
+    if route is not None:
+        from woobe_api.security.operation_catalog import resolve_operation, verified_query_context
+        from woobe_api.security.http_guard import HttpSecurityGuard
+
+        permission, _ = resolve_operation(
+            fastapi_request.method, fastapi_request.url.path, body
+        )
+        if permission is not None:
+            operation_metadata["required_permission"] = permission
+            operation_metadata["authorization_path_params"] = verified_query_context(
+                fastapi_request.method, fastapi_request.url.path,
+                HttpSecurityGuard._authorization_path_params(
+                    fastapi_request, dict(fastapi_request.path_params)
+                ),
+                dict(fastapi_request.query_params),
+            )
+    if operation_name in {
+        "create_project",
+        "create_agent",
+        "create_api_key",
+        "create_runtime_api_key",
+        "rotate_api_key",
+    } and fastapi_request.headers.get("idempotency-key"):
+        operation_metadata.update(
+            idempotency_key=fastapi_request.headers["idempotency-key"],
+            operation_name=operation_name,
+        )
     operation_request = OperationRequest(
         principal=principal,
         body=body,
         query_params=dict(fastapi_request.query_params),
         path_params=dict(fastapi_request.path_params),
-        metadata=dict(metadata or {}),
+        metadata=operation_metadata,
     )
 
     response = await handler(operation_request)

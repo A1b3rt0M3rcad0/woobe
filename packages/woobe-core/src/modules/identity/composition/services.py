@@ -1,3 +1,4 @@
+from modules.identity.infra.services.authority_service import AuthorityService
 """Long-lived Identity service factories for process hosts."""
 
 from modules.identity.infra.services.authentication_service import AuthenticationService
@@ -39,8 +40,12 @@ def build_workspace_access_service() -> WorkspaceAccessService:
 
 
 __all__ = [
+    "build_authority_service",
     "build_access_token_codec",
     "build_authentication_service",
     "build_instance_service",
     "build_workspace_access_service",
 ]
+
+def build_authority_service() -> AuthorityService:
+    return AuthorityService(SESSION_FACTORY)

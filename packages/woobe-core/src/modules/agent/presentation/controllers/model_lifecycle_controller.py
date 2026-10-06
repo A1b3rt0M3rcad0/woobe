@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from shared.presentation.contracts import OperationResult
+from shared.presentation.contracts import OperationOutcome, OperationResult
 from shared.presentation.interface.controller import Controller
 
 

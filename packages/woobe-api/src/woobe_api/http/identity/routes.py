@@ -1,4 +1,9 @@
+from modules.identity.entrypoint import UpdateWorkspaceInput
+from modules.identity.entrypoint import LoginInput, RegisterInput, CreateWorkspaceInput
+from woobe_api.http.shared.openapi_contracts import request_body_contract
 from uuid import UUID
+from typing import Literal
+from pydantic import BaseModel, Field
 
 from fastapi import APIRouter, Request as FastAPIRequest
 
@@ -27,12 +32,23 @@ from woobe_api.http.identity.auth_endpoints import (
     refresh_endpoint,
     register_endpoint,
 )
-from shared.infra.errors import AuthenticationError, AuthorizationError, NotFoundError, ValidationError
+from shared.infra.errors import (
+    AuthenticationError,
+    AuthorizationError,
+    NotFoundError,
+    ValidationError,
+)
 from woobe_api.http.shared.adapters import request_adapter, response_adapter
 from shared.security.workspace_access import WorkspaceAccessService
 
 
 router = APIRouter(prefix="/identity", tags=["identity"])
+
+
+class WorkspaceInviteRequest(BaseModel):
+    email: str = Field(min_length=1)
+    role: Literal["viewer", "member", "admin"] = "member"
+    project_ids: list[UUID] = Field(default_factory=list)
 
 
 def _principal_user_id(request: FastAPIRequest) -> UUID:
@@ -101,12 +117,12 @@ async def csrf(request: FastAPIRequest):
     return await csrf_endpoint(request)
 
 
-@router.post("/auth/login")
+@router.post("/auth/login", openapi_extra=request_body_contract(LoginInput, "/identity/auth/login", "post"))
 async def login(request: FastAPIRequest):
     return await login_endpoint(request)
 
 
-@router.post("/auth/register")
+@router.post("/auth/register", openapi_extra=request_body_contract(RegisterInput, "/identity/auth/register", "post"))
 async def register(request: FastAPIRequest):
     payload = dict(await request.json())
     email = payload.get("email")
@@ -129,10 +145,12 @@ async def logout(request: FastAPIRequest):
 @router.post("/users")
 async def create_user(request: FastAPIRequest):
     del request
-    raise AuthorizationError("Users can only be created through registration or invitation")
+    raise AuthorizationError(
+        "Users can only be created through registration or invitation"
+    )
 
 
-@router.post("/workspaces")
+@router.post("/workspaces", openapi_extra=request_body_contract(CreateWorkspaceInput, "/identity/workspaces", "post"))
 async def create_workspace(request: FastAPIRequest):
     return await create_workspace_endpoint(request)
 
@@ -140,7 +158,9 @@ async def create_workspace(request: FastAPIRequest):
 @router.post("/workspaces/{workspace_id}/members")
 async def add_member(request: FastAPIRequest, workspace_id: str):
     del request, workspace_id
-    raise AuthorizationError("Workspace membership is created by accepting an invitation")
+    raise AuthorizationError(
+        "Workspace membership is created by accepting an invitation"
+    )
 
 
 @router.get("/workspaces/{workspace_id}")
@@ -151,7 +171,7 @@ async def get_workspace(request: FastAPIRequest, workspace_id: str):
     return response_adapter(response)
 
 
-@router.patch("/workspaces/{workspace_id}")
+@router.patch("/workspaces/{workspace_id}", openapi_extra=request_body_contract(UpdateWorkspaceInput, "/identity/workspaces/{workspace_id}", "patch", advertise_path=False))
 async def update_workspace(request: FastAPIRequest, workspace_id: str):
     await _workspace_access(request).require_admin(
         _principal_user_id(request),
@@ -172,7 +192,9 @@ async def list_members(request: FastAPIRequest, workspace_id: str):
 
 
 @router.delete("/workspaces/{workspace_id}/members/{target_user_id}")
-async def remove_member(request: FastAPIRequest, workspace_id: str, target_user_id: UUID):
+async def remove_member(
+    request: FastAPIRequest, workspace_id: str, target_user_id: UUID
+):
     data = await _workspace_access(request).remove_member(
         actor_user_id=_principal_user_id(request),
         workspace_id=_uuid(workspace_id, "workspace id"),
@@ -181,7 +203,12 @@ async def remove_member(request: FastAPIRequest, workspace_id: str, target_user_
     return {"success": True, "message": "removed", "data": data}
 
 
-@router.post("/workspaces/{workspace_id}/invites", status_code=201)
+@router.post("/workspaces/{workspace_id}/invites", status_code=201,
+    openapi_extra=request_body_contract(
+        WorkspaceInviteRequest, "/identity/workspaces/{workspace_id}/invites", "post",
+        advertise_path=False,
+    ),
+)
 async def create_invite(request: FastAPIRequest, workspace_id: str):
     principal_user_id = _principal_user_id(request)
     workspace_id = _uuid(workspace_id, "workspace id")
@@ -200,8 +227,10 @@ async def create_invite(request: FastAPIRequest, workspace_id: str):
         project_ids = [UUID(str(value)) for value in project_values]
     except (ValueError, TypeError) as exc:
         raise ValidationError("Invalid invite role or Project id") from exc
-    if role not in {MemberRole.member, MemberRole.admin}:
-        raise ValidationError("Only member and admin invitation roles are supported in the MVP")
+    if role not in {MemberRole.member, MemberRole.admin, MemberRole.viewer}:
+        raise ValidationError(
+            "Only viewer, member and admin invitation roles are supported"
+        )
 
     await _workspace_access(request).require_role_assignment(
         actor_user_id=principal_user_id,

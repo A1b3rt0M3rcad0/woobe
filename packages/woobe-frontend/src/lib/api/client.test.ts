@@ -1,5 +1,23 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+describe('Sensitive issuance responses', () => {
+  it('returns the secret without including it or request values in development logs', async () => {
+    vi.stubEnv('DEV', true)
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const secret = 'woobe_control_private_test_value'
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) =>
+      String(input).endsWith('/identity/auth/csrf')
+        ? apiResponse({ csrf: 'test-csrf' })
+        : apiResponse({ key: secret }),
+    ))
+    const { post } = await import('./client')
+    const result = await post('/core/workspaces/workspace-a/control-keys', { name: secret }, { sensitive: true })
+    expect(result).toEqual({ key: secret })
+    expect(JSON.stringify(log.mock.calls)).not.toContain(secret)
+    log.mockRestore()
+  })
+})
+
 function deferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void
   const promise = new Promise<T>((resolvePromise) => {

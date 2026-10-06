@@ -32,5 +32,6 @@ for _ in $(seq 1 60); do
 done
 
 "${compose[@]}" ps --all || true
+"${compose[@]}" exec -T workers sh -c 'python -m woobe_workers.runtime.health diagnose "${WOOBE_WORKER_HEALTH_FILE:-/tmp/woobe/worker-health.json}" "${WOOBE_WORKER_HEALTH_MAX_AGE_SECONDS:-45}"' || true
 "${compose[@]}" logs --no-color || true
 exit 1

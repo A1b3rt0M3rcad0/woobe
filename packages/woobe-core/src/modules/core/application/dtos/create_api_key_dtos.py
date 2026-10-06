@@ -14,7 +14,8 @@ class CreateApiKeyInput(BaseModel):
     name: str = Field(min_length=1, max_length=255)
     description: str | None = Field(default=None, max_length=500)
     scopes: list[str] = Field(min_length=1, max_length=16)
-    created_by_user_id: UUID
+    created_by_user_id: UUID | None = None
+    created_by_control_key_id: UUID | None = None
     expires_at: datetime | None = None
 
     @field_validator("name")
@@ -46,6 +47,10 @@ class CreateApiKeyInput(BaseModel):
 
     @model_validator(mode="after")
     def validate_expiration(self) -> "CreateApiKeyInput":
+        if (self.created_by_user_id is None) == (
+            self.created_by_control_key_id is None
+        ):
+            raise ValueError("Exactly one API key creator must be supplied")
         if self.expires_at is None:
             return self
         expires_at = self.expires_at

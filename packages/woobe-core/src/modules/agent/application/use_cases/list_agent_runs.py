@@ -169,17 +169,21 @@ class ListAgentRunsUseCase:
     async def execute(
         self,
         *,
-        user_id: UUID,
+        user_id: UUID | None,
         project_id: UUID,
         agent_id: UUID,
+        control_plane_authorized: bool = False,
         session_id: UUID | None = None,
         environment: str | None = None,
         limit: int = 100,
     ) -> list[dict[str, Any]]:
-        await self._project_access.require_user_access(
-            user_id=user_id,
-            project_id=project_id,
-        )
+        if not control_plane_authorized:
+            if user_id is None:
+                raise ValueError("User authentication is required")
+            await self._project_access.require_user_access(
+                user_id=user_id,
+                project_id=project_id,
+            )
         runs = await self._runs.list_direct(
             project_id=project_id,
             agent_id=agent_id,

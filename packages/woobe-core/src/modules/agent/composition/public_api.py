@@ -1,3 +1,68 @@
+from modules.agent.application.dtos.ai_dtos import CreateReleaseInput
+from modules.agent.application.dtos.mcp_oauth_dtos import McpOAuthStartInput, McpOAuthCompleteInput, McpOAuthDeviceStartInput, McpOAuthDevicePollInput, McpOAuthStatusInput, McpOAuthDisconnectInput
+from modules.agent.application.dtos.skill_dtos import ImportSkillInput, SkillListQuery
+from modules.agent.application.dtos.runtime_dtos import ListMessagesInput
+from modules.agent.application.dtos.tools_dtos import ListSecretsInput
+from modules.agent.application.dtos.tools_dtos import ListToolsByAgentInput
+from modules.agent.application.dtos.tools_dtos import ListToolsInput
+from modules.agent.application.dtos.knowledge_dtos import GetDocumentInput
+from modules.agent.application.dtos.knowledge_dtos import ListDocumentsInput
+from modules.agent.application.dtos.knowledge_dtos import GetCollectionInput
+from modules.agent.application.dtos.knowledge_dtos import ListCollectionsInput
+from modules.agent.application.dtos.ai_dtos import ListProviderModelsInput
+from modules.agent.application.dtos.ai_dtos import ListProviderCredentialsInput
+from modules.agent.application.dtos.ai_dtos import GetAgentInput
+from modules.agent.application.dtos.ai_dtos import ListAgentsInput
+from modules.agent.application.dtos.ai_dtos import PromoteReleaseInput
+from modules.agent.application.dtos.ai_dtos import RollbackReleaseInput
+from modules.agent.application.dtos.provider_credential_rotation_dtos import RotateProviderCredentialInput
+from modules.agent.application.dtos.mcp_permission_dtos import UpdateMcpToolPermissionsInput
+from modules.agent.application.dtos.mcp_permission_dtos import BulkUpdateMcpToolPermissionsInput
+from modules.agent.application.dtos.mcp_discovery_dtos import McpDiscoverInput
+from modules.agent.application.dtos.mcp_tool_refresh_dtos import RefreshMcpProviderToolsInput
+from modules.agent.application.dtos.tools_dtos import UpdateToolStatusInput
+from modules.agent.application.dtos.tools_dtos import TestToolInput
+from modules.agent.application.dtos.tools_dtos import ExecuteToolInput
+from modules.agent.application.dtos.knowledge_dtos import UpdateCollectionInput
+from modules.agent.application.dtos.knowledge_dtos import CreateKnowledgeVersionInput
+from modules.agent.application.dtos import ListAgentSessionsInput
+from modules.agent.application.dtos.tools_dtos import (
+    CreateToolInput,
+    UpdateToolInput,
+    CreateSecretInput,
+)
+from modules.agent.application.dtos import (
+    CreateSessionInput,
+    SendMessageInput,
+    CreateAskJobInput,
+)
+from modules.agent.application.dtos import (
+    UploadDocumentInput,
+    SearchChunksInput,
+)
+from modules.agent.application.dtos import (
+    CreateCollectionInput,
+    AttachCollectionInput,
+)
+from modules.agent.application.dtos import (
+    CreateModelConfigInput,
+    CreateReleaseTestInput,
+)
+from modules.agent.application.dtos import (
+    CreatePromptInput,
+    CreateContractInput,
+    UpdateContractInput,
+)
+from modules.agent.application.dtos import (
+    CreateProviderCredentialInput,
+    UpdateProviderCredentialInput,
+    CreateProviderModelInput,
+    UpdateProviderModelInput,
+)
+from modules.agent.application.dtos import (
+    CreateAgentInput,
+    UpdateAgentInput,
+)
 """Explicit transport-neutral public surface for Agent hosts."""
 
 from modules.agent.composition.composers.skill_catalog_composer import skill_catalog_composer
@@ -157,6 +222,8 @@ from modules.agent.composition.composers.list_releases_composer import (
     list_releases_composer,
 )
 from modules.agent.composition.composers.model_lifecycle_composer import (
+    archive_credential_composer,
+    archive_provider_model_composer,
     credential_usage_composer,
     provider_model_usage_composer,
     revoke_credential_composer,
@@ -254,6 +321,69 @@ from modules.agent.composition.composers.public_runtime_composers import (
 
 
 __all__ = [
+    "CreateReleaseInput",
+    'McpOAuthStartInput',
+    'McpOAuthCompleteInput',
+    'McpOAuthDeviceStartInput',
+    'McpOAuthDevicePollInput',
+    'McpOAuthStatusInput',
+    'McpOAuthDisconnectInput',
+    'ImportSkillInput',
+    'SkillListQuery',
+    'ListMessagesInput',
+    'ListSecretsInput',
+    'ListToolsByAgentInput',
+    'ListToolsInput',
+    'GetDocumentInput',
+    'ListDocumentsInput',
+    'GetCollectionInput',
+    'ListCollectionsInput',
+    'ListProviderModelsInput',
+    'ListProviderCredentialsInput',
+    'GetAgentInput',
+    'ListAgentsInput',
+    'PromoteReleaseInput',
+    'RollbackReleaseInput',
+
+    'RotateProviderCredentialInput',
+
+    'UpdateMcpToolPermissionsInput',
+    'BulkUpdateMcpToolPermissionsInput',
+
+    'McpDiscoverInput',
+    'RefreshMcpProviderToolsInput',
+
+    'UpdateToolStatusInput',
+    'TestToolInput',
+    'ExecuteToolInput',
+
+    'UpdateCollectionInput',
+    'CreateKnowledgeVersionInput',
+
+    "ListAgentSessionsInput",
+    'CreateToolInput',
+    'UpdateToolInput',
+    'CreateSecretInput',
+    'CreateSessionInput',
+    'SendMessageInput',
+    'CreateAskJobInput',
+    'UploadDocumentInput',
+    'SearchChunksInput',
+    'CreateCollectionInput',
+    'AttachCollectionInput',
+    'CreateModelConfigInput',
+    'CreateReleaseTestInput',
+    'CreatePromptInput',
+    'CreateContractInput',
+    'UpdateContractInput',
+    'CreateProviderCredentialInput',
+    'UpdateProviderCredentialInput',
+    'CreateProviderModelInput',
+    'UpdateProviderModelInput',
+    'CreateAgentInput',
+    'UpdateAgentInput',
+    'archive_credential_composer',
+    'archive_provider_model_composer',
     "skill_catalog_composer",
     'agent_run_context_by_trace_composer',
     'agent_run_context_composer',

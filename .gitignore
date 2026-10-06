@@ -17,6 +17,9 @@ web\node_modules
 coverage.xml
 htmlcov/
 .test-artifacts/
+.ci/
+# Reproducible local code-navigation graph and extractor caches.
+graphify-out/
 
 # Notebook, editor and operating-system artifacts
 .ipynb_checkpoints/

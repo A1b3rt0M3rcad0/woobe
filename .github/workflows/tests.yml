@@ -35,10 +35,36 @@ jobs:
           rm -rf .test-artifacts
           mkdir -p .test-artifacts
 
+      - name: Checkout the reviewed public CLI
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          repository: A1b3rt0M3rcad0/woobe-cli
+          ref: 8c90273e9e1bf1871a3fc85f67e5fbfa6f7494c7
+          path: .ci/woobe-cli
+          persist-credentials: false
+
+      - name: Prepare CLI toolchain
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: '1.27.1'
+          cache-dependency-path: .ci/woobe-cli/go.sum
+
+      - name: Build and verify the CLI used by the backend contract
+        working-directory: .ci/woobe-cli
+        env:
+          CGO_ENABLED: '0'
+        run: |
+          go mod verify
+          go build -trimpath -ldflags '-X github.com/A1b3rt0M3rcad0/woobe-cli/internal/cli.Commit=8c90273e9e1bf1871a3fc85f67e5fbfa6f7494c7' -o ../../.test-artifacts/woobe ./cmd/woobe
+          ../../.test-artifacts/woobe version > ../../.test-artifacts/cli-version.json
+
       - name: Validate standalone backend test Compose contract
         run: docker compose -f compose.test.yaml config --quiet
 
       - name: Run the local/CI backend test contract
+        env:
+          WOOBE_REQUIRE_CLI_E2E: 'true'
+          WOOBE_TEST_SERVER_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: docker compose -f compose.test.yaml up --build --exit-code-from tests tests
 
       - name: Capture Compose diagnostics

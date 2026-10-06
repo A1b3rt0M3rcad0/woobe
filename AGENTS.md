@@ -22,6 +22,8 @@ Keep this file small. It is an index and routing guide, not a duplicate of produ
 
 ## Topic-specific documentation
 
+- Control Plane authority: [docs/security/CONTROL_PLANE.md](docs/security/CONTROL_PLANE.md)
+
 - Runtime streaming: [docs/runtime/STREAMING.md](docs/runtime/STREAMING.md)
 - Unified runtime observer: [docs/runtime/UNIFIED_OBSERVER.md](docs/runtime/UNIFIED_OBSERVER.md)
 - ChatSurface: [docs/runtime/CHAT_SURFACE.md](docs/runtime/CHAT_SURFACE.md)

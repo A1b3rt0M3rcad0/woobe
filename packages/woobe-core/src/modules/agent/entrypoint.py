@@ -1,3 +1,62 @@
+from modules.agent.composition.public_api import CreateReleaseInput
+from modules.agent.composition.public_api import McpOAuthStartInput, McpOAuthCompleteInput, McpOAuthDeviceStartInput, McpOAuthDevicePollInput, McpOAuthStatusInput, McpOAuthDisconnectInput
+from modules.agent.composition.public_api import ImportSkillInput, SkillListQuery
+from modules.agent.composition.public_api import ListMessagesInput
+from modules.agent.composition.public_api import ListSecretsInput
+from modules.agent.composition.public_api import ListToolsByAgentInput
+from modules.agent.composition.public_api import ListToolsInput
+from modules.agent.composition.public_api import GetDocumentInput
+from modules.agent.composition.public_api import ListDocumentsInput
+from modules.agent.composition.public_api import GetCollectionInput
+from modules.agent.composition.public_api import ListCollectionsInput
+from modules.agent.composition.public_api import ListProviderModelsInput
+from modules.agent.composition.public_api import ListProviderCredentialsInput
+from modules.agent.composition.public_api import GetAgentInput
+from modules.agent.composition.public_api import ListAgentsInput
+from modules.agent.composition.public_api import (PromoteReleaseInput, RollbackReleaseInput)
+from modules.agent.composition.public_api import (RotateProviderCredentialInput)
+from modules.agent.composition.public_api import (UpdateMcpToolPermissionsInput, BulkUpdateMcpToolPermissionsInput)
+from modules.agent.composition.public_api import (McpDiscoverInput, RefreshMcpProviderToolsInput)
+from modules.agent.composition.public_api import (UpdateToolStatusInput, TestToolInput, ExecuteToolInput)
+from modules.agent.composition.public_api import (UpdateCollectionInput, CreateKnowledgeVersionInput)
+from modules.agent.composition.public_api import ListAgentSessionsInput
+from modules.agent.composition.public_api import (
+    CreateToolInput,
+    UpdateToolInput,
+    CreateSecretInput,
+)
+from modules.agent.composition.public_api import (
+    CreateSessionInput,
+    SendMessageInput,
+    CreateAskJobInput,
+)
+from modules.agent.composition.public_api import (
+    UploadDocumentInput,
+    SearchChunksInput,
+)
+from modules.agent.composition.public_api import (
+    CreateCollectionInput,
+    AttachCollectionInput,
+)
+from modules.agent.composition.public_api import (
+    CreateModelConfigInput,
+    CreateReleaseTestInput,
+)
+from modules.agent.composition.public_api import (
+    CreatePromptInput,
+    CreateContractInput,
+    UpdateContractInput,
+)
+from modules.agent.composition.public_api import (
+    CreateProviderCredentialInput,
+    UpdateProviderCredentialInput,
+    CreateProviderModelInput,
+    UpdateProviderModelInput,
+)
+from modules.agent.composition.public_api import (
+    CreateAgentInput,
+    UpdateAgentInput,
+)
 from modules.agent.composition.public_api import (
     skill_catalog_composer,
     SETTINGS,
@@ -20,6 +79,8 @@ from modules.agent.composition.public_api import (
     agent_run_context_composer,
     agent_run_detail_by_trace_composer,
     agent_run_detail_composer,
+    archive_credential_composer,
+    archive_provider_model_composer,
     ask_agent_composer,
     attach_collection_composer,
     bulk_update_mcp_tool_permissions_composer,
@@ -132,6 +193,69 @@ from modules.agent.composition.factories.rag_runtime_factory import (
 )
 
 __all__ = [
+    "CreateReleaseInput",
+    'McpOAuthStartInput',
+    'McpOAuthCompleteInput',
+    'McpOAuthDeviceStartInput',
+    'McpOAuthDevicePollInput',
+    'McpOAuthStatusInput',
+    'McpOAuthDisconnectInput',
+    'ImportSkillInput',
+    'SkillListQuery',
+    'ListMessagesInput',
+    'ListSecretsInput',
+    'ListToolsByAgentInput',
+    'ListToolsInput',
+    'GetDocumentInput',
+    'ListDocumentsInput',
+    'GetCollectionInput',
+    'ListCollectionsInput',
+    'ListProviderModelsInput',
+    'ListProviderCredentialsInput',
+    'GetAgentInput',
+    'ListAgentsInput',
+    'PromoteReleaseInput',
+    'RollbackReleaseInput',
+
+    'RotateProviderCredentialInput',
+
+    'UpdateMcpToolPermissionsInput',
+    'BulkUpdateMcpToolPermissionsInput',
+
+    'McpDiscoverInput',
+    'RefreshMcpProviderToolsInput',
+
+    'UpdateToolStatusInput',
+    'TestToolInput',
+    'ExecuteToolInput',
+
+    'UpdateCollectionInput',
+    'CreateKnowledgeVersionInput',
+
+    "ListAgentSessionsInput",
+    'CreateToolInput',
+    'UpdateToolInput',
+    'CreateSecretInput',
+    'CreateSessionInput',
+    'SendMessageInput',
+    'CreateAskJobInput',
+    'UploadDocumentInput',
+    'SearchChunksInput',
+    'CreateCollectionInput',
+    'AttachCollectionInput',
+    'CreateModelConfigInput',
+    'CreateReleaseTestInput',
+    'CreatePromptInput',
+    'CreateContractInput',
+    'UpdateContractInput',
+    'CreateProviderCredentialInput',
+    'UpdateProviderCredentialInput',
+    'CreateProviderModelInput',
+    'UpdateProviderModelInput',
+    'CreateAgentInput',
+    'UpdateAgentInput',
+    'archive_credential_composer',
+    'archive_provider_model_composer',
     "skill_catalog_composer",
     'agent_run_context_by_trace_composer',
     'agent_run_context_composer',

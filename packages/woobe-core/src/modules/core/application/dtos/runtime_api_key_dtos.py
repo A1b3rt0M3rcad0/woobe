@@ -20,7 +20,8 @@ class CreateRuntimeApiKeyInput(BaseModel):
     agent_id: UUID | None = None
     environment: RuntimeEnvironment
     interfaces: list[RuntimeInterface] = Field(min_length=1, max_length=3)
-    created_by_user_id: UUID
+    created_by_user_id: UUID | None = None
+    created_by_control_key_id: UUID | None = None
     expires_at: datetime | None = None
 
     @field_validator("name")
@@ -53,6 +54,10 @@ class CreateRuntimeApiKeyInput(BaseModel):
 
     @model_validator(mode="after")
     def validate_binding_and_expiration(self) -> "CreateRuntimeApiKeyInput":
+        if (self.created_by_user_id is None) == (
+            self.created_by_control_key_id is None
+        ):
+            raise ValueError("Exactly one API key creator must be supplied")
         if self.target_id is None:
             if self.agent_id is None:
                 raise ValueError("Runtime key target_id is required")

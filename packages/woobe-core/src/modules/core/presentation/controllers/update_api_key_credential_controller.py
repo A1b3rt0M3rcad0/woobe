@@ -6,7 +6,7 @@ from shared.presentation.contracts import OperationOutcome
 from shared.presentation.contracts import OperationRequest
 from shared.presentation.contracts import OperationResult
 from shared.presentation.interface.controller import Controller
-from shared.security.principal import AuthenticatedPrincipal
+from shared.security.principal import AuthenticatedPrincipal, ControlPlanePrincipal
 
 
 class UpdateApiKeyCredentialController(Controller):
@@ -15,17 +15,19 @@ class UpdateApiKeyCredentialController(Controller):
 
     async def handle(self, request: OperationRequest) -> OperationResult:
         principal = request.principal
-        if not isinstance(principal, AuthenticatedPrincipal):
-            raise AuthenticationError("User authentication required")
-
         body = dict(request.body or {})
         body.update(
             {
                 "project_id": request.path_params["project_id"],
                 "api_key_id": request.path_params["api_key_id"],
-                "updated_by_user_id": principal.user_id,
             }
         )
+        if isinstance(principal, AuthenticatedPrincipal):
+            body["updated_by_user_id"] = principal.user_id
+        elif isinstance(principal, ControlPlanePrincipal):
+            body["updated_by_control_key_id"] = principal.api_key_id
+        else:
+            raise AuthenticationError("Authentication required")
         result = await self._use_case.execute(UpdateApiKeyCredentialInput(**body))
         response_data = ApiKeyCredentialResponse(
             id=result.id,

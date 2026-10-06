@@ -83,6 +83,23 @@ ChatSurface: http://localhost:8081
 
 For public exposure, TLS, secrets, backup, restore and upgrade requirements, see [`docs/SELF_HOSTING.md`](docs/SELF_HOSTING.md).
 
+## Woobe CLI
+
+Use the external [Woobe CLI](https://github.com/A1b3rt0M3rcad0/woobe-cli) to manage
+Workspaces and Project resources, validate manifests and execute released Agents
+and Networks. Download the native binary for Linux, macOS or Windows from
+[CLI releases](https://github.com/A1b3rt0M3rcad0/woobe-cli/releases/latest), or run
+the public container package:
+
+```bash
+docker run --rm ghcr.io/a1b3rt0m3rcad0/woobe-cli:latest version
+```
+
+Create a Control Key under **Workspace settings → CLI Keys**, choose its roles
+and Project grants, then configure the CLI with your backend API URL. Runtime
+execution uses a separate Runtime Key. See [the CLI guide](docs/CLI.md) for
+installation, credentials, contexts and commands.
+
 ## Repository
 
 ```text
@@ -116,6 +133,7 @@ See [`packages/README.md`](packages/README.md), [`tooling/README.md`](tooling/RE
 
 - [Architecture](docs/ARCHITECTURE.md)
 - [Self-hosting](docs/SELF_HOSTING.md)
+- [CLI installation and usage](docs/CLI.md)
 - [Published container packages](docs/runbooks/container-packages.md)
 - [Upgrading](docs/UPGRADING.md)
 - [Runtime documentation](docs/runtime/)

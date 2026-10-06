@@ -1,4 +1,6 @@
 from __future__ import annotations
+from modules.agent.entrypoint import (PreviewVectorSnapshotInput, CreateVectorSnapshotInput)
+from woobe_api.http.shared.openapi_contracts import request_body_contract
 
 from uuid import UUID
 
@@ -18,12 +20,12 @@ async def get_collection_overview(
     return await handlers.get_collection_overview(request, collection_id, project_id)
 
 
-@router.post("/collections/{collection_id}/vector-preview")
+@router.post("/collections/{collection_id}/vector-preview", openapi_extra=request_body_contract(PreviewVectorSnapshotInput, '/agent/knowledge/collections/{collection_id}/vector-preview', 'post', required=True, path_fields=('collection_id',), advertise_path=False))
 async def preview_vector_snapshot(request: Request, collection_id: UUID):
     return await handlers.preview_vector_snapshot(request, collection_id)
 
 
-@router.post("/collections/{collection_id}/vector-snapshots", status_code=202)
+@router.post("/collections/{collection_id}/vector-snapshots", status_code=202, openapi_extra=request_body_contract(CreateVectorSnapshotInput, '/agent/knowledge/collections/{collection_id}/vector-snapshots', 'post', required=True, path_fields=('collection_id',), advertise_path=False))
 async def create_vector_snapshot(request: Request, collection_id: UUID):
     return await handlers.create_vector_snapshot(request, collection_id)
 

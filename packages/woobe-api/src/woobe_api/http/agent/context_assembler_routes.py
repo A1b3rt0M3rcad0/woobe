@@ -37,7 +37,6 @@ class ContextManagerCatalogResponse(BaseModel):
 @router.get(
     "/context-assemblers",
     response_model=ContextManagerCatalogResponse,
-    include_in_schema=False,
 )
 async def context_managers() -> ContextManagerCatalogResponse:
     return ContextManagerCatalogResponse(

@@ -1,5 +1,13 @@
 from modules.core.composition.public_api import (
+    CreateApiKeyInput,
+    CreateRuntimeApiKeyInput,
+    RotateApiKeyInput,
+    UpdateApiKeyCredentialInput,
+    UpdateProjectInput,
+    CreateProjectInput,
+    ControlKeyService,
     ProjectAccessService,
+    build_control_key_service,
     build_project_access_service,
     create_api_key_composer,
     create_project_composer,
@@ -15,7 +23,15 @@ from modules.core.composition.public_api import (
 )
 
 __all__ = [
+    "CreateApiKeyInput",
+    "CreateRuntimeApiKeyInput",
+    "RotateApiKeyInput",
+    "UpdateApiKeyCredentialInput",
+    "UpdateProjectInput",
+    "CreateProjectInput",
+    "ControlKeyService",
     "ProjectAccessService",
+    "build_control_key_service",
     "build_project_access_service",
     "create_api_key_composer",
     "create_project_composer",

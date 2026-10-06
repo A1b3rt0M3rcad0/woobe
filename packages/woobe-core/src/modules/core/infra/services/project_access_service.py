@@ -113,15 +113,21 @@ class ProjectAccessService:
     async def list_project_members(
         self,
         *,
-        user_id: UUID,
+        user_id: UUID | None,
         project_id: UUID,
+        control_plane_authorized: bool = False,
     ) -> dict[str, object]:
         async with self._session_factory() as session:
             workspace_id = await self._project_workspace_id(session, project_id)
-            role = await self._workspace_role(session, user_id, workspace_id)
-            can_manage = role in {"owner", "admin"}
-            if not can_manage:
-                await self._require_project_member(session, user_id, project_id)
+            if control_plane_authorized:
+                can_manage = True
+            else:
+                if user_id is None:
+                    raise AuthorizationError("User authentication is required")
+                role = await self._workspace_role(session, user_id, workspace_id)
+                can_manage = role in {"owner", "admin"}
+                if not can_manage:
+                    await self._require_project_member(session, user_id, project_id)
 
             members_result = await session.execute(
                 text(
@@ -190,15 +196,23 @@ class ProjectAccessService:
     async def grant_project_subject_access(
         self,
         *,
-        actor_user_id: UUID,
+        actor_user_id: UUID | None,
         project_id: UUID,
         subject_type: str,
         subject_id: UUID,
+        control_plane_authorized: bool = False,
     ) -> dict[str, object]:
         now = datetime.now(UTC)
         async with self._session_factory() as session:
             workspace_id = await self._project_workspace_id(session, project_id)
-            await self._require_workspace_admin(session, actor_user_id, workspace_id)
+            if not control_plane_authorized:
+                if actor_user_id is None:
+                    raise AuthorizationError("User authentication is required")
+                await self._require_workspace_admin(
+                    session,
+                    actor_user_id,
+                    workspace_id,
+                )
 
             if subject_type == "member":
                 target_result = await session.execute(
@@ -311,15 +325,23 @@ class ProjectAccessService:
     async def revoke_project_subject_access(
         self,
         *,
-        actor_user_id: UUID,
+        actor_user_id: UUID | None,
         project_id: UUID,
         subject_type: str,
         subject_id: UUID,
+        control_plane_authorized: bool = False,
     ) -> None:
         now = datetime.now(UTC)
         async with self._session_factory() as session:
             workspace_id = await self._project_workspace_id(session, project_id)
-            await self._require_workspace_admin(session, actor_user_id, workspace_id)
+            if not control_plane_authorized:
+                if actor_user_id is None:
+                    raise AuthorizationError("User authentication is required")
+                await self._require_workspace_admin(
+                    session,
+                    actor_user_id,
+                    workspace_id,
+                )
 
             if subject_type == "member":
                 target_role = await self._workspace_role(session, subject_id, workspace_id)
@@ -370,9 +392,10 @@ class ProjectAccessService:
     async def grant_project_access(
         self,
         *,
-        actor_user_id: UUID,
+        actor_user_id: UUID | None,
         project_id: UUID,
         email: str,
+        control_plane_authorized: bool = False,
     ) -> dict[str, object]:
         normalized_email = email.strip().lower()
         if not normalized_email:
@@ -402,20 +425,23 @@ class ProjectAccessService:
             project_id=project_id,
             subject_type="member",
             subject_id=UUID(str(target_user_id)),
+            control_plane_authorized=control_plane_authorized,
         )
 
     async def revoke_project_access(
         self,
         *,
-        actor_user_id: UUID,
+        actor_user_id: UUID | None,
         project_id: UUID,
         target_user_id: UUID,
+        control_plane_authorized: bool = False,
     ) -> None:
         await self.revoke_project_subject_access(
             actor_user_id=actor_user_id,
             project_id=project_id,
             subject_type="member",
             subject_id=target_user_id,
+            control_plane_authorized=control_plane_authorized,
         )
 
     async def ensure_creator_access(

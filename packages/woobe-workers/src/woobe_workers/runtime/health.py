@@ -53,29 +53,39 @@ async def heartbeat_loop(
     write_worker_health(path, runner)
 
 
-def check_worker_health(path: str, max_age_seconds: float) -> int:
+def worker_health_diagnostic(path: str, max_age_seconds: float) -> dict[str, Any]:
+    """Report probe failure without exporting arbitrary file contents or secrets."""
     target = Path(path)
-    if not target.is_file():
-        return 1
-    age = time.time() - target.stat().st_mtime
-    if age < 0 or age > max_age_seconds:
-        return 1
     try:
+        age = time.time() - target.stat().st_mtime
+        if age < 0 or age > max_age_seconds:
+            return {"healthy": False, "reason": "heartbeat_age", "age_seconds": age}
         payload = json.loads(target.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return 1
+    except FileNotFoundError:
+        return {"healthy": False, "reason": "heartbeat_missing"}
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return {"healthy": False, "reason": "heartbeat_unreadable"}
+    if not isinstance(payload, dict):
+        return {"healthy": False, "reason": "invalid_payload"}
     workers = payload.get("workers")
-    if not isinstance(workers, list) or not workers:
-        return 1
-    return 0 if all(item.get("is_running") for item in workers) else 1
+    if not isinstance(workers, list) or not workers or any(not isinstance(item, dict) for item in workers):
+        return {"healthy": False, "reason": "invalid_workers"}
+    stopped = [index for index, item in enumerate(workers) if item.get("is_running") is not True]
+    return {"healthy": not stopped, "reason": "workers_stopped" if stopped else "ok", "stopped_worker_indexes": stopped, "worker_count": len(workers)}
+
+
+def check_worker_health(path: str, max_age_seconds: float) -> int:
+    return 0 if worker_health_diagnostic(path, max_age_seconds)["healthy"] else 1
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Woobe worker health probe")
-    parser.add_argument("command", choices=["check"])
+    parser.add_argument("command", choices=["check", "diagnose"])
     parser.add_argument("path")
     parser.add_argument("max_age_seconds", type=float)
     args = parser.parse_args()
+    if args.command == "diagnose":
+        print(json.dumps(worker_health_diagnostic(args.path, args.max_age_seconds)))
     raise SystemExit(check_worker_health(args.path, args.max_age_seconds))
 
 

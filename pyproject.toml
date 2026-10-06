@@ -12,14 +12,15 @@ dependencies = [
     "fastapi>=0.136.3",
     "langchain>=0.3.0",
     "langchain-core>=0.3.0",
+    "langgraph-sdk>=0.4.4",
     "langchain-openai>=0.3.0",
     "langsmith>=0.8.18",
     "pgvector>=0.4.2",
     "psycopg2-binary>=2.9.12",
     "pydantic>=2.13.4",
     "pydantic-settings>=2.14.1",
-    "pymongo>=4.11.0",
-    "pypdf>=6.0.0",
+    "pymongo>=4.18.2",
+    "pypdf>=6.19.0",
     "pyyaml>=6.0.3",
     "python-multipart>=0.0.20",
     "redis>=6.4.0",
@@ -28,6 +29,7 @@ dependencies = [
     "uuid6>=2025.0.1",
     "aio-pika>=9.5.0",
     "uvicorn>=0.48.0",
+    "urllib3>=2.8.0",
 ]
 
 [project.optional-dependencies]
@@ -59,3 +61,4 @@ extraPaths = [
 [tool.ruff.lint.per-file-ignores]
 "packages/woobe-core/src/modules/agent/application/mcp_oauth_flows.py" = ["F401"]
 "packages/woobe-core/src/modules/agent/infra/database/models.py" = ["F401"]
+

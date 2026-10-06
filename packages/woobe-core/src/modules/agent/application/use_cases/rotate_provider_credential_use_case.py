@@ -70,6 +70,7 @@ class RotateProviderCredentialUseCase:
                 project_id=saved.project_id,
                 provider=provider,
                 rotated_by_user_id=input_dto.rotated_by_user_id,
+                rotated_by_control_key_id=input_dto.rotated_by_control_key_id,
                 rotated_at=rotated_at,
                 operation_id=operation_id,
             )

@@ -1,4 +1,7 @@
 import { expect, test, type Page, type Route } from '@playwright/test'
+import authorityFixture from '../fixtures/authority-categories.json'
+
+test.use({ timezoneId: 'America/Sao_Paulo', locale: 'en-US' })
 
 const now = new Date().toISOString()
 const user = { id: 'user-a', email: 'owner-a@example.test', status: 'active' }
@@ -109,6 +112,8 @@ async function installApi(page: Page, options?: { freshCore?: boolean }) {
       const networkId = path.split('/').at(-1)
       const network = networks.find((item) => item.id === networkId)
       await respond(route, network ?? null, network ? 200 : 404)
+    } else if (/^\/network\/[^/]+\/runtime-environments$/.test(path)) {
+      await respond(route, { draft: { enabled: true }, staging: { enabled: false }, production: { enabled: false } })
     } else if (/^\/network\/[^/]+\/management\/(versions|activations)$/.test(path)) {
       await respond(route, [])
     } else if (/^\/network\/[^/]+\/sessions$/.test(path)) {
@@ -134,9 +139,9 @@ test('bootstraps the first Woobe Core owner', async ({ page }) => {
   await page.goto('/register')
   await page.getByPlaceholder('you@company.com').fill(user.email)
   await page.getByPlaceholder('At least 6 characters').fill('ReleaseGate123!')
-  await page.getByRole('button', { name: 'Create account' }).click()
+  await page.getByRole('button', { name: 'Create workspace' }).click()
   await expect(page).toHaveURL(/\/workspaces\/workspace-a\/setup/)
-  await expect(page.getByText('Woobe', { exact: true }).first()).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Create the Project for your Agent' })).toBeVisible()
 })
 
 test('opens a Project without edition-specific billing navigation', async ({ page }) => {
@@ -151,11 +156,10 @@ test('lists and opens multiple Agent Networks', async ({ page }) => {
   await installApi(page)
   await login(page)
   await page.goto(`/workspaces/${workspace.id}/projects/${project.id}/networks`)
-  await expect(page.getByRole('heading', { name: 'Networks' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Networks', level: 1 })).toBeVisible()
   await expect(page.getByText('Customer Support', { exact: true })).toBeVisible()
   await expect(page.getByText('Customer Onboarding', { exact: true })).toBeVisible()
-  await page.locator('article').filter({ hasText: 'Customer Support' })
-    .getByRole('button', { name: 'Open workspace' }).click()
+  await page.getByRole('button', { name: 'Open Network workspace for Customer Support' }).click()
   await expect(page).toHaveURL(/\/networks\/network-support$/)
 })
 
@@ -168,4 +172,94 @@ test('does not expose a foreign Project through routing', async ({ page }) => {
   })
   expect(result.status).toBe(404)
   expect(result.body).toMatchObject({ success: false, message: 'Resource not found' })
+})
+
+test('owner creates, copies, rotates and revokes a CLI key in Workspace settings', async ({ page }) => {
+  await page.setViewportSize({ width: 1198, height: 720 })
+  await page.clock.setFixedTime(new Date('2026-10-06T15:00:00Z'))
+  await installApi(page)
+  const secret = 'woobe_control_browser_test_secret'
+  const keyPath = `/core/workspaces/${workspace.id}/control-keys`
+  const headers: Record<string, string>[] = []
+  const creations: Record<string, unknown>[] = []
+  let keys: Record<string, unknown>[] = []
+  const metadata = {
+    id: 'key-a', name: 'My workstation', description: null, key_prefix: 'woobe_control_prefix',
+    status: 'active', permissions: ['workspace:read'], project_grants: [],
+    on_project_create_permissions: [], created_at: now, expires_at: null,
+    etag: '"control-key:key-a:1"',
+  }
+  await page.route('**/identity/access/me*', (route) => respond(route, {
+    permissions: [...authorityFixture.permissions.workspace, ...authorityFixture.permissions.project], conditions: {},
+  }))
+  await page.route('**/identity/permissions', (route) => respond(route, {
+    permissions: authorityFixture.permissions,
+  }))
+  await page.route(`**/identity/workspaces/${workspace.id}/authority-categories*`, route => respond(route, { items: [], system_categories: authorityFixture.categories, complete: true, next_cursor: null }))
+  await page.route(`**/core/workspaces/${workspace.id}/project-access`, (route) => respond(route, [project]))
+  await page.route(new RegExp(`${keyPath}(?:/.*)?$`), async (route) => {
+    const request = route.request()
+    const path = new URL(request.url()).pathname
+    if (request.method() === 'GET') return respond(route, keys)
+    headers.push(request.headers())
+    if (path.endsWith('/rotate')) {
+      keys = [{ ...metadata, status: 'revoked' }, { ...metadata, id: 'key-b', etag: '"control-key:key-b:2"' }]
+      return respond(route, { ...keys[1], key: `${secret}_rotated` }, 201)
+    }
+    if (path.endsWith('/revoke')) {
+      keys = keys.map((key) => ({ ...key, status: 'revoked' }))
+      return respond(route, keys[1])
+    }
+    expect(request.postDataJSON()).toMatchObject({ name: 'My workstation', permissions: [],
+      project_grants: [expect.objectContaining({ project_id: project.id, category_revision: 1 })] })
+    const body = request.postDataJSON()
+    creations.push(body)
+    keys = [{ ...metadata, ...body }]
+    return respond(route, { ...keys[0], key: secret }, 201)
+  })
+  await login(page)
+  await page.getByRole('button', { name: /Workspace settings/ }).click()
+  const dialog = page.getByRole('dialog')
+  await dialog.getByRole('button', { name: 'CLI Keys', exact: true }).click()
+  await dialog.getByRole('button', { name: 'Create CLI key' }).click()
+  await dialog.getByLabel('Name', { exact: true }).fill('My workstation')
+  await dialog.getByRole('button', { name: 'Project Reader', exact: true }).click()
+  await expect(dialog.locator('input[type="datetime-local"], input[type="date"], input[type="time"]')).toHaveCount(0)
+  await expect(dialog.getByRole('button', { name: 'Increase hour' })).toHaveCount(0)
+  await expect(dialog.getByRole('button', { name: 'Increase minute' })).toHaveCount(0)
+  await dialog.getByRole('button', { name: 'Next month' }).click()
+  await dialog.getByRole('button', { name: 'Feb 10, 2027', exact: true }).click()
+  const accessBox = await dialog.getByText('Roles and access', { exact: true }).boundingBox()
+  const expirationBox = await dialog.getByText('Expiration', { exact: true }).boundingBox()
+  expect(expirationBox!.x).toBeGreaterThan(accessBox!.x + 300)
+  expect(Math.abs(expirationBox!.y - accessBox!.y)).toBeLessThan(5)
+  const nameBox = await dialog.getByLabel('Name', { exact: true }).boundingBox()
+  const descriptionBox = await dialog.getByLabel(/Description/).boundingBox()
+  expect(descriptionBox!.x).toBeGreaterThan(nameBox!.x + 200)
+  expect(Math.abs(descriptionBox!.y - nameBox!.y)).toBeLessThan(5)
+  await page.screenshot({ path: test.info().outputPath('workspace-cli-keys.png') })
+  await expect(dialog.getByRole('button', { name: 'Create key', exact: true })).toBeInViewport({ ratio: 1 })
+  await dialog.getByRole('button', { name: 'Create key', exact: true }).click()
+  await expect(dialog.getByText(secret, { exact: true })).toBeVisible()
+  await expect(dialog.getByRole('button', { name: 'Copy Control Key' })).toBeVisible()
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: new URL(page.url()).origin })
+  await dialog.getByRole('button', { name: 'Copy Control Key' }).click()
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(secret)
+  await dialog.getByRole('button', { name: 'I saved the key' }).click()
+  await expect(dialog.getByText(secret, { exact: true })).toHaveCount(0)
+  await dialog.getByRole('button', { name: 'Rotate My workstation' }).click()
+  await dialog.getByRole('button', { name: 'Confirm rotation' }).click()
+  await expect(dialog.getByText(`${secret}_rotated`, { exact: true })).toBeVisible()
+  await dialog.getByRole('button', { name: 'Overview', exact: true }).click()
+  await dialog.getByRole('button', { name: 'CLI Keys', exact: true }).click()
+  await expect(dialog.getByText(`${secret}_rotated`, { exact: true })).toHaveCount(0)
+  await dialog.getByRole('button', { name: 'Revoke My workstation' }).click()
+  await dialog.getByRole('button', { name: 'Confirm revocation' }).click()
+  await expect(dialog.getByRole('button', { name: 'Revoke My workstation' })).toHaveCount(0)
+  expect(creations[0]['expires_at']).toBe('2027-02-11T03:00:00.000Z')
+  expect(creations[0]['project_grants']).toEqual([expect.objectContaining({ category_id: authorityFixture.categories.find(role => role.name === 'project-reader')!.id, category_revision: 1 })])
+  expect(headers[0]['idempotency-key']).toBeTruthy()
+  expect(headers[1]['if-match']).toBe(metadata.etag)
+  expect(headers[1]['idempotency-key']).toBeTruthy()
+  expect(headers[2]['if-match']).toBe('"control-key:key-b:2"')
 })

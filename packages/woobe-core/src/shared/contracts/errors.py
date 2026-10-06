@@ -10,6 +10,10 @@ class ConflictError(DomainError):
     pass
 
 
+class PreconditionFailedError(ConflictError):
+    pass
+
+
 class ValidationError(DomainError):
     pass
 

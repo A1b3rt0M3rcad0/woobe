@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from woobe_api.http.shared.openapi_contracts import bodyless_command_contract
+
 from collections.abc import AsyncIterator
 from uuid import UUID
 
@@ -26,7 +28,11 @@ from shared.runtime import (
     RuntimeObserver,
     RuntimeStreamGapError,
 )
-from shared.security.principal import AuthenticatedPrincipal, ProjectApiPrincipal
+from shared.security.principal import (
+    AuthenticatedPrincipal,
+    ControlPlanePrincipal,
+    ProjectApiPrincipal,
+)
 
 
 router = APIRouter(prefix="/network", tags=["network"])
@@ -42,6 +48,8 @@ def _authorize_project(request: Request, project_id: UUID) -> UUID | None:
     if isinstance(principal, ProjectApiPrincipal):
         if principal.project_id != project_id:
             raise AuthorizationError("Runtime key does not belong to this Project")
+        return None
+    if isinstance(principal, ControlPlanePrincipal):
         return None
     if isinstance(principal, AuthenticatedPrincipal):
         return principal.user_id
@@ -290,7 +298,9 @@ async def list_network_session_messages(
     return {"success": True, "data": messages}
 
 
-@router.post("/{network_id}/sessions/{network_session_id}/reset-context")
+@router.post("/{network_id}/sessions/{network_session_id}/reset-context",
+    openapi_extra=bodyless_command_contract(),
+)
 async def reset_network_session_context(
     network_id: UUID,
     network_session_id: UUID,

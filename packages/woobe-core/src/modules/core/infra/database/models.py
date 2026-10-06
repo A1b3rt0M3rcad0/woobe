@@ -21,6 +21,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
+from modules.core.infra.database.control_key_models import WorkspaceControlKeyModel, ControlKeyProjectGrantModel  # noqa: F401
 from shared.infra.database.base import Base, BaseModel
 from shared.infra.database.inbox import InboxEventModel as BaseInbox
 from shared.infra.database.outbox import OutboxEventModel as BaseOutbox
@@ -278,8 +279,10 @@ class ApiKeyModel(BaseModel):
     status: Mapped[str] = mapped_column(String(32), default="active")
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    delegation_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    created_by_user_id: Mapped[UUID]
+    created_by_user_id: Mapped[UUID | None] = mapped_column(nullable=True)
+    created_by_control_key_id: Mapped[UUID | None] = mapped_column(ForeignKey("core.workspace_control_keys.id", name="fk_core_api_keys_created_by_control_key_id", ondelete="SET NULL"), nullable=True)
     rotated_from_id: Mapped[UUID | None] = mapped_column(nullable=True)
 
 

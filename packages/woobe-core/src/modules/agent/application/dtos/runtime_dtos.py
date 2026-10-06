@@ -67,8 +67,8 @@ class SendMessageOutput(BaseModel):
 
 class ListMessagesInput(BaseModel):
     session_id: UUID
-    offset: int = 0
-    limit: int = 100
+    offset: int = Field(default=0, ge=0, le=1_000_000)
+    limit: int = Field(default=100, ge=1, le=1000)
 
 
 class ListMessagesOutput(BaseModel):

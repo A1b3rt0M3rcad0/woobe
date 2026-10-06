@@ -1,3 +1,6 @@
+from shared.security.delegation import ApiKeyDelegationPolicy
+from shared.security.control_plane import require_expiration_ceiling
+from shared.contracts.errors import AuthorizationError
 from datetime import UTC, datetime
 
 from modules.core.application.dtos.api_key_lifecycle_dtos import (
@@ -48,7 +51,16 @@ class RevokeApiKeyUseCase:
                 payload={
                     "project_id": str(api_key.project_id),
                     "credential_id": str(api_key.credential_id or api_key.id),
-                    "revoked_by_user_id": str(input_dto.revoked_by_user_id),
+                    "revoked_by_user_id": (
+                        str(input_dto.revoked_by_user_id)
+                        if input_dto.revoked_by_user_id
+                        else None
+                    ),
+                    "revoked_by_control_key_id": (
+                        str(input_dto.revoked_by_control_key_id)
+                        if input_dto.revoked_by_control_key_id
+                        else None
+                    ),
                     "revoked_at": now.isoformat(),
                 },
                 routing_key="api_key.revoked.v1",
@@ -68,9 +80,11 @@ class RotateApiKeyUseCase:
         self,
         api_key_repo: ApiKeyRepository,
         outbox: OutboxEventWriter,
+        delegation_policy: ApiKeyDelegationPolicy | None = None,
     ) -> None:
         self._api_key_repo = api_key_repo
         self._outbox = outbox
+        self._delegation_policy = delegation_policy
 
     async def execute(self, input_dto: RotateApiKeyInput) -> RotateApiKeyOutput:
         current = await self._api_key_repo.get_by_id(input_dto.api_key_id)
@@ -94,6 +108,41 @@ class RotateApiKeyUseCase:
             scopes = normalize_project_api_key_scopes(requested_scopes)
         except ValueError as exc:
             raise ValidationError(str(exc)) from exc
+
+        expires_at = input_dto.expires_at or current.expires_at
+        delegation_expires_at = current.delegation_expires_at
+        try:
+            require_expiration_ceiling(expires_at, delegation_expires_at)
+        except ValueError as exc:
+            raise AuthorizationError(str(exc)) from exc
+
+        if input_dto.rotated_by_control_key_id is not None:
+            if self._delegation_policy is None:
+                raise AuthorizationError("Control key delegation policy is required")
+            conditions = (
+                {
+                    "environments": [current.environment.value],
+                    "target_types": [current.target_type.value],
+                    "target_ids": [str(current.target_id)],
+                    "interfaces": list(current.interfaces),
+                }
+                if current.kind == ApiKeyKind.runtime
+                else {}
+            )
+            actor_ceiling = await self._delegation_policy.validate(
+                actor_key_id=input_dto.rotated_by_control_key_id,
+                project_id=current.project_id,
+                scopes=scopes,
+                conditions=conditions,
+                expires_at=expires_at,
+            )
+
+            ceilings = [
+                value
+                for value in (delegation_expires_at, actor_ceiling)
+                if value is not None
+            ]
+            delegation_expires_at = min(ceilings) if ceilings else None
 
         if current.kind == ApiKeyKind.runtime:
             if current.environment is None:
@@ -128,7 +177,9 @@ class RotateApiKeyUseCase:
                 if input_dto.expires_at is not None
                 else current.expires_at
             ),
+            delegation_expires_at=delegation_expires_at,
             created_by_user_id=input_dto.rotated_by_user_id,
+            created_by_control_key_id=input_dto.rotated_by_control_key_id,
             rotated_from_id=current.id,
         )
         saved = await self._api_key_repo.save(replacement)
@@ -141,7 +192,16 @@ class RotateApiKeyUseCase:
                 "project_id": str(saved.project_id),
                 "credential_id": str(saved.credential_id or saved.id),
                 "rotated_from_id": str(current.id),
-                "rotated_by_user_id": str(input_dto.rotated_by_user_id),
+                "rotated_by_user_id": (
+                    str(input_dto.rotated_by_user_id)
+                    if input_dto.rotated_by_user_id
+                    else None
+                ),
+                "rotated_by_control_key_id": (
+                    str(input_dto.rotated_by_control_key_id)
+                    if input_dto.rotated_by_control_key_id
+                    else None
+                ),
                 "key_prefix": issued.display_prefix,
                 "scopes": list(saved.scopes),
                 "kind": saved.kind.value,
@@ -210,7 +270,16 @@ class UpdateApiKeyCredentialUseCase:
                 "project_id": str(saved.project_id),
                 "name": saved.name,
                 "description": saved.description,
-                "updated_by_user_id": str(input_dto.updated_by_user_id),
+                "updated_by_user_id": (
+                    str(input_dto.updated_by_user_id)
+                    if input_dto.updated_by_user_id
+                    else None
+                ),
+                "updated_by_control_key_id": (
+                    str(input_dto.updated_by_control_key_id)
+                    if input_dto.updated_by_control_key_id
+                    else None
+                ),
                 "updated_at": now.isoformat(),
             },
             routing_key="api_key_credential.updated.v1",
@@ -232,4 +301,3 @@ class UpdateApiKeyCredentialUseCase:
             environment=saved.environment,
             updated_at=now,
         )
-

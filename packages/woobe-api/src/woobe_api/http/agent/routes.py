@@ -1,3 +1,29 @@
+from typing import Literal
+from modules.agent.entrypoint import CreateReleaseInput
+from modules.agent.entrypoint import (ListMessagesInput)
+from woobe_api.http.shared.openapi_contracts import query_parameter_contract
+from modules.agent.entrypoint import (ListToolsInput, ListToolsByAgentInput, ListSecretsInput)
+from woobe_api.http.shared.openapi_contracts import query_parameter_contract
+from modules.agent.entrypoint import (ListCollectionsInput, GetCollectionInput, ListDocumentsInput, GetDocumentInput)
+from woobe_api.http.shared.openapi_contracts import query_parameter_contract
+from modules.agent.entrypoint import (ListProviderCredentialsInput, ListProviderModelsInput)
+from woobe_api.http.shared.openapi_contracts import query_parameter_contract
+from modules.agent.entrypoint import (ListAgentsInput, GetAgentInput)
+from woobe_api.http.shared.openapi_contracts import query_parameter_contract
+from modules.agent.entrypoint import (AskInput)
+from modules.agent.entrypoint import (PromoteReleaseInput, RollbackReleaseInput)
+from modules.agent.entrypoint import (UpdateToolStatusInput, TestToolInput, ExecuteToolInput)
+from modules.agent.entrypoint import (UpdateCollectionInput, CreateKnowledgeVersionInput)
+from modules.agent.entrypoint import ListAgentSessionsInput
+from modules.agent.entrypoint import (CreateToolInput,UpdateToolInput,CreateSecretInput)
+from modules.agent.entrypoint import (CreateSessionInput,SendMessageInput,CreateAskJobInput)
+from modules.agent.entrypoint import (UploadDocumentInput,SearchChunksInput)
+from modules.agent.entrypoint import (CreateCollectionInput,AttachCollectionInput)
+from modules.agent.entrypoint import (CreateModelConfigInput,CreateReleaseTestInput)
+from modules.agent.entrypoint import (CreatePromptInput,CreateContractInput,UpdateContractInput)
+from modules.agent.entrypoint import (CreateProviderCredentialInput,UpdateProviderCredentialInput,CreateProviderModelInput,UpdateProviderModelInput)
+from modules.agent.entrypoint import (CreateAgentInput,UpdateAgentInput)
+from woobe_api.http.shared.openapi_contracts import request_body_contract
 from uuid import UUID
 
 from fastapi import APIRouter, File, Form, Request as FastAPIRequest, UploadFile
@@ -74,35 +100,35 @@ from woobe_api.http.agent.controllers.ask_agent_stream_controller import (
 router = APIRouter(prefix="/ai", tags=["ai", "agent"])
 
 
-@router.post("/credentials")
+@router.post("/credentials", openapi_extra=request_body_contract(CreateProviderCredentialInput, "/ai/credentials", "post", required=True))
 async def create_provider_credential(request: FastAPIRequest):
     handler = create_provider_credential_composer()
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
-@router.patch("/credentials/{credential_id}")
+@router.patch("/credentials/{credential_id}", openapi_extra=request_body_contract(UpdateProviderCredentialInput, "/ai/credentials/{credential_id}", "patch", required=False))
 async def update_provider_credential(request: FastAPIRequest):
     handler = update_provider_credential_composer()
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
-@router.get("/credentials")
+@router.get("/credentials", openapi_extra=query_parameter_contract(ListProviderCredentialsInput, "/ai/credentials"))
 async def list_provider_credentials(request: FastAPIRequest):
     handler = list_provider_credentials_composer()
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
-@router.post("/provider-models", status_code=201)
+@router.post("/provider-models", status_code=201, openapi_extra=request_body_contract(CreateProviderModelInput, "/ai/provider-models", "post", required=True))
 async def create_provider_model(request: FastAPIRequest):
     handler = create_provider_model_composer()
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
-@router.get("/provider-models")
+@router.get("/provider-models", openapi_extra=query_parameter_contract(ListProviderModelsInput, "/ai/provider-models"))
 async def list_provider_models(request: FastAPIRequest):
     handler = list_provider_models_composer()
     response = await request_adapter(request, handler)
@@ -116,42 +142,53 @@ async def get_provider_model(request: FastAPIRequest):
     return response_adapter(response)
 
 
-@router.patch("/provider-models/{provider_model_id}")
+@router.patch("/provider-models/{provider_model_id}", openapi_extra=request_body_contract(UpdateProviderModelInput, "/ai/provider-models/{provider_model_id}", "patch", required=False))
 async def update_provider_model(request: FastAPIRequest):
     handler = update_provider_model_composer()
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
-@router.post("/agents")
+@router.post("/agents", openapi_extra=request_body_contract(CreateAgentInput, "/ai/agents", "post", required=True))
 async def create_agent(request: FastAPIRequest):
     handler = create_agent_composer()
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
-@router.get("/agents")
+@router.get("/agents", openapi_extra=query_parameter_contract(ListAgentsInput, "/ai/agents"))
 async def list_agents(request: FastAPIRequest):
     handler = list_agents_composer()
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
-@router.get("/agents/{agent_id}")
+@router.get("/agents/{agent_id}", openapi_extra=query_parameter_contract(GetAgentInput, "/ai/agents/{agent_id}"))
 async def get_agent(request: FastAPIRequest):
     handler = get_agent_composer()
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
-@router.patch("/agents/{agent_id}")
+@router.patch("/agents/{agent_id}", openapi_extra=request_body_contract(UpdateAgentInput, "/ai/agents/{agent_id}", "patch", required=False))
 async def update_agent(request: FastAPIRequest):
     handler = update_agent_composer()
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
-@router.post("/agents/{agent_id}/prompts", status_code=201)
+@router.delete("/agents/{agent_id}")
+async def delete_agent(request: FastAPIRequest):
+    handler = update_agent_composer()
+    response = await request_adapter(
+        request,
+        handler,
+        metadata={"agent_operation": "archive"},
+    )
+    return response_adapter(response)
+
+
+@router.post("/agents/{agent_id}/prompts", status_code=201, openapi_extra=request_body_contract(CreatePromptInput, "/ai/agents/{agent_id}/prompts", "post", required=True))
 async def create_prompt(request: FastAPIRequest):
     handler = create_prompt_version_composer()
     response = await request_adapter(request, handler)
@@ -172,14 +209,14 @@ async def get_prompt(request: FastAPIRequest):
     return response_adapter(response)
 
 
-@router.post("/agents/{agent_id}/contracts", status_code=201)
+@router.post("/agents/{agent_id}/contracts", status_code=201, openapi_extra=request_body_contract(CreateContractInput, "/ai/agents/{agent_id}/contracts", "post", required=True))
 async def create_contract(request: FastAPIRequest):
     handler = create_contract_version_composer()
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
-@router.patch("/agents/{agent_id}/contracts/{contract_id}")
+@router.patch("/agents/{agent_id}/contracts/{contract_id}", openapi_extra=request_body_contract(UpdateContractInput, "/ai/agents/{agent_id}/contracts/{contract_id}", "patch", required=False))
 async def update_contract(request: FastAPIRequest):
     handler = update_contract_version_composer()
     response = await request_adapter(request, handler)
@@ -200,7 +237,7 @@ async def get_contract(request: FastAPIRequest):
     return response_adapter(response)
 
 
-@router.post("/agents/{agent_id}/model-configs", status_code=201)
+@router.post("/agents/{agent_id}/model-configs", status_code=201, openapi_extra=request_body_contract(CreateModelConfigInput, "/ai/agents/{agent_id}/model-configs", "post", required=True))
 async def create_model_config(request: FastAPIRequest):
     handler = create_model_config_composer()
     response = await request_adapter(request, handler)
@@ -221,7 +258,18 @@ async def get_model_config(request: FastAPIRequest):
     return response_adapter(response)
 
 
-@router.post("/agents/{agent_id}/releases", status_code=201)
+class CreateReleaseRequest(CreateReleaseInput):
+    # The existing controller defaults an omitted version and consumes change_kind
+    # before constructing the application DTO.
+    version: str = "auto"
+    change_kind: Literal["change", "feature", "compatibility"] = "change"
+
+
+@router.post("/agents/{agent_id}/releases", status_code=201,
+    openapi_extra=request_body_contract(
+        CreateReleaseRequest, "/ai/agents/{agent_id}/releases", "post"
+    ),
+)
 async def create_release(request: FastAPIRequest):
     handler = create_release_composer()
     response = await request_adapter(request, handler)
@@ -242,14 +290,14 @@ async def get_release(request: FastAPIRequest):
     return response_adapter(response)
 
 
-@router.post("/agents/{agent_id}/releases/{release_id}/promote")
+@router.post("/agents/{agent_id}/releases/{release_id}/promote", openapi_extra=request_body_contract(PromoteReleaseInput, '/ai/agents/{agent_id}/releases/{release_id}/promote', 'post', required=False))
 async def promote_release(request: FastAPIRequest):
     handler = promote_release_composer()
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
-@router.post("/agents/{agent_id}/releases/{release_id}/rollback")
+@router.post("/agents/{agent_id}/releases/{release_id}/rollback", openapi_extra=request_body_contract(RollbackReleaseInput, '/ai/agents/{agent_id}/releases/{release_id}/rollback', 'post', required=False))
 async def rollback_release(request: FastAPIRequest):
     handler = rollback_release_composer()
     response = await request_adapter(request, handler)
@@ -263,7 +311,7 @@ async def delete_release(request: FastAPIRequest):
     return response_adapter(response)
 
 
-@router.post("/agents/{agent_id}/release-tests", status_code=201)
+@router.post("/agents/{agent_id}/release-tests", status_code=201, openapi_extra=request_body_contract(CreateReleaseTestInput, "/ai/agents/{agent_id}/release-tests", "post", required=True))
 async def create_release_test(request: FastAPIRequest):
     handler = create_release_test_composer()
     response = await request_adapter(request, handler)
@@ -280,31 +328,42 @@ async def list_release_tests(request: FastAPIRequest):
 knowledge_router = APIRouter(prefix="/knowledge", tags=["knowledge", "agent"])
 
 
-@knowledge_router.get("/collections")
+@knowledge_router.get("/collections", openapi_extra=query_parameter_contract(ListCollectionsInput, "/knowledge/collections"))
 async def list_collections(request: FastAPIRequest):
     handler = list_collections_composer()
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
-@knowledge_router.post("/collections")
+@knowledge_router.post("/collections", openapi_extra=request_body_contract(CreateCollectionInput, "/knowledge/collections", "post", required=True))
 async def create_collection(request: FastAPIRequest):
     handler = create_collection_composer()
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
-@knowledge_router.get("/collections/{collection_id}")
+@knowledge_router.get("/collections/{collection_id}", openapi_extra=query_parameter_contract(GetCollectionInput, "/knowledge/collections/{collection_id}"))
 async def get_collection(request: FastAPIRequest):
     handler = get_collection_composer()
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
-@knowledge_router.patch("/collections/{collection_id}")
+@knowledge_router.patch("/collections/{collection_id}", openapi_extra=request_body_contract(UpdateCollectionInput, '/knowledge/collections/{collection_id}', 'patch', required=False, path_fields=('collection_id',)))
 async def update_collection(request: FastAPIRequest):
     handler = update_collection_composer()
     response = await request_adapter(request, handler)
+    return response_adapter(response)
+
+
+@knowledge_router.delete("/collections/{collection_id}")
+async def delete_collection(request: FastAPIRequest):
+    handler = update_collection_composer()
+    response = await request_adapter(
+        request,
+        handler,
+        metadata={"collection_operation": "delete"},
+    )
     return response_adapter(response)
 
 
@@ -315,7 +374,7 @@ async def list_agent_collections(request: FastAPIRequest):
     return response_adapter(response)
 
 
-@knowledge_router.post("/agent-collections")
+@knowledge_router.post("/agent-collections", openapi_extra=request_body_contract(AttachCollectionInput, "/knowledge/agent-collections", "post", required=True))
 async def attach_collection(request: FastAPIRequest):
     handler = attach_collection_composer()
     response = await request_adapter(request, handler)
@@ -329,14 +388,14 @@ async def detach_collection(request: FastAPIRequest):
     return response_adapter(response)
 
 
-@knowledge_router.get("/documents")
+@knowledge_router.get("/documents", openapi_extra=query_parameter_contract(ListDocumentsInput, "/knowledge/documents"))
 async def list_documents(request: FastAPIRequest):
     handler = list_documents_composer()
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
-@knowledge_router.post("/documents")
+@knowledge_router.post("/documents", openapi_extra=request_body_contract(UploadDocumentInput, "/knowledge/documents", "post", required=True))
 async def upload_document(request: FastAPIRequest):
     handler = upload_document_composer()
     response = await request_adapter(request, handler)
@@ -363,21 +422,21 @@ async def delete_document(document_id: UUID):
     return await knowledge_files.delete_document(document_id=document_id)
 
 
-@knowledge_router.get("/documents/{document_id}")
+@knowledge_router.get("/documents/{document_id}", openapi_extra=query_parameter_contract(GetDocumentInput, "/knowledge/documents/{document_id}"))
 async def get_document(request: FastAPIRequest):
     handler = get_document_composer()
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
-@knowledge_router.post("/search")
+@knowledge_router.post("/search", openapi_extra=request_body_contract(SearchChunksInput, "/knowledge/search", "post", required=True))
 async def search_chunks(request: FastAPIRequest):
     handler = search_chunks_composer()
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
-@knowledge_router.post("/agents/{agent_id}/knowledge-versions", status_code=201)
+@knowledge_router.post("/agents/{agent_id}/knowledge-versions", status_code=201, openapi_extra=request_body_contract(CreateKnowledgeVersionInput, '/knowledge/agents/{agent_id}/knowledge-versions', 'post', required=True, path_fields=('agent_id',)))
 async def create_knowledge_version(request: FastAPIRequest):
     handler = create_knowledge_version_composer()
     response = await request_adapter(request, handler)
@@ -394,34 +453,41 @@ async def list_knowledge_versions(request: FastAPIRequest):
 runtime_router = APIRouter(prefix="/runtime", tags=["runtime", "agent"])
 
 
-@runtime_router.post("/sessions")
+@runtime_router.post("/sessions", openapi_extra=request_body_contract(CreateSessionInput, "/runtime/sessions", "post", required=True))
 async def create_session(request: FastAPIRequest):
     handler = create_session_composer()
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
-@runtime_router.get("/agents/{agent_id}/sessions")
+@runtime_router.get(
+    "/agents/{agent_id}/sessions",
+    openapi_extra={"parameters": [
+        {"name": name, "in": "path" if name == "agent_id" else "query",
+         "required": name in {"agent_id", "project_id"}, "schema": schema}
+        for name, schema in ListAgentSessionsInput.model_json_schema(mode="validation")["properties"].items()
+    ]},
+)
 async def list_agent_sessions(request: FastAPIRequest):
     handler = list_agent_sessions_composer()
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
-@runtime_router.post("/ask")
+@runtime_router.post("/ask", openapi_extra=request_body_contract(AskInput, '/runtime/ask', 'post', required=True))
 async def ask(request: FastAPIRequest):
     handler = ask_agent_composer()
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
-@runtime_router.post("/ask/stream")
+@runtime_router.post("/ask/stream", openapi_extra=request_body_contract(AskInput, '/runtime/ask/stream', 'post', required=True))
 async def ask_stream(request: FastAPIRequest):
     controller = AskAgentStreamController(*build_agent_stream_components())
     return await controller.handle(request)
 
 
-@runtime_router.post("/ask/jobs", status_code=201)
+@runtime_router.post("/ask/jobs", status_code=201, openapi_extra=request_body_contract(CreateAskJobInput, "/runtime/ask/jobs", "post", required=True))
 async def create_ask_job(request: FastAPIRequest):
     handler = create_ask_job_composer()
     response = await request_adapter(request, handler)
@@ -435,14 +501,14 @@ async def get_ask_job(request: FastAPIRequest):
     return response_adapter(response)
 
 
-@runtime_router.get("/sessions/{session_id}/messages")
+@runtime_router.get("/sessions/{session_id}/messages", openapi_extra=query_parameter_contract(ListMessagesInput, "/runtime/sessions/{session_id}/messages"))
 async def list_messages(request: FastAPIRequest):
     handler = list_messages_composer()
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
-@runtime_router.post("/messages")
+@runtime_router.post("/messages", openapi_extra=request_body_contract(SendMessageInput, "/runtime/messages", "post", required=True))
 async def send_message(request: FastAPIRequest):
     handler = send_message_composer()
     response = await request_adapter(request, handler)
@@ -452,28 +518,28 @@ async def send_message(request: FastAPIRequest):
 tools_router = APIRouter(prefix="/tools", tags=["tools"])
 
 
-@tools_router.get("/tools")
+@tools_router.get("/tools", openapi_extra=query_parameter_contract(ListToolsInput, "/tools/tools"))
 async def tools_list_tools(request: FastAPIRequest):
     handler = list_tools_composer()
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
-@tools_router.post("/tools")
+@tools_router.post("/tools", openapi_extra=request_body_contract(CreateToolInput, "/tools/tools", "post", required=True))
 async def tools_create_tool(request: FastAPIRequest):
     handler = create_tool_composer()
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
-@tools_router.patch("/tools/{tool_id}")
+@tools_router.patch("/tools/{tool_id}", openapi_extra=request_body_contract(UpdateToolInput, "/tools/tools/{tool_id}", "patch", required=False))
 async def tools_update_tool(request: FastAPIRequest):
     handler = update_tool_composer()
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
-@tools_router.patch("/tools/{tool_id}/status")
+@tools_router.patch("/tools/{tool_id}/status", openapi_extra=request_body_contract(UpdateToolStatusInput, '/tools/tools/{tool_id}/status', 'patch', required=False))
 async def tools_update_tool_status(request: FastAPIRequest):
     handler = update_tool_status_composer()
     response = await request_adapter(request, handler)
@@ -487,7 +553,7 @@ async def tools_delete_tool(request: FastAPIRequest):
     return response_adapter(response)
 
 
-@tools_router.post("/tools/test")
+@tools_router.post("/tools/test", openapi_extra=request_body_contract(TestToolInput, '/tools/tools/test', 'post', required=True))
 async def tools_test_tool(request: FastAPIRequest):
     payload = await request.json()
     project_id = payload.get("project_id") if isinstance(payload, dict) else None
@@ -512,28 +578,28 @@ async def tools_test_tool(request: FastAPIRequest):
     return response_adapter(response)
 
 
-@tools_router.post("/tools/execute")
+@tools_router.post("/tools/execute", openapi_extra=request_body_contract(ExecuteToolInput, '/tools/tools/execute', 'post', required=True))
 async def tools_execute_tool(request: FastAPIRequest):
     handler = execute_tool_composer()
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
-@tools_router.get("/agents/{agent_id}/tools")
+@tools_router.get("/agents/{agent_id}/tools", openapi_extra=query_parameter_contract(ListToolsByAgentInput, "/tools/agents/{agent_id}/tools"))
 async def tools_list_tools_by_agent(request: FastAPIRequest):
     handler = list_tools_by_agent_composer()
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
-@tools_router.get("/secrets")
+@tools_router.get("/secrets", openapi_extra=query_parameter_contract(ListSecretsInput, "/tools/secrets"))
 async def tools_list_secrets(request: FastAPIRequest):
     handler = list_secrets_composer()
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
-@tools_router.post("/secrets")
+@tools_router.post("/secrets", openapi_extra=request_body_contract(CreateSecretInput, "/tools/secrets", "post", required=True))
 async def tools_create_secret(request: FastAPIRequest):
     handler = create_secret_composer()
     response = await request_adapter(request, handler)

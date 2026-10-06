@@ -28,6 +28,7 @@ class UpdateCollectionInput(BaseModel):
     collection_id: UUID
     name: str | None = Field(default=None, min_length=1, max_length=255)
     description: str | None = None
+    status: CollectionStatus | None = None
 
 
 class UpdateCollectionOutput(BaseModel):

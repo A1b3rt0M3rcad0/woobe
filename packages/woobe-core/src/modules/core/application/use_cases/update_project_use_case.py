@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from uuid import uuid4
 
 from modules.core.domain.errors import ProjectNotFoundError
 from modules.core.domain.repositories import ProjectRepository
@@ -25,13 +26,15 @@ class UpdateProjectUseCase:
         project.updated_at = datetime.now(UTC)
         saved = await self._project_repo.save(project)
 
+        # Distinct edits are distinct events; using only the Project ID rejects
+        # the second edit at the outbox's unique idempotency constraint.
         await self._outbox.write(
             aggregate_type="project",
             aggregate_id=saved.id,
             event_type="project.updated.v1",
             payload={"name": saved.name, "slug": saved.slug},
             routing_key="project.updated.v1",
-            idempotency_key=f"core:project.updated.v1:{saved.id}",
+            idempotency_key=f"core:project.updated.v1:{saved.id}:{uuid4()}",
         )
 
         return UpdateProjectOutput(

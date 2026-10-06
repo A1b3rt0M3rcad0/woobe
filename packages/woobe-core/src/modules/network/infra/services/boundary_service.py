@@ -37,7 +37,14 @@ from shared.contracts.runtime_contracts import (
     normalize_contract_schema,
 )
 from shared.runtime_environment import assert_runtime_environment_enabled
-from shared.security.principal import AuthenticatedPrincipal, ProjectApiPrincipal
+from shared.security.principal import (
+    AuthenticatedPrincipal,
+    ControlPlanePrincipal,
+    ProjectApiPrincipal,
+    SecurityPrincipal,
+)
+from shared.infra.admin_idempotency import AdministrativeIdempotency
+from shared.infra.config import Settings
 from shared.security.tenancy import TenantAuthorizer
 
 
@@ -78,6 +85,8 @@ class NetworkBoundaryService(NetworkApplicationService):
         project_id: UUID,
         name: str,
         description: str,
+        actor: SecurityPrincipal | None = None,
+        idempotency_key: str | None = None,
     ) -> NetworkModel:
         async with self._session_factory() as session, session.begin():
             project_exists = await session.scalar(
@@ -85,6 +94,54 @@ class NetworkBoundaryService(NetworkApplicationService):
             )
             if project_exists is None:
                 raise NotFoundError("Project not found")
+            workspace_id = await TenantAuthorizer(session)._project_workspace_id(
+                project_id
+            )
+            if isinstance(actor, ControlPlanePrincipal):
+                await TenantAuthorizer(session).require_active_control(actor)
+                await TenantAuthorizer(session).authorize_control_key(
+                    api_key_id=actor.api_key_id,
+                    workspace_id=actor.workspace_id,
+                    workspace_permissions=actor.permissions,
+                    required_permission="network:write",
+                    path_params={"project_id": project_id},
+                    query_params={},
+                    body={},
+                )
+            elif isinstance(actor, AuthenticatedPrincipal):
+                await TenantAuthorizer(session).require_human_permission(
+                    user_id=actor.user_id,
+                    workspace_id=workspace_id,
+                    project_id=project_id,
+                    permission="network:write",
+                )
+            ledger = AdministrativeIdempotency(
+                session, encryption_key=Settings.model_validate({}).encryption_key
+            )
+            if idempotency_key is not None and actor is None:
+                raise AuthorizationError("Idempotency requires authenticated authority")
+            replay = await ledger.begin(
+                key=idempotency_key,
+                actor=actor,
+                workspace_id=workspace_id,
+                operation="network.create",
+                payload={
+                    "project_id": project_id,
+                    "name": name,
+                    "description": description,
+                },
+            )
+            if replay is not None:
+                from datetime import datetime
+
+                data = replay["network"]
+                for key in ("id", "project_id"):
+                    data[key] = UUID(data[key])
+                for key in ("created_at", "updated_at"):
+                    data[key] = datetime.fromisoformat(data[key])
+                network = NetworkModel(**data)
+                network.idempotency_replayed = True
+                return network
             duplicate = await session.scalar(
                 select(NetworkModel.id).where(
                     NetworkModel.project_id == project_id,
@@ -111,6 +168,25 @@ class NetworkBoundaryService(NetworkApplicationService):
                 raise ConflictError(
                     "A Network with this name already exists in the Project"
                 ) from exc
+            await ledger.save(
+                {
+                    "network": {
+                        name: getattr(network, name)
+                        for name in (
+                            "id",
+                            "project_id",
+                            "name",
+                            "description",
+                            "draft_definition",
+                            "draft_revision",
+                            "staging_version_id",
+                            "production_version_id",
+                            "created_at",
+                            "updated_at",
+                        )
+                    }
+                }
+            )
             return network
 
     async def get_project_network(
@@ -171,6 +247,57 @@ class NetworkBoundaryService(NetworkApplicationService):
                     "A Network with this name already exists in the Project"
                 ) from exc
             return network
+
+    async def delete_project_network(
+        self,
+        *,
+        project_id: UUID,
+        network_id: UUID,
+    ) -> None:
+        async with self._session_factory() as session, session.begin():
+            network = await session.scalar(
+                select(NetworkModel)
+                .where(
+                    NetworkModel.id == network_id,
+                    NetworkModel.project_id == project_id,
+                )
+                .with_for_update()
+            )
+            if network is None:
+                raise NotFoundError("Network not found")
+
+            version_id = await session.scalar(
+                select(NetworkVersionModel.id)
+                .where(NetworkVersionModel.network_id == network_id)
+                .limit(1)
+            )
+            session_id = await session.scalar(
+                select(NetworkSessionModel.id)
+                .where(NetworkSessionModel.network_id == network_id)
+                .limit(1)
+            )
+            execution_id = await session.scalar(
+                select(NetworkExecutionModel.id)
+                .where(NetworkExecutionModel.network_id == network_id)
+                .limit(1)
+            )
+            activation_id = await session.scalar(
+                select(NetworkProductionActivationModel.id)
+                .where(NetworkProductionActivationModel.network_id == network_id)
+                .limit(1)
+            )
+            if (
+                version_id is not None
+                or session_id is not None
+                or execution_id is not None
+                or activation_id is not None
+            ):
+                raise ConflictError(
+                    "Network has version or runtime history and cannot be deleted"
+                )
+
+            await session.delete(network)
+            await session.flush()
 
     async def list_managed_versions(
         self,
@@ -295,9 +422,7 @@ class NetworkBoundaryService(NetworkApplicationService):
                     "node_id": str(item.network_node_id),
                     "agent_id": str(item.agent_id),
                     "agent_session_id": (
-                        str(item.agent_session_id)
-                        if item.agent_session_id
-                        else None
+                        str(item.agent_session_id) if item.agent_session_id else None
                     ),
                 }
                 for item in session_contexts
@@ -315,7 +440,13 @@ class NetworkBoundaryService(NetworkApplicationService):
                         "agent_session_id": None,
                     },
                 )
-                for key in ("agent_session_id", "source", "version", "provider", "model"):
+                for key in (
+                    "agent_session_id",
+                    "source",
+                    "version",
+                    "provider",
+                    "model",
+                ):
                     if data.get(key):
                         context[key] = str(data[key])
 
@@ -368,9 +499,7 @@ class NetworkBoundaryService(NetworkApplicationService):
             ):
                 raise NotFoundError("Historical Network Release not found")
             if source.id == network.production_version_id:
-                raise ConflictError(
-                    "Selected Network Release is already in Production"
-                )
+                raise ConflictError("Selected Network Release is already in Production")
             previous = (
                 await session.get(NetworkVersionModel, network.production_version_id)
                 if network.production_version_id
@@ -444,8 +573,7 @@ class NetworkBoundaryService(NetworkApplicationService):
                 select(NetworkExecutionModel)
                 .join(
                     NetworkSessionModel,
-                    NetworkSessionModel.id
-                    == NetworkExecutionModel.network_session_id,
+                    NetworkSessionModel.id == NetworkExecutionModel.network_session_id,
                 )
                 .where(NetworkExecutionModel.status.in_(_ACTIVE_STATUSES))
             )
@@ -522,9 +650,7 @@ class NetworkBoundaryService(NetworkApplicationService):
         async with self._session_factory() as session:
             message_count = (
                 select(func.count(NetworkMessageModel.id))
-                .where(
-                    NetworkMessageModel.network_session_id == NetworkSessionModel.id
-                )
+                .where(NetworkMessageModel.network_session_id == NetworkSessionModel.id)
                 .correlate(NetworkSessionModel)
                 .scalar_subquery()
             )
@@ -647,8 +773,7 @@ class NetworkBoundaryService(NetworkApplicationService):
                 )
             await session.execute(
                 delete(NetworkAgentContextModel).where(
-                    NetworkAgentContextModel.network_session_id
-                    == network_session_id
+                    NetworkAgentContextModel.network_session_id == network_session_id
                 )
             )
 
@@ -806,19 +931,14 @@ class NetworkBoundaryService(NetworkApplicationService):
     ) -> None:
         if isinstance(principal, ProjectApiPrincipal):
             if principal.project_id != execution.project_id:
-                raise AuthorizationError(
-                    "Runtime key does not belong to this Project"
-                )
+                raise AuthorizationError("Runtime key does not belong to this Project")
             if principal.kind == "runtime":
                 target_type, target_id = self._runtime_target(principal)
                 if target_type != "network" or target_id != execution.network_id:
                     raise NotFoundError("Network execution not found")
-                if (
-                    principal.environment is not None
-                    and (
-                        network_session is None
-                        or principal.environment != network_session.environment
-                    )
+                if principal.environment is not None and (
+                    network_session is None
+                    or principal.environment != network_session.environment
                 ):
                     raise NotFoundError("Network execution not found")
             return
@@ -842,9 +962,7 @@ class NetworkBoundaryService(NetworkApplicationService):
                 str(event.invocation_id) if event.invocation_id else None
             ),
             "parent_invocation_id": (
-                str(event.parent_invocation_id)
-                if event.parent_invocation_id
-                else None
+                str(event.parent_invocation_id) if event.parent_invocation_id else None
             ),
             "node_id": str(event.node_id) if event.node_id else None,
             "agent_id": str(event.agent_id) if event.agent_id else None,

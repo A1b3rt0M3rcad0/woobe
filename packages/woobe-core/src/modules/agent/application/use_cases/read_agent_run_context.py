@@ -283,13 +283,23 @@ class ReadAgentRunContextUseCase:
         self._project_access = project_access_repository
         self._journal = journal
 
-    async def _authorized_run(self, *, run: AgentRun | None, user_id: UUID, not_found: str) -> AgentRun:
+    async def _authorized_run(
+        self,
+        *,
+        run: AgentRun | None,
+        user_id: UUID | None,
+        control_plane_authorized: bool,
+        not_found: str,
+    ) -> AgentRun:
         if run is None:
             raise NotFoundError(not_found)
-        await self._project_access.require_user_access(
-            user_id=user_id,
-            project_id=run.project_id,
-        )
+        if not control_plane_authorized:
+            if user_id is None:
+                raise ValueError("User authentication is required")
+            await self._project_access.require_user_access(
+                user_id=user_id,
+                project_id=run.project_id,
+            )
         return run
 
     async def _durable_terminal_snapshot(
@@ -368,11 +378,13 @@ class ReadAgentRunContextUseCase:
         self,
         *,
         run_id: UUID,
-        user_id: UUID,
+        user_id: UUID | None,
+        control_plane_authorized: bool = False,
     ) -> list[dict]:
         run = await self._authorized_run(
             run=await self._runs.get_by_id(run_id),
             user_id=user_id,
+            control_plane_authorized=control_plane_authorized,
             not_found="Agent Run not found",
         )
         return await self._model_invocations(run)
@@ -381,11 +393,13 @@ class ReadAgentRunContextUseCase:
         self,
         *,
         trace_id: UUID,
-        user_id: UUID,
+        user_id: UUID | None,
+        control_plane_authorized: bool = False,
     ) -> list[dict]:
         run = await self._authorized_run(
             run=await self._runs.get_by_trace_id(trace_id),
             user_id=user_id,
+            control_plane_authorized=control_plane_authorized,
             not_found="Agent Run not found for Trace",
         )
         return await self._model_invocations(run)
@@ -394,11 +408,13 @@ class ReadAgentRunContextUseCase:
         self,
         *,
         run_id: UUID,
-        user_id: UUID,
+        user_id: UUID | None,
+        control_plane_authorized: bool = False,
     ) -> dict:
         run = await self._authorized_run(
             run=await self._runs.get_by_id(run_id),
             user_id=user_id,
+            control_plane_authorized=control_plane_authorized,
             not_found="Agent Run not found",
         )
         return await self._detail(run)
@@ -407,11 +423,13 @@ class ReadAgentRunContextUseCase:
         self,
         *,
         trace_id: UUID,
-        user_id: UUID,
+        user_id: UUID | None,
+        control_plane_authorized: bool = False,
     ) -> dict:
         run = await self._authorized_run(
             run=await self._runs.get_by_trace_id(trace_id),
             user_id=user_id,
+            control_plane_authorized=control_plane_authorized,
             not_found="Agent Run not found for Trace",
         )
         return await self._detail(run)

@@ -7,7 +7,11 @@ from pydantic import BaseModel, Field, model_validator
 
 from modules.network.entrypoint import build_network_service
 from shared.infra.errors import AuthorizationError
-from shared.security.principal import AuthenticatedPrincipal, ProjectApiPrincipal
+from shared.security.principal import (
+    AuthenticatedPrincipal,
+    ControlPlanePrincipal,
+    ProjectApiPrincipal,
+)
 
 
 router = APIRouter(prefix="/network/projects", tags=["network"])
@@ -48,6 +52,8 @@ def _authorize_project(request: Request, project_id: UUID) -> None:
     if isinstance(principal, ProjectApiPrincipal):
         if principal.project_id != project_id:
             raise AuthorizationError("Runtime key does not belong to this Project")
+        return
+    if isinstance(principal, ControlPlanePrincipal):
         return
     if isinstance(principal, AuthenticatedPrincipal):
         return
@@ -98,8 +104,36 @@ async def create_project_network(
         project_id=project_id,
         name=payload.name,
         description=payload.description,
+        actor=getattr(request.state, "principal", None),
+        idempotency_key=request.headers.get("idempotency-key"),
     )
-    return {"success": True, "data": network_payload(network)}
+    from fastapi.encoders import jsonable_encoder
+    from fastapi.responses import JSONResponse
+
+    headers = (
+        {"Idempotency-Replayed": "true"}
+        if getattr(network, "idempotency_replayed", False)
+        else {}
+    )
+    return JSONResponse(
+        jsonable_encoder({"success": True, "data": network_payload(network)}),
+        status_code=201,
+        headers=headers,
+    )
+
+
+@router.delete("/{project_id}/networks/{network_id}")
+async def delete_project_network(
+    project_id: UUID,
+    network_id: UUID,
+    request: Request,
+):
+    _authorize_project(request, project_id)
+    await build_network_service().delete_project_network(
+        project_id=project_id,
+        network_id=network_id,
+    )
+    return {"success": True, "data": None}
 
 
 @router.get("/{project_id}/networks/{network_id}")

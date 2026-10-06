@@ -29,6 +29,7 @@ from shared.security.rate_limit import (
     ApiKeyConcurrencyLimiter,
     LoginRateLimiter,
 )
+from woobe_api.security.operation_catalog import resolve_operation, verified_query_context
 
 PUBLIC_PATHS = {
     "/identity/auth/login",
@@ -228,6 +229,14 @@ class HttpSecurityGuard:
         if is_runtime_path(path):
             self._validate_runtime_payload(request, body)
 
+        authorization_path_params = self._authorization_path_params(
+            request,
+            path_params,
+        )
+
+        authorization_path_params = verified_query_context(
+            request.method, path, authorization_path_params, query_params
+        )
         authorization = request.headers.get("authorization", "")
         scheme, _, credentials = authorization.partition(" ")
         if scheme.lower() == "bearer" and credentials:
@@ -237,7 +246,7 @@ class HttpSecurityGuard:
                     credentials=credentials,
                     body=body,
                     query_params=query_params,
-                    path_params=path_params,
+                    path_params=authorization_path_params,
                 )
             access_token = credentials
             token_source = "header"
@@ -250,15 +259,47 @@ class HttpSecurityGuard:
 
         principal = await self._authenticator.authenticate_user(
             access_token=access_token,
-            path_params=path_params,
+            path_params=authorization_path_params,
             query_params=query_params,
             body=body,
+            required_permission=resolve_operation(request.method, path, body)[0],
+            mutation=request.method.upper() in _CSRF_METHODS,
         )
 
         if token_source == "cookie":
             self._validate_csrf(request)
 
         return principal
+
+    @staticmethod
+    def _authorization_path_params(
+        request: Request,
+        path_params: dict[str, Any],
+    ) -> dict[str, Any]:
+        if request.url.path.startswith("/core/projects/") and "resource_id" in path_params:
+            normalized = dict(path_params)
+            normalized["project_id"] = normalized.pop("resource_id")
+            return normalized
+        if (
+            request.url.path.startswith("/runtime/runs/by-trace/")
+            and "trace_id" in path_params
+        ):
+            normalized = dict(path_params)
+            normalized["run_trace_id"] = normalized.pop("trace_id")
+            return normalized
+        if (
+            request.method == "GET"
+            and path_params.get("agent_id") is not None
+            and request.url.path
+            == f"/runtime/agents/{path_params['agent_id']}/sessions"
+        ):
+            # This reviewed collection handler filters by the same query value.
+            # Grant conditions must authorize that environment before listing.
+            environment = request.query_params.get("environment") or "draft"
+            normalized = dict(path_params)
+            normalized["environment"] = environment
+            return normalized
+        return path_params
 
     async def _authenticate_api_key(
         self,
@@ -268,7 +309,7 @@ class HttpSecurityGuard:
         body: Any,
         query_params: dict[str, Any],
         path_params: dict[str, Any],
-    ) -> ProjectApiPrincipal:
+    ) -> SecurityPrincipal:
         required_scope = _required_api_key_scope(request.method, request.url.path)
         return await self._authenticator.authenticate_api_key(
             credentials=credentials,
@@ -280,6 +321,11 @@ class HttpSecurityGuard:
             path_params=path_params,
             query_params=query_params,
             body=body,
+            control_permission=resolve_operation(
+                request.method,
+                request.url.path,
+                body,
+            )[0],
         )
 
     def _validate_csrf(self, request: Request) -> None:
