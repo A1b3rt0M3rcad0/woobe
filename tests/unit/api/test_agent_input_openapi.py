@@ -9,7 +9,16 @@ from woobe_api.http.agent import routes
 from woobe_api.http.shared.openapi_contracts import request_body_contract
 
 
+CONTRACT_OPTIONS = {}
+EXTRA_ROUTERS = []
+
+CONTRACT_OPTIONS['update_collection'] = {'required': False, 'path_fields': ('collection_id',)}
+
+CONTRACT_OPTIONS['create_knowledge_version'] = {'required': True, 'path_fields': ('agent_id',)}
+
 CONTRACTS = [
+    ('create_knowledge_version', 'CreateKnowledgeVersionInput', '/knowledge/agents/{agent_id}/knowledge-versions', 'post'),
+    ('update_collection', 'UpdateCollectionInput', '/knowledge/collections/{collection_id}', 'patch'),
     ('tools_create_tool', 'CreateToolInput', '/tools/tools', 'post'),
     ('tools_update_tool', 'UpdateToolInput', '/tools/tools/{tool_id}', 'patch'),
     ('tools_create_secret', 'CreateSecretInput', '/tools/secrets', 'post'),
@@ -48,11 +57,15 @@ def test_agent_input_schema_uses_the_same_public_dto(endpoint, model_name, path,
     app.include_router(routes.knowledge_router)
     app.include_router(routes.runtime_router)
     app.include_router(routes.tools_router)
+    for extra_router in EXTRA_ROUTERS:
+        app.include_router(extra_router)
     model = getattr(entrypoint, model_name)
-    expected = request_body_contract(model, path, method, required=method != "patch")
+    expected = request_body_contract(model, path, method, **CONTRACT_OPTIONS.get(endpoint, {"required": method != "patch"}))
     operation = app.openapi()["paths"][path][method]
     assert operation["requestBody"] == jsonable_encoder(expected["requestBody"], exclude_none=True)
-    assert list(inspect.signature(getattr(routes, endpoint)).parameters) == ["request"]
+    endpoint_function = next(route.endpoint for route in app.routes if getattr(route, "name", None) == endpoint)
+    expected_args = ["request", "collection_id"] if endpoint in {"preview_vector_snapshot", "create_vector_snapshot"} else ["request"]
+    assert list(inspect.signature(endpoint_function).parameters) == expected_args
 
 
 def test_agent_session_query_contract_describes_the_consumed_dto_filters():
@@ -71,7 +84,7 @@ def test_agent_session_query_contract_describes_the_consumed_dto_filters():
 
 def test_all_advertised_dto_references_resolve_in_the_openapi_document():
     app = FastAPI()
-    for router in (routes.router, routes.knowledge_router, routes.runtime_router, routes.tools_router):
+    for router in (routes.router, routes.knowledge_router, routes.runtime_router, routes.tools_router, *EXTRA_ROUTERS):
         app.include_router(router)
     document = app.openapi()
 

@@ -1,3 +1,4 @@
+from modules.agent.entrypoint import (UpdateCollectionInput, CreateKnowledgeVersionInput)
 from modules.agent.entrypoint import ListAgentSessionsInput
 from modules.agent.entrypoint import (CreateToolInput,UpdateToolInput,CreateSecretInput)
 from modules.agent.entrypoint import (CreateSessionInput,SendMessageInput,CreateAskJobInput)
@@ -322,7 +323,7 @@ async def get_collection(request: FastAPIRequest):
     return response_adapter(response)
 
 
-@knowledge_router.patch("/collections/{collection_id}")
+@knowledge_router.patch("/collections/{collection_id}", openapi_extra=request_body_contract(UpdateCollectionInput, '/knowledge/collections/{collection_id}', 'patch', required=False, path_fields=('collection_id',)))
 async def update_collection(request: FastAPIRequest):
     handler = update_collection_composer()
     response = await request_adapter(request, handler)
@@ -409,7 +410,7 @@ async def search_chunks(request: FastAPIRequest):
     return response_adapter(response)
 
 
-@knowledge_router.post("/agents/{agent_id}/knowledge-versions", status_code=201)
+@knowledge_router.post("/agents/{agent_id}/knowledge-versions", status_code=201, openapi_extra=request_body_contract(CreateKnowledgeVersionInput, '/knowledge/agents/{agent_id}/knowledge-versions', 'post', required=True, path_fields=('agent_id',)))
 async def create_knowledge_version(request: FastAPIRequest):
     handler = create_knowledge_version_composer()
     response = await request_adapter(request, handler)
