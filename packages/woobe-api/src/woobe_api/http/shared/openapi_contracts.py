@@ -32,12 +32,22 @@ def request_body_contract(model: type[BaseModel], path: str, method: str, *, req
             ref = value.get("$ref")
             if isinstance(ref, str) and ref.startswith("#/$defs/"):
                 value["$ref"] = pointer + ref[1:]
-            for key, child in value.items():
-                if key not in {"default", "const", "enum", "examples", "example"}:
+            # Property/definition names can themselves be "default", "enum"
+            # or "$ref". Interpret keywords only at schema nodes.
+            for keyword in ("properties", "patternProperties", "$defs", "definitions", "dependentSchemas"):
+                children = value.get(keyword)
+                if isinstance(children, dict):
+                    for child in children.values():
+                        relocate(child)
+            for keyword in ("additionalProperties", "unevaluatedProperties", "propertyNames", "items", "contains", "not", "if", "then", "else", "unevaluatedItems"):
+                child = value.get(keyword)
+                if isinstance(child, dict):
                     relocate(child)
-        elif isinstance(value, list):
-            for child in value:
-                relocate(child)
+            for keyword in ("allOf", "anyOf", "oneOf", "prefixItems"):
+                children = value.get(keyword)
+                if isinstance(children, list):
+                    for child in children:
+                        relocate(child)
 
     relocate(schema)
     return {

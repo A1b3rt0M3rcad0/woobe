@@ -55,3 +55,14 @@ def test_route_injected_dto_identity_is_not_required_in_body():
     assert "collection_id" in BoundInput.model_json_schema()["properties"]
     with pytest.raises(ValueError):
         request_body_contract(BoundInput, "/collections", "post", path_fields=("collection_id",))
+
+
+def test_relocation_distinguishes_schema_keywords_from_property_names():
+    from pydantic import Field
+    class KeywordProperties(BaseModel):
+        default: Child
+        enum: Child
+        reference: Child = Field(alias="$ref")
+    schema = request_body_contract(KeywordProperties, "/contracts", "post")["requestBody"]["content"]["application/json"]["schema"]
+    for name in ("default", "enum", "$ref"):
+        assert schema["properties"][name]["$ref"] == "#/paths/~1contracts/post/requestBody/content/application~1json/schema/$defs/Child"
