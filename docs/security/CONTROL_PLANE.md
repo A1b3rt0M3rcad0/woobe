@@ -163,3 +163,31 @@ Worker health probe diagnostics report safe reasons and stopped worker indexes,
 never arbitrary heartbeat payloads or worker errors. The failed historical smoke
 at 0aa81da was followed by successful smoke/restart on a74ebc9; its root cause
 was not reproduced and is not asserted fixed by adding diagnostics.
+
+## Declarative category definitions and immutable comparison
+
+The CLI resource kind `AuthorityCategory` belongs to a Workspace, even when its
+permission scope is Project. Category-only documents do not require a selected
+Project. Definitions import through the existing category create/update endpoints
+and do not issue credentials, materialize grants or assign humans. Updates require
+an explicit category ID and current strong ETag; existing grants retain the
+original category revision. Clone/archive/delete and assignment remain explicit
+operations outside the category resource import.
+
+`workspace authority category diff` reads two explicit immutable revisions. It
+compares concrete permission and condition sets without relying on array order;
+it does not migrate grants or enumerate every affected assignment. Selective
+capture preserves the observed ETag. Skip-unchanged requires matching category,
+Workspace, revision and strong ETag. A saved successful checkpoint suppresses a
+repeated create; there is no name-based upsert or category-create replay promise.
+
+Additional DTO contracts now describe Knowledge collection edits/versioning and
+vector build/preview, Tool status/test/execute, MCP discovery/refresh/permission
+modes, provider credential rotation, release promotion/rollback, runtime ask and
+Workspace edits. Fields injected from path parameters are omitted from the body
+schema and advertised separately. Schema traversal distinguishes annotation
+literals from property names that happen to be JSON Schema keywords.
+
+MCP permission modes remain `allow`, `deny` and `review`. Advertising Tool/MCP
+execution input does not confer execution authority. Release DTO preflight does
+not replace publication lifecycle rules, including required production notes.

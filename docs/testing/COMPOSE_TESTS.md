@@ -171,3 +171,14 @@ all seven governed module architecture checks reported zero violations. Native
 Go race/vet/module checks and packaged Linux smoke passed separately. Remote
 workflow results must be associated with the exact new backend/client SHAs;
 previous approved commits do not qualify the new head automatically.
+
+The required CLI category workflow now imports a Workspace category definition
+through manifest preflight/apply, resumes its private checkpoint without another
+create, compares immutable revisions, captures selected fields with ETag and skips
+an unchanged reordered permission set without bumping the revision. The already
+issued reader key must stay pinned to the original revision and refuse writing.
+Agent publication/rollback requires advertised body/path validation; MCP
+permission preflight accepts `review` and refuses an unsupported mode without
+performing Tool execution. These scenarios are enforced by the pinned client in
+`tests/integration/cli/test_control_plane_workflow.py`; unit-schema fixtures do not
+substitute for a successful required live run.
