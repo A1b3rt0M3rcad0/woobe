@@ -1,3 +1,5 @@
+from modules.agent.composition.public_api import GetAgentInput
+from modules.agent.composition.public_api import ListAgentsInput
 from modules.agent.composition.public_api import (PromoteReleaseInput, RollbackReleaseInput)
 from modules.agent.composition.public_api import (RotateProviderCredentialInput)
 from modules.agent.composition.public_api import (UpdateMcpToolPermissionsInput, BulkUpdateMcpToolPermissionsInput)
@@ -178,6 +180,8 @@ from modules.agent.composition.factories.rag_runtime_factory import (
 )
 
 __all__ = [
+    'GetAgentInput',
+    'ListAgentsInput',
     'PromoteReleaseInput',
     'RollbackReleaseInput',
 

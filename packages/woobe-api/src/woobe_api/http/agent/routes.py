@@ -1,3 +1,5 @@
+from modules.agent.entrypoint import (ListAgentsInput, GetAgentInput)
+from woobe_api.http.shared.openapi_contracts import query_parameter_contract
 from modules.agent.entrypoint import (AskInput)
 from modules.agent.entrypoint import (PromoteReleaseInput, RollbackReleaseInput)
 from modules.agent.entrypoint import (UpdateToolStatusInput, TestToolInput, ExecuteToolInput)
@@ -144,14 +146,14 @@ async def create_agent(request: FastAPIRequest):
     return response_adapter(response)
 
 
-@router.get("/agents")
+@router.get("/agents", openapi_extra=query_parameter_contract(ListAgentsInput, "/ai/agents"))
 async def list_agents(request: FastAPIRequest):
     handler = list_agents_composer()
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
-@router.get("/agents/{agent_id}")
+@router.get("/agents/{agent_id}", openapi_extra=query_parameter_contract(GetAgentInput, "/ai/agents/{agent_id}"))
 async def get_agent(request: FastAPIRequest):
     handler = get_agent_composer()
     response = await request_adapter(request, handler)

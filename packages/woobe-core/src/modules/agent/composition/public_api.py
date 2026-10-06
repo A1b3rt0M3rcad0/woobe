@@ -1,3 +1,5 @@
+from modules.agent.application.dtos.ai_dtos import GetAgentInput
+from modules.agent.application.dtos.ai_dtos import ListAgentsInput
 from modules.agent.application.dtos.ai_dtos import PromoteReleaseInput
 from modules.agent.application.dtos.ai_dtos import RollbackReleaseInput
 from modules.agent.application.dtos.provider_credential_rotation_dtos import RotateProviderCredentialInput
@@ -306,6 +308,8 @@ from modules.agent.composition.composers.public_runtime_composers import (
 
 
 __all__ = [
+    'GetAgentInput',
+    'ListAgentsInput',
     'PromoteReleaseInput',
     'RollbackReleaseInput',
 
