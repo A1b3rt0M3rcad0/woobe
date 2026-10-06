@@ -1,3 +1,4 @@
+from modules.agent.composition.public_api import ListMessagesInput
 from modules.agent.composition.public_api import ListSecretsInput
 from modules.agent.composition.public_api import ListToolsByAgentInput
 from modules.agent.composition.public_api import ListToolsInput
@@ -189,6 +190,7 @@ from modules.agent.composition.factories.rag_runtime_factory import (
 )
 
 __all__ = [
+    'ListMessagesInput',
     'ListSecretsInput',
     'ListToolsByAgentInput',
     'ListToolsInput',

@@ -1,3 +1,5 @@
+from modules.agent.entrypoint import (ListMessagesInput)
+from woobe_api.http.shared.openapi_contracts import query_parameter_contract
 from modules.agent.entrypoint import (ListToolsInput, ListToolsByAgentInput, ListSecretsInput)
 from woobe_api.http.shared.openapi_contracts import query_parameter_contract
 from modules.agent.entrypoint import (ListCollectionsInput, GetCollectionInput, ListDocumentsInput, GetDocumentInput)
@@ -486,7 +488,7 @@ async def get_ask_job(request: FastAPIRequest):
     return response_adapter(response)
 
 
-@runtime_router.get("/sessions/{session_id}/messages")
+@runtime_router.get("/sessions/{session_id}/messages", openapi_extra=query_parameter_contract(ListMessagesInput, "/runtime/sessions/{session_id}/messages"))
 async def list_messages(request: FastAPIRequest):
     handler = list_messages_composer()
     response = await request_adapter(request, handler)
