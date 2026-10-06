@@ -1,3 +1,5 @@
+from modules.agent.entrypoint import (ListToolsInput, ListToolsByAgentInput, ListSecretsInput)
+from woobe_api.http.shared.openapi_contracts import query_parameter_contract
 from modules.agent.entrypoint import (ListCollectionsInput, GetCollectionInput, ListDocumentsInput, GetDocumentInput)
 from woobe_api.http.shared.openapi_contracts import query_parameter_contract
 from modules.agent.entrypoint import (ListProviderCredentialsInput, ListProviderModelsInput)
@@ -501,7 +503,7 @@ async def send_message(request: FastAPIRequest):
 tools_router = APIRouter(prefix="/tools", tags=["tools"])
 
 
-@tools_router.get("/tools")
+@tools_router.get("/tools", openapi_extra=query_parameter_contract(ListToolsInput, "/tools/tools"))
 async def tools_list_tools(request: FastAPIRequest):
     handler = list_tools_composer()
     response = await request_adapter(request, handler)
@@ -568,14 +570,14 @@ async def tools_execute_tool(request: FastAPIRequest):
     return response_adapter(response)
 
 
-@tools_router.get("/agents/{agent_id}/tools")
+@tools_router.get("/agents/{agent_id}/tools", openapi_extra=query_parameter_contract(ListToolsByAgentInput, "/tools/agents/{agent_id}/tools"))
 async def tools_list_tools_by_agent(request: FastAPIRequest):
     handler = list_tools_by_agent_composer()
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
-@tools_router.get("/secrets")
+@tools_router.get("/secrets", openapi_extra=query_parameter_contract(ListSecretsInput, "/tools/secrets"))
 async def tools_list_secrets(request: FastAPIRequest):
     handler = list_secrets_composer()
     response = await request_adapter(request, handler)
