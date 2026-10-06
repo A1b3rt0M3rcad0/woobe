@@ -9,6 +9,7 @@ from starlette.datastructures import UploadFile
 from modules.package.entrypoint import (
     PackageError,
     PlanPackageRequest,
+    ApplyPackageRequest,
     LookupPackageOperationRequest,
     ResumePackageOperationRequest,
     build_package_service,
@@ -52,6 +53,7 @@ def failure(error):
         "PACKAGE_BINDINGS_CHANGED",
         "PACKAGE_CAPABILITIES_CHANGED",
         "PACKAGE_OPERATION_STATE",
+        "PACKAGE_IDEMPOTENCY_CONFLICT",
     }:
         status = 409
     elif error.code == "PACKAGE_LIMIT_EXCEEDED":
@@ -178,6 +180,52 @@ async def get_operation(project_id: UUID, operation_id: UUID, request: Request):
                 principal=principal(request),
                 operation_id=operation_id,
             )
+        )
+    except PackageError as exc:
+        return failure(exc)
+
+
+@router.post(
+    "/apply",
+    status_code=202,
+    openapi_extra={
+        **request_body_contract(
+            ApplyPackageRequest,
+            "/projects/{project_id}/packages/apply",
+            "post",
+            advertise_path=False,
+        ),
+        "parameters": [
+            {
+                "name": "Idempotency-Key",
+                "in": "header",
+                "required": True,
+                "schema": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "pattern": "^[A-Za-z0-9_.:-]+$",
+                },
+            }
+        ],
+    },
+)
+async def apply_package(project_id: UUID, request: Request):
+    try:
+        keys = request.headers.getlist("idempotency-key")
+        if len(keys) != 1:
+            raise PackageError(
+                "PACKAGE_IDEMPOTENCY_REQUIRED", "One idempotency key is required"
+            )
+        body = await validated_body(request, ApplyPackageRequest)
+        return response(
+            await build_package_service().apply(
+                project_id=project_id,
+                principal=principal(request),
+                key=keys[0],
+                request=body,
+            ),
+            202,
         )
     except PackageError as exc:
         return failure(exc)

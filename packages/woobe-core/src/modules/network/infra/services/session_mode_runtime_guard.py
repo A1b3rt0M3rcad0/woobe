@@ -4,7 +4,6 @@ from typing import Any
 from uuid import UUID
 
 from modules.agent.infra.database.models import AgentReleaseModel
-from modules.network.domain.enums import NetworkEnvironment
 from shared.infra.errors import ConflictError
 
 
@@ -29,7 +28,6 @@ def install_runtime_session_mode_guards() -> None:
     from modules.network.infra.services.service import NetworkApplicationService
 
     resolve_draft_bindings = NetworkApplicationService._resolve_draft_bindings
-    promote_network = NetworkApplicationService.promote
     rollback_production = NetworkApplicationService.rollback_production
 
     async def frozen_draft_bindings(
@@ -84,32 +82,6 @@ def install_runtime_session_mode_guards() -> None:
 
         return bindings
 
-    async def promote_with_frozen_session_modes(
-        self,
-        *,
-        network_id: UUID,
-        project_id: UUID,
-        environment: NetworkEnvironment,
-        created_by: UUID | None,
-        expected_revision: int | None = None,
-        expected_network_version_id: UUID | None = None,
-        approved_action_ids: list[str] | None = None,
-    ):
-        version = await promote_network(
-            self,
-            network_id=network_id,
-            project_id=project_id,
-            environment=environment,
-            created_by=created_by,
-            expected_revision=expected_revision,
-            expected_network_version_id=expected_network_version_id,
-            approved_action_ids=approved_action_ids,
-        )
-        return await self._freeze_version_session_modes(
-            version_id=version.id,
-            project_id=project_id,
-        )
-
     async def rollback_with_frozen_session_modes(
         self,
         *,
@@ -131,6 +103,5 @@ def install_runtime_session_mode_guards() -> None:
         )
 
     NetworkApplicationService._resolve_draft_bindings = frozen_draft_bindings
-    NetworkApplicationService.promote = promote_with_frozen_session_modes
     NetworkApplicationService.rollback_production = rollback_with_frozen_session_modes
 

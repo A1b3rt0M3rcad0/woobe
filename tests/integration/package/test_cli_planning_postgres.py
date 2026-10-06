@@ -12,10 +12,27 @@ cli = _live_cli
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("with_skill_and_bindings", [False, True])
+@pytest.mark.parametrize("public_apply", [False, True])
+@pytest.mark.parametrize(
+    "with_skill_and_bindings,entry_kind,lifecycle",
+    [
+        (False, "Agent", "draft"),
+        (True, "Agent", "draft"),
+        *[
+            (False, kind, stage)
+            for kind in ("Agent", "Network")
+            for stage in ("staging", "release", "production")
+        ],
+        (False, "Network", "draft"),
+    ],
+)
 async def test_cli_upload_and_native_plan_against_live_postgres(
-    cli, tmp_path, with_skill_and_bindings
+    cli, tmp_path, with_skill_and_bindings, entry_kind, lifecycle, public_apply
 ):
+    if public_apply and with_skill_and_bindings:
+        pytest.skip(
+            "Protected-store public apply is qualified in the dedicated fixture"
+        )
     project = await cli.data(
         "project",
         "create",
@@ -92,7 +109,10 @@ async def test_cli_upload_and_native_plan_against_live_postgres(
             "metadata": {"key": "support-skill", "name": "Support skill"},
             "spec": {
                 "version": "1.0.0",
-                "package": {"manifest": "SKILL.md", "resources": ["references/checklist.md"]},
+                "package": {
+                    "manifest": "SKILL.md",
+                    "resources": ["references/checklist.md"],
+                },
             },
         }
         (source / "SKILL.md").write_text(
@@ -125,6 +145,30 @@ async def test_cli_upload_and_native_plan_against_live_postgres(
             "tool-token": "ephemeral-native-tool-token",
         }
         cli.secret_values.update(protected.values())
+    if entry_kind == "Network":
+        files["woobe.yaml"]["spec"]["entrypoint"] = {
+            "kind": "Network",
+            "ref": "support-network",
+        }
+        files["woobe.yaml"]["spec"]["resources"].append("network.yaml")
+        files["network.yaml"] = {
+            "kind": "Network",
+            "metadata": {"key": "support-network", "name": "Support Network"},
+            "spec": {
+                "root": "support-root",
+                "nodes": [
+                    {"key": "support-root", "agent_ref": "support", "label": "Support"}
+                ],
+                "edges": [],
+            },
+        }
+    audit_arguments = []
+    if lifecycle != "draft":
+        audit_arguments = ["--lifecycle", lifecycle]
+    if lifecycle in {"release", "production"}:
+        audit_arguments += ["--release-notes", "Qualified package release"]
+    if lifecycle == "production":
+        audit_arguments += ["--reason", "Qualified package activation"]
     for path, document in files.items():
         (source / path).write_text(
             json.dumps({"format": "woobe-package", "schema_version": "1.0", **document})
@@ -138,6 +182,7 @@ async def test_cli_upload_and_native_plan_against_live_postgres(
         "--bind",
         f"credential.primary={credential['id']}",
         *binding_arguments,
+        *audit_arguments,
         "--save-plan",
         str(receipt),
         "--validate-body",
@@ -145,21 +190,51 @@ async def test_cli_upload_and_native_plan_against_live_postgres(
     )
     plan = result["data"]
     assert plan["project_id"] == cli.project_id and plan["api_origin"] == cli.origin
-    assert plan["lifecycle"] == "draft"
+    assert plan["lifecycle"] == lifecycle
     expected = (
         ["create_environment_value", "create_secret"] if with_skill_and_bindings else []
     )
     expected += ["resolve_model"]
     expected += ["materialize_skill_version"] if with_skill_and_bindings else []
-    expected += [
-        "prepare_inactive_agent",
-        "finalize_agent_draft",
-        "verify_materialized_package",
-    ]
+    expected += ["prepare_inactive_agent", "finalize_agent_draft"]
+    if entry_kind == "Network":
+        expected += ["prepare_network", "save_network_draft"]
+    if lifecycle != "draft":
+        expected += ["create_staging"]
+    if lifecycle in {"release", "production"}:
+        expected += ["create_immutable_release"]
+    if lifecycle == "production":
+        expected += ["activate_production"]
+    expected += ["verify_materialized_package"]
     assert [effect["action"] for effect in plan["effects"]] == expected
     assert len(plan["plan_digest"]) == 64 and receipt.stat().st_mode & 0o777 == 0o600
     assert "ephemeral-package-test-provider-key" not in receipt.read_text()
     assert await cli.data("project", "agent", "list") == before_agents
+
+    if public_apply:
+        applied = await cli.run(
+            "package",
+            "import",
+            "--plan-file",
+            str(receipt),
+            "--checkpoint",
+            str(Path(tmp_path) / "checkpoint.json"),
+            "--wait",
+            "--wait-timeout",
+            "60s",
+            "--validate-body",
+            "--validate-parameters",
+        )
+        final = applied["data"]
+        assert applied["meta"]["complete"] is True
+        assert final["state"] == "succeeded", final["diagnostics"]
+        assert final["phases_completed"] == final["phases_total"] == len(expected)
+        assert final["configuration_ready"] is True and final["execution_ready"] is True
+        assert len(await cli.data("project", "agent", "list")) == len(before_agents) + 1
+        checkpoint = json.loads((Path(tmp_path) / "checkpoint.json").read_text())
+        assert checkpoint["operation_id"] == final["operation_id"]
+        assert checkpoint["state"] == "terminal"
+        return
 
     # Exercise the current owner materializer directly until Apply and worker
     # registration advertise every component/lifecycle in the complete plan.
@@ -200,9 +275,9 @@ async def test_cli_upload_and_native_plan_against_live_postgres(
         "artifact_digest": plan["artifact_digest"],
         "bindings": approved_private["bindings"],
         "protected_bindings": protected,
-        "lifecycle": "draft",
-        "release_notes": None,
-        "reason": None,
+        "lifecycle": lifecycle,
+        "release_notes": approved_private["release_notes"],
+        "reason": approved_private["reason"],
     }
     operation, replayed = await service.operations.accept(
         project_id=UUID(cli.project_id),

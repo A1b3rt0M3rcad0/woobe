@@ -59,3 +59,42 @@ def inspect_portable_network_definition(
         "node_count": len(definition.nodes),
         "edge_count": len(definition.edges),
     }
+
+
+def compile_imported_network_definition(spec, *, network_id, agents, snapshots):
+    """Translate logical keys to native identities without changing graph semantics."""
+    nodes = {
+        node["key"]: uuid5(network_id, "node:" + node["key"]) for node in spec["nodes"]
+    }
+    native_nodes = []
+    for node in spec["nodes"]:
+        key = node["agent_ref"]
+        source = node.get("binding", {}).get("source", "draft")
+        native_nodes.append(
+            {
+                "id": str(nodes[node["key"]]),
+                "portable_key": node["key"],
+                "agent_id": str(agents[key]),
+                "label": node.get("label", ""),
+                "capability_description": node.get("capability_description", ""),
+                "binding": {
+                    "source": source,
+                    "release_id": snapshots[key][source] if source != "draft" else None,
+                },
+            }
+        )
+    return NetworkDefinition.from_dict(
+        {
+            "root_node_id": str(nodes[spec["root"]]),
+            "nodes": native_nodes,
+            "settings": spec.get("settings", {}),
+            "edges": [
+                {
+                    "id": str(uuid5(network_id, f"edge:{edge['from']}:{edge['to']}")),
+                    "source_node_id": str(nodes[edge["from"]]),
+                    "target_node_id": str(nodes[edge["to"]]),
+                }
+                for edge in spec.get("edges", [])
+            ],
+        }
+    ).to_dict()

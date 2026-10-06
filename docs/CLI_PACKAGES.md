@@ -19,13 +19,14 @@ Authenticated endpoints are scoped to `/projects/{project_id}/packages`:
 | POST | `/uploads?locked=true` | Capture one bounded multipart archive and verify its inventory lock |
 | GET | `/uploads/{upload_id}` | Read scoped upload identity and expiry |
 | POST | `/plan` | Approve native effects, destination preconditions, lifecycle and audit fields |
+| POST | `/apply` | Accept one exact approved plan with mandatory Idempotency-Key; return an asynchronous operation |
 | GET | `/operations/{operation_id}` | Read durable state and explicit readiness |
 | POST | `/operations/lookup` | Reconcile an idempotency key in the request body |
 | POST | `/operations/{operation_id}/cancel` | Fence further effects and retain committed resources |
 | POST | `/operations/{operation_id}/resume` | Resume an observed dependency wait at its expected revision |
 
-Capabilities intentionally do not advertise Apply or Export until the native
-materializer and end-to-end qualification are complete. The Package operation
+Capabilities advertise Apply. Export and the complete roundtrip acceptance suite
+remain under implementation. The Package operation
 worker is registered, renews its lease during long phases, and automatically
 rechecks waiting native dependencies with a bounded polling interval.
 HTTP intake is bounded before JSON/multipart parsing, including chunked requests;
@@ -43,9 +44,13 @@ Draft activation, complete Model resolution, immutable Skill version reuse,
 create-only Project Environment and Secrets, document registration and vector
 build readiness, and fresh MCP discovery with revision-checked commits. The live
 CLI/API/PostgreSQL tests cover planning and native Agent/Skill/protected-binding
-materialization. Network/lifecycle composition, full export, and the complete
-checkpoint-driven CLI import remain under implementation; these tests do not
-establish the complete Agent/Network roundtrip acceptance criterion.
+materialization. Native Agent and Network Draft/Staging/Release/Production phases
+are wired through owner transactions. Tests qualify public CLI Apply through the
+live API and worker for an Agent Draft and a Network Production release.
+Checkpoint-driven import persists preparation and request-in-flight before its
+single Apply POST, then reconciles with the same key after a lost response.
+Full export and the complete Agent/Network roundtrip acceptance criterion remain
+under implementation.
 
 `draft` is the default. Creating a Network must not incidentally activate any
 standalone Agent in Production. Release/Production require explicit audit notes,

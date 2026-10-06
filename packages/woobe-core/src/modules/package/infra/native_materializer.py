@@ -13,6 +13,7 @@ from modules.agent.contract_boundary import (
     compile_imported_tool_inputs,
 )
 from modules.agent.entrypoint import (
+    promote_release_composer,
     create_agent_composer,
     verify_imported_agent_composer,
     create_contract_version_composer,
@@ -35,6 +36,7 @@ from modules.agent.entrypoint import (
 from modules.package.domain.errors import PackageError
 from modules.package.application.execution import DependencyWait
 from modules.core.entrypoint import create_imported_environment_composer
+from modules.network.entrypoint import imported_network_composer
 from modules.package.domain.bundle import portable_path
 from modules.package.infra.receipts import PackageTransactionReceipt
 from shared.presentation.contracts import OperationRequest
@@ -319,14 +321,90 @@ class NativePackageMaterializer:
             paths["agent_id"] = agent_id
             handler = finalize_imported_agent_composer()
         elif (
-            action == "verify_materialized_package"
+            document
             and document["kind"] == "Agent"
-            and work.plan["lifecycle"] == "draft"
+            and action
+            in {"create_staging", "create_immutable_release", "activate_production"}
         ):
+            if phase["key"].startswith("node-staging:"):
+                source_key = "draft:" + key
+            elif phase["key"].startswith("node-release:"):
+                source_key = phase["key"].replace("node-release:", "node-staging:", 1)
+            else:
+                source_key = {
+                    "create_staging": "draft:",
+                    "create_immutable_release": "staging:",
+                    "activate_production": "release:",
+                }[action] + key
+            paths.update(
+                agent_id=resources[key]["id"], release_id=resources[source_key]["id"]
+            )
+            body = {
+                "target_status": {
+                    "create_staging": "staging",
+                    "create_immutable_release": "released",
+                    "activate_production": "production",
+                }[action],
+                "release_notes": work.plan["release_notes"],
+                "change_description": work.plan["reason"],
+            }
+            handler = promote_release_composer()
+        elif document and document["kind"] == "Network":
+            body = {
+                "project_id": project,
+                "action": action,
+                "name": document["metadata"]["name"],
+                "description": document["metadata"].get("description", ""),
+                "release_notes": work.plan["release_notes"],
+                "activation_reason": work.plan["reason"],
+                "lifecycle": work.plan["lifecycle"],
+            }
+            if action != "prepare_network":
+                body["network_id"] = resources[key]["id"]
+                paths["network_id"] = body["network_id"]
+                body["expected_revision"] = resources.get(
+                    "network-draft:" + key, resources[key]
+                )["revision"]
+            if action in {"save_network_draft", "verify_materialized_package"}:
+                body["portable_spec"] = document["spec"]
+                body["agents"] = {
+                    node["agent_ref"]: resources[node["agent_ref"]]["id"]
+                    for node in document["spec"]["nodes"]
+                }
+                body["snapshots"] = {}
+                for agent_key in body["agents"]:
+                    body["snapshots"][agent_key] = {
+                        source: resources[prefix + key + ":" + agent_key]["id"]
+                        for source, prefix in (
+                            ("staging", "node-staging:"),
+                            ("release", "node-release:"),
+                        )
+                        if prefix + key + ":" + agent_key in resources
+                    }
+            if action == "create_immutable_release":
+                body["source_version_id"] = resources["staging:" + key]["id"]
+            elif action == "activate_production" or (
+                action == "verify_materialized_package"
+                and work.plan["lifecycle"] in {"release", "production"}
+            ):
+                body["source_version_id"] = resources["release:" + key]["id"]
+            elif (
+                action == "verify_materialized_package"
+                and work.plan["lifecycle"] == "staging"
+            ):
+                body["source_version_id"] = resources["staging:" + key]["id"]
+            handler = imported_network_composer()
+        elif action == "verify_materialized_package" and document["kind"] == "Agent":
             body = {
                 "project_id": project,
                 "agent_id": resources[key]["id"],
                 "draft_id": resources["draft:" + key]["id"],
+                "lifecycle": work.plan["lifecycle"],
+                "release_id": resources.get(
+                    ("staging:" if work.plan["lifecycle"] == "staging" else "release:")
+                    + key,
+                    {},
+                ).get("id"),
             }
             handler = verify_imported_agent_composer()
         else:

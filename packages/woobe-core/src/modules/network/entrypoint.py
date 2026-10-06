@@ -1,6 +1,7 @@
 """Stable public entrypoint for the Network bounded context."""
 
 from modules.network.composition.public_api import (
+    imported_network_composer,
     CreateNetworkSessionRequest,
     EnsureNetworkRequest,
     NetworkBoundaryService,
@@ -14,6 +15,7 @@ from modules.network.composition.public_api import (
 )
 
 __all__ = [
+    "imported_network_composer",
     "CreateNetworkSessionRequest",
     "EnsureNetworkRequest",
     "NetworkBoundaryService",

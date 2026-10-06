@@ -44,10 +44,31 @@ class VerifyImportedAgentUseCase:
             ):
                 raise ConflictError("Imported Agent credential is unavailable")
         await self._knowledge.validate(draft)
+        if definition.lifecycle != "draft":
+            snapshot = await self._releases.get_by_id(definition.release_id)
+            expected_kind = (
+                "staging" if definition.lifecycle == "staging" else "release"
+            )
+            if (
+                snapshot is None
+                or snapshot.project_id != definition.project_id
+                or snapshot.agent_id != agent.id
+                or getattr(snapshot, "snapshot_kind", None) != expected_kind
+                or build_agent_execution_snapshot(snapshot)
+                != build_agent_execution_snapshot(draft)
+            ):
+                raise ConflictError(
+                    "Imported Agent lifecycle snapshot differs from its Draft"
+                )
+            if definition.lifecycle == "production":
+                production = await self._releases.get_active_production(agent.id)
+                if production is None or production.id != snapshot.id:
+                    raise ConflictError("Imported Agent Release is not active")
+            await self._knowledge.validate(snapshot)
         return {
             "id": str(agent.id),
             "draft_id": str(draft.id),
             "configuration_ready": True,
             "execution_ready": True,
-            "lifecycle_state": "draft",
+            "lifecycle_state": definition.lifecycle,
         }

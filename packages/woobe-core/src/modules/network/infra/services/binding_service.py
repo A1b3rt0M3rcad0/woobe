@@ -32,23 +32,40 @@ class ExplicitBindingNetworkService(NetworkApplicationService):
         description: str,
         definition: dict[str, Any],
     ) -> NetworkModel:
-        parsed = self._definition(definition)
         async with self._session_factory() as session, session.begin():
-            repository = NetworkRepository(session)
-            network = await repository.get(network_id)
-            if network is None or network.project_id != project_id:
-                raise NotFoundError("Network not found")
-            await self._validate_draft_bindings(session, parsed, project_id)
-            saved = await repository.save_draft(
-                network_id,
-                expected_revision=expected_revision,
-                name=name.strip() or network.name,
-                description=description.strip(),
-                definition=parsed.to_dict(),
+            return await ExplicitBindingNetworkService._save_draft_in_session(
+                self, session, network_id=network_id, project_id=project_id,
+                expected_revision=expected_revision, name=name,
+                description=description, definition=definition,
             )
-            if saved is None:
-                raise ConflictError("Network Draft was changed by another request")
-            return saved
+
+    async def _save_draft_in_session(
+        self,
+        session,
+        *,
+        network_id: UUID,
+        project_id: UUID,
+        expected_revision: int,
+        name: str,
+        description: str,
+        definition: dict[str, Any],
+    ) -> NetworkModel:
+        parsed = self._definition(definition)
+        repository = NetworkRepository(session)
+        network = await repository.get(network_id)
+        if network is None or network.project_id != project_id:
+            raise NotFoundError("Network not found")
+        await self._validate_draft_bindings(session, parsed, project_id)
+        saved = await repository.save_draft(
+            network_id,
+            expected_revision=expected_revision,
+            name=name.strip() or network.name,
+            description=description.strip(),
+            definition=parsed.to_dict(),
+        )
+        if saved is None:
+            raise ConflictError("Network Draft was changed by another request")
+        return saved
 
     async def preview_promotion(
         self,

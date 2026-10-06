@@ -58,6 +58,7 @@ class NetworkNode:
     capability_description: str = ""
     position: dict[str, float] = field(default_factory=dict)
     binding: AgentBindingSelector = field(default_factory=AgentBindingSelector)
+    portable_key: str | None = None
 
 
 @dataclass(frozen=True)
@@ -91,6 +92,7 @@ class NetworkDefinition:
                     ).strip(),
                     position=dict(item.get("position") or {}),
                     binding=AgentBindingSelector.from_dict(item.get("binding")),
+                    portable_key=item.get("portable_key"),
                 )
                 for item in value.get("nodes", [])
             ),
@@ -124,6 +126,7 @@ class NetworkDefinition:
                     "capability_description": node.capability_description,
                     "position": node.position,
                     "binding": node.binding.to_dict(),
+                    **({"portable_key": node.portable_key} if node.portable_key is not None else {}),
                 }
                 for node in self.nodes
             ],

@@ -35,6 +35,7 @@ class PackageService:
             "supported_operations": [
                 "upload",
                 "plan",
+                "apply",
                 "status",
                 "lookup",
                 "resume",
@@ -69,6 +70,14 @@ class PackageService:
                 project_id=project_id, principal=principal, operation_id=operation_id
             )
         )
+
+    async def apply(self, *, project_id, principal, key, request):
+        payload = request.model_dump(mode="json")
+        payload["bindings"] = request.bindings.model_dump(mode="json", exclude_none=True)
+        operation, replayed = await self.operations.accept(
+            project_id=project_id, principal=principal, key=key, payload=payload
+        )
+        return {**operation_status(operation), "idempotency_replayed": replayed}
 
     async def lookup(self, *, project_id, principal, key):
         return operation_status(

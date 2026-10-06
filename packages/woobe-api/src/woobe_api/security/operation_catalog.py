@@ -15,6 +15,7 @@ _REVIEWED = [
     ("POST", "/projects/{project_id}/packages/uploads", "project:read"),
     ("GET", "/projects/{project_id}/packages/uploads/{upload_id}", "project:read"),
     ("POST", "/projects/{project_id}/packages/plan", "project:read"),
+    ("POST", "/projects/{project_id}/packages/apply", "project:read"),
     ("GET", "/projects/{project_id}/packages/operations/{operation_id}", "project:read"),
     ("POST", "/projects/{project_id}/packages/operations/lookup", "project:read"),
     ("POST", "/projects/{project_id}/packages/operations/{operation_id}/resume", "project:read"),
