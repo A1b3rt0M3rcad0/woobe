@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from modules.agent.contract_boundary import (
     BehaviorSpecification,
@@ -116,6 +116,7 @@ class AgentModels(StrictDTO):
 
 
 class StrategySelection(StrictDTO):
+    config_schema_version: str = "1"
     strategy: str
     config: dict[str, Any] = Field(default_factory=dict)
 
@@ -141,6 +142,7 @@ class SkillBinding(Ref):
 
 
 class AgentKnowledge(StrictDTO):
+    strategy_config_schema_version: str = "1"
     strategy: str = "rag"
     strategy_config: dict[str, Any] = Field(default_factory=dict)
     source: Ref
@@ -317,19 +319,70 @@ class PromptDocument(Document):
     spec: PromptSpecV1
 
 
+def exclusive_binding_schema(existing_field):
+    return {
+        "oneOf": [
+            {
+                "required": [existing_field],
+                "properties": {
+                    existing_field: {"type": "string", "minLength": 1},
+                    "protected_ref": {"type": "null"},
+                },
+            },
+            {
+                "required": ["protected_ref"],
+                "properties": {
+                    "protected_ref": {"type": "string", "minLength": 1},
+                    existing_field: {"type": "null"},
+                },
+            },
+        ]
+    }
+
+
 class CredentialBinding(StrictDTO):
-    credential_id: str | None = None
-    protected_ref: str | None = None
+    model_config = ConfigDict(
+        json_schema_extra=exclusive_binding_schema("credential_id")
+    )
+    credential_id: str | None = Field(
+        default=None,
+        pattern=r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+    )
+    protected_ref: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=101,
+        pattern=r"^[a-zA-Z0-9][a-zA-Z0-9_.-]*$",
+    )
+
+    @model_validator(mode="after")
+    def exclusive_source(self):
+        if (self.credential_id is None) == (self.protected_ref is None):
+            raise ValueError("Binding requires exactly one destination source")
+        return self
 
 
 class EnvironmentBinding(StrictDTO):
-    existing_key: str | None = None
-    protected_ref: str | None = None
+    model_config = ConfigDict(
+        json_schema_extra=exclusive_binding_schema("existing_key")
+    )
+    existing_key: str | None = Field(default=None, min_length=1, max_length=128)
+    protected_ref: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=101,
+        pattern=r"^[a-zA-Z0-9][a-zA-Z0-9_.-]*$",
+    )
+
+    @model_validator(mode="after")
+    def exclusive_source(self):
+        if (self.existing_key is None) == (self.protected_ref is None):
+            raise ValueError("Binding requires exactly one destination source")
+        return self
 
 
-class SecretBinding(StrictDTO):
-    existing_key: str | None = None
-    protected_ref: str | None = None
+class SecretBinding(EnvironmentBinding):
+    pass
 
 
 class KnowledgeBinding(StrictDTO):

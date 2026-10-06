@@ -1,12 +1,17 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import select
 
 from modules.package.domain.errors import PackageError
 from modules.package.domain.operations import OperationState
-from modules.package.infra.models import PackageEffectModel, PackageOperationModel
+from modules.package.infra.models import (
+    PackageEffectModel,
+    PackageOperationModel,
+    PackagePlanModel,
+)
 from shared.infra.admin_idempotency import principal_identity
 from shared.infra.crypto import decrypt_secret, encrypt_secret
 from shared.presentation.contracts import OperationRequest, OperationResult
@@ -14,7 +19,16 @@ from shared.security.principal import AuthenticatedPrincipal, ControlPlanePrinci
 from shared.security.tenancy import TenantAuthorizer
 
 
-async def authorize_phase(session, principal, project_id, permission):
+async def authorize_phase(
+    session,
+    principal,
+    project_id,
+    permission,
+    *,
+    path_params=None,
+    query_params=None,
+    body=None,
+):
     authorizer = TenantAuthorizer(session)
     workspace_id = await authorizer._project_workspace_id(project_id)
     if isinstance(principal, ControlPlanePrincipal):
@@ -24,9 +38,9 @@ async def authorize_phase(session, principal, project_id, permission):
             workspace_id=principal.workspace_id,
             workspace_permissions=principal.permissions,
             required_permission=permission,
-            path_params={"project_id": str(project_id)},
-            query_params={},
-            body={},
+            path_params={"project_id": str(project_id), **(path_params or {})},
+            query_params=query_params or {},
+            body=body or {},
         )
     elif isinstance(principal, AuthenticatedPrincipal):
         await authorizer.require_active_human(principal)
@@ -35,6 +49,7 @@ async def authorize_phase(session, principal, project_id, permission):
             workspace_id=workspace_id,
             project_id=project_id,
             permission=permission,
+            path_context={"project_id": str(project_id), **(path_params or {})},
         )
     else:
         raise PackageError(
@@ -83,14 +98,63 @@ class PackageTransactionReceipt:
             raise PackageError(
                 "PACKAGE_OPERATION_NOT_FOUND", "Operation is unavailable"
             )
-        await authorize_phase(
-            session, request.principal, operation.project_id, self.permission
+        paths = request.metadata.get("authorization_path_params", request.path_params)
+        body = request.body if isinstance(request.body, dict) else {}
+        supplied_projects = [
+            value
+            for value in (paths.get("project_id"), body.get("project_id"))
+            if value is not None
+        ]
+        if not supplied_projects or any(
+            str(value) != str(operation.project_id) for value in supplied_projects
+        ):
+            raise PackageError(
+                "PACKAGE_PROJECT_MISMATCH",
+                "Phase does not belong to the accepted project",
+            )
+        plan = await session.get(PackagePlanModel, operation.plan_id)
+        approved = (
+            next(
+                (
+                    effect
+                    for effect in plan.document["effects"]
+                    if effect["key"] == self.phase
+                ),
+                None,
+            )
+            if plan
+            else None
         )
-        if operation.lease_token != self.lease_token or operation.state not in {
-            OperationState.RESOLVING,
-            OperationState.MATERIALIZING,
-            OperationState.VERIFYING,
-        }:
+        if approved is None or approved["permission"] != self.permission:
+            raise PackageError(
+                "PACKAGE_PHASE_NOT_APPROVED", "Phase is absent from the accepted plan"
+            )
+        for permission in sorted(
+            set(approved.get("required_permissions", [self.permission]))
+            | {self.permission}
+        ):
+            await authorize_phase(
+                session,
+                request.principal,
+                operation.project_id,
+                permission,
+                path_params=paths,
+                query_params=request.query_params,
+                body=request.body,
+            )
+        lease_expired = operation.lease_until is None or operation.lease_until.replace(
+            tzinfo=operation.lease_until.tzinfo or UTC
+        ) <= datetime.now(UTC)
+        if (
+            lease_expired
+            or operation.lease_token != self.lease_token
+            or operation.state
+            not in {
+                OperationState.RESOLVING,
+                OperationState.MATERIALIZING,
+                OperationState.VERIFYING,
+            }
+        ):
             raise PackageError(
                 "PACKAGE_OPERATION_FENCED",
                 "Operation no longer accepts this worker's effects",

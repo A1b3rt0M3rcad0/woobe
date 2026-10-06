@@ -87,7 +87,7 @@ class PackageOperationRepository:
             )
         return sha256(key.encode()).digest()
 
-    async def _authorize(self, session, principal, operation):
+    async def _authorize(self, session, principal, operation, *, write=False):
         if operation is None or operation.actor != principal_identity(principal):
             raise PackageError(
                 "PACKAGE_OPERATION_NOT_FOUND", "Operation is unavailable"
@@ -97,7 +97,10 @@ class PackageOperationRepository:
             raise PackageError(
                 "PACKAGE_PLAN_NOT_FOUND", "Operation plan is unavailable"
             )
-        for permission in sorted(set(plan.document["required_permissions"])):
+        permissions = (
+            plan.document["required_permissions"] if write else ["project:read"]
+        )
+        for permission in sorted(set(permissions)):
             await authorize_phase(session, principal, operation.project_id, permission)
 
     async def accept(self, *, project_id: UUID, principal, key: str, payload: dict):
@@ -128,7 +131,7 @@ class PackageOperationRepository:
                 )
             ).scalar_one_or_none()
             if existing is not None:
-                await self._authorize(session, principal, existing)
+                await self._authorize(session, principal, existing, write=True)
                 if not hmac.compare_digest(existing.payload_fingerprint, fingerprint):
                     raise PackageError(
                         "PACKAGE_IDEMPOTENCY_CONFLICT",
@@ -266,7 +269,11 @@ class PackageOperationRepository:
                     .with_for_update()
                 )
             ).scalar_one()
-            if record.lease_token != lease_token:
+            if (
+                record.lease_token != lease_token
+                or record.lease_until is None
+                or as_utc(record.lease_until) <= datetime.now(UTC)
+            ):
                 raise PackageError(
                     "PACKAGE_OPERATION_FENCED",
                     "Operation no longer accepts this worker",
@@ -305,9 +312,42 @@ class PackageOperationRepository:
                 raise PackageError(
                     "PACKAGE_OPERATION_NOT_FOUND", "Operation is unavailable"
                 )
-            await self._authorize(session, principal, record)
+            await self._authorize(session, principal, record, write=True)
             if record.state not in TERMINAL_STATES:
                 record.state = transition(record.state, "cancelling").value
                 record.lease_token = record.lease_until = None
                 record.revision += 1
+            return record
+
+    async def resume(self, *, project_id, principal, operation_id, expected_revision):
+        """Wake an existing dependency wait without changing its approved request."""
+        async with self.session_factory.begin() as session:
+            record = (
+                await session.execute(
+                    select(PackageOperationModel)
+                    .where(PackageOperationModel.id == operation_id)
+                    .with_for_update()
+                )
+            ).scalar_one_or_none()
+            if record is None or record.project_id != project_id:
+                raise PackageError(
+                    "PACKAGE_OPERATION_NOT_FOUND", "Operation is unavailable"
+                )
+            await self._authorize(session, principal, record, write=True)
+            if record.revision != expected_revision:
+                raise PackageError(
+                    "PACKAGE_REVISION_CONFLICT",
+                    "Operation changed after it was observed",
+                )
+            if record.state != "waiting_dependency":
+                raise PackageError(
+                    "PACKAGE_OPERATION_STATE", "Only a dependency wait can be resumed"
+                )
+            record.state = transition(record.state, "resolving").value
+            record.principal_ciphertext = encode_principal(
+                principal, self.encryption_key
+            )
+            record.lease_token = record.lease_until = None
+            record.revision += 1
+            await session.flush()
             return record

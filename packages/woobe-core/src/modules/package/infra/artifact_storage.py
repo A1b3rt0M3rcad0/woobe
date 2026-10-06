@@ -5,6 +5,7 @@ from hashlib import sha256
 import os
 from pathlib import Path
 import re
+import stat
 from uuid import uuid4
 
 from modules.package.domain.bundle import MAX_ARCHIVE_BYTES
@@ -93,8 +94,15 @@ class LocalPackageArtifactStorage:
     @contextmanager
     def open(self, key):
         with self._parent(key) as (directory, filename):
-            fd = os.open(filename, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=directory)
+            fd = os.open(
+                filename, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory
+            )
             with os.fdopen(fd, "rb") as stream:
+                if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
+                    raise PackageError(
+                        "PACKAGE_STORAGE_INVALID",
+                        "Stored artifact must be a regular file",
+                    )
                 yield stream
 
     def delete(self, key):

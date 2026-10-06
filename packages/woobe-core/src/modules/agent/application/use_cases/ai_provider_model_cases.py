@@ -18,7 +18,7 @@ from modules.agent.application.interfaces.provider_model_repository import (
     ProviderModelRepository,
 )
 from modules.agent.application.interfaces.repositories import ProviderCredentialRepository
-from modules.agent.domain.entities import ProviderModel
+from modules.agent.domain.entities import ProviderCredential, ProviderModel
 from modules.agent.domain.enums import CredentialStatus, ProviderModelStatus
 from modules.agent.domain.model_spec import (
     ModelCapability,
@@ -224,6 +224,12 @@ class CreateProviderModelUseCase:
         self._credential_repo = credential_repo
 
     async def execute(self, input_dto: CreateProviderModelInput) -> ProviderModelOutput:
+        item, credential = await self.prepare(input_dto)
+        saved = await self._provider_model_repo.save(item)
+        return _provider_model_to_output(saved, credential.provider)
+
+    async def prepare(self, input_dto: CreateProviderModelInput) -> tuple[ProviderModel, ProviderCredential]:
+        """Validate a model definition without saving or invoking a provider."""
         credential = await self._load_active_credential(
             input_dto.provider_credential_id,
             input_dto.project_id,
@@ -266,8 +272,7 @@ class CreateProviderModelUseCase:
             spec = _apply_model_spec_overrides(spec, metadata)
         _apply_normalized_spec(item, spec)
 
-        saved = await self._provider_model_repo.save(item)
-        return _provider_model_to_output(saved, credential.provider)
+        return item, credential
 
     async def _load_active_credential(self, credential_id: UUID, project_id: UUID):
         credential = await self._credential_repo.get_by_id(credential_id)

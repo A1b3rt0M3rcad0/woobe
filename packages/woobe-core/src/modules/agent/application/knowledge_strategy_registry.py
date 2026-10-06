@@ -1,7 +1,13 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from copy import deepcopy
+from typing import Any
+from modules.agent.application.strategy_configuration import (
+    check_strategy_config_schema,
+    empty_strategy_config_schema,
+)
 
 from modules.agent.application.interfaces.knowledge import KnowledgeStrategy
 from modules.agent.application.rag.knowledge_strategy import RAGKnowledgeStrategy
@@ -23,8 +29,12 @@ class KnowledgeStrategyDescriptor:
     capabilities: tuple[str, ...]
     limitations: tuple[str, ...]
     is_default: bool = False
+    config_schema: dict[str, Any] = field(default_factory=empty_strategy_config_schema)
+    config_schema_version: str = "1"
 
     def __post_init__(self) -> None:
+        check_strategy_config_schema(self.config_schema, self.config_schema_version)
+        object.__setattr__(self, "config_schema", deepcopy(self.config_schema))
         required_text = {
             "name": self.name,
             "display_name": self.display_name,
@@ -58,6 +68,8 @@ class KnowledgeStrategyDescriptor:
             "capabilities": list(self.capabilities),
             "limitations": list(self.limitations),
             "is_default": self.is_default,
+            "config_schema": deepcopy(self.config_schema),
+            "config_schema_version": self.config_schema_version,
         }
 
 
@@ -106,6 +118,12 @@ class KnowledgeStrategyRegistry:
 
     def contains(self, name: str) -> bool:
         return name.strip().lower() in self._entries
+
+    def describe(self, name: str) -> KnowledgeStrategyDescriptor:
+        entry = self._entries.get(name.strip().lower())
+        if entry is None:
+            raise UnknownKnowledgeStrategyError("Unknown Knowledge Strategy")
+        return entry[1]
 
     def resolve(self, name: str) -> KnowledgeStrategy:
         key = name.strip().lower()

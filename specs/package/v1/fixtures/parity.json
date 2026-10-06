@@ -102,5 +102,75 @@
     "input": "{\"format\": \"woobe-package\", \"schema_version\": \"1.0\", \"kind\": \"Model\", \"metadata\": {\"key\": \"primary\", \"name\": \"Primary\"}, \"spec\": {\"provider\": \"openai_compatible\", \"model\": \"fake-language\", \"model_type\": \"language\", \"credential\": {\"ref\": \"primary-key\"}, \"unsupported\": true}}",
     "error": "PACKAGE_SCHEMA_INVALID",
     "validate": true
+  },
+  {
+    "name": "binding-existing-credential",
+    "file": "bindings.yaml",
+    "input": "{\"format\": \"woobe-package\", \"schema_version\": \"1.0\", \"kind\": \"ImportBindings\", \"metadata\": {\"name\": \"Destination\"}, \"spec\": {\"credentials\": {\"primary\": {\"credential_id\": \"00000000-0000-0000-0000-000000000001\"}}}}",
+    "validate": true,
+    "expected": {
+      "format": "woobe-package",
+      "schema_version": "1.0",
+      "kind": "ImportBindings",
+      "metadata": {
+        "name": "Destination"
+      },
+      "spec": {
+        "credentials": {
+          "primary": {
+            "credential_id": "00000000-0000-0000-0000-000000000001"
+          }
+        }
+      }
+    }
+  },
+  {
+    "name": "binding-protected-reference",
+    "file": "bindings.yaml",
+    "input": "{\"format\": \"woobe-package\", \"schema_version\": \"1.0\", \"kind\": \"ImportBindings\", \"metadata\": {\"name\": \"Destination\"}, \"spec\": {\"credentials\": {\"primary\": {\"protected_ref\": \"provider-secret\"}}}}",
+    "validate": true,
+    "expected": {
+      "format": "woobe-package",
+      "schema_version": "1.0",
+      "kind": "ImportBindings",
+      "metadata": {
+        "name": "Destination"
+      },
+      "spec": {
+        "credentials": {
+          "primary": {
+            "protected_ref": "provider-secret"
+          }
+        }
+      }
+    }
+  },
+  {
+    "name": "binding-no-source",
+    "file": "bindings.yaml",
+    "input": "{\"format\": \"woobe-package\", \"schema_version\": \"1.0\", \"kind\": \"ImportBindings\", \"metadata\": {\"name\": \"Destination\"}, \"spec\": {\"credentials\": {\"primary\": {}}}}",
+    "validate": true,
+    "error": "PACKAGE_SCHEMA_INVALID"
+  },
+  {
+    "name": "binding-two-sources",
+    "file": "bindings.yaml",
+    "input": "{\"format\": \"woobe-package\", \"schema_version\": \"1.0\", \"kind\": \"ImportBindings\", \"metadata\": {\"name\": \"Destination\"}, \"spec\": {\"credentials\": {\"primary\": {\"credential_id\": \"00000000-0000-0000-0000-000000000001\", \"protected_ref\": \"provider-secret\"}}}}",
+    "validate": true,
+    "error": "PACKAGE_SCHEMA_INVALID"
+  },
+  {
+    "name": "binding-invalid-uuid",
+    "file": "bindings.yaml",
+    "input": "{\"format\": \"woobe-package\", \"schema_version\": \"1.0\", \"kind\": \"ImportBindings\", \"metadata\": {\"name\": \"Destination\"}, \"spec\": {\"credentials\": {\"primary\": {\"credential_id\": \"not-a-uuid\"}}}}",
+    "validate": true,
+    "error": "PACKAGE_SCHEMA_INVALID"
+  },
+  {
+    "name": "binding-literal-secret",
+    "file": "bindings.yaml",
+    "input": "{\"format\": \"woobe-package\", \"schema_version\": \"1.0\", \"kind\": \"ImportBindings\", \"metadata\": {\"name\": \"Destination\"}, \"spec\": {\"credentials\": {\"primary\": {\"protected_ref\": \"provider-secret\", \"secret\": \"do-not-store\"}}}}",
+    "validate": true,
+    "error": "PACKAGE_SCHEMA_INVALID"
   }
 ]

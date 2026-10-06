@@ -1,11 +1,19 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from copy import deepcopy
+from typing import Any
+from modules.agent.application.strategy_configuration import (
+    check_strategy_config_schema,
+    empty_strategy_config_schema,
+)
 
 from modules.agent.application.interfaces.execution_strategy import (
     STANDARD_EXECUTION_COMPATIBILITY,
 )
-from modules.agent.application.interfaces.model_compatibility import ExecutionStrategySpec
+from modules.agent.application.interfaces.model_compatibility import (
+    ExecutionStrategySpec,
+)
 
 
 DEFAULT_EXECUTION_STRATEGY = "standard"
@@ -24,8 +32,12 @@ class ExecutionStrategyDescriptor:
     limitations: tuple[str, ...]
     compatibility: ExecutionStrategySpec
     is_default: bool = False
+    config_schema: dict[str, Any] = field(default_factory=empty_strategy_config_schema)
+    config_schema_version: str = "1"
 
     def __post_init__(self) -> None:
+        check_strategy_config_schema(self.config_schema, self.config_schema_version)
+        object.__setattr__(self, "config_schema", deepcopy(self.config_schema))
         required_text = {
             "name": self.name,
             "display_name": self.display_name,
@@ -65,6 +77,8 @@ class ExecutionStrategyDescriptor:
             "limitations": list(self.limitations),
             "compatibility": self.compatibility.as_dict(),
             "is_default": self.is_default,
+            "config_schema": deepcopy(self.config_schema),
+            "config_schema_version": self.config_schema_version,
         }
 
 
@@ -110,9 +124,7 @@ class ExecutionStrategyRegistry:
     def get(self, name: str) -> ExecutionStrategyDescriptor:
         descriptor = self._descriptors.get(name)
         if descriptor is None:
-            raise UnknownExecutionStrategyError(
-                f"Unknown Execution Strategy: {name}"
-            )
+            raise UnknownExecutionStrategyError(f"Unknown Execution Strategy: {name}")
         return descriptor
 
     def current_default(self) -> ExecutionStrategyDescriptor:

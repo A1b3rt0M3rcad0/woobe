@@ -1,3 +1,5 @@
+from modules.agent.composition.composers.finalize_imported_agent_composer import finalize_imported_agent_composer
+from modules.agent.composition.composers.inspect_provider_model_definition_composer import inspect_provider_model_definition_composer
 from modules.agent.application.dtos.ai_dtos import CreateReleaseInput
 from modules.agent.application.dtos.mcp_oauth_dtos import McpOAuthStartInput, McpOAuthCompleteInput, McpOAuthDeviceStartInput, McpOAuthDevicePollInput, McpOAuthStatusInput, McpOAuthDisconnectInput
 from modules.agent.application.dtos.skill_dtos import ImportSkillInput, SkillListQuery
@@ -321,6 +323,8 @@ from modules.agent.composition.composers.public_runtime_composers import (
 
 
 __all__ = [
+    'finalize_imported_agent_composer',
+    "inspect_provider_model_definition_composer",
     "CreateReleaseInput",
     'McpOAuthStartInput',
     'McpOAuthCompleteInput',

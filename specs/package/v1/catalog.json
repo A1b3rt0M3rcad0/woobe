@@ -32,6 +32,11 @@
             "additionalProperties": true,
             "title": "Strategy Config",
             "type": "object"
+          },
+          "strategy_config_schema_version": {
+            "default": "1",
+            "title": "Strategy Config Schema Version",
+            "type": "string"
           }
         },
         "required": [
@@ -1019,6 +1024,11 @@
             "title": "Config",
             "type": "object"
           },
+          "config_schema_version": {
+            "default": "1",
+            "title": "Config Schema Version",
+            "type": "string"
+          },
           "strategy": {
             "title": "Strategy",
             "type": "string"
@@ -1334,10 +1344,41 @@
       },
       "CredentialBinding": {
         "additionalProperties": false,
+        "oneOf": [
+          {
+            "properties": {
+              "credential_id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "protected_ref": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "credential_id"
+            ]
+          },
+          {
+            "properties": {
+              "credential_id": {
+                "type": "null"
+              },
+              "protected_ref": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "protected_ref"
+            ]
+          }
+        ],
         "properties": {
           "credential_id": {
             "anyOf": [
               {
+                "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
                 "type": "string"
               },
               {
@@ -1350,6 +1391,9 @@
           "protected_ref": {
             "anyOf": [
               {
+                "maxLength": 101,
+                "minLength": 1,
+                "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.-]*$",
                 "type": "string"
               },
               {
@@ -1365,10 +1409,42 @@
       },
       "EnvironmentBinding": {
         "additionalProperties": false,
+        "oneOf": [
+          {
+            "properties": {
+              "existing_key": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "protected_ref": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "existing_key"
+            ]
+          },
+          {
+            "properties": {
+              "existing_key": {
+                "type": "null"
+              },
+              "protected_ref": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "protected_ref"
+            ]
+          }
+        ],
         "properties": {
           "existing_key": {
             "anyOf": [
               {
+                "maxLength": 128,
+                "minLength": 1,
                 "type": "string"
               },
               {
@@ -1381,6 +1457,9 @@
           "protected_ref": {
             "anyOf": [
               {
+                "maxLength": 101,
+                "minLength": 1,
+                "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.-]*$",
                 "type": "string"
               },
               {
@@ -1410,10 +1489,42 @@
       },
       "SecretBinding": {
         "additionalProperties": false,
+        "oneOf": [
+          {
+            "properties": {
+              "existing_key": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "protected_ref": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "existing_key"
+            ]
+          },
+          {
+            "properties": {
+              "existing_key": {
+                "type": "null"
+              },
+              "protected_ref": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "protected_ref"
+            ]
+          }
+        ],
         "properties": {
           "existing_key": {
             "anyOf": [
               {
+                "maxLength": 128,
+                "minLength": 1,
                 "type": "string"
               },
               {
@@ -1426,6 +1537,9 @@
           "protected_ref": {
             "anyOf": [
               {
+                "maxLength": 101,
+                "minLength": 1,
+                "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.-]*$",
                 "type": "string"
               },
               {

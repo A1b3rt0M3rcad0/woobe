@@ -8,7 +8,11 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.orm import Mapped, mapped_column
 
 from modules.package.domain.errors import PackageError
-from modules.package.infra.models import PackageEffectModel, PackageOperationModel
+from modules.package.infra.models import (
+    PackageEffectModel,
+    PackageOperationModel,
+    PackagePlanModel,
+)
 from modules.package.infra.receipts import PackageTransactionReceipt
 from shared.contracts.unit_of_work import UnitOfWork
 from shared.infra.admin_idempotency import principal_identity
@@ -63,6 +67,7 @@ async def test_effect_and_receipt_commit_together_and_replay_after_lost_response
     tables = [
         PackageOperationModel.__table__,
         PackageEffectModel.__table__,
+        PackagePlanModel.__table__,
         ExampleResource.__table__,
     ]
     async with engine.begin() as connection:
@@ -78,8 +83,25 @@ async def test_effect_and_receipt_commit_together_and_replay_after_lost_response
         issued_at=now,
         expires_at=now + timedelta(hours=1),
     )
-    operation_id, project_id, lease = uuid4(), uuid4(), uuid4()
+    operation_id, project_id, lease, plan_id = uuid4(), uuid4(), uuid4(), uuid4()
     async with factory.begin() as session:
+        session.add(
+            PackagePlanModel(
+                id=plan_id,
+                project_id=project_id,
+                actor=principal_identity(actor),
+                upload_id=uuid4(),
+                artifact_digest="a" * 64,
+                plan_digest="b" * 64,
+                document={
+                    "effects": [
+                        {"key": "agent:create", "permission": "agent:write"},
+                        {"key": "agent:update", "permission": "agent:write"},
+                    ]
+                },
+                expires_at=now + timedelta(hours=1),
+            )
+        )
         session.add(
             PackageOperationModel(
                 id=operation_id,
@@ -91,10 +113,11 @@ async def test_effect_and_receipt_commit_together_and_replay_after_lost_response
                 principal_ciphertext="protected",
                 artifact_digest="a" * 64,
                 upload_id=uuid4(),
-                plan_id=uuid4(),
+                plan_id=plan_id,
                 lifecycle="draft",
                 state="materializing",
                 lease_token=lease,
+                lease_until=datetime.now(UTC) + timedelta(minutes=5),
                 phases_total=2,
             )
         )

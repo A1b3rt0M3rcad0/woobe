@@ -1,4 +1,5 @@
 from typing import Literal
+from typing import Any
 
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
@@ -34,6 +35,8 @@ class ExecutionStrategyDescriptorResponse(BaseModel):
     limitations: list[str] = Field(min_length=1)
     compatibility: ExecutionStrategyCompatibilityResponse
     is_default: bool
+    config_schema: dict[str, Any]
+    config_schema_version: str
 
 
 class ExecutionStrategyCatalogResponse(BaseModel):

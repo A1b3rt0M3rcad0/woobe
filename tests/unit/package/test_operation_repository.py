@@ -142,6 +142,24 @@ async def test_acceptance_pins_protected_payload_and_reconciles_after_plan_expir
     claimed = await repo.claim()
     assert claimed.id == first.id and claimed.state == "resolving"
     assert await repo.claim() is None
+    waiting = await repo.advance(first.id, claimed.lease_token, "waiting_dependency")
+    with pytest.raises(PackageError) as stale:
+        await repo.resume(
+            project_id=project,
+            principal=principal,
+            operation_id=first.id,
+            expected_revision=waiting.revision - 1,
+        )
+    assert stale.value.code == "PACKAGE_REVISION_CONFLICT"
+    resumed = await repo.resume(
+        project_id=project,
+        principal=principal,
+        operation_id=first.id,
+        expected_revision=waiting.revision,
+    )
+    assert resumed.id == first.id and resumed.state == "resolving"
+    assert resumed.payload_fingerprint == first.payload_fingerprint
+    claimed = await repo.claim()
     cancelled = await repo.cancel(
         project_id=project, principal=principal, operation_id=first.id
     )

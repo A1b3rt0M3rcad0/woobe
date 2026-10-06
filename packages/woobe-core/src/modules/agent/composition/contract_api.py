@@ -11,6 +11,12 @@ from modules.agent.domain.execution_definition import (
     canonicalize_agent_execution_definition,
     hash_agent_execution_snapshot,
 )
+from modules.agent.application.portable_definition import (
+    inspect_portable_agent,
+    inspect_portable_skill,
+    inspect_portable_tool,
+    portable_definition_capabilities,
+)
 
 __all__ = [
     "BehaviorSpecification",
@@ -21,4 +27,8 @@ __all__ = [
     "ContextPolicyV1",
     "canonicalize_agent_execution_definition",
     "hash_agent_execution_snapshot",
+    "inspect_portable_agent",
+    "inspect_portable_skill",
+    "inspect_portable_tool",
+    "portable_definition_capabilities",
 ]

@@ -1,4 +1,5 @@
 from typing import Literal
+from typing import Any
 
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
@@ -18,6 +19,8 @@ class KnowledgeStrategyDescriptorResponse(BaseModel):
     capabilities: list[str] = Field(min_length=1)
     limitations: list[str] = Field(min_length=1)
     is_default: bool
+    config_schema: dict[str, Any]
+    config_schema_version: str
 
 
 class KnowledgeStrategyCatalogResponse(BaseModel):

@@ -1,3 +1,5 @@
+from modules.agent.composition.public_api import finalize_imported_agent_composer
+from modules.agent.composition.public_api import inspect_provider_model_definition_composer
 from modules.agent.composition.public_api import CreateReleaseInput
 from modules.agent.composition.public_api import McpOAuthStartInput, McpOAuthCompleteInput, McpOAuthDeviceStartInput, McpOAuthDevicePollInput, McpOAuthStatusInput, McpOAuthDisconnectInput
 from modules.agent.composition.public_api import ImportSkillInput, SkillListQuery
@@ -193,6 +195,8 @@ from modules.agent.composition.factories.rag_runtime_factory import (
 )
 
 __all__ = [
+    'finalize_imported_agent_composer',
+    "inspect_provider_model_definition_composer",
     "CreateReleaseInput",
     'McpOAuthStartInput',
     'McpOAuthCompleteInput',
