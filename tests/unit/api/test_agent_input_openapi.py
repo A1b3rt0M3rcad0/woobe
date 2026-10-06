@@ -13,6 +13,8 @@ from woobe_api.http.agent import mcp_tools_routes
 
 from woobe_api.http.agent import vector_snapshot_routes
 
+from woobe_api.http.agent import credential_routes
+
 CONTRACT_OPTIONS = {}
 EXTRA_ROUTERS = []
 
@@ -42,7 +44,12 @@ CONTRACT_OPTIONS['preview_vector_snapshot'] = {'required': True, 'path_fields': 
 
 CONTRACT_OPTIONS['create_vector_snapshot'] = {'required': True, 'path_fields': ('collection_id',)}
 
+EXTRA_ROUTERS.append(credential_routes.router)
+
+CONTRACT_OPTIONS['rotate_provider_credential'] = {'required': True}
+
 CONTRACTS = [
+    ('rotate_provider_credential', 'RotateProviderCredentialInput', '/ai/credentials/{credential_id}/rotate', 'post'),
     ('create_vector_snapshot', 'CreateVectorSnapshotInput', '/agent/knowledge/collections/{collection_id}/vector-snapshots', 'post'),
     ('preview_vector_snapshot', 'PreviewVectorSnapshotInput', '/agent/knowledge/collections/{collection_id}/vector-preview', 'post'),
     ('bulk_update_mcp_permissions', 'BulkUpdateMcpToolPermissionsInput', '/tools/mcp/permissions/bulk', 'post'),
