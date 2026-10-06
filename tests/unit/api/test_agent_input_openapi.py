@@ -53,3 +53,17 @@ def test_agent_input_schema_uses_the_same_public_dto(endpoint, model_name, path,
     operation = app.openapi()["paths"][path][method]
     assert operation["requestBody"] == jsonable_encoder(expected["requestBody"], exclude_none=True)
     assert list(inspect.signature(getattr(routes, endpoint)).parameters) == ["request"]
+
+
+def test_agent_session_query_contract_describes_the_consumed_dto_filters():
+    app = FastAPI()
+    app.include_router(routes.runtime_router)
+    operation = app.openapi()["paths"]["/runtime/agents/{agent_id}/sessions"]["get"]
+    parameters = {item["name"]: item for item in operation["parameters"]}
+    properties = entrypoint.ListAgentSessionsInput.model_json_schema(mode="validation")["properties"]
+    assert set(parameters) == {"agent_id", "project_id", "environment", "cursor", "limit"}
+    for name, item in parameters.items():
+        assert item["schema"] == jsonable_encoder(properties[name], exclude_none=True)
+        assert item["required"] is (name in {"agent_id", "project_id"})
+    assert parameters["agent_id"]["in"] == "path"
+    assert parameters["limit"]["schema"]["maximum"] == 100

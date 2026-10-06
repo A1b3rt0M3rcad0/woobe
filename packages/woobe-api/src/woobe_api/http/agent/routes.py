@@ -1,3 +1,4 @@
+from modules.agent.entrypoint import ListAgentSessionsInput
 from modules.agent.entrypoint import (CreateToolInput,UpdateToolInput,CreateSecretInput)
 from modules.agent.entrypoint import (CreateSessionInput,SendMessageInput,CreateAskJobInput)
 from modules.agent.entrypoint import (UploadDocumentInput,SearchChunksInput)
@@ -432,7 +433,14 @@ async def create_session(request: FastAPIRequest):
     return response_adapter(response)
 
 
-@runtime_router.get("/agents/{agent_id}/sessions")
+@runtime_router.get(
+    "/agents/{agent_id}/sessions",
+    openapi_extra={"parameters": [
+        {"name": name, "in": "path" if name == "agent_id" else "query",
+         "required": name in {"agent_id", "project_id"}, "schema": schema}
+        for name, schema in ListAgentSessionsInput.model_json_schema(mode="validation")["properties"].items()
+    ]},
+)
 async def list_agent_sessions(request: FastAPIRequest):
     handler = list_agent_sessions_composer()
     response = await request_adapter(request, handler)

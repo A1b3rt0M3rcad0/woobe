@@ -1,3 +1,4 @@
+from modules.agent.application.dtos import ListAgentSessionsInput
 from modules.agent.application.dtos.tools_dtos import (
     CreateToolInput,
     UpdateToolInput,
@@ -293,6 +294,7 @@ from modules.agent.composition.composers.public_runtime_composers import (
 
 
 __all__ = [
+    "ListAgentSessionsInput",
     'CreateToolInput',
     'UpdateToolInput',
     'CreateSecretInput',

@@ -1,3 +1,4 @@
+from modules.agent.composition.public_api import ListAgentSessionsInput
 from modules.agent.composition.public_api import (
     CreateToolInput,
     UpdateToolInput,
@@ -171,6 +172,7 @@ from modules.agent.composition.factories.rag_runtime_factory import (
 )
 
 __all__ = [
+    "ListAgentSessionsInput",
     'CreateToolInput',
     'UpdateToolInput',
     'CreateSecretInput',
