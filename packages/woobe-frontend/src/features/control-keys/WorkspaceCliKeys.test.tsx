@@ -10,6 +10,7 @@ vi.mock('./api', () => ({
   getEffectiveAccess: vi.fn(),
   getPermissionCatalog: vi.fn(),
   listControlKeys: vi.fn(),
+  listAuthorityCategories: vi.fn(),
   createControlKey: vi.fn(),
   rotateControlKey: vi.fn(),
   revokeControlKey: vi.fn(),
@@ -34,6 +35,17 @@ const metadata: api.ControlKey = {
   expires_at: null,
   created_at: '2026-10-06T00:00:00Z',
   etag: '"control-key:key-a:1"',
+}
+const editorRole: api.AuthorityCategory = {
+  id: 'category-editor',
+  name: 'agent-editor',
+  scope: 'project',
+  description: null,
+  revision: 1,
+  permissions: ['agent:read', 'agent:write'],
+  conditions: {},
+  system: true,
+  status: 'active',
 }
 const secret = 'woobe_control_test_secret_only'
 let container: HTMLDivElement
@@ -95,7 +107,7 @@ beforeEach(() => {
     defaultOptions: { queries: { retry: false, gcTime: Infinity } },
   })
   vi.mocked(api.getEffectiveAccess).mockImplementation(
-    async (_, projectId) => ({
+    async (_, projectId): Promise<api.EffectiveAccess> => ({
       permissions: projectId
         ? ['agent:read', 'agent:write']
         : [
@@ -114,6 +126,7 @@ beforeEach(() => {
       project: ['agent:read', 'agent:write', 'secret:write'],
     },
   })
+  vi.mocked(api.listAuthorityCategories).mockResolvedValue([editorRole])
   vi.mocked(api.listControlKeys).mockResolvedValue([])
   vi.mocked(api.createControlKey).mockResolvedValue({
     ...metadata,
@@ -141,6 +154,10 @@ describe('Workspace CLI key management', () => {
     await click(button('Create CLI key'))
     await type('cli-key-name', 'Workstation')
     await click(button('No expiration'))
+    await click(button('Workspace'))
+    await click(
+      container.querySelector<HTMLElement>('[aria-label="Custom access"]')!,
+    )
     await click(
       container.querySelector<HTMLInputElement>(
         'input[aria-label="workspace:read"]',
@@ -151,9 +168,7 @@ describe('Workspace CLI key management', () => {
       container.querySelector('input[aria-label="secret:write"]'),
     ).toBeNull()
     await click(
-      container.querySelector<HTMLInputElement>(
-        'input[aria-label="agent:read"]',
-      )!,
+      container.querySelector<HTMLElement>('[aria-label="Agent Editor"]')!,
     )
     await click(button('Create key'))
     expect(api.createControlKey).toHaveBeenCalledWith(
@@ -166,8 +181,10 @@ describe('Workspace CLI key management', () => {
         project_grants: [
           {
             project_id: project.id,
-            permissions: ['agent:read'],
+            permissions: ['agent:read', 'agent:write'],
             conditions: {},
+            category_id: editorRole.id,
+            category_revision: editorRole.revision,
           },
         ],
         on_project_create_permissions: [],
@@ -186,6 +203,67 @@ describe('Workspace CLI key management', () => {
     expect(client.getMutationCache().getAll()).toHaveLength(0)
     await click(button('I saved the key'))
     expect(container.textContent).not.toContain(secret)
+  })
+
+  it('disables roles whose permissions exceed the issuer access', async () => {
+    vi.mocked(api.getEffectiveAccess).mockImplementation(
+      async (_, projectId): Promise<api.EffectiveAccess> => ({
+        permissions: projectId ? ['agent:read'] : ['keys:read', 'keys:create'],
+        conditions: {},
+      }),
+    )
+    await render()
+    await click(button('Create CLI key'))
+    await type('cli-key-name', 'Restricted integration')
+    const role = container.querySelector<HTMLElement>(
+      '[aria-label="Agent Editor"]',
+    )!
+    expect(role.getAttribute('aria-disabled')).toBe('true')
+    await click(role)
+    expect((button('Create key') as HTMLButtonElement).disabled).toBe(true)
+    expect(api.createControlKey).not.toHaveBeenCalled()
+  })
+
+  it('pins the selected category revision and preserves inherited restrictions', async () => {
+    vi.mocked(api.listAuthorityCategories).mockResolvedValue([
+      {
+        ...editorRole,
+        revision: 3,
+        conditions: { environments: ['staging', 'production'] },
+      },
+    ])
+    vi.mocked(api.getEffectiveAccess).mockImplementation(
+      async (_, projectId): Promise<api.EffectiveAccess> => ({
+        permissions: projectId
+          ? ['agent:read', 'agent:write']
+          : ['keys:read', 'keys:create'],
+        conditions: projectId
+          ? { environments: ['staging'], target_ids: ['agent-a'] }
+          : {},
+      }),
+    )
+    await render()
+    await click(button('Create CLI key'))
+    await type('cli-key-name', 'Staging integration')
+    await click(
+      container.querySelector<HTMLElement>('[aria-label="Agent Editor"]')!,
+    )
+    await click(button('Create key'))
+    expect(api.createControlKey).toHaveBeenCalledWith(
+      workspaceId,
+      expect.objectContaining({
+        project_grants: [
+          {
+            project_id: project.id,
+            permissions: ['agent:read', 'agent:write'],
+            category_id: editorRole.id,
+            category_revision: 3,
+            conditions: { environments: ['staging'], target_ids: ['agent-a'] },
+          },
+        ],
+      }),
+      expect.any(String),
+    )
   })
 
   it('does not load credentials or offer creation without effective read permission', async () => {

@@ -66,6 +66,7 @@ export { Table, type TableColumn, type TableProps } from './components/Table'
 export { Tabs, type TabItem, type TabsProps } from './components/Tabs'
 export { TechnicalListItem, type TechnicalListItemProps } from './components/TechnicalListItem'
 export { Textarea, type TextareaProps } from './components/Textarea'
+export { WoobeDatePicker, formatWoobeDate } from './components/WoobeDatePicker'
 export {
   WoobeDateTimePicker,
   buildWoobeCalendarDays,

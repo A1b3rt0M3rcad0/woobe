@@ -4,6 +4,8 @@ export interface ProjectGrant {
   project_id: string
   permissions: string[]
   conditions?: Record<string, string[]>
+  category_id?: string
+  category_revision?: number
 }
 
 export interface ControlKey {
@@ -32,6 +34,48 @@ export interface CreateControlKey {
   project_grants: ProjectGrant[]
   on_project_create_permissions: string[]
   expires_at: string | null
+  category_id?: string
+  category_revision?: number
+}
+
+export interface AuthorityCategory {
+  id: string
+  name: string
+  description: string | null
+  scope: 'workspace' | 'project'
+  revision: number
+  permissions: string[]
+  conditions: Record<string, string[]>
+  system: boolean
+  status: string
+}
+
+interface CategoryPage {
+  items: AuthorityCategory[]
+  system_categories: AuthorityCategory[]
+  complete: boolean
+  next_cursor: string | null
+}
+
+export async function listAuthorityCategories(
+  workspaceId: string,
+): Promise<AuthorityCategory[]> {
+  const categories = new Map<string, AuthorityCategory>()
+  const cursors = new Set<string>()
+  let cursor: string | undefined
+  while (true) {
+    const page = await get<CategoryPage>(
+      `/identity/workspaces/${workspaceId}/authority-categories`,
+      { params: { limit: 200, cursor } },
+    )
+    for (const category of [...page.system_categories, ...page.items])
+      categories.set(category.id, category)
+    if (page.complete) return [...categories.values()]
+    if (!page.next_cursor || cursors.has(page.next_cursor))
+      throw new Error('Unable to finish loading access roles')
+    cursor = page.next_cursor
+    cursors.add(cursor)
+  }
 }
 
 export interface PermissionCatalog {
