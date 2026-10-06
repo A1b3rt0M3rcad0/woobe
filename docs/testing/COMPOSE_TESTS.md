@@ -153,3 +153,7 @@ with no HTTP mutation/status and retain not_attempted evidence. Valid bodies
 are checked read-only and then submitted through opt-in --validate-body. Native
 package smoke independently exercises readOnly request direction; the backend
 does not manufacture readOnly annotations in its DTOs to claim live coverage.
+
+POST /core/projects explicitly advertises the validation schema from the same
+CreateProjectInput DTO used by its transactional service. OpenAPI metadata does
+not add a second DTO or change the existing authorization/dispatch ordering.

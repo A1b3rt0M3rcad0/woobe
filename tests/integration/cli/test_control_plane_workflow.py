@@ -32,7 +32,7 @@ from shared.security.control_plane import (
     WORKSPACE_CONTROL_PERMISSIONS,
 )
 
-CLI_COMMIT = "c8560182360b0e7ec9a95c63705cdc0855287b18"
+CLI_COMMIT = "4c3fd69b508d2daa26830cd270261ca572e3998b"
 
 
 class Cli:

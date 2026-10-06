@@ -6,6 +6,7 @@ from fastapi import APIRouter, Request as FastAPIRequest
 from modules.agent.entrypoint import project_environment_tool_usage_composer
 
 from modules.core.entrypoint import (
+    CreateProjectInput,
     create_api_key_composer,
 )
 from modules.core.entrypoint import (
@@ -116,7 +117,19 @@ async def list_projects(request: FastAPIRequest):
     return {"success": True, "message": "ok", "data": projects}
 
 
-@router.post("/projects")
+@router.post(
+    "/projects",
+    openapi_extra={
+        "requestBody": {
+            "required": True,
+            "content": {
+                "application/json": {
+                    "schema": CreateProjectInput.model_json_schema(mode="validation")
+                }
+            },
+        }
+    },
+)
 async def create_project(request: FastAPIRequest):
     payload = await request.json()
     workspace_id = payload.get("workspace_id") if isinstance(payload, dict) else None

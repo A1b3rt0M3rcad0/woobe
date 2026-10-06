@@ -1,4 +1,5 @@
 from modules.core.composition.public_api import (
+    CreateProjectInput,
     ControlKeyService,
     ProjectAccessService,
     build_control_key_service,
@@ -17,6 +18,7 @@ from modules.core.composition.public_api import (
 )
 
 __all__ = [
+    "CreateProjectInput",
     "ControlKeyService",
     "ProjectAccessService",
     "build_control_key_service",
