@@ -5,6 +5,7 @@ from modules.agent import entrypoint
 from woobe_api.http.agent import routes
 
 CASES = [('ListAgentsInput', '/ai/agents'), ('GetAgentInput', '/ai/agents/{agent_id}')]
+CASES += [('ListProviderCredentialsInput', '/ai/credentials'), ('ListProviderModelsInput', '/ai/provider-models')]
 
 @pytest.mark.parametrize("model_name,path", CASES)
 def test_read_contracts_include_consumed_dto_parameters(model_name,path):

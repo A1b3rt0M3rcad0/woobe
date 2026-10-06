@@ -1,3 +1,5 @@
+from modules.agent.entrypoint import (ListProviderCredentialsInput, ListProviderModelsInput)
+from woobe_api.http.shared.openapi_contracts import query_parameter_contract
 from modules.agent.entrypoint import (ListAgentsInput, GetAgentInput)
 from woobe_api.http.shared.openapi_contracts import query_parameter_contract
 from modules.agent.entrypoint import (AskInput)
@@ -104,7 +106,7 @@ async def update_provider_credential(request: FastAPIRequest):
     return response_adapter(response)
 
 
-@router.get("/credentials")
+@router.get("/credentials", openapi_extra=query_parameter_contract(ListProviderCredentialsInput, "/ai/credentials"))
 async def list_provider_credentials(request: FastAPIRequest):
     handler = list_provider_credentials_composer()
     response = await request_adapter(request, handler)
@@ -118,7 +120,7 @@ async def create_provider_model(request: FastAPIRequest):
     return response_adapter(response)
 
 
-@router.get("/provider-models")
+@router.get("/provider-models", openapi_extra=query_parameter_contract(ListProviderModelsInput, "/ai/provider-models"))
 async def list_provider_models(request: FastAPIRequest):
     handler = list_provider_models_composer()
     response = await request_adapter(request, handler)

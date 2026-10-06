@@ -1,3 +1,5 @@
+from modules.agent.application.dtos.ai_dtos import ListProviderModelsInput
+from modules.agent.application.dtos.ai_dtos import ListProviderCredentialsInput
 from modules.agent.application.dtos.ai_dtos import GetAgentInput
 from modules.agent.application.dtos.ai_dtos import ListAgentsInput
 from modules.agent.application.dtos.ai_dtos import PromoteReleaseInput
@@ -308,6 +310,8 @@ from modules.agent.composition.composers.public_runtime_composers import (
 
 
 __all__ = [
+    'ListProviderModelsInput',
+    'ListProviderCredentialsInput',
     'GetAgentInput',
     'ListAgentsInput',
     'PromoteReleaseInput',
