@@ -8,6 +8,8 @@ from uuid import UUID
 from modules.agent.application.skill_bindings import frozen_enabled_skills, skill_bindings
 from modules.agent.domain.enums import AgentStatus, Provider, ReleaseStatus, SessionMode
 from modules.agent.domain.errors import AgentNotFoundError, RuntimeEnvironmentNotReadyError
+from modules.agent.domain.execution_definition import canonicalize_agent_execution_definition
+from modules.agent.domain.model_spec import ModelSpec, model_spec_hash
 from shared.contracts.errors import ValidationError
 
 
@@ -126,7 +128,21 @@ def build_agent_execution_snapshot(source: Any) -> dict[str, Any]:
         else settings.get("knowledge_version_id")
     )
 
+    complete = canonicalize_agent_execution_definition(source)
+    for field in complete:
+        if not hasattr(source, field) and field in settings:
+            complete[field] = deepcopy(settings[field])
+    if complete["agent_status"] is None and hasattr(source, "settings"):
+        complete["agent_status"] = _value(getattr(source, "status", None))
+    for prefix in ("", "fallback_"):
+        spec_field = f"{prefix}model_spec_snapshot"
+        raw = settings.get(f"{prefix}model_spec")
+        if complete[spec_field] is None and isinstance(raw, dict):
+            spec = ModelSpec.from_dict(raw)
+            complete[spec_field] = spec.as_dict()
+            complete[f"{prefix}model_spec_hash"] = model_spec_hash(spec)
     return {
+        **complete,
         "name": getattr(source, "name", None),
         "description": getattr(source, "description", None),
         "behavior_spec": deepcopy(getattr(source, "behavior_spec", None)),
@@ -197,6 +213,16 @@ def apply_agent_execution_snapshot(agent: Any, snapshot: dict[str, Any]) -> Any:
         "external_context_contract",
         "base_url",
         "knowledge_version_id",
+        "prompt_version_id",
+        "contract_version_id",
+        "model_config_version_id",
+        "output_schema",
+        "model_spec_snapshot",
+        "model_spec_hash",
+        "fallback_model_spec_snapshot",
+        "fallback_model_spec_hash",
+        "collection_ids",
+        "risk_score",
     ):
         value = snapshot.get(key)
         if value is None:
@@ -204,6 +230,12 @@ def apply_agent_execution_snapshot(agent: Any, snapshot: dict[str, Any]) -> Any:
         else:
             settings[key] = deepcopy(value)
     settings["runtime_config"] = runtime_config
+    for prefix in ("", "fallback_"):
+        model_spec = snapshot.get(f"{prefix}model_spec_snapshot")
+        if model_spec is None:
+            settings.pop(f"{prefix}model_spec", None)
+        else:
+            settings[f"{prefix}model_spec"] = deepcopy(model_spec)
     agent.settings = settings
     return agent
 

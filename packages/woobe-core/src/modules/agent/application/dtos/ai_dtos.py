@@ -136,6 +136,7 @@ class CreateAgentInput(BaseModel):
     temperature: float | None = None
     max_output_tokens: int | None = None
     session_mode: SessionMode = SessionMode.stateless
+    status: AgentStatus = AgentStatus.active
     settings: dict[str, Any] = {}
 
 

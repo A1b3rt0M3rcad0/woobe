@@ -6,6 +6,7 @@ import json
 from typing import Any
 
 from modules.agent.domain.entities import AgentRelease
+from modules.agent.contract_boundary import canonicalize_agent_execution_definition, hash_agent_execution_snapshot
 from modules.agent.domain.release_compatibility import classify_release_change
 from modules.agent.domain.release_versioning import ReleaseChangeKind
 
@@ -51,7 +52,11 @@ def canonical_hash(value: Any) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
-def agent_snapshot_payload(release: Any) -> dict[str, Any]:
+def agent_snapshot_payload(release: Any, *, schema_version: str = "1") -> dict[str, Any]:
+    if schema_version == "2":
+        return canonicalize_agent_execution_definition(release)
+    if schema_version != "1":
+        raise ValueError("Unsupported Agent snapshot schema version")
     return {
         field: _normalize(getattr(release, field, None))
         for field in _AGENT_SNAPSHOT_FIELDS
@@ -59,8 +64,10 @@ def agent_snapshot_payload(release: Any) -> dict[str, Any]:
     }
 
 
-def agent_snapshot_hash(release: Any) -> str:
-    return canonical_hash(agent_snapshot_payload(release))
+def agent_snapshot_hash(release: Any, *, schema_version: str = "1") -> str:
+    if schema_version == "2":
+        return hash_agent_execution_snapshot(release)
+    return canonical_hash(agent_snapshot_payload(release, schema_version=schema_version))
 
 
 def output_contract_snapshot(release: Any) -> dict[str, Any] | None:

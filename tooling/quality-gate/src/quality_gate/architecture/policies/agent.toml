@@ -16,6 +16,13 @@ forbidden_paths = [
   "domain/repositories.py",
 ]
 
+[[rules]]
+id = "ARCH349"
+description = "the typed public contract boundary only exposes composition contracts"
+source = ["contract_boundary.py"]
+allow = ["modules.agent.composition.contract_api"]
+deny = ["modules.agent.application", "modules.agent.domain", "modules.agent.infra", "modules.agent.presentation", "fastapi", "starlette", "woobe_api", "woobe_workers"]
+
 [composer_contract]
 source = ["composition/composers/**"]
 function_suffix = "_composer"

@@ -2,6 +2,7 @@ from collections.abc import Awaitable, Callable
 from typing import Generic, TypeVar
 
 from shared.contracts.unit_of_work import UnitOfWork
+from shared.contracts.transaction_receipt import TransactionReceipt
 
 
 RequestT = TypeVar("RequestT")
@@ -18,6 +19,19 @@ class TransactionalHandler(Generic[RequestT, ResponseT]):
     ) -> None:
         self._uow = uow
         self._handler = handler
+
+    def with_receipt(
+        self, receipt: TransactionReceipt[RequestT, ResponseT]
+    ) -> "TransactionalHandler[RequestT, ResponseT]":
+        async def recorded(request: RequestT) -> ResponseT:
+            replay = await receipt.lookup(self._uow, request)
+            if replay is not None:
+                return replay
+            result = await self._handler(request)
+            await receipt.save(self._uow, request, result)
+            return result
+
+        return TransactionalHandler(self._uow, recorded)
 
     async def __call__(self, request: RequestT) -> ResponseT:
         async with self._uow:

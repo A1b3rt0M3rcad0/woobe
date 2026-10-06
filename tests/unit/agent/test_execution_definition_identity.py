@@ -1,5 +1,7 @@
 from copy import deepcopy
 from types import SimpleNamespace
+from uuid import uuid4
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -62,3 +64,82 @@ def test_dictionary_order_and_collection_order_do_not_change_identity():
 def test_nonfinite_executable_numbers_are_not_hashable():
     with pytest.raises(ValueError):
         hash_agent_execution_snapshot({"temperature": float("nan")})
+
+
+def test_runtime_projection_preserves_model_specs_lineage_and_risk():
+    from modules.agent.application.execution_snapshot import (
+        build_agent_execution_snapshot,
+        apply_agent_execution_snapshot,
+    )
+    from modules.agent.domain.entities import Agent, AgentRelease
+    from modules.agent.domain.enums import Provider
+
+    project, agent_id = uuid4(), uuid4()
+    release = AgentRelease(
+        project_id=project,
+        agent_id=agent_id,
+        version="draft",
+        provider="openai",
+        model="fake",
+        session_mode="stateless",
+    )
+    release.model_spec_snapshot = {"frozen": "primary"}
+    release.model_spec_hash = "primary-hash"
+    release.fallback_model_spec_snapshot = {"frozen": "fallback"}
+    release.fallback_model_spec_hash = "fallback-hash"
+    release.prompt_version_id, release.contract_version_id = uuid4(), uuid4()
+    release.model_config_version_id = uuid4()
+    release.risk_score = 3
+    snapshot = build_agent_execution_snapshot(release)
+    assert set(AGENT_EXECUTION_FIELDS) <= set(snapshot)
+    target = Agent(
+        project_id=project, name="target", provider=Provider.openai, model="fake"
+    )
+    apply_agent_execution_snapshot(target, snapshot)
+    projected = build_agent_execution_snapshot(target)
+    for field in (
+        "model_spec_snapshot",
+        "model_spec_hash",
+        "fallback_model_spec_snapshot",
+        "fallback_model_spec_hash",
+        "prompt_version_id",
+        "contract_version_id",
+        "model_config_version_id",
+        "risk_score",
+    ):
+        assert projected[field] == snapshot[field]
+
+
+@pytest.mark.asyncio
+async def test_preparatory_agent_can_be_created_inactive_and_cannot_run():
+    from modules.agent.application.dtos.ai_dtos import CreateAgentInput
+    from modules.agent.application.execution_snapshot import (
+        AgentExecutionSnapshotResolver,
+    )
+    from modules.agent.application.use_cases.ai_agent_cases import CreateAgentUseCase
+    from modules.agent.domain.enums import AgentStatus
+    from shared.contracts.errors import ValidationError
+
+    async def save(agent):
+        return agent
+
+    repository = SimpleNamespace(save=save)
+    credentials = SimpleNamespace(get_by_id=AsyncMock())
+    outbox = SimpleNamespace(write=AsyncMock())
+    agent = await CreateAgentUseCase(repository, credentials, outbox).execute(
+        CreateAgentInput(
+            project_id=uuid4(),
+            name="preparing",
+            model="fake",
+            status=AgentStatus.inactive,
+        )
+    )
+    assert agent.status == AgentStatus.inactive
+    with pytest.raises(ValidationError):
+        AgentExecutionSnapshotResolver().resolve_loaded(
+            project_id=agent.project_id,
+            agent=agent,
+            environment="draft",
+            release=None,
+            allow_legacy_draft=True,
+        )

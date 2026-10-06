@@ -5,6 +5,7 @@ from hashlib import sha256
 import json
 import posixpath
 import re
+import unicodedata
 
 from modules.package.domain.errors import PackageError
 
@@ -27,14 +28,15 @@ class PathRegistry:
             prefix = "/".join(parts[:index])
             is_directory = index < len(parts) or directory
             identity = (prefix, is_directory)
-            previous = self.paths.get(prefix.casefold())
+            normalized = unicodedata.normalize("NFC", prefix.casefold())
+            previous = self.paths.get(normalized)
             if previous is not None and previous != identity:
                 raise PackageError(
                     "PACKAGE_PATH_INVALID",
                     "Path case collision or file/directory conflict",
                     file=path,
                 )
-            self.paths[prefix.casefold()] = identity
+            self.paths[normalized] = identity
 
 
 def portable_path(value: str, *, descriptor: str = "") -> str:

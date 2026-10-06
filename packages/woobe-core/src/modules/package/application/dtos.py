@@ -4,13 +4,14 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from modules.agent.application.dtos.behavior_dtos import BehaviorSpecification
-from modules.agent.application.dtos.rag_config_dtos import (
+from modules.agent.contract_boundary import (
+    BehaviorSpecification,
+    ContextPolicyV1,
+    HttpToolConfig,
+    McpToolConfig,
     RAGBuildConfig,
     RAGRuntimeConfig,
 )
-from modules.agent.application.interfaces.context_policy import ContextPolicyV1
-from modules.agent.application.dtos.tools_dtos import HttpToolConfig, McpToolConfig
 
 
 class StrictDTO(BaseModel):
