@@ -32,6 +32,7 @@ from modules.agent.domain.enums import (
     DocumentStatus,
     ProviderModelStatus,
 )
+from modules.agent.domain.model_spec import ModelSpec, ModelOperations
 from modules.agent.application.interfaces.embedding_factory import EmbeddingFactory
 from modules.agent.application.interfaces.repositories import (
     DocumentCollectionRepository,
@@ -236,15 +237,15 @@ class CreateVectorSnapshotUseCase:
         capability = str(
             metadata.get("capability") or metadata.get("type") or ""
         ).lower()
-        if (
-            capability not in {"embedding", "embeddings"}
-            and "embed" not in provider_model.model.lower()
-        ):
+        normalized_spec = ModelSpec.from_dict(provider_model.spec) if getattr(provider_model, "spec", None) else None
+        is_embedding = (ModelOperations.EMBEDDING_CREATE in normalized_spec.operations
+                        if normalized_spec else capability in {"embedding", "embeddings"} or "embed" in provider_model.model.lower())
+        if not is_embedding:
             raise ConflictError(
                 "Provider model must be configured as an embedding model"
             )
 
-        dimensions = int(metadata.get("dimensions") or 1536)
+        dimensions = int((normalized_spec.metadata.get("dimensions") if normalized_spec else None) or metadata.get("dimensions") or 1536)
         if dimensions != 1536:
             raise ConflictError(
                 "Only 1536-dimensional embeddings are supported in the MVP"

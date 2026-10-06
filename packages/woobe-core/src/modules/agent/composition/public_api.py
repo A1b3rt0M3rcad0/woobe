@@ -1,3 +1,6 @@
+"""Explicit transport-neutral public surface for Agent hosts."""
+
+from modules.agent.composition.composers.verify_imported_agent_composer import verify_imported_agent_composer
 from modules.agent.composition.composers.tools_composers import materialize_imported_tool_composer
 from modules.agent.composition.composers.resolve_imported_model_composer import resolve_imported_model_composer
 from modules.agent.composition.composers.inspect_destination_bindings_composer import inspect_destination_bindings_composer
@@ -68,7 +71,6 @@ from modules.agent.application.dtos import (
     CreateAgentInput,
     UpdateAgentInput,
 )
-"""Explicit transport-neutral public surface for Agent hosts."""
 
 from modules.agent.composition.composers.skill_catalog_composer import skill_catalog_composer
 from modules.agent.composition.composers.runtime_contract_reader_composer import (
@@ -79,7 +81,6 @@ from modules.agent.composition.composers.runtime_contract_reader_composer import
 from modules.agent.application.context_manager_registry import list_context_managers
 
 # Backwards-compatible public alias. New callers should use list_context_managers.
-list_context_assemblers = list_context_managers
 from modules.agent.application.execution_strategy_config import list_execution_strategies
 from modules.agent.application.knowledge_strategy_registry import list_knowledge_strategies
 from modules.agent.application.dtos import AskInput, UploadDocumentFileInput
@@ -323,11 +324,23 @@ from modules.agent.composition.module import (
 from modules.agent.composition.composers.public_runtime_composers import (
     build_public_stream_components,
 )
+from modules.agent.composition.workflows.imported_document import build_imported_document_preparation
+from modules.agent.composition.composers.imported_vector_composers import create_imported_vector_composer, verify_imported_vector_composer
+from modules.agent.composition.workflows.imported_mcp import build_imported_mcp_preparation
+from modules.agent.composition.composers.commit_imported_mcp_composer import commit_imported_mcp_composer
+
+list_context_assemblers = list_context_managers
 
 
 __all__ = [
+    "build_imported_mcp_preparation",
+    "commit_imported_mcp_composer",
+    "create_imported_vector_composer",
+    "verify_imported_vector_composer",
+    "build_imported_document_preparation",
     'inspect_destination_bindings_composer',
     'finalize_imported_agent_composer',
+    'verify_imported_agent_composer',
     'resolve_imported_model_composer',
     "inspect_provider_model_definition_composer",
     "CreateReleaseInput",

@@ -441,6 +441,8 @@ class AskJobRepository(ABC):
 
 
 class ToolRepository(ABC):
+    async def lock_by_id(self, tool_id: UUID) -> Tool:
+        raise NotImplementedError("Native Tool row locking is required")
 
     @abstractmethod
     async def create(self, tool: Tool) -> Tool: ...

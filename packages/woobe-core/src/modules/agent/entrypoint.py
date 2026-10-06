@@ -1,3 +1,4 @@
+from modules.agent.composition.public_api import verify_imported_agent_composer
 from modules.agent.composition.public_api import materialize_imported_tool_composer
 from modules.agent.composition.public_api import resolve_imported_model_composer
 from modules.agent.composition.public_api import inspect_destination_bindings_composer
@@ -197,9 +198,19 @@ from modules.agent.composition.factories.rag_runtime_factory import (
     list_rag_strategies,
 )
 
+from modules.agent.composition.public_api import build_imported_document_preparation
+from modules.agent.composition.public_api import create_imported_vector_composer, verify_imported_vector_composer
+from modules.agent.composition.public_api import build_imported_mcp_preparation, commit_imported_mcp_composer
+
 __all__ = [
+    "build_imported_mcp_preparation",
+    "commit_imported_mcp_composer",
+    "create_imported_vector_composer",
+    "verify_imported_vector_composer",
+    "build_imported_document_preparation",
     'inspect_destination_bindings_composer',
     'finalize_imported_agent_composer',
+    'verify_imported_agent_composer',
     'resolve_imported_model_composer',
     "inspect_provider_model_definition_composer",
     "CreateReleaseInput",

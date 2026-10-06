@@ -19,7 +19,7 @@ from uuid import UUID, uuid4
 import httpx
 import pytest
 import pytest_asyncio
-from sqlalchemy import delete
+from sqlalchemy import delete, text
 
 from modules.core.infra.database.control_key_models import WorkspaceControlKeyModel
 from modules.identity.infra.database.models import WorkspaceModel
@@ -32,7 +32,7 @@ from shared.security.control_plane import (
     WORKSPACE_CONTROL_PERMISSIONS,
 )
 
-CLI_COMMIT = "8c90273e9e1bf1871a3fc85f67e5fbfa6f7494c7"
+CLI_COMMIT = os.environ.get("WOOBE_TEST_CLI_SHA", "8c90273e9e1bf1871a3fc85f67e5fbfa6f7494c7")
 
 
 @pytest.mark.asyncio
@@ -169,6 +169,7 @@ async def cli(tmp_path):
     root_id = uuid4()
     expiration = datetime.now(UTC) + timedelta(hours=3)
     async with factory() as session:
+        database_revision = await session.scalar(text("SELECT version_num FROM alembic_version"))
         session.add(
             WorkspaceModel(
                 id=workspace_id, name="CLI E2E", slug=str(workspace_id), status="active"
@@ -256,7 +257,7 @@ async def cli(tmp_path):
                     {
                         "cli_commit": CLI_COMMIT,
                         "server_commit": os.environ.get("WOOBE_TEST_SERVER_SHA"),
-                        "database_revision": "0077",
+                        "database_revision": database_revision,
                         "openapi_sha256": harness.openapi_sha256,
                         "requests": harness.evidence,
                     }, indent=2

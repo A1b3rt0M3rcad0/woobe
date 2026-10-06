@@ -63,6 +63,8 @@ class AgentCollectionOutput(BaseModel):
 
 
 class UploadDocumentInput(BaseModel):
+    document_id: UUID | None = None
+    sha256: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
     project_id: UUID
     collection_id: UUID
     title: str = Field(..., min_length=1, max_length=255)

@@ -5,7 +5,6 @@ from modules.agent.application.dtos.mcp_tool_refresh_dtos import RefreshMcpProvi
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
-from uuid import UUID
 
 
 from modules.agent.application.mcp_connection_templates import (
@@ -120,7 +119,7 @@ async def _auth_headers_for(tool: Tool, auth_header_provider: Any | None) -> dic
         method = getattr(auth_header_provider, "authorization_" + "headers_for")
         return await method(tool)
     except Exception as exc:
-        logger.warning("MCP discovery OAuth header resolution failed for tool %s: %s", tool.id, exc)
+        logger.warning("MCP discovery OAuth header resolution failed for tool %s (%s)", tool.id, type(exc).__name__)
         return {}
 
 
@@ -193,10 +192,9 @@ def _write_discovery_diagnostic(
         config.pop("oauth_discovery_error", None)
 
 
-async def _discover_and_persist_tool(
+async def discover_mcp_tool_definition(
     *,
     tool: Tool,
-    tool_repo: ToolRepository,
     executor: ToolExecutionPort,
     secret_resolver: ToolSecretResolverPort | None,
     auth_header_provider: Any | None,
@@ -205,8 +203,6 @@ async def _discover_and_persist_tool(
     now: datetime,
 ) -> RefreshMcpProviderToolsOutput:
     config = dict(tool.config or {})
-    if not _is_mcp_server_provider(tool):
-        raise ValueError("Tool is not an MCP server provider")
     connection_config = await materialize_mcp_connection_config(
         config,
         project_id=tool.project_id,
@@ -251,7 +247,6 @@ async def _discover_and_persist_tool(
         write_mcp_readiness(config)
         tool.config = config
         tool.updated_at = now
-        await tool_repo.update(tool)
         result_error = None if status == "oauth_required" else (
             oauth_validation.error if oauth_validation and oauth_validation.error else output.error
         )
@@ -271,7 +266,6 @@ async def _discover_and_persist_tool(
     write_mcp_readiness(config)
     tool.config = config
     tool.updated_at = now
-    await tool_repo.update(tool)
     return RefreshMcpProviderToolsOutput(
         tool_id=tool.id,
         discovered_count=len(next_tools),
@@ -281,6 +275,14 @@ async def _discover_and_persist_tool(
         http_status=output.http_status,
         phase=output.phase,
     )
+
+
+async def _discover_and_persist_tool(*, tool, tool_repo, **dependencies):
+    if not _is_mcp_server_provider(tool):
+        raise ValueError("Tool is not an MCP server provider")
+    result = await discover_mcp_tool_definition(tool=tool, **dependencies)
+    await tool_repo.update(tool)
+    return result
 
 
 class RefreshMcpProviderToolsUseCase:

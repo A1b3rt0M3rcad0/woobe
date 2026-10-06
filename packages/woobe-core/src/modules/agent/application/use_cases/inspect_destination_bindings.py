@@ -100,12 +100,29 @@ class InspectDestinationBindingsUseCase:
             if item.existing_key is not None
         }
         await self._environment.require_keys(project_id=project, keys=keys)
+        key_evidence = await self._environment.inspect_keys(
+            project_id=project, keys=keys
+        )
         for alias, binding in definition.project_environment.items():
             if (binding.existing_key is None) == (binding.protected_ref is None):
                 raise ValidationError(
                     "Environment binding requires exactly one destination source"
                 )
-            result["project_environment"][alias] = binding.model_dump(exclude_none=True)
+            if binding.existing_key is not None:
+                evidence = key_evidence.get(binding.existing_key)
+                if evidence is None:
+                    raise NotFoundError(
+                        "Destination Project Environment key is unavailable"
+                    )
+                if binding.kind is not None and evidence["kind"] != binding.kind:
+                    raise ValidationError(
+                        "Destination Project Environment kind differs from the requirement"
+                    )
+                result["project_environment"][alias] = evidence
+            else:
+                result["project_environment"][alias] = binding.model_dump(
+                    exclude_none=True
+                )
         for alias, binding in definition.knowledge.items():
             snapshot = await self._vectors.get_by_id(binding.vector_snapshot_id)
             if snapshot is None or snapshot.project_id != project:

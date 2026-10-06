@@ -105,3 +105,18 @@ async def test_chunked_package_body_cannot_bypass_limit_with_a_small_content_len
         )
     assert result.status_code == 413
     assert received == []
+
+
+def test_package_body_contracts_do_not_duplicate_native_path_parameters():
+    from fastapi import FastAPI
+    from woobe_api.http.package.routes import router
+
+    app = FastAPI()
+    app.include_router(router)
+    schema = app.openapi()
+    for suffix in ("/plan", "/operations/lookup", "/operations/{operation_id}/resume"):
+        parameters = schema["paths"]["/projects/{project_id}/packages" + suffix][
+            "post"
+        ]["parameters"]
+        identities = [(item["in"], item["name"]) for item in parameters]
+        assert len(identities) == len(set(identities))

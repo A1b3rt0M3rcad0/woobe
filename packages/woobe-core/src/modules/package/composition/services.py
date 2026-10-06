@@ -5,6 +5,8 @@ from modules.package.infra.native_inspector import NativePackageInspectorGateway
 from modules.package.infra.operation_repository import PackageOperationRepository
 from modules.package.infra.plan_repository import PackagePlanRepository
 from modules.package.infra.service import PackageService
+from modules.package.application.execution import ExecutePackageOperation
+from modules.package.infra.native_materializer import NativePackageMaterializer
 from shared.composition_resources import SESSION_FACTORY, SETTINGS
 
 
@@ -19,3 +21,15 @@ def build_package_service() -> PackageService:
         plan_validator=plans.validate_acceptance,
     )
     return PackageService(artifacts, plans, operations, inspector)
+
+
+def build_package_executor() -> ExecutePackageOperation:
+    service = build_package_service()
+    materializer = NativePackageMaterializer(
+        encryption_key=SETTINGS.encryption_key, artifacts=service.artifacts
+    )
+    return ExecutePackageOperation(
+        service.operations,
+        materializer,
+        heartbeat_seconds=service.operations.lease_seconds / 3,
+    )

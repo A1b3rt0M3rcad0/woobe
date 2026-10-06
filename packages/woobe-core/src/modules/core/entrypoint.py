@@ -1,4 +1,5 @@
 from modules.core.composition.public_api import (
+    create_imported_environment_composer,
     CreateApiKeyInput,
     CreateRuntimeApiKeyInput,
     RotateApiKeyInput,
@@ -23,6 +24,7 @@ from modules.core.composition.public_api import (
 )
 
 __all__ = [
+    "create_imported_environment_composer",
     "CreateApiKeyInput",
     "CreateRuntimeApiKeyInput",
     "RotateApiKeyInput",

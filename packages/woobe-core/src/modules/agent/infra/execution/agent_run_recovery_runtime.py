@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from modules.agent.application.interfaces.model_connections import fallback_connection_settings
+
 import logging
 from collections.abc import Callable
 from copy import deepcopy
@@ -471,7 +473,7 @@ class AgentRunRecoveryRuntime(FrozenSnapshotStructuredOutputRuntime):
                     "base_url": self._resolve_base_url_for_provider(
                         fallback_provider,
                         fallback_credential,
-                        agent.settings,
+                        fallback_connection_settings(agent),
                     ),
                 }
             tool_secrets = {

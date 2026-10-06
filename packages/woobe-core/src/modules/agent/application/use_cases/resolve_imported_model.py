@@ -43,5 +43,15 @@ class ResolveImportedModelUseCase:
             raise ValidationError("Destination Model identity changed after approval")
         if input_dto.expected_model_id is not None:
             model = await self._models.get_by_id(input_dto.expected_model_id)
-            return _provider_model_to_output(model, credential.provider)
+            output = _provider_model_to_output(model, credential.provider)
+            # Legacy Models may store only metadata. The native inspector already
+            # proved full equivalence; expose that canonical effective spec without
+            # rewriting a shared historical Model as an import side effect.
+            return output.model_copy(
+                update={
+                    "spec": inspection["spec"],
+                    "spec_hash": inspection["spec_hash"],
+                    "spec_version": inspection["spec_version"],
+                }
+            )
         return await self._create.execute(input_dto)

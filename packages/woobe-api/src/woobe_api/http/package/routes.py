@@ -148,7 +148,10 @@ async def get_upload(project_id: UUID, upload_id: UUID, request: Request):
 @router.post(
     "/plan",
     openapi_extra=request_body_contract(
-        PlanPackageRequest, "/projects/{project_id}/packages/plan", "post"
+        PlanPackageRequest,
+        "/projects/{project_id}/packages/plan",
+        "post",
+        advertise_path=False,
     ),
 )
 async def plan(project_id: UUID, request: Request):
@@ -186,6 +189,7 @@ async def get_operation(project_id: UUID, operation_id: UUID, request: Request):
         LookupPackageOperationRequest,
         "/projects/{project_id}/packages/operations/lookup",
         "post",
+        advertise_path=False,
     ),
 )
 async def lookup_operation(project_id: UUID, request: Request):
@@ -223,6 +227,7 @@ async def cancel_operation(project_id: UUID, operation_id: UUID, request: Reques
         ResumePackageOperationRequest,
         "/projects/{project_id}/packages/operations/{operation_id}/resume",
         "post",
+        advertise_path=False,
     ),
 )
 async def resume_operation(project_id: UUID, operation_id: UUID, request: Request):

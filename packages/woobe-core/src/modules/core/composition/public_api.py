@@ -1,5 +1,7 @@
 """Explicit transport-neutral public surface for Core hosts."""
 
+from modules.core.composition.composers.create_imported_environment_composer import create_imported_environment_composer
+
 from modules.core.application.dtos.create_project_dtos import CreateProjectInput
 from modules.core.application.dtos.create_api_key_dtos import CreateApiKeyInput
 from modules.core.application.dtos.runtime_api_key_dtos import CreateRuntimeApiKeyInput
@@ -44,6 +46,7 @@ from modules.core.composition.composers.update_project_composer import (
 )
 
 __all__ = [
+    "create_imported_environment_composer",
     "CreateApiKeyInput",
     "CreateRuntimeApiKeyInput",
     "RotateApiKeyInput",

@@ -1,4 +1,5 @@
 """Public typed contracts for domain composition and portable package schemas."""
+from modules.agent.composition.contract_api import compile_imported_agent_inputs
 
 from modules.agent.composition.contract_api import (
     BehaviorSpecification,
@@ -21,7 +22,13 @@ from modules.agent.composition.contract_api import (
     portable_skill_identity,
 )
 
+from modules.agent.composition.contract_api import ImportedDependencyPending
+from modules.agent.composition.contract_api import compile_imported_tool_inputs
+
 __all__ = [
+    "ImportedDependencyPending",
+    "compile_imported_tool_inputs",
+    "compile_imported_agent_inputs",
     "BehaviorSpecification",
     "RAGBuildConfig",
     "RAGRuntimeConfig",

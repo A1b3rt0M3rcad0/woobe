@@ -8,8 +8,9 @@ import json
 import re
 from uuid import UUID, uuid4
 
-from sqlalchemy import or_, select, text
+from sqlalchemy import or_, select, text, update
 
+from modules.package.application.planning import definition_digest
 from modules.package.domain.errors import PackageError
 from modules.package.domain.operations import (
     TERMINAL_STATES,
@@ -160,7 +161,13 @@ class PackageOperationRepository:
                     "Apply request differs from the approved plan",
                 )
             upload = await session.get(PackageUploadModel, plan.upload_id)
-            if upload is None or as_utc(upload.expires_at) <= datetime.now(UTC):
+            if (
+                upload is None
+                or upload.project_id != project_id
+                or upload.actor != identity
+                or upload.artifact_digest != plan.artifact_digest
+                or as_utc(upload.expires_at) <= datetime.now(UTC)
+            ):
                 raise PackageError(
                     "PACKAGE_UPLOAD_EXPIRED", "Uploaded package has expired"
                 )
@@ -228,6 +235,7 @@ class PackageOperationRepository:
                                 "materializing",
                                 "verifying",
                                 "cancelling",
+                                "waiting_dependency",
                             ]
                         ),
                         or_(
@@ -247,11 +255,32 @@ class PackageOperationRepository:
                 uuid4(),
                 now + timedelta(seconds=self.lease_seconds),
             )
-            if record.state == "accepted":
+            if record.state in {"accepted", "waiting_dependency"}:
                 record.state = "resolving"
             record.revision += 1
             await session.flush()
             return record
+
+    async def heartbeat(self, operation_id, lease_token):
+        now = datetime.now(UTC)
+        async with self.session_factory.begin() as session:
+            renewed = await session.execute(
+                update(PackageOperationModel)
+                .where(
+                    PackageOperationModel.id == operation_id,
+                    PackageOperationModel.lease_token == lease_token,
+                    PackageOperationModel.lease_until > now,
+                    PackageOperationModel.state.in_(
+                        ["resolving", "materializing", "verifying"]
+                    ),
+                )
+                .values(lease_until=now + timedelta(seconds=self.lease_seconds))
+                .returning(PackageOperationModel.id)
+            )
+            if renewed.scalar_one_or_none() is None:
+                raise PackageError(
+                    "PACKAGE_OPERATION_FENCED", "Worker lease is unavailable"
+                )
 
     async def advance(self, operation_id, lease_token, target, **changes):
         permitted = {
@@ -293,8 +322,13 @@ class PackageOperationRepository:
                     "Operation has not verified all declared phases",
                 )
             record.revision += 1
-            if record.state in TERMINAL_STATES or record.state == "waiting_dependency":
+            if record.state in TERMINAL_STATES:
                 record.lease_token = record.lease_until = None
+            elif record.state == "waiting_dependency":
+                record.lease_token = None
+                # A short backoff prevents hot loops while native workers build
+                # vectors or the owner completes the OAuth dependency.
+                record.lease_until = datetime.now(UTC) + timedelta(seconds=5)
             else:
                 record.lease_until = datetime.now(UTC) + timedelta(
                     seconds=self.lease_seconds
@@ -403,6 +437,10 @@ class PackageOperationRepository:
                 )
                 for effect in effects
             }
+            if definition_digest(plan.document) != plan.plan_digest:
+                raise PackageError(
+                    "PACKAGE_PLAN_MISMATCH", "Accepted plan evidence has changed"
+                )
             payload = json.loads(
                 decrypt_secret(operation.payload_ciphertext, self.encryption_key)
             )

@@ -1,4 +1,5 @@
 from uuid import UUID
+from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 from modules.agent.domain.enums import Provider
 
@@ -14,6 +15,7 @@ class EnvironmentInspectionInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
     existing_key: str | None = None
     protected_ref: str | None = None
+    kind: Literal["value", "secret"] | None = None
 
 
 class KnowledgeInspectionInput(BaseModel):

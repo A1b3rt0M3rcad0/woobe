@@ -30,6 +30,7 @@ from modules.agent.domain.mcp_permissions import (
     MCP_PERMISSION_ALLOW,
     MCP_PERMISSION_DENY,
     mcp_tool_permission_mode,
+    parent_tool_permission_mode,
 )
 from modules.agent.infra.adapters.http_tool_renderer import render_http_tool_request
 
@@ -228,6 +229,10 @@ class HttpToolRuntime(ToolRuntimePort):
         tool: Any,
         input_data: dict[str, Any] | None = None,
     ) -> ExecutionResult:
+        mode = parent_tool_permission_mode(getattr(tool, "config", None) or {})
+        if mode != MCP_PERMISSION_ALLOW:
+            return _failure("TOOL_DENIED_BY_POLICY" if mode == MCP_PERMISSION_DENY else "TOOL_REQUIRES_POLICY",
+                            "Tool permission does not allow execution", HTTP_PROTOCOL)
         return await self._execute_config(
             config=getattr(tool, "config", None) or {},
             input_schema=getattr(tool, "input_schema", None),
@@ -431,6 +436,10 @@ class McpToolRuntime(ToolRuntimePort):
         input_data: dict[str, Any] | None = None,
     ) -> ExecutionResult:
         config = getattr(tool, "config", None) or {}
+        mode = parent_tool_permission_mode(config)
+        if mode != MCP_PERMISSION_ALLOW:
+            return _failure("TOOL_DENIED_BY_POLICY" if mode == MCP_PERMISSION_DENY else "TOOL_REQUIRES_POLICY",
+                            "Tool permission does not allow execution", MCP_PROTOCOL)
         return await self._call_mcp_tool(
             tool=tool,
             config=config,

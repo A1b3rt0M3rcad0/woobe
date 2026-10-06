@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+import asyncio
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
@@ -9,6 +10,31 @@ from modules.package.application.execution import (
     ExecutePackageOperation,
 )
 from modules.package.domain.errors import PackageError
+
+
+@pytest.mark.asyncio
+async def test_long_native_phase_renews_lease_and_stops_when_fenced():
+    operation, work, repository = setup_work()
+    started, stopped = asyncio.Event(), asyncio.Event()
+
+    async def execute(work, phase):
+        started.set()
+        try:
+            await asyncio.Event().wait()
+        finally:
+            stopped.set()
+
+    async def heartbeat(identifier, token):
+        await started.wait()
+        assert identifier == operation.id and token == operation.lease_token
+        raise PackageError("PACKAGE_OPERATION_FENCED", "Lease belongs to another worker")
+
+    repository.heartbeat = AsyncMock(side_effect=heartbeat)
+    executor = SimpleNamespace(execute_phase=AsyncMock(side_effect=execute))
+    assert await asyncio.wait_for(ExecutePackageOperation(repository, executor,
+        heartbeat_seconds=0.001).run_once(), timeout=1)
+    assert stopped.is_set() and not work.receipts
+    assert all(call.args[2] != "failed" for call in repository.advance.await_args_list)
 
 
 def setup_work():

@@ -151,6 +151,7 @@ def _apply_model_spec_overrides(
 
     return replace(
         spec,
+        metadata={**spec.metadata, **({"base_url": metadata["base_url"]} if metadata.get("base_url") else {})},
         capabilities=capabilities,
         limits=limits,
         pricing=pricing,

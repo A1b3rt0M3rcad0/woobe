@@ -44,7 +44,9 @@ async def test_destination_inspection_never_decrypts_or_returns_protected_materi
         status=VECTOR_SNAPSHOT_READY,
         snapshot_hash="immutable",
     )
-    environment = SimpleNamespace(require_keys=AsyncMock())
+    evidence = {"API_URL": {"id": str(uuid4()), "existing_key": "API_URL", "kind": "value",
+                            "revision": "2026-10-06T00:00:00+00:00", "environments": {}}}
+    environment = SimpleNamespace(require_keys=AsyncMock(), inspect_keys=AsyncMock(return_value=evidence))
     use_case = InspectDestinationBindingsUseCase(
         SimpleNamespace(get_by_id=AsyncMock(return_value=credential)),
         SimpleNamespace(get_by_name=AsyncMock(return_value=secret)),
@@ -69,9 +71,14 @@ async def test_destination_inspection_never_decrypts_or_returns_protected_materi
     assert "private-" not in json.dumps(result)
     assert result["credentials"]["primary"]["credential_id"] == str(credential.id)
     assert result["knowledge"]["docs"]["snapshot_hash"] == "immutable"
+    assert result["project_environment"]["url"] == evidence["API_URL"]
     environment.require_keys.assert_awaited_once_with(
         project_id=project, keys={"API_URL"}
     )
+    request.project_environment["url"].kind = "secret"
+    with pytest.raises(ValidationError, match="kind"):
+        await use_case.execute(request)
+    request.project_environment["url"].kind = "value"
     snapshot.status = "BUILDING"
     with pytest.raises(ValidationError, match="READY"):
         await use_case.execute(request)

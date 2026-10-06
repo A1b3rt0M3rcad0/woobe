@@ -3536,6 +3536,17 @@
             "title": "Mode",
             "type": "string"
           },
+          "permission": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ToolPermissionConfig"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
           "protocol": {
             "anyOf": [
               {
@@ -3671,6 +3682,11 @@
         "additionalProperties": false,
         "properties": {
           "permission": {
+            "enum": [
+              "allow",
+              "deny",
+              "review"
+            ],
             "title": "Permission",
             "type": "string"
           },
@@ -3842,6 +3858,17 @@
             "title": "Mode",
             "type": "string"
           },
+          "permission": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ToolPermissionConfig"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
           "protocol": {
             "anyOf": [
               {
@@ -3982,6 +4009,16 @@
         "title": "Provenance",
         "type": "object"
       },
+      "RiskLevel": {
+        "enum": [
+          "low",
+          "medium",
+          "high",
+          "critical"
+        ],
+        "title": "RiskLevel",
+        "type": "string"
+      },
       "ToolBindingSource": {
         "additionalProperties": false,
         "properties": {
@@ -4017,6 +4054,36 @@
           "source"
         ],
         "title": "ToolInputBinding",
+        "type": "object"
+      },
+      "ToolPermissionConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "mode": {
+            "enum": [
+              "allow",
+              "deny",
+              "review"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "risk_level": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/RiskLevel"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "mode"
+        ],
+        "title": "ToolPermissionConfig",
         "type": "object"
       },
       "ToolSpecV1": {
@@ -4066,6 +4133,11 @@
           },
           "permission": {
             "default": "allow",
+            "enum": [
+              "allow",
+              "deny",
+              "review"
+            ],
             "title": "Permission",
             "type": "string"
           },

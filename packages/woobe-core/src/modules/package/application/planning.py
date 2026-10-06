@@ -186,6 +186,7 @@ class PlanPackageUseCase:
                 append(f"tool:{key}", "materialize_tool", key, "tool:write")
                 if document["spec"]["type"] == "mcp":
                     append(f"mcp:{key}", "verify_mcp_discovery", key, "tool:write")
+                    append(f"mcp-ready:{key}", "verify_mcp_readiness", key, "tool:write")
             elif kind == "Skill":
                 append(f"skill:{key}", "materialize_skill_version", key, "skill:write")
             elif kind == "Knowledge" and document["spec"]["mode"] == "portable":

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from modules.agent.application.interfaces.model_connections import fallback_connection_settings
+
 from copy import deepcopy
 
 import json
@@ -1199,7 +1201,7 @@ class AskAgentUseCase:
                     "Custom provider requires model in agent or credential metadata"
                 )
             return base_url
-        return None
+        return (settings or {}).get("base_url") or (credential.metadata or {}).get("base_url")
 
     async def _try_fallback(
         self,
@@ -1232,7 +1234,7 @@ class AskAgentUseCase:
                     fallback_base_url = self._resolve_base_url_for_provider(
                         fallback_provider_val,
                         credential,
-                        agent.settings,
+                        fallback_connection_settings(agent),
                     )
             except Exception as exc:
                 logger.warning("Failed to load fallback credential: %s", exc)

@@ -230,7 +230,7 @@ class NetworkDocument(Document):
 
 class McpPermission(StrictDTO):
     remote_name: str
-    permission: str
+    permission: Literal["allow", "deny", "review"]
 
 
 class ToolSpecV1(StrictDTO):
@@ -240,7 +240,7 @@ class ToolSpecV1(StrictDTO):
     config: HttpToolConfig | McpToolConfig
     input_schema: dict[str, Any] | None = None
     output_schema: dict[str, Any] | None = None
-    permission: str = "allow"
+    permission: Literal["allow", "deny", "review"] = "allow"
     risk: str | None = None
     permissions: list[McpPermission] = Field(default_factory=list)
 

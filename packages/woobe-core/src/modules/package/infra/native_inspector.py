@@ -13,7 +13,6 @@ from modules.agent.contract_boundary import (
     portable_skill_identity,
     inspect_portable_network_external_context,
     inspect_portable_skill,
-    inspect_portable_tool,
     inspect_proposed_provider_model,
     portable_definition_capabilities,
 )
@@ -26,6 +25,9 @@ from modules.package.domain.errors import PackageError
 from modules.package.infra.receipts import authorize_phase
 from shared.presentation.contracts import OperationRequest
 from shared.contracts.errors import ValidationError
+
+
+from modules.agent.contract_boundary import compile_imported_tool_inputs
 
 
 class NativePackageInspectorGateway:
@@ -67,12 +69,20 @@ class NativePackageInspectorGateway:
             item["ref"]: item["provider"]
             for item in requirements.get("credentials", [])
         }
+        environment_kinds = {
+            item["key"]: item["kind"]
+            for item in requirements.get("project_environment", [])
+        }
         body = {
             "project_id": str(project_id),
             **bindings,
             "credentials": {
                 alias: {**value, "provider": providers[alias]}
                 for alias, value in bindings.get("credentials", {}).items()
+            },
+            "project_environment": {
+                alias: {**value, "kind": environment_kinds[alias]}
+                for alias, value in bindings.get("project_environment", {}).items()
             },
         }
         result = await inspect_destination_bindings_composer()(
@@ -114,6 +124,9 @@ class NativePackageInspectorGateway:
                         "model": spec["model"],
                         "model_type": spec.get("model_type", "language"),
                         "spec": spec.get("model_spec_hint"),
+                        "metadata": {"base_url": spec["base_url"]}
+                        if spec.get("base_url")
+                        else {},
                     }
                     result = await inspect_provider_model_definition_composer()(
                         OperationRequest(
@@ -130,9 +143,21 @@ class NativePackageInspectorGateway:
                     )
                 return {**definition, "base_url": spec.get("base_url")}
             if kind == "Tool":
-                return inspect_portable_tool(
-                    project_id=project_id, metadata=metadata, spec=spec
+                create = compile_imported_tool_inputs(
+                    project_id=project_id,
+                    metadata=metadata,
+                    spec=spec,
+                    environment={
+                        alias: alias
+                        for alias in bindings.get("project_environment", {})
+                    },
+                    secrets={alias: alias for alias in bindings.get("secrets", {})},
                 )
+                return {
+                    "create_input": create,
+                    "binding_permission": spec.get("permission", "allow"),
+                    "mcp_permissions": spec.get("permissions", []),
+                }
             if kind == "Skill":
                 descriptor = graph.paths[key]
                 manifest = portable_path(

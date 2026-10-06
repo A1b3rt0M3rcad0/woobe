@@ -26,6 +26,38 @@ class SQLAlchemyProjectEnvironmentReader:
         self._uow = uow
         self._encryption_key = encryption_key
 
+    async def inspect_keys(self, *, project_id: UUID, keys: set[str]) -> dict:
+        if not keys:
+            return {}
+        rows = await self._uow.session.execute(
+            text("""
+            SELECT k.id, k.key, k.kind, k.updated_at, v.environment,
+                   v.updated_at AS value_revision
+            FROM core.project_environment_keys k
+            LEFT JOIN core.project_environment_values v ON v.key_id = k.id
+            WHERE k.project_id = :project_id AND k.key IN :keys
+            ORDER BY k.key, v.environment
+        """).bindparams(bindparam("keys", expanding=True)),
+            {"project_id": project_id, "keys": sorted(keys)},
+        )
+        result = {}
+        for row in rows.mappings():
+            item = result.setdefault(
+                row["key"],
+                {
+                    "id": str(row["id"]),
+                    "existing_key": row["key"],
+                    "kind": row["kind"],
+                    "revision": row["updated_at"].isoformat(),
+                    "environments": {},
+                },
+            )
+            if row["environment"] is not None:
+                item["environments"][row["environment"]] = row[
+                    "value_revision"
+                ].isoformat()
+        return result
+
     async def read_values(
         self,
         *,
@@ -47,9 +79,7 @@ class SQLAlchemyProjectEnvironmentReader:
         keys: set[str],
     ) -> None:
         normalized = {
-            normalize_project_environment_key(key)
-            for key in keys
-            if str(key).strip()
+            normalize_project_environment_key(key) for key in keys if str(key).strip()
         }
         if not normalized:
             return

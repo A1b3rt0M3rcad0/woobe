@@ -198,6 +198,7 @@ def inspect_proposed_provider_model(*, project_id, metadata, spec):
         model=spec["model"],
         model_type=spec.get("model_type", "language"),
         spec=spec.get("model_spec_hint"),
+        metadata={"base_url": spec["base_url"]} if spec.get("base_url") else {},
     )
     model = CreateProviderModelUseCase.prepare_definition(input_dto, credential)
     normalized = ModelSpec.from_dict(model.spec)

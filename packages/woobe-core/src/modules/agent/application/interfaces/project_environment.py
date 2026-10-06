@@ -5,6 +5,8 @@ from uuid import UUID
 
 
 class ProjectEnvironmentKeyReader(Protocol):
+    async def inspect_keys(self, *, project_id: UUID, keys: set[str]) -> dict: ...
+
     async def require_keys(
         self,
         *,

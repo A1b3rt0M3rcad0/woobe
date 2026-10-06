@@ -25,7 +25,9 @@ Authenticated endpoints are scoped to `/projects/{project_id}/packages`:
 | POST | `/operations/{operation_id}/resume` | Resume an observed dependency wait at its expected revision |
 
 Capabilities intentionally do not advertise Apply or Export until the native
-materializer, worker registration and end-to-end qualification are complete.
+materializer and end-to-end qualification are complete. The Package operation
+worker is registered, renews its lease during long phases, and automatically
+rechecks waiting native dependencies with a bounded polling interval.
 HTTP intake is bounded before JSON/multipart parsing, including chunked requests;
 upload authorization runs before parsing multipart content.
 
@@ -35,6 +37,15 @@ protected references, never their resolved values or a hash of secret material.
 Apply acceptance revalidates native destination preconditions. Each native effect
 must commit its Package receipt in the same owner transaction. Recovery reuses
 those receipts; a missing receipt cannot be treated as completion.
+
+Current owner phase composition covers inactive Agent preparation and complete
+Draft activation, complete Model resolution, immutable Skill version reuse,
+create-only Project Environment and Secrets, document registration and vector
+build readiness, and fresh MCP discovery with revision-checked commits. The live
+CLI/API/PostgreSQL tests cover planning and native Agent/Skill/protected-binding
+materialization. Network/lifecycle composition, full export, and the complete
+checkpoint-driven CLI import remain under implementation; these tests do not
+establish the complete Agent/Network roundtrip acceptance criterion.
 
 `draft` is the default. Creating a Network must not incidentally activate any
 standalone Agent in Production. Release/Production require explicit audit notes,

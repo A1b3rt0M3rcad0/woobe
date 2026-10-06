@@ -1499,6 +1499,14 @@ class SQLAlchemyAgentInboxRepository(AgentInboxRepository):
 
 class SQLAlchemyAgentToolRepository(ToolRepository):
 
+    async def lock_by_id(self, tool_id: UUID) -> Tool:
+        result = await self._session.execute(select(AgentToolModel).where(AgentToolModel.id == tool_id)
+            .with_for_update().execution_options(populate_existing=True))
+        model = result.scalar_one_or_none()
+        if model is None:
+            raise ToolNotFoundError(tool_id)
+        return model_to_tool(model)
+
     def __init__(self, session: UnitOfWork) -> None:
         self._base = BaseSQLAlchemyRepository(session, AgentToolModel)
         self._session_or_uow: AsyncSession | UnitOfWork = session

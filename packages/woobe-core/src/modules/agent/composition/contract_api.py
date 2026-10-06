@@ -1,4 +1,5 @@
 """Pure public contracts; importing them does not initialize runtime resources."""
+from modules.agent.application.portable_materialization import compile_imported_agent_inputs
 
 from modules.agent.application.dtos.behavior_dtos import BehaviorSpecification
 from modules.agent.application.dtos.rag_config_dtos import (
@@ -24,7 +25,13 @@ from modules.agent.application.portable_definition import (
     portable_skill_identity,
 )
 
+from modules.agent.domain.imported_dependencies import ImportedDependencyPending
+from modules.agent.application.portable_tool_bindings import compile_imported_tool_inputs
+
 __all__ = [
+    "ImportedDependencyPending",
+    "compile_imported_tool_inputs",
+    "compile_imported_agent_inputs",
     "BehaviorSpecification",
     "RAGBuildConfig",
     "RAGRuntimeConfig",
