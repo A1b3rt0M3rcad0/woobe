@@ -759,10 +759,19 @@ async def test_cli_categories_pin_authority_and_preflight_matches_requests(cli):
     cli.project_id = project["id"]
     catalog = await cli.data("permission", "list")
     assert "agent:read" in catalog["permissions"]["project"]
-    category = await cli.data(
-        "workspace", "authority", "category", "create",
-        body={"name": "scoped-reader", "scope": "project", "permissions": ["agent:read"]},
-    )
+    definition = {
+        "schema_version": "2", "workspace_id": cli.workspace_id,
+        "resources": [{"key": "reader", "kind": "AuthorityCategory", "action": "create",
+                       "spec": {"name": "scoped-reader", "scope": "project", "permissions": ["agent:read"]}}],
+    }
+    preflight = await cli.run("manifest", "preflight", "--validate-parameters", "--require-complete", body=definition)
+    assert preflight["data"]["complete"] is True
+    assert preflight["data"]["executed"] is False
+    checkpoint = str(cli.directory / "category-create-checkpoint.json")
+    imported = await cli.run("manifest", "apply", "--validate-body", "--validate-parameters", "--checkpoint", checkpoint, body=definition)
+    category = imported["data"]["results"]["reader"]
+    resumed = await cli.run("manifest", "apply", "--checkpoint", checkpoint, body=definition)
+    assert resumed["data"]["results"]["reader"]["id"] == category["id"]
     category_id = category["id"]
     etag = f'"category:{category_id}:{category["revision"]}"'
     _, reader_key = await cli.issue(
@@ -779,6 +788,23 @@ async def test_cli_categories_pin_authority_and_preflight_matches_requests(cli):
         body={"permissions": ["agent:read", "agent:write"]},
     )
     assert changed["revision"] == 2
+    revision_diff = await cli.run(
+        "workspace", "authority", "category", "diff", category_id, "--from-revision", "1", "--to-revision", "2",
+    )
+    assert revision_diff["data"]["grants_changed"] is False
+    assert [item["field"] for item in revision_diff["data"]["changes"]] == ["permissions"]
+    unchanged_definition = {
+        "schema_version": "2", "workspace_id": cli.workspace_id,
+        "resources": [{"key": "reader", "kind": "AuthorityCategory", "action": "update", "resource_id": category_id,
+                       "if_match": f'"category:{category_id}:2"', "spec": {"permissions": ["agent:write", "agent:read"]}}],
+    }
+    unchanged = await cli.run("manifest", "apply", "--skip-unchanged", "--checkpoint", str(cli.directory / "category-unchanged.json"), body=unchanged_definition)
+    assert unchanged["data"]["steps"]["reader"] == "unchanged"
+    observed = await cli.data("workspace", "authority", "category", "get", category_id)
+    assert observed["revision"] == 2
+    capture = await cli.run("manifest", "capture", "--kind", "AuthorityCategory", "--id", category_id, "--field", "name", "--field", "permissions")
+    assert capture["data"]["document"]["workspace_id"] == cli.workspace_id
+    assert capture["data"]["document"]["resources"][0]["if_match"] == f'"category:{category_id}:2"'
     stale = await cli.run(
         "workspace", "authority", "category", "update", category_id, "--if-match", etag,
         body={"name": "Rejected stale edit"}, expected=6,
