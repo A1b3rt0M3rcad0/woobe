@@ -53,6 +53,8 @@ from woobe_api.http.identity.authority_routes import router as authority_router
 from woobe_api.http.metering.routes import router as metering_router
 from woobe_api.http.network.routes import router as network_router
 from woobe_api.http.observability.routes import router as observability_router
+from woobe_api.http.package.routes import router as package_router
+from woobe_api.middleware.package_limits import PackageBodyLimitsMiddleware
 from woobe_api.http.shared.errors import (
     authentication_handler,
     authorization_handler,
@@ -162,6 +164,7 @@ def create_app() -> FastAPI:
         max_request_bytes=settings.request_max_bytes,
     )
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=trusted_hosts)
+    app.add_middleware(PackageBodyLimitsMiddleware)
 
     @app.middleware("http")
     async def cors_safe_guard(request: Request, call_next):
@@ -287,6 +290,7 @@ def create_app() -> FastAPI:
         app.include_router(metering_router)
         app.include_router(observability_router)
         app.include_router(network_router)
+        app.include_router(package_router)
     finally:
         app.router.dependencies.remove(security_dependency)
 

@@ -56,7 +56,19 @@ class RAGRuntimeAdapter:
         )
         request = RAGRequest(
             query=query,
-            config=RAGRetrievalConfig.model_validate(binding.config.model_dump()),
+            config=RAGRetrievalConfig.model_validate(
+                binding.config.model_dump(include=set(RAGRetrievalConfig.model_fields))
+            ),
+            strategy_config=self._registry.validate_configuration(
+                binding.strategy,
+                getattr(binding.config, "strategy_config", {}),
+                schema_version=getattr(
+                    binding.config, "strategy_config_schema_version", "1"
+                ),
+            ),
+            strategy_config_schema_version=getattr(
+                binding.config, "strategy_config_schema_version", "1"
+            ),
             vector_snapshot_id=binding.snapshot.id,
             snapshot_documents=binding.snapshot_documents,
         )
@@ -78,11 +90,7 @@ class RAGRuntimeAdapter:
             raise
 
         metadata.update(
-            {
-                key: value
-                for key, value in result.metrics.items()
-                if key not in metadata
-            }
+            {key: value for key, value in result.metrics.items() if key not in metadata}
         )
         return RAGResult(
             context=result.context,

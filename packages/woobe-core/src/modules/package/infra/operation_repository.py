@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 import hmac
@@ -16,11 +17,13 @@ from modules.package.domain.operations import (
 )
 from modules.package.infra.models import (
     PackageOperationModel,
+    PackageEffectModel,
     PackagePlanModel,
     PackageUploadModel,
 )
 from modules.package.infra.receipts import authorize_phase
 from shared.infra.admin_idempotency import principal_identity
+from shared.presentation.contracts import OperationResult
 from shared.infra.crypto import decrypt_secret, encrypt_secret
 from shared.security.principal import AuthenticatedPrincipal, ControlPlanePrincipal
 
@@ -163,7 +166,7 @@ class PackageOperationRepository:
                 )
             # Owner revisions, capability identities and bindings are rechecked
             # in the acceptance transaction against the pinned plan.
-            await self.plan_validator(session, plan, payload)
+            await self.plan_validator(session, plan, payload, principal=principal)
             record = PackageOperationModel(
                 project_id=project_id,
                 actor=identity,
@@ -351,3 +354,68 @@ class PackageOperationRepository:
             record.revision += 1
             await session.flush()
             return record
+
+    async def load_work(self, operation_id, lease_token):
+        async with self.session_factory() as session:
+            operation = await session.get(PackageOperationModel, operation_id)
+            if (
+                operation is None
+                or operation.lease_token != lease_token
+                or operation.lease_until is None
+                or as_utc(operation.lease_until) <= datetime.now(UTC)
+            ):
+                raise PackageError(
+                    "PACKAGE_OPERATION_FENCED",
+                    "Operation no longer accepts this worker",
+                )
+            principal = decode_principal(
+                operation.principal_ciphertext, self.encryption_key
+            )
+            await self._authorize(session, principal, operation, write=True)
+            plan = await session.get(PackagePlanModel, operation.plan_id)
+            upload = await session.get(PackageUploadModel, operation.upload_id)
+            if (
+                plan is None
+                or upload is None
+                or plan.project_id != operation.project_id
+                or upload.project_id != operation.project_id
+                or plan.artifact_digest != operation.artifact_digest
+                or upload.artifact_digest != operation.artifact_digest
+            ):
+                raise PackageError(
+                    "PACKAGE_ARTIFACT_CHANGED",
+                    "Accepted artifact evidence is unavailable",
+                )
+            effects = (
+                (
+                    await session.execute(
+                        select(PackageEffectModel).where(
+                            PackageEffectModel.operation_id == operation.id
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            receipts = {
+                effect.phase: OperationResult.model_validate_json(
+                    decrypt_secret(effect.response_ciphertext, self.encryption_key)
+                )
+                for effect in effects
+            }
+            payload = json.loads(
+                decrypt_secret(operation.payload_ciphertext, self.encryption_key)
+            )
+            return PackageOperationWork(
+                operation, principal, plan.document, upload, payload, receipts
+            )
+
+
+@dataclass(frozen=True)
+class PackageOperationWork:
+    operation: PackageOperationModel
+    principal: object
+    plan: dict
+    upload: PackageUploadModel
+    payload: dict
+    receipts: dict

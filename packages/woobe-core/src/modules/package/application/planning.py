@@ -63,6 +63,13 @@ def validate_binding_coverage(requirements: dict, bindings: dict) -> dict:
     validate_document(bindings, "import-bindings.yaml")
     if bindings["kind"] != "ImportBindings":
         raise PackageError("PACKAGE_BINDINGS_INVALID", "Expected ImportBindings")
+    for group in ("credentials", "project_environment", "secrets", "knowledge"):
+        field = "key" if group == "project_environment" else "ref"
+        names = [entry[field] for entry in requirements.get(group, [])]
+        if len(names) != len(set(names)):
+            raise PackageError(
+                "PACKAGE_REQUIREMENT_DUPLICATE", "Destination requirement is duplicated"
+            )
     supplied = bindings["spec"]
     expected = {
         "credentials": {item["ref"] for item in requirements.get("credentials", [])},
@@ -221,6 +228,32 @@ class PlanPackageUseCase:
                 append(f"draft:{key}", "finalize_agent_draft", key, "agent:version")
                 effects[-1]["required_permissions"] = ["agent:version", "agent:write"]
             elif kind == "Network":
+                selectors = {}
+                for node in document["spec"]["nodes"]:
+                    source = node.get("binding", {}).get("source", "draft")
+                    previous = selectors.get(node["agent_ref"], "draft")
+                    selectors[node["agent_ref"]] = (
+                        "release"
+                        if "release" in {source, previous}
+                        else "staging"
+                        if "staging" in {source, previous}
+                        else "draft"
+                    )
+                for agent_key, source in sorted(selectors.items()):
+                    if source != "draft":
+                        append(
+                            f"node-staging:{key}:{agent_key}",
+                            "create_staging",
+                            agent_key,
+                            "agent:version",
+                        )
+                    if source == "release":
+                        append(
+                            f"node-release:{key}:{agent_key}",
+                            "create_immutable_release",
+                            agent_key,
+                            "agent:version",
+                        )
                 append(
                     f"network:{key}",
                     "prepare_network",
@@ -251,6 +284,11 @@ class PlanPackageUseCase:
                 permission,
                 owner=owner,
             )
+            if owner == "network":
+                effects[-1]["required_permissions"] = [
+                    "network:version",
+                    "agent:version",
+                ]
             if lifecycle in {"release", "production"}:
                 append(
                     f"release:{entry['ref']}",
@@ -304,6 +342,12 @@ class PlanPackageUseCase:
             "bindings": bindings,
             "binding_resolutions": resolutions,
             "inspections": inspected,
+            "source_definition": {
+                "manifest": graph.manifest,
+                "components": graph.components,
+                "paths": graph.paths,
+                "order": list(graph.order),
+            },
             "lifecycle": lifecycle,
             "release_notes": release_notes,
             "reason": reason,

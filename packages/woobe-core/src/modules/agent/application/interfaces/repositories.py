@@ -35,6 +35,10 @@ class ProviderCredentialRepository(ABC):
     @abstractmethod
     async def get_by_id(self, credential_id: UUID) -> ProviderCredential | None: ...
 
+    async def lock_by_id(self, credential_id: UUID) -> ProviderCredential | None:
+        """Implementations must reserve this identity until the owner transaction ends."""
+        raise NotImplementedError("Credential row locking is required for imported models")
+
     @abstractmethod
     async def list_by_project(
         self, project_id: UUID

@@ -119,6 +119,17 @@ def create_tool_composer() -> TransactionalHandler:
     return TransactionalHandler(uow, controller.handle)
 
 
+
+def materialize_imported_tool_composer() -> TransactionalHandler:
+    """Persist only native definition/outbox; discover MCP outside this SQL scope."""
+    uow = AgentUnitOfWork(DATABASE_ENGINE)
+    use_case = CreateToolUseCase(
+        SQLAlchemyAgentToolRepository(uow),
+        SQLAlchemyAgentOutboxEventWriter(uow),
+        project_environment_key_validator=_project_environment(uow).require_keys,
+    )
+    return TransactionalHandler(uow, CreateToolController(use_case).handle)
+
 def update_tool_composer() -> TransactionalHandler:
     uow = AgentUnitOfWork(DATABASE_ENGINE)
     tool_repo = SQLAlchemyAgentToolRepository(uow)

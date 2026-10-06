@@ -66,3 +66,15 @@ def test_strategy_schema_resolution_never_fetches_remote_documents():
     )
     with pytest.raises(ValidationError, match="cannot be resolved"):
         validate_strategy_configuration(external, {}, schema_version="1")
+
+
+def test_rag_strategies_own_versioned_config_and_reject_ignored_fields():
+    from modules.agent.application.rag.registry import build_rag_strategy_registry
+
+    descriptor = build_rag_strategy_registry().describe("classic")
+    assert descriptor.as_dict()["config_schema_version"] == "1"
+    assert validate_strategy_configuration(descriptor, {}, schema_version="1") == {}
+    with pytest.raises(ValidationError):
+        validate_strategy_configuration(
+            descriptor, {"ignored": True}, schema_version="1"
+        )

@@ -23,6 +23,13 @@ def test_rag_strategy_catalog_is_derived_from_registered_runtime_strategies() ->
                 "immutable Knowledge snapshot."
             ),
             "is_default": True,
+            "config_schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {},
+                "additionalProperties": False,
+            },
+            "config_schema_version": "1",
         },
     )
 
@@ -51,5 +58,12 @@ async def test_rag_strategy_catalog_route_uses_api_envelope() -> None:
                 "immutable Knowledge snapshot."
             ),
             "is_default": True,
+            "config_schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {},
+                "additionalProperties": False,
+            },
+            "config_schema_version": "1",
         }
     ]

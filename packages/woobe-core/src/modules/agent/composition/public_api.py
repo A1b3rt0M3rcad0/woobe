@@ -1,3 +1,6 @@
+from modules.agent.composition.composers.tools_composers import materialize_imported_tool_composer
+from modules.agent.composition.composers.resolve_imported_model_composer import resolve_imported_model_composer
+from modules.agent.composition.composers.inspect_destination_bindings_composer import inspect_destination_bindings_composer
 from modules.agent.composition.composers.finalize_imported_agent_composer import finalize_imported_agent_composer
 from modules.agent.composition.composers.inspect_provider_model_definition_composer import inspect_provider_model_definition_composer
 from modules.agent.application.dtos.ai_dtos import CreateReleaseInput
@@ -323,7 +326,9 @@ from modules.agent.composition.composers.public_runtime_composers import (
 
 
 __all__ = [
+    'inspect_destination_bindings_composer',
     'finalize_imported_agent_composer',
+    'resolve_imported_model_composer',
     "inspect_provider_model_definition_composer",
     "CreateReleaseInput",
     'McpOAuthStartInput',
@@ -421,6 +426,7 @@ __all__ = [
     'create_secret_composer',
     'create_session_composer',
     'create_tool_composer',
+    'materialize_imported_tool_composer',
     'create_vector_snapshot_composer',
     'CreateVectorSnapshotInput',
     'credential_usage_composer',

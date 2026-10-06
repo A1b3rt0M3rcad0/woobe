@@ -12,6 +12,10 @@ class ProviderModelRepository(ABC):
     @abstractmethod
     async def get_by_id(self, provider_model_id: UUID) -> ProviderModel | None: ...
 
+    async def lock_by_id(self, provider_model_id: UUID) -> ProviderModel | None:
+        """Reserve mutable reuse preconditions within the owner transaction."""
+        raise NotImplementedError("Model row locking is required for imported models")
+
     @abstractmethod
     async def list_by_project(self, project_id: UUID) -> list[ProviderModel]: ...
 

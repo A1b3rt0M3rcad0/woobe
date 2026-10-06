@@ -1,3 +1,6 @@
+from modules.agent.composition.public_api import materialize_imported_tool_composer
+from modules.agent.composition.public_api import resolve_imported_model_composer
+from modules.agent.composition.public_api import inspect_destination_bindings_composer
 from modules.agent.composition.public_api import finalize_imported_agent_composer
 from modules.agent.composition.public_api import inspect_provider_model_definition_composer
 from modules.agent.composition.public_api import CreateReleaseInput
@@ -195,7 +198,9 @@ from modules.agent.composition.factories.rag_runtime_factory import (
 )
 
 __all__ = [
+    'inspect_destination_bindings_composer',
     'finalize_imported_agent_composer',
+    'resolve_imported_model_composer',
     "inspect_provider_model_definition_composer",
     "CreateReleaseInput",
     'McpOAuthStartInput',
@@ -295,6 +300,7 @@ __all__ = [
     'create_secret_composer',
     'create_session_composer',
     'create_tool_composer',
+    'materialize_imported_tool_composer',
     'create_vector_snapshot_composer',
     'CreateVectorSnapshotInput',
     'credential_usage_composer',

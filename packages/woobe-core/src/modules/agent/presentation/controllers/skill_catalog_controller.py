@@ -80,16 +80,19 @@ class SkillCatalogController:
                 project_id, UUID(str(request.path_params["skill_version_id"]))
             )
             data = {**version_summary(version), **version.snapshot()}
-        elif operation in {"create", "add_version"}:
+        elif operation in {"create", "add_version", "resolve_import"}:
             incoming = ImportSkillInput.model_validate(request.body)
-            if operation == "create":
+            if operation == "resolve_import":
+                version, created = await self._catalog.resolve_import(project_id, incoming)
+            elif operation == "create":
                 version = await self._catalog.create(project_id, incoming)
             else:
                 version = await self._catalog.add_version(
                     project_id, UUID(str(request.path_params["skill_id"])), incoming
                 )
             data = {**version_summary(version), **version.snapshot()}
-            created = True
+            if operation != "resolve_import":
+                created = True
         else:
             raise ValueError("Unknown Skill catalog operation")
         return OperationResult(

@@ -16,6 +16,12 @@ from modules.agent.application.portable_definition import (
     inspect_portable_skill,
     inspect_portable_tool,
     portable_definition_capabilities,
+    inspect_proposed_provider_model,
+    inspect_portable_network_external_context,
+    inspect_portable_agent_capabilities,
+    inspect_portable_knowledge,
+    inspect_portable_version_definition,
+    portable_skill_identity,
 )
 
 __all__ = [
@@ -31,4 +37,10 @@ __all__ = [
     "inspect_portable_skill",
     "inspect_portable_tool",
     "portable_definition_capabilities",
+    "inspect_proposed_provider_model",
+    "inspect_portable_network_external_context",
+    "inspect_portable_agent_capabilities",
+    "inspect_portable_knowledge",
+    "inspect_portable_version_definition",
+    "portable_skill_identity",
 ]

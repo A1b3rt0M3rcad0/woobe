@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 ChunkingStrategy = Literal["recursive_text", "paragraph", "markdown_headings"]
@@ -15,6 +15,7 @@ ParserVersion = Literal["2"]
 
 
 class RAGParserConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     implementation: ParserImplementation = "woobe-document-parser"
     version: ParserVersion = "2"
     normalize_whitespace: bool = True
@@ -23,6 +24,7 @@ class RAGParserConfig(BaseModel):
 
 
 class RAGChunkingConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     preset: ChunkingPreset = "balanced"
     strategy: ChunkingStrategy = "recursive_text"
     chunk_size: int = Field(default=800, ge=200, le=4000)
@@ -63,9 +65,12 @@ class RAGRetrievalConfig(BaseModel):
 class RAGRuntimeConfig(RAGRetrievalConfig):
     """Canonical Knowledge/RAG configuration persisted in Agent runtime_config.rag."""
 
+    model_config = ConfigDict(extra="forbid")
+
     query_mode: QueryMode = "conversation_context"
     history_turns: int = Field(default=3, ge=1, le=10)
     strategy: str = Field(default="classic", min_length=1, max_length=64)
+    strategy_config_schema_version: str = "1"
     strategy_config: dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("strategy")
@@ -78,6 +83,7 @@ class RAGRuntimeConfig(RAGRetrievalConfig):
 
 
 class RAGBuildConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     parser: RAGParserConfig = RAGParserConfig()
     chunking: RAGChunkingConfig = RAGChunkingConfig()
 

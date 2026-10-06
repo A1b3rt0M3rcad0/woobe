@@ -901,6 +901,11 @@
             "title": "Strategy Config",
             "type": "object"
           },
+          "strategy_config_schema_version": {
+            "default": "1",
+            "title": "Strategy Config Schema Version",
+            "type": "string"
+          },
           "top_k": {
             "default": 5,
             "maximum": 20,

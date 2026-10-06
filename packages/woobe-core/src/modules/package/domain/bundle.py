@@ -168,6 +168,16 @@ def resolve_graph(manifest: dict, documents: dict[str, dict]) -> PackageGraph:
         )
     adjacency = {}
     requirements = manifest["spec"].get("requires", {})
+    for group in ("credentials", "project_environment", "secrets", "knowledge"):
+        field = "key" if group == "project_environment" else "ref"
+        aliases = [item[field] for item in requirements.get(group, [])]
+        if len(aliases) != len(set(aliases)):
+            raise PackageError(
+                "PACKAGE_REQUIREMENT_DUPLICATE",
+                "Destination requirement is duplicated",
+                path=f"/spec/requires/{group}",
+            )
+    knowledge_requirements = {item["ref"] for item in requirements.get("knowledge", [])}
     credential_requirements = {}
     for requirement in requirements.get("credentials", []):
         if requirement["ref"] in credential_requirements:
@@ -249,6 +259,15 @@ def resolve_graph(manifest: dict, documents: dict[str, dict]) -> PackageGraph:
                 raise PackageError(
                     "PACKAGE_KNOWLEDGE_INVALID",
                     "Binding Knowledge must contain only a destination requirement",
+                    file=paths[key],
+                )
+            if (
+                spec["mode"] == "binding"
+                and spec["binding"]["ref"] not in knowledge_requirements
+            ):
+                raise PackageError(
+                    "PACKAGE_REQUIREMENT_NOT_FOUND",
+                    "Knowledge binding must declare a destination requirement",
                     file=paths[key],
                 )
     order = topological_order(

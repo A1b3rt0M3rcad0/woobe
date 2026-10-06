@@ -34,7 +34,8 @@ class ProviderModelModel(BaseModel):
             "project_id",
             "provider_credential_id",
             "model",
-            name="uq_provider_models_project_credential_model",
+            "spec_hash",
+            name="uq_provider_models_project_credential_spec",
         ),
         Index("ix_provider_models_project_id", "project_id"),
         Index("ix_provider_models_credential_id", "provider_credential_id"),
@@ -141,6 +142,16 @@ class SQLAlchemyProviderModelRepository(
         self, provider_model_id: UUID
     ) -> ProviderModel | None:
         model = await self._get_model_by_id(provider_model_id)
+        return _to_entity(model) if model else None
+
+    async def lock_by_id(self, provider_model_id: UUID) -> ProviderModel | None:
+        result = await self._session.execute(
+            select(ProviderModelModel)
+            .where(ProviderModelModel.id == provider_model_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        model = result.scalar_one_or_none()
         return _to_entity(model) if model else None
 
     async def list_by_project(self, project_id: UUID) -> list[ProviderModel]:

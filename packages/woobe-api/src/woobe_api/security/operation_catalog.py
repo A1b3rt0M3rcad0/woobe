@@ -11,6 +11,14 @@ from shared.security.control_plane import (
 
 # Explicitly reviewed method/template pairs. Never derive authority from a prefix.
 _REVIEWED = [
+    ("GET", "/projects/{project_id}/packages/capabilities", "project:read"),
+    ("POST", "/projects/{project_id}/packages/uploads", "project:read"),
+    ("GET", "/projects/{project_id}/packages/uploads/{upload_id}", "project:read"),
+    ("POST", "/projects/{project_id}/packages/plan", "project:read"),
+    ("GET", "/projects/{project_id}/packages/operations/{operation_id}", "project:read"),
+    ("POST", "/projects/{project_id}/packages/operations/lookup", "project:read"),
+    ("POST", "/projects/{project_id}/packages/operations/{operation_id}/resume", "project:read"),
+    ("POST", "/projects/{project_id}/packages/operations/{operation_id}/cancel", "project:read"),
     (
         "GET",
         "/identity/workspaces/{workspace_id}/authority-categories",

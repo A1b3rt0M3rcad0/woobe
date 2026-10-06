@@ -6,7 +6,6 @@ from uuid import UUID
 
 from modules.agent.application.dtos.rag_config_dtos import (
     RAGRetrievalConfig,
-    RAGRuntimeConfig,
 )
 from modules.agent.application.dtos.runtime_dtos import SourceInfo
 
@@ -51,9 +50,11 @@ class RAGRequest:
     """Immutable input presented to one RAG strategy invocation."""
 
     query: str
-    config: RAGRuntimeConfig
+    config: RAGRetrievalConfig
     vector_snapshot_id: UUID
     snapshot_documents: tuple[Any, ...]
+    strategy_config: Mapping[str, Any] = field(default_factory=dict)
+    strategy_config_schema_version: str = "1"
 
 
 @dataclass(frozen=True, slots=True)
@@ -87,3 +88,7 @@ class RAGStrategyResolver(Protocol):
     """Resolve a configured RAG strategy without exposing registry implementation."""
 
     def resolve(self, name: str) -> RAGStrategy: ...
+
+    def validate_configuration(
+        self, name: str, value: dict, *, schema_version: str
+    ) -> dict: ...

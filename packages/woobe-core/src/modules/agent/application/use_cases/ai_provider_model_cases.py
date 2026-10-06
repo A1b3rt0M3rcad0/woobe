@@ -234,6 +234,11 @@ class CreateProviderModelUseCase:
             input_dto.provider_credential_id,
             input_dto.project_id,
         )
+        return self.prepare_definition(input_dto, credential), credential
+
+    @staticmethod
+    def prepare_definition(input_dto: CreateProviderModelInput, credential: ProviderCredential) -> ProviderModel:
+        """Canonical definition preparation shared by create and protected-binding previews."""
         normalized_name = input_dto.name.strip()
         normalized_model = input_dto.model.strip()
         if not normalized_name:
@@ -272,7 +277,7 @@ class CreateProviderModelUseCase:
             spec = _apply_model_spec_overrides(spec, metadata)
         _apply_normalized_spec(item, spec)
 
-        return item, credential
+        return item
 
     async def _load_active_credential(self, credential_id: UUID, project_id: UUID):
         credential = await self._credential_repo.get_by_id(credential_id)

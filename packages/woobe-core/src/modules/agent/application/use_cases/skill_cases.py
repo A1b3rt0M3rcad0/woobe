@@ -7,7 +7,7 @@ from modules.agent.application.skill_packages import (
     parse_skill_package,
 )
 from modules.agent.domain.skills import Skill, SkillVersion, skill_package_hash
-from shared.contracts.errors import NotFoundError, ValidationError
+from shared.contracts.errors import ConflictError, NotFoundError, ValidationError
 
 
 class SkillCatalog:
@@ -28,6 +28,44 @@ class SkillCatalog:
                 package_hash=skill_package_hash(package),
             )
         )
+
+    async def resolve_import(
+        self, project_id: UUID, data: ImportSkillInput
+    ) -> tuple[SkillVersion, bool]:
+        """Reuse a complete immutable native package, never a coincidental name."""
+        package = parse_skill_package(data)
+        digest = skill_package_hash(package)
+        offset = 0
+        while True:
+            page = await self._repository.list_skills(
+                project_id, query=package["name"], offset=offset, limit=100
+            )
+            for summary in page:
+                if summary.skill.name != package["name"]:
+                    continue
+                version_offset = 0
+                while True:
+                    versions = await self._repository.list_versions(
+                        project_id, summary.skill.id, offset=version_offset, limit=100
+                    )
+                    for version in versions:
+                        if version.version == data.version:
+                            if (
+                                version.package_hash == digest
+                                and version.package == package
+                            ):
+                                return version, False
+                            raise ConflictError(
+                                "Imported Skill version differs from its installed immutable package"
+                            )
+                    if len(versions) < 100:
+                        break
+                    version_offset += 100
+                return await self.add_version(project_id, summary.skill.id, data), True
+            if len(page) < 100:
+                break
+            offset += 100
+        return await self.create(project_id, data), True
 
     async def add_version(
         self, project_id: UUID, skill_id: UUID, data: ImportSkillInput

@@ -1,0 +1,1 @@
+"""Portable Package HTTP adapter."""

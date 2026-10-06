@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from modules.network.application.portable_definition import inspect_portable_network_definition
+
 from copy import deepcopy
 from datetime import datetime, timezone
 from typing import Any
@@ -38,6 +40,14 @@ class NetworkApplicationService:
         self._hard_max_depth = hard_max_depth
         self._hard_max_invocations = hard_max_invocations
         self._hard_timeout_seconds = hard_timeout_seconds
+
+    def package_capabilities(self) -> dict:
+        return {"max_depth": self._hard_max_depth, "max_invocations": self._hard_max_invocations,
+                "timeout_seconds": self._hard_timeout_seconds, "tool_result_max_chars": 64_000}
+
+    def inspect_portable_definition(self, spec: dict) -> dict:
+        return inspect_portable_network_definition(spec, hard_max_depth=self._hard_max_depth,
+                    hard_max_invocations=self._hard_max_invocations, hard_timeout_seconds=self._hard_timeout_seconds)
 
     async def ensure_network(self, project_id: UUID, name: str) -> NetworkModel:
         async with self._session_factory() as session:
@@ -670,4 +680,3 @@ class NetworkApplicationService:
                 )
             else:
                 execution.status = "cancel_requested"
-
