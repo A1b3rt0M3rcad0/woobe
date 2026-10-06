@@ -109,6 +109,8 @@ async function installApi(page: Page, options?: { freshCore?: boolean }) {
       const networkId = path.split('/').at(-1)
       const network = networks.find((item) => item.id === networkId)
       await respond(route, network ?? null, network ? 200 : 404)
+    } else if (/^\/network\/[^/]+\/runtime-environments$/.test(path)) {
+      await respond(route, { draft: { enabled: true }, staging: { enabled: false }, production: { enabled: false } })
     } else if (/^\/network\/[^/]+\/management\/(versions|activations)$/.test(path)) {
       await respond(route, [])
     } else if (/^\/network\/[^/]+\/sessions$/.test(path)) {
@@ -134,9 +136,9 @@ test('bootstraps the first Woobe Core owner', async ({ page }) => {
   await page.goto('/register')
   await page.getByPlaceholder('you@company.com').fill(user.email)
   await page.getByPlaceholder('At least 6 characters').fill('ReleaseGate123!')
-  await page.getByRole('button', { name: 'Create account' }).click()
+  await page.getByRole('button', { name: 'Create workspace' }).click()
   await expect(page).toHaveURL(/\/workspaces\/workspace-a\/setup/)
-  await expect(page.getByText('Woobe', { exact: true }).first()).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Create the Project for your Agent' })).toBeVisible()
 })
 
 test('opens a Project without edition-specific billing navigation', async ({ page }) => {
@@ -151,11 +153,10 @@ test('lists and opens multiple Agent Networks', async ({ page }) => {
   await installApi(page)
   await login(page)
   await page.goto(`/workspaces/${workspace.id}/projects/${project.id}/networks`)
-  await expect(page.getByRole('heading', { name: 'Networks' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Networks', level: 1 })).toBeVisible()
   await expect(page.getByText('Customer Support', { exact: true })).toBeVisible()
   await expect(page.getByText('Customer Onboarding', { exact: true })).toBeVisible()
-  await page.locator('article').filter({ hasText: 'Customer Support' })
-    .getByRole('button', { name: 'Open workspace' }).click()
+  await page.getByRole('button', { name: 'Open Network workspace for Customer Support' }).click()
   await expect(page).toHaveURL(/\/networks\/network-support$/)
 })
 
@@ -168,4 +169,72 @@ test('does not expose a foreign Project through routing', async ({ page }) => {
   })
   expect(result.status).toBe(404)
   expect(result.body).toMatchObject({ success: false, message: 'Resource not found' })
+})
+
+test('owner creates, copies, rotates and revokes a CLI key in Workspace settings', async ({ page }) => {
+  await installApi(page)
+  const secret = 'woobe_control_browser_test_secret'
+  const keyPath = `/core/workspaces/${workspace.id}/control-keys`
+  const headers: Record<string, string>[] = []
+  let keys: Record<string, unknown>[] = []
+  const metadata = {
+    id: 'key-a', name: 'My workstation', description: null, key_prefix: 'woobe_control_prefix',
+    status: 'active', permissions: ['workspace:read'], project_grants: [],
+    on_project_create_permissions: [], created_at: now, expires_at: null,
+    etag: '"control-key:key-a:1"',
+  }
+  await page.route('**/identity/access/me*', (route) => respond(route, {
+    permissions: ['workspace:read', 'keys:read', 'keys:create', 'keys:rotate', 'keys:revoke', 'agent:read'], conditions: {},
+  }))
+  await page.route('**/identity/permissions', (route) => respond(route, {
+    permissions: { workspace: ['workspace:read'], project: ['agent:read'] },
+  }))
+  await page.route(`**/core/workspaces/${workspace.id}/project-access`, (route) => respond(route, [project]))
+  await page.route(new RegExp(`${keyPath}(?:/.*)?$`), async (route) => {
+    const request = route.request()
+    const path = new URL(request.url()).pathname
+    if (request.method() === 'GET') return respond(route, keys)
+    headers.push(request.headers())
+    if (path.endsWith('/rotate')) {
+      keys = [{ ...metadata, status: 'revoked' }, { ...metadata, id: 'key-b', etag: '"control-key:key-b:2"' }]
+      return respond(route, { ...keys[1], key: `${secret}_rotated` }, 201)
+    }
+    if (path.endsWith('/revoke')) {
+      keys = keys.map((key) => ({ ...key, status: 'revoked' }))
+      return respond(route, keys[1])
+    }
+    expect(request.postDataJSON()).toMatchObject({ name: 'My workstation', permissions: ['workspace:read'], project_grants: [] })
+    keys = [metadata]
+    return respond(route, { ...metadata, key: secret }, 201)
+  })
+  await login(page)
+  await page.getByRole('button', { name: /Workspace settings/ }).click()
+  const dialog = page.getByRole('dialog')
+  await dialog.getByRole('button', { name: 'CLI Keys', exact: true }).click()
+  await dialog.getByRole('button', { name: 'Create CLI key' }).click()
+  await dialog.getByLabel('Name', { exact: true }).fill('My workstation')
+  await dialog.locator('summary').filter({ hasText: 'Workspace permissions' }).click()
+  await dialog.getByLabel('workspace:read', { exact: true }).check()
+  await page.screenshot({ path: test.info().outputPath('workspace-cli-keys.png') })
+  await dialog.getByRole('button', { name: 'Create key', exact: true }).click()
+  await expect(dialog.getByText(secret, { exact: true })).toBeVisible()
+  await expect(dialog.getByRole('button', { name: 'Copy Control Key' })).toBeVisible()
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: new URL(page.url()).origin })
+  await dialog.getByRole('button', { name: 'Copy Control Key' }).click()
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(secret)
+  await dialog.getByRole('button', { name: 'I saved the key' }).click()
+  await expect(dialog.getByText(secret, { exact: true })).toHaveCount(0)
+  await dialog.getByRole('button', { name: 'Rotate My workstation' }).click()
+  await dialog.getByRole('button', { name: 'Confirm rotation' }).click()
+  await expect(dialog.getByText(`${secret}_rotated`, { exact: true })).toBeVisible()
+  await dialog.getByRole('button', { name: 'Overview', exact: true }).click()
+  await dialog.getByRole('button', { name: 'CLI Keys', exact: true }).click()
+  await expect(dialog.getByText(`${secret}_rotated`, { exact: true })).toHaveCount(0)
+  await dialog.getByRole('button', { name: 'Revoke My workstation' }).click()
+  await dialog.getByRole('button', { name: 'Confirm revocation' }).click()
+  await expect(dialog.getByRole('button', { name: 'Revoke My workstation' })).toHaveCount(0)
+  expect(headers[0]['idempotency-key']).toBeTruthy()
+  expect(headers[1]['if-match']).toBe(metadata.etag)
+  expect(headers[1]['idempotency-key']).toBeTruthy()
+  expect(headers[2]['if-match']).toBe('"control-key:key-b:2"')
 })

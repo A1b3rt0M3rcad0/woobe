@@ -39,6 +39,21 @@ the current catalog revision and are expanded into concrete permissions when a
 revision is created. They do not authorize future catalog additions.
 
 Control Keys are managed at `/core/workspaces/{workspace_id}/control-keys`.
+The browser exposes this management under **Workspace settings → CLI Keys**.
+Workspace owners and admins with the required effective key permissions can
+list, create, rotate and revoke keys there. Creation uses the live permission
+catalog and separate Project grants; no permissions are selected by default.
+Existing assignment restrictions are carried into delegated Project grants.
+The backend remains authoritative for every issuance and mutation.
+
+Issued secrets are revealed only in the current view and are excluded from
+frontend query/mutation caches and development payload logs. Copy the secret
+before dismissing that view; closing the modal, switching tabs or changing
+Workspace removes the view. The panel provides credential import and Workspace
+context commands for `woobe-cli`. Rotations replace the secret immediately;
+rotation and revocation use the observed strong ETag. Project Runtime Keys
+remain separate credentials for Agent and Network execution.
+
 Workspace permissions and Project grants are separate. A grant can copy a
 category revision and its conditions. Later changes to the category do not
 silently change issued keys or human assignments. Grant and assignment provenance

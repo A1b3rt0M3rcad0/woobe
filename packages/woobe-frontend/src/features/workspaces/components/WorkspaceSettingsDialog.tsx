@@ -40,8 +40,9 @@ import {
 } from '@/features/projects/hooks'
 import type { Invite, Member } from '@/features/workspaces/types'
 import type { ProjectAccessSubject } from '@/features/projects/types'
+import { WorkspaceCliKeys } from '@/features/control-keys/WorkspaceCliKeys'
 
-type SettingsTab = 'overview' | 'people' | 'access'
+type SettingsTab = 'overview' | 'people' | 'access' | 'cli-keys'
 type SettingsView = 'main' | 'invite' | 'remove'
 
 interface WorkspaceSettingsDialogProps {
@@ -444,6 +445,7 @@ export function WorkspaceSettingsDialog({ open, onClose, workspaceId }: Workspac
             { value: 'overview', label: 'Overview' },
             { value: 'people', label: `People (${peopleCount})` },
             { value: 'access', label: 'Project Access' },
+            { value: 'cli-keys', label: 'CLI Keys' },
           ]}
           value={tab}
           onValueChange={(value) => setTab(value as SettingsTab)}
@@ -455,6 +457,7 @@ export function WorkspaceSettingsDialog({ open, onClose, workspaceId }: Workspac
       {tab === 'overview' ? overview : null}
       {tab === 'people' ? people : null}
       {tab === 'access' ? projectAccess : null}
+      {open && tab === 'cli-keys' ? <WorkspaceCliKeys key={workspaceId} workspaceId={workspaceId} projects={projects} /> : null}
     </div>
   ) : null
 

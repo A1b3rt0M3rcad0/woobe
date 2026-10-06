@@ -24,6 +24,7 @@ const CSRF_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 interface RequestOptions {
   headers?: Record<string, string>
   params?: Record<string, string | number | undefined>
+  sensitive?: boolean
 }
 
 interface ApiEnvelope<T> {
@@ -201,7 +202,7 @@ async function request<T>(
   }
 
   if (import.meta.env.DEV) {
-    const maybeBody = body ? JSON.stringify(body).slice(0, 200) : ''
+    const maybeBody = !options?.sensitive && body ? JSON.stringify(body).slice(0, 200) : ''
     console.log(`[API] ${method} ${path} → ${res.status}${maybeBody ? ` ${maybeBody}` : ''}`)
   }
 
@@ -231,7 +232,7 @@ async function request<T>(
   try {
     data = await res.json()
     rememberCsrf(data?.data)
-    if (import.meta.env.DEV && res.ok) {
+    if (import.meta.env.DEV && res.ok && !options?.sensitive) {
       const bodyPreview = JSON.stringify(data?.data).slice(0, 100)
       console.log(`[API] ${method} ${path} → OK${bodyPreview ? ` ${bodyPreview}` : ''}`)
     }
@@ -254,7 +255,7 @@ async function request<T>(
         : res.status >= 500 ? `Server error: ${method} ${path}`
         : `Request failed with status ${res.status}`)
     if (import.meta.env.DEV) {
-      console.error(`[API] ERROR ${method} ${path} → ${res.status}: ${errorMsg}`, data)
+      console.error(`[API] ERROR ${method} ${path} → ${res.status}: ${errorMsg}`, options?.sensitive ? '[REDACTED]' : data)
     }
     throw new ApiError(errorMsg, res.status, data?.data)
   }
