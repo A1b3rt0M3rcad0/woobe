@@ -14,7 +14,7 @@ from pathlib import Path
 import socket
 import sys
 from datetime import UTC, datetime, timedelta
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import httpx
 import pytest
@@ -32,7 +32,7 @@ from shared.security.control_plane import (
     WORKSPACE_CONTROL_PERMISSIONS,
 )
 
-CLI_COMMIT = "c7209fc7c9026ff03c1d71fd8f9a6459556a212a"
+CLI_COMMIT = "8c90273e9e1bf1871a3fc85f67e5fbfa6f7494c7"
 
 
 class Cli:
@@ -783,7 +783,7 @@ async def test_cli_categories_pin_authority_and_preflight_matches_requests(cli):
     tool_factory = create_session_factory(tool_engine)
     try:
         async with tool_factory() as session:
-            session.add(AgentToolModel(id=tool_id, project_id=cli.project_id, name="CLI MCP permissions", type="mcp", config={
+            session.add(AgentToolModel(id=tool_id, project_id=UUID(cli.project_id), name="CLI MCP permissions", type="mcp", config={
                 "protocol": "mcp", "discovered_tools": [
                     {"name":"search", "permission":{"mode":"review"}},
                     {"name":"write", "permission":{"mode":"deny"}},
