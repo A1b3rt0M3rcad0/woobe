@@ -1,4 +1,9 @@
 from modules.agent.application.dtos import (
+    CreatePromptInput,
+    CreateContractInput,
+    UpdateContractInput,
+)
+from modules.agent.application.dtos import (
     CreateProviderCredentialInput,
     UpdateProviderCredentialInput,
     CreateProviderModelInput,
@@ -266,6 +271,9 @@ from modules.agent.composition.composers.public_runtime_composers import (
 
 
 __all__ = [
+    'CreatePromptInput',
+    'CreateContractInput',
+    'UpdateContractInput',
     'CreateProviderCredentialInput',
     'UpdateProviderCredentialInput',
     'CreateProviderModelInput',

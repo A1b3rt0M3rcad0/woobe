@@ -1,4 +1,9 @@
 from modules.agent.composition.public_api import (
+    CreatePromptInput,
+    CreateContractInput,
+    UpdateContractInput,
+)
+from modules.agent.composition.public_api import (
     CreateProviderCredentialInput,
     UpdateProviderCredentialInput,
     CreateProviderModelInput,
@@ -144,6 +149,9 @@ from modules.agent.composition.factories.rag_runtime_factory import (
 )
 
 __all__ = [
+    'CreatePromptInput',
+    'CreateContractInput',
+    'UpdateContractInput',
     'CreateProviderCredentialInput',
     'UpdateProviderCredentialInput',
     'CreateProviderModelInput',

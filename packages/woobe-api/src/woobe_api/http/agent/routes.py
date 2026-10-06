@@ -1,3 +1,4 @@
+from modules.agent.entrypoint import (CreatePromptInput,CreateContractInput,UpdateContractInput)
 from modules.agent.entrypoint import (CreateProviderCredentialInput,UpdateProviderCredentialInput,CreateProviderModelInput,UpdateProviderModelInput)
 from modules.agent.entrypoint import (CreateAgentInput,UpdateAgentInput)
 from woobe_api.http.shared.openapi_contracts import request_body_contract
@@ -165,7 +166,7 @@ async def delete_agent(request: FastAPIRequest):
     return response_adapter(response)
 
 
-@router.post("/agents/{agent_id}/prompts", status_code=201)
+@router.post("/agents/{agent_id}/prompts", status_code=201, openapi_extra=request_body_contract(CreatePromptInput, "/ai/agents/{agent_id}/prompts", "post", required=True))
 async def create_prompt(request: FastAPIRequest):
     handler = create_prompt_version_composer()
     response = await request_adapter(request, handler)
@@ -186,14 +187,14 @@ async def get_prompt(request: FastAPIRequest):
     return response_adapter(response)
 
 
-@router.post("/agents/{agent_id}/contracts", status_code=201)
+@router.post("/agents/{agent_id}/contracts", status_code=201, openapi_extra=request_body_contract(CreateContractInput, "/ai/agents/{agent_id}/contracts", "post", required=True))
 async def create_contract(request: FastAPIRequest):
     handler = create_contract_version_composer()
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
-@router.patch("/agents/{agent_id}/contracts/{contract_id}")
+@router.patch("/agents/{agent_id}/contracts/{contract_id}", openapi_extra=request_body_contract(UpdateContractInput, "/ai/agents/{agent_id}/contracts/{contract_id}", "patch", required=False))
 async def update_contract(request: FastAPIRequest):
     handler = update_contract_version_composer()
     response = await request_adapter(request, handler)
