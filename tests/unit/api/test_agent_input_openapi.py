@@ -52,7 +52,13 @@ CONTRACT_OPTIONS['promote_release'] = {'required': False}
 
 CONTRACT_OPTIONS['rollback_release'] = {'required': False}
 
+CONTRACT_OPTIONS['ask'] = {'required': True}
+
+CONTRACT_OPTIONS['ask_stream'] = {'required': True}
+
 CONTRACTS = [
+    ('ask_stream', 'AskInput', '/runtime/ask/stream', 'post'),
+    ('ask', 'AskInput', '/runtime/ask', 'post'),
     ('rollback_release', 'RollbackReleaseInput', '/ai/agents/{agent_id}/releases/{release_id}/rollback', 'post'),
     ('promote_release', 'PromoteReleaseInput', '/ai/agents/{agent_id}/releases/{release_id}/promote', 'post'),
     ('rotate_provider_credential', 'RotateProviderCredentialInput', '/ai/credentials/{credential_id}/rotate', 'post'),

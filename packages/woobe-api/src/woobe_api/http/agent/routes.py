@@ -1,3 +1,4 @@
+from modules.agent.entrypoint import (AskInput)
 from modules.agent.entrypoint import (PromoteReleaseInput, RollbackReleaseInput)
 from modules.agent.entrypoint import (UpdateToolStatusInput, TestToolInput, ExecuteToolInput)
 from modules.agent.entrypoint import (UpdateCollectionInput, CreateKnowledgeVersionInput)
@@ -450,14 +451,14 @@ async def list_agent_sessions(request: FastAPIRequest):
     return response_adapter(response)
 
 
-@runtime_router.post("/ask")
+@runtime_router.post("/ask", openapi_extra=request_body_contract(AskInput, '/runtime/ask', 'post', required=True))
 async def ask(request: FastAPIRequest):
     handler = ask_agent_composer()
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
-@runtime_router.post("/ask/stream")
+@runtime_router.post("/ask/stream", openapi_extra=request_body_contract(AskInput, '/runtime/ask/stream', 'post', required=True))
 async def ask_stream(request: FastAPIRequest):
     controller = AskAgentStreamController(*build_agent_stream_components())
     return await controller.handle(request)
