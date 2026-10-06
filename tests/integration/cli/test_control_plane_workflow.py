@@ -278,7 +278,7 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
     credential = await cli.data(
         "project",
         "provider-credential",
-        "create",
+        "create", "--validate-body",
         body={
             "project_id": cli.project_id,
             "provider": "custom",
@@ -295,7 +295,7 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
     model = await cli.data(
         "project",
         "provider-model",
-        "create",
+        "create", "--validate-body",
         body={
             "project_id": cli.project_id,
             "provider_credential_id": credential["id"],
@@ -318,7 +318,7 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
     agent = await cli.data(
         "project",
         "agent",
-        "create",
+        "create", "--validate-body",
         "--idempotency-key",
         "agent-create",
         body=agent_body,
@@ -334,7 +334,7 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
     assert agent["id"] == agent_replay["id"]
     agent_id = agent["id"]
     await cli.data(
-        "project", "agent", "update", agent_id, body={"name": "Configured through CLI"}
+        "project", "agent", "update", agent_id, "--validate-body", "--validate-parameters", body={"name": "Configured through CLI"}
     )
     draft = await cli.data(
         "project",
@@ -452,7 +452,7 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
     )
     sessions_all = await cli.run(
         "runtime", "agent", "sessions", agent_id, "--query", "environment=staging",
-        "--limit", "1", "--all", key=session_reader,
+        "--limit", "1", "--all", "--validate-parameters", key=session_reader,
     )
     assert sessions_all["meta"]["complete"] is True
     sessions = [
