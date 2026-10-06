@@ -1,3 +1,4 @@
+from modules.agent.composition.public_api import (UpdateMcpToolPermissionsInput, BulkUpdateMcpToolPermissionsInput)
 from modules.agent.composition.public_api import (McpDiscoverInput, RefreshMcpProviderToolsInput)
 from modules.agent.composition.public_api import (UpdateToolStatusInput, TestToolInput, ExecuteToolInput)
 from modules.agent.composition.public_api import (UpdateCollectionInput, CreateKnowledgeVersionInput)
@@ -175,6 +176,9 @@ from modules.agent.composition.factories.rag_runtime_factory import (
 )
 
 __all__ = [
+    'UpdateMcpToolPermissionsInput',
+    'BulkUpdateMcpToolPermissionsInput',
+
     'McpDiscoverInput',
     'RefreshMcpProviderToolsInput',
 

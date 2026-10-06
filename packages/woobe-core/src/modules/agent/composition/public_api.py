@@ -1,3 +1,5 @@
+from modules.agent.application.dtos.mcp_permission_dtos import UpdateMcpToolPermissionsInput
+from modules.agent.application.dtos.mcp_permission_dtos import BulkUpdateMcpToolPermissionsInput
 from modules.agent.application.dtos.mcp_discovery_dtos import McpDiscoverInput
 from modules.agent.application.dtos.mcp_tool_refresh_dtos import RefreshMcpProviderToolsInput
 from modules.agent.application.dtos.tools_dtos import UpdateToolStatusInput
@@ -301,6 +303,9 @@ from modules.agent.composition.composers.public_runtime_composers import (
 
 
 __all__ = [
+    'UpdateMcpToolPermissionsInput',
+    'BulkUpdateMcpToolPermissionsInput',
+
     'McpDiscoverInput',
     'RefreshMcpProviderToolsInput',
 

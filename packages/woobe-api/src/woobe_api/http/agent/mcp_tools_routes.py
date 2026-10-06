@@ -1,3 +1,4 @@
+from modules.agent.entrypoint import (UpdateMcpToolPermissionsInput, BulkUpdateMcpToolPermissionsInput)
 from modules.agent.entrypoint import (McpDiscoverInput, RefreshMcpProviderToolsInput)
 from woobe_api.http.shared.openapi_contracts import request_body_contract
 from fastapi import APIRouter, Request as FastAPIRequest
@@ -33,14 +34,14 @@ async def refresh_mcp_tools(request: FastAPIRequest):
     return response_adapter(response)
 
 
-@router.patch("/mcp/permissions")
+@router.patch("/mcp/permissions", openapi_extra=request_body_contract(UpdateMcpToolPermissionsInput, '/tools/mcp/permissions', 'patch', required=False))
 async def update_mcp_permissions(request: FastAPIRequest):
     handler = update_mcp_tool_permissions_composer()
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
-@router.post("/mcp/permissions/bulk")
+@router.post("/mcp/permissions/bulk", openapi_extra=request_body_contract(BulkUpdateMcpToolPermissionsInput, '/tools/mcp/permissions/bulk', 'post', required=True))
 async def bulk_update_mcp_permissions(request: FastAPIRequest):
     handler = bulk_update_mcp_tool_permissions_composer()
     response = await request_adapter(request, handler)

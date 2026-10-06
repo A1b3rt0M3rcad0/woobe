@@ -30,7 +30,13 @@ CONTRACT_OPTIONS['discover_mcp_tools'] = {'required': True}
 
 CONTRACT_OPTIONS['refresh_mcp_tools'] = {'required': True}
 
+CONTRACT_OPTIONS['update_mcp_permissions'] = {'required': False}
+
+CONTRACT_OPTIONS['bulk_update_mcp_permissions'] = {'required': True}
+
 CONTRACTS = [
+    ('bulk_update_mcp_permissions', 'BulkUpdateMcpToolPermissionsInput', '/tools/mcp/permissions/bulk', 'post'),
+    ('update_mcp_permissions', 'UpdateMcpToolPermissionsInput', '/tools/mcp/permissions', 'patch'),
     ('refresh_mcp_tools', 'RefreshMcpProviderToolsInput', '/tools/mcp/refresh', 'post'),
     ('discover_mcp_tools', 'McpDiscoverInput', '/tools/mcp/discover', 'post'),
     ('tools_execute_tool', 'ExecuteToolInput', '/tools/tools/execute', 'post'),
