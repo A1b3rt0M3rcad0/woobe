@@ -1,3 +1,4 @@
+from modules.identity.application.dtos.identity_dtos import UpdateWorkspaceInput
 """Explicit transport-neutral public surface for Identity hosts."""
 
 from modules.identity.infra.services.authentication_service import AuthenticationService
@@ -24,6 +25,7 @@ from modules.identity.composition.composers.update_workspace_composer import (
 from modules.identity.domain.enums import MemberRole
 
 __all__ = [
+    "UpdateWorkspaceInput",
     "build_authority_service",
     "AuthenticationService",
     "CreateWorkspaceInput",

@@ -1,3 +1,4 @@
+from modules.identity.entrypoint import UpdateWorkspaceInput
 from modules.identity.entrypoint import LoginInput, RegisterInput, CreateWorkspaceInput
 from woobe_api.http.shared.openapi_contracts import request_body_contract
 from uuid import UUID
@@ -162,7 +163,7 @@ async def get_workspace(request: FastAPIRequest, workspace_id: str):
     return response_adapter(response)
 
 
-@router.patch("/workspaces/{workspace_id}")
+@router.patch("/workspaces/{workspace_id}", openapi_extra=request_body_contract(UpdateWorkspaceInput, "/identity/workspaces/{workspace_id}", "patch"))
 async def update_workspace(request: FastAPIRequest, workspace_id: str):
     await _workspace_access(request).require_admin(
         _principal_user_id(request),

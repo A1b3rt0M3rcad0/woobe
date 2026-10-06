@@ -1,3 +1,4 @@
+from modules.identity.composition.public_api import UpdateWorkspaceInput
 from modules.identity.composition.public_api import (
     build_authority_service,
     AuthenticationService,
@@ -16,6 +17,7 @@ from modules.identity.composition.public_api import (
 )
 
 __all__ = [
+    "UpdateWorkspaceInput",
     "build_authority_service",
     "AuthenticationService",
     "CreateWorkspaceInput",
