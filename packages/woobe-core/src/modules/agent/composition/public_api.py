@@ -1,3 +1,8 @@
+from modules.agent.application.dtos.tools_dtos import (
+    CreateToolInput,
+    UpdateToolInput,
+    CreateSecretInput,
+)
 from modules.agent.application.dtos import (
     CreateSessionInput,
     SendMessageInput,
@@ -288,6 +293,9 @@ from modules.agent.composition.composers.public_runtime_composers import (
 
 
 __all__ = [
+    'CreateToolInput',
+    'UpdateToolInput',
+    'CreateSecretInput',
     'CreateSessionInput',
     'SendMessageInput',
     'CreateAskJobInput',

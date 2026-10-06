@@ -10,6 +10,10 @@ from woobe_api.http.shared.openapi_contracts import request_body_contract
 
 
 CONTRACTS = [
+    ('tools_create_tool', 'CreateToolInput', '/tools/tools', 'post'),
+    ('tools_update_tool', 'UpdateToolInput', '/tools/tools/{tool_id}', 'patch'),
+    ('tools_create_secret', 'CreateSecretInput', '/tools/secrets', 'post'),
+
     ('create_session', 'CreateSessionInput', '/runtime/sessions', 'post'),
     ('send_message', 'SendMessageInput', '/runtime/messages', 'post'),
     ('create_ask_job', 'CreateAskJobInput', '/runtime/ask/jobs', 'post'),
@@ -43,6 +47,7 @@ def test_agent_input_schema_uses_the_same_public_dto(endpoint, model_name, path,
     app.include_router(routes.router)
     app.include_router(routes.knowledge_router)
     app.include_router(routes.runtime_router)
+    app.include_router(routes.tools_router)
     model = getattr(entrypoint, model_name)
     expected = request_body_contract(model, path, method, required=method != "patch")
     operation = app.openapi()["paths"][path][method]

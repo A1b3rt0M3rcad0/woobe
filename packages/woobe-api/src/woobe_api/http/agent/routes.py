@@ -1,3 +1,4 @@
+from modules.agent.entrypoint import (CreateToolInput,UpdateToolInput,CreateSecretInput)
 from modules.agent.entrypoint import (CreateSessionInput,SendMessageInput,CreateAskJobInput)
 from modules.agent.entrypoint import (UploadDocumentInput,SearchChunksInput)
 from modules.agent.entrypoint import (CreateCollectionInput,AttachCollectionInput)
@@ -489,14 +490,14 @@ async def tools_list_tools(request: FastAPIRequest):
     return response_adapter(response)
 
 
-@tools_router.post("/tools")
+@tools_router.post("/tools", openapi_extra=request_body_contract(CreateToolInput, "/tools/tools", "post", required=True))
 async def tools_create_tool(request: FastAPIRequest):
     handler = create_tool_composer()
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
-@tools_router.patch("/tools/{tool_id}")
+@tools_router.patch("/tools/{tool_id}", openapi_extra=request_body_contract(UpdateToolInput, "/tools/tools/{tool_id}", "patch", required=False))
 async def tools_update_tool(request: FastAPIRequest):
     handler = update_tool_composer()
     response = await request_adapter(request, handler)
@@ -563,7 +564,7 @@ async def tools_list_secrets(request: FastAPIRequest):
     return response_adapter(response)
 
 
-@tools_router.post("/secrets")
+@tools_router.post("/secrets", openapi_extra=request_body_contract(CreateSecretInput, "/tools/secrets", "post", required=True))
 async def tools_create_secret(request: FastAPIRequest):
     handler = create_secret_composer()
     response = await request_adapter(request, handler)
