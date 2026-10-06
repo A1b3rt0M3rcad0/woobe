@@ -1,3 +1,7 @@
+from modules.agent.application.dtos import (
+    CreateAgentInput,
+    UpdateAgentInput,
+)
 """Explicit transport-neutral public surface for Agent hosts."""
 
 from modules.agent.composition.composers.skill_catalog_composer import skill_catalog_composer
@@ -256,6 +260,8 @@ from modules.agent.composition.composers.public_runtime_composers import (
 
 
 __all__ = [
+    'CreateAgentInput',
+    'UpdateAgentInput',
     'archive_credential_composer',
     'archive_provider_model_composer',
     "skill_catalog_composer",

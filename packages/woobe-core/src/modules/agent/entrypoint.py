@@ -1,4 +1,8 @@
 from modules.agent.composition.public_api import (
+    CreateAgentInput,
+    UpdateAgentInput,
+)
+from modules.agent.composition.public_api import (
     skill_catalog_composer,
     SETTINGS,
     AskInput,
@@ -134,6 +138,8 @@ from modules.agent.composition.factories.rag_runtime_factory import (
 )
 
 __all__ = [
+    'CreateAgentInput',
+    'UpdateAgentInput',
     'archive_credential_composer',
     'archive_provider_model_composer',
     "skill_catalog_composer",

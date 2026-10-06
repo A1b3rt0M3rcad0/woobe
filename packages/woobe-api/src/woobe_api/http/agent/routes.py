@@ -1,3 +1,5 @@
+from modules.agent.entrypoint import (CreateAgentInput,UpdateAgentInput)
+from woobe_api.http.shared.openapi_contracts import request_body_contract
 from uuid import UUID
 
 from fastapi import APIRouter, File, Form, Request as FastAPIRequest, UploadFile
@@ -123,7 +125,7 @@ async def update_provider_model(request: FastAPIRequest):
     return response_adapter(response)
 
 
-@router.post("/agents")
+@router.post("/agents", openapi_extra=request_body_contract(CreateAgentInput, "/ai/agents", "post", required=True))
 async def create_agent(request: FastAPIRequest):
     handler = create_agent_composer()
     response = await request_adapter(request, handler)
@@ -144,7 +146,7 @@ async def get_agent(request: FastAPIRequest):
     return response_adapter(response)
 
 
-@router.patch("/agents/{agent_id}")
+@router.patch("/agents/{agent_id}", openapi_extra=request_body_contract(UpdateAgentInput, "/ai/agents/{agent_id}", "patch", required=False))
 async def update_agent(request: FastAPIRequest):
     handler = update_agent_composer()
     response = await request_adapter(request, handler)
