@@ -1,4 +1,9 @@
 from modules.agent.application.dtos import (
+    CreateSessionInput,
+    SendMessageInput,
+    CreateAskJobInput,
+)
+from modules.agent.application.dtos import (
     UploadDocumentInput,
     SearchChunksInput,
 )
@@ -283,6 +288,9 @@ from modules.agent.composition.composers.public_runtime_composers import (
 
 
 __all__ = [
+    'CreateSessionInput',
+    'SendMessageInput',
+    'CreateAskJobInput',
     'UploadDocumentInput',
     'SearchChunksInput',
     'CreateCollectionInput',

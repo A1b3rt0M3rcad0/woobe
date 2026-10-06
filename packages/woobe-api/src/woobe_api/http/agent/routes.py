@@ -1,3 +1,4 @@
+from modules.agent.entrypoint import (CreateSessionInput,SendMessageInput,CreateAskJobInput)
 from modules.agent.entrypoint import (UploadDocumentInput,SearchChunksInput)
 from modules.agent.entrypoint import (CreateCollectionInput,AttachCollectionInput)
 from modules.agent.entrypoint import (CreateModelConfigInput,CreateReleaseTestInput)
@@ -423,7 +424,7 @@ async def list_knowledge_versions(request: FastAPIRequest):
 runtime_router = APIRouter(prefix="/runtime", tags=["runtime", "agent"])
 
 
-@runtime_router.post("/sessions")
+@runtime_router.post("/sessions", openapi_extra=request_body_contract(CreateSessionInput, "/runtime/sessions", "post", required=True))
 async def create_session(request: FastAPIRequest):
     handler = create_session_composer()
     response = await request_adapter(request, handler)
@@ -450,7 +451,7 @@ async def ask_stream(request: FastAPIRequest):
     return await controller.handle(request)
 
 
-@runtime_router.post("/ask/jobs", status_code=201)
+@runtime_router.post("/ask/jobs", status_code=201, openapi_extra=request_body_contract(CreateAskJobInput, "/runtime/ask/jobs", "post", required=True))
 async def create_ask_job(request: FastAPIRequest):
     handler = create_ask_job_composer()
     response = await request_adapter(request, handler)
@@ -471,7 +472,7 @@ async def list_messages(request: FastAPIRequest):
     return response_adapter(response)
 
 
-@runtime_router.post("/messages")
+@runtime_router.post("/messages", openapi_extra=request_body_contract(SendMessageInput, "/runtime/messages", "post", required=True))
 async def send_message(request: FastAPIRequest):
     handler = send_message_composer()
     response = await request_adapter(request, handler)

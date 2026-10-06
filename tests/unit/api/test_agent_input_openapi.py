@@ -10,6 +10,10 @@ from woobe_api.http.shared.openapi_contracts import request_body_contract
 
 
 CONTRACTS = [
+    ('create_session', 'CreateSessionInput', '/runtime/sessions', 'post'),
+    ('send_message', 'SendMessageInput', '/runtime/messages', 'post'),
+    ('create_ask_job', 'CreateAskJobInput', '/runtime/ask/jobs', 'post'),
+
     ('upload_document', 'UploadDocumentInput', '/knowledge/documents', 'post'),
     ('search_chunks', 'SearchChunksInput', '/knowledge/search', 'post'),
 
