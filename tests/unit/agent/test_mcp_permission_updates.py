@@ -31,3 +31,26 @@ async def test_modes_are_persisted_and_reported(mode):
     result=await UpdateMcpToolPermissionsUseCase(repo).execute(UpdateMcpToolPermissionsInput(tool_id=repo.tool.id, permissions=[{"remote_tool_name":"search","mode":mode}]))
     assert repo.writes==1 and result.permissions[0].mode==mode
     assert result.permissions[1].mode=="deny"
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("invalid", ["http", "empty", "malformed", "duplicate"])
+async def test_bulk_refuses_invalid_provider_without_writes(invalid):
+    repo=Repository()
+    if invalid=="http":
+        repo.tool.type=ToolType.HTTP;repo.tool.config={}
+    elif invalid=="empty": repo.tool.config["discovered_tools"]=[]
+    elif invalid=="malformed": repo.tool.config["discovered_tools"].append({})
+    else: repo.tool.config["discovered_tools"].append(deepcopy(repo.tool.config["discovered_tools"][0]))
+    before=deepcopy(repo.tool.config)
+    with pytest.raises(ValueError):
+        await BulkUpdateMcpToolPermissionsUseCase(repo).execute(BulkUpdateMcpToolPermissionsInput(tool_id=repo.tool.id,mode="allow"))
+    assert repo.writes==0 and repo.tool.config==before
+
+@pytest.mark.asyncio
+async def test_bulk_review_resets_all_modes_without_exposing_tools():
+    repo=Repository()
+    result=await BulkUpdateMcpToolPermissionsUseCase(repo).execute(BulkUpdateMcpToolPermissionsInput(tool_id=repo.tool.id,mode="review"))
+    assert repo.writes==1
+    assert all(item.mode=="review" and item.risk_level=="unknown" for item in result.permissions)
+    from modules.agent.domain.mcp_permissions import allowed_mcp_discovered_tools
+    assert allowed_mcp_discovered_tools(repo.tool.config)==[]

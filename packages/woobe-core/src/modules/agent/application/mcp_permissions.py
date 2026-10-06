@@ -10,6 +10,7 @@ from modules.agent.application.dtos.mcp_permission_dtos import (
 )
 from modules.agent.application.interfaces.mcp_readiness import build_mcp_readiness
 from modules.agent.application.interfaces.repositories import ToolRepository
+from modules.agent.domain.enums import ToolType
 from modules.agent.domain.mcp_permissions import (
     MCP_PERMISSION_ALLOW,
     MCP_PERMISSION_DENY,
@@ -27,6 +28,19 @@ from modules.agent.domain.mcp_permissions import (
 
 def write_mcp_readiness(config: dict) -> None:
     config["mcp_readiness"] = build_mcp_readiness(config)
+
+
+def _provider_config(tool) -> tuple[dict, list[dict]]:
+    config = dict(tool.config or {})
+    if tool.type != ToolType.MCP and config.get("protocol") != "mcp":
+        raise ValueError("MCP permissions require an MCP provider")
+    raw = config.get("discovered_tools")
+    tools = normalize_discovered_tools(raw)
+    if not isinstance(raw, list) or not tools or len(raw) != len(tools):
+        raise ValueError("MCP permissions require valid discovered remote tools")
+    if len({item["name"] for item in tools}) != len(tools):
+        raise ValueError("MCP discovery contains ambiguous remote tool names")
+    return config, tools
 
 
 def _permissions_output(
@@ -57,8 +71,7 @@ class UpdateMcpToolPermissionsUseCase:
         tool = await self._tool_repo.get_by_id(input_dto.tool_id)
         if tool is None:
             raise ValueError("MCP provider tool not found")
-        config = dict(tool.config or {})
-        discovered_tools = normalize_discovered_tools(config.get("discovered_tools"))
+        config, discovered_tools = _provider_config(tool)
         by_name = {item["name"]: item for item in discovered_tools}
         if len(by_name) != len(discovered_tools):
             raise ValueError("MCP discovery contains ambiguous remote tool names")
@@ -88,8 +101,7 @@ class BulkUpdateMcpToolPermissionsUseCase:
         tool = await self._tool_repo.get_by_id(input_dto.tool_id)
         if tool is None:
             raise ValueError("MCP provider tool not found")
-        config = dict(tool.config or {})
-        discovered_tools = normalize_discovered_tools(config.get("discovered_tools"))
+        config, discovered_tools = _provider_config(tool)
         for item in discovered_tools:
             next_permission = {"mode": input_dto.mode}
             if input_dto.risk_level:
