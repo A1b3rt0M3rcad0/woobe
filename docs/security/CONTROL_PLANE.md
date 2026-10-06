@@ -214,3 +214,26 @@ session messages. Message pages use offset 0..1,000,000 and limit 1..1000.
 Skill imports and catalog paging, and the six existing MCP OAuth operation bodies,
 are advertised without moving parsing ahead of authorization. Custom validators,
 network readiness and OAuth success still require backend evaluation.
+
+## Complete CLI discovery contracts
+
+The pinned client discovery has a server operation for each of its 190 HTTP
+commands. Adapter-based routes advertise missing path placeholders as strings;
+explicit DTO and typed handler constraints remain intact. The existing
+`/ai/context-assemblers` alias is included in discovery alongside the canonical
+context manager catalog.
+
+Project edits, environment values, invitations, Project access, key issuance,
+key credential edits and Agent release creation advertise their consumed inputs.
+API key rotation advertises its existing optional body and supports the CLI's
+bodyless invocation. Principal-derived key actors are omitted from client body
+schemas; controllers continue to derive them from authentication. Commands whose
+controllers ignore a body advertise an optional object rather than invented
+domain fields. Schema preflight does not bypass authentication, authorization,
+custom DTO validators or resource lifecycle checks.
+
+Project edits update the persisted row rather than reinserting its primary key.
+Each successful edit emits a distinct transactional outbox event, allowing
+successive edits without violating event deduplication constraints. The live CLI
+acceptance verifies successive edits and preservation of Project identity and
+creation time.

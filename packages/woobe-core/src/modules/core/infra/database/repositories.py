@@ -33,8 +33,18 @@ class SQLAlchemyProjectRepository(
         super().__init__(session, ProjectModel)
 
     async def save(self, project: Project) -> Project:
-        model = project_entity_to_model(project)
-        await self._add_model(model)
+        model = await self._get_model_by_id(project.id)
+        if model is None:
+            model = project_entity_to_model(project)
+            await self._add_model(model)
+        else:
+            model.workspace_id = project.workspace_id
+            model.name = project.name
+            model.slug = project.slug
+            model.status = project.status.value
+            model.data = project.data
+            if project.updated_at is not None:
+                model.updated_at = project.updated_at
         await self._flush()
         await self._refresh_model(model)
         return project_model_to_entity(model)

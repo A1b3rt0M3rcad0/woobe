@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from woobe_api.http.shared.openapi_contracts import bodyless_command_contract
+
 from collections.abc import AsyncIterator
 from uuid import UUID
 
@@ -296,7 +298,9 @@ async def list_network_session_messages(
     return {"success": True, "data": messages}
 
 
-@router.post("/{network_id}/sessions/{network_session_id}/reset-context")
+@router.post("/{network_id}/sessions/{network_session_id}/reset-context",
+    openapi_extra=bodyless_command_contract(),
+)
 async def reset_network_session_context(
     network_id: UUID,
     network_session_id: UUID,

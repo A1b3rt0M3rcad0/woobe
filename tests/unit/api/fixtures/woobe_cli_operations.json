@@ -1,0 +1,1145 @@
+{
+  "cli_commit": "8c90273e9e1bf1871a3fc85f67e5fbfa6f7494c7",
+  "operations": [
+    {
+      "command": "auth invite accept",
+      "method": "POST",
+      "path": "/identity/invites/{invite_id}/accept",
+      "body_required": false
+    },
+    {
+      "command": "auth invite list",
+      "method": "GET",
+      "path": "/identity/invites/pending",
+      "body_required": false
+    },
+    {
+      "command": "auth login",
+      "method": "POST",
+      "path": "/identity/auth/login",
+      "body_required": true
+    },
+    {
+      "command": "auth refresh",
+      "method": "POST",
+      "path": "/identity/auth/refresh",
+      "body_required": false
+    },
+    {
+      "command": "auth register",
+      "method": "POST",
+      "path": "/identity/auth/register",
+      "body_required": true
+    },
+    {
+      "command": "auth status",
+      "method": "GET",
+      "path": "/identity/users/me",
+      "body_required": false
+    },
+    {
+      "command": "instance bootstrap",
+      "method": "POST",
+      "path": "/identity/instance/bootstrap",
+      "body_required": true
+    },
+    {
+      "command": "instance status",
+      "method": "GET",
+      "path": "/identity/instance/status",
+      "body_required": false
+    },
+    {
+      "command": "permission check",
+      "method": "POST",
+      "path": "/identity/access/check",
+      "body_required": true
+    },
+    {
+      "command": "permission effective",
+      "method": "GET",
+      "path": "/identity/access/me",
+      "body_required": false
+    },
+    {
+      "command": "permission explain",
+      "method": "POST",
+      "path": "/identity/access/check",
+      "body_required": true
+    },
+    {
+      "command": "permission list",
+      "method": "GET",
+      "path": "/identity/permissions",
+      "body_required": false
+    },
+    {
+      "command": "project access grant",
+      "method": "POST",
+      "path": "/core/projects/{project_id}/access",
+      "body_required": true
+    },
+    {
+      "command": "project access revoke",
+      "method": "DELETE",
+      "path": "/core/projects/{project_id}/access/{subject_type}/{subject_id}",
+      "body_required": false
+    },
+    {
+      "command": "project agent contract create",
+      "method": "POST",
+      "path": "/ai/agents/{agent_id}/contracts",
+      "body_required": true
+    },
+    {
+      "command": "project agent contract get",
+      "method": "GET",
+      "path": "/ai/agents/{agent_id}/contracts/{contract_id}",
+      "body_required": false
+    },
+    {
+      "command": "project agent contract list",
+      "method": "GET",
+      "path": "/ai/agents/{agent_id}/contracts",
+      "body_required": false
+    },
+    {
+      "command": "project agent contract update",
+      "method": "PATCH",
+      "path": "/ai/agents/{agent_id}/contracts/{contract_id}",
+      "body_required": true
+    },
+    {
+      "command": "project agent create",
+      "method": "POST",
+      "path": "/ai/agents",
+      "body_required": true
+    },
+    {
+      "command": "project agent environment list",
+      "method": "GET",
+      "path": "/ai/agents/{agent_id}/runtime-environments",
+      "body_required": false
+    },
+    {
+      "command": "project agent environment update",
+      "method": "PATCH",
+      "path": "/ai/agents/{agent_id}/runtime-environments/{environment}",
+      "body_required": true
+    },
+    {
+      "command": "project agent get",
+      "method": "GET",
+      "path": "/ai/agents/{agent_id}",
+      "body_required": false
+    },
+    {
+      "command": "project agent knowledge bind",
+      "method": "POST",
+      "path": "/knowledge/agent-collections",
+      "body_required": true
+    },
+    {
+      "command": "project agent knowledge list",
+      "method": "GET",
+      "path": "/knowledge/agent-collections",
+      "body_required": false
+    },
+    {
+      "command": "project agent knowledge unbind",
+      "method": "DELETE",
+      "path": "/knowledge/agent-collections/{link_id}",
+      "body_required": false
+    },
+    {
+      "command": "project agent knowledge version-create",
+      "method": "POST",
+      "path": "/knowledge/agents/{agent_id}/knowledge-versions",
+      "body_required": true
+    },
+    {
+      "command": "project agent knowledge version-list",
+      "method": "GET",
+      "path": "/knowledge/agents/{agent_id}/knowledge-versions",
+      "body_required": false
+    },
+    {
+      "command": "project agent list",
+      "method": "GET",
+      "path": "/ai/agents",
+      "body_required": false
+    },
+    {
+      "command": "project agent model-config create",
+      "method": "POST",
+      "path": "/ai/agents/{agent_id}/model-configs",
+      "body_required": true
+    },
+    {
+      "command": "project agent model-config get",
+      "method": "GET",
+      "path": "/ai/agents/{agent_id}/model-configs/{config_id}",
+      "body_required": false
+    },
+    {
+      "command": "project agent model-config list",
+      "method": "GET",
+      "path": "/ai/agents/{agent_id}/model-configs",
+      "body_required": false
+    },
+    {
+      "command": "project agent prompt create",
+      "method": "POST",
+      "path": "/ai/agents/{agent_id}/prompts",
+      "body_required": true
+    },
+    {
+      "command": "project agent prompt get",
+      "method": "GET",
+      "path": "/ai/agents/{agent_id}/prompts/{version_id}",
+      "body_required": false
+    },
+    {
+      "command": "project agent prompt list",
+      "method": "GET",
+      "path": "/ai/agents/{agent_id}/prompts",
+      "body_required": false
+    },
+    {
+      "command": "project agent release activations",
+      "method": "GET",
+      "path": "/ai/agents/{agent_id}/release-activations",
+      "body_required": false
+    },
+    {
+      "command": "project agent release create",
+      "method": "POST",
+      "path": "/ai/agents/{agent_id}/releases",
+      "body_required": true
+    },
+    {
+      "command": "project agent release delete",
+      "method": "DELETE",
+      "path": "/ai/agents/{agent_id}/releases/{release_id}",
+      "body_required": false
+    },
+    {
+      "command": "project agent release get",
+      "method": "GET",
+      "path": "/ai/agents/{agent_id}/releases/{release_id}",
+      "body_required": false
+    },
+    {
+      "command": "project agent release list",
+      "method": "GET",
+      "path": "/ai/agents/{agent_id}/releases",
+      "body_required": false
+    },
+    {
+      "command": "project agent release promote",
+      "method": "POST",
+      "path": "/ai/agents/{agent_id}/releases/{release_id}/promote",
+      "body_required": true
+    },
+    {
+      "command": "project agent release rollback",
+      "method": "POST",
+      "path": "/ai/agents/{agent_id}/releases/{release_id}/rollback",
+      "body_required": true
+    },
+    {
+      "command": "project agent release test",
+      "method": "POST",
+      "path": "/ai/agents/{agent_id}/release-tests",
+      "body_required": true
+    },
+    {
+      "command": "project agent release tests",
+      "method": "GET",
+      "path": "/ai/agents/{agent_id}/releases/{release_id}/tests",
+      "body_required": false
+    },
+    {
+      "command": "project agent tool list",
+      "method": "GET",
+      "path": "/tools/agents/{agent_id}/tools",
+      "body_required": false
+    },
+    {
+      "command": "project agent update",
+      "method": "PATCH",
+      "path": "/ai/agents/{agent_id}",
+      "body_required": true
+    },
+    {
+      "command": "project agent usage daily",
+      "method": "GET",
+      "path": "/metering/agents/{agent_id}/daily",
+      "body_required": false
+    },
+    {
+      "command": "project api-key create",
+      "method": "POST",
+      "path": "/core/projects/{project_id}/api-keys",
+      "body_required": true
+    },
+    {
+      "command": "project api-key list",
+      "method": "GET",
+      "path": "/core/projects/{project_id}/api-keys",
+      "body_required": false
+    },
+    {
+      "command": "project api-key revoke",
+      "method": "POST",
+      "path": "/core/projects/{project_id}/api-keys/{api_key_id}/revoke",
+      "body_required": false
+    },
+    {
+      "command": "project api-key rotate",
+      "method": "POST",
+      "path": "/core/projects/{project_id}/api-keys/{api_key_id}/rotate",
+      "body_required": false
+    },
+    {
+      "command": "project api-key update",
+      "method": "PATCH",
+      "path": "/core/projects/{project_id}/api-keys/{api_key_id}",
+      "body_required": true
+    },
+    {
+      "command": "project catalog context-assemblers",
+      "method": "GET",
+      "path": "/ai/context-assemblers",
+      "body_required": false
+    },
+    {
+      "command": "project catalog execution-strategies",
+      "method": "GET",
+      "path": "/ai/execution-strategies",
+      "body_required": false
+    },
+    {
+      "command": "project catalog knowledge-strategies",
+      "method": "GET",
+      "path": "/ai/knowledge-strategies",
+      "body_required": false
+    },
+    {
+      "command": "project catalog rag-strategies",
+      "method": "GET",
+      "path": "/ai/rag-strategies",
+      "body_required": false
+    },
+    {
+      "command": "project create",
+      "method": "POST",
+      "path": "/core/projects",
+      "body_required": true
+    },
+    {
+      "command": "project env list",
+      "method": "GET",
+      "path": "/core/projects/{project_id}/environment-keys",
+      "body_required": false
+    },
+    {
+      "command": "project env set",
+      "method": "PUT",
+      "path": "/core/projects/{project_id}/environment-keys/{key}",
+      "body_required": true
+    },
+    {
+      "command": "project env unset",
+      "method": "DELETE",
+      "path": "/core/projects/{project_id}/environment-keys/{key}",
+      "body_required": false
+    },
+    {
+      "command": "project get",
+      "method": "GET",
+      "path": "/core/projects/{resource_id}",
+      "body_required": false
+    },
+    {
+      "command": "project knowledge collection create",
+      "method": "POST",
+      "path": "/knowledge/collections",
+      "body_required": true
+    },
+    {
+      "command": "project knowledge collection get",
+      "method": "GET",
+      "path": "/knowledge/collections/{collection_id}",
+      "body_required": false
+    },
+    {
+      "command": "project knowledge collection list",
+      "method": "GET",
+      "path": "/knowledge/collections",
+      "body_required": false
+    },
+    {
+      "command": "project knowledge collection overview",
+      "method": "GET",
+      "path": "/agent/knowledge/collections/{collection_id}/overview",
+      "body_required": false
+    },
+    {
+      "command": "project knowledge collection update",
+      "method": "PATCH",
+      "path": "/knowledge/collections/{collection_id}",
+      "body_required": true
+    },
+    {
+      "command": "project knowledge collection vector-preview",
+      "method": "POST",
+      "path": "/agent/knowledge/collections/{collection_id}/vector-preview",
+      "body_required": true
+    },
+    {
+      "command": "project knowledge document create",
+      "method": "POST",
+      "path": "/knowledge/documents",
+      "body_required": true
+    },
+    {
+      "command": "project knowledge document delete",
+      "method": "DELETE",
+      "path": "/knowledge/documents/{document_id}",
+      "body_required": false
+    },
+    {
+      "command": "project knowledge document get",
+      "method": "GET",
+      "path": "/knowledge/documents/{document_id}",
+      "body_required": false
+    },
+    {
+      "command": "project knowledge document list",
+      "method": "GET",
+      "path": "/knowledge/documents",
+      "body_required": false
+    },
+    {
+      "command": "project knowledge search",
+      "method": "POST",
+      "path": "/knowledge/search",
+      "body_required": true
+    },
+    {
+      "command": "project knowledge snapshot create",
+      "method": "POST",
+      "path": "/agent/knowledge/collections/{collection_id}/vector-snapshots",
+      "body_required": true
+    },
+    {
+      "command": "project knowledge snapshot get",
+      "method": "GET",
+      "path": "/agent/knowledge/vector-snapshots/{snapshot_id}",
+      "body_required": false
+    },
+    {
+      "command": "project knowledge snapshot list",
+      "method": "GET",
+      "path": "/agent/knowledge/collections/{collection_id}/vector-snapshots",
+      "body_required": false
+    },
+    {
+      "command": "project list",
+      "method": "GET",
+      "path": "/core/projects",
+      "body_required": false
+    },
+    {
+      "command": "project member grant",
+      "method": "POST",
+      "path": "/core/projects/{project_id}/members",
+      "body_required": true
+    },
+    {
+      "command": "project member list",
+      "method": "GET",
+      "path": "/core/projects/{project_id}/members",
+      "body_required": false
+    },
+    {
+      "command": "project member revoke",
+      "method": "DELETE",
+      "path": "/core/projects/{project_id}/members/{user_id}",
+      "body_required": false
+    },
+    {
+      "command": "project network activation create",
+      "method": "POST",
+      "path": "/network/{network_id}/production/activations",
+      "body_required": true
+    },
+    {
+      "command": "project network activation list",
+      "method": "GET",
+      "path": "/network/{network_id}/management/activations",
+      "body_required": false
+    },
+    {
+      "command": "project network create",
+      "method": "POST",
+      "path": "/network/projects/{project_id}/networks",
+      "body_required": true
+    },
+    {
+      "command": "project network draft update",
+      "method": "PATCH",
+      "path": "/network/{network_id}/draft",
+      "body_required": true
+    },
+    {
+      "command": "project network environment list",
+      "method": "GET",
+      "path": "/network/{network_id}/runtime-environments",
+      "body_required": false
+    },
+    {
+      "command": "project network environment update",
+      "method": "PATCH",
+      "path": "/network/{network_id}/runtime-environments/{environment}",
+      "body_required": true
+    },
+    {
+      "command": "project network execution cancel",
+      "method": "POST",
+      "path": "/network/executions/{execution_id}/cancel",
+      "body_required": false
+    },
+    {
+      "command": "project network execution diagnostics",
+      "method": "GET",
+      "path": "/network/executions/{execution_id}/diagnostics",
+      "body_required": false
+    },
+    {
+      "command": "project network execution events",
+      "method": "GET",
+      "path": "/network/executions/{execution_id}/events",
+      "body_required": false
+    },
+    {
+      "command": "project network execution snapshot",
+      "method": "GET",
+      "path": "/network/executions/{execution_id}/snapshot",
+      "body_required": false
+    },
+    {
+      "command": "project network get",
+      "method": "GET",
+      "path": "/network/projects/{project_id}/networks/{network_id}",
+      "body_required": false
+    },
+    {
+      "command": "project network list",
+      "method": "GET",
+      "path": "/network/projects/{project_id}/networks",
+      "body_required": false
+    },
+    {
+      "command": "project network management external-context",
+      "method": "GET",
+      "path": "/network/{network_id}/management/external-context-contract",
+      "body_required": false
+    },
+    {
+      "command": "project network management versions",
+      "method": "GET",
+      "path": "/network/{network_id}/management/versions",
+      "body_required": false
+    },
+    {
+      "command": "project network promotion create",
+      "method": "POST",
+      "path": "/network/{network_id}/promotions",
+      "body_required": true
+    },
+    {
+      "command": "project network promotion preview",
+      "method": "POST",
+      "path": "/network/{network_id}/promotions/preview",
+      "body_required": true
+    },
+    {
+      "command": "project network rollback",
+      "method": "POST",
+      "path": "/network/{network_id}/rollback",
+      "body_required": true
+    },
+    {
+      "command": "project network session create",
+      "method": "POST",
+      "path": "/network/{network_id}/sessions",
+      "body_required": true
+    },
+    {
+      "command": "project network session list",
+      "method": "GET",
+      "path": "/network/{network_id}/sessions",
+      "body_required": false
+    },
+    {
+      "command": "project network session messages",
+      "method": "GET",
+      "path": "/network/{network_id}/sessions/{session_id}/messages",
+      "body_required": false
+    },
+    {
+      "command": "project network session reset-context",
+      "method": "POST",
+      "path": "/network/{network_id}/sessions/{session_id}/reset-context",
+      "body_required": true
+    },
+    {
+      "command": "project network update",
+      "method": "PATCH",
+      "path": "/network/projects/{project_id}/networks/{network_id}",
+      "body_required": true
+    },
+    {
+      "command": "project network version list",
+      "method": "GET",
+      "path": "/network/{network_id}/versions",
+      "body_required": false
+    },
+    {
+      "command": "project overview",
+      "method": "GET",
+      "path": "/core/projects/{project_id}/overview",
+      "body_required": false
+    },
+    {
+      "command": "project provider-credential create",
+      "method": "POST",
+      "path": "/ai/credentials",
+      "body_required": true
+    },
+    {
+      "command": "project provider-credential list",
+      "method": "GET",
+      "path": "/ai/credentials",
+      "body_required": false
+    },
+    {
+      "command": "project provider-credential revoke",
+      "method": "POST",
+      "path": "/ai/credentials/{credential_id}/revoke",
+      "body_required": false
+    },
+    {
+      "command": "project provider-credential rotate",
+      "method": "POST",
+      "path": "/ai/credentials/{credential_id}/rotate",
+      "body_required": true
+    },
+    {
+      "command": "project provider-credential update",
+      "method": "PATCH",
+      "path": "/ai/credentials/{credential_id}",
+      "body_required": true
+    },
+    {
+      "command": "project provider-credential usage",
+      "method": "GET",
+      "path": "/ai/credentials/{credential_id}/usage",
+      "body_required": false
+    },
+    {
+      "command": "project provider-model create",
+      "method": "POST",
+      "path": "/ai/provider-models",
+      "body_required": true
+    },
+    {
+      "command": "project provider-model get",
+      "method": "GET",
+      "path": "/ai/provider-models/{provider_model_id}",
+      "body_required": false
+    },
+    {
+      "command": "project provider-model list",
+      "method": "GET",
+      "path": "/ai/provider-models",
+      "body_required": false
+    },
+    {
+      "command": "project provider-model update",
+      "method": "PATCH",
+      "path": "/ai/provider-models/{provider_model_id}",
+      "body_required": true
+    },
+    {
+      "command": "project provider-model usage",
+      "method": "GET",
+      "path": "/ai/provider-models/{provider_model_id}/usage",
+      "body_required": false
+    },
+    {
+      "command": "project run list",
+      "method": "GET",
+      "path": "/core/projects/{project_id}/runs",
+      "body_required": false
+    },
+    {
+      "command": "project runtime-key create",
+      "method": "POST",
+      "path": "/core/projects/{project_id}/runtime-keys",
+      "body_required": true
+    },
+    {
+      "command": "project skill create",
+      "method": "POST",
+      "path": "/ai/projects/{project_id}/skills",
+      "body_required": true
+    },
+    {
+      "command": "project skill list",
+      "method": "GET",
+      "path": "/ai/projects/{project_id}/skills",
+      "body_required": false
+    },
+    {
+      "command": "project skill version create",
+      "method": "POST",
+      "path": "/ai/projects/{project_id}/skills/{skill_id}/versions",
+      "body_required": true
+    },
+    {
+      "command": "project skill version get",
+      "method": "GET",
+      "path": "/ai/projects/{project_id}/skills/versions/{skill_version_id}",
+      "body_required": false
+    },
+    {
+      "command": "project skill version list",
+      "method": "GET",
+      "path": "/ai/projects/{project_id}/skills/{skill_id}/versions",
+      "body_required": false
+    },
+    {
+      "command": "project surface access-key create",
+      "method": "POST",
+      "path": "/chat-surfaces/{surface_id}/access-keys",
+      "body_required": true
+    },
+    {
+      "command": "project surface access-key list",
+      "method": "GET",
+      "path": "/chat-surfaces/{surface_id}/access-keys",
+      "body_required": false
+    },
+    {
+      "command": "project surface access-key revoke",
+      "method": "POST",
+      "path": "/chat-surfaces/{surface_id}/access-keys/{api_key_id}/revoke",
+      "body_required": false
+    },
+    {
+      "command": "project surface access-key rotate",
+      "method": "POST",
+      "path": "/chat-surfaces/{surface_id}/access-keys/{api_key_id}/rotate",
+      "body_required": false
+    },
+    {
+      "command": "project surface activate",
+      "method": "POST",
+      "path": "/chat-surfaces/{surface_id}/activate",
+      "body_required": true
+    },
+    {
+      "command": "project surface activity",
+      "method": "GET",
+      "path": "/chat-surfaces/{surface_id}/activity",
+      "body_required": false
+    },
+    {
+      "command": "project surface archive",
+      "method": "POST",
+      "path": "/chat-surfaces/{surface_id}/archive",
+      "body_required": false
+    },
+    {
+      "command": "project surface create",
+      "method": "POST",
+      "path": "/chat-surfaces/projects/{project_id}",
+      "body_required": true
+    },
+    {
+      "command": "project surface disable",
+      "method": "POST",
+      "path": "/chat-surfaces/{surface_id}/disable",
+      "body_required": false
+    },
+    {
+      "command": "project surface get",
+      "method": "GET",
+      "path": "/chat-surfaces/{surface_id}",
+      "body_required": false
+    },
+    {
+      "command": "project surface list",
+      "method": "GET",
+      "path": "/chat-surfaces/projects/{project_id}",
+      "body_required": false
+    },
+    {
+      "command": "project surface release",
+      "method": "POST",
+      "path": "/chat-surfaces/{surface_id}/release",
+      "body_required": true
+    },
+    {
+      "command": "project surface sessions",
+      "method": "GET",
+      "path": "/chat-surfaces/{surface_id}/sessions",
+      "body_required": false
+    },
+    {
+      "command": "project surface test-sessions",
+      "method": "POST",
+      "path": "/chat-surfaces/{surface_id}/test-sessions",
+      "body_required": true
+    },
+    {
+      "command": "project surface update",
+      "method": "PATCH",
+      "path": "/chat-surfaces/{surface_id}",
+      "body_required": true
+    },
+    {
+      "command": "project tool create",
+      "method": "POST",
+      "path": "/tools/tools",
+      "body_required": true
+    },
+    {
+      "command": "project tool delete",
+      "method": "DELETE",
+      "path": "/tools/tools/{tool_id}",
+      "body_required": false
+    },
+    {
+      "command": "project tool execute",
+      "method": "POST",
+      "path": "/tools/tools/execute",
+      "body_required": true
+    },
+    {
+      "command": "project tool list",
+      "method": "GET",
+      "path": "/tools/tools",
+      "body_required": false
+    },
+    {
+      "command": "project tool mcp bulk",
+      "method": "POST",
+      "path": "/tools/mcp/permissions/bulk",
+      "body_required": true
+    },
+    {
+      "command": "project tool mcp discover",
+      "method": "POST",
+      "path": "/tools/mcp/discover",
+      "body_required": true
+    },
+    {
+      "command": "project tool mcp oauth complete",
+      "method": "POST",
+      "path": "/tools/mcp/oauth/complete",
+      "body_required": true
+    },
+    {
+      "command": "project tool mcp oauth device-poll",
+      "method": "POST",
+      "path": "/tools/mcp/oauth/device/poll",
+      "body_required": true
+    },
+    {
+      "command": "project tool mcp oauth device-start",
+      "method": "POST",
+      "path": "/tools/mcp/oauth/device/start",
+      "body_required": true
+    },
+    {
+      "command": "project tool mcp oauth disconnect",
+      "method": "POST",
+      "path": "/tools/mcp/oauth/disconnect",
+      "body_required": true
+    },
+    {
+      "command": "project tool mcp oauth start",
+      "method": "POST",
+      "path": "/tools/mcp/oauth/start",
+      "body_required": true
+    },
+    {
+      "command": "project tool mcp oauth status",
+      "method": "POST",
+      "path": "/tools/mcp/oauth/status",
+      "body_required": true
+    },
+    {
+      "command": "project tool mcp refresh",
+      "method": "POST",
+      "path": "/tools/mcp/refresh",
+      "body_required": true
+    },
+    {
+      "command": "project tool mcp set",
+      "method": "PATCH",
+      "path": "/tools/mcp/permissions",
+      "body_required": true
+    },
+    {
+      "command": "project tool status",
+      "method": "PATCH",
+      "path": "/tools/tools/{tool_id}/status",
+      "body_required": true
+    },
+    {
+      "command": "project tool test",
+      "method": "POST",
+      "path": "/tools/tools/test",
+      "body_required": true
+    },
+    {
+      "command": "project tool update",
+      "method": "PATCH",
+      "path": "/tools/tools/{tool_id}",
+      "body_required": true
+    },
+    {
+      "command": "project tool usage-impact",
+      "method": "GET",
+      "path": "/tools/tools/{tool_id}/usage-impact",
+      "body_required": false
+    },
+    {
+      "command": "project trace get",
+      "method": "GET",
+      "path": "/observability/traces/{trace_id}",
+      "body_required": false
+    },
+    {
+      "command": "project trace list",
+      "method": "GET",
+      "path": "/observability/traces",
+      "body_required": false
+    },
+    {
+      "command": "project update",
+      "method": "PATCH",
+      "path": "/core/projects/{resource_id}",
+      "body_required": true
+    },
+    {
+      "command": "project usage daily",
+      "method": "GET",
+      "path": "/metering/projects/{project_id}/daily",
+      "body_required": false
+    },
+    {
+      "command": "project usage summary",
+      "method": "GET",
+      "path": "/metering/projects/{project_id}/usage",
+      "body_required": false
+    },
+    {
+      "command": "runtime agent sessions",
+      "method": "GET",
+      "path": "/runtime/agents/{agent_id}/sessions",
+      "body_required": false
+    },
+    {
+      "command": "runtime run cancel",
+      "method": "POST",
+      "path": "/runtime/runs/{run_id}/cancel",
+      "body_required": false
+    },
+    {
+      "command": "runtime run get",
+      "method": "GET",
+      "path": "/runtime/runs/{run_id}",
+      "body_required": false
+    },
+    {
+      "command": "runtime run invocations",
+      "method": "GET",
+      "path": "/runtime/runs/{run_id}/model-invocations",
+      "body_required": false
+    },
+    {
+      "command": "runtime run list",
+      "method": "GET",
+      "path": "/runtime/runs",
+      "body_required": false
+    },
+    {
+      "command": "runtime run rerun",
+      "method": "POST",
+      "path": "/runtime/runs/{run_id}/rerun",
+      "body_required": true
+    },
+    {
+      "command": "runtime session create",
+      "method": "POST",
+      "path": "/runtime/sessions",
+      "body_required": true
+    },
+    {
+      "command": "runtime session messages",
+      "method": "GET",
+      "path": "/runtime/sessions/{session_id}/messages",
+      "body_required": false
+    },
+    {
+      "command": "workspace authority audit",
+      "method": "GET",
+      "path": "/identity/workspaces/{workspace_id}/authority-audit",
+      "body_required": false
+    },
+    {
+      "command": "workspace authority category archive",
+      "method": "POST",
+      "path": "/identity/workspaces/{workspace_id}/authority-categories/{category_id}/archive",
+      "body_required": true
+    },
+    {
+      "command": "workspace authority category clone",
+      "method": "POST",
+      "path": "/identity/workspaces/{workspace_id}/authority-categories/{category_id}/clone",
+      "body_required": true
+    },
+    {
+      "command": "workspace authority category create",
+      "method": "POST",
+      "path": "/identity/workspaces/{workspace_id}/authority-categories",
+      "body_required": true
+    },
+    {
+      "command": "workspace authority category delete",
+      "method": "DELETE",
+      "path": "/identity/workspaces/{workspace_id}/authority-categories/{category_id}",
+      "body_required": false
+    },
+    {
+      "command": "workspace authority category get",
+      "method": "GET",
+      "path": "/identity/workspaces/{workspace_id}/authority-categories/{category_id}",
+      "body_required": false
+    },
+    {
+      "command": "workspace authority category history",
+      "method": "GET",
+      "path": "/identity/workspaces/{workspace_id}/authority-categories/{category_id}/versions",
+      "body_required": false
+    },
+    {
+      "command": "workspace authority category list",
+      "method": "GET",
+      "path": "/identity/workspaces/{workspace_id}/authority-categories",
+      "body_required": false
+    },
+    {
+      "command": "workspace authority category update",
+      "method": "PATCH",
+      "path": "/identity/workspaces/{workspace_id}/authority-categories/{category_id}",
+      "body_required": true
+    },
+    {
+      "command": "workspace control-key create",
+      "method": "POST",
+      "path": "/core/workspaces/{workspace_id}/control-keys",
+      "body_required": true
+    },
+    {
+      "command": "workspace control-key list",
+      "method": "GET",
+      "path": "/core/workspaces/{workspace_id}/control-keys",
+      "body_required": false
+    },
+    {
+      "command": "workspace control-key revoke",
+      "method": "POST",
+      "path": "/core/workspaces/{workspace_id}/control-keys/{control_key_id}/revoke",
+      "body_required": false
+    },
+    {
+      "command": "workspace control-key rotate",
+      "method": "POST",
+      "path": "/core/workspaces/{workspace_id}/control-keys/{control_key_id}/rotate",
+      "body_required": false
+    },
+    {
+      "command": "workspace control-key update",
+      "method": "PATCH",
+      "path": "/core/workspaces/{workspace_id}/control-keys/{control_key_id}",
+      "body_required": true
+    },
+    {
+      "command": "workspace create",
+      "method": "POST",
+      "path": "/identity/workspaces",
+      "body_required": true
+    },
+    {
+      "command": "workspace get",
+      "method": "GET",
+      "path": "/identity/workspaces/{workspace_id}",
+      "body_required": false
+    },
+    {
+      "command": "workspace invite cancel",
+      "method": "DELETE",
+      "path": "/identity/workspaces/{workspace_id}/invites/{invite_id}",
+      "body_required": false
+    },
+    {
+      "command": "workspace invite create",
+      "method": "POST",
+      "path": "/identity/workspaces/{workspace_id}/invites",
+      "body_required": true
+    },
+    {
+      "command": "workspace invite list",
+      "method": "GET",
+      "path": "/identity/workspaces/{workspace_id}/invites",
+      "body_required": false
+    },
+    {
+      "command": "workspace list",
+      "method": "GET",
+      "path": "/identity/workspaces",
+      "body_required": false
+    },
+    {
+      "command": "workspace member list",
+      "method": "GET",
+      "path": "/identity/workspaces/{workspace_id}/members",
+      "body_required": false
+    },
+    {
+      "command": "workspace member remove",
+      "method": "DELETE",
+      "path": "/identity/workspaces/{workspace_id}/members/{user_id}",
+      "body_required": false
+    },
+    {
+      "command": "workspace project-access list",
+      "method": "GET",
+      "path": "/core/workspaces/{workspace_id}/project-access",
+      "body_required": false
+    },
+    {
+      "command": "workspace update",
+      "method": "PATCH",
+      "path": "/identity/workspaces/{workspace_id}",
+      "body_required": true
+    }
+  ]
+}

@@ -66,3 +66,49 @@ def test_relocation_distinguishes_schema_keywords_from_property_names():
     schema = request_body_contract(KeywordProperties, "/contracts", "post")["requestBody"]["content"]["application/json"]["schema"]
     for name in ("default", "enum", "$ref"):
         assert schema["properties"][name]["$ref"] == "#/paths/~1contracts/post/requestBody/content/application~1json/schema/$defs/Child"
+
+
+def test_server_injected_actor_fields_are_omitted_without_mutating_the_dto():
+    from uuid import UUID
+
+    class Input(BaseModel):
+        project_id: UUID
+        created_by_user_id: UUID
+        name: str
+
+    contract = request_body_contract(
+        Input, "/projects/{project_id}", "post",
+        path_fields=("project_id",), server_fields=("created_by_user_id",),
+    )
+    body = contract["requestBody"]["content"]["application/json"]["schema"]
+    assert body["required"] == ["name"]
+    assert set(body["properties"]) == {"name"}
+    assert "created_by_user_id" in Input.model_json_schema()["required"]
+
+
+def test_adapter_path_contracts_preserve_typed_parameters_and_are_repeatable():
+    from uuid import UUID
+    from fastapi import FastAPI, Request
+    from woobe_api.http.shared.openapi_contracts import install_path_parameter_contracts
+
+    app = FastAPI()
+
+    @app.get("/adapter/{resource_id}")
+    async def adapter(request: Request):
+        return request.path_params
+
+    @app.get("/typed/{resource_id}")
+    async def typed(resource_id: UUID):
+        return {"id": str(resource_id)}
+
+    install_path_parameter_contracts(app)
+    for _ in range(2):
+        paths = app.openapi()["paths"]
+        adapter_parameters = paths["/adapter/{resource_id}"]["get"]["parameters"]
+        assert adapter_parameters == [{
+            "name": "resource_id", "in": "path", "required": True,
+            "schema": {"type": "string"},
+        }]
+        typed_parameters = paths["/typed/{resource_id}"]["get"]["parameters"]
+        assert len(typed_parameters) == 1
+        assert typed_parameters[0]["schema"]["format"] == "uuid"

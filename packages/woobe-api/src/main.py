@@ -311,6 +311,9 @@ def create_app() -> FastAPI:
             )
         return {"status": "ok", "dependency": "database"}
 
+    from woobe_api.http.shared.openapi_contracts import install_path_parameter_contracts
+
+    install_path_parameter_contracts(app)
     return app
 
 

@@ -1,3 +1,4 @@
+from modules.agent.application.dtos.ai_dtos import CreateReleaseInput
 from modules.agent.application.dtos.mcp_oauth_dtos import McpOAuthStartInput, McpOAuthCompleteInput, McpOAuthDeviceStartInput, McpOAuthDevicePollInput, McpOAuthStatusInput, McpOAuthDisconnectInput
 from modules.agent.application.dtos.skill_dtos import ImportSkillInput, SkillListQuery
 from modules.agent.application.dtos.runtime_dtos import ListMessagesInput
@@ -320,6 +321,7 @@ from modules.agent.composition.composers.public_runtime_composers import (
 
 
 __all__ = [
+    "CreateReleaseInput",
     'McpOAuthStartInput',
     'McpOAuthCompleteInput',
     'McpOAuthDeviceStartInput',

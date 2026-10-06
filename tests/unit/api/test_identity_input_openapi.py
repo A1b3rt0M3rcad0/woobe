@@ -33,3 +33,18 @@ def test_workspace_update_advertises_existing_dto_and_retains_admin_dispatch():
     assert [(item["name"], item["in"]) for item in parameters] == [("workspace_id", "path")]
     assert list(inspect.signature(routes.update_workspace).parameters) == ["request", "workspace_id"]
     assert "requestBody" not in app.openapi()["paths"]["/identity/workspaces/{workspace_id}/members"]["post"]
+
+
+def test_instance_bootstrap_advertises_the_existing_registration_dto():
+    from woobe_api.http.identity import instance_routes
+
+    app = FastAPI()
+    app.include_router(instance_routes.router)
+    path = "/identity/instance/bootstrap"
+    expected = request_body_contract(RegisterInput, path, "post")
+    assert app.openapi()["paths"][path]["post"]["requestBody"] == jsonable_encoder(
+        expected["requestBody"], exclude_none=True
+    )
+    assert list(inspect.signature(instance_routes.bootstrap_instance).parameters) == [
+        "request"
+    ]

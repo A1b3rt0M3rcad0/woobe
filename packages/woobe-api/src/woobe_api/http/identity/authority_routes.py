@@ -4,6 +4,7 @@ from typing import Any, Literal
 from uuid import UUID
 
 from shared.security.control_plane import MAX_AUTHORITY_REVISION
+from woobe_api.http.shared.openapi_contracts import bodyless_command_contract
 
 from fastapi import APIRouter, Query, Request
 from fastapi.encoders import jsonable_encoder
@@ -174,7 +175,9 @@ async def authority_category_history(
     }
 
 
-@router.post("/workspaces/{workspace_id}/authority-categories/{category_id}/archive")
+@router.post("/workspaces/{workspace_id}/authority-categories/{category_id}/archive",
+    openapi_extra=bodyless_command_contract(),
+)
 async def archive_authority_category(
     workspace_id: UUID, category_id: UUID, request: Request
 ):

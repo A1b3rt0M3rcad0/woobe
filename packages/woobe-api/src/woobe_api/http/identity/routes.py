@@ -2,6 +2,8 @@ from modules.identity.entrypoint import UpdateWorkspaceInput
 from modules.identity.entrypoint import LoginInput, RegisterInput, CreateWorkspaceInput
 from woobe_api.http.shared.openapi_contracts import request_body_contract
 from uuid import UUID
+from typing import Literal
+from pydantic import BaseModel, Field
 
 from fastapi import APIRouter, Request as FastAPIRequest
 
@@ -41,6 +43,12 @@ from shared.security.workspace_access import WorkspaceAccessService
 
 
 router = APIRouter(prefix="/identity", tags=["identity"])
+
+
+class WorkspaceInviteRequest(BaseModel):
+    email: str = Field(min_length=1)
+    role: Literal["viewer", "member", "admin"] = "member"
+    project_ids: list[UUID] = Field(default_factory=list)
 
 
 def _principal_user_id(request: FastAPIRequest) -> UUID:
@@ -195,7 +203,12 @@ async def remove_member(
     return {"success": True, "message": "removed", "data": data}
 
 
-@router.post("/workspaces/{workspace_id}/invites", status_code=201)
+@router.post("/workspaces/{workspace_id}/invites", status_code=201,
+    openapi_extra=request_body_contract(
+        WorkspaceInviteRequest, "/identity/workspaces/{workspace_id}/invites", "post",
+        advertise_path=False,
+    ),
+)
 async def create_invite(request: FastAPIRequest, workspace_id: str):
     principal_user_id = _principal_user_id(request)
     workspace_id = _uuid(workspace_id, "workspace id")

@@ -1,3 +1,5 @@
+from typing import Literal
+from modules.agent.entrypoint import CreateReleaseInput
 from modules.agent.entrypoint import (ListMessagesInput)
 from woobe_api.http.shared.openapi_contracts import query_parameter_contract
 from modules.agent.entrypoint import (ListToolsInput, ListToolsByAgentInput, ListSecretsInput)
@@ -256,7 +258,18 @@ async def get_model_config(request: FastAPIRequest):
     return response_adapter(response)
 
 
-@router.post("/agents/{agent_id}/releases", status_code=201)
+class CreateReleaseRequest(CreateReleaseInput):
+    # The existing controller defaults an omitted version and consumes change_kind
+    # before constructing the application DTO.
+    version: str = "auto"
+    change_kind: Literal["change", "feature", "compatibility"] = "change"
+
+
+@router.post("/agents/{agent_id}/releases", status_code=201,
+    openapi_extra=request_body_contract(
+        CreateReleaseRequest, "/ai/agents/{agent_id}/releases", "post"
+    ),
+)
 async def create_release(request: FastAPIRequest):
     handler = create_release_composer()
     response = await request_adapter(request, handler)

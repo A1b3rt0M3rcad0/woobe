@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from woobe_api.http.shared.openapi_contracts import bodyless_command_contract
+
 from collections.abc import AsyncIterator
 from uuid import UUID
 
@@ -154,7 +156,7 @@ async def update_surface(
     return {"success": True, "data": surface_payload(surface)}
 
 
-@router.post("/chat-surfaces/{surface_id}/release")
+@router.post("/chat-surfaces/{surface_id}/release", openapi_extra=bodyless_command_contract())
 async def refresh_surface_release(surface_id: UUID, request: Request):
     _management_actor(request)[0]
     surface = await _service(request).refresh_target_release(surface_id)
@@ -167,7 +169,7 @@ async def _set_surface_status(surface_id: UUID, request: Request, status: str):
     return {"success": True, "data": surface_payload(surface)}
 
 
-@router.post("/chat-surfaces/{surface_id}/activate")
+@router.post("/chat-surfaces/{surface_id}/activate", openapi_extra=bodyless_command_contract())
 async def activate_surface(surface_id: UUID, request: Request):
     return await _set_surface_status(surface_id, request, "active")
 
@@ -267,7 +269,9 @@ async def get_surface_activity(surface_id: UUID, request: Request):
     return {"success": True, "data": activity}
 
 
-@router.post("/chat-surfaces/{surface_id}/test-sessions", status_code=201)
+@router.post("/chat-surfaces/{surface_id}/test-sessions", status_code=201,
+    openapi_extra=bodyless_command_contract(),
+)
 async def create_test_session(
     surface_id: UUID,
     request: Request,

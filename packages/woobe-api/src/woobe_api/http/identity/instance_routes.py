@@ -3,6 +3,7 @@ from fastapi import APIRouter, Request as FastAPIRequest
 from modules.identity.entrypoint import RegisterInput
 from modules.identity.entrypoint import InstanceService, build_instance_service
 from woobe_api.http.identity.auth_endpoints import authentication_response
+from woobe_api.http.shared.openapi_contracts import request_body_contract
 
 
 router = APIRouter(prefix="/identity/instance", tags=["instance"])
@@ -22,7 +23,13 @@ async def instance_status(request: FastAPIRequest):
     }
 
 
-@router.post("/bootstrap", status_code=201)
+@router.post(
+    "/bootstrap",
+    status_code=201,
+    openapi_extra=request_body_contract(
+        RegisterInput, "/identity/instance/bootstrap", "post"
+    ),
+)
 async def bootstrap_instance(request: FastAPIRequest):
     data = RegisterInput(**(await request.json()))
     result = await instance_service(request).bootstrap(

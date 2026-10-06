@@ -35,6 +35,35 @@ from shared.security.control_plane import (
 CLI_COMMIT = "8c90273e9e1bf1871a3fc85f67e5fbfa6f7494c7"
 
 
+@pytest.mark.asyncio
+async def test_cli_full_registry_matches_the_live_server_schema(cli):
+    contract = json.loads(
+        (Path(__file__).parents[2] / "unit/api/fixtures/woobe_cli_operations.json").read_text()
+    )
+    assert contract["cli_commit"] == CLI_COMMIT
+    discovery = await cli.run("help")
+    actual = [
+        {key: item[key] for key in ("command", "method", "path", "body_required")}
+        for item in discovery["data"] if item.get("method") and item.get("path")
+    ]
+    assert actual == contract["operations"]
+    for operation in actual:
+        result = await cli.run("server-schema", "--command", operation["command"])
+        definition = result["data"]["definition"]
+        assert definition, operation["command"]
+        if operation["body_required"]:
+            assert definition["requestBody"]["content"]["application/json"]["schema"], operation["command"]
+            validation = await cli.run(
+                "validate-input", "--command", operation["command"],
+                body={}, expected=(0, 2),
+            )
+            # Missing required fields may fail validation. Unsupported schemas,
+            # transport errors and accidental mutation never count as compatibility.
+            assert not (validation.get("error") or {}).get("http_status")
+            if validation.get("success"):
+                assert validation["data"]["executed"] is False
+
+
 class Cli:
     def __init__(self, binary, origin, workspace_id, credential, directory):
         self.binary, self.origin, self.workspace_id = binary, origin, str(workspace_id)
@@ -99,7 +128,8 @@ class Cli:
                 "request_id": error.get("request_id"),
             }
         )
-        assert process.returncode == expected, (
+        accepted = expected if isinstance(expected, tuple) else (expected,)
+        assert process.returncode in accepted, (
             f"CLI command failed: exit={process.returncode}, status={error.get('http_status')}, message={error.get('message')}"
         )
         return payload
@@ -242,6 +272,104 @@ async def cli(tmp_path):
             )
             await session.commit()
         await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_cli_project_configuration_keys_and_knowledge_lifecycle(cli):
+    project = await cli.data(
+        "project", "create", "--validate-body",
+        body={"workspace_id": cli.workspace_id, "name": "CLI configuration", "slug": str(uuid4())},
+    )
+    cli.project_id = project["id"]
+    await cli.data(
+        "project", "update", cli.project_id,
+        "--validate-body", "--validate-parameters", body={"name": "Updated configuration"},
+    )
+    observed = await cli.data("project", "get", cli.project_id)
+    assert observed["name"] == "Updated configuration"
+    assert observed["id"] == project["id"]
+    assert datetime.fromisoformat(observed["created_at"]) == datetime.fromisoformat(project["created_at"])
+    await cli.data("project", "update", cli.project_id, body={"name": "Second edit"})
+    assert (await cli.data("project", "get", cli.project_id))["name"] == "Second edit"
+
+    environment_key = await cli.data(
+        "project", "env", "set", "--key", "CLI_VALUE",
+        "--validate-body", "--validate-parameters",
+        body={"kind": "value", "values": {"staging": "stage", "production": "prod"}},
+    )
+    keys = await cli.data("project", "env", "list")
+    value = next(item for item in keys if item["id"] == environment_key["id"])
+    # The pinned CLI conservatively redacts all key/value fields, including
+    # environment metadata. Configuration presence remains observable.
+    assert value["key"] == "[REDACTED]"
+    for environment in ("staging", "production"):
+        assert value["values"][environment]["configured"] is True
+        assert value["values"][environment]["value"] == "[REDACTED]"
+    await cli.data(
+        "project", "env", "set", "--key", "CLI_VALUE", "--validate-body",
+        body={"clear_environments": ["staging"]},
+    )
+    keys = await cli.data("project", "env", "list")
+    assert next(item for item in keys if item["id"] == environment_key["id"])["values"]["staging"]["configured"] is False
+    await cli.run("project", "env", "unset", "--key", "CLI_VALUE")
+    assert await cli.data("project", "env", "list") == []
+
+    expiry = (datetime.now(UTC) + timedelta(hours=1)).isoformat()
+    issued, _ = await cli.issue(
+        "project", "api-key", "create", "--validate-body", "--validate-parameters",
+        body={"name": "CLI legacy key", "scopes": ["runtime:execute"], "expires_at": expiry},
+    )
+    await cli.data(
+        "project", "api-key", "update", issued["id"],
+        "--validate-body", "--validate-parameters", body={"name": "Updated key"},
+    )
+    rotated, _ = await cli.issue(
+        "project", "api-key", "rotate", issued["id"],
+        "--validate-parameters", body=None,
+    )
+    assert rotated["rotated_from_id"] == issued["id"]
+    assert rotated["name"] == "Updated key"
+    replacement, _ = await cli.issue(
+        "project", "api-key", "rotate", rotated["id"], "--validate-body", "--validate-parameters",
+        body={"name": "Replacement key", "scopes": ["runtime:execute"], "expires_at": expiry},
+    )
+    assert replacement["rotated_from_id"] == rotated["id"]
+    assert replacement["name"] == "Replacement key"
+    await cli.data("project", "api-key", "revoke", replacement["id"])
+    listed = await cli.data("project", "api-key", "list")
+    assert all(item["status"] == "revoked" for item in listed)
+
+    collection = await cli.data(
+        "project", "knowledge", "collection", "create", "--validate-body",
+        body={"project_id": cli.project_id, "name": "CLI collection"},
+    )
+    await cli.data(
+        "project", "knowledge", "collection", "update", collection["id"],
+        "--validate-body", "--validate-parameters", body={"name": "Updated collection"},
+    )
+    observed = await cli.data(
+        "project", "knowledge", "collection", "get", collection["id"],
+    )
+    assert observed["name"] == "Updated collection"
+    tool = await cli.data(
+        "project", "tool", "create", "--validate-body",
+        body={"project_id": cli.project_id, "name": "CLI HTTP metadata", "config": {"url": "https://example.com", "method": "GET"}},
+    )
+    edited_tool = await cli.data(
+        "project", "tool", "update", tool["id"], "--validate-body", "--validate-parameters",
+        body={"name": "Updated HTTP metadata"},
+    )
+    assert edited_tool["name"] == "Updated HTTP metadata"
+    await cli.data(
+        "project", "tool", "status", tool["id"], "--validate-body", body={"status": "disabled"},
+    )
+    impact = await cli.data("project", "tool", "usage-impact", tool["id"], "--validate-parameters")
+    assert impact["in_use"] is False
+    assert impact["can_delete"] is True
+    await cli.run("project", "tool", "delete", tool["id"], "--validate-parameters")
+    for catalog in ("context-assemblers", "execution-strategies", "knowledge-strategies", "rag-strategies"):
+        result = await cli.run("project", "catalog", catalog, "--validate-parameters")
+        assert result["success"] is True
 
 
 @pytest.mark.asyncio
@@ -423,6 +551,7 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
         "project",
         "runtime-key",
         "create",
+        "--validate-body", "--validate-parameters",
         body={
             "project_id": cli.project_id,
             "name": "Staging runtime",
@@ -508,6 +637,7 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
     assert production["id"] != staging["id"]
     second_draft = await cli.data(
         "project", "agent", "release", "create", agent_id,
+        "--validate-body", "--validate-parameters",
         body={"project_id": cli.project_id, "agent_id": agent_id, "version": "auto", "system_prompt": "Second version."},
     )
     second_stage = await cli.data(
@@ -693,6 +823,7 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
         "project",
         "runtime-key",
         "create",
+        "--validate-body", "--validate-parameters",
         body={
             "project_id": cli.project_id,
             "name": "Production network",
@@ -956,6 +1087,7 @@ async def test_cli_categories_pin_authority_and_preflight_matches_requests(cli):
     assert len({item["id"] for item in audit_items}) == len(audit_items)
     archived = await cli.data(
         "workspace", "authority", "category", "archive", clone["id"],
+        "--validate-body", "--validate-parameters",
         "--if-match", f'"category:{clone["id"]}:1"', body={},
     )
     assert archived["status"] == "archived"

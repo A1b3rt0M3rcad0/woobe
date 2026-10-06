@@ -1,11 +1,18 @@
 from fastapi.responses import JSONResponse
 from uuid import UUID
+from typing import Any, Literal
 
 from fastapi import APIRouter, Request as FastAPIRequest
+from pydantic import BaseModel, Field
 
 from modules.agent.entrypoint import project_environment_tool_usage_composer
 
 from modules.core.entrypoint import (
+    CreateApiKeyInput,
+    CreateRuntimeApiKeyInput,
+    RotateApiKeyInput,
+    UpdateApiKeyCredentialInput,
+    UpdateProjectInput,
     CreateProjectInput,
     create_api_key_composer,
 )
@@ -42,9 +49,25 @@ from shared.project_environment import build_project_environment_service
 from shared.security.principal import ControlPlanePrincipal
 from woobe_api.http.shared.adapters import request_adapter, response_adapter
 from woobe_api.http.core.control_key_routes import router as control_key_router
+from woobe_api.http.shared.openapi_contracts import request_body_contract
 
 router = APIRouter(prefix="/core", tags=["core"])
 router.include_router(control_key_router)
+
+
+class ProjectSubjectAccessRequest(BaseModel):
+    subject_type: Literal["member", "invite"]
+    subject_id: UUID
+
+
+class ProjectMemberAccessRequest(BaseModel):
+    email: str = Field(min_length=1)
+
+
+class ProjectEnvironmentKeyRequest(BaseModel):
+    kind: Literal["value", "secret"] = "value"
+    values: dict[str, Any] = Field(default_factory=dict)
+    clear_environments: list[str] = Field(default_factory=list)
 
 
 def _principal_user_id(request: FastAPIRequest) -> UUID:
@@ -190,7 +213,12 @@ async def list_project_members(request: FastAPIRequest, access_project_id: UUID)
     return {"success": True, "message": "ok", "data": data}
 
 
-@router.post("/projects/{access_project_id}/access", status_code=201)
+@router.post("/projects/{access_project_id}/access", status_code=201,
+    openapi_extra=request_body_contract(
+        ProjectSubjectAccessRequest, "/core/projects/{access_project_id}/access", "post",
+        advertise_path=False,
+    ),
+)
 async def grant_project_subject_access(
     request: FastAPIRequest, access_project_id: UUID
 ):
@@ -234,7 +262,12 @@ async def revoke_project_subject_access(
     return {"success": True, "message": "deleted", "data": None}
 
 
-@router.post("/projects/{access_project_id}/members", status_code=201)
+@router.post("/projects/{access_project_id}/members", status_code=201,
+    openapi_extra=request_body_contract(
+        ProjectMemberAccessRequest, "/core/projects/{access_project_id}/members", "post",
+        advertise_path=False,
+    ),
+)
 async def grant_project_access(request: FastAPIRequest, access_project_id: UUID):
     payload = await request.json()
     email = payload.get("email") if isinstance(payload, dict) else None
@@ -287,7 +320,10 @@ async def get_project(request: FastAPIRequest):
     return response_adapter(response)
 
 
-@router.patch("/projects/{project_id}")
+@router.patch("/projects/{project_id}", openapi_extra=request_body_contract(
+    UpdateProjectInput, "/core/projects/{project_id}", "patch",
+    required=False, path_fields=("project_id",),
+))
 async def update_project(request: FastAPIRequest):
     handler = update_project_composer()
     response = await request_adapter(request, handler)
@@ -307,7 +343,12 @@ async def list_project_environment_keys(
     return {"success": True, "message": "ok", "data": data}
 
 
-@router.put("/projects/{project_id}/environment-keys/{key}")
+@router.put("/projects/{project_id}/environment-keys/{key}",
+    openapi_extra=request_body_contract(
+        ProjectEnvironmentKeyRequest, "/core/projects/{project_id}/environment-keys/{key}",
+        "put", advertise_path=False,
+    ),
+)
 async def upsert_project_environment_key(
     request: FastAPIRequest,
     project_id: UUID,
@@ -355,14 +396,24 @@ async def delete_project_environment_key(
     return {"success": True, "message": "deleted", "data": None}
 
 
-@router.post("/projects/{project_id}/api-keys")
+@router.post("/projects/{project_id}/api-keys", openapi_extra=request_body_contract(
+    CreateApiKeyInput, "/core/projects/{project_id}/api-keys", "post",
+    path_fields=("project_id",),
+    server_fields=("created_by_user_id", "created_by_control_key_id"),
+))
 async def create_api_key(request: FastAPIRequest):
     handler = create_api_key_composer()
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
-@router.post("/projects/{project_id}/runtime-keys", status_code=201)
+@router.post("/projects/{project_id}/runtime-keys", status_code=201,
+    openapi_extra=request_body_contract(
+        CreateRuntimeApiKeyInput, "/core/projects/{project_id}/runtime-keys", "post",
+        path_fields=("project_id",),
+        server_fields=("created_by_user_id", "created_by_control_key_id"),
+    ),
+)
 async def create_runtime_api_key(request: FastAPIRequest):
     handler = create_runtime_api_key_composer()
     response = await request_adapter(request, handler)
@@ -383,14 +434,28 @@ async def revoke_api_key(request: FastAPIRequest):
     return response_adapter(response)
 
 
-@router.post("/projects/{project_id}/api-keys/{api_key_id}/rotate", status_code=201)
+@router.post("/projects/{project_id}/api-keys/{api_key_id}/rotate", status_code=201,
+    openapi_extra=request_body_contract(
+        RotateApiKeyInput, "/core/projects/{project_id}/api-keys/{api_key_id}/rotate", "post",
+        path_fields=("project_id", "api_key_id"),
+        server_fields=("rotated_by_user_id", "rotated_by_control_key_id"),
+        required=False,
+    ),
+)
 async def rotate_api_key(request: FastAPIRequest):
     handler = rotate_api_key_composer()
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
-@router.patch("/projects/{project_id}/api-keys/{api_key_id}")
+@router.patch("/projects/{project_id}/api-keys/{api_key_id}",
+    openapi_extra=request_body_contract(
+        UpdateApiKeyCredentialInput,
+        "/core/projects/{project_id}/api-keys/{api_key_id}", "patch",
+        path_fields=("project_id", "api_key_id"),
+        server_fields=("updated_by_user_id", "updated_by_control_key_id"),
+    ),
+)
 async def update_api_key_credential(request: FastAPIRequest):
     handler = update_api_key_credential_composer()
     response = await request_adapter(request, handler)

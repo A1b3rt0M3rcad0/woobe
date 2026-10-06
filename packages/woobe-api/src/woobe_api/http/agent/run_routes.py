@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from woobe_api.http.shared.openapi_contracts import bodyless_command_contract
+
 from uuid import UUID
 
 from fastapi import APIRouter, Request as FastAPIRequest
@@ -105,7 +107,7 @@ async def cancel_agent_run(run_id: UUID, request: FastAPIRequest):
     return await controller.cancel(run_id, request)
 
 
-@router.post("/{run_id}/rerun", status_code=201)
+@router.post("/{run_id}/rerun", status_code=201, openapi_extra=bodyless_command_contract())
 async def rerun_agent_run(request: FastAPIRequest):
     response = await request_adapter(request, rerun_agent_run_composer())
     return response_adapter(response)

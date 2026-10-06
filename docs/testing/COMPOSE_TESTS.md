@@ -129,6 +129,23 @@ are stored only in private temporary files and never included in those reports.
 The CLI revision is pinned deliberately; update the workflow and test pin
 together when changing the client contract.
 
+The discovery fixture at `tests/unit/api/fixtures/woobe_cli_operations.json`
+records all 190 HTTP operations from the pinned client, including the 81 commands
+that require a body. Unit tests require an unambiguous server route, complete
+path parameter metadata and a JSON body schema where applicable. The live test
+checks the fixture against the compiled client's discovery, resolves every
+operation through `server-schema`, and exercises body preflight without executing
+mutations. Update the discovery fixture alongside both revision pins.
+
+A separate live lifecycle test edits a Project twice, preserves its identity and
+creation time, sets and clears environment
+values, issues and rotates a Project API key without a request body, revokes it,
+edits a Knowledge collection, creates/edits/disables/deletes an unused HTTP Tool
+and reads the four CLI strategy catalogs. Existing
+Agent, Network and authority workflows continue to verify execution and refusal
+boundaries. Discovery/schema coverage does not certify every operation's behavior
+or external provider/OAuth connectivity.
+
 The pinned client now covers body pagination for category list/history/audit and
 Agent sessions. The live authority contract exercises --all with limit=1,
 revision history ordering, category cursor traversal, built-in side projections,
