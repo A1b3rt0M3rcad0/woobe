@@ -1,4 +1,8 @@
 from modules.agent.application.dtos import (
+    CreateModelConfigInput,
+    CreateReleaseTestInput,
+)
+from modules.agent.application.dtos import (
     CreatePromptInput,
     CreateContractInput,
     UpdateContractInput,
@@ -271,6 +275,8 @@ from modules.agent.composition.composers.public_runtime_composers import (
 
 
 __all__ = [
+    'CreateModelConfigInput',
+    'CreateReleaseTestInput',
     'CreatePromptInput',
     'CreateContractInput',
     'UpdateContractInput',

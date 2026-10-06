@@ -1,3 +1,4 @@
+from modules.agent.entrypoint import (CreateModelConfigInput,CreateReleaseTestInput)
 from modules.agent.entrypoint import (CreatePromptInput,CreateContractInput,UpdateContractInput)
 from modules.agent.entrypoint import (CreateProviderCredentialInput,UpdateProviderCredentialInput,CreateProviderModelInput,UpdateProviderModelInput)
 from modules.agent.entrypoint import (CreateAgentInput,UpdateAgentInput)
@@ -215,7 +216,7 @@ async def get_contract(request: FastAPIRequest):
     return response_adapter(response)
 
 
-@router.post("/agents/{agent_id}/model-configs", status_code=201)
+@router.post("/agents/{agent_id}/model-configs", status_code=201, openapi_extra=request_body_contract(CreateModelConfigInput, "/ai/agents/{agent_id}/model-configs", "post", required=True))
 async def create_model_config(request: FastAPIRequest):
     handler = create_model_config_composer()
     response = await request_adapter(request, handler)
@@ -278,7 +279,7 @@ async def delete_release(request: FastAPIRequest):
     return response_adapter(response)
 
 
-@router.post("/agents/{agent_id}/release-tests", status_code=201)
+@router.post("/agents/{agent_id}/release-tests", status_code=201, openapi_extra=request_body_contract(CreateReleaseTestInput, "/ai/agents/{agent_id}/release-tests", "post", required=True))
 async def create_release_test(request: FastAPIRequest):
     handler = create_release_test_composer()
     response = await request_adapter(request, handler)

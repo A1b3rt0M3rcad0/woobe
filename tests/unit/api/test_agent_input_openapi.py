@@ -10,6 +10,9 @@ from woobe_api.http.shared.openapi_contracts import request_body_contract
 
 
 CONTRACTS = [
+    ('create_model_config', 'CreateModelConfigInput', '/ai/agents/{agent_id}/model-configs', 'post'),
+    ('create_release_test', 'CreateReleaseTestInput', '/ai/agents/{agent_id}/release-tests', 'post'),
+
     ('create_prompt', 'CreatePromptInput', '/ai/agents/{agent_id}/prompts', 'post'),
     ('create_contract', 'CreateContractInput', '/ai/agents/{agent_id}/contracts', 'post'),
     ('update_contract', 'UpdateContractInput', '/ai/agents/{agent_id}/contracts/{contract_id}', 'patch'),

@@ -1,4 +1,8 @@
 from modules.agent.composition.public_api import (
+    CreateModelConfigInput,
+    CreateReleaseTestInput,
+)
+from modules.agent.composition.public_api import (
     CreatePromptInput,
     CreateContractInput,
     UpdateContractInput,
@@ -149,6 +153,8 @@ from modules.agent.composition.factories.rag_runtime_factory import (
 )
 
 __all__ = [
+    'CreateModelConfigInput',
+    'CreateReleaseTestInput',
     'CreatePromptInput',
     'CreateContractInput',
     'UpdateContractInput',
