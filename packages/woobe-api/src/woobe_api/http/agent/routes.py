@@ -1,3 +1,4 @@
+from modules.agent.entrypoint import (CreateCollectionInput,AttachCollectionInput)
 from modules.agent.entrypoint import (CreateModelConfigInput,CreateReleaseTestInput)
 from modules.agent.entrypoint import (CreatePromptInput,CreateContractInput,UpdateContractInput)
 from modules.agent.entrypoint import (CreateProviderCredentialInput,UpdateProviderCredentialInput,CreateProviderModelInput,UpdateProviderModelInput)
@@ -303,7 +304,7 @@ async def list_collections(request: FastAPIRequest):
     return response_adapter(response)
 
 
-@knowledge_router.post("/collections")
+@knowledge_router.post("/collections", openapi_extra=request_body_contract(CreateCollectionInput, "/knowledge/collections", "post", required=True))
 async def create_collection(request: FastAPIRequest):
     handler = create_collection_composer()
     response = await request_adapter(request, handler)
@@ -342,7 +343,7 @@ async def list_agent_collections(request: FastAPIRequest):
     return response_adapter(response)
 
 
-@knowledge_router.post("/agent-collections")
+@knowledge_router.post("/agent-collections", openapi_extra=request_body_contract(AttachCollectionInput, "/knowledge/agent-collections", "post", required=True))
 async def attach_collection(request: FastAPIRequest):
     handler = attach_collection_composer()
     response = await request_adapter(request, handler)

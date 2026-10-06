@@ -10,6 +10,9 @@ from woobe_api.http.shared.openapi_contracts import request_body_contract
 
 
 CONTRACTS = [
+    ('create_collection', 'CreateCollectionInput', '/knowledge/collections', 'post'),
+    ('attach_collection', 'AttachCollectionInput', '/knowledge/agent-collections', 'post'),
+
     ('create_model_config', 'CreateModelConfigInput', '/ai/agents/{agent_id}/model-configs', 'post'),
     ('create_release_test', 'CreateReleaseTestInput', '/ai/agents/{agent_id}/release-tests', 'post'),
 
@@ -31,6 +34,8 @@ CONTRACTS = [
 def test_agent_input_schema_uses_the_same_public_dto(endpoint, model_name, path, method):
     app = FastAPI()
     app.include_router(routes.router)
+    app.include_router(routes.knowledge_router)
+    app.include_router(routes.runtime_router)
     model = getattr(entrypoint, model_name)
     expected = request_body_contract(model, path, method, required=method != "patch")
     operation = app.openapi()["paths"][path][method]
