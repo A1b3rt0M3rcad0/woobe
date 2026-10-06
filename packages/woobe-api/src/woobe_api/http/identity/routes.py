@@ -163,7 +163,7 @@ async def get_workspace(request: FastAPIRequest, workspace_id: str):
     return response_adapter(response)
 
 
-@router.patch("/workspaces/{workspace_id}", openapi_extra=request_body_contract(UpdateWorkspaceInput, "/identity/workspaces/{workspace_id}", "patch"))
+@router.patch("/workspaces/{workspace_id}", openapi_extra=request_body_contract(UpdateWorkspaceInput, "/identity/workspaces/{workspace_id}", "patch", advertise_path=False))
 async def update_workspace(request: FastAPIRequest, workspace_id: str):
     await _workspace_access(request).require_admin(
         _principal_user_id(request),

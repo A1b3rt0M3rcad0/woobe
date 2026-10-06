@@ -7,7 +7,7 @@ import re
 from pydantic import BaseModel
 
 
-def request_body_contract(model: type[BaseModel], path: str, method: str, *, required: bool = True, path_fields: tuple[str, ...] = ()) -> dict[str, Any]:
+def request_body_contract(model: type[BaseModel], path: str, method: str, *, required: bool = True, path_fields: tuple[str, ...] = (), advertise_path: bool = True) -> dict[str, Any]:
     schema = model.model_json_schema(mode="validation")
     names = re.findall(r"\{([^}]+)\}", path)
     properties = schema.get("properties", {})
@@ -50,11 +50,13 @@ def request_body_contract(model: type[BaseModel], path: str, method: str, *, req
                         relocate(child)
 
     relocate(schema)
-    return {
-        "requestBody": {"required": required, "content": {"application/json": {"schema": schema}}},
-        "parameters": [
+    contract: dict[str, Any] = {"requestBody": {"required": required, "content": {"application/json": {"schema": schema}}}}
+    # FastAPI already generates parameters for typed handler arguments.
+    # Its openapi_extra merge concatenates lists, so adding them again is invalid.
+    if advertise_path:
+        contract["parameters"] = [
             {"name": name, "in": "path", "required": True,
              "schema": path_schemas.get(name, {"type": "string", **({"format": "uuid"} if name.endswith("_id") else {})})}
             for name in names
-        ],
-    }
+        ]
+    return contract

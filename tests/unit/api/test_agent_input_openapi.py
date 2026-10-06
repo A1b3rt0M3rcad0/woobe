@@ -116,6 +116,8 @@ def test_agent_input_schema_uses_the_same_public_dto(endpoint, model_name, path,
     model = getattr(entrypoint, model_name)
     expected = request_body_contract(model, path, method, **CONTRACT_OPTIONS.get(endpoint, {"required": method != "patch"}))
     operation = app.openapi()["paths"][path][method]
+    parameter_keys = [(item["name"], item["in"]) for item in operation.get("parameters", [])]
+    assert len(parameter_keys) == len(set(parameter_keys)), "OpenAPI parameters must be unique"
     assert operation["requestBody"] == jsonable_encoder(expected["requestBody"], exclude_none=True)
     endpoint_function = next(route.endpoint for route in app.routes if getattr(route, "name", None) == endpoint)
     expected_args = ["request", "collection_id"] if endpoint in {"preview_vector_snapshot", "create_vector_snapshot"} else ["request"]
