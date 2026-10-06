@@ -1,3 +1,4 @@
+from modules.agent.composition.public_api import McpOAuthStartInput, McpOAuthCompleteInput, McpOAuthDeviceStartInput, McpOAuthDevicePollInput, McpOAuthStatusInput, McpOAuthDisconnectInput
 from modules.agent.composition.public_api import ImportSkillInput, SkillListQuery
 from modules.agent.composition.public_api import ListMessagesInput
 from modules.agent.composition.public_api import ListSecretsInput
@@ -191,6 +192,12 @@ from modules.agent.composition.factories.rag_runtime_factory import (
 )
 
 __all__ = [
+    'McpOAuthStartInput',
+    'McpOAuthCompleteInput',
+    'McpOAuthDeviceStartInput',
+    'McpOAuthDevicePollInput',
+    'McpOAuthStatusInput',
+    'McpOAuthDisconnectInput',
     'ImportSkillInput',
     'SkillListQuery',
     'ListMessagesInput',
