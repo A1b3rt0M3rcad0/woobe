@@ -1,4 +1,8 @@
 from modules.agent.composition.public_api import (
+    UploadDocumentInput,
+    SearchChunksInput,
+)
+from modules.agent.composition.public_api import (
     CreateCollectionInput,
     AttachCollectionInput,
 )
@@ -157,6 +161,8 @@ from modules.agent.composition.factories.rag_runtime_factory import (
 )
 
 __all__ = [
+    'UploadDocumentInput',
+    'SearchChunksInput',
     'CreateCollectionInput',
     'AttachCollectionInput',
     'CreateModelConfigInput',

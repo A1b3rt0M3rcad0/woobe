@@ -1,3 +1,4 @@
+from modules.agent.entrypoint import (UploadDocumentInput,SearchChunksInput)
 from modules.agent.entrypoint import (CreateCollectionInput,AttachCollectionInput)
 from modules.agent.entrypoint import (CreateModelConfigInput,CreateReleaseTestInput)
 from modules.agent.entrypoint import (CreatePromptInput,CreateContractInput,UpdateContractInput)
@@ -364,7 +365,7 @@ async def list_documents(request: FastAPIRequest):
     return response_adapter(response)
 
 
-@knowledge_router.post("/documents")
+@knowledge_router.post("/documents", openapi_extra=request_body_contract(UploadDocumentInput, "/knowledge/documents", "post", required=True))
 async def upload_document(request: FastAPIRequest):
     handler = upload_document_composer()
     response = await request_adapter(request, handler)
@@ -398,7 +399,7 @@ async def get_document(request: FastAPIRequest):
     return response_adapter(response)
 
 
-@knowledge_router.post("/search")
+@knowledge_router.post("/search", openapi_extra=request_body_contract(SearchChunksInput, "/knowledge/search", "post", required=True))
 async def search_chunks(request: FastAPIRequest):
     handler = search_chunks_composer()
     response = await request_adapter(request, handler)

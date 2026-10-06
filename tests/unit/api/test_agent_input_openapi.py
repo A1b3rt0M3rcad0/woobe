@@ -10,6 +10,9 @@ from woobe_api.http.shared.openapi_contracts import request_body_contract
 
 
 CONTRACTS = [
+    ('upload_document', 'UploadDocumentInput', '/knowledge/documents', 'post'),
+    ('search_chunks', 'SearchChunksInput', '/knowledge/search', 'post'),
+
     ('create_collection', 'CreateCollectionInput', '/knowledge/collections', 'post'),
     ('attach_collection', 'AttachCollectionInput', '/knowledge/agent-collections', 'post'),
 

@@ -1,4 +1,8 @@
 from modules.agent.application.dtos import (
+    UploadDocumentInput,
+    SearchChunksInput,
+)
+from modules.agent.application.dtos import (
     CreateCollectionInput,
     AttachCollectionInput,
 )
@@ -279,6 +283,8 @@ from modules.agent.composition.composers.public_runtime_composers import (
 
 
 __all__ = [
+    'UploadDocumentInput',
+    'SearchChunksInput',
     'CreateCollectionInput',
     'AttachCollectionInput',
     'CreateModelConfigInput',
