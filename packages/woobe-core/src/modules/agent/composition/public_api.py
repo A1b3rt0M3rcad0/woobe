@@ -1,3 +1,4 @@
+from modules.agent.application.dtos.skill_dtos import ImportSkillInput, SkillListQuery
 from modules.agent.application.dtos.runtime_dtos import ListMessagesInput
 from modules.agent.application.dtos.tools_dtos import ListSecretsInput
 from modules.agent.application.dtos.tools_dtos import ListToolsByAgentInput
@@ -318,6 +319,8 @@ from modules.agent.composition.composers.public_runtime_composers import (
 
 
 __all__ = [
+    'ImportSkillInput',
+    'SkillListQuery',
     'ListMessagesInput',
     'ListSecretsInput',
     'ListToolsByAgentInput',
