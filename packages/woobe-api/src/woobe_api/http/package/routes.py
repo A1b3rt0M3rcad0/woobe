@@ -2,12 +2,13 @@ from uuid import UUID
 
 from fastapi import APIRouter, Request
 from fastapi.encoders import jsonable_encoder
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from pydantic import ValidationError as PydanticValidationError
 from starlette.datastructures import UploadFile
 
 from modules.package.entrypoint import (
     PackageError,
+    ExportPackageRequest,
     PlanPackageRequest,
     ApplyPackageRequest,
     LookupPackageOperationRequest,
@@ -289,6 +290,50 @@ async def resume_operation(project_id: UUID, operation_id: UUID, request: Reques
                 expected_revision=body.expected_revision,
             ),
             202,
+        )
+    except PackageError as exc:
+        return failure(exc)
+
+
+@router.post(
+    "/export",
+    status_code=201,
+    openapi_extra=request_body_contract(
+        ExportPackageRequest,
+        "/projects/{project_id}/packages/export",
+        "post",
+        advertise_path=False,
+    ),
+)
+async def export_package(project_id: UUID, request: Request):
+    try:
+        body = await validated_body(request, ExportPackageRequest)
+        return response(
+            await build_package_service().exports.create(
+                project_id=project_id, principal=principal(request), request=body
+            ),
+            201,
+        )
+    except PackageError as exc:
+        return failure(exc)
+
+
+@router.get("/exports/{export_id}/artifact")
+async def download_export(project_id: UUID, export_id: UUID, request: Request):
+    try:
+        receipt, content = await build_package_service().exports.capture_artifact(
+            project_id=project_id, principal=principal(request), export_id=export_id
+        )
+        return Response(
+            content=content,
+            media_type="application/gzip",
+            headers={
+                "Content-Length": str(receipt["size_bytes"]),
+                "X-Woobe-Transport-Sha256": receipt["transport_digest"],
+                "X-Woobe-Artifact-Digest": receipt["artifact_digest"],
+                "Cache-Control": "no-store",
+                "Content-Disposition": 'attachment; filename="woobe-package.tar.gz"',
+            },
         )
     except PackageError as exc:
         return failure(exc)

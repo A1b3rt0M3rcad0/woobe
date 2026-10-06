@@ -234,6 +234,123 @@ async def test_cli_upload_and_native_plan_against_live_postgres(
         checkpoint = json.loads((Path(tmp_path) / "checkpoint.json").read_text())
         assert checkpoint["operation_id"] == final["operation_id"]
         assert checkpoint["state"] == "terminal"
+        target = next(
+            item["resource_id"]
+            for item in final["inventory"]
+            if item["action"]
+            == (
+                "prepare_network"
+                if entry_kind == "Network"
+                else "prepare_inactive_agent"
+            )
+        )
+        exported = Path(tmp_path) / "exported"
+        export_result = await cli.run(
+            "package",
+            "export",
+            entry_kind.lower(),
+            target,
+            "--source",
+            lifecycle,
+            "--destination",
+            str(exported),
+            "--name",
+            "Support",
+            "--version",
+            "1.0.0",
+            "--validate-body",
+            "--validate-parameters",
+        )
+        assert (
+            export_result["data"]["closure_complete"]
+            and export_result["data"]["self_contained"]
+        )
+        validated = await cli.run("package", "validate", str(exported), "--locked")
+        assert (
+            validated["data"]["artifact_digest"]
+            == export_result["data"]["artifact_digest"]
+        )
+        assert "ephemeral-package-test-provider-key" not in "".join(
+            path.read_text() for path in exported.glob("*.yaml")
+        )
+        destination_project = await cli.data(
+            "project",
+            "create",
+            body={
+                "workspace_id": cli.workspace_id,
+                "name": "Package destination",
+                "slug": str(uuid4()),
+            },
+        )
+        cli.project_id = destination_project["id"]
+        destination_credential = await cli.data(
+            "project",
+            "provider-credential",
+            "create",
+            body={
+                "project_id": cli.project_id,
+                "provider": "custom",
+                "name": "Destination fake provider",
+                "secret": "ephemeral-package-destination-provider-key",
+                "metadata": {
+                    "provider_family": "openai",
+                    "compatibility": "compatible",
+                },
+            },
+        )
+        cli.secret_values.add("ephemeral-package-destination-provider-key")
+        imported = await cli.run(
+            "package",
+            "import",
+            str(exported),
+            "--bind",
+            f"credential.credential-1={destination_credential['id']}",
+            *audit_arguments,
+            "--checkpoint",
+            str(Path(tmp_path) / "reimport-checkpoint.json"),
+            "--wait",
+            "--wait-timeout",
+            "60s",
+            "--locked",
+            "--validate-body",
+            "--validate-parameters",
+        )
+        assert imported["data"]["state"] == "succeeded", imported["data"]["diagnostics"]
+        imported_target = next(
+            item["resource_id"]
+            for item in imported["data"]["inventory"]
+            if item["action"]
+            == (
+                "prepare_network"
+                if entry_kind == "Network"
+                else "prepare_inactive_agent"
+            )
+        )
+        reexported = Path(tmp_path) / "reexported"
+        await cli.run(
+            "package",
+            "export",
+            entry_kind.lower(),
+            imported_target,
+            "--source",
+            lifecycle,
+            "--destination",
+            str(reexported),
+            "--name",
+            "Support",
+            "--version",
+            "1.0.0",
+        )
+        left = {
+            path.name: json.loads(path.read_text()) for path in exported.glob("*.yaml")
+        }
+        right = {
+            path.name: json.loads(path.read_text())
+            for path in reexported.glob("*.yaml")
+        }
+        for documents in (left, right):
+            documents["woobe.yaml"].pop("provenance", None)
+        assert left == right
         return
 
     # Exercise the current owner materializer directly until Apply and worker
@@ -316,3 +433,40 @@ async def test_cli_upload_and_native_plan_against_live_postgres(
     assert final["phases_completed"] == final["phases_total"] == len(expected)
     assert final["configuration_ready"] is True and final["execution_ready"] is True
     assert len(await cli.data("project", "agent", "list")) == len(before_agents) + 1
+
+    from modules.agent.entrypoint import build_portable_agent_export_reader
+
+    imported_agent = next(
+        item["resource_id"]
+        for item in final["inventory"]
+        if item["action"] == "prepare_inactive_agent"
+    )
+    captured = await build_portable_agent_export_reader().capture(
+        project_id=UUID(cli.project_id),
+        principal=principal,
+        sources=[{"agent_id": UUID(imported_agent), "source": "draft"}],
+    )
+    assert captured[0]["definition"]["name"] == "Support"
+    assert captured[0]["definition"]["model"] == "fake"
+    assert len(captured[0]["skills"]) == int(with_skill_and_bindings)
+    assert "ephemeral-package-test-provider-key" not in json.dumps(
+        captured, default=str
+    )
+
+    if entry_kind == "Network":
+        from modules.network.entrypoint import build_portable_network_export_reader
+
+        imported_network = next(
+            item["resource_id"]
+            for item in final["inventory"]
+            if item["action"] == "prepare_network"
+        )
+        network_capture = await build_portable_network_export_reader().capture(
+            project_id=UUID(cli.project_id),
+            principal=principal,
+            network_id=UUID(imported_network),
+            source=lifecycle,
+        )
+        assert network_capture["spec"]["root"] == "support-root"
+        assert network_capture["spec"]["nodes"][0]["agent_ref"] == "agent-1"
+        assert network_capture["agents"][0]["definition"]["name"] == "Support"

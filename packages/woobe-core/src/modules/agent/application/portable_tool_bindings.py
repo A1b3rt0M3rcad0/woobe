@@ -55,6 +55,13 @@ def compile_imported_tool_inputs(*, project_id, metadata, spec, environment, sec
         return value
 
     source["config"] = rewrite(config)
+    # Carry desired bindings in author-only remote-name intent, never cached schemas.
+    desired = []
+    for permission in source.get("permissions", []):
+        desired.append(
+            {**permission, "bindings": rewrite(permission.get("bindings", {}))}
+        )
+    source["permissions"] = desired
     source["config"]["permission"] = {"mode": source.get("permission", "allow")}
     if source.get("risk"):
         source["config"]["permission"]["risk_level"] = source["risk"]

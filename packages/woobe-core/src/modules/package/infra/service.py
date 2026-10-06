@@ -16,7 +16,8 @@ from shared.infra.admin_idempotency import principal_identity
 class PackageService:
     """Transport-independent facade over Package-owned durable repositories."""
 
-    def __init__(self, artifacts, plans, operations, inspector):
+    def __init__(self, artifacts, plans, operations, inspector, exports=None):
+        self.exports = exports
         self.artifacts, self.plans, self.operations, self.inspector = (
             artifacts,
             plans,
@@ -40,6 +41,7 @@ class PackageService:
                 "lookup",
                 "resume",
                 "cancel",
+                "export",
             ],
             "principal_fingerprint": fingerprint,
             "formats": ["directory", "tar.gz"],

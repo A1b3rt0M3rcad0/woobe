@@ -144,6 +144,7 @@ class NativePackageMaterializer:
                 "provider": requirement["provider"],
                 "name": key,
                 "secret": work.payload["protected_bindings"][reference],
+                "metadata": requirement.get("metadata"),
             }
             handler = create_provider_credential_composer()
         elif action == "create_environment_value":
@@ -269,13 +270,36 @@ class NativePackageMaterializer:
             )
             handler = materialize_imported_tool_composer()
         elif action in {"verify_mcp_discovery", "verify_mcp_readiness"}:
+            environment = {
+                alias: (binding.get("existing_key") or alias)
+                for alias, binding in work.plan["bindings"]["spec"]
+                .get("project_environment", {})
+                .items()
+            }
             tool_id = UUID(resources[key]["id"])
             try:
                 body = await build_imported_mcp_preparation().execute(
                     project_id=operation.project_id,
                     principal=work.principal,
                     tool_id=tool_id,
-                    desired_permissions=document["spec"].get("permissions", []),
+                    desired_permissions=[
+                        {
+                            **item,
+                            "bindings": {
+                                name: {
+                                    "source": {
+                                        **binding["source"],
+                                        "field": environment[binding["source"]["field"]]
+                                        if binding["source"]["kind"]
+                                        == "project_environment"
+                                        else binding["source"]["field"],
+                                    }
+                                }
+                                for name, binding in item.get("bindings", {}).items()
+                            },
+                        }
+                        for item in document["spec"].get("permissions", [])
+                    ],
                     require_ready=action == "verify_mcp_readiness",
                 )
             except ImportedDependencyPending as pending:

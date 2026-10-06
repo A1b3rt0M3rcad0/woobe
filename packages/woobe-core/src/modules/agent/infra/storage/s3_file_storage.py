@@ -29,11 +29,11 @@ class S3FileStorage:
             import boto3
             from botocore.config import Config
         except ImportError as exc:
-            raise RuntimeError("boto3 is required when WOOBE_STORAGE_DRIVER=s3") from exc
+            raise RuntimeError(
+                "boto3 is required when WOOBE_STORAGE_DRIVER=s3"
+            ) from exc
 
-        config = Config(
-            s3={"addressing_style": "path" if force_path_style else "auto"}
-        )
+        config = Config(s3={"addressing_style": "path" if force_path_style else "auto"})
         self._client = boto3.client(
             "s3",
             region_name=region,
@@ -104,3 +104,22 @@ class S3FileStorage:
             Bucket=self._bucket,
             Key=storage_key,
         )
+
+    async def read_document_bounded(self, storage_key: str, *, max_bytes: int) -> bytes:
+        if max_bytes < 1:
+            raise ValueError("Invalid bounded document read")
+
+        def read_file():
+            response = self._client.get_object(Bucket=self._bucket, Key=storage_key)
+            body = response["Body"]
+            try:
+                if response.get("ContentLength", 0) > max_bytes:
+                    raise ValueError("Document exceeds bounded read")
+                content = body.read(max_bytes + 1)
+                if len(content) > max_bytes:
+                    raise ValueError("Document exceeds bounded read")
+                return content
+            finally:
+                body.close()
+
+        return await asyncio.to_thread(read_file)

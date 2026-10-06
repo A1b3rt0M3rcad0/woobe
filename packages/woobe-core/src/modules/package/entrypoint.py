@@ -1,6 +1,7 @@
 """Stable public Package API for process hosts."""
 
 from modules.package.composition.public_api import (
+    ExportPackageRequest,
     PlanPackageRequest,
     ApplyPackageRequest,
     LookupPackageOperationRequest,
@@ -10,6 +11,7 @@ from modules.package.composition.public_api import (
 )
 
 __all__ = [
+    "ExportPackageRequest",
     "PlanPackageRequest",
     "ApplyPackageRequest",
     "LookupPackageOperationRequest",

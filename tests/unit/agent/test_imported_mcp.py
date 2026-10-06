@@ -110,3 +110,27 @@ async def test_permissions_cannot_allow_a_remote_name_absent_from_fresh_discover
             tool_id=tool.id,
             desired_permissions=[{"remote_name": "cached", "permission": "allow"}],
         )
+
+
+@pytest.mark.asyncio
+async def test_author_bindings_and_risk_survive_fresh_discovery_without_cached_schema():
+    tool, _, _, use_case = setup()
+    binding = {"source": {"kind": "context", "field": "tenant_id"}}
+    result = await use_case.execute(
+        project_id=tool.project_id,
+        principal=object(),
+        tool_id=tool.id,
+        desired_permissions=[
+            {
+                "remote_name": "search",
+                "permission": "deny",
+                "risk": "critical",
+                "bindings": {"query": binding},
+            }
+        ],
+    )
+    remote = result["config"]["discovered_tools"][0]
+    assert remote["name"] == "search"
+    assert remote["permission"] == {"mode": "deny", "risk_level": "critical"}
+    assert remote["bindings"] == {"query": binding}
+    assert "cached" not in str(result["config"]["discovered_tools"])

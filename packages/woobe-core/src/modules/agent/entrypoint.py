@@ -404,3 +404,6 @@ __all__ = [
     'UploadDocumentFileInput',
     'UseCase',
 ]
+
+from modules.agent.composition.public_api import build_portable_agent_export_reader
+__all__.append("build_portable_agent_export_reader")

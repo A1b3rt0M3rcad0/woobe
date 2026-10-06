@@ -1,5 +1,7 @@
 """Stable public entrypoint for the Network bounded context."""
 
+from modules.network.composition.public_api import build_portable_network_export_reader
+
 from modules.network.composition.public_api import (
     imported_network_composer,
     CreateNetworkSessionRequest,
@@ -27,3 +29,5 @@ __all__ = [
     "build_network_rerun_service",
     "build_network_service",
 ]
+
+__all__.append("build_portable_network_export_reader")

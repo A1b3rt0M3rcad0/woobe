@@ -48,3 +48,9 @@ __all__ = [
     "inspect_portable_version_definition",
     "portable_skill_identity",
 ]
+
+from modules.agent.composition.contract_api import PortableCredentialMetadata
+__all__.append("PortableCredentialMetadata")
+
+from modules.agent.composition.contract_api import ToolInputBinding as ToolInputBinding
+__all__.append("ToolInputBinding")

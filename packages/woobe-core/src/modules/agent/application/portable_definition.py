@@ -159,6 +159,11 @@ def portable_skill_identity(package):
 
 
 def inspect_portable_tool(*, project_id, metadata: dict, spec: dict) -> dict:
+    from modules.agent.application.portable_authentication import (
+        validate_portable_tool_authentication,
+    )
+
+    validate_portable_tool_authentication(spec["config"])
     native = CreateToolInput.model_validate(
         {
             "project_id": project_id,

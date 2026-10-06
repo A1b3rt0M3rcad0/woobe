@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from modules.package.application.dtos import StrictDTO, ImportBindingsV1
 
@@ -40,3 +40,19 @@ class LookupPackageOperationRequest(StrictDTO):
 
 class ResumePackageOperationRequest(StrictDTO):
     expected_revision: int = Field(ge=1)
+
+
+class ExportPackageRequest(StrictDTO):
+    kind: Literal["Agent", "Network"]
+    target_id: str = Field(pattern=UUID_PATTERN)
+    source: Literal["draft", "staging", "release", "production"] | None = None
+    snapshot_id: str | None = Field(default=None, pattern=UUID_PATTERN)
+    knowledge: Literal["portable", "binding"] = "portable"
+    name: str = Field(min_length=1, max_length=255)
+    version: str = Field(min_length=1, max_length=64)
+
+    @model_validator(mode="after")
+    def exclusive_source(self):
+        if (self.source is None) == (self.snapshot_id is None):
+            raise ValueError("Export requires exactly one source selector")
+        return self

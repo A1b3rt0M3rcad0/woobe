@@ -5,6 +5,8 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from modules.agent.contract_boundary import (
+    PortableCredentialMetadata,
+    ToolInputBinding,
     BehaviorSpecification,
     ContextPolicyV1,
     HttpToolConfig,
@@ -43,6 +45,7 @@ class Entrypoint(Ref):
 
 class CredentialRequirement(Ref):
     provider: str
+    metadata: PortableCredentialMetadata | None = None
 
 
 class EnvironmentRequirement(StrictDTO):
@@ -229,8 +232,10 @@ class NetworkDocument(Document):
 
 
 class McpPermission(StrictDTO):
+    bindings: dict[str, ToolInputBinding] = Field(default_factory=dict)
     remote_name: str
     permission: Literal["allow", "deny", "review"]
+    risk: Literal["low", "medium", "high", "critical"] | None = None
 
 
 class ToolSpecV1(StrictDTO):

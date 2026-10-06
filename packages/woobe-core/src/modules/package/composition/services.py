@@ -1,3 +1,11 @@
+from modules.agent.entrypoint import build_portable_agent_export_reader
+from modules.network.entrypoint import build_portable_network_export_reader
+from modules.core.entrypoint import build_portable_environment_reader
+from modules.package.application.export_projection import (
+    ExportProjection,
+    reference_requirements,
+)
+from modules.package.infra.export_repository import PackageExportRepository
 from modules.network.entrypoint import build_network_service
 from modules.package.infra.artifact_repository import PackageArtifactRepository
 from modules.package.infra.artifact_storage import build_package_artifact_storage
@@ -20,7 +28,16 @@ def build_package_service() -> PackageService:
         encryption_key=SETTINGS.encryption_key,
         plan_validator=plans.validate_acceptance,
     )
-    return PackageService(artifacts, plans, operations, inspector)
+    exports = PackageExportRepository(
+        SESSION_FACTORY,
+        storage,
+        build_portable_agent_export_reader(),
+        build_portable_network_export_reader(),
+        build_portable_environment_reader(),
+        projection_factory=ExportProjection,
+        reference_collector=reference_requirements,
+    )
+    return PackageService(artifacts, plans, operations, inspector, exports)
 
 
 def build_package_executor() -> ExecutePackageOperation:

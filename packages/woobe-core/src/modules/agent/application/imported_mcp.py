@@ -1,4 +1,7 @@
-from modules.agent.application.interfaces.imported_mcp import ImportedMcpPreparationReader
+from copy import deepcopy
+from modules.agent.application.interfaces.imported_mcp import (
+    ImportedMcpPreparationReader,
+)
 
 from modules.agent.application.interfaces.ports import (
     ToolExecutionPort,
@@ -61,9 +64,19 @@ class PrepareImportedMcpUseCase:
         if result.status == "ready":
             names = {item["name"] for item in tool.config.get("discovered_tools", [])}
             if len(names) != len(tool.config.get("discovered_tools", [])):
-                raise ValidationError("Fresh MCP discovery contains ambiguous remote Tool names")
+                raise ValidationError(
+                    "Fresh MCP discovery contains ambiguous remote Tool names"
+                )
             requested = {
-                item["remote_name"]: item["permission"] for item in desired_permissions
+                item["remote_name"]: {
+                    "mode": item["permission"],
+                    **(
+                        {"risk_level": item["risk"]}
+                        if item.get("risk") is not None
+                        else {}
+                    ),
+                }
+                for item in desired_permissions
             }
             if len(requested) != len(desired_permissions) or set(requested) - names:
                 raise ValidationError(
@@ -75,9 +88,22 @@ class PrepareImportedMcpUseCase:
                     "Selected MCP Tool is absent from fresh discovery"
                 )
             if selected and tool.config.get("mode", "tool") == "tool":
-                requested.setdefault(selected, (tool.config.get("permission") or {}).get("mode", "allow"))
+                requested.setdefault(
+                    selected,
+                    {
+                        "mode": (tool.config.get("permission") or {}).get(
+                            "mode", "allow"
+                        )
+                    },
+                )
+            author_bindings = {
+                item["remote_name"]: item.get("bindings", {})
+                for item in desired_permissions
+            }
             for item in tool.config.get("discovered_tools", []):
-                item["permission"] = {"mode": requested.get(item["name"], "review")}
+                if item["name"] in author_bindings:
+                    item["bindings"] = deepcopy(author_bindings[item["name"]])
+                item["permission"] = requested.get(item["name"], {"mode": "review"})
         return {
             "project_id": str(project_id),
             "tool_id": str(tool.id),

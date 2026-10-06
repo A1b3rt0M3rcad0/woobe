@@ -1,5 +1,6 @@
 """Explicit transport-neutral public surface for Core hosts."""
 
+from modules.core.composition.services import build_portable_environment_reader as build_portable_environment_reader
 from modules.core.composition.composers.create_imported_environment_composer import create_imported_environment_composer
 
 from modules.core.application.dtos.create_project_dtos import CreateProjectInput
@@ -46,6 +47,7 @@ from modules.core.composition.composers.update_project_composer import (
 )
 
 __all__ = [
+    "build_portable_environment_reader",
     "create_imported_environment_composer",
     "CreateApiKeyInput",
     "CreateRuntimeApiKeyInput",

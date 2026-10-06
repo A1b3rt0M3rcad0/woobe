@@ -2488,6 +2488,17 @@
       "CredentialRequirement": {
         "additionalProperties": false,
         "properties": {
+          "metadata": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/PortableCredentialMetadata"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
           "provider": {
             "title": "Provider",
             "type": "string"
@@ -2622,6 +2633,55 @@
           "resources"
         ],
         "title": "PackageSpec",
+        "type": "object"
+      },
+      "PortableCredentialMetadata": {
+        "additionalProperties": false,
+        "properties": {
+          "base_url": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Base Url"
+          },
+          "compatibility": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Compatibility"
+          },
+          "provider_family": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Provider Family"
+          }
+        },
+        "title": "PortableCredentialMetadata",
         "type": "object"
       },
       "Provenance": {
@@ -3681,6 +3741,13 @@
       "McpPermission": {
         "additionalProperties": false,
         "properties": {
+          "bindings": {
+            "additionalProperties": {
+              "$ref": "#/$defs/ToolInputBinding"
+            },
+            "title": "Bindings",
+            "type": "object"
+          },
           "permission": {
             "enum": [
               "allow",
@@ -3693,6 +3760,24 @@
           "remote_name": {
             "title": "Remote Name",
             "type": "string"
+          },
+          "risk": {
+            "anyOf": [
+              {
+                "enum": [
+                  "low",
+                  "medium",
+                  "high",
+                  "critical"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Risk"
           }
         },
         "required": [

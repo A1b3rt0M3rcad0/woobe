@@ -68,6 +68,18 @@ class InspectDestinationBindingsUseCase:
                 raise ValidationError(
                     "Destination credential must be active and use the declared provider"
                 )
+            expected_metadata = (
+                binding.metadata.model_dump(exclude_none=True)
+                if binding.metadata is not None
+                else {}
+            )
+            if any(
+                (credential.metadata or {}).get(field) != value
+                for field, value in expected_metadata.items()
+            ):
+                raise ValidationError(
+                    "Destination credential connection metadata differs from the declared SDK intent"
+                )
             result["credentials"][alias] = {
                 "credential_id": str(credential.id),
                 "provider": binding.provider.value,

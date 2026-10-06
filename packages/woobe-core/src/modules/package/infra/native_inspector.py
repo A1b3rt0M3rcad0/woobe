@@ -69,6 +69,10 @@ class NativePackageInspectorGateway:
             item["ref"]: item["provider"]
             for item in requirements.get("credentials", [])
         }
+        credential_metadata = {
+            item["ref"]: item.get("metadata")
+            for item in requirements.get("credentials", [])
+        }
         environment_kinds = {
             item["key"]: item["kind"]
             for item in requirements.get("project_environment", [])
@@ -77,7 +81,11 @@ class NativePackageInspectorGateway:
             "project_id": str(project_id),
             **bindings,
             "credentials": {
-                alias: {**value, "provider": providers[alias]}
+                alias: {
+                    **value,
+                    "provider": providers[alias],
+                    "metadata": credential_metadata[alias],
+                }
                 for alias, value in bindings.get("credentials", {}).items()
             },
             "project_environment": {

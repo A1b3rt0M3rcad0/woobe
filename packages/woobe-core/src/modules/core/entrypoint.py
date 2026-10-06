@@ -1,3 +1,4 @@
+from modules.core.composition.public_api import build_portable_environment_reader as build_portable_environment_reader
 from modules.core.composition.public_api import (
     create_imported_environment_composer,
     CreateApiKeyInput,
@@ -24,6 +25,7 @@ from modules.core.composition.public_api import (
 )
 
 __all__ = [
+    "build_portable_environment_reader",
     "create_imported_environment_composer",
     "CreateApiKeyInput",
     "CreateRuntimeApiKeyInput",
