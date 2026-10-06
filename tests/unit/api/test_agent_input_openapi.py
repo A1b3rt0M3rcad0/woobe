@@ -11,6 +11,8 @@ from woobe_api.http.shared.openapi_contracts import request_body_contract
 
 from woobe_api.http.agent import mcp_tools_routes
 
+from woobe_api.http.agent import vector_snapshot_routes
+
 CONTRACT_OPTIONS = {}
 EXTRA_ROUTERS = []
 
@@ -34,7 +36,15 @@ CONTRACT_OPTIONS['update_mcp_permissions'] = {'required': False}
 
 CONTRACT_OPTIONS['bulk_update_mcp_permissions'] = {'required': True}
 
+EXTRA_ROUTERS.append(vector_snapshot_routes.router)
+
+CONTRACT_OPTIONS['preview_vector_snapshot'] = {'required': True, 'path_fields': ('collection_id',)}
+
+CONTRACT_OPTIONS['create_vector_snapshot'] = {'required': True, 'path_fields': ('collection_id',)}
+
 CONTRACTS = [
+    ('create_vector_snapshot', 'CreateVectorSnapshotInput', '/agent/knowledge/collections/{collection_id}/vector-snapshots', 'post'),
+    ('preview_vector_snapshot', 'PreviewVectorSnapshotInput', '/agent/knowledge/collections/{collection_id}/vector-preview', 'post'),
     ('bulk_update_mcp_permissions', 'BulkUpdateMcpToolPermissionsInput', '/tools/mcp/permissions/bulk', 'post'),
     ('update_mcp_permissions', 'UpdateMcpToolPermissionsInput', '/tools/mcp/permissions', 'patch'),
     ('refresh_mcp_tools', 'RefreshMcpProviderToolsInput', '/tools/mcp/refresh', 'post'),
