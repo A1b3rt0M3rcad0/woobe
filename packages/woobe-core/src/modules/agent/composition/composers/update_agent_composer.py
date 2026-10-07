@@ -1,3 +1,5 @@
+from modules.agent.application.use_cases.atomic_agent_update import AtomicAgentUpdateUseCase
+from modules.agent.composition.composers.create_release_composer import build_complete_agent_draft
 from modules.agent.infra.database.skill_repository import SQLAlchemySkillRepository
 from modules.agent.application.use_cases import UpdateAgentUseCase
 from modules.agent.composition.resources import DATABASE_ENGINE
@@ -35,6 +37,7 @@ def update_agent_composer() -> TransactionalHandler:
         network_usage_reader,
         skill_repo=SQLAlchemySkillRepository(uow),
     )
-    use_case = LegacyRuntimeStatusUpdateAdapter(update_use_case, uow)
+    atomic = AtomicAgentUpdateUseCase(update_use_case, build_complete_agent_draft(uow), agent_repo)
+    use_case = LegacyRuntimeStatusUpdateAdapter(atomic, uow)
     controller = UpdateAgentController(use_case)
     return TransactionalHandler(uow, controller.handle)

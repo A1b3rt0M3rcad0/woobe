@@ -7,7 +7,7 @@ export async function getExecutionStrategies(): Promise<ExecutionStrategyDescrip
 export async function getAgents(projectId?: string): Promise<Agent[]> { return get<Agent[]>('/ai/agents', { params: { project_id: projectId } }) }
 export async function getAgent(id: string): Promise<Agent> { return get<Agent>(`/ai/agents/${id}`) }
 export async function createAgent(data: CreateAgentRequest): Promise<Agent> { return post<Agent>('/ai/agents', data) }
-export async function updateAgent(id: string, data: UpdateAgentRequest): Promise<Agent> { return patch<Agent>(`/ai/agents/${id}`, data) }
+export async function updateAgent(id: string, data: UpdateAgentRequest, revision?: number): Promise<Agent> { return patch<Agent>(`/ai/agents/${id}`, data, revision === undefined ? undefined : { headers: { 'If-Match': `"${revision}"` } }) }
 export async function getAgentRuntimeEnvironments(agentId: string, projectId: string): Promise<RuntimeEnvironmentStates> { return get<RuntimeEnvironmentStates>(`/ai/agents/${agentId}/runtime-environments`, { params: { project_id: projectId } }) }
 export async function updateAgentRuntimeEnvironment(agentId: string, projectId: string, environment: RuntimeEnvironment, enabled: boolean): Promise<RuntimeEnvironmentState & { environment: RuntimeEnvironment }> { return patch<RuntimeEnvironmentState & { environment: RuntimeEnvironment }>(`/ai/agents/${agentId}/runtime-environments/${environment}`, { project_id: projectId, enabled }) }
 export async function updateAgentRuntimeEnvironmentContext(agentId: string, projectId: string, environment: RuntimeEnvironment, externalContextValues: Record<string, unknown>): Promise<RuntimeEnvironmentState & { environment: RuntimeEnvironment }> { return patch<RuntimeEnvironmentState & { environment: RuntimeEnvironment }>(`/ai/agents/${agentId}/runtime-environments/${environment}`, { project_id: projectId, external_context_values: externalContextValues }) }
@@ -26,7 +26,10 @@ export async function createKnowledgeVersion(agentId: string, data: CreateKnowle
 export async function getReleases(agentId: string): Promise<AgentRelease[]> { return get<AgentRelease[]>(`/ai/agents/${agentId}/releases`) }
 export async function getRelease(agentId: string, releaseId: string): Promise<AgentRelease> { return get<AgentRelease>(`/ai/agents/${agentId}/releases/${releaseId}`) }
 export async function getReleaseActivations(agentId: string): Promise<AgentReleaseActivation[]> { return get<AgentReleaseActivation[]>(`/ai/agents/${agentId}/release-activations`) }
-export async function createRelease(agentId: string, data: CreateReleaseRequest): Promise<AgentRelease> { return post<AgentRelease>(`/ai/agents/${agentId}/releases`, data) }
+export async function createRelease(agentId: string, data: CreateReleaseRequest): Promise<AgentRelease> {
+  const { expected_revision, ...payload } = data
+  return post<AgentRelease>(`/ai/agents/${agentId}/releases`, payload, expected_revision === undefined ? undefined : { headers: { 'If-Match': `"${expected_revision}"` } })
+}
 export type PromoteReleaseOptions = { userId?: string; targetStatus?: 'draft' | 'staging' | 'released' | 'production'; copySnapshot?: boolean; restoreExistingVersion?: boolean; releaseNotes?: string; changeDescription?: string }
 export async function promoteRelease(agentId: string, releaseId: string, options: PromoteReleaseOptions | string = {}): Promise<AgentRelease> {
   const isLegacy = typeof options === 'string'

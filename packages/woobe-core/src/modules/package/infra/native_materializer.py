@@ -15,9 +15,13 @@ from modules.agent.contract_boundary import (
 from modules.agent.entrypoint import (
     promote_release_composer,
     create_agent_composer,
+    prepare_existing_agent_composer,
+    reuse_frozen_agent_composer,
+    reuse_development_resource_composer,
     verify_imported_agent_composer,
     create_contract_version_composer,
     create_prompt_version_composer,
+    materialize_development_artifact_composer,
     create_provider_credential_composer,
     create_secret_composer,
     create_collection_composer,
@@ -128,7 +132,45 @@ class NativePackageMaterializer:
         project = str(operation.project_id)
         paths = {"project_id": project}
         metadata = {"required_permission": phase["permission"]}
-        if action == "create_credential":
+        target = work.plan.get("resource_bindings", {}).get(key, {})
+        if (
+            target.get("resource_id")
+            and target.get("kind") == "Agent"
+            and not target.get("frozen")
+            and action
+            in {"prepare_existing_agent", "finalize_agent_draft", "reuse_resource"}
+        ):
+            metadata["expected_agent_revision"] = str(target["evidence"]["revision"])
+        if action == "reuse_frozen_snapshot":
+            paths["agent_id"] = target["resource_id"]
+            body = {
+                "project_id": project,
+                "agent_id": target["resource_id"],
+                "release_id": target["evidence"]["snapshot_id"],
+                "snapshot_digest": target["evidence"]["snapshot_digest"],
+            }
+            handler = reuse_frozen_agent_composer()
+        elif action == "reuse_resource":
+            body = {
+                "project_id": project,
+                "kind": target["kind"],
+                "resource_id": target["resource_id"],
+                "expected_revision": target["evidence"]["revision"],
+            }
+            parameter = {
+                "Agent": "agent_id",
+                "Tool": "tool_id",
+                "Model": "provider_model_id",
+                "Skill": "skill_version_id",
+                "Knowledge": "snapshot_id",
+            }[target["kind"]]
+            paths[parameter] = target["resource_id"]
+            handler = reuse_development_resource_composer()
+        elif action == "prepare_existing_agent":
+            body = {"project_id": project}
+            paths["agent_id"] = target["resource_id"]
+            handler = prepare_existing_agent_composer()
+        elif action == "create_credential":
             requirement = next(
                 item
                 for item in work.plan["source_definition"]["manifest"]["spec"][
@@ -268,6 +310,10 @@ class NativePackageMaterializer:
                 environment=environment,
                 secrets=secrets,
             )
+            if work.plan.get("mode") == "sync" and target.get("evidence", {}).get(
+                "owner_agent_id"
+            ):
+                body["agent_id"] = target["evidence"]["owner_agent_id"]
             handler = materialize_imported_tool_composer()
         elif action in {"verify_mcp_discovery", "verify_mcp_readiness"}:
             environment = {
@@ -328,9 +374,15 @@ class NativePackageMaterializer:
             }
             paths["agent_id"] = agent_id
             handler = (
-                create_prompt_version_composer()
-                if action == "create_prompt_version"
-                else create_contract_version_composer()
+                materialize_development_artifact_composer(
+                    "Prompt" if action == "create_prompt_version" else "Contract"
+                )
+                if work.plan.get("mode") == "sync"
+                else (
+                    create_prompt_version_composer()
+                    if action == "create_prompt_version"
+                    else create_contract_version_composer()
+                )
             )
         elif action == "finalize_agent_draft":
             agent_id = resources[key]["id"]
@@ -343,7 +395,9 @@ class NativePackageMaterializer:
                 release_notes=work.plan["release_notes"],
             )
             paths["agent_id"] = agent_id
-            handler = finalize_imported_agent_composer()
+            handler = finalize_imported_agent_composer(
+                allow_existing=bool(target.get("resource_id"))
+            )
         elif (
             document
             and document["kind"] == "Agent"
@@ -383,6 +437,12 @@ class NativePackageMaterializer:
                 "activation_reason": work.plan["reason"],
                 "lifecycle": work.plan["lifecycle"],
             }
+            if action == "prepare_network" and target.get("resource_id"):
+                body.update(
+                    network_id=target["resource_id"],
+                    expected_revision=target["evidence"]["revision"],
+                )
+                paths["network_id"] = target["resource_id"]
             if action != "prepare_network":
                 body["network_id"] = resources[key]["id"]
                 paths["network_id"] = body["network_id"]
@@ -435,7 +495,9 @@ class NativePackageMaterializer:
                     {},
                 ).get("id"),
             }
-            handler = verify_imported_agent_composer()
+            handler = verify_imported_agent_composer(
+                allow_existing=work.plan.get("mode") == "sync"
+            )
         else:
             raise PackageError(
                 "PACKAGE_NATIVE_PHASE_UNSUPPORTED",

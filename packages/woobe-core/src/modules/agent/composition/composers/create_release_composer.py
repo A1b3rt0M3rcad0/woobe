@@ -18,8 +18,7 @@ from modules.agent.presentation.controllers.create_release_controller import Cre
 from shared.infra.transactional_handler import TransactionalHandler
 
 
-def create_release_composer() -> TransactionalHandler:
-    uow = AgentUnitOfWork(DATABASE_ENGINE)
+def build_complete_agent_draft(uow):
     knowledge_repo = SQLAlchemyKnowledgeVersionRepository(uow)
     vector_repo = SQLAlchemyVectorSnapshotRepository(uow)
     release_repo = SQLAlchemyAgentReleaseRepositoryWithProviderModels(uow)
@@ -34,5 +33,10 @@ def create_release_composer() -> TransactionalHandler:
         project_environment_reader=SQLAlchemyProjectEnvironmentReader(uow),
     )
     use_case = SessionModeCompatibleCreateReleaseUseCase(release_use_case, agent_repo)
-    controller = CreateReleaseController(use_case)
+    return use_case
+
+
+def create_release_composer() -> TransactionalHandler:
+    uow = AgentUnitOfWork(DATABASE_ENGINE)
+    controller = CreateReleaseController(build_complete_agent_draft(uow))
     return TransactionalHandler(uow, controller.handle)

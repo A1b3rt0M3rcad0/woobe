@@ -137,8 +137,7 @@ class PortableNetworkExportReader:
                     "draft_release_id"
                 )
                 live_draft = (
-                    release_id is None
-                    and version is None
+                    version is None
                     and node.binding.source == "draft"
                 )
                 if release_id is None and not live_draft:
@@ -147,7 +146,7 @@ class PortableNetworkExportReader:
                     )
                 identity = (
                     node.agent_id,
-                    UUID(str(release_id)) if release_id else None,
+                    UUID(str(release_id)) if release_id and not live_draft else None,
                 )
                 if identity not in selections:
                     reference = f"agent-{len(agents) + 1}"
@@ -162,7 +161,7 @@ class PortableNetworkExportReader:
                         if live_draft
                         else binding.get("snapshot_override"),
                     )
-                    agents.append({"key": reference, **captured})
+                    agents.append({"key": reference, **captured, "frozen": not live_draft})
                     selections[identity] = reference
                 nodes.append(
                     {
@@ -179,6 +178,7 @@ class PortableNetworkExportReader:
                     "network_id": str(network.id),
                     "snapshot_id": str(version.id) if version else None,
                     "revision": network.draft_revision if version is None else None,
+                    "draft_revision": network.draft_revision,
                     "version": version.version if version else None,
                     "kind": version.kind if version else "draft",
                 },

@@ -14,6 +14,9 @@ from shared.infra.admin_idempotency import principal_identity
 
 
 PUBLIC_PLAN_FIELDS = (
+    "mode",
+    "registry_id",
+    "resource_bindings",
     "api_origin",
     "project_id",
     "upload_id",
@@ -38,12 +41,13 @@ def plan_status(record):
         "package_schema_version": "1.0",
         "plan_id": str(record.id),
         "plan_digest": record.plan_digest,
-        **{key: record.document[key] for key in PUBLIC_PLAN_FIELDS},
+        **{key: record.document.get(key) for key in PUBLIC_PLAN_FIELDS},
     }
 
 
 class PackagePlanRepository:
-    def __init__(self, session_factory, artifacts, inspector):
+    def __init__(self, session_factory, artifacts, inspector, registry=None):
+        self.registry = registry
         self._sessions, self._artifacts, self._inspector = (
             session_factory,
             artifacts,
@@ -62,6 +66,9 @@ class PackagePlanRepository:
         release_notes,
         reason,
         api_origin,
+        mode="create",
+        registry_id=None,
+        resource_bindings=None,
     ):
         upload = await self._artifacts.get_record(
             project_id=project_id, principal=principal, upload_id=upload_id
@@ -87,6 +94,11 @@ class PackagePlanRepository:
                 reason=reason,
                 api_origin=api_origin,
             )
+            if mode == "sync":
+                if self.registry is None:
+                    raise PackageError("PACKAGE_UNSUPPORTED", "Development registry is unavailable")
+                async with self._sessions.begin() as session:
+                    await self.registry.prepare(session, project_id=project_id, principal=principal, registry_id=registry_id, targets=resource_bindings, graph=bundle.graph, inventory=bundle.inventory, document=approved.document)
         finally:
             bundle.close()
         record = PackagePlanModel(
@@ -94,7 +106,7 @@ class PackagePlanRepository:
             actor=principal_identity(principal),
             upload_id=upload_id,
             artifact_digest=artifact_digest,
-            plan_digest=approved.digest,
+            plan_digest=definition_digest(approved.document),
             document=approved.document,
             expires_at=approved.expires_at,
         )
@@ -115,6 +127,8 @@ class PackagePlanRepository:
         # only native read scopes and pure contract checks; it never opens storage,
         # uploads documents, invokes providers or discovers MCP servers.
         document = plan.document
+        if self.registry and document.get("mode") == "sync":
+            await self.registry.validate(session, plan, principal)
         if payload.get("bindings") != document["bindings"]:
             raise PackageError(
                 "PACKAGE_PLAN_MISMATCH", "Bindings differ from the approved plan"
@@ -188,6 +202,11 @@ class PackagePlanRepository:
                 "PACKAGE_PRECONDITION_CHANGED",
                 "Native resource definitions changed after planning",
             )
+
+
+    async def reserve_development(self, session, plan, operation):
+        if self.registry and plan.document.get("mode") == "sync":
+            await self.registry.reserve(session, plan, operation)
 
 
 class CapturedSkillSupport(Mapping):

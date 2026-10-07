@@ -80,6 +80,31 @@ def _passthrough(mock):
 
 
 @pytest.mark.asyncio
+async def test_embedding_only_model_blocks_archival_and_credential_usage_includes_knowledge():
+    project_id, credential_id, model_id, vector_id = uuid4(), uuid4(), uuid4(), uuid4()
+    credential = _credential(project_id=project_id, credential_id=credential_id)
+    model = _model(project_id=project_id, credential_id=credential_id, model_id=model_id)
+    models = SimpleNamespace(get_by_id=AsyncMock(return_value=model), list_by_credential=AsyncMock(return_value=[model]), update=AsyncMock())
+    credentials = SimpleNamespace(get_by_id=AsyncMock(return_value=credential))
+    agents = SimpleNamespace(list_by_project=AsyncMock(return_value=[]))
+    releases = SimpleNamespace(list_by_agent=AsyncMock(return_value=[]))
+    dependency = {"type":"vector_snapshot", "id":str(vector_id), "field":"embedding_provider_model_id", "name":"Knowledge", "status":"READY"}
+    dependencies = SimpleNamespace(embedding_consumers=AsyncMock(return_value=[dependency]))
+    usage = provider_management_cases.ProviderModelUsageUseCase(models, agents, releases, dependency_reader=dependencies)
+    result = await usage.execute(model_id)
+    assert result["blocking"] == [dependency]
+    assert result["can_delete"] is False
+    dependencies.embedding_consumers.assert_awaited_with(project_id, {model_id})
+    with pytest.raises(ConflictError, match="still in use"):
+        await ArchiveProviderModelUseCase(models, usage).execute(model_id)
+    models.update.assert_not_awaited()
+    credential_usage = provider_management_cases.ProviderCredentialUsageUseCase(credentials, models, agents, releases, dependency_reader=dependencies)
+    result = await credential_usage.execute(credential_id)
+    assert dependency in result["blocking"]
+    dependencies.embedding_consumers.assert_awaited_with(project_id, {model_id})
+
+
+@pytest.mark.asyncio
 async def test_create_provider_credential_encrypts_secret_and_emits_event(monkeypatch):
     project_id = uuid4()
     repo = SimpleNamespace(save=AsyncMock())

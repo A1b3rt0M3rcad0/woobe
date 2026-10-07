@@ -33,7 +33,7 @@ from shared.security.control_plane import (
 )
 
 CLI_COMMIT = os.environ.get(
-    "WOOBE_TEST_CLI_SHA", "2f1815a0bc0cfb9260636f3982ac99f69f0cb174"
+    "WOOBE_TEST_CLI_SHA", "45e49dbda7a4639139f283c57455bec3c6bc6276"
 )
 
 
@@ -91,6 +91,7 @@ class Cli:
         runtime_key=None,
         expected=0,
         stdin_bytes=None,
+        cwd=None,
     ):
         args = [
             self.binary,
@@ -117,6 +118,7 @@ class Cli:
         process = await asyncio.create_subprocess_exec(
             *args,
             env=env,
+            cwd=cwd,
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,

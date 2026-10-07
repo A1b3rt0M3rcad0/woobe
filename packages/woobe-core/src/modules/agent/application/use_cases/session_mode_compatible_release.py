@@ -248,5 +248,7 @@ class SessionModeCompatibleCreateReleaseUseCase:
 
         draft = await self._delegate.execute(input_dto, change_kind=change_kind)
         _sync_agent_projection(agent, draft)
-        await self._agent_repo.update(agent)
+        saved = await self._agent_repo.update(agent)
+        if hasattr(draft, "agent_revision"):
+            draft.agent_revision = getattr(saved, "revision", None)
         return draft

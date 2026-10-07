@@ -49,6 +49,8 @@ def failure(error):
         status = 404
     elif error.code in {
         "PACKAGE_REVISION_CONFLICT",
+        "PACKAGE_REGISTRY_CONFLICT",
+        "PACKAGE_FROZEN_RESOURCE_CHANGED",
         "PACKAGE_PLAN_MISMATCH",
         "PACKAGE_PRECONDITION_CHANGED",
         "PACKAGE_BINDINGS_CHANGED",
@@ -335,5 +337,13 @@ async def download_export(project_id: UUID, export_id: UUID, request: Request):
                 "Content-Disposition": 'attachment; filename="woobe-package.tar.gz"',
             },
         )
+    except PackageError as exc:
+        return failure(exc)
+
+
+@router.get("/registries/{registry_id}")
+async def development_registry(project_id: UUID, registry_id: UUID, request: Request):
+    try:
+        return response(await build_package_service().plans.registry.bindings(project_id=project_id, principal=principal(request), registry_id=registry_id))
     except PackageError as exc:
         return failure(exc)

@@ -18,22 +18,26 @@ class FinalizeImportedAgentUseCase:
         draft: SessionModeCompatibleCreateReleaseUseCase,
         update: UpdateAgentUseCase,
         agents: AgentRepository,
+        *,
+        allow_existing=False,
     ):
         self._draft, self._update, self._agents = draft, update, agents
+        self._allow_existing = allow_existing
 
     async def execute(self, input_dto: CreateReleaseInput, change_kind="change"):
         agent = await self._agents.get_by_id(input_dto.agent_id)
         if agent is None or agent.project_id != input_dto.project_id:
             raise AgentNotFoundError(input_dto.agent_id)
-        if agent.status != AgentStatus.inactive:
+        if agent.status == AgentStatus.archived or (
+            not self._allow_existing and agent.status != AgentStatus.inactive
+        ):
             raise ConflictError(
                 "Import finalization requires its inactive preparatory Agent"
             )
-        complete = input_dto.model_copy(update={"agent_status": "active"})
+        target_status = agent.status if self._allow_existing else AgentStatus.active
+        complete = input_dto.model_copy(update={"agent_status": target_status.value})
         draft = await self._draft.execute(complete, change_kind=change_kind)
-        await self._update.execute(
-            agent.id, UpdateAgentInput(status=AgentStatus.active)
-        )
+        await self._update.execute(agent.id, UpdateAgentInput(status=target_status))
         # The native update path may canonicalize Models, Skills and Behavior.
         # Reject a disagreement within the owner transaction instead of exposing
         # an active Agent with a different executable definition from its Draft.

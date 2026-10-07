@@ -7,6 +7,7 @@ from uuid import UUID
 from sqlalchemy import select, text
 
 from modules.agent.domain.skills import skill_package_hash
+from modules.agent.domain.release_snapshot import release_snapshot_hash
 from modules.agent.application.dtos.portable_credential_metadata import (
     PortableCredentialMetadata,
 )
@@ -278,8 +279,18 @@ class PortableAgentExportReader:
                 identifiers={"agent_id": str(agent_id), "release_id": str(release.id)},
             )
             definition = self._compiler.definition(release)
-        if expected_snapshot is not None and any(
-            definition.get(key) != value for key, value in expected_snapshot.items()
+        # Pinned Network runtime bindings carry an identity marker alongside
+        # their compatibility projection. It is not an Agent definition field.
+        if expected_snapshot is not None and (
+            (
+                expected_snapshot.get("pinned_release_id") is not None
+                and (release is None or expected_snapshot["pinned_release_id"] != str(release.id))
+            )
+            or any(
+                definition.get(key) != value
+                for key, value in expected_snapshot.items()
+                if key != "pinned_release_id"
+            )
         ):
             raise ConflictError(
                 "Agent snapshot differs from the frozen Network binding"
@@ -365,12 +376,13 @@ class PortableAgentExportReader:
             (
                 "prompt_version_id",
                 AgentPromptModel,
-                ("version", "name", "content", "content_hash"),
+                ("id", "version", "name", "content", "content_hash"),
             ),
             (
                 "contract_version_id",
                 AgentContractModel,
                 (
+                    "id",
                     "version",
                     "name",
                     "input_schema",
@@ -491,6 +503,7 @@ class PortableAgentExportReader:
                         "embedding_provider",
                         "embedding_model",
                         "embedding_dimensions",
+                        "embedding_provider_model_id",
                     ),
                 ),
                 "embedding": _metadata(
@@ -508,7 +521,9 @@ class PortableAgentExportReader:
         return {
             "source": {
                 "agent_id": str(agent_id),
+                "draft_revision": agent.revision,
                 "snapshot_id": str(release.id) if release else None,
+                "snapshot_digest": release_snapshot_hash(release) if release else None,
                 "version": release.version if release else None,
                 "kind": release.snapshot_kind if release else "draft",
             },

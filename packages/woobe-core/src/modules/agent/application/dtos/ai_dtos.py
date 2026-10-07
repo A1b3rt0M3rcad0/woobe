@@ -141,6 +141,7 @@ class CreateAgentInput(BaseModel):
 
 
 class CreateAgentOutput(BaseModel):
+    revision: int = 1
     id: UUID
     project_id: UUID
     name: str
@@ -174,6 +175,7 @@ class UpdateAgentInput(BaseModel):
 
 
 class UpdateAgentOutput(BaseModel):
+    revision: int = 1
     id: UUID
     project_id: UUID
     name: str
@@ -414,6 +416,7 @@ class CreateReleaseInput(BaseModel):
 
 
 class CreateReleaseOutput(BaseModel):
+    agent_revision: int | None = None
     id: UUID
     project_id: UUID
     agent_id: UUID

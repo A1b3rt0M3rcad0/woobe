@@ -68,11 +68,12 @@ def decode_principal(ciphertext, encryption_key):
 
 class PackageOperationRepository:
     def __init__(
-        self, session_factory, *, encryption_key: str, plan_validator, lease_seconds=120
+        self, session_factory, *, encryption_key: str, plan_validator, registry_reserver=None, lease_seconds=120
     ):
         self.session_factory, self.encryption_key = session_factory, encryption_key
         self.lease_seconds = lease_seconds
         self.plan_validator = plan_validator
+        self.registry_reserver = registry_reserver
 
     def protected_fingerprint(self, project_id, payload):
         material = (
@@ -190,6 +191,8 @@ class PackageOperationRepository:
             )
             session.add(record)
             await session.flush()
+            if self.registry_reserver is not None:
+                await self.registry_reserver(session, plan, record)
             return record, False
 
     async def get(self, *, project_id, principal, operation_id):

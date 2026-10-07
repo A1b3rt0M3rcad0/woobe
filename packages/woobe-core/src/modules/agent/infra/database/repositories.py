@@ -223,6 +223,9 @@ class SQLAlchemyAgentRepository(
         if not model:
             from modules.agent.domain.errors import AgentNotFoundError
             raise AgentNotFoundError(agent.id)
+        if (model.revision or 1) != agent.revision:
+            from shared.contracts.errors import ConflictError
+            raise ConflictError("Agent Draft revision changed; pull before updating")
         model.name = agent.name
         model.description = agent.description
         model.behavior_spec = agent.behavior_spec

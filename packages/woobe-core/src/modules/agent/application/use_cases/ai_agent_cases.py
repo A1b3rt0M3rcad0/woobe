@@ -188,6 +188,7 @@ class UpdateAgentUseCase:
             model=saved.model,
         ))
         return UpdateAgentOutput(
+            revision=getattr(saved, "revision", 1),
             id=saved.id,
             project_id=saved.project_id,
             name=saved.name,

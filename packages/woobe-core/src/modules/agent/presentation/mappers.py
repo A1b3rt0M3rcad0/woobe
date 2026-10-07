@@ -40,6 +40,7 @@ def credential_to_response(credential: Any) -> ProviderCredentialResponse:
 
 def agent_to_response(agent: Any) -> AgentResponse:
     return AgentResponse(
+        revision=getattr(agent, "revision", 1),
         id=agent.id,
         project_id=agent.project_id,
         name=agent.name,

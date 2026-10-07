@@ -19,9 +19,18 @@ from shared.contracts.errors import ConflictError
 
 class VerifyImportedAgentUseCase:
     def __init__(
-        self, agents, releases, credentials, knowledge_validator, *, models, tools
+        self,
+        agents,
+        releases,
+        credentials,
+        knowledge_validator,
+        *,
+        models,
+        tools,
+        allow_existing=False,
     ):
         self._models, self._tools = models, tools
+        self._allow_existing = allow_existing
         self._agents, self._releases, self._credentials, self._knowledge = (
             agents,
             releases,
@@ -38,7 +47,8 @@ class VerifyImportedAgentUseCase:
             or agent.project_id != definition.project_id
             or draft.project_id != definition.project_id
             or draft.agent_id != agent.id
-            or agent.status != AgentStatus.active
+            or agent.status == AgentStatus.archived
+            or (not self._allow_existing and agent.status != AgentStatus.active)
             or getattr(draft, "snapshot_kind", None) != "draft"
         ):
             raise ConflictError(

@@ -40,7 +40,7 @@ from modules.agent.presentation.controllers.create_release_controller import (
 from shared.infra.transactional_handler import TransactionalHandler
 
 
-def finalize_imported_agent_composer() -> TransactionalHandler:
+def finalize_imported_agent_composer(*, allow_existing=False) -> TransactionalHandler:
     uow = AgentUnitOfWork(DATABASE_ENGINE)
     agents = SQLAlchemyAgentRepositoryWithProviderModels(uow)
     releases = SQLAlchemyAgentReleaseRepositoryWithProviderModels(uow)
@@ -61,6 +61,6 @@ def finalize_imported_agent_composer() -> TransactionalHandler:
     update = UpdateAgentUseCase(
         agents, credentials, outbox, models, usage, skill_repo=skills
     )
-    use_case = FinalizeImportedAgentUseCase(save_draft, update, agents)
+    use_case = FinalizeImportedAgentUseCase(save_draft, update, agents, allow_existing=allow_existing)
     controller = CreateReleaseController(use_case)
     return TransactionalHandler(uow, controller.handle)

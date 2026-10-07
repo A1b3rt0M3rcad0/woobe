@@ -227,6 +227,8 @@ class SQLAlchemyAgentRepositoryWithProviderModels(
         await self._write_refs(agent)
         saved.provider_model_id = agent.provider_model_id
         saved.fallback_provider_model_id = agent.fallback_provider_model_id
+        model = await self._get_model_by_id(saved.id)
+        saved.revision = model.revision
         return saved
 
     async def update(self, agent: Agent) -> Agent:
@@ -234,6 +236,8 @@ class SQLAlchemyAgentRepositoryWithProviderModels(
         await self._write_refs(agent)
         saved.provider_model_id = agent.provider_model_id
         saved.fallback_provider_model_id = agent.fallback_provider_model_id
+        model = await self._get_model_by_id(saved.id)
+        saved.revision = model.revision
         return saved
 
     async def get_by_id(self, agent_id: UUID) -> Agent | None:

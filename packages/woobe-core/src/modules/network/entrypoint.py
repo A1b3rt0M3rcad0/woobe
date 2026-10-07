@@ -31,3 +31,5 @@ __all__ = [
 ]
 
 __all__.append("build_portable_network_export_reader")
+
+from modules.network.composition.development_resources import build_development_network_reader

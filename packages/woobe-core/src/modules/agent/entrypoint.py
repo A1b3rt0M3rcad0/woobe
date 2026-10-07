@@ -407,3 +407,11 @@ __all__ = [
 
 from modules.agent.composition.public_api import build_portable_agent_export_reader
 __all__.append("build_portable_agent_export_reader")
+
+from modules.agent.composition.composers.development_resources import (
+    build_development_resource_reader, prepare_existing_agent_composer,
+)
+from modules.agent.composition.composers.development_resources import reuse_development_resource_composer
+
+from modules.agent.composition.composers.development_resources import reuse_frozen_agent_composer
+from modules.agent.composition.composers.development_resources import materialize_development_artifact_composer

@@ -45,6 +45,9 @@ class ProviderCredentialModel(BaseModel):
 
 
 class AgentModel(BaseModel):
+    revision: Mapped[int] = mapped_column(Integer, default=1, server_default=text("1"), nullable=False)
+    __mapper_args__ = {"version_id_col": revision}
+
     __tablename__ = "agents"
     __table_args__ = {"schema": "agent"}
 

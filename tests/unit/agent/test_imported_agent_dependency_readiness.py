@@ -23,7 +23,7 @@ from shared.contracts.errors import ConflictError
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "changed",
-    ["inactive_model", "model_spec", "inactive_tool", "changed_tool", "ready"],
+    ["inactive_model", "model_spec", "inactive_tool", "changed_tool", "inactive_existing", "archived_existing", "ready"],
 )
 async def test_import_verification_requires_live_models_and_exact_tools(
     monkeypatch, changed
@@ -78,6 +78,10 @@ async def test_import_verification_requires_live_models_and_exact_tools(
         tool.status = "inactive"
     if changed == "changed_tool":
         tool.config = {"url": "https://different.test"}
+    if changed == "inactive_existing":
+        agent.status = AgentStatus.inactive
+    if changed == "archived_existing":
+        agent.status = AgentStatus.archived
     case = VerifyImportedAgentUseCase(
         SimpleNamespace(get_by_id=AsyncMock(return_value=agent)),
         SimpleNamespace(get_by_id=AsyncMock(return_value=draft)),
@@ -91,11 +95,12 @@ async def test_import_verification_requires_live_models_and_exact_tools(
         SimpleNamespace(validate=AsyncMock()),
         models=SimpleNamespace(get_by_id=AsyncMock(return_value=provider_model)),
         tools=SimpleNamespace(get_by_id=AsyncMock(return_value=tool)),
+        allow_existing=changed in {"inactive_existing", "archived_existing"},
     )
     definition = SimpleNamespace(
         project_id=project, agent_id=agent_id, draft_id=draft_id, lifecycle="draft"
     )
-    if changed != "ready":
+    if changed not in {"ready", "inactive_existing"}:
         with pytest.raises(ConflictError):
             await case.execute(definition)
     else:

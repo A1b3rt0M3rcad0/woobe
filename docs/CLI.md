@@ -144,3 +144,44 @@ not imply completion of every planned client feature.
 Before deploying the platform's Control Key support, follow [UPGRADING.md](UPGRADING.md)
 and apply migrations through `0077`. Existing human credentials and Project
 Runtime Keys remain separate from the new Workspace Control Keys.
+
+## Managed YAML development
+
+A matching development-capable CLI and backend support an optional local
+`.woobe-config`. `woobe init --context local` initializes a registry rooted at
+`.woobe/`; ordinary auth, runtime, API and standalone package commands remain
+independent of that file.
+
+```sh
+woobe agent UUID pull --alias support
+# Edit .woobe/agents/support/agent.yaml and registered dependencies.
+woobe agent "@support" diff
+woobe agent "@support" validate
+woobe agent "@support" push
+woobe network UUID pull --alias helpdesk
+woobe network "@helpdesk" push
+```
+
+UUIDs, typed aliases and linked paths are supported. Initial pull also accepts
+an exact remote name. `sync` aliases pull; reference-first `update` aliases push.
+A pull can select Draft, current Staging, an immutable Release version, or current
+Production. Push always updates Draft, preserving the native Agent/Network UUID.
+Stage, publish and activate explicitly after reviewing the Draft.
+
+The package registry binds each resource UID within its Project and registry.
+A synchronization plan carries complete native revision evidence and separates
+immutable Network constituents from mutable Agent Drafts. Shared Tool, Skill and
+Knowledge definitions are reused when proven unchanged; changed dependencies
+use copy-on-write. Models resolve through active native Provider connections.
+Provider YAML contains only public connection intent and credential references.
+
+Agent authoring writes atomically update the native Draft and its Agent
+projection. `If-Match` guards direct Agent updates and Save Draft requests; stale
+revisions fail with HTTP 409. The frontend uses the revision associated with its
+editor baseline. CLI pull performs a semantic three-way merge; conflicts leave
+local descriptors and registry state untouched.
+
+`diff` includes dependency and declared support-file changes offline. Local
+schema validation does not claim server authorization or runtime readiness.
+Private `.state/` contains destination bindings, base revisions and durable push
+checkpoints, is excluded from Git, and is never included in compiled packages.

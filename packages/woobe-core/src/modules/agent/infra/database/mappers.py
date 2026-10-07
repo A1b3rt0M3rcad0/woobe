@@ -96,6 +96,7 @@ def provider_credential_entity_to_model(
 
 def agent_model_to_entity(model: AgentModel) -> Agent:
     return Agent(
+        revision=model.revision or 1,
         id=model.id,
         project_id=model.project_id,
         provider_credential_id=model.provider_credential_id,

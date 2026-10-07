@@ -92,6 +92,7 @@ class UpdateAgentRequest(BaseModel):
 
 
 class AgentResponse(BaseModel):
+    revision: int = 1
     id: UUID
     project_id: UUID
     name: str

@@ -59,6 +59,7 @@ class ExportProjection:
             },
         )
         self.identities, self.credential_aliases = {}, {}
+        self.native_bindings = {}
         self.environment, self.secrets = set(), set()
         self.document_reads = []
         self.total = 0
@@ -114,6 +115,7 @@ class ExportProjection:
         credentials,
         base_url=None,
         model_type="language",
+        resource_id=None,
     ):
         if not specification:
             raise PackageError(
@@ -142,7 +144,10 @@ class ExportProjection:
         if base_url is not None:
             spec["base_url"] = base_url
         identity = json.dumps(spec, sort_keys=True, separators=(",", ":"))
-        return self.add_document("Model", model, spec, identity=identity)
+        key = self.add_document("Model", model, spec, identity=identity)
+        if resource_id:
+            self.native_bindings[key] = {"resource_id": str(resource_id), "kind": "Model"}
+        return key
 
     def agent(self, captured, key):
         definition, runtime = (
@@ -156,6 +161,7 @@ class ExportProjection:
             specification=definition.get("model_spec_snapshot"),
             credentials=captured["credentials"],
             base_url=definition.get("base_url"),
+            resource_id=definition.get("provider_model_id"),
         )
         model = {
             "primary": {"ref": primary},
@@ -172,6 +178,7 @@ class ExportProjection:
                     credential_id=definition["fallback_credential_id"],
                     specification=definition.get("fallback_model_spec_snapshot"),
                     credentials=captured["credentials"],
+                    resource_id=definition.get("fallback_provider_model_id"),
                 )
             }
         tools = []
@@ -194,13 +201,9 @@ class ExportProjection:
                 )
             }
             identity = (tool["id"], json.dumps(spec, sort_keys=True))
-            tools.append(
-                {
-                    "ref": self.add_document(
-                        "Tool", tool["name"], spec, identity=identity
-                    )
-                }
-            )
+            tool_key = self.add_document("Tool", tool["name"], spec, identity=identity)
+            self.native_bindings[tool_key] = {"resource_id": tool["id"], "kind": "Tool"}
+            tools.append({"ref": tool_key})
         skills = []
         for skill in captured["skills"]:
             identity = (skill["id"], skill["package_hash"])
@@ -229,6 +232,7 @@ class ExportProjection:
                     version=skill["version"],
                     identity=identity,
                 )
+            self.native_bindings[old] = {"resource_id": skill["id"], "kind": "Skill"}
             skills.append(
                 {"ref": old, "version": skill["version"], "enabled": skill["enabled"]}
             )
@@ -268,6 +272,8 @@ class ExportProjection:
                 {"version": prompt["version"], "content": prompt["content"]},
                 identity=json.dumps(prompt, sort_keys=True),
             )
+            if prompt.get("id"):
+                self.native_bindings[spec["prompt_ref"]] = {"resource_id": str(prompt["id"]), "kind": "Prompt", "owner_agent_id": captured["source"]["agent_id"]}
         elif spec["behavior"] is None:
             spec["legacy_system_prompt"] = definition["system_prompt"]
         if contract := artifacts.get("contract_version_id"):
@@ -290,6 +296,8 @@ class ExportProjection:
                 native,
                 identity=json.dumps(native, sort_keys=True),
             )
+            if contract.get("id"):
+                self.native_bindings[spec["output"]["contract_ref"]] = {"resource_id": str(contract["id"]), "kind": "Contract", "owner_agent_id": captured["source"]["agent_id"]}
         if knowledge := captured["knowledge"]:
             vector, embedding = knowledge["vector"], knowledge["embedding"]
             knowledge_key = f"knowledge-{1 + sum(item['kind'] == 'Knowledge' for item in self.documents.values())}"
@@ -306,6 +314,7 @@ class ExportProjection:
                     credentials=captured["credentials"],
                     model_type=embedding["model_type"],
                     base_url=(embedding.get("meta") or {}).get("base_url"),
+                    resource_id=vector.get("embedding_provider_model_id"),
                 )
                 documents = []
                 for index, document in enumerate(knowledge["documents"]):
@@ -340,6 +349,7 @@ class ExportProjection:
                 knowledge_spec,
                 key=knowledge_key,
             )
+            self.native_bindings[knowledge_key] = {"resource_id": str(vector["id"]), "kind": "Knowledge"}
             spec["knowledge"] = {
                 "source": {"ref": knowledge_key},
                 "strategy": runtime.get("knowledge_strategy", "rag"),
@@ -351,6 +361,7 @@ class ExportProjection:
                 ),
                 "rag": deepcopy(runtime.get("rag") or {}),
             }
+        self.native_bindings[key] = {"resource_id": captured["source"]["agent_id"], "kind": "Agent", "revision": captured["source"].get("draft_revision"), "source_kind": captured["source"]["kind"], "snapshot_id": captured["source"].get("snapshot_id"), "frozen": captured.get("frozen", False), "snapshot_digest": captured["source"].get("snapshot_digest")}
         return self.add_document(
             "Agent",
             definition["name"],
@@ -375,6 +386,8 @@ class ExportProjection:
                 key="network-1",
                 description=captured["description"],
             )
+        if kind == "Network":
+            self.native_bindings[entry] = {"resource_id": captured["source"]["network_id"], "kind": "Network", "revision": captured["source"].get("draft_revision", captured["source"].get("revision"))}
         version = version or captured["source"].get("version")
         if version is None:
             # Portable author data only: destination identities/secrets do not define a version.

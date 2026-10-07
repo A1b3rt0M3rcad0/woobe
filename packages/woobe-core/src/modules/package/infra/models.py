@@ -113,3 +113,18 @@ class PackageExportModel(BaseModel):
     size_bytes: Mapped[int] = mapped_column(Integer)
     inventory: Mapped[list] = mapped_column(JSON)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class PackageResourceBindingModel(BaseModel):
+    __tablename__ = "resource_bindings"
+    __table_args__ = (
+        UniqueConstraint("project_id", "registry_id", "resource_uid", name="uq_package_resource_binding"),
+        {"schema": "package"},
+    )
+    project_id: Mapped[UUID] = mapped_column()
+    registry_id: Mapped[UUID] = mapped_column()
+    resource_uid: Mapped[UUID] = mapped_column()
+    kind: Mapped[str] = mapped_column(String(32))
+    resource_id: Mapped[UUID | None] = mapped_column(nullable=True)
+    definition_digest: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    operation_id: Mapped[UUID | None] = mapped_column(nullable=True)

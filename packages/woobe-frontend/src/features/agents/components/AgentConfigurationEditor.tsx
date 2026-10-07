@@ -30,7 +30,7 @@ interface AgentConfigurationEditorProps {
 export function AgentConfigurationEditor({ agent, projectId, agentId, onDirtyChange, onRegisterSaveAction }: AgentConfigurationEditorProps) {
   const [section, setSection] = useAgentEditorSection()
   const [saveFailed, setSaveFailed] = useState(false)
-  const { state, loadedReleaseVersion, setLoadedRelease, isDirty, updateBaseline, resetToBaseline } = useAgentEditor()
+  const { state, baseRevision, loadedReleaseVersion, setLoadedRelease, isDirty, updateBaseline, resetToBaseline } = useAgentEditor()
   const createRelease = useCreateRelease(agent.id)
   const hasValidationIssue = Boolean(outputContractError(state) || externalContextContractError(state))
 
@@ -46,8 +46,8 @@ export function AgentConfigurationEditor({ agent, projectId, agentId, onDirtyCha
     }
 
     try {
-      await createRelease.mutateAsync({ project_id: projectId, agent_id: agent.id, version: 'draft', ...result.snapshot } as any)
-      updateBaseline(capturedState)
+      const saved = await createRelease.mutateAsync({ expected_revision: baseRevision, project_id: projectId, agent_id: agent.id, version: 'draft', ...result.snapshot } as any)
+      updateBaseline(capturedState, saved.agent_revision)
       setLoadedRelease(null, null)
       toast.success('Draft saved')
       return true
@@ -56,7 +56,7 @@ export function AgentConfigurationEditor({ agent, projectId, agentId, onDirtyCha
       toast.error(error instanceof Error ? error.message : 'Failed to save Draft')
       return false
     }
-  }, [agent.id, createRelease, projectId, setLoadedRelease, setSection, state, updateBaseline])
+  }, [agent.id, baseRevision, createRelease, projectId, setLoadedRelease, setSection, state, updateBaseline])
 
   const dirtyChangeRef = useRef(onDirtyChange)
   useEffect(() => { dirtyChangeRef.current = onDirtyChange }, [onDirtyChange])

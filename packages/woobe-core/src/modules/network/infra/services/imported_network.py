@@ -30,12 +30,16 @@ class ImportedNetworkHandler:
             else None
         )
         if data.action == "prepare_network":
-            network = await self._service._create_project_network_in_session(
-                session,
-                project_id=data.project_id,
-                name=data.name.strip(),
-                description=data.description,
-            )
+            if data.network_id is not None:
+                network = await session.get(NetworkModel, data.network_id, with_for_update=True)
+                if network is None or network.project_id != data.project_id:
+                    raise NotFoundError("Network is unavailable")
+                if data.expected_revision is None or network.draft_revision != data.expected_revision:
+                    raise ConflictError("Network Draft changed after planning")
+            else:
+                network = await self._service._create_project_network_in_session(
+                    session, project_id=data.project_id, name=data.name.strip(), description=data.description,
+                )
             result = {"id": str(network.id), "revision": network.draft_revision}
         elif data.action == "save_network_draft":
             definition = compile_imported_network_definition(

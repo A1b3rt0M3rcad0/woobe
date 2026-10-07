@@ -148,7 +148,7 @@ export function AgentManagerModal({
   const createRelease = useCreateRelease(agentId)
   const promoteRelease = usePromoteRelease(agentId)
   const queryClient = useQueryClient()
-  const { state, toSnapshot, isDirty } = useAgentEditor()
+  const { state, baseRevision, updateBaseline, toSnapshot, isDirty } = useAgentEditor()
 
   const draft = useMemo(() => releases.find((release) => release.status === 'draft') ?? null, [releases])
   const staging = useMemo(() => releases.find((release) => release.status === 'staging') ?? null, [releases])
@@ -210,7 +210,8 @@ export function AgentManagerModal({
       return
     }
     try {
-      const savedDraft = await createRelease.mutateAsync({ project_id: projectId, agent_id: agentId, version: 'draft', ...toSnapshot() } as any)
+      const savedDraft = await createRelease.mutateAsync({ expected_revision: baseRevision, project_id: projectId, agent_id: agentId, version: 'draft', ...toSnapshot() } as any)
+      updateBaseline(state, savedDraft.agent_revision)
       const result = await promoteRelease.mutateAsync({ releaseId: savedDraft.id, targetStatus: 'staging', copySnapshot: true })
       setSection('staging')
       setMode('browse')

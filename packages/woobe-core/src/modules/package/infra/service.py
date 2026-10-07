@@ -42,6 +42,8 @@ class PackageService:
                 "resume",
                 "cancel",
                 "export",
+                "sync",
+                "registry",
             ],
             "principal_fingerprint": fingerprint,
             "formats": ["directory", "tar.gz"],
@@ -54,6 +56,9 @@ class PackageService:
         }
 
     async def plan(self, *, project_id, principal, request, api_origin):
+        development = {}
+        if request.mode == "sync":
+            development = {"mode": request.mode, "registry_id": request.registry_id, "resource_bindings": {key: value.model_dump(mode="json") for key, value in request.resource_bindings.items()}}
         return await self.plans.create(
             project_id=project_id,
             principal=principal,
@@ -64,6 +69,7 @@ class PackageService:
             release_notes=request.release_notes,
             reason=request.reason,
             api_origin=api_origin,
+            **development,
         )
 
     async def status(self, *, project_id, principal, operation_id):
