@@ -74,9 +74,9 @@ def _metadata(model, fields):
 
 class PortableAgentExportReader:
     def __init__(
-        self, session_factory, storage=None, *, compiler, max_document_bytes=25 << 20
+        self, uow_factory, storage=None, *, compiler, max_document_bytes=25 << 20
     ):
-        self._sessions, self._compiler = session_factory, compiler
+        self._uow_factory, self._compiler = uow_factory, compiler
         self._storage, self._max_document_bytes = storage, max_document_bytes
 
     async def _credential_intent(self, session, *, project_id, principal, identifier):
@@ -106,7 +106,8 @@ class PortableAgentExportReader:
         if self._storage is None:
             raise ValidationError("Portable document storage is unavailable")
         captured = []
-        async with self._sessions.begin() as session:
+        async with self._uow_factory() as uow:
+            session = uow.session
             for expected in documents:
                 document = await session.get(DocumentModel, UUID(str(expected["id"])))
                 if document is None or document.project_id != project_id:
@@ -141,7 +142,8 @@ class PortableAgentExportReader:
         return contents
 
     async def capture(self, *, project_id, principal, sources):
-        async with self._sessions.begin() as session:
+        async with self._uow_factory() as uow:
+            session = uow.session
             if session.bind.dialect.name == "postgresql":
                 await session.execute(
                     text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")

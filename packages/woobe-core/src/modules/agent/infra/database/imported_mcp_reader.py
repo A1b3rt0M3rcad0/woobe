@@ -9,7 +9,6 @@ from modules.agent.domain.tool_project_environment import (
 from modules.agent.infra.adapters.secret_cipher import SecretCipherAdapter
 from modules.agent.infra.database.models import AgentToolSecretModel
 from modules.agent.infra.database.repositories import SQLAlchemyAgentToolRepository
-from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 from shared.contracts.errors import AuthorizationError, NotFoundError
 from shared.project_environment import (
     read_project_environment_values,
@@ -42,11 +41,11 @@ class PreparedMcpSecretResolver(ToolSecretResolverPort):
 
 
 class SQLAlchemyImportedMcpPreparationReader:
-    def __init__(self, engine, *, encryption_key):
-        self._engine, self._encryption_key = engine, encryption_key
+    def __init__(self, uow_factory, *, encryption_key):
+        self._uow_factory, self._encryption_key = uow_factory, encryption_key
 
     async def read(self, *, project_id, principal, tool_id):
-        async with AgentUnitOfWork(self._engine) as uow:
+        async with self._uow_factory() as uow:
             authorizer = TenantAuthorizer(uow.session)
             if isinstance(principal, ControlPlanePrincipal):
                 await authorizer.require_active_control(principal)

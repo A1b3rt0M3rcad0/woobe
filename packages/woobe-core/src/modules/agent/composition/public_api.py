@@ -324,9 +324,9 @@ from modules.agent.composition.module import (
 from modules.agent.composition.composers.public_runtime_composers import (
     build_public_stream_components,
 )
-from modules.agent.composition.workflows.imported_document import build_imported_document_preparation
+from modules.agent.composition.composers.imported_document import build_imported_document_preparation
 from modules.agent.composition.composers.imported_vector_composers import create_imported_vector_composer, verify_imported_vector_composer
-from modules.agent.composition.workflows.imported_mcp import build_imported_mcp_preparation
+from modules.agent.composition.composers.imported_mcp import build_imported_mcp_preparation
 from modules.agent.composition.composers.commit_imported_mcp_composer import commit_imported_mcp_composer
 
 list_context_assemblers = list_context_managers
@@ -532,5 +532,5 @@ __all__ = [
     'UseCase',
 ]
 
-from modules.agent.composition.workflows.portable_export import build_portable_agent_export_reader
+from modules.agent.composition.composers.portable_export import build_portable_agent_export_reader
 __all__.append("build_portable_agent_export_reader")

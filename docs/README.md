@@ -19,3 +19,6 @@
 - `performance/` — performance assumptions, measurements and operating guidance.
 
 Documentation should describe the repository that exists now. Temporary implementation notes and work-in-progress planning belong in issues or pull requests rather than being treated as durable product documentation.
+
+- `CLI_PACKAGES.md` — portable Agent/Network Package API, lifecycle and recovery.
+- `testing/PACKAGE_ACCEPTANCE.md` — executable Package V1 acceptance matrix and paired qualification.

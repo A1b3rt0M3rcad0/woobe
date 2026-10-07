@@ -39,7 +39,7 @@ jobs:
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           repository: A1b3rt0M3rcad0/woobe-cli
-          ref: 6cb726ced6514fa9f8b4f907682f476b65cd2762
+          ref: b0ebaf89bc006254de12b076a0e6e746de2d5246
           path: .ci/woobe-cli
           persist-credentials: false
 
@@ -55,7 +55,7 @@ jobs:
           CGO_ENABLED: '0'
         run: |
           go mod verify
-          go build -trimpath -ldflags '-X github.com/A1b3rt0M3rcad0/woobe-cli/internal/cli.Commit=6cb726ced6514fa9f8b4f907682f476b65cd2762' -o ../../.test-artifacts/woobe ./cmd/woobe
+          go build -trimpath -ldflags '-X github.com/A1b3rt0M3rcad0/woobe-cli/internal/cli.Commit=b0ebaf89bc006254de12b076a0e6e746de2d5246' -o ../../.test-artifacts/woobe ./cmd/woobe
           ../../.test-artifacts/woobe version > ../../.test-artifacts/cli-version.json
 
       - name: Validate standalone backend test Compose contract

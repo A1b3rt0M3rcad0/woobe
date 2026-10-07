@@ -45,7 +45,10 @@ Agent packages preserve Behavior or legacy/versioned Prompt, Contract, complete
 primary/fallback ModelSpec, generation parameters, native execution/context/
 Knowledge/RAG policies, External Context, immutable Skills and resource files,
 Tool author configuration, permissions and bindings. Native schema and readiness
-validation is reused rather than introducing an alternate runtime.
+validation is reused rather than introducing an alternate runtime. ModelSpec hints
+reject unsupported fields and invalid limit/flag types rather than silently
+discarding or coercing them. Embedded Model authentication is refused; destination
+credentials supply authentication without changing a frozen specification hash.
 
 Network packages include all selected Agent snapshots, stable portable node
 keys, positions, capability descriptions, topology and settings. Export reads the
@@ -122,4 +125,7 @@ a deterministic provider/MCP peer and a separate Runtime Key. Cross-project
 export/import/re-export compares portable author fields and support files, then
 executes after deleting local package directories. Native distribution tests
 exercise the same complete shared fixture on Linux/macOS/Windows amd64/arm64.
-Final full-composition and paired-revision qualification is still in progress.
+The [acceptance matrix](testing/PACKAGE_ACCEPTANCE.md) maps T01–T26 to these
+executable gates. Exact supported client/server build pairs and results are
+published in the paired draft PR descriptions. Both PRs remain draft for review;
+this implementation does not publish a release or merge either repository.

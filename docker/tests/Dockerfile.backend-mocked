@@ -40,6 +40,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     --editable tooling/woobe-mock \
     && uv pip check --python /opt/venv/bin/python
 
+COPY specs/package/v1/ specs/package/v1/
 COPY tests/ tests/
 COPY scripts/ scripts/
 COPY .github/workflows/prepare-release.yml .github/workflows/prepare-release.yml

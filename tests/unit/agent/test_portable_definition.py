@@ -72,3 +72,33 @@ def test_portable_skill_preserves_full_native_manifest_and_resource_contents():
     assert result["resources"]["references/query.md"] == "Exact resource\n"
     assert result["allowed_tools_hint"] == "fetch"
     assert result["required_tools"] == ["fetch"]
+
+
+@pytest.mark.parametrize(
+    "hint",
+    [
+        {"silently_discarded": True},
+        {"interaction": {"supports_tools": True}},
+        {"interaction": {"supports_conversation": "yes"}},
+        {"limits": {"context_window": "4096"}},
+        {"limits": {"context_window": 0}},
+        {"capabilities": {"tool_calling": {"supported": "yes"}}},
+        {"capabilities": {"tool_calling": {"unrecognized": True}}},
+        {"spec_version": 2},
+    ],
+)
+def test_portable_model_hint_cannot_drop_or_coerce_declared_fields(hint):
+    from modules.agent.application.portable_definition import (
+        inspect_proposed_provider_model,
+    )
+
+    with pytest.raises(ValidationError):
+        inspect_proposed_provider_model(
+            project_id=uuid4(),
+            metadata={"name": "Model"},
+            spec={
+                "provider": "custom",
+                "model": "custom-model",
+                "model_spec_hint": hint,
+            },
+        )

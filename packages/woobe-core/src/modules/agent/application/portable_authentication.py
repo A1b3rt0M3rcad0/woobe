@@ -71,6 +71,11 @@ def validate_portable_model_authentication(specification, *, base_url=None):
     Refusing export preserves the frozen identity; removing arbitrary metadata
     would change the ModelSpec hash and hide an incomplete portable definition.
     """
+    from modules.agent.application.portable_model_spec import (
+        validate_portable_model_spec,
+    )
+
+    validate_portable_model_spec(specification)
     _validate_url(base_url)
 
     def visit(value):

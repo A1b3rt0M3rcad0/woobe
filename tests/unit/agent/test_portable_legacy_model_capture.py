@@ -25,8 +25,6 @@ def test_legacy_native_model_is_captured_without_rewriting_persistence():
     assert model.spec is None and model.spec_hash is None
 
 
-
-
 @pytest.mark.parametrize(
     "metadata",
     [

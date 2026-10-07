@@ -77,5 +77,5 @@ unit tests prove they cannot reuse cached readiness or import source tokens.
 Exact paired commit results are recorded in the two draft PR descriptions and
 the backend CI artifact `cli-contract-*.json`, including client/server build
 identity and public request outcomes. A schema version alone is insufficient
-to establish compatibility with older releases. Final paired qualification is
-in progress; neither PR is marked ready or merged.
+to establish compatibility with older releases. The published pair table in those PRs is the compatibility reference for tested
+builds. Neither PR is merged or changed from draft by this delivery.
