@@ -25,8 +25,7 @@ from modules.agent.presentation.controllers.verify_imported_agent_controller imp
 from shared.infra.transactional_handler import TransactionalHandler
 
 
-def verify_imported_agent_composer(*, allow_existing=False) -> TransactionalHandler:
-    uow = AgentUnitOfWork(DATABASE_ENGINE)
+def _build_verification_controller(uow, allow_existing) -> TransactionalHandler:
     use_case = VerifyImportedAgentUseCase(
         SQLAlchemyAgentRepositoryWithProviderModels(uow),
         SQLAlchemyAgentReleaseRepositoryWithProviderModels(uow),
@@ -39,4 +38,16 @@ def verify_imported_agent_composer(*, allow_existing=False) -> TransactionalHand
         tools=SQLAlchemyAgentToolRepository(uow),
         allow_existing=allow_existing,
     )
-    return TransactionalHandler(uow, VerifyImportedAgentController(use_case).handle)
+    return VerifyImportedAgentController(use_case)
+
+
+def verify_imported_agent_composer() -> TransactionalHandler:
+    uow = AgentUnitOfWork(DATABASE_ENGINE)
+    controller = _build_verification_controller(uow, False)
+    return TransactionalHandler(uow, controller.handle)
+
+
+def verify_development_agent_composer() -> TransactionalHandler:
+    uow = AgentUnitOfWork(DATABASE_ENGINE)
+    controller = _build_verification_controller(uow, True)
+    return TransactionalHandler(uow, controller.handle)

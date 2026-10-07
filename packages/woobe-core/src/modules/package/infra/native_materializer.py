@@ -21,7 +21,10 @@ from modules.agent.entrypoint import (
     verify_imported_agent_composer,
     create_contract_version_composer,
     create_prompt_version_composer,
-    materialize_development_artifact_composer,
+    materialize_development_prompt_composer,
+    materialize_development_contract_composer,
+    finalize_existing_agent_composer,
+    verify_development_agent_composer,
     create_provider_credential_composer,
     create_secret_composer,
     create_collection_composer,
@@ -374,8 +377,10 @@ class NativePackageMaterializer:
             }
             paths["agent_id"] = agent_id
             handler = (
-                materialize_development_artifact_composer(
-                    "Prompt" if action == "create_prompt_version" else "Contract"
+                (
+                    materialize_development_prompt_composer()
+                    if action == "create_prompt_version"
+                    else materialize_development_contract_composer()
                 )
                 if work.plan.get("mode") == "sync"
                 else (
@@ -395,8 +400,10 @@ class NativePackageMaterializer:
                 release_notes=work.plan["release_notes"],
             )
             paths["agent_id"] = agent_id
-            handler = finalize_imported_agent_composer(
-                allow_existing=bool(target.get("resource_id"))
+            handler = (
+                finalize_existing_agent_composer()
+                if target.get("resource_id")
+                else finalize_imported_agent_composer()
             )
         elif (
             document
@@ -495,8 +502,10 @@ class NativePackageMaterializer:
                     {},
                 ).get("id"),
             }
-            handler = verify_imported_agent_composer(
-                allow_existing=work.plan.get("mode") == "sync"
+            handler = (
+                verify_development_agent_composer()
+                if work.plan.get("mode") == "sync"
+                else verify_imported_agent_composer()
             )
         else:
             raise PackageError(

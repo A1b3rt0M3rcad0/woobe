@@ -15,8 +15,6 @@ from modules.agent.infra.database.provider_model_repositories import ProviderMod
 from modules.agent.infra.database.skill_models import SkillVersionModel
 from modules.agent.infra.database.vector_snapshot_models import VectorSnapshotModel
 from modules.agent.infra.database.portable_export_reader import authorize_export_read
-from modules.agent.application.portable_export_tools import export_frozen_tool
-from modules.agent.application.tool_release_snapshots import tool_to_release_snapshot
 from shared.contracts.errors import NotFoundError, ValidationError
 
 
@@ -26,6 +24,9 @@ def revision_time(row):
 
 
 class DevelopmentResourceReader:
+    def __init__(self, tool_projection):
+        self._tool_projection = tool_projection
+
     async def inspect(
         self, session, *, project_id, principal, kind, resource_id, lock=False
     ):
@@ -77,9 +78,7 @@ class DevelopmentResourceReader:
             )
         elif kind == "Tool":
             result["owner_agent_id"] = str(row.agent_id) if row.agent_id else None
-            result["portable_tool"] = export_frozen_tool(
-                tool_to_release_snapshot(model_to_tool(row))
-            )
+            result["portable_tool"] = self._tool_projection(model_to_tool(row))
         elif kind == "Knowledge":
             result.update(
                 revision=row.snapshot_hash,
