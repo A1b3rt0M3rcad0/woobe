@@ -784,8 +784,8 @@ async def test_cli_upload_and_native_plan_against_live_postgres(
                 assert "portable-tenant" in json.dumps(calls[0]["output"])
         return
 
-    # Exercise the current owner materializer directly until Apply and worker
-    # registration advertise every component/lifecycle in the complete plan.
+    # Exercise owner materialization as well as the public CLI path. The
+    # registered worker can claim the accepted operation before this caller.
     from uuid import UUID
     from sqlalchemy import select
     from modules.core.infra.database.control_key_models import WorkspaceControlKeyModel
@@ -855,10 +855,16 @@ async def test_cli_upload_and_native_plan_against_live_postgres(
             encryption_key=SETTINGS.encryption_key, artifacts=service.artifacts
         ),
     )
-    assert await worker.run_once(project_id=UUID(cli.project_id))
-    final = await service.status(
-        project_id=UUID(cli.project_id), principal=principal, operation_id=operation.id
-    )
+    await worker.run_once(project_id=UUID(cli.project_id))
+    for _ in range(120):
+        final = await service.status(
+            project_id=UUID(cli.project_id),
+            principal=principal,
+            operation_id=operation.id,
+        )
+        if final["terminal"]:
+            break
+        await asyncio.sleep(max(1.0, final.get("next_poll_after_ms", 1000) / 1000))
     assert final["state"] == "succeeded", final["diagnostics"]
     assert final["phases_completed"] == final["phases_total"] == len(expected)
     assert final["configuration_ready"] is True and final["execution_ready"] is True
