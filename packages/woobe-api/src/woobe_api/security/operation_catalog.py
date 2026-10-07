@@ -216,6 +216,7 @@ _REVIEWED = [
     ),
     ("DELETE", "/ai/agents/{agent_id}/releases/{release_id}", "agent:version"),
     ("POST", "/ai/agents/{agent_id}/release-tests", "agent:version"),
+    ("POST", "/ai/agents/{agent_id}/release-tests/run", "agent:version"),
     ("GET", "/ai/agents/{agent_id}/releases/{release_id}/tests", "agent:read"),
     ("GET", "/knowledge/collections", "knowledge:read"),
     ("POST", "/knowledge/collections", "knowledge:write"),

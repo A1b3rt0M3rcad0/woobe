@@ -150,5 +150,6 @@ executes after deleting local package directories. Native distribution tests
 exercise the same complete shared fixture on Linux/macOS/Windows amd64/arm64.
 The [acceptance matrix](testing/PACKAGE_ACCEPTANCE.md) maps T01–T26 to these
 executable gates. Exact supported client/server build pairs and results are
-published in the paired draft PR descriptions. Both PRs remain draft for review;
-this implementation does not publish a release or merge either repository.
+published in the paired draft PR descriptions. Woobe PR #179 remains open in draft. Development improvements are delivered
+in separate CLI PRs and merged only after their native distribution checks and
+paired backend integration pass; backend approval and merge remain separate.

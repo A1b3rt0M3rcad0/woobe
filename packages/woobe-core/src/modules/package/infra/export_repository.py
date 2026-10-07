@@ -147,6 +147,9 @@ class PackageExportRepository:
                         resource_id=binding["resource_id"],
                     )
                     binding["revision"] = evidence["revision"]
+                    binding["identifiers"] = {field: evidence[field] for field in ("skill_id", "collection_id") if evidence.get(field)}
+                    if evidence.get("owner_agent_id"):
+                        binding["owner_agent_id"] = evidence["owner_agent_id"]
                     if binding["kind"] == "Tool":
                         native = evidence["portable_tool"]
                         exported = projection.documents[key]

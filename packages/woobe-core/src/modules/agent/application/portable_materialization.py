@@ -16,7 +16,7 @@ from shared.contracts.errors import ValidationError
 
 
 def compile_imported_agent_inputs(
-    *, project_id, document, definitions, resources, agent_id=None, release_notes=None
+    *, project_id, document, definitions, resources, agent_id=None, release_notes=None, resolve_skill_versions=False
 ):
     metadata, spec = document["metadata"], document["spec"]
     primary_key = spec["model"]["primary"]["ref"]
@@ -46,7 +46,7 @@ def compile_imported_agent_inputs(
     skills = []
     for binding in spec.get("skills", []):
         version = resources[binding["ref"]]
-        if version["version"] != binding["version"]:
+        if version["version"] != binding["version"] and not resolve_skill_versions:
             raise ValidationError(
                 "Imported Skill version differs from the declared binding"
             )

@@ -8,6 +8,10 @@ from modules.agent.domain.skills import SkillVersion
 
 
 class SkillCatalogOperations(Protocol):
+    async def resolve_development_import(
+        self, project_id: UUID, data: ImportSkillInput, skill_id: UUID | None = None
+    ) -> tuple[SkillVersion, bool]: ...
+
     async def resolve_import(
         self, project_id: UUID, data: ImportSkillInput
     ) -> tuple[SkillVersion, bool]: ...

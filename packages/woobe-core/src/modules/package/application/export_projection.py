@@ -362,7 +362,7 @@ class ExportProjection:
                             "PACKAGE_EXPORT_INVALID",
                             "Document filename has no portable extension",
                         )
-                    path = f"documents/{knowledge_key}/{index + 1}.{suffix}"
+                    path = f"documents/{knowledge_key}/{index + 1}/{document['file_name']}"
                     self.document_reads.append((path, document))
                     documents.append(
                         {

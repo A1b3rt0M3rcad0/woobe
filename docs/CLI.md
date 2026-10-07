@@ -135,7 +135,7 @@ for run input, streaming, checkpoints and output contracts.
 
 Update the CLI using the latest published native archive or a pinned GHCR tag.
 CLI distribution is maintained in `woobe-cli`; the platform release process
-remains [RELEASING.md](../RELEASING.md). npm distribution is deferred.
+remains [RELEASING.md](../RELEASING.md). npm installation and its trusted publisher are maintained in the CLI repository.
 
 The current client implements the reviewed operation catalog, with remaining
 design work recorded in its status documentation. A published CLI release does
@@ -185,3 +185,37 @@ local descriptors and registry state untouched.
 schema validation does not claim server authorization or runtime readiness.
 Private `.state/` contains destination bindings, base revisions and durable push
 checkpoints, is excluded from Git, and is never included in compiled packages.
+
+
+### Execute saved Agent tests from YAML
+
+After pushing author changes, explicitly stage and test the saved native snapshot:
+
+```sh
+woobe agent "@support" stage --yes
+woobe agent "@support" test --file support-test.yaml --yes
+woobe agent "@support" publish --notes "Validated support changes" --yes
+woobe agent "@support" activate --version 1.2.0 --notes "Deploy reviewed release" --yes
+```
+
+A testcase contains `message`, optional `external_context`, and optional
+`expected_output`. Execution records the actual answer, parsed output, Run ID,
+latency and validation errors on the selected native Release Test. Current
+Staging is the default; `--env draft`, `--env production`, or `--env release
+--version VERSION` select other saved snapshots. Failed execution/assertions exit
+with code 6 and include the recorded result. Both Agent versioning and Run
+execution permissions are checked before execution. Network uncertainty is never
+retried automatically.
+
+Development synchronization reuses proven unchanged Knowledge collections,
+documents and vector snapshots. Changed chunking or embedding configuration
+creates an immutable snapshot containing only declared document identities.
+Failed builds retain their history and get a separate retry version. Skill author
+edits preserve the native Skill namespace and fork immutable content versions.
+Provider/Model impact includes frozen Network versions and Chat Surfaces, not
+only the current Agent Draft.
+
+Migration `0081` retains committed preparation identities, including a Knowledge
+collection prepared before a failed vector build. Recovery must reuse those
+identities and reject roots changed by another client. Apply it together with
+`0080` before deploying the managed development endpoints.

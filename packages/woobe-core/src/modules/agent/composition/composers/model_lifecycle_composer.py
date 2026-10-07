@@ -1,4 +1,4 @@
-from modules.agent.infra.database.provider_dependency_reader import SQLProviderDependencyReader
+from modules.agent.composition.factories.provider_dependency_reader_factory import build_provider_dependency_reader
 from modules.agent.application.use_cases.provider_management_cases import (
     ArchiveProviderCredentialUseCase,
     ArchiveProviderModelUseCase,
@@ -28,7 +28,7 @@ def provider_model_usage_composer() -> TransactionalHandler:
         provider_model_repo,
         agent_repo,
         release_repo,
-        dependency_reader=SQLProviderDependencyReader(uow),
+        dependency_reader=build_provider_dependency_reader(uow),
     )
     controller = ModelLifecycleController(use_case, path_param="provider_model_id")
     return TransactionalHandler(uow, controller.handle)
@@ -43,7 +43,7 @@ def archive_provider_model_composer() -> TransactionalHandler:
         provider_model_repo,
         agent_repo,
         release_repo,
-        dependency_reader=SQLProviderDependencyReader(uow),
+        dependency_reader=build_provider_dependency_reader(uow),
     )
     use_case = ArchiveProviderModelUseCase(provider_model_repo, usage_use_case)
     controller = ModelLifecycleController(use_case, path_param="provider_model_id")
@@ -61,7 +61,7 @@ def credential_usage_composer() -> TransactionalHandler:
         provider_model_repo,
         agent_repo,
         release_repo,
-        dependency_reader=SQLProviderDependencyReader(uow),
+        dependency_reader=build_provider_dependency_reader(uow),
     )
     controller = ModelLifecycleController(use_case, path_param="credential_id")
     return TransactionalHandler(uow, controller.handle)
@@ -105,7 +105,7 @@ def archive_credential_composer() -> TransactionalHandler:
         provider_model_repo,
         agent_repo,
         release_repo,
-        dependency_reader=SQLProviderDependencyReader(uow),
+        dependency_reader=build_provider_dependency_reader(uow),
     )
     use_case = ArchiveProviderCredentialUseCase(credential_repo, usage_use_case)
     controller = ModelLifecycleController(use_case, path_param="credential_id")

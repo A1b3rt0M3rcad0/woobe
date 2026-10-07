@@ -1,5 +1,6 @@
 from typing import Literal
 from modules.agent.entrypoint import CreateReleaseInput
+from modules.agent.entrypoint import ExecuteReleaseTestInput, build_release_test_execution_handler
 from modules.agent.entrypoint import (ListMessagesInput)
 from woobe_api.http.shared.openapi_contracts import query_parameter_contract
 from modules.agent.entrypoint import (ListToolsInput, ListToolsByAgentInput, ListSecretsInput)
@@ -322,6 +323,12 @@ async def create_release_test(request: FastAPIRequest):
 async def list_release_tests(request: FastAPIRequest):
     handler = list_release_tests_composer()
     response = await request_adapter(request, handler)
+    return response_adapter(response)
+
+
+@router.post("/agents/{agent_id}/release-tests/run", openapi_extra=request_body_contract(ExecuteReleaseTestInput, "/ai/agents/{agent_id}/release-tests/run", "post", required=True))
+async def execute_release_test(request: FastAPIRequest):
+    response = await request_adapter(request, build_release_test_execution_handler())
     return response_adapter(response)
 
 

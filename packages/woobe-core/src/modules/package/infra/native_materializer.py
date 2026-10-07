@@ -2,6 +2,8 @@
 
 import asyncio
 import posixpath
+from hashlib import sha256
+import json
 from pathlib import PurePosixPath
 from uuid import UUID
 
@@ -23,6 +25,10 @@ from modules.agent.entrypoint import (
     create_prompt_version_composer,
     materialize_development_prompt_composer,
     materialize_development_contract_composer,
+    materialize_development_collection_composer,
+    materialize_development_document_composer,
+    create_development_vector_composer,
+    find_development_document_composer,
     finalize_existing_agent_composer,
     verify_development_agent_composer,
     create_provider_credential_composer,
@@ -221,17 +227,28 @@ class NativePackageMaterializer:
         elif action == "materialize_skill_version":
             body = await asyncio.to_thread(self._skill_input, work, key, document)
             metadata["skill_operation"] = "resolve_import"
+            if work.plan.get("mode") == "sync":
+                metadata["skill_operation"] = "resolve_development_import"
+                if skill_id := (target.get("evidence") or {}).get("skill_id"):
+                    paths["skill_id"] = skill_id
             handler = skill_catalog_composer()
         elif action == "create_collection":
             body = {"project_id": project, **document["spec"]["collection"]}
-            handler = create_collection_composer()
+            if work.plan.get("mode") == "sync":
+                body["development_collection_id"] = (target.get("evidence") or {}).get(
+                    "collection_id"
+                )
+                handler = materialize_development_collection_composer()
+            else:
+                handler = create_collection_composer()
         elif action == "upload_document":
             index = int(phase["key"].rsplit(":", 1)[1])
             descriptor = document["spec"]["documents"][index]
             content = await asyncio.to_thread(
                 self._document_bytes, work, key, document, index
             )
-            body = await build_imported_document_preparation().execute(
+            preparation = build_imported_document_preparation()
+            inputs = dict(
                 project_id=operation.project_id,
                 collection_id=UUID(resources["collection:" + key]["id"]),
                 file_name=PurePosixPath(descriptor["path"]).name,
@@ -239,7 +256,19 @@ class NativePackageMaterializer:
                 content=content,
                 content_type=descriptor.get("content_type"),
             )
-            handler = upload_document_composer()
+            existing = None
+            if work.plan.get("mode") == "sync":
+                candidate = preparation.inspect(**inputs)
+                lookup = await find_development_document_composer()(
+                    OperationRequest(principal=work.principal, body=candidate)
+                )
+                existing = lookup.body.get("data")
+            body = candidate if existing else await preparation.execute(**inputs)
+            handler = (
+                materialize_development_document_composer()
+                if work.plan.get("mode") == "sync"
+                else upload_document_composer()
+            )
         elif action == "build_vector_snapshot":
             embedding = resources[document["spec"]["embedding"]["model_ref"]]
             body = {
@@ -247,8 +276,19 @@ class NativePackageMaterializer:
                 "collection_id": resources["collection:" + key]["id"],
                 "embedding_provider_model_id": embedding["id"],
                 "build_config": document["spec"]["vector_snapshot"],
+                "document_ids": [
+                    resources[f"document:{key}:{index}"]["id"]
+                    for index, _ in enumerate(document["spec"]["documents"])
+                ],
             }
-            handler = create_imported_vector_composer()
+            if work.plan.get("mode") == "sync":
+                identity = {**body, "document_ids": sorted(body["document_ids"])}
+                body["version"] = sha256(
+                    json.dumps(identity, sort_keys=True, separators=(",", ":")).encode()
+                ).hexdigest()
+                handler = create_development_vector_composer()
+            else:
+                handler = create_imported_vector_composer()
         elif action == "verify_vector_snapshot":
             body = {
                 "project_id": project,
@@ -357,6 +397,7 @@ class NativePackageMaterializer:
             handler = commit_imported_mcp_composer()
         elif action == "prepare_inactive_agent":
             body = compile_imported_agent_inputs(
+                resolve_skill_versions=work.plan.get("mode") == "sync",
                 project_id=operation.project_id,
                 document=document,
                 definitions=definitions,
@@ -392,6 +433,7 @@ class NativePackageMaterializer:
         elif action == "finalize_agent_draft":
             agent_id = resources[key]["id"]
             body = compile_imported_agent_inputs(
+                resolve_skill_versions=work.plan.get("mode") == "sync",
                 project_id=operation.project_id,
                 document=document,
                 definitions=definitions,
@@ -403,6 +445,7 @@ class NativePackageMaterializer:
             handler = (
                 finalize_existing_agent_composer()
                 if target.get("resource_id")
+                and not target.get("preparation", {}).get("new_root")
                 else finalize_imported_agent_composer()
             )
         elif (
@@ -520,7 +563,9 @@ class NativePackageMaterializer:
             encryption_key=self._encryption_key,
             evidence={
                 "component": key,
-                "artifact_component": reference if action in {"create_prompt_version", "create_contract_version"} else None,
+                "artifact_component": reference
+                if action in {"create_prompt_version", "create_contract_version"}
+                else None,
                 "kind": document["kind"] if document else "Binding",
                 "action": action,
             },

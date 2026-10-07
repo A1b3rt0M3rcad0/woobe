@@ -1,5 +1,5 @@
 {
-  "cli_commit": "025cba22df0dd8bbc4123edd3d91226cc82bbd91",
+  "cli_commit": "c19abbcba6276c243d2b09e94511723c2f4d23e7",
   "operations": [
     {
       "command": "auth invite accept",
@@ -251,6 +251,12 @@
       "command": "project agent release rollback",
       "method": "POST",
       "path": "/ai/agents/{agent_id}/releases/{release_id}/rollback",
+      "body_required": true
+    },
+    {
+      "command": "project agent release run-test",
+      "method": "POST",
+      "path": "/ai/agents/{agent_id}/release-tests/run",
       "body_required": true
     },
     {

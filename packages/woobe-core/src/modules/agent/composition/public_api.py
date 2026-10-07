@@ -1,4 +1,7 @@
 """Explicit transport-neutral public surface for Agent hosts."""
+from modules.agent.composition.factories.provider_dependency_reader_factory import configure_provider_dependency_readers
+from modules.agent.composition.factories.release_test_execution_factory import build_release_test_execution_handler
+from modules.agent.application.dtos.ai_dtos import ExecuteReleaseTestInput
 
 from modules.agent.composition.composers.verify_imported_agent_composer import verify_imported_agent_composer
 from modules.agent.composition.composers.tools_composers import materialize_imported_tool_composer
@@ -534,3 +537,19 @@ __all__ = [
 
 from modules.agent.composition.composers.portable_export import build_portable_agent_export_reader
 __all__.append("build_portable_agent_export_reader")
+__all__.extend(["configure_provider_dependency_readers", "build_release_test_execution_handler", "ExecuteReleaseTestInput"])
+
+from modules.agent.composition.composers.development_resources import (
+    build_development_resource_reader, prepare_existing_agent_composer,
+)
+from modules.agent.composition.composers.development_resources import reuse_development_resource_composer
+
+from modules.agent.composition.composers.development_resources import reuse_frozen_agent_composer
+from modules.agent.composition.composers.development_resources import materialize_development_prompt_composer, materialize_development_contract_composer
+from modules.agent.composition.composers.development_resources import materialize_development_collection_composer, materialize_development_document_composer
+from modules.agent.composition.composers.imported_vector_composers import create_development_vector_composer
+from modules.agent.composition.composers.development_resources import find_development_document_composer
+from modules.agent.composition.composers.finalize_imported_agent_composer import finalize_existing_agent_composer
+from modules.agent.composition.composers.verify_imported_agent_composer import verify_development_agent_composer
+
+__all__.extend(['build_development_resource_reader', 'prepare_existing_agent_composer', 'reuse_development_resource_composer', 'reuse_frozen_agent_composer', 'materialize_development_prompt_composer', 'materialize_development_contract_composer', 'materialize_development_collection_composer', 'materialize_development_document_composer', 'create_development_vector_composer', 'find_development_document_composer', 'finalize_existing_agent_composer', 'verify_development_agent_composer'])

@@ -1,6 +1,7 @@
 """Stable public entrypoint for the ChatSurface bounded context."""
 
 from modules.chat_surface.composition.public_api import (
+    build_surface_dependency_impact_reader,
     CONTROL_PLANE_TEST_SOURCE,
     ChatRunIdentity,
     ChatMessageRequestSnapshot,
@@ -22,6 +23,7 @@ from modules.chat_surface.composition.public_api import (
 )
 
 __all__ = [
+    "build_surface_dependency_impact_reader",
     "CONTROL_PLANE_TEST_SOURCE",
     "ChatRunIdentity",
     "ChatMessageRequestSnapshot",

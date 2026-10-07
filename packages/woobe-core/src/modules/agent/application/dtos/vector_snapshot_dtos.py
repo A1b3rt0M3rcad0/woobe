@@ -26,6 +26,7 @@ class CreateVectorSnapshotInput(BaseModel):
     parser_config: dict[str, Any] | None = None
     build_config: dict[str, Any] | None = None
     created_by: UUID | None = None
+    document_ids: list[UUID] | None = Field(default=None, min_length=1, max_length=10000)
 
 
 class PreviewVectorSnapshotInput(BaseModel):

@@ -17,7 +17,10 @@ from modules.agent.entrypoint import (
     SETTINGS,
     build_http_tool_executor,
     close_http_tool_executor,
+    configure_provider_dependency_readers,
 )
+from modules.network.entrypoint import build_network_dependency_impact_reader
+from modules.chat_surface.entrypoint import build_surface_dependency_impact_reader
 from modules.identity.entrypoint import build_access_token_codec
 from public_runtime_routes import router as public_runtime_router
 from shared.composition_resources import DATABASE_ENGINE, EXECUTION_STATE_STORE
@@ -84,6 +87,10 @@ def _csv_values(value: str) -> list[str]:
 
 
 def create_app() -> FastAPI:
+    configure_provider_dependency_readers(
+        network_consumers=build_network_dependency_impact_reader().consumers,
+        surface_consumers=build_surface_dependency_impact_reader().consumers,
+    )
     settings = SETTINGS
     configure_logging(level=settings.log_level, json_logs=settings.json_logs)
     logger.info(

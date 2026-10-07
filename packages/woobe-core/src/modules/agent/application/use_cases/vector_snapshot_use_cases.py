@@ -222,6 +222,13 @@ class CreateVectorSnapshotUseCase:
             for document in documents
             if _value(document.status) != _value(DocumentStatus.DELETED)
         ]
+        if input_dto.document_ids is not None:
+            selected = set(input_dto.document_ids)
+            if len(selected) != len(input_dto.document_ids):
+                raise ConflictError("Vector snapshot document selection must be unique")
+            active_documents = [document for document in active_documents if document.id in selected]
+            if {document.id for document in active_documents} != selected:
+                raise NotFoundError("Selected snapshot document is unavailable in this Collection")
         if not active_documents:
             raise ConflictError("Collection has no active documents to snapshot")
 

@@ -128,3 +128,4 @@ class PackageResourceBindingModel(BaseModel):
     resource_id: Mapped[UUID | None] = mapped_column(nullable=True)
     definition_digest: Mapped[str | None] = mapped_column(String(64), nullable=True)
     operation_id: Mapped[UUID | None] = mapped_column(nullable=True)
+    preparation: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")

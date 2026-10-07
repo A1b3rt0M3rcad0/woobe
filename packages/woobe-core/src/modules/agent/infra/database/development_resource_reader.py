@@ -14,7 +14,7 @@ from modules.agent.infra.database.models import (
 )
 from modules.agent.infra.database.mappers import model_to_tool
 from modules.agent.infra.database.provider_model_repositories import ProviderModelModel
-from modules.agent.infra.database.skill_models import SkillVersionModel
+from modules.agent.infra.database.skill_models import SkillVersionModel, SkillModel
 from modules.agent.infra.database.vector_snapshot_models import VectorSnapshotModel
 from modules.agent.infra.database.portable_export_reader import authorize_export_read
 from shared.contracts.errors import NotFoundError, ValidationError
@@ -54,9 +54,13 @@ class DevelopmentResourceReader:
         row = await session.get(
             model, UUID(str(resource_id)), with_for_update=lock, populate_existing=lock
         )
+        owner = row
+        if kind == "Skill" and row is not None:
+            owner = await session.get(SkillModel, row.skill_id, with_for_update=lock)
         if (
             row is None
-            or row.project_id != project_id
+            or owner is None
+            or owner.project_id != project_id
             or getattr(row, "status", None) == "archived"
         ):
             raise NotFoundError("Development resource is unavailable")

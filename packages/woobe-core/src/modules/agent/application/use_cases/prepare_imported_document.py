@@ -15,6 +15,23 @@ class PrepareImportedDocumentUseCase:
     def __init__(self, storage: FileStorage, settings: UploadSettings):
         self._storage, self._settings = storage, settings
 
+    def inspect(
+        self, *, project_id, collection_id, file_name, title, content, content_type=None
+    ):
+        name, media, parser = DocumentUploadPolicy(self._settings).prepare(
+            file_name=file_name, content_type=content_type, content=content
+        )
+        return {
+            "project_id": str(project_id),
+            "collection_id": str(collection_id),
+            "file_name": name,
+            "title": title,
+            "content_type": media,
+            "parser": parser,
+            "size_bytes": len(content),
+            "sha256": compute_sha256(content),
+        }
+
     async def execute(
         self, *, project_id, collection_id, file_name, title, content, content_type=None
     ):

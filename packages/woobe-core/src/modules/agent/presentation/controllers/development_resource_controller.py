@@ -17,6 +17,8 @@ class DevelopmentResourceController:
             data = await self._resources.reuse(request.body, request.principal)
         elif self._action == "reuse_frozen":
             data = await self._resources.reuse_frozen(request.body, request.principal)
+        elif self._action == "DocumentLookup":
+            data = await self._resources.find_artifact("Document", request.body)
         else:
             data = await self._resources.find_artifact(self._action, request.body)
             if data is None:

@@ -12,9 +12,9 @@ cli = _live_cli
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("kind", ["agent", "network"])
+@pytest.mark.parametrize("kind,with_knowledge", [("agent", False), ("network", False), ("agent", True)])
 async def test_managed_agent_pull_edit_push_keeps_native_identity_and_rejects_stale_base(
-    cli, tmp_path, kind
+    cli, tmp_path, kind, with_knowledge
 ):
     project = await cli.data(
         "project",
@@ -95,6 +95,28 @@ async def test_managed_agent_pull_edit_push_keeps_native_identity_and_rejects_st
     }
     documents["woobe.yaml"]["spec"]["resources"].append("tool.yaml")
     documents["agent.yaml"]["spec"]["tools"] = [{"ref": "lookup"}]
+    if with_knowledge:
+        documents["embedding.yaml"] = {
+            "kind": "Model", "metadata": {"key": "embedding", "name": "Embedding"},
+            "spec": {"provider": "custom", "model": "fake-embedding", "model_type": "embedding", "credential": {"ref": "primary"}, "base_url": os.environ["WOOBE_TEST_FAKE_PROVIDER_URL"]},
+        }
+        documents["knowledge.yaml"] = {
+            "kind": "Knowledge", "metadata": {"key": "knowledge", "name": "Support knowledge"},
+            "spec": {"mode": "portable", "collection": {"name": "Support knowledge", "description": "Grounding"}, "documents": [{"path": "documents/policy.txt", "title": "Policy", "content_type": "text/plain"}], "embedding": {"model_ref": "embedding"}, "vector_snapshot": {}},
+        }
+        documents["woobe.yaml"]["spec"]["resources"] += ["embedding.yaml", "knowledge.yaml"]
+        documents["agent.yaml"]["spec"]["knowledge"] = {"source": {"ref": "knowledge"}}
+        (source / "documents").mkdir()
+        (source / "documents/policy.txt").write_text("Support escalates unresolved problems to the project owner.")
+        documents["skill.yaml"] = {
+            "kind": "Skill", "metadata": {"key": "procedure", "name": "Procedure"},
+            "spec": {"version": "1.0.0", "package": {"manifest": "SKILL.md", "resources": []}},
+        }
+        documents["woobe.yaml"]["spec"]["resources"].append("skill.yaml")
+        documents["agent.yaml"]["spec"]["skills"] = [{"ref": "procedure", "version": "1.0.0"}]
+        documents["agent.yaml"]["spec"]["context"] = {"policy": {"allowed_sources": ["SYSTEM", "USER_INPUT", "SESSION", "TOOL", "SKILL"], "skills": {}}}
+        (source / "SKILL.md").write_text("---\nname: support-procedure\ndescription: Support customers\n---\nFollow the support procedure.\n")
+
     if kind == "network":
         documents["network.yaml"] = {
             "kind": "Network",
@@ -160,7 +182,25 @@ async def test_managed_agent_pull_edit_push_keeps_native_identity_and_rejects_st
     assert pulled["pulled"] is True
     tools_before = await cli.data("project", "tool", "list")
     assert len(tools_before) == 1
+    if with_knowledge:
+        await _assert_knowledge_reuses_collection_and_documents(cli, local)
+        return
     if kind == "network":
+        provider_models = await cli.data("project", "provider-model", "list")
+        model_usage = await cli.data(
+            "project", "provider-model", "usage", provider_models[0]["id"]
+        )
+        assert any(
+            item["type"] == "network" and item["id"] == target_id
+            for item in model_usage["blocking"]
+        )
+        credential_usage = await cli.data(
+            "project", "provider-credential", "usage", credential["id"]
+        )
+        assert any(
+            item["type"] == "network" and item["id"] == target_id
+            for item in credential_usage["blocking"]
+        )
         config = yaml.safe_load((local / ".woobe-config").read_text())
         assert sum(item["kind"] == "Agent" for item in config["resources"]) == 2
         assert sum(item.get("frozen", False) for item in config["resources"]) == 1
@@ -177,7 +217,7 @@ async def test_managed_agent_pull_edit_push_keeps_native_identity_and_rejects_st
         after = yaml.safe_load((local / ".woobe-config").read_text())
         assert len(after["resources"]) == len(config["resources"])
         await _assert_explicit_clone_creation(cli, local, kind, tools_before)
-    return
+        return
     descriptor = Path(pulled["path"]) / "agent.yaml"
     document = yaml.safe_load(descriptor.read_text())
     document["spec"]["legacy_system_prompt"] = "Help customers with local YAML"
@@ -261,6 +301,68 @@ async def test_managed_agent_pull_edit_push_keeps_native_identity_and_rejects_st
     assert any(
         item["uid"] == prompt_resource["uid"] for item in registry_after["resources"]
     )
+    staged = await cli.data("agent", "@support", "stage", "--yes", cwd=local)
+    assert staged["status"] == "staging"
+    testcase = local / "testcase.yaml"
+    testcase.write_text(yaml.safe_dump({"message": "Answer a simple support question"}))
+    executed = (await cli.run("agent", "@support", "test", "--file", str(testcase), cwd=local))["data"]
+    assert executed["status"] == "passed", executed
+    assert executed["actual_output"]["run_id"]
+    assert executed["actual_output"]["answer"]
+    recorded = await cli.data("agent", "release", "tests", agent_id, staged["id"])
+    assert any(item["id"] == executed["id"] for item in recorded)
+    testcase.write_text(yaml.safe_dump({"message": "Answer a simple support question", "expected_output": {"answer": "deliberately impossible assertion"}}))
+    failed = await cli.run("agent", "@support", "test", "--file", str(testcase), cwd=local, expected=6)
+    assert failed["data"]["status"] == "failed"
+    assert failed["data"]["actual_output"]["run_id"]
+    assert {item["code"] for item in failed["data"]["validation_errors"]} == {"EXPECTED_OUTPUT_MISMATCH"}
+    published = await cli.data("agent", "@support", "publish", "--notes", "Reviewed local development", "--yes", cwd=local)
+    assert published["status"] == "released"
+    activated = await cli.data("agent", "@support", "activate", "--version", published["version"], "--notes", "Deploy tested release", "--yes", cwd=local)
+    assert activated["status"] == "production"
+    releases = await cli.data("agent", "@support", "release", "list", cwd=local)
+    assert any(item["id"] == activated["id"] for item in releases)
+
+
+async def _assert_knowledge_reuses_collection_and_documents(cli, local):
+    collections = await cli.data("knowledge", "collection", "list")
+    assert len(collections) == 1
+    collection_id = collections[0]["id"]
+    original_documents = await cli.data("knowledge", "document", "list")
+    original_snapshots = await cli.data("knowledge", "snapshot", "list", collection_id)
+    registry = yaml.safe_load((local / ".woobe-config").read_text())
+    artifact = next(item for item in registry["resources"] if item["kind"] == "Knowledge")
+    descriptor = local / ".woobe" / artifact["path"] / "knowledge.yaml"
+    assert await cli.data("knowledge", "snapshot", "list", "@" + artifact["alias"], cwd=local) == original_snapshots
+    skill = next(item for item in registry["resources"] if item["kind"] == "Skill")
+    skill_descriptor = local / ".woobe" / skill["path"] / "skill.yaml"
+    skill_document = yaml.safe_load(skill_descriptor.read_text())
+    manifest = skill_descriptor.parent / skill_document["spec"]["package"]["manifest"]
+    original_manifest = manifest.read_text()
+    manifest.write_text(original_manifest + "\nEscalate urgent issues immediately.\n")
+    original_versions = await cli.data("skill", "version", "list", "@" + skill["alias"], cwd=local)
+
+    knowledge = yaml.safe_load(descriptor.read_text())
+    knowledge["spec"]["vector_snapshot"]["chunking"]["chunk_size"] = 1000
+    descriptor.write_text(yaml.safe_dump(knowledge))
+    result = (await cli.run("agent", "@support", "push", cwd=local))["data"]
+    assert result["pushed"] is True
+    versions = await cli.data("skill", "version", "list", "@" + skill["alias"], cwd=local)
+    assert len(versions) == len(original_versions) + 1
+    assert {item["skill_id"] for item in versions} == {item["skill_id"] for item in original_versions}
+    assert await cli.data("knowledge", "collection", "list") == collections
+    stored_documents = await cli.data("knowledge", "document", "list")
+    stable = lambda documents: [{key: value for key, value in item.items() if key not in {"updated_at", "indexed_at", "chunk_count"}} for item in documents]
+    assert stable(stored_documents) == stable(original_documents)
+    snapshots = await cli.data("knowledge", "snapshot", "list", collection_id)
+    assert len(snapshots) == len(original_snapshots) + 1
+    assert all(item["collection_id"] == collection_id for item in snapshots)
+    await cli.run("agent", "@support", "pull", cwd=local)
+    after = yaml.safe_load((local / ".woobe-config").read_text())
+    assert len(after["resources"]) == len(registry["resources"])
+    assert next(item for item in after["resources"] if item["kind"] == "Knowledge")["uid"] == artifact["uid"]
+    await cli.run("agent", "@support", "push", cwd=local)
+    assert len(await cli.data("knowledge", "snapshot", "list", collection_id)) == len(snapshots)
 
 
 async def _assert_explicit_clone_creation(cli, local, kind, tools_before):

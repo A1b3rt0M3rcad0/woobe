@@ -17,6 +17,21 @@ from modules.agent.infra.database.development_resources import SQLDevelopmentRes
 from modules.agent.infra.database.repositories import (
     SQLAlchemyAgentPromptRepository,
     SQLAlchemyAgentContractRepository,
+    SQLAlchemyDocumentCollectionRepository,
+    SQLAlchemyAgentOutboxEventWriter,
+)
+from modules.agent.infra.database.document_repositories import (
+    SQLAlchemyGuardedDocumentRepository,
+)
+from modules.agent.application.use_cases import (
+    CreateCollectionUseCase,
+    UploadDocumentUseCase,
+)
+from modules.agent.presentation.controllers.create_collection_controller import (
+    CreateCollectionController,
+)
+from modules.agent.presentation.controllers.upload_document_controller import (
+    UploadDocumentController,
 )
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 from modules.agent.composition.resources import DATABASE_ENGINE
@@ -99,4 +114,38 @@ def materialize_development_prompt_composer() -> TransactionalHandler:
 def materialize_development_contract_composer() -> TransactionalHandler:
     uow = AgentUnitOfWork(DATABASE_ENGINE)
     controller = _build_development_controller(uow, "Contract", artifact=True)
+    return TransactionalHandler(uow, controller.handle)
+
+
+def materialize_development_collection_composer() -> TransactionalHandler:
+    uow = AgentUnitOfWork(DATABASE_ENGINE)
+    resources = SQLDevelopmentResources(uow, build_development_resource_reader())
+    fallback = CreateCollectionController(
+        CreateCollectionUseCase(
+            SQLAlchemyDocumentCollectionRepository(uow),
+            SQLAlchemyAgentOutboxEventWriter(uow),
+        )
+    )
+    controller = DevelopmentResourceController(resources, "Collection", fallback)
+    return TransactionalHandler(uow, controller.handle)
+
+
+def materialize_development_document_composer() -> TransactionalHandler:
+    uow = AgentUnitOfWork(DATABASE_ENGINE)
+    resources = SQLDevelopmentResources(uow, build_development_resource_reader())
+    fallback = UploadDocumentController(
+        UploadDocumentUseCase(
+            SQLAlchemyGuardedDocumentRepository(uow),
+            SQLAlchemyDocumentCollectionRepository(uow),
+            SQLAlchemyAgentOutboxEventWriter(uow),
+        )
+    )
+    controller = DevelopmentResourceController(resources, "Document", fallback)
+    return TransactionalHandler(uow, controller.handle)
+
+
+def find_development_document_composer() -> TransactionalHandler:
+    uow = AgentUnitOfWork(DATABASE_ENGINE)
+    resources = SQLDevelopmentResources(uow, build_development_resource_reader())
+    controller = DevelopmentResourceController(resources, "DocumentLookup")
     return TransactionalHandler(uow, controller.handle)

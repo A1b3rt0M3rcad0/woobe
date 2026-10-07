@@ -24,7 +24,15 @@ class DevelopmentRegistry:
         self._sessions = sessions
         self._readers = {
             kind: agent_reader
-            for kind in ("Agent", "Model", "Tool", "Skill", "Knowledge", "Prompt", "Contract")
+            for kind in (
+                "Agent",
+                "Model",
+                "Tool",
+                "Skill",
+                "Knowledge",
+                "Prompt",
+                "Contract",
+            )
         }
         self._readers["Network"] = network_reader
 
@@ -76,6 +84,7 @@ class DevelopmentRegistry:
                         if row.operation_id
                         else None,
                         "revision": evidence["revision"] if evidence else None,
+                        "identifiers": {field: evidence[field] for field in ("skill_id", "collection_id") if evidence and evidence.get(field)},
                     }
                 )
             return {
@@ -171,6 +180,17 @@ class DevelopmentRegistry:
                     resource_id=resource_id,
                 )
                 expected = target.get("expected_revision")
+                if (
+                    row is not None
+                    and row.definition_digest is None
+                    and row.preparation.get("root_revision") is not None
+                    and str(evidence["revision"])
+                    != str(row.preparation["root_revision"])
+                ):
+                    raise PackageError(
+                        "PACKAGE_REVISION_CONFLICT",
+                        "Prepared resource was changed by another client; pull it before resuming",
+                    )
                 if target.get("release_id") is None and (
                     expected is None or str(expected) != str(evidence["revision"])
                 ):
@@ -178,6 +198,15 @@ class DevelopmentRegistry:
                         "PACKAGE_REVISION_CONFLICT",
                         "Resource changed after the local base was observed",
                     )
+            if (
+                kind == "Knowledge"
+                and row is not None
+                and row.preparation.get("collection_id")
+            ):
+                evidence = {
+                    **(evidence or {}),
+                    "collection_id": row.preparation["collection_id"],
+                }
             frozen = target.get("release_id") is not None
             source = None
             original = None
@@ -263,6 +292,7 @@ class DevelopmentRegistry:
                 "resource_id": resource_id,
                 "definition_digest": digests[key],
                 "evidence": evidence,
+                "preparation": row.preparation if row is not None else {},
                 "unchanged": captured_unchanged
                 or bool(row and evidence and row.definition_digest == digests[key]),
             }

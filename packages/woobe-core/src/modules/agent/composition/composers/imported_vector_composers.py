@@ -4,6 +4,9 @@ from modules.agent.application.use_cases.vector_snapshot_use_cases import (
 from modules.agent.application.use_cases.verify_imported_vector import (
     VerifyImportedVectorUseCase,
 )
+from modules.agent.application.use_cases.materialize_development_vector import (
+    MaterializeDevelopmentVector,
+)
 from modules.agent.composition.resources import DATABASE_ENGINE
 from modules.agent.infra.database.document_repositories import (
     SQLAlchemyGuardedDocumentRepository,
@@ -43,3 +46,17 @@ def verify_imported_vector_composer() -> TransactionalHandler:
     return TransactionalHandler(
         uow, ImportedVectorController(use_case, verify=True).handle
     )
+
+
+def create_development_vector_composer() -> TransactionalHandler:
+    uow = AgentUnitOfWork(DATABASE_ENGINE)
+    repository = SQLAlchemyVectorSnapshotRepository(uow)
+    create = CreateVectorSnapshotUseCase(
+        snapshot_repo=repository,
+        collection_repo=SQLAlchemyDocumentCollectionRepository(uow),
+        document_repo=SQLAlchemyGuardedDocumentRepository(uow),
+        provider_model_repo=SQLAlchemyProviderModelRepository(uow),
+        credential_repo=SQLAlchemyProviderCredentialRepository(uow),
+    )
+    use_case = MaterializeDevelopmentVector(repository, create)
+    return TransactionalHandler(uow, ImportedVectorController(use_case).handle)

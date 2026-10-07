@@ -89,7 +89,7 @@ async def test_embedding_only_model_blocks_archival_and_credential_usage_include
     agents = SimpleNamespace(list_by_project=AsyncMock(return_value=[]))
     releases = SimpleNamespace(list_by_agent=AsyncMock(return_value=[]))
     dependency = {"type":"vector_snapshot", "id":str(vector_id), "field":"embedding_provider_model_id", "name":"Knowledge", "status":"READY"}
-    dependencies = SimpleNamespace(embedding_consumers=AsyncMock(return_value=[dependency]))
+    dependencies = SimpleNamespace(embedding_consumers=AsyncMock(return_value=[dependency]), downstream_consumers=AsyncMock(return_value=[]))
     usage = provider_management_cases.ProviderModelUsageUseCase(models, agents, releases, dependency_reader=dependencies)
     result = await usage.execute(model_id)
     assert result["blocking"] == [dependency]

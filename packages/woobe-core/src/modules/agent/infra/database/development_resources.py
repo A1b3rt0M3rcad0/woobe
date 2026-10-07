@@ -6,6 +6,8 @@ from modules.agent.infra.database.models import (
     AgentReleaseModel,
     AgentPromptModel,
     AgentContractModel,
+    DocumentCollectionModel,
+    DocumentModel,
 )
 from shared.contracts.errors import NotFoundError, ConflictError
 
@@ -81,6 +83,39 @@ class SQLDevelopmentResources:
         }
 
     async def find_artifact(self, kind, data):
+        if kind == "Collection":
+            identifier = data.get("development_collection_id")
+            if not identifier:
+                return None
+            row = await self._uow.session.get(
+                DocumentCollectionModel, UUID(identifier), with_for_update=True
+            )
+            if (
+                row is not None
+                and str(row.project_id) == data["project_id"]
+                and row.status == "active"
+                and row.name == data["name"]
+                and (row.description or "") == (data.get("description") or "")
+            ):
+                return {"id": str(row.id)}
+            return None
+        if kind == "Document":
+            rows = (
+                await self._uow.session.scalars(
+                    select(DocumentModel).where(
+                        DocumentModel.project_id == UUID(data["project_id"]),
+                        DocumentModel.collection_id == UUID(data["collection_id"]),
+                        DocumentModel.sha256 == data["sha256"],
+                    )
+                )
+            ).all()
+            fields = ("title", "file_name", "content_type", "size_bytes", "parser")
+            for row in rows:
+                if row.status not in {"failed", "deleted", "archived"} and all(
+                    getattr(row, field) == data[field] for field in fields
+                ):
+                    return {"id": str(row.id)}
+            return None
         model = AgentPromptModel if kind == "Prompt" else AgentContractModel
         fields = (
             ("version", "name", "content", "content_hash")

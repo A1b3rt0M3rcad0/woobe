@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from modules.agent.application.interfaces.provider_dependency_reader import ProviderDependencyReader
+from modules.agent.application.interfaces.provider_dependency_reader import (
+    ProviderDependencyReader,
+)
 
 from datetime import datetime, timezone
 from typing import Any
@@ -115,7 +117,9 @@ class ProviderCredentialUsageUseCase:
                 seen.add(key)
                 blocking.append(item)
 
-        provider_models = await self._provider_model_repo.list_by_credential(credential_id)
+        provider_models = await self._provider_model_repo.list_by_credential(
+            credential_id
+        )
         active_model_ids = {
             item.id for item in provider_models if not _is_archived(item.status)
         }
@@ -224,7 +228,10 @@ class ProviderCredentialUsageUseCase:
                             version=release.version,
                         )
                     )
-                if getattr(release, "fallback_provider_model_id", None) in active_model_ids:
+                if (
+                    getattr(release, "fallback_provider_model_id", None)
+                    in active_model_ids
+                ):
                     add(
                         _item(
                             type="release",
@@ -239,7 +246,13 @@ class ProviderCredentialUsageUseCase:
                     )
 
         if self._dependency_reader is not None:
-            for dependency in await self._dependency_reader.embedding_consumers(credential.project_id, {model.id for model in provider_models}):
+            for dependency in await self._dependency_reader.embedding_consumers(
+                credential.project_id, {model.id for model in provider_models}
+            ):
+                add(dependency)
+            for dependency in await self._dependency_reader.downstream_consumers(
+                credential.project_id, {model.id for model in provider_models}
+            ):
                 add(dependency)
 
         return _usage(blocking)
@@ -320,7 +333,10 @@ class ProviderModelUsageUseCase:
                             version=release.version,
                         )
                     )
-                if getattr(release, "fallback_provider_model_id", None) == provider_model_id:
+                if (
+                    getattr(release, "fallback_provider_model_id", None)
+                    == provider_model_id
+                ):
                     add(
                         _item(
                             type="release",
@@ -335,7 +351,13 @@ class ProviderModelUsageUseCase:
                     )
 
         if self._dependency_reader is not None:
-            for dependency in await self._dependency_reader.embedding_consumers(provider_model.project_id, {provider_model_id}):
+            for dependency in await self._dependency_reader.embedding_consumers(
+                provider_model.project_id, {provider_model_id}
+            ):
+                add(dependency)
+            for dependency in await self._dependency_reader.downstream_consumers(
+                provider_model.project_id, {provider_model_id}
+            ):
                 add(dependency)
 
         return _usage(blocking)
