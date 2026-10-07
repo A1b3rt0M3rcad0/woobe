@@ -54,8 +54,8 @@ class AskAgentController(Controller):
                     total_tokens=result.usage.total_tokens if result.usage else None,
                     cost_usd=result.usage.cost_usd if result.usage else None,
                 ),
-                sources=result.sources or [],
-                tool_calls=result.tool_calls or [],
+                sources=[source.model_dump() for source in result.sources or []],
+                tool_calls=[call.model_dump() for call in result.tool_calls or []],
                 trace_id=result.trace_id,
                 model=result.model,
                 provider=result.provider,
@@ -114,6 +114,9 @@ class AskAgentController(Controller):
             logger.exception("Unexpected error in ask agent: %s", e)
             return OperationResult(
                 outcome=OperationOutcome.FAILURE,
-                body={"success": False, "message": "Internal server error", "data": None},
+                body={
+                    "success": False,
+                    "message": "Internal server error",
+                    "data": None,
+                },
             )
-

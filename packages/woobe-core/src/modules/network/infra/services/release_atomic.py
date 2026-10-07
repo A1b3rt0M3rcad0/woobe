@@ -212,6 +212,14 @@ async def _promote_atomic_in_session(
         if environment == NetworkEnvironment.STAGING
         else "production",
     )
+    if environment == NetworkEnvironment.STAGING:
+        final_definition = replace(
+            final_definition,
+            author_metadata={
+                "name": network.name,
+                "description": network.description or "",
+            },
+        )
     final_composition_hash = composition_hash(final_definition, resolved_bindings)
     metadata = await _release_metadata(
         session,

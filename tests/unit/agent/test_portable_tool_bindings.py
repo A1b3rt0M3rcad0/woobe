@@ -3,7 +3,9 @@ from uuid import uuid4
 
 import pytest
 
-from modules.agent.application.interfaces.model_connections import fallback_connection_settings
+from modules.agent.application.interfaces.model_connections import (
+    fallback_connection_settings,
+)
 from modules.agent.application.portable_tool_bindings import (
     compile_imported_tool_inputs,
 )
@@ -68,3 +70,65 @@ def test_fallback_endpoint_uses_its_full_model_snapshot_and_preserves_source():
     assert agent.settings["base_url"] == "https://primary.test"
     agent.settings.pop("fallback_model_spec")
     assert fallback_connection_settings(agent)["base_url"] is None
+
+
+def test_mcp_child_binding_requires_declared_environment_before_remapping():
+    spec = {
+        "type": "mcp",
+        "config": {"transport": "streamable_http", "server_url": "https://mcp.test"},
+        "permissions": [
+            {
+                "remote_name": "lookup",
+                "permission": "allow",
+                "bindings": {
+                    "tenant": {
+                        "source": {"kind": "project_environment", "field": "TENANT"}
+                    }
+                },
+            }
+        ],
+    }
+    with pytest.raises(ValidationError, match="undeclared"):
+        compile_imported_tool_inputs(
+            project_id=uuid4(),
+            metadata={"name": "MCP"},
+            spec=spec,
+            environment={},
+            secrets={},
+        )
+
+
+def test_native_author_permission_is_preserved_when_outer_fields_are_omitted():
+    result = compile_imported_tool_inputs(
+        project_id=uuid4(),
+        metadata={"name": "guarded"},
+        spec={
+            "type": "http",
+            "config": {
+                "url": "https://tools.example.test/lookup",
+                "permission": {"mode": "deny", "risk_level": "high"},
+            },
+        },
+        environment={},
+        secrets={},
+    )
+    assert result["config"]["permission"] == {"mode": "deny", "risk_level": "high"}
+
+
+@pytest.mark.parametrize("outer", [{"permission": "allow"}, {"risk": "low"}])
+def test_conflicting_portable_permission_or_risk_cannot_lower_native_policy(outer):
+    with pytest.raises(ValidationError, match="declarations conflict"):
+        compile_imported_tool_inputs(
+            project_id=uuid4(),
+            metadata={"name": "guarded"},
+            spec={
+                "type": "http",
+                "config": {
+                    "url": "https://tools.example.test/lookup",
+                    "permission": {"mode": "deny", "risk_level": "high"},
+                },
+                **outer,
+            },
+            environment={},
+            secrets={},
+        )

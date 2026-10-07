@@ -15,7 +15,9 @@ def compile_imported_tool_inputs(*, project_id, metadata, spec, environment, sec
     """Remap native references, never protected values, before native compilation."""
     source = deepcopy(spec)
     config = source["config"]
-    referenced = collect_tool_project_environment_keys(config)
+    referenced = collect_tool_project_environment_keys(
+        [config, source.get("permissions", [])]
+    )
     if referenced - set(environment):
         raise ValidationError(
             "Tool references undeclared Project Environment requirements"
@@ -62,9 +64,23 @@ def compile_imported_tool_inputs(*, project_id, metadata, spec, environment, sec
             {**permission, "bindings": rewrite(permission.get("bindings", {}))}
         )
     source["permissions"] = desired
-    source["config"]["permission"] = {"mode": source.get("permission", "allow")}
+    permission = deepcopy(source["config"].get("permission") or {})
+    if (
+        "permission" in source
+        and "mode" in permission
+        and source["permission"] != permission["mode"]
+    ):
+        raise ValidationError("Portable Tool permission declarations conflict")
+    if (
+        source.get("risk")
+        and permission.get("risk_level")
+        and source["risk"] != permission["risk_level"]
+    ):
+        raise ValidationError("Portable Tool risk declarations conflict")
+    permission["mode"] = source.get("permission", permission.get("mode", "allow"))
     if source.get("risk"):
-        source["config"]["permission"]["risk_level"] = source["risk"]
+        permission["risk_level"] = source["risk"]
+    source["config"]["permission"] = permission
     return inspect_portable_tool(project_id=project_id, metadata=metadata, spec=source)[
         "create_input"
     ]

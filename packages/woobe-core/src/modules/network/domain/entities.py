@@ -76,6 +76,7 @@ class NetworkDefinition:
     limits: NetworkLimits = field(default_factory=NetworkLimits)
     session_mode: str = "stateful"
     schema_version: int = 2
+    author_metadata: dict[str, str] | None = None
 
     @classmethod
     def from_dict(cls, value: dict[str, Any]) -> NetworkDefinition:
@@ -108,15 +109,25 @@ class NetworkDefinition:
                 max_depth=int(settings.get("max_depth", 4)),
                 max_invocations=int(settings.get("max_invocations", 16)),
                 timeout_seconds=int(settings.get("timeout_seconds", 90)),
-                tool_result_max_chars=int(settings.get("tool_result_max_chars", 16_000)),
+                tool_result_max_chars=int(
+                    settings.get("tool_result_max_chars", 16_000)
+                ),
             ),
             session_mode=str(settings.get("session_mode", "stateful")),
             schema_version=2,
+            author_metadata=dict(value["author_metadata"])
+            if value.get("author_metadata") is not None
+            else None,
         )
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "schema_version": 2,
+            **(
+                {"author_metadata": dict(self.author_metadata)}
+                if self.author_metadata is not None
+                else {}
+            ),
             "root_node_id": str(self.root_node_id),
             "nodes": [
                 {
@@ -126,7 +137,11 @@ class NetworkDefinition:
                     "capability_description": node.capability_description,
                     "position": node.position,
                     "binding": node.binding.to_dict(),
-                    **({"portable_key": node.portable_key} if node.portable_key is not None else {}),
+                    **(
+                        {"portable_key": node.portable_key}
+                        if node.portable_key is not None
+                        else {}
+                    ),
                 }
                 for node in self.nodes
             ],

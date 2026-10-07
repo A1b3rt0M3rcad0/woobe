@@ -49,6 +49,13 @@ def export_frozen_tool(snapshot):
         config["server"].pop("args", None)
     else:
         raise ValidationError("Tool protocol has no portable native contract")
+    risk = (config.get("permission") or {}).get("risk_level") or getattr(
+        tool.risk_level, "value", tool.risk_level
+    )
+    if risk is not None:
+        permission = config.setdefault("permission", {"mode": "allow"})
+        if permission.get("risk_level") is None:
+            permission["risk_level"] = risk
     validate_portable_tool_authentication(config)
     return {
         "id": str(tool.id),
@@ -61,7 +68,7 @@ def export_frozen_tool(snapshot):
         else None,
         "output_schema": deepcopy(tool.output_schema),
         "timeout_ms": tool.timeout_ms or 10000,
-        "risk": getattr(tool.risk_level, "value", tool.risk_level),
+        "risk": risk,
         "permission": (config.get("permission") or {}).get("mode", "allow"),
         "permissions": permissions,
     }

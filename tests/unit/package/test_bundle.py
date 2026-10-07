@@ -223,3 +223,23 @@ def test_large_network_dag_does_not_depend_on_python_recursion_limit():
     validate_network_structure(
         {"root": "0", "nodes": nodes, "edges": edges}, "network.yaml"
     )
+
+
+def test_complete_shared_composition_fixture_and_locked_archive(tmp_path):
+    from pathlib import Path
+
+    fixture_path = (
+        Path(__file__).resolve().parents[3] / "specs/package/v1/fixtures/complete.json"
+    )
+    fixture = json.loads(fixture_path.read_text())["files"]
+    for relative, content in fixture.items():
+        target = tmp_path / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content)
+    with snapshot_directory(tmp_path) as bundle:
+        assert len(bundle.inventory) == len(fixture)
+        assert bundle.graph.manifest["spec"]["entrypoint"]["kind"] == "Network"
+        output = io.BytesIO()
+        bundle.archive(output, include_lock=True)
+        with receive_archive(io.BytesIO(output.getvalue()), locked=True) as restored:
+            assert restored.artifact_digest == bundle.artifact_digest

@@ -1,63 +1,125 @@
 # Portable Agent and Network packages
 
-The Package feature is being implemented in the paired draft PRs Woobe #179 and
-woobe-cli #10. It is separate from the existing Manifest reconciliation API.
-The complete import/export acceptance suite has not passed yet.
+Package schema `1.0` describes a closed, portable author definition. It uses its
+own API, operation worker and CLI commands; Manifest reconciliation remains a
+separate contract. The implementation is reviewed in draft PRs
+[Woobe #179](https://github.com/A1b3rt0M3rcad0/woobe/pull/179) and
+[woobe-cli #10](https://github.com/A1b3rt0M3rcad0/woobe-cli/pull/10).
 
-The current API accepts bounded, explicitly declared `woobe-package` schema `1.0`
-archives, persists their immutable inventory, and builds native destination plans.
-Planning checks resource ownership, active credentials, complete ModelSpec
-identity, native execution/Knowledge/RAG configuration, Skill packages and actual
-Tool capability names, ready bound VectorSnapshots, and native Network limits.
-It does not create Agents, invoke Models or execute Tools.
+## Workflow
 
-Authenticated endpoints are scoped to `/projects/{project_id}/packages`:
+Create a Workspace Control Key in **Workspace settings → CLI Keys**, with the
+Project grants needed to read or create the composition. Configure `woobe` with
+the API origin and Project. A Runtime Key is separate and is needed only to run
+the imported Agent or Network.
 
-| Method | Path | Purpose |
+```sh
+woobe package validate ./support
+woobe package plan ./support --project PROJECT_UUID \
+  --bind credential.primary=CREDENTIAL_UUID --save-plan ./approved-plan.json
+woobe package import --plan-file ./approved-plan.json --project PROJECT_UUID \
+  --checkpoint ./import-checkpoint.json --wait --wait-timeout 5m
+woobe package status --checkpoint ./import-checkpoint.json
+woobe package resume --checkpoint ./import-checkpoint.json --revision REVISION
+woobe package cancel --checkpoint ./import-checkpoint.json
+woobe package export agent AGENT_UUID --source staging \
+  --destination ./portable-support --name support --version 1.0.0
+woobe package export network NETWORK_UUID --snapshot-id SNAPSHOT_UUID \
+  --destination ./portable-network --name network --version 1.0.0
+```
+
+Validation and `--dry-run` are offline. Planning checks native configuration,
+resource ownership, destination bindings, capabilities and required grants; it
+creates no Agent or Network. Apply accepts exactly the approved plan and returns
+a durable operation. `accepted` and `waiting_dependency` are not success.
+
+`draft` is the default lifecycle. `staging` is explicit; immutable `release`
+requires release notes. `production` requires release notes and an activation
+reason. A Network freezes its constituent Agent snapshots without incidentally
+activating standalone Agents in Production. Explicit node selectors preserve
+Draft, Staging and Release identity independently of node labels.
+
+## Portable composition
+
+Agent packages preserve Behavior or legacy/versioned Prompt, Contract, complete
+primary/fallback ModelSpec, generation parameters, native execution/context/
+Knowledge/RAG policies, External Context, immutable Skills and resource files,
+Tool author configuration, permissions and bindings. Native schema and readiness
+validation is reused rather than introducing an alternate runtime.
+
+Network packages include all selected Agent snapshots, stable portable node
+keys, positions, capability descriptions, topology and settings. Export reads the
+selected definition and its dependency closure in one consistent owner snapshot.
+It does not fall back to mutable current configuration for historical snapshots.
+A live Agent Draft without a saved snapshot can be captured without creating a
+release. Legacy native Model definitions are resolved through the existing
+compatibility compiler and are not rewritten during export.
+
+Portable Knowledge contains declared documents, parser/chunking configuration
+and the embedding Model definition. The destination builds its own VectorSnapshot
+and per-Agent KnowledgeVersion; vector bytes are not claimed to be identical.
+`--knowledge binding` instead emits an external destination requirement and marks
+the bundle as not self-contained. Missing or unfinished dependencies remain
+observable waits and cannot produce final execution readiness.
+
+MCP imports perform fresh destination discovery and apply permissions/bindings
+by remote capability name. OAuth configuration belongs to the destination;
+credentials, OAuth sessions, cached discovered schemas and live execution state
+are excluded. OAuth or readiness prerequisites can require an explicit resume.
+
+## API and security
+
+All paths below are relative to `/projects/{project_id}/packages` and require
+native control-plane authorization.
+
+| Method | Path | Result |
 | --- | --- | --- |
-| GET | `/capabilities` | Exact schema catalog, native configuration schemas and supported operations |
-| POST | `/uploads?locked=true` | Capture one bounded multipart archive and verify its inventory lock |
-| GET | `/uploads/{upload_id}` | Read scoped upload identity and expiry |
-| POST | `/plan` | Approve native effects, destination preconditions, lifecycle and audit fields |
-| POST | `/apply` | Accept one exact approved plan with mandatory Idempotency-Key; return an asynchronous operation |
-| GET | `/operations/{operation_id}` | Read durable state and explicit readiness |
-| POST | `/operations/lookup` | Reconcile an idempotency key in the request body |
-| POST | `/operations/{operation_id}/cancel` | Fence further effects and retain committed resources |
-| POST | `/operations/{operation_id}/resume` | Resume an observed dependency wait at its expected revision |
+| GET | `/capabilities` | Exact schema catalog and supported native operations |
+| POST / GET | `/uploads` / `/uploads/{upload_id}` | Bounded archive capture / scoped inventory and expiry |
+| POST | `/plan` | Immutable approved effects, preconditions, lifecycle and binding identities |
+| POST | `/apply` | One asynchronous operation; mandatory bounded `Idempotency-Key` |
+| GET | `/operations/{operation_id}` | State, revision, inventory, dependencies and readiness |
+| POST | `/operations/lookup` | Reconciliation by the original idempotency key in the body |
+| POST | `/operations/{operation_id}/resume` | Revision-checked continuation |
+| POST | `/operations/{operation_id}/cancel` | Fence subsequent effects and retain committed resources |
+| POST | `/export` | Captured definition and expiring scoped artifact receipt |
+| GET | `/exports/{export_id}/artifact` | Bounded archive with transport and inventory integrity |
 
-Capabilities advertise Apply. Export and the complete roundtrip acceptance suite
-remain under implementation. The Package operation
-worker is registered, renews its lease during long phases, and automatically
-rechecks waiting native dependencies with a bounded polling interval.
-HTTP intake is bounded before JSON/multipart parsing, including chunked requests;
-upload authorization runs before parsing multipart content.
+Uploads and export artifacts expire. An already accepted operation retains the
+captured input needed for recovery. Its encrypted protected bindings, lease,
+fencing token and phase receipts are operational records, separate from the
+portable author bundle. Each receipt commits in the same transaction as its
+native owner effect. Cancellation does not delete reused or committed resources.
 
-Plans bind the API origin, Project, captured artifact, native capabilities,
-binding identities/revisions and requested lifecycle. Public responses contain
-protected references, never their resolved values or a hash of secret material.
-Apply acceptance revalidates native destination preconditions. Each native effect
-must commit its Package receipt in the same owner transaction. Recovery reuses
-those receipts; a missing receipt cannot be treated as completion.
+Credentials and Secrets are destination bindings, never exported values. Public
+plans mask protected aliases; private receipts and checkpoints contain no
+resolved secret material. Apply resolves a protected alias once, records
+request-in-flight durably before sending, and never automatically repeats an
+uncertain mutation. A lookup miss requires reconciliation, not a second Apply.
 
-Current owner phase composition covers inactive Agent preparation and complete
-Draft activation, complete Model resolution, immutable Skill version reuse,
-create-only Project Environment and Secrets, document registration and vector
-build readiness, and fresh MCP discovery with revision-checked commits. The live
-CLI/API/PostgreSQL tests cover planning and native Agent/Skill/protected-binding
-materialization. Native Agent and Network Draft/Staging/Release/Production phases
-are wired through owner transactions. Tests qualify public CLI Apply through the
-live API and worker for an Agent Draft and a Network Production release.
-Checkpoint-driven import persists preparation and request-in-flight before its
-single Apply POST, then reconciles with the same key after a lost response.
-Full export and the complete Agent/Network roundtrip acceptance criterion remain
-under implementation.
+Export verifies archive transport digest, exact file inventory and artifact
+digest before publishing an entire destination with no replacement. Existing
+destinations are refused. Symlinks, special files, hardlinks, escaping archive
+paths, case collisions and resource-limit violations are rejected.
 
-`draft` is the default. Creating a Network must not incidentally activate any
-standalone Agent in Production. Release/Production require explicit audit notes,
-and Production also requires an activation reason. Readiness is an observed
-native state, not a consequence of accepting an operation.
+POSIX checkpoints use private files and native locks. Windows uses owner/DACL
+checks and native locks in a private parent directory; directory replacement may
+be blocked by the held Windows handle. Unsupported protection fails before
+Apply. The legacy private-file credential store is POSIX-only; explicit environment
+credentials remain available on Windows. See the CLI's
+[Package guide](https://github.com/A1b3rt0M3rcad0/woobe-cli/blob/feat/portable-package-import-export/docs/PACKAGES.md).
 
-Migration `0079` changes ProviderModel uniqueness to include the complete native
-ModelSpec hash. Distinct specifications for the same credential/model identity
-can coexist. Its downgrade fails safely if those definitions cannot satisfy the
-previous constraint; it does not discard Models to force a downgrade.
+## Migrations and qualification
+
+Migrations `0078` and `0079` add Package operational persistence and complete
+ProviderModel specification identity. `0079` permits distinct complete specs
+for one credential/model. Downgrade refuses incompatible data instead of deleting
+models to satisfy the former constraint.
+
+The paired draft PRs carry the acceptance matrix and exact tested revisions.
+Local integration tests use PostgreSQL, the real API/worker, native authorization,
+a deterministic provider/MCP peer and a separate Runtime Key. Cross-project
+export/import/re-export compares portable author fields and support files, then
+executes after deleting local package directories. Native distribution tests
+exercise the same complete shared fixture on Linux/macOS/Windows amd64/arm64.
+Final full-composition and paired-revision qualification is still in progress.

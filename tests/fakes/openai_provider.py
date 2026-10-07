@@ -9,8 +9,10 @@ from uuid import uuid4
 
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import StreamingResponse
+from tests.fakes.mcp_provider import app as mcp_peer
 
 app = FastAPI(title="Woobe deterministic fake provider", version="1.0")
+app.mount("/mcp-peer", mcp_peer)
 
 _DEFAULT_TOKENS = ("Woo", "be", " release", " gate", " passed")
 
@@ -31,6 +33,38 @@ def _completion(payload: dict[str, Any], *, scenario: str) -> dict[str, Any]:
         "content": "".join(_DEFAULT_TOKENS),
     }
     finish_reason = "stop"
+    if payload.get("response_format"):
+        message["content"] = json.dumps({"answer": "Woobe portable composition passed"})
+    observed_tool = any(
+        item.get("role") == "tool" or "portable-tenant" in str(item.get("content", ""))
+        for item in payload.get("messages", [])
+    )
+    if (
+        scenario in {"portable-tool", "portable-http"}
+        and payload.get("tools")
+        and payload.get("tool_choice") != "none"
+        and not observed_tool
+    ):
+        available = [
+            tool["function"]["name"]
+            for tool in payload["tools"]
+            if "lookup" in tool["function"]["name"].lower()
+        ]
+        if scenario == "portable-http":
+            available = [name for name in available if "guarded" in name]
+        if available:
+            message = {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {
+                        "id": "call_portable_" + uuid4().hex,
+                        "type": "function",
+                        "function": {"name": available[0], "arguments": "{}"},
+                    }
+                ],
+            }
+            finish_reason = "tool_calls"
     if scenario == "tool":
         message = {
             "role": "assistant",

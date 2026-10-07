@@ -29,7 +29,10 @@ def _require_reference_headers(headers):
 def _validate_url(value):
     if not value:
         return
-    url = urlsplit(value)
+    try:
+        url = urlsplit(value)
+    except ValueError as exc:
+        raise ValidationError("Portable Tool URL is invalid") from exc
     if (
         url.username is not None
         or url.password is not None

@@ -31,7 +31,7 @@ class PrepareImportedDocumentUseCase:
             file_name=name,
             content_type=media,
         )
-        return UploadDocumentInput(
+        prepared = UploadDocumentInput(
             document_id=identifier,
             sha256=compute_sha256(content),
             project_id=project_id,
@@ -43,3 +43,7 @@ class PrepareImportedDocumentUseCase:
             storage_key=stored.storage_key,
             parser=parser,
         ).model_dump(mode="json")
+        # A newly allocated ID is not an existing resource selector. Keep it
+        # distinct while authorization verifies the captured Project/Collection.
+        prepared["new_document_id"] = prepared.pop("document_id")
+        return prepared

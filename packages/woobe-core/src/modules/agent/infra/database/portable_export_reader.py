@@ -12,6 +12,7 @@ from modules.agent.application.dtos.portable_credential_metadata import (
 )
 from modules.agent.infra.database.models import (
     AgentModel,
+    AgentToolModel,
     ProviderCredentialModel,
     AgentReleaseModel,
     AgentPromptModel,
@@ -21,6 +22,7 @@ from modules.agent.infra.database.models import (
     KnowledgeVersionModel,
 )
 from modules.agent.infra.database.provider_model_repositories import ProviderModelModel
+from modules.agent.infra.database.mappers import model_to_tool
 from modules.agent.infra.database.skill_models import SkillModel, SkillVersionModel
 from modules.agent.infra.database.vector_snapshot_models import (
     VectorSnapshotModel,
@@ -151,6 +153,63 @@ class PortableAgentExportReader:
                 for source in sources
             ]
 
+    async def _live_draft_definition(self, session, *, agent, project_id, principal):
+        models = {}
+        for prefix, credential_field, model_field in (
+            ("", "provider_credential_id", "model"),
+            ("fallback_", "fallback_credential_id", "fallback_model"),
+        ):
+            credential_id = getattr(agent, credential_field)
+            if prefix and credential_id is None:
+                continue
+            candidates = (
+                await session.scalars(
+                    select(ProviderModelModel).where(
+                        ProviderModelModel.project_id == project_id,
+                        ProviderModelModel.provider_credential_id == credential_id,
+                        ProviderModelModel.model == getattr(agent, model_field),
+                        ProviderModelModel.status == "active",
+                    )
+                )
+            ).all()
+            candidates = [
+                self._compiler.capture_model(
+                    model, provider=getattr(agent, prefix + "provider")
+                )
+                for model in candidates
+            ]
+            declared = (agent.settings or {}).get(prefix + "model_spec")
+            if declared:
+                candidates = [model for model in candidates if model.spec == declared]
+            if not candidates or len({model.spec_hash for model in candidates}) != 1:
+                raise ConflictError("Draft has no unambiguous complete Provider Model")
+            model = candidates[0]
+            await authorize_export_read(
+                session,
+                principal,
+                project_id,
+                "provider:read",
+                identifiers={"provider_model_id": str(model.id)},
+            )
+            models[prefix] = model
+        tool_ids = (
+            ((agent.settings or {}).get("runtime_config") or {}).get("tools") or {}
+        ).get("tool_ids") or []
+        tools = []
+        for identifier in tool_ids:
+            native = await session.get(AgentToolModel, UUID(str(identifier)))
+            if native is None or native.project_id != project_id:
+                raise ConflictError("Draft Tool is unavailable")
+            await authorize_export_read(
+                session,
+                principal,
+                project_id,
+                "tool:read",
+                identifiers={"tool_id": str(native.id)},
+            )
+            tools.append(model_to_tool(native))
+        return self._compiler.freeze_draft(agent, models=models, tools=tools)
+
     async def capture_in_session(
         self,
         session,
@@ -193,20 +252,25 @@ class PortableAgentExportReader:
                     AgentReleaseModel.created_at.desc(), AgentReleaseModel.id.desc()
                 ).limit(1)
             )
-        if (
-            release is None
-            or release.project_id != project_id
-            or release.agent_id != agent_id
-        ):
-            raise NotFoundError("Agent snapshot is unavailable")
-        await authorize_export_read(
-            session,
-            principal,
-            project_id,
-            "agent:read",
-            identifiers={"agent_id": str(agent_id), "release_id": str(release.id)},
-        )
-        definition = self._compiler.definition(release)
+        if release is None and source == "draft":
+            definition = await self._live_draft_definition(
+                session, agent=agent, project_id=project_id, principal=principal
+            )
+        else:
+            if (
+                release is None
+                or release.project_id != project_id
+                or release.agent_id != agent_id
+            ):
+                raise NotFoundError("Agent snapshot is unavailable")
+            await authorize_export_read(
+                session,
+                principal,
+                project_id,
+                "agent:read",
+                identifiers={"agent_id": str(agent_id), "release_id": str(release.id)},
+            )
+            definition = self._compiler.definition(release)
         if expected_snapshot is not None and any(
             definition.get(key) != value for key, value in expected_snapshot.items()
         ):
@@ -280,7 +344,9 @@ class PortableAgentExportReader:
                 {
                     "id": str(version.id),
                     "skill_id": str(skill.id),
-                    "name": skill.name,
+                    "name": frozen_skills[str(version.id)].get(
+                        "name", version.package.get("name", skill.name)
+                    ),
                     "version": version.version,
                     "package": deepcopy(version.package),
                     "package_hash": version.package_hash,
@@ -424,6 +490,7 @@ class PortableAgentExportReader:
                     (
                         "model",
                         "model_type",
+                        "meta",
                         "spec",
                         "spec_hash",
                         "provider_credential_id",
@@ -433,9 +500,9 @@ class PortableAgentExportReader:
         return {
             "source": {
                 "agent_id": str(agent_id),
-                "snapshot_id": str(release.id),
-                "version": release.version,
-                "kind": release.snapshot_kind,
+                "snapshot_id": str(release.id) if release else None,
+                "version": release.version if release else None,
+                "kind": release.snapshot_kind if release else "draft",
             },
             "definition": definition,
             "tools": tools,

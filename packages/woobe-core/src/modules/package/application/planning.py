@@ -186,7 +186,9 @@ class PlanPackageUseCase:
                 append(f"tool:{key}", "materialize_tool", key, "tool:write")
                 if document["spec"]["type"] == "mcp":
                     append(f"mcp:{key}", "verify_mcp_discovery", key, "tool:write")
-                    append(f"mcp-ready:{key}", "verify_mcp_readiness", key, "tool:write")
+                    append(
+                        f"mcp-ready:{key}", "verify_mcp_readiness", key, "tool:write"
+                    )
             elif kind == "Skill":
                 append(f"skill:{key}", "materialize_skill_version", key, "skill:write")
             elif kind == "Knowledge" and document["spec"]["mode"] == "portable":
@@ -306,6 +308,17 @@ class PlanPackageUseCase:
                     f"{owner}:production",
                     owner=owner,
                 )
+        if entry["kind"] == "Network":
+            for agent_key in graph.order:
+                if graph.components[agent_key]["kind"] == "Agent":
+                    append(
+                        f"agent-verification:{agent_key}",
+                        "verify_constituent_agent",
+                        agent_key,
+                        "agent:read",
+                        OperationState.VERIFYING,
+                        owner="agent",
+                    )
         append(
             "verification",
             "verify_materialized_package",

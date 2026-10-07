@@ -418,12 +418,17 @@ class NativePackageMaterializer:
             ):
                 body["source_version_id"] = resources["staging:" + key]["id"]
             handler = imported_network_composer()
-        elif action == "verify_materialized_package" and document["kind"] == "Agent":
+        elif (
+            action in {"verify_materialized_package", "verify_constituent_agent"}
+            and document["kind"] == "Agent"
+        ):
             body = {
                 "project_id": project,
                 "agent_id": resources[key]["id"],
                 "draft_id": resources["draft:" + key]["id"],
-                "lifecycle": work.plan["lifecycle"],
+                "lifecycle": "draft"
+                if action == "verify_constituent_agent"
+                else work.plan["lifecycle"],
                 "release_id": resources.get(
                     ("staging:" if work.plan["lifecycle"] == "staging" else "release:")
                     + key,

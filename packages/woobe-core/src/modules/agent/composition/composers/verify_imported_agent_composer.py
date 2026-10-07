@@ -6,10 +6,12 @@ from modules.agent.application.use_cases.verify_imported_agent import (
 )
 from modules.agent.composition.resources import DATABASE_ENGINE
 from modules.agent.infra.database.provider_model_repositories import (
+    SQLAlchemyProviderModelRepository,
     SQLAlchemyAgentRepositoryWithProviderModels,
     SQLAlchemyAgentReleaseRepositoryWithProviderModels,
 )
 from modules.agent.infra.database.repositories import (
+    SQLAlchemyAgentToolRepository,
     SQLAlchemyProviderCredentialRepository,
     SQLAlchemyKnowledgeVersionRepository,
 )
@@ -33,5 +35,7 @@ def verify_imported_agent_composer() -> TransactionalHandler:
             SQLAlchemyKnowledgeVersionRepository(uow),
             SQLAlchemyVectorSnapshotRepository(uow),
         ),
+        models=SQLAlchemyProviderModelRepository(uow),
+        tools=SQLAlchemyAgentToolRepository(uow),
     )
     return TransactionalHandler(uow, VerifyImportedAgentController(use_case).handle)

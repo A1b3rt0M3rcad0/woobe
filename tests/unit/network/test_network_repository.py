@@ -114,14 +114,15 @@ async def test_save_draft_rejects_inactive_agent():
 
 
 @pytest.mark.asyncio
-async def test_save_draft_rejects_duplicate_agent_binding():
+async def test_save_draft_rejects_duplicate_node_identity():
     project_id = uuid4()
     agent_id = uuid4()
     network = SimpleNamespace(project_id=project_id)
     session = FakeSession(network, available_agent_ids=[agent_id])
     repository = NetworkRepository(session)
 
-    with pytest.raises(ConflictError, match="cannot appear more than once"):
+    node_id = uuid4()
+    with pytest.raises(ConflictError, match="node identities must be unique"):
         await repository.save_draft(
             uuid4(),
             expected_revision=0,
@@ -129,8 +130,8 @@ async def test_save_draft_rejects_duplicate_agent_binding():
             description="",
             definition={
                 "nodes": [
-                    {"agent_id": str(agent_id)},
-                    {"agent_id": str(agent_id)},
+                    {"id": str(node_id), "agent_id": str(agent_id)},
+                    {"id": str(node_id), "agent_id": str(agent_id)},
                 ]
             },
         )
@@ -156,3 +157,31 @@ async def test_save_draft_accepts_active_agents_owned_by_network_project():
 
     assert saved is network
     assert session.execute_calls == 2
+
+
+@pytest.mark.asyncio
+async def test_distinct_nodes_can_pin_different_snapshots_of_the_same_owned_agent():
+    project_id, agent_id = uuid4(), uuid4()
+    network = SimpleNamespace(project_id=project_id)
+    session = FakeSession(network, available_agent_ids=[agent_id])
+    saved = await NetworkRepository(session).save_draft(
+        uuid4(),
+        expected_revision=0,
+        name="Portable Network",
+        description="",
+        definition={
+            "nodes": [
+                {
+                    "id": str(uuid4()),
+                    "agent_id": str(agent_id),
+                    "binding": {"source": "draft"},
+                },
+                {
+                    "id": str(uuid4()),
+                    "agent_id": str(agent_id),
+                    "binding": {"source": "release", "release_id": str(uuid4())},
+                },
+            ]
+        },
+    )
+    assert saved is network and session.execute_calls == 2

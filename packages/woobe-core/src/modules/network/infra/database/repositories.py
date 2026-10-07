@@ -89,10 +89,13 @@ class NetworkRepository:
             for node in definition.get("nodes", [])
             if node.get("agent_id")
         ]
-        if len(node_agent_ids) != len(set(node_agent_ids)):
-            raise ConflictError(
-                "The same Agent cannot appear more than once in a Network Draft"
-            )
+        # Node identity belongs to the graph. Distinct nodes may select distinct
+        # frozen snapshots of the same Agent; ownership remains checked once.
+        node_ids = [
+            str(node["id"]) for node in definition.get("nodes", []) if node.get("id")
+        ]
+        if len(node_ids) != len(set(node_ids)):
+            raise ConflictError("Network Draft node identities must be unique")
         referenced_agent_ids = set(node_agent_ids)
         if referenced_agent_ids:
             result = await self.session.execute(

@@ -7,6 +7,7 @@ from modules.agent.application.interfaces.ports import (
     ToolExecutionPort,
 )
 from modules.agent.application.mcp_tool_refresh import discover_mcp_tool_definition
+from modules.agent.application.tool_context_bindings import validate_context_bindings
 from modules.agent.domain.imported_dependencies import ImportedDependencyPending
 from shared.contracts.time import utc_now
 from shared.contracts.errors import ValidationError
@@ -104,6 +105,7 @@ class PrepareImportedMcpUseCase:
                 if item["name"] in author_bindings:
                     item["bindings"] = deepcopy(author_bindings[item["name"]])
                 item["permission"] = requested.get(item["name"], {"mode": "review"})
+        validate_context_bindings(tool.config)
         return {
             "project_id": str(project_id),
             "tool_id": str(tool.id),

@@ -2,7 +2,8 @@
 
 from dataclasses import dataclass
 import asyncio
-from contextlib import suppress
+import logging
+import traceback
 from typing import Protocol
 
 from modules.package.domain.errors import PackageError
@@ -59,9 +60,9 @@ class ExecutePackageOperation:
         finally:
             for task in (execution, heartbeat):
                 task.cancel()
-            for task in (execution, heartbeat):
-                with suppress(asyncio.CancelledError):
-                    await task
+            # Drain cancelled work without replacing the original native failure
+            # or fencing error with a second await of the already failed task.
+            await asyncio.gather(execution, heartbeat, return_exceptions=True)
 
     async def run_once(self, *, project_id=None):
         operation = await self._repository.claim(project_id=project_id)
@@ -135,9 +136,20 @@ class ExecutePackageOperation:
                 if fenced.code != "PACKAGE_OPERATION_FENCED":
                     raise
             return True
-        except Exception:
-            # Never persist or log native exception messages: they may contain
-            # credentials, document text or provider/MCP echoes.
+        except Exception as exc:
+            # Exception messages and local values may contain protected input.
+            # Record only developer-controlled type and source frame identifiers.
+            logging.getLogger(__name__).error(
+                "package_native_phase_failed type=%s frames=%s validation=%s",
+                type(exc).__module__ + "." + type(exc).__name__,
+                [
+                    (frame.name, frame.lineno)
+                    for frame in traceback.extract_tb(exc.__traceback__)[-5:]
+                ],
+                [(error.get("type"), error.get("loc")) for error in exc.errors()]
+                if type(exc).__module__.startswith("pydantic")
+                else [],
+            )
             try:
                 await self._repository.advance(
                     operation.id,

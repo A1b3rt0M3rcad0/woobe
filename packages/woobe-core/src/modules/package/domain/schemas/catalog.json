@@ -2293,6 +2293,13 @@
             "default": "",
             "title": "Label",
             "type": "string"
+          },
+          "position": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Position",
+            "type": "object"
           }
         },
         "required": [

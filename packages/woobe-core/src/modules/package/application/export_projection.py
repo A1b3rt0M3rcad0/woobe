@@ -302,6 +302,7 @@ class ExportProjection:
                     specification=embedding["spec"],
                     credentials=captured["credentials"],
                     model_type=embedding["model_type"],
+                    base_url=(embedding.get("meta") or {}).get("base_url"),
                 )
                 documents = []
                 for index, document in enumerate(knowledge["documents"]):
@@ -325,7 +326,10 @@ class ExportProjection:
                     "collection": knowledge["collection"],
                     "documents": documents,
                     "embedding": {"model_ref": embedding_ref},
-                    "vector_snapshot": deepcopy(vector["build_config"]),
+                    "vector_snapshot": {
+                        field: deepcopy(vector["build_config"][field])
+                        for field in ("parser", "chunking")
+                    },
                 }
             self.add_document(
                 "Knowledge",

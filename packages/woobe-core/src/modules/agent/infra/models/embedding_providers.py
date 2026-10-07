@@ -62,6 +62,7 @@ class EmbeddingProviderRegistry:
 @dataclass(frozen=True, slots=True)
 class OpenAICompatibleEmbeddingProvider:
     default_base_url: str | None = None
+    check_embedding_ctx_length: bool = True
 
     def create(
         self,
@@ -74,6 +75,7 @@ class OpenAICompatibleEmbeddingProvider:
         kwargs: dict[str, Any] = {
             "model": model,
             "api_key": api_key,
+            "check_embedding_ctx_length": self.check_embedding_ctx_length,
         }
         if dimensions:
             kwargs["dimensions"] = dimensions
@@ -88,12 +90,15 @@ def build_embedding_provider_registry() -> EmbeddingProviderRegistry:
     registry.register("openai", OpenAICompatibleEmbeddingProvider())
     registry.register(
         "openai_compatible",
-        OpenAICompatibleEmbeddingProvider(),
+        # Compatible servers own their tokenizer. Applying OpenAI's local
+        # vocabulary to an arbitrary custom model changes its author input.
+        OpenAICompatibleEmbeddingProvider(check_embedding_ctx_length=False),
     )
     registry.register(
         "openrouter",
         OpenAICompatibleEmbeddingProvider(
             default_base_url="https://openrouter.ai/api/v1",
+            check_embedding_ctx_length=False,
         ),
     )
     registry.register_alias("custom", "openai_compatible")

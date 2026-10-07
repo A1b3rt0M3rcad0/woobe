@@ -6,6 +6,7 @@ These are stable repository-wide rules that are easy to violate when changing on
 
 - Workspace is the account/ownership boundary; Project is the primary technical isolation boundary.
 - A Project may own multiple Agent Networks.
+- Network nodes have distinct node identities. Different nodes may select different frozen snapshots of the same Project-owned Agent; Agent identity does not identify a node.
 - Agents and Agent Networks are distinct first-class runtime targets.
 
 ## Versioning and environments

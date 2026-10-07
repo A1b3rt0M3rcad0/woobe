@@ -203,6 +203,7 @@ class NetworkNode(StrictDTO):
     agent_ref: str
     label: str = ""
     capability_description: str = ""
+    position: dict[str, float] = Field(default_factory=dict)
     binding: NodeBinding = Field(default_factory=NodeBinding)
 
 

@@ -27,12 +27,18 @@ async def test_long_native_phase_renews_lease_and_stops_when_fenced():
     async def heartbeat(identifier, token):
         await started.wait()
         assert identifier == operation.id and token == operation.lease_token
-        raise PackageError("PACKAGE_OPERATION_FENCED", "Lease belongs to another worker")
+        raise PackageError(
+            "PACKAGE_OPERATION_FENCED", "Lease belongs to another worker"
+        )
 
     repository.heartbeat = AsyncMock(side_effect=heartbeat)
     executor = SimpleNamespace(execute_phase=AsyncMock(side_effect=execute))
-    assert await asyncio.wait_for(ExecutePackageOperation(repository, executor,
-        heartbeat_seconds=0.001).run_once(), timeout=1)
+    assert await asyncio.wait_for(
+        ExecutePackageOperation(
+            repository, executor, heartbeat_seconds=0.001
+        ).run_once(),
+        timeout=1,
+    )
     assert stopped.is_set() and not work.receipts
     assert all(call.args[2] != "failed" for call in repository.advance.await_args_list)
 
@@ -131,7 +137,7 @@ async def test_fenced_worker_cannot_publish_failure_or_more_effects():
 
 
 @pytest.mark.asyncio
-async def test_provider_exception_echo_never_reaches_operation_diagnostics():
+async def test_provider_exception_echo_never_reaches_operation_diagnostics(caplog):
     operation, work, repository = setup_work()
     executor = SimpleNamespace(
         execute_phase=AsyncMock(side_effect=RuntimeError("private-provider-value"))
@@ -140,3 +146,4 @@ async def test_provider_exception_echo_never_reaches_operation_diagnostics():
     assert repository.advance.await_args.kwargs["diagnostics"] == [
         {"code": "PACKAGE_NATIVE_PHASE_FAILED"}
     ]
+    assert "private-provider-value" not in caplog.text

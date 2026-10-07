@@ -1,6 +1,10 @@
 from uuid import UUID
 
-from modules.agent.application.dtos.ai_dtos import CreatePromptInput, CreatePromptOutput, ListPromptsOutput
+from modules.agent.application.dtos.ai_dtos import (
+    CreatePromptInput,
+    CreatePromptOutput,
+    ListPromptsOutput,
+)
 from modules.agent.domain.entities import AgentPrompt
 from modules.agent.domain.enums import PromptStatus
 from modules.agent.application.interfaces.repositories import AgentPromptRepository
@@ -29,6 +33,7 @@ class CreatePromptUseCase:
             version=saved.version,
             name=saved.name,
             content=saved.content,
+            content_hash=saved.content_hash,
             status=saved.status,
             created_by=saved.created_by,
             created_at=saved.created_at,
@@ -65,5 +70,6 @@ class GetPromptUseCase:
         item = await self._prompt_repo.get_by_id(prompt_id)
         if item is None:
             from modules.agent.domain.errors import PromptNotFoundError
+
             raise PromptNotFoundError
         return item

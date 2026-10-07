@@ -248,6 +248,7 @@ class CreatePromptOutput(BaseModel):
     version: str
     name: str
     content: str
+    content_hash: str | None = None
     status: PromptStatus
     created_by: UUID | None = None
     created_at: datetime | None = None

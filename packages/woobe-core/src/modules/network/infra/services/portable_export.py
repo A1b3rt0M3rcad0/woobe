@@ -124,11 +124,19 @@ class PortableNetworkExportReader:
                 release_id = binding.get("release_id") or binding.get(
                     "draft_release_id"
                 )
-                if release_id is None:
+                live_draft = (
+                    release_id is None
+                    and version is None
+                    and node.binding.source == "draft"
+                )
+                if release_id is None and not live_draft:
                     raise ConflictError(
                         "Network binding has no complete Agent snapshot"
                     )
-                identity = (node.agent_id, UUID(str(release_id)))
+                identity = (
+                    node.agent_id,
+                    UUID(str(release_id)) if release_id else None,
+                )
                 if identity not in selections:
                     reference = f"agent-{len(agents) + 1}"
                     captured = await self._agents.capture_in_session(
@@ -136,8 +144,11 @@ class PortableNetworkExportReader:
                         project_id=project_id,
                         principal=principal,
                         agent_id=node.agent_id,
+                        source="draft" if live_draft else None,
                         snapshot_id=identity[1],
-                        expected_snapshot=binding.get("snapshot_override"),
+                        expected_snapshot=None
+                        if live_draft
+                        else binding.get("snapshot_override"),
                     )
                     agents.append({"key": reference, **captured})
                     selections[identity] = reference
@@ -147,6 +158,7 @@ class PortableNetworkExportReader:
                         "agent_ref": selections[identity],
                         "label": node.label,
                         "capability_description": node.capability_description,
+                        "position": deepcopy(node.position),
                         "binding": {"source": node.binding.source},
                     }
                 )
@@ -158,8 +170,10 @@ class PortableNetworkExportReader:
                     "version": version.version if version else None,
                     "kind": version.kind if version else "draft",
                 },
-                "name": network.name,
-                "description": network.description or "",
+                "name": (definition.author_metadata or {}).get("name", network.name),
+                "description": (definition.author_metadata or {}).get(
+                    "description", network.description or ""
+                ),
                 "spec": {
                     "root": keys[definition.root_node_id],
                     "nodes": nodes,

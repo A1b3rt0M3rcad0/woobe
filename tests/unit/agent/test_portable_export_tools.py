@@ -103,3 +103,22 @@ def test_mcp_author_bindings_and_risk_export_as_remote_name_intent():
         }
     ]
     assert "discovered_tools" not in value["config"]
+
+
+def test_export_freezes_effective_root_risk_for_stable_policy_roundtrip():
+    tool = _tool(
+        {
+            "url": "https://tools.example.test/lookup",
+            "permission": {"mode": "deny", "risk_level": "high"},
+        },
+        ToolType.HTTP,
+    )
+    exported = export_frozen_tool(tool_to_release_snapshot(tool))
+    assert exported["risk"] == "high"
+    assert exported["config"]["permission"] == {"mode": "deny", "risk_level": "high"}
+    default = export_frozen_tool(
+        tool_to_release_snapshot(
+            _tool({"url": "https://tools.example.test/lookup"}, ToolType.HTTP)
+        )
+    )
+    assert default["config"]["permission"]["risk_level"] == default["risk"]

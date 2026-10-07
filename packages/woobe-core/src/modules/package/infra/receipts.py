@@ -191,6 +191,7 @@ class PackageTransactionReceipt:
             )
         )
         operation = self.operation
+        operation.dependencies = []
         operation.phases_completed += 1
         operation.phase = self.phase
         if self.phase == "verification":

@@ -244,7 +244,7 @@ def resolve_graph(manifest: dict, documents: dict[str, dict]) -> PackageGraph:
                     not spec.get("collection")
                     or not spec.get("documents")
                     or not spec.get("embedding")
-                    or not spec.get("vector_snapshot")
+                    or not isinstance(spec.get("vector_snapshot"), dict)
                     or spec.get("binding")
                 ):
                     raise PackageError(
