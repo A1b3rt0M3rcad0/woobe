@@ -33,7 +33,7 @@ from shared.security.control_plane import (
 )
 
 CLI_COMMIT = os.environ.get(
-    "WOOBE_TEST_CLI_SHA", "3605d6585d149d5c907969bf57a906e9ce7ff510"
+    "WOOBE_TEST_CLI_SHA", "2738849d2368db7a979371aca10b90adf2cbe2b7"
 )
 
 
@@ -1704,6 +1704,10 @@ async def test_cli_connection_auth_discovers_scope_and_persists_without_environm
         assert all(value.encode() not in out + err for value in known_secrets)
         return json.loads(out)
 
+    invocation_schema = await run("schema", "--command", "auth login", "--kind", "input")
+    flags_schema = invocation_schema["data"]["properties"]["flags"]
+    assert "file" not in flags_schema["required"]
+    assert len(flags_schema["anyOf"]) == 2
     await run("context", "create", "connection", "--api-url", cli.origin)
     await run("context", "use", "connection")
     login = await run("auth", "login", "--cli-key", "--stdin", stdin=secret.encode())
