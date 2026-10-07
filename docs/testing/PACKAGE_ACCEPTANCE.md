@@ -1,8 +1,9 @@
 # Package v1 acceptance
 
-This matrix applies to create/import/export V1 in Woobe draft PR #179 and
-woobe-cli draft PR #10. Explicit target update (CLI-PKG-10) is a later extension
-under the supplied plan. No name-based upsert or alternate runtime is provided.
+This matrix applies to portable create/import/export and managed YAML development
+in Woobe draft PR #179. CLI delivery is split across merged PRs #16–#25 and the
+final Surface PR #26. Explicit updates target proven native identities with a
+captured revision; display names never imply an upsert or another runtime.
 
 ## Reproducible gates
 
@@ -79,3 +80,32 @@ the backend CI artifact `cli-contract-*.json`, including client/server build
 identity and public request outcomes. A schema version alone is insufficient
 to establish compatibility with older releases. The published pair table in those PRs is the compatibility reference for tested
 builds. Neither PR is merged or changed from draft by this delivery.
+
+
+## Managed YAML development qualification
+
+`test_development_sync_postgres.py` exercises actual CLI commands against the API,
+durable worker, PostgreSQL and deterministic runtime provider. Its three scenarios
+cover Agent, Network and Agent with Knowledge/Skill dependencies. They prove:
+
+- Provider registration/binding before first pull, matching native credential
+  scope/type and reuse of a single local Provider identity.
+- Pull/edit/diff/push to native Draft, unchanged shared Tool reuse, stale revision
+  rejection, independent UI/local merge and conflict refusal.
+- Explicit clone/create, UID-preserving moves/alias changes and duplicate-create
+  refusal; private connection/Project binding isolation.
+- Immutable Prompt and Skill forks; stable Knowledge collection/document identity,
+  a new vector snapshot for changed chunking and no duplicate snapshot on repeat.
+- Actual positive/negative Agent Release Test execution and persisted Run/result;
+  stage, immutable publication, Production activation and native archival.
+- Two immutable Network publications, rollback and reactivation; standalone
+  constituent Agent Production remains untouched and archive guards include
+  frozen Network/Surface references.
+- Agent- and Network-targeted Surface YAML creation, stable target Release,
+  timestamp/CAS conflict, independent pull merge, registered bulk dry run and
+  explicit native activate/disable/archive lifecycle.
+
+Unit gates separately test timestamp checks under the locked native Surface row,
+uncertain create checkpoints, embedding Provider impact through frozen Knowledge,
+selected-document snapshots and retained partial materialization identities.
+Exact CLI revisions are pinned in the backend workflow and operation fixture.

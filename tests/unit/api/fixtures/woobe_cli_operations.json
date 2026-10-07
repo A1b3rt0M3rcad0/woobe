@@ -1,5 +1,5 @@
 {
-  "cli_commit": "c19abbcba6276c243d2b09e94511723c2f4d23e7",
+  "cli_commit": "be24a89982233f1dc5cdcda985386094ccb56ab4",
   "operations": [
     {
       "command": "auth invite accept",
@@ -120,6 +120,12 @@
       "method": "POST",
       "path": "/ai/agents",
       "body_required": true
+    },
+    {
+      "command": "project agent delete",
+      "method": "DELETE",
+      "path": "/ai/agents/{agent_id}",
+      "body_required": false
     },
     {
       "command": "project agent environment list",

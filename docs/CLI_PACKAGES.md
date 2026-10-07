@@ -133,7 +133,7 @@ be blocked by the held Windows handle. Unsupported protection fails before
 Apply. CLI credentials use private POSIX files or per-user Windows Credential
 Manager. CLI Key login discovers Workspace/Project scope for each connection;
 environment credentials remain optional for automation. See the CLI's
-[Package guide](https://github.com/A1b3rt0M3rcad0/woobe-cli/blob/feat/portable-package-import-export/docs/PACKAGES.md).
+[Package guide](https://github.com/A1b3rt0M3rcad0/woobe-cli/blob/master/docs/PACKAGES.md).
 
 ## Migrations and qualification
 
@@ -142,7 +142,7 @@ ProviderModel specification identity. `0079` permits distinct complete specs
 for one credential/model. Downgrade refuses incompatible data instead of deleting
 models to satisfy the former constraint.
 
-The paired draft PRs carry the acceptance matrix and exact tested revisions.
+Woobe draft PR #179 and the merged CLI development PRs carry the acceptance matrix and exact tested revisions.
 Local integration tests use PostgreSQL, the real API/worker, native authorization,
 a deterministic provider/MCP peer and a separate Runtime Key. Cross-project
 export/import/re-export compares portable author fields and support files, then
@@ -150,6 +150,6 @@ executes after deleting local package directories. Native distribution tests
 exercise the same complete shared fixture on Linux/macOS/Windows amd64/arm64.
 The [acceptance matrix](testing/PACKAGE_ACCEPTANCE.md) maps T01–T26 to these
 executable gates. Exact supported client/server build pairs and results are
-published in the paired draft PR descriptions. Woobe PR #179 remains open in draft. Development improvements are delivered
+published in the corresponding PR descriptions. Woobe PR #179 remains open in draft. Development improvements are delivered
 in separate CLI PRs and merged only after their native distribution checks and
 paired backend integration pass; backend approval and merge remain separate.

@@ -1,9 +1,10 @@
-from sqlalchemy import select, or_
+from sqlalchemy import select, or_, String
 
 from modules.agent.infra.database.models import (
     DocumentCollectionModel,
     AgentModel,
     AgentReleaseModel,
+    KnowledgeVersionModel,
 )
 from modules.agent.infra.database.vector_snapshot_models import VectorSnapshotModel
 
@@ -36,6 +37,14 @@ class SQLProviderDependencyReader:
                 )
             ).all()
         )
+        embedding_vectors = select(VectorSnapshotModel.id.cast(String)).where(
+            VectorSnapshotModel.project_id == project_id,
+            VectorSnapshotModel.embedding_provider_model_id.in_(model_ids),
+        )
+        knowledge_versions = select(KnowledgeVersionModel.id).where(
+            KnowledgeVersionModel.project_id == project_id,
+            KnowledgeVersionModel.snapshot_metadata["vector_snapshot_id"].as_string().in_(embedding_vectors),
+        )
         releases = (
             await self._uow.session.execute(
                 select(AgentReleaseModel.id, AgentReleaseModel.agent_id).where(
@@ -43,6 +52,7 @@ class SQLProviderDependencyReader:
                     or_(
                         AgentReleaseModel.provider_model_id.in_(model_ids),
                         AgentReleaseModel.fallback_provider_model_id.in_(model_ids),
+                        AgentReleaseModel.knowledge_version_id.in_(knowledge_versions),
                     ),
                 )
             )

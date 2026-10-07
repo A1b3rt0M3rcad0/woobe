@@ -167,6 +167,14 @@ async def test_managed_agent_pull_edit_push_keeps_native_identity_and_rejects_st
     local = tmp_path / "development"
     local.mkdir()
     await cli.run("init", cwd=local)
+    provider_author = local / "provider-author.yaml"
+    provider_author.write_text(yaml.safe_dump({
+        "format": "woobe-package", "schema_version": "1.0", "kind": "Provider",
+        "metadata": {"key": "destination-provider", "name": "Development provider"},
+        "spec": {"provider": "custom", "compatibility": "compatible", "provider_family": "openai"},
+    }))
+    await cli.run("resources", "create", "provider", "destination-provider", "--file", str(provider_author), cwd=local)
+    await cli.run("resources", "bind", "provider", "@destination-provider", credential["id"], cwd=local)
     target_id = (
         agent_id
         if kind == "agent"
@@ -180,6 +188,11 @@ async def test_managed_agent_pull_edit_push_keeps_native_identity_and_rejects_st
         "data"
     ]
     assert pulled["pulled"] is True
+    provider_registry = yaml.safe_load((local / ".woobe-config").read_text())
+    provider_alias = next(item["alias"] for item in provider_registry["resources"] if item["kind"] == "Provider")
+    assert sum(item["kind"] == "Provider" for item in provider_registry["resources"]) == 1
+    verified = (await cli.run("resources", "bind", "provider", f"@{provider_alias}", credential["id"], cwd=local))["data"]
+    assert verified["executed"] is True
     tools_before = await cli.data("project", "tool", "list")
     assert len(tools_before) == 1
     if with_knowledge:
@@ -217,6 +230,28 @@ async def test_managed_agent_pull_edit_push_keeps_native_identity_and_rejects_st
         after = yaml.safe_load((local / ".woobe-config").read_text())
         assert len(after["resources"]) == len(config["resources"])
         await _assert_explicit_clone_creation(cli, local, kind, tools_before)
+        staged_network = await cli.data("network", "@support", "stage", "--yes", cwd=local)
+        assert staged_network["kind"] == "staging"
+        published_network = await cli.data("network", "@support", "publish", "--yes", cwd=local)
+        assert published_network["kind"] == "release"
+        await cli.run("network", "@support", "activate", "--version", published_network["version"], "--notes", "Already active composition", "--yes", cwd=local, expected=6)
+        updated = yaml.safe_load(descriptor.read_text())
+        updated["spec"]["nodes"][0]["label"] = "Revised entry label"
+        descriptor.write_text(yaml.safe_dump(updated))
+        await cli.run("network", "@support", "push", cwd=local)
+        await cli.data("network", "@support", "stage", "--yes", cwd=local)
+        newer = await cli.data("network", "@support", "publish", "--yes", cwd=local)
+        assert newer["id"] != published_network["id"]
+        rolled_back = await cli.data("network", "@support", "rollback", "--version", published_network["version"], "--notes", "Restore stable composition", "--yes", cwd=local)
+        assert rolled_back["version"]["id"] == published_network["id"]
+        assert rolled_back["activation"]["activation_kind"] == "rollback"
+        activated_network = await cli.data("network", "@support", "activate", "--version", newer["version"], "--notes", "Activate reviewed composition", "--yes", cwd=local)
+        assert activated_network["version"]["id"] == newer["id"]
+        releases = await cli.data("agent", "release", "list", agent_id)
+        assert all(item["status"] != "production" for item in releases)
+        await _assert_surface_authoring(cli, local, "network")
+        rejected_archive = await cli.run("agent", agent_id, "archive", "--yes", expected=6)
+        assert not rejected_archive["success"]
         return
     descriptor = Path(pulled["path"]) / "agent.yaml"
     document = yaml.safe_load(descriptor.read_text())
@@ -322,6 +357,9 @@ async def test_managed_agent_pull_edit_push_keeps_native_identity_and_rejects_st
     assert activated["status"] == "production"
     releases = await cli.data("agent", "@support", "release", "list", cwd=local)
     assert any(item["id"] == activated["id"] for item in releases)
+    archived = await cli.data("agent", "@support-next", "delete", "--yes", cwd=local)
+    assert archived["status"] == "archived"
+    await _assert_surface_authoring(cli, local, "agent")
 
 
 async def _assert_knowledge_reuses_collection_and_documents(cli, local):
@@ -411,3 +449,44 @@ async def _assert_explicit_clone_creation(cli, local, kind, tools_before):
     )
     await cli.run(kind, "@support-next", "push", cwd=local)
     assert len(await cli.data(kind, "list")) == 2
+
+
+async def _assert_surface_authoring(cli, local, target_kind):
+    registry = yaml.safe_load((local / ".woobe-config").read_text())
+    target_key = next(item["key"] for item in registry["resources"] if item["alias"] == "support" and item["kind"].lower() == target_kind)
+    source = local / "surface-author.yaml"
+    source.write_text(yaml.safe_dump({
+        "format": "woobe-package", "schema_version": "1.0", "kind": "Surface",
+        "metadata": {"key": "chat", "name": "Managed chat", "description": "Original"},
+        "spec": {"target_ref": target_key, "allowed_origins": ["https://example.test"],
+                 "requests_per_minute": 60, "max_concurrent_runs": 2, "session_token_ttl_seconds": 300},
+    }))
+    await cli.run("resources", "create", "surface", "chat", "--file", str(source), cwd=local)
+    created = (await cli.run("surface", "@chat", "create", cwd=local))["data"]
+    surface_id = created["resource_id"]
+    native = await cli.data("surface", "get", surface_id)
+    assert native["target_type"] == target_kind
+    assert native["status"] == "draft"
+    descriptor = local / ".woobe/surfaces/chat/surface.yaml"
+    document = yaml.safe_load(descriptor.read_text())
+    document["metadata"]["description"] = "Edited in YAML"
+    descriptor.write_text(yaml.safe_dump(document))
+    await cli.run("surface", "@chat", "push", cwd=local)
+    changed = await cli.data("surface", "get", surface_id)
+    assert changed["description"] == "Edited in YAML"
+    assert changed["target_release_id"] == native["target_release_id"]
+    await cli.data("surface", "update", surface_id, body={"name": "Changed in UI"})
+    await cli.run("surface", "@chat", "push", cwd=local, expected=6)
+    document["metadata"]["description"] = "Independent local change"
+    descriptor.write_text(yaml.safe_dump(document))
+    await cli.run("surface", "@chat", "pull", cwd=local)
+    merged = yaml.safe_load(descriptor.read_text())
+    assert merged["metadata"]["name"] == "Changed in UI"
+    assert merged["metadata"]["description"] == "Independent local change"
+    await cli.run("surface", "@chat", "push", cwd=local)
+    preview = (await cli.run("resources", "push", "--kind", "surface", "--dry-run", cwd=local))["data"]
+    assert preview["roots"] == 1 and preview["executed"] is False
+    await cli.data("surface", "activate", surface_id, body={})
+    await cli.data("surface", "disable", surface_id)
+    await cli.data("surface", "archive", surface_id)
+    assert (await cli.data("surface", "get", surface_id))["status"] == "archived"

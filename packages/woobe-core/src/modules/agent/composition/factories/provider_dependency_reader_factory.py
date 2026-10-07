@@ -17,3 +17,8 @@ def build_provider_dependency_reader(uow):
         network_consumers=_network_consumers,
         surface_consumers=_surface_consumers,
     )
+
+
+def build_agent_usage_reader(uow):
+    from modules.agent.infra.database.network_agent_usage_reader import SQLAlchemyNetworkAgentUsageReader
+    return SQLAlchemyNetworkAgentUsageReader(uow, network_consumers=_network_consumers, surface_consumers=_surface_consumers)

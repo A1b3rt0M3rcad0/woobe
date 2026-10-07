@@ -219,3 +219,27 @@ Migration `0081` retains committed preparation identities, including a Knowledge
 collection prepared before a failed vector build. Recovery must reuse those
 identities and reject roots changed by another client. Apply it together with
 `0080` before deploying the managed development endpoints.
+
+
+### Providers and Surfaces in the development registry
+
+A Provider author file contains public connection intent. `credential_ref` is
+optional for a new definition: use `woobe resources bind provider @alias UUID` to
+verify a native active credential in this Project. Its identity stays private and
+is reused by subsequent pulls. A second local Provider cannot bind that same
+credential. Provider impact includes embedding Knowledge dependencies through
+frozen Agent Releases, Networks and Surfaces.
+
+Surface author YAML has `spec.target_ref` to the stable registered Agent/Network
+key. `surface UUID pull --alias chat` requires the target to be pulled first;
+`surface @chat create --yes` resolves its current Production Release. `pull`,
+`diff`, `status`, `validate` and `push` use the registry and preserve native identity.
+Push compares `updated_at` and sends quoted `If-Match`, rechecked under a row lock.
+Independent edits merge, conflicts stop. The target is immutable and configuration
+push never refreshes or activates its Release. Native Surface configuration can
+affect active Surfaces: disable first when changes must stay offline. Unknown
+create outcomes persist an intent that blocks replay until explicit UUID pull.
+
+Registered bulk operations include Surfaces after their targets. Agent/Network
+dry runs validate exact server package plans; Surface dry runs report local and
+destination/CAS identity checks, with final native DTO validation on apply.

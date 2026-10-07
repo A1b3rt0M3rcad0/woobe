@@ -6,9 +6,7 @@ from modules.agent.composition.resources import DATABASE_ENGINE
 from modules.agent.infra.adapters.legacy_runtime_status_adapter import (
     LegacyRuntimeStatusUpdateAdapter,
 )
-from modules.agent.infra.database.network_agent_usage_reader import (
-    SQLAlchemyNetworkAgentUsageReader,
-)
+from modules.agent.composition.factories.provider_dependency_reader_factory import build_agent_usage_reader
 from modules.agent.infra.database.provider_model_repositories import (
     SQLAlchemyAgentRepositoryWithProviderModels,
     SQLAlchemyProviderModelRepository,
@@ -28,7 +26,7 @@ def update_agent_composer() -> TransactionalHandler:
     credential_repo = SQLAlchemyProviderCredentialRepository(uow)
     provider_model_repo = SQLAlchemyProviderModelRepository(uow)
     outbox = SQLAlchemyAgentOutboxEventWriter(uow)
-    network_usage_reader = SQLAlchemyNetworkAgentUsageReader(uow)
+    network_usage_reader = build_agent_usage_reader(uow)
     update_use_case = UpdateAgentUseCase(
         agent_repo,
         credential_repo,

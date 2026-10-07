@@ -95,3 +95,20 @@ async def test_frozen_network_and_surface_keep_indirect_model_impact_after_draft
         ("network", str(network)),
         ("surface", str(surface)),
     ]
+
+
+@pytest.mark.asyncio
+async def test_archival_usage_includes_frozen_networks_and_surfaces():
+    from modules.agent.infra.database.network_agent_usage_reader import SQLAlchemyNetworkAgentUsageReader
+    from types import SimpleNamespace
+
+    project_id, agent_id, release_id = uuid4(), uuid4(), uuid4()
+    network = {"type": "network", "id": "frozen-network", "name": "Frozen composition"}
+    surface = {"type": "chat_surface", "id": "surface", "name": "Live chat"}
+    networks = AsyncMock(return_value=[network])
+    surfaces = AsyncMock(return_value=[surface])
+    session = SimpleNamespace(scalars=AsyncMock(return_value=SimpleNamespace(all=lambda: [release_id])))
+    reader = SQLAlchemyNetworkAgentUsageReader(SimpleNamespace(session=session), network_consumers=networks, surface_consumers=surfaces)
+    assert await reader.list_draft_references(project_id=project_id, agent_id=agent_id) == [network, surface]
+    networks.assert_awaited_once_with(project_id=project_id, agent_ids={str(agent_id)}, release_ids={str(release_id)})
+    assert surfaces.await_args.kwargs["network_ids"] == {"frozen-network"}
