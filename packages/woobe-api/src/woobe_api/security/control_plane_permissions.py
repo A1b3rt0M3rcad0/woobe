@@ -13,7 +13,7 @@ def control_plane_permission(
 
     if path == "/identity/permissions":
         return "catalog:self" if method == "GET" else None
-    if path == "/identity/access/me":
+    if path in {"/identity/access/me", "/identity/control-key/me"}:
         return "access:self" if method == "GET" else None
     if path == "/identity/access/check":
         return "access:self" if method == "POST" else None

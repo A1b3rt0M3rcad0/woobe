@@ -326,6 +326,7 @@ _REVIEWED = [
     ("GET", "/network/executions/{execution_id}/diagnostics", "run:read"),
     ("GET", "/identity/permissions", "catalog:self"),
     ("GET", "/identity/access/me", "access:self"),
+    ("GET", "/identity/control-key/me", "access:self"),
     ("POST", "/identity/access/check", "access:self"),
     (
         "PUT",

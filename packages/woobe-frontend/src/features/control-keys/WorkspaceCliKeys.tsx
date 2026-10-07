@@ -477,32 +477,19 @@ export function WorkspaceCliKeys({
         </SectionBlock>
         <SectionBlock
           title="Connect woobe-cli"
-          description="Run the import command by itself, paste the key into stdin, then press Enter and Ctrl+D on POSIX. The secret is never passed as a command-line argument."
+          description="Create a connection, activate it, then paste the CLI Key at the masked prompt. The CLI discovers your Workspace and granted Projects automatically."
         >
           <CodePanel
-            title="Import credential"
-            actions={
-              <CopyButton text="woobe auth credential import --name workspace-cli --stdin" />
-            }
-          >
-            <code className="block p-ui-md font-mono text-system-label">
-              woobe auth credential import --name workspace-cli --stdin
-            </code>
-          </CodePanel>
-          <CodePanel
             title="CLI setup"
-            actions={
-              <CopyButton
-                text={`woobe context create woobe --api-url ${API_BASE_URL}\nwoobe context credential attach woobe --credential workspace-cli\nwoobe context use woobe\nwoobe context set --workspace ${workspaceId}`}
-              />
-            }
+            actions={<CopyButton text={`woobe context create woobe --api-url ${API_BASE_URL}\nwoobe context use woobe\nwoobe auth login --cli-key`} />}
           >
-            <pre className="overflow-x-auto p-ui-md font-mono text-system-label">{`woobe context create woobe --api-url ${API_BASE_URL}\nwoobe context credential attach woobe --credential workspace-cli\nwoobe context use woobe\nwoobe context set --workspace ${workspaceId}`}</pre>
+            <pre className="overflow-x-auto p-ui-md font-mono text-system-label">{`woobe context create woobe --api-url ${API_BASE_URL}\nwoobe context use woobe\nwoobe auth login --cli-key`}</pre>
           </CodePanel>
           <p className="mt-ui-sm text-system-label text-muted-foreground">
-            Select a granted Project with{' '}
-            <code>woobe context set --project PROJECT_ID</code>. Runtime
-            execution uses a separate Runtime Key.
+            One granted Project is selected automatically. With several Projects,
+            choose one by name. To switch later, run{' '}
+            <code>woobe context project select</code>. Works on Windows, Linux and
+            macOS. Runtime execution uses a separate Runtime Key.
           </p>
         </SectionBlock>
         <div className="flex justify-end">

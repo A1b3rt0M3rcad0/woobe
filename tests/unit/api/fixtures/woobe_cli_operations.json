@@ -1,5 +1,5 @@
 {
-  "cli_commit": "b0ebaf89bc006254de12b076a0e6e746de2d5246",
+  "cli_commit": "3605d6585d149d5c907969bf57a906e9ce7ff510",
   "operations": [
     {
       "command": "auth invite accept",
@@ -11,6 +11,12 @@
       "command": "auth invite list",
       "method": "GET",
       "path": "/identity/invites/pending",
+      "body_required": false
+    },
+    {
+      "command": "auth key inspect",
+      "method": "GET",
+      "path": "/identity/control-key/me",
       "body_required": false
     },
     {

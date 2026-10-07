@@ -873,3 +873,57 @@ async def test_key_issue_and_rotation_recover_once_on_postgres(
                 {"id": UUID(str(first["credential_id"]))},
             )
             await session.commit()
+
+
+@pytest.mark.asyncio
+async def test_control_key_self_discovery_without_workspace_read(control_key_graph):
+    graph = control_key_graph
+    async with graph["session_factory"]() as session:
+        await session.execute(
+            text(
+                "UPDATE core.workspace_control_keys SET permissions='[]'::jsonb WHERE id=:id"
+            ),
+            {"id": graph["control_key_id"]},
+        )
+        await session.commit()
+    request = _request(graph["api_key"], graph["project_id"])
+    request.scope["path"] = "/identity/control-key/me"
+    request.scope["raw_path"] = b"/identity/control-key/me"
+    actor = await _guard(
+        graph["session_factory"], graph["settings"]
+    ).authenticate_and_authorize(request, body=None, query_params={}, path_params={})
+    service = ControlKeyService(graph["session_factory"])
+    result = await service.identify_key(actor=actor)
+    assert result["workspace"]["id"] == graph["workspace_id"]
+    assert result["key"]["permissions"] == []
+    assert [item["id"] for item in result["projects"]] == [graph["project_id"]]
+    assert result["projects"][0]["eligible"] is True
+    assert graph["api_key"] not in str(result)
+    async with graph["session_factory"]() as session:
+        await session.execute(
+            text("UPDATE core.projects SET status='archived' WHERE id=:id"),
+            {"id": graph["project_id"]},
+        )
+        await session.commit()
+    assert (await service.identify_key(actor=actor))["projects"][0]["eligible"] is False
+    async with graph["session_factory"]() as session:
+        await session.execute(
+            text(
+                "DELETE FROM core.workspace_control_key_project_grants WHERE control_key_id=:id"
+            ),
+            {"id": graph["control_key_id"]},
+        )
+        await session.commit()
+    assert (await service.identify_key(actor=actor))["projects"] == []
+    async with graph["session_factory"]() as session:
+        await session.execute(
+            text(
+                "UPDATE core.workspace_control_keys SET revoked_at=now() WHERE id=:id"
+            ),
+            {"id": graph["control_key_id"]},
+        )
+        await session.commit()
+    from shared.contracts.errors import AuthenticationError
+
+    with pytest.raises(AuthenticationError):
+        await service.identify_key(actor=actor)

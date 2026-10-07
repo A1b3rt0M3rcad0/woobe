@@ -66,43 +66,29 @@ for the complete permission, delegation and revision rules.
 
 ## Connect the CLI
 
-On Linux or macOS, import the secret from stdin. This Bash example reads it
-without displaying it or placing the value in command-line arguments:
-
-```bash
-read -r -s -p 'Control Key: ' woobe_cli_key
-printf '\n'
-printf '%s' "$woobe_cli_key" | woobe auth credential import --name workspace-cli --stdin
-unset woobe_cli_key
-
-woobe context create woobe --api-url http://localhost:8000
-woobe context credential attach woobe --credential workspace-cli
-woobe context use woobe
-woobe context set --workspace WORKSPACE_ID --project PROJECT_ID
+```sh
+woobe context create minha-woobe --api-url https://YOUR_WOOBE_API
+woobe context use minha-woobe
+woobe auth login --cli-key
 woobe project agent list
 ```
 
-Replace the API URL with your backend origin and the scope placeholders with
-real IDs. Use the API URL, rather than the frontend or ChatSurface URL. Contexts
-store local preferences; the backend still verifies ownership and permissions.
-Changing Workspace clears an inherited Project unless you explicitly supply a
-Project in the same command.
+Paste the key at the masked prompt; do not put it in arguments. The CLI validates
+it against this connection, discovers its Workspace and selects a single eligible
+Project automatically. For several Projects, choose by name/number. Switch later
+with `woobe context project select` or `woobe context project select production`.
+No Project grants means Workspace-only authentication. No UUIDs or environment
+variables are required. Linux/macOS store credentials in private files; Windows
+uses the current user's Credential Manager. Reopening the terminal retains the
+connection. Each named context has its own key and selected Project.
 
-Protected local credential import currently uses the POSIX store. Windows and
-CI can supply `WOOBE_CONTROL_KEY` through their environment. In PowerShell:
+For automation, pipe a secret from your secret manager into
+`woobe auth login --cli-key --stdin --select-project production --no-input`.
+Without a selection, multiple Projects produce `project_selection_required`.
+`woobe auth status` inspects the current key and scope;
+`woobe auth logout --cli-key` clears local authentication without server revocation.
+Changing the API URL requires login again. Runtime Keys remain separate.
 
-```powershell
-$env:WOOBE_CONTROL_KEY = [System.Net.NetworkCredential]::new('', (Read-Host 'Control Key' -AsSecureString)).Password
-woobe context create woobe --api-url http://localhost:8000
-woobe context use woobe
-woobe context set --workspace WORKSPACE_ID --project PROJECT_ID
-woobe project agent list
-Remove-Item Env:WOOBE_CONTROL_KEY
-```
-
-Supply CI credentials through the CI secret store; do not commit key values or
-print them in logs. Native keychain providers and protected Windows sessions
-remain in the client's [implementation status](https://github.com/A1b3rt0M3rcad0/woobe-cli/blob/v0.1.4/docs/STATUS.md).
 
 ## Discover and validate operations
 

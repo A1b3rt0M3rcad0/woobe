@@ -108,8 +108,9 @@ paths, case collisions and resource-limit violations are rejected.
 POSIX checkpoints use private files and native locks. Windows uses owner/DACL
 checks and native locks in a private parent directory; directory replacement may
 be blocked by the held Windows handle. Unsupported protection fails before
-Apply. The legacy private-file credential store is POSIX-only; explicit environment
-credentials remain available on Windows. See the CLI's
+Apply. CLI credentials use private POSIX files or per-user Windows Credential
+Manager. CLI Key login discovers Workspace/Project scope for each connection;
+environment credentials remain optional for automation. See the CLI's
 [Package guide](https://github.com/A1b3rt0M3rcad0/woobe-cli/blob/feat/portable-package-import-export/docs/PACKAGES.md).
 
 ## Migrations and qualification

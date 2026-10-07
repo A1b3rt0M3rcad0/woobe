@@ -33,7 +33,7 @@ from shared.security.control_plane import (
 )
 
 CLI_COMMIT = os.environ.get(
-    "WOOBE_TEST_CLI_SHA", "b0ebaf89bc006254de12b076a0e6e746de2d5246"
+    "WOOBE_TEST_CLI_SHA", "3605d6585d149d5c907969bf57a906e9ce7ff510"
 )
 
 
@@ -1642,3 +1642,153 @@ async def test_cli_categories_pin_authority_and_preflight_matches_requests(cli):
         "--if-match",
         f'"category:{clone["id"]}:{archived["revision"]}"',
     )
+
+
+@pytest.mark.asyncio
+async def test_cli_connection_auth_discovers_scope_and_persists_without_environment(
+    cli,
+):
+    project = await cli.run(
+        "project",
+        "create",
+        body={
+            "workspace_id": cli.workspace_id,
+            "name": "Auth project",
+            "slug": "auth-project",
+        },
+    )
+    project_id = project["data"]["data"]["id"]
+    issued, secret = await cli.issue(
+        "workspace",
+        "control-key",
+        "create",
+        body={
+            "name": "Project-only connection",
+            "expires_at": (datetime.now(UTC) + timedelta(hours=1)).isoformat(),
+            "permissions": [],
+            "project_grants": [
+                {"project_id": project_id, "permissions": ["agent:read"]}
+            ],
+        },
+    )
+    known_secrets = [secret]
+    config_path = cli.directory / "connection-auth.json"
+    clean_env = {
+        k: v
+        for k, v in os.environ.items()
+        if not k.startswith("WOOBE_CONTEXT")
+        and k
+        not in {
+            "WOOBE_CONTROL_KEY",
+            "WOOBE_WORKSPACE_ID",
+            "WOOBE_PROJECT_ID",
+            "WOOBE_API_URL",
+            "WOOBE_CREDENTIAL",
+            "WOOBE_RUNTIME_CREDENTIAL",
+        }
+    }
+
+    async def run(*args, stdin=None, expected=0):
+        process = await asyncio.create_subprocess_exec(
+            cli.binary,
+            "--config",
+            str(config_path),
+            *args,
+            env=clean_env,
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        out, err = await asyncio.wait_for(process.communicate(stdin), 30)
+        assert process.returncode == expected, (out.decode(), err.decode())
+        assert all(value.encode() not in out + err for value in known_secrets)
+        return json.loads(out)
+
+    await run("context", "create", "connection", "--api-url", cli.origin)
+    await run("context", "use", "connection")
+    login = await run("auth", "login", "--cli-key", "--stdin", stdin=secret.encode())
+    assert login["data"]["project_id"] == project_id
+    saved = json.loads(config_path.read_text())["contexts"]["connection"]
+    assert (
+        saved["workspace_id"] == cli.workspace_id and saved["project_id"] == project_id
+    )
+    assert secret not in config_path.read_text()
+    status = await run("auth", "status")
+    assert status["data"]["identity"]["key_metadata"]["permissions"] == []
+    assert status["data"]["state"] == "authenticated"
+    assert (await run("project", "agent", "list"))["success"] is True
+    await run("auth", "logout", "--cli-key")
+    assert (
+        json.loads(config_path.read_text())["contexts"]["connection"].get("credential")
+        is None
+    )
+    # Local logout must not revoke the server key.
+    async with httpx.AsyncClient(trust_env=False) as client:
+        response = await client.get(
+            f"{cli.origin}/identity/control-key/me",
+            headers={"Authorization": f"Bearer {secret}"},
+        )
+    assert response.status_code == 200
+
+    other = await cli.data(
+        "project",
+        "create",
+        body={
+            "workspace_id": cli.workspace_id,
+            "name": "Other auth project",
+            "slug": "auth-other",
+        },
+    )
+    _, multi_secret = await cli.issue(
+        "workspace",
+        "control-key",
+        "create",
+        body={
+            "name": "Multiple projects",
+            "permissions": [],
+            "expires_at": (datetime.now(UTC) + timedelta(hours=1)).isoformat(),
+            "project_grants": [
+                {"project_id": target, "permissions": ["agent:read"]}
+                for target in [project_id, other["id"]]
+            ],
+        },
+    )
+    known_secrets.append(multi_secret)
+    await run("context", "create", "multi", "--api-url", cli.origin)
+    await run("context", "use", "multi")
+    result = await run(
+        "auth", "login", "--cli-key", "--stdin", stdin=multi_secret.encode()
+    )
+    assert result["data"]["state"] == "project_selection_required"
+    assert result["data"]["project_id"] == ""
+    await run("context", "project", "select", "auth-other")
+    assert (
+        json.loads(config_path.read_text())["contexts"]["multi"]["project_id"]
+        == other["id"]
+    )
+    assert (await run("project", "agent", "list"))["success"] is True
+    before = config_path.read_bytes()
+    await run(
+        "auth", "login", "--cli-key", "--stdin", stdin=b"invalid-cli-key", expected=3
+    )
+    assert config_path.read_bytes() == before
+    _, workspace_secret = await cli.issue(
+        "workspace",
+        "control-key",
+        "create",
+        body={
+            "name": "Workspace only",
+            "permissions": [],
+            "project_grants": [],
+            "expires_at": (datetime.now(UTC) + timedelta(hours=1)).isoformat(),
+        },
+    )
+    known_secrets.append(workspace_secret)
+    result = await run(
+        "auth", "login", "--cli-key", "--stdin", stdin=workspace_secret.encode()
+    )
+    assert (
+        result["data"]["state"] == "authenticated" and result["data"]["projects"] == []
+    )
+    assert "project_id" not in json.loads(config_path.read_text())["contexts"]["multi"]
+    await run("auth", "logout", "--cli-key")

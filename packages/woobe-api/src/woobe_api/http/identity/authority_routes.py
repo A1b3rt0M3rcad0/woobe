@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
 
@@ -175,7 +176,8 @@ async def authority_category_history(
     }
 
 
-@router.post("/workspaces/{workspace_id}/authority-categories/{category_id}/archive",
+@router.post(
+    "/workspaces/{workspace_id}/authority-categories/{category_id}/archive",
     openapi_extra=bodyless_command_contract(),
 )
 async def archive_authority_category(
@@ -244,6 +246,55 @@ async def permission_catalog(request: Request):
     return {"success": True, "data": catalog}
 
 
+class ControlKeyPublicIdentity(BaseModel):
+    id: UUID
+    credential_id: UUID
+    name: str
+    prefix: str
+    expires_at: datetime | None
+    revision: int
+    permissions: list[str]
+
+
+class ControlKeyWorkspaceIdentity(BaseModel):
+    id: UUID
+    name: str
+    slug: str
+    status: str
+
+
+class ControlKeyProjectIdentity(ControlKeyWorkspaceIdentity):
+    workspace_id: UUID
+    permissions: list[str]
+    conditions: dict[str, Any]
+    category_id: UUID | None
+    category_revision: int | None
+    eligible: bool
+
+
+class ControlKeyIdentity(BaseModel):
+    schema_version: Literal["1"]
+    credential_type: Literal["control"]
+    key: ControlKeyPublicIdentity
+    workspace: ControlKeyWorkspaceIdentity
+    projects: list[ControlKeyProjectIdentity]
+
+
+class ControlKeyIdentityResponse(BaseModel):
+    success: Literal[True]
+    data: ControlKeyIdentity
+
+
+@router.get("/control-key/me", response_model=ControlKeyIdentityResponse)
+async def current_control_key(request: Request):
+    from modules.core.entrypoint import build_control_key_service
+
+    return {
+        "success": True,
+        "data": await build_control_key_service().identify_key(actor=_actor(request)),
+    }
+
+
 @router.get("/access/me")
 async def effective_authority(
     request: Request, workspace_id: UUID | None = None, project_id: UUID | None = None
@@ -266,13 +317,18 @@ async def effective_authority(
 
 @router.post("/access/check")
 async def check_authority(payload: AccessCheckRequest, request: Request):
-    from woobe_api.security.operation_catalog import resolve_operation, verified_query_context
+    from woobe_api.security.operation_catalog import (
+        resolve_operation,
+        verified_query_context,
+    )
 
     permission, params = resolve_operation(payload.method, payload.path, payload.body)
     decision = await build_authority_service().check_access(
         actor=_actor(request),
         permission=permission,
-        path_params=verified_query_context(payload.method, payload.path, params, payload.query),
+        path_params=verified_query_context(
+            payload.method, payload.path, params, payload.query
+        ),
         query_params=payload.query,
         body=payload.body,
         mutation=payload.method != "GET",

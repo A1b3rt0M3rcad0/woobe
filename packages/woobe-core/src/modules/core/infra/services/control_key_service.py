@@ -48,6 +48,86 @@ class ControlKeyService:
         self._session_factory = session_factory
         self._category_resolver = category_resolver
 
+    async def identify_key(self, *, actor: SecurityPrincipal) -> dict[str, Any]:
+        """Discover only this machine credential's scope, without list authority."""
+        if not isinstance(actor, ControlPlanePrincipal):
+            raise AuthorizationError("A Control Key is required")
+        async with self._session_factory() as session:
+            await TenantAuthorizer(session).require_active_control(actor)
+            row = (
+                (
+                    await session.execute(
+                        text("""
+                SELECT k.id, k.credential_id, k.name, k.expires_at, k.revision,
+                       w.id AS workspace_id, w.name AS workspace_name,
+                       w.slug AS workspace_slug, w.status AS workspace_status
+                FROM core.workspace_control_keys k
+                JOIN identity.workspaces w ON w.id = k.workspace_id
+                WHERE k.id = :key_id AND k.workspace_id = :workspace_id
+            """),
+                        {
+                            "key_id": actor.api_key_id,
+                            "workspace_id": actor.workspace_id,
+                        },
+                    )
+                )
+                .mappings()
+                .one()
+            )
+            grants = (
+                (
+                    await session.execute(
+                        text("""
+                SELECT p.id, p.workspace_id, p.name, p.slug, p.status,
+                       g.permissions, g.conditions, g.category_id, g.category_revision
+                FROM core.workspace_control_key_project_grants g
+                JOIN core.projects p ON p.id = g.project_id
+                WHERE g.control_key_id = :key_id AND p.workspace_id = :workspace_id
+                ORDER BY p.name, p.id
+            """),
+                        {
+                            "key_id": actor.api_key_id,
+                            "workspace_id": actor.workspace_id,
+                        },
+                    )
+                )
+                .mappings()
+                .all()
+            )
+            import json
+
+            projects = []
+            for grant in grants:
+                item = dict(grant)
+                for field in ("permissions", "conditions"):
+                    if isinstance(item[field], str):
+                        item[field] = json.loads(item[field])
+                item["conditions"] = item["conditions"] or {}
+                item["eligible"] = item["status"] == "active" and bool(
+                    item["permissions"]
+                )
+                projects.append(item)
+            return {
+                "schema_version": "1",
+                "credential_type": "control",
+                "key": {
+                    "id": row["id"],
+                    "credential_id": row["credential_id"],
+                    "name": row["name"],
+                    "prefix": actor.key_prefix,
+                    "expires_at": row["expires_at"],
+                    "revision": row["revision"],
+                    "permissions": sorted(actor.permissions),
+                },
+                "workspace": {
+                    "id": row["workspace_id"],
+                    "name": row["workspace_name"],
+                    "slug": row["workspace_slug"],
+                    "status": row["workspace_status"],
+                },
+                "projects": projects,
+            }
+
     async def list_keys(
         self,
         *,

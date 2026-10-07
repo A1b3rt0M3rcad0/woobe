@@ -262,3 +262,14 @@ Each successful edit emits a distinct transactional outbox event, allowing
 successive edits without violating event deduplication constraints. The live CLI
 acceptance verifies successive edits and preservation of Project identity and
 creation time.
+
+### CLI Key self-discovery
+
+`GET /identity/control-key/me` uses the authenticated Control Key's `access:self`
+authority. It requires no Workspace/Project IDs and no `workspace:read` permission.
+The versioned response contains only that key's public metadata, active Workspace
+and current Project grants, including status, permissions, conditions and category
+provenance. Inactive or empty grants are marked ineligible for CLI selection.
+The secret is never returned. Authentication checks expiry/revocation and active
+Workspace before discovery; all subsequent operations independently enforce grants.
+This endpoint neither grants permissions nor supports Runtime Keys/human sessions.

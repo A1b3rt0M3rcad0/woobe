@@ -26,8 +26,8 @@ CLI `make check` retains all existing regressions, module verification, vet,
 script tests and race tests. CI also runs bounded YAML/path/reference/lock/archive/
 checkpoint fuzzing. Distribution jobs execute the complete shared fixture on
 each real target OS/architecture rather than treating cross-compilation as proof.
-The Windows legacy credential store fails closed; Package operational files use
-native owner/DACL and locking checks in an existing private parent.
+Windows CLI credentials use per-user Credential Manager. Package operational
+files retain native owner/DACL and locking checks in an existing private parent.
 
 ## T01–T26
 
