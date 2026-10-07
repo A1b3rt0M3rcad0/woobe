@@ -40,6 +40,12 @@ class SQLDevelopmentResources:
             if not evidence.get("draft_id"):
                 raise ConflictError("Agent has no saved Draft to reuse")
             result.update(id=evidence["draft_id"], agent_id=evidence["resource_id"])
+        elif data["kind"] == "Skill":
+            result.update(
+                skill_id=evidence["skill_id"],
+                version=evidence["version"],
+                package_hash=evidence["revision"],
+            )
         elif data["kind"] == "Knowledge":
             if evidence["status"] != "READY":
                 raise ConflictError("Knowledge snapshot is not ready")

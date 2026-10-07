@@ -9,6 +9,8 @@ from modules.agent.infra.database.models import (
     AgentModel,
     AgentReleaseModel,
     AgentToolModel,
+    AgentPromptModel,
+    AgentContractModel,
 )
 from modules.agent.infra.database.mappers import model_to_tool
 from modules.agent.infra.database.provider_model_repositories import ProviderModelModel
@@ -36,6 +38,8 @@ class DevelopmentResourceReader:
             "Model": (ProviderModelModel, "model:read", "provider_model_id"),
             "Skill": (SkillVersionModel, "skill:read", "skill_version_id"),
             "Knowledge": (VectorSnapshotModel, "knowledge:read", "snapshot_id"),
+            "Prompt": (AgentPromptModel, "agent:read", "prompt_id"),
+            "Contract": (AgentContractModel, "agent:read", "contract_id"),
         }
         if kind not in models:
             raise ValidationError("Unsupported development resource kind")
@@ -91,4 +95,6 @@ class DevelopmentResourceReader:
                 skill_id=str(row.skill_id),
                 version=row.version,
             )
+        elif kind in {"Prompt", "Contract"}:
+            result["owner_agent_id"] = str(row.agent_id)
         return result

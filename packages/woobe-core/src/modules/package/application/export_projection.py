@@ -46,7 +46,8 @@ def reference_requirements(value):
 
 
 class ExportProjection:
-    def __init__(self, *, knowledge_mode, environment_kinds):
+    def __init__(self, *, knowledge_mode, environment_kinds, development=False):
+        self.development = development
         self.knowledge_mode, self.environment_kinds = knowledge_mode, environment_kinds
         self.files, self.documents, self.requirements = (
             {},
@@ -146,7 +147,10 @@ class ExportProjection:
         identity = json.dumps(spec, sort_keys=True, separators=(",", ":"))
         key = self.add_document("Model", model, spec, identity=identity)
         if resource_id:
-            self.native_bindings[key] = {"resource_id": str(resource_id), "kind": "Model"}
+            self.native_bindings[key] = {
+                "resource_id": str(resource_id),
+                "kind": "Model",
+            }
         return key
 
     def agent(self, captured, key):
@@ -270,10 +274,34 @@ class ExportProjection:
                 "Prompt",
                 prompt["name"],
                 {"version": prompt["version"], "content": prompt["content"]},
-                identity=json.dumps(prompt, sort_keys=True),
+                identity=(
+                    captured["source"]["agent_id"],
+                    str(prompt.get("id", "")),
+                    json.dumps(
+                        {
+                            "version": prompt["version"],
+                            "content": prompt["content"],
+                            "name": prompt["name"],
+                        },
+                        sort_keys=True,
+                    ),
+                )
+                if self.development
+                else json.dumps(
+                    {
+                        "version": prompt["version"],
+                        "content": prompt["content"],
+                        "name": prompt["name"],
+                    },
+                    sort_keys=True,
+                ),
             )
             if prompt.get("id"):
-                self.native_bindings[spec["prompt_ref"]] = {"resource_id": str(prompt["id"]), "kind": "Prompt", "owner_agent_id": captured["source"]["agent_id"]}
+                self.native_bindings[spec["prompt_ref"]] = {
+                    "resource_id": str(prompt["id"]),
+                    "kind": "Prompt",
+                    "owner_agent_id": captured["source"]["agent_id"],
+                }
         elif spec["behavior"] is None:
             spec["legacy_system_prompt"] = definition["system_prompt"]
         if contract := artifacts.get("contract_version_id"):
@@ -294,10 +322,20 @@ class ExportProjection:
                 "Contract",
                 contract["name"],
                 native,
-                identity=json.dumps(native, sort_keys=True),
+                identity=(
+                    captured["source"]["agent_id"],
+                    str(contract.get("id", "")),
+                    json.dumps(native, sort_keys=True),
+                )
+                if self.development
+                else json.dumps(native, sort_keys=True),
             )
             if contract.get("id"):
-                self.native_bindings[spec["output"]["contract_ref"]] = {"resource_id": str(contract["id"]), "kind": "Contract", "owner_agent_id": captured["source"]["agent_id"]}
+                self.native_bindings[spec["output"]["contract_ref"]] = {
+                    "resource_id": str(contract["id"]),
+                    "kind": "Contract",
+                    "owner_agent_id": captured["source"]["agent_id"],
+                }
         if knowledge := captured["knowledge"]:
             vector, embedding = knowledge["vector"], knowledge["embedding"]
             knowledge_key = f"knowledge-{1 + sum(item['kind'] == 'Knowledge' for item in self.documents.values())}"
@@ -349,7 +387,10 @@ class ExportProjection:
                 knowledge_spec,
                 key=knowledge_key,
             )
-            self.native_bindings[knowledge_key] = {"resource_id": str(vector["id"]), "kind": "Knowledge"}
+            self.native_bindings[knowledge_key] = {
+                "resource_id": str(vector["id"]),
+                "kind": "Knowledge",
+            }
             spec["knowledge"] = {
                 "source": {"ref": knowledge_key},
                 "strategy": runtime.get("knowledge_strategy", "rag"),
@@ -361,7 +402,15 @@ class ExportProjection:
                 ),
                 "rag": deepcopy(runtime.get("rag") or {}),
             }
-        self.native_bindings[key] = {"resource_id": captured["source"]["agent_id"], "kind": "Agent", "revision": captured["source"].get("draft_revision"), "source_kind": captured["source"]["kind"], "snapshot_id": captured["source"].get("snapshot_id"), "frozen": captured.get("frozen", False), "snapshot_digest": captured["source"].get("snapshot_digest")}
+        self.native_bindings[key] = {
+            "resource_id": captured["source"]["agent_id"],
+            "kind": "Agent",
+            "revision": captured["source"].get("draft_revision"),
+            "source_kind": captured["source"]["kind"],
+            "snapshot_id": captured["source"].get("snapshot_id"),
+            "frozen": captured.get("frozen", False),
+            "snapshot_digest": captured["source"].get("snapshot_digest"),
+        }
         return self.add_document(
             "Agent",
             definition["name"],
@@ -387,7 +436,13 @@ class ExportProjection:
                 description=captured["description"],
             )
         if kind == "Network":
-            self.native_bindings[entry] = {"resource_id": captured["source"]["network_id"], "kind": "Network", "revision": captured["source"].get("draft_revision", captured["source"].get("revision"))}
+            self.native_bindings[entry] = {
+                "resource_id": captured["source"]["network_id"],
+                "kind": "Network",
+                "revision": captured["source"].get(
+                    "draft_revision", captured["source"].get("revision")
+                ),
+            }
         version = version or captured["source"].get("version")
         if version is None:
             # Portable author data only: destination identities/secrets do not define a version.

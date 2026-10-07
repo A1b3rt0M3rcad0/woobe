@@ -3,6 +3,13 @@ from modules.agent.application.development_tool_projection import (
 )
 from modules.agent.application.use_cases.ai_prompt_cases import CreatePromptUseCase
 from modules.agent.application.use_cases.ai_contract_cases import CreateContractUseCase
+from modules.agent.application.use_cases.materialize_development_artifact import (
+    MaterializeDevelopmentArtifact,
+)
+from modules.agent.application.dtos.ai_dtos import (
+    CreatePromptOutput,
+    CreateContractOutput,
+)
 from modules.agent.infra.database.development_resource_reader import (
     DevelopmentResourceReader,
 )
@@ -33,14 +40,33 @@ def _build_development_controller(uow, action, artifact=False):
     resources = SQLDevelopmentResources(uow, build_development_resource_reader())
     fallback = None
     if artifact:
-        fallback = (
-            CreatePromptVersionController(
-                CreatePromptUseCase(SQLAlchemyAgentPromptRepository(uow))
-            )
+        repository = (
+            SQLAlchemyAgentPromptRepository(uow)
             if action == "Prompt"
-            else CreateContractVersionController(
-                CreateContractUseCase(SQLAlchemyAgentContractRepository(uow))
-            )
+            else SQLAlchemyAgentContractRepository(uow)
+        )
+        materialize = MaterializeDevelopmentArtifact(
+            repository,
+            CreatePromptUseCase(repository)
+            if action == "Prompt"
+            else CreateContractUseCase(repository),
+            CreatePromptOutput if action == "Prompt" else CreateContractOutput,
+            ("name", "content", "content_hash")
+            if action == "Prompt"
+            else (
+                "name",
+                "input_schema",
+                "output_schema",
+                "validation_mode",
+                "repair_attempts",
+                "additional_instructions",
+                "schema_hash",
+            ),
+        )
+        fallback = (
+            CreatePromptVersionController(materialize)
+            if action == "Prompt"
+            else CreateContractVersionController(materialize)
         )
     controller = DevelopmentResourceController(resources, action, fallback)
     return controller

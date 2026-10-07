@@ -176,7 +176,8 @@ async def test_managed_agent_pull_edit_push_keeps_native_identity_and_rejects_st
         await cli.run("network", "@support", "pull", cwd=local)
         after = yaml.safe_load((local / ".woobe-config").read_text())
         assert len(after["resources"]) == len(config["resources"])
-        return
+        await _assert_explicit_clone_creation(cli, local, kind, tools_before)
+    return
     descriptor = Path(pulled["path"]) / "agent.yaml"
     document = yaml.safe_load(descriptor.read_text())
     document["spec"]["legacy_system_prompt"] = "Help customers with local YAML"
@@ -205,3 +206,106 @@ async def test_managed_agent_pull_edit_push_keeps_native_identity_and_rejects_st
     merged = yaml.safe_load(descriptor.read_text())
     assert merged["spec"]["legacy_system_prompt"] == "Second local edit"
     assert merged["metadata"]["description"] == "Changed in another client"
+    await _assert_explicit_clone_creation(cli, local, kind, tools_before)
+    await cli.run("agent", "@support", "push", cwd=local)
+    prompt_native = await cli.data(
+        "agent",
+        "prompt",
+        "create",
+        agent_id,
+        body={
+            "project_id": cli.project_id,
+            "agent_id": agent_id,
+            "version": "1.0.0",
+            "name": "Instructions",
+            "content": "Help customers",
+        },
+    )
+    await cli.data(
+        "agent",
+        "release",
+        "create",
+        agent_id,
+        body={
+            "project_id": cli.project_id,
+            "agent_id": agent_id,
+            "version": "1.0.0",
+            "prompt_version_id": prompt_native["id"],
+        },
+    )
+    await cli.run("agent", "@support", "pull", cwd=local)
+    registry_before = yaml.safe_load((local / ".woobe-config").read_text())
+    prompt_resource = next(
+        item
+        for item in registry_before["resources"]
+        if item["kind"] == "Prompt" and not item["alias"].startswith("support-copy-")
+    )
+    prompt_descriptor = local / ".woobe" / prompt_resource["path"] / "prompt.yaml"
+    prompt = yaml.safe_load(prompt_descriptor.read_text())
+    prompt["spec"]["content"] = "Changed instructions without manually changing version"
+    prompt_descriptor.write_text(yaml.safe_dump(prompt))
+    await cli.run("agent", "@support", "push", cwd=local)
+    prompts = await cli.data("agent", "prompt", "list", agent_id)
+    assert len(prompts) == 2
+    prompt_versions = [
+        await cli.data("agent", "prompt", "get", agent_id, item["id"])
+        for item in prompts
+    ]
+    assert {item["content"] for item in prompt_versions} == {
+        "Help customers",
+        prompt["spec"]["content"],
+    }
+    await cli.run("agent", "@support", "pull", cwd=local)
+    registry_after = yaml.safe_load((local / ".woobe-config").read_text())
+    assert len(registry_after["resources"]) == len(registry_before["resources"])
+    assert any(
+        item["uid"] == prompt_resource["uid"] for item in registry_after["resources"]
+    )
+
+
+async def _assert_explicit_clone_creation(cli, local, kind, tools_before):
+    cloned = (
+        await cli.run(
+            "resources", "clone", kind, "@support", "--alias", "support-copy", cwd=local
+        )
+    )["data"]
+    assert cloned["resource"]["uid"]
+    preview = (await cli.run(kind, "@support-copy", "create", "--dry-run", cwd=local))[
+        "data"
+    ]
+    assert preview["executed"] is False
+    assert preview["semantic_validation"] == "server_validated"
+    assert preview["effects"]
+    reply = await cli.run(kind, "@support-copy", "create", cwd=local, expected=(0, 7))
+    assert reply["success"], [
+        (item.get("code"), item.get("message"))
+        for item in reply.get("data", {}).get("diagnostics", [])
+    ]
+    created = reply["data"]
+    assert created["pushed"] is True
+    assert await cli.data("project", "tool", "list") == tools_before
+    roots = await cli.data(kind, "list")
+    assert len(roots) == 2
+    assert len({item["id"] for item in roots}) == 2
+    await cli.run(kind, "@support-copy", "create", cwd=local, expected=2)
+    assert len(await cli.data(kind, "list")) == 2
+    await cli.run(
+        "resources",
+        "move",
+        kind,
+        "@support-copy",
+        "--path",
+        f"{kind}s/relocated",
+        cwd=local,
+    )
+    await cli.run(
+        "resources",
+        "alias",
+        kind,
+        "@support-copy",
+        "--alias",
+        "support-next",
+        cwd=local,
+    )
+    await cli.run(kind, "@support-next", "push", cwd=local)
+    assert len(await cli.data(kind, "list")) == 2

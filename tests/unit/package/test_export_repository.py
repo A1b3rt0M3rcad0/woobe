@@ -72,7 +72,14 @@ async def test_exports_have_independent_ids_and_scope_rechecks_every_dependency(
         },
         "tools": [],
         "skills": [],
-        "artifacts": {},
+        "artifacts": {
+            "prompt_version_id": {
+                "id": uuid4(),
+                "name": "System",
+                "version": "1.0.0",
+                "content": "Help",
+            }
+        },
         "knowledge": None,
     }
     repo = PackageExportRepository(

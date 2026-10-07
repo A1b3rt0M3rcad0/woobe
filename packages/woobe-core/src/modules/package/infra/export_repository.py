@@ -118,7 +118,9 @@ class PackageExportRepository:
             project_id=project_id, principal=principal, keys=keys
         )
         projection = self.projection_factory(
-            knowledge_mode=request.knowledge, environment_kinds=kinds
+            knowledge_mode=request.knowledge,
+            environment_kinds=kinds,
+            development=request.development,
         ).finish(
             kind=request.kind,
             captured=captured,
@@ -137,16 +139,22 @@ class PackageExportRepository:
         if request.development and self.registry is not None:
             async with self.sessions.begin() as session:
                 for key, binding in projection.native_bindings.items():
-                    if binding["kind"] in {"Prompt", "Contract"}:
-                        continue
-                    evidence = await self.registry.inspect(session, project_id=project_id, principal=principal, kind=binding["kind"], resource_id=binding["resource_id"])
+                    evidence = await self.registry.inspect(
+                        session,
+                        project_id=project_id,
+                        principal=principal,
+                        kind=binding["kind"],
+                        resource_id=binding["resource_id"],
+                    )
                     binding["revision"] = evidence["revision"]
                     if binding["kind"] == "Tool":
                         native = evidence["portable_tool"]
                         exported = projection.documents[key]
-                        binding["native_matches"] = (
-                            exported["metadata"]["name"] == native["name"]
-                            and all(native[field] == value for field, value in exported["spec"].items())
+                        binding["native_matches"] = exported["metadata"][
+                            "name"
+                        ] == native["name"] and all(
+                            native[field] == value
+                            for field, value in exported["spec"].items()
                         )
         identifier = uuid4()
         storage_key = f"projects/{project_id}/exports/{identifier}.tar.gz"
@@ -154,8 +162,12 @@ class PackageExportRepository:
             "kind": request.kind,
             "target_id": request.target_id,
             "captured": captured["source"],
-            "resource_bindings": projection.native_bindings if request.development else {},
-            "credential_bindings": projection.credential_aliases if request.development else {},
+            "resource_bindings": projection.native_bindings
+            if request.development
+            else {},
+            "credential_bindings": projection.credential_aliases
+            if request.development
+            else {},
             "knowledge": request.knowledge,
             "environment": request.source,
             "package_name": projection.package_name,
@@ -198,7 +210,9 @@ class PackageExportRepository:
         if request.development:
             # The closed bundle supplies a canonical dependency-first order and
             # verified file hashes. These signatures qualify frozen reuse later.
-            source["semantic_digests"] = await asyncio.to_thread(self._semantic_evidence, projection, inventory)
+            source["semantic_digests"] = await asyncio.to_thread(
+                self._semantic_evidence, projection, inventory
+            )
         record = PackageExportModel(
             id=identifier,
             project_id=project_id,
@@ -221,9 +235,22 @@ class PackageExportRepository:
     @staticmethod
     def _semantic_evidence(projection, inventory):
         from modules.package.domain.bundle import resolve_graph
+
         manifest = yaml.safe_load(projection.files["woobe.yaml"])
-        graph = resolve_graph(manifest, {key + ".yaml": value for key, value in projection.documents.items()})
-        return semantic_digests(graph.components, graph.order, graph.paths, inventory, {alias: resource_id for resource_id, alias in projection.credential_aliases.items()})
+        graph = resolve_graph(
+            manifest,
+            {key + ".yaml": value for key, value in projection.documents.items()},
+        )
+        return semantic_digests(
+            graph.components,
+            graph.order,
+            graph.paths,
+            inventory,
+            {
+                alias: resource_id
+                for resource_id, alias in projection.credential_aliases.items()
+            },
+        )
 
     @staticmethod
     def receipt(record):
@@ -244,7 +271,12 @@ class PackageExportRepository:
                 **record.source["captured"],
             },
             "resource_bindings": record.source.get("resource_bindings", {}),
-            "credential_bindings": {alias: resource_id for resource_id, alias in record.source.get("credential_bindings", {}).items()},
+            "credential_bindings": {
+                alias: resource_id
+                for resource_id, alias in record.source.get(
+                    "credential_bindings", {}
+                ).items()
+            },
             "name": record.source.get("package_name"),
             "version": record.source.get("package_version"),
         }

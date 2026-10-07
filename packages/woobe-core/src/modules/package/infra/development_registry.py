@@ -24,7 +24,7 @@ class DevelopmentRegistry:
         self._sessions = sessions
         self._readers = {
             kind: agent_reader
-            for kind in ("Agent", "Model", "Tool", "Skill", "Knowledge")
+            for kind in ("Agent", "Model", "Tool", "Skill", "Knowledge", "Prompt", "Contract")
         }
         self._readers["Network"] = network_reader
 
@@ -272,7 +272,6 @@ class DevelopmentRegistry:
         # Native mutable roots retain identity. Dependency changes are explicit
         # copy-on-write effects; immutable versions never rewrite old consumers.
         reuse_actions = {
-            "Model": "resolve_model",
             "Tool": "materialize_tool",
             "Skill": "materialize_skill_version",
             "Knowledge": "verify_vector_snapshot",

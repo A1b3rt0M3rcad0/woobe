@@ -520,6 +520,7 @@ class NativePackageMaterializer:
             encryption_key=self._encryption_key,
             evidence={
                 "component": key,
+                "artifact_component": reference if action in {"create_prompt_version", "create_contract_version"} else None,
                 "kind": document["kind"] if document else "Binding",
                 "action": action,
             },

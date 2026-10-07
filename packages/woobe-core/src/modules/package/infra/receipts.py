@@ -193,18 +193,20 @@ class PackageTransactionReceipt:
         )
         operation = self.operation
         plan = await uow.session.get(PackagePlanModel, operation.plan_id)
-        target = plan.document.get("resource_bindings", {}).get(self.evidence.get("component")) if plan else None
+        target = plan.document.get("resource_bindings", {}).get(self.evidence.get("artifact_component") or self.evidence.get("component")) if plan else None
         completed_actions = {"Agent": {"finalize_agent_draft", "reuse_resource", "reuse_frozen_snapshot"}, "Network": {"save_network_draft"}, "Model": {"resolve_model", "reuse_resource"}, "Tool": {"materialize_tool", "reuse_resource"}, "Skill": {"materialize_skill_version", "reuse_resource"}, "Knowledge": {"verify_vector_snapshot", "reuse_resource"}}
-        if target and self.evidence.get("action") in completed_actions.get(target["kind"], set()):
+        completed_actions.update(Prompt={"create_prompt_version"}, Contract={"create_contract_version"})
+        preparing = self.evidence.get("action") in {"prepare_inactive_agent", "prepare_existing_agent", "prepare_network"}
+        if target and (preparing or self.evidence.get("action") in completed_actions.get(target["kind"], set())):
             binding = await uow.session.scalar(select(PackageResourceBindingModel).where(PackageResourceBindingModel.project_id == operation.project_id, PackageResourceBindingModel.registry_id == UUID(plan.document["registry_id"]), PackageResourceBindingModel.resource_uid == UUID(target["resource_uid"])).with_for_update())
             if binding is None or binding.operation_id != operation.id:
                 raise PackageError("PACKAGE_REGISTRY_CONFLICT", "Resource binding no longer belongs to this operation")
             data = response.body.get("data", {})
-            identifier = data.get("agent_id") if target["kind"] == "Agent" else data.get("vector_snapshot_id", data.get("id"))
+            identifier = (data.get("agent_id") or data.get("id")) if target["kind"] == "Agent" else data.get("vector_snapshot_id", data.get("id"))
             if not identifier:
                 raise PackageError("PACKAGE_NATIVE_EVIDENCE_INVALID", "Resource binding has no native identity")
             binding.resource_id = UUID(str(identifier))
-            binding.definition_digest = target["definition_digest"]
+            binding.definition_digest = None if preparing else target["definition_digest"]
         operation.dependencies = []
         operation.phases_completed += 1
         operation.phase = self.phase

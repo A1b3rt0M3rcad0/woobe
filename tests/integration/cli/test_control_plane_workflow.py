@@ -33,7 +33,7 @@ from shared.security.control_plane import (
 )
 
 CLI_COMMIT = os.environ.get(
-    "WOOBE_TEST_CLI_SHA", "45e49dbda7a4639139f283c57455bec3c6bc6276"
+    "WOOBE_TEST_CLI_SHA", "025cba22df0dd8bbc4123edd3d91226cc82bbd91"
 )
 
 
