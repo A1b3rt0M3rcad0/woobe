@@ -192,6 +192,13 @@ def inspect_portable_tool(*, project_id, metadata: dict, spec: dict) -> dict:
 
 
 def inspect_proposed_provider_model(*, project_id, metadata, spec):
+    from modules.agent.application.portable_authentication import (
+        validate_portable_model_authentication,
+    )
+
+    validate_portable_model_authentication(
+        spec.get("model_spec_hint"), base_url=spec.get("base_url")
+    )
     provider = Provider(spec["provider"])
     credential = ProviderCredential(
         project_id=project_id, provider=provider, id=UUID(int=0)

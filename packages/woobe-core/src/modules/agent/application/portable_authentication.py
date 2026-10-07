@@ -57,3 +57,53 @@ def validate_portable_tool_authentication(config):
     for route in config.get("routes", []):
         _validate_url(route.get("path"))
         _require_reference_headers(route.get("headers"))
+
+
+_MODEL_AUTH_KEY = re.compile(
+    r"^(?:authorization|cookie|api[-_]?key|access[-_]?token|refresh[-_]?token|password|encrypted[-_]?secret|client[-_]?secret|secret)$",
+    re.IGNORECASE,
+)
+
+
+def validate_portable_model_authentication(specification, *, base_url=None):
+    """Reject connection authentication inside an otherwise complete ModelSpec.
+
+    Refusing export preserves the frozen identity; removing arbitrary metadata
+    would change the ModelSpec hash and hide an incomplete portable definition.
+    """
+    _validate_url(base_url)
+
+    def visit(value):
+        if isinstance(value, dict):
+            for key, item in value.items():
+                if _MODEL_AUTH_KEY.fullmatch(str(key)) and item not in (
+                    None,
+                    "",
+                    [],
+                    {},
+                ):
+                    raise ValidationError(
+                        "Portable Model authentication must use destination credentials"
+                    )
+                if str(key).lower() in {
+                    "url",
+                    "base_url",
+                    "server_url",
+                    "provider_url",
+                } and isinstance(item, str):
+                    _validate_url(item)
+                visit(item)
+            label = value.get("key") or value.get("name")
+            if (
+                isinstance(label, str)
+                and _MODEL_AUTH_KEY.fullmatch(label)
+                and value.get("value")
+            ):
+                raise ValidationError(
+                    "Portable Model authentication must use destination credentials"
+                )
+        elif isinstance(value, list):
+            for item in value:
+                visit(item)
+
+    visit(specification)

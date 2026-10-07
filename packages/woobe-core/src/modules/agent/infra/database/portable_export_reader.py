@@ -459,6 +459,7 @@ class PortableAgentExportReader:
             )
             if model is None or model.project_id != project_id:
                 raise ConflictError("Embedding Model is unavailable")
+            self._compiler.validate_model_authentication(model.spec, model.meta)
             credential_id = str(model.provider_credential_id)
             if credential_id not in credentials:
                 credentials[credential_id] = await self._credential_intent(

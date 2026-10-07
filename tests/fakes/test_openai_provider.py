@@ -173,3 +173,31 @@ async def test_embedding_accepts_openai_client_token_arrays(client):
     assert (
         await client.post("/v1/embeddings", json={"input": [[True]]})
     ).status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_portable_stream_calls_advertised_tool_then_returns_structured_answer(
+    client,
+):
+    payload = {
+        "model": "fake-portable-http",
+        "stream": True,
+        "messages": [],
+        "tools": [{"type": "function", "function": {"name": "guarded_lookup"}}],
+        "response_format": {"type": "json_object"},
+    }
+    first = await client.post("/v1/chat/completions", json=payload)
+    assert '"name":"guarded_lookup"' in first.text
+    assert '"finish_reason":"tool_calls"' in first.text
+    payload["messages"] = [{"role": "tool", "content": "portable-tenant"}]
+    second = await client.post("/v1/chat/completions", json=payload)
+    assert '"tool_calls"' not in second.text
+    chunks = [
+        json.loads(line[6:])
+        for line in second.text.splitlines()
+        if line.startswith("data: ") and line != "data: [DONE]"
+    ]
+    content = "".join(
+        chunk["choices"][0]["delta"].get("content", "") for chunk in chunks
+    )
+    assert json.loads(content) == {"answer": "Woobe portable composition passed"}

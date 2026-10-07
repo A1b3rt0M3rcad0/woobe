@@ -157,6 +157,28 @@ async def _stream(
             }
         )
         finish_reason = "tool_calls"
+    elif scenario in {"portable-tool", "portable-http"}:
+        choice = _completion(payload, scenario=scenario)["choices"][0]
+        message = choice["message"]
+        if message.get("tool_calls"):
+            delta = {
+                "tool_calls": [
+                    {"index": index, **call}
+                    for index, call in enumerate(message["tool_calls"])
+                ]
+            }
+        else:
+            delta = {"content": message["content"]}
+        yield _sse(
+            {
+                "id": completion_id,
+                "object": "chat.completion.chunk",
+                "created": created,
+                "model": model,
+                "choices": [{"index": 0, "delta": delta, "finish_reason": None}],
+            }
+        )
+        finish_reason = choice["finish_reason"]
     else:
         token_count = 100 if scenario == "cancel" else len(_DEFAULT_TOKENS)
         for index in range(token_count):

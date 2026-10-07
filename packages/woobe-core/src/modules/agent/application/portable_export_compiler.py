@@ -1,4 +1,7 @@
 from copy import deepcopy
+from modules.agent.application.portable_authentication import (
+    validate_portable_model_authentication,
+)
 from types import SimpleNamespace
 from modules.agent.application.tool_release_snapshots import tool_to_release_snapshot
 from modules.agent.application.execution_snapshot import build_agent_execution_snapshot
@@ -16,6 +19,9 @@ class PortableAgentExportCompiler:
         for prefix in ("", "fallback_"):
             specification = definition.get(prefix + "model_spec_snapshot")
             expected = definition.get(prefix + "model_spec_hash")
+            validate_portable_model_authentication(
+                specification, base_url=definition.get(prefix + "base_url")
+            )
             if (
                 specification is not None
                 and model_spec_hash(ModelSpec.from_dict(specification)) != expected
@@ -39,10 +45,19 @@ class PortableAgentExportCompiler:
                 .resolve(legacy, provider=str(provider))
                 .as_dict()
             )
+        validate_portable_model_authentication(
+            specification, base_url=(model.meta or {}).get("base_url")
+        )
         fingerprint = model_spec_hash(ModelSpec.from_dict(specification))
         if model.spec_hash is not None and model.spec_hash != fingerprint:
             raise ConflictError("Draft Provider Model specification integrity failed")
         return SimpleNamespace(id=model.id, spec=specification, spec_hash=fingerprint)
+
+    @staticmethod
+    def validate_model_authentication(specification, metadata):
+        validate_portable_model_authentication(
+            specification, base_url=(metadata or {}).get("base_url")
+        )
 
     @staticmethod
     def freeze_draft(agent, *, models, tools):
