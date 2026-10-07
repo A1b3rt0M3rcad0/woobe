@@ -48,11 +48,18 @@ class ExportPackageRequest(StrictDTO):
     source: Literal["draft", "staging", "release", "production"] | None = None
     snapshot_id: str | None = Field(default=None, pattern=UUID_PATTERN)
     knowledge: Literal["portable", "binding"] = "portable"
-    name: str = Field(min_length=1, max_length=255)
-    version: str = Field(min_length=1, max_length=64)
+    name: str | None = Field(default=None, min_length=1, max_length=255)
+    version: str | None = Field(default=None, min_length=1, max_length=64)
+    release_version: str | None = Field(default=None, min_length=1, max_length=64)
 
     @model_validator(mode="after")
     def exclusive_source(self):
+        if self.source is None and self.snapshot_id is None:
+            self.source = "draft"
+        if self.release_version is not None and (
+            self.source != "release" or self.snapshot_id is not None
+        ):
+            raise ValueError("release_version requires the release environment")
         if (self.source is None) == (self.snapshot_id is None):
             raise ValueError("Export requires exactly one source selector")
         return self

@@ -26,7 +26,14 @@ class PortableNetworkExportReader:
         )
 
     async def capture(
-        self, *, project_id, principal, network_id, source=None, snapshot_id=None
+        self,
+        *,
+        project_id,
+        principal,
+        network_id,
+        source=None,
+        snapshot_id=None,
+        release_version=None,
     ):
         if (source is None) == (snapshot_id is None):
             raise ValidationError("Export requires source or snapshot identity")
@@ -84,6 +91,11 @@ class PortableNetworkExportReader:
                         NetworkVersionModel.network_id == network_id,
                         NetworkVersionModel.project_id == project_id,
                         NetworkVersionModel.kind == "release",
+                        *(
+                            [NetworkVersionModel.version == release_version]
+                            if release_version is not None
+                            else []
+                        ),
                     )
                     .order_by(
                         NetworkVersionModel.created_at.desc(),

@@ -84,6 +84,8 @@ class PackageExportRepository:
             "source": request.source,
             "snapshot_id": UUID(request.snapshot_id) if request.snapshot_id else None,
         }
+        if request.release_version is not None:
+            selector["release_version"] = request.release_version
         if request.kind == "Agent":
             captured = (
                 await self.agents.capture(
@@ -135,6 +137,9 @@ class PackageExportRepository:
             "target_id": request.target_id,
             "captured": captured["source"],
             "knowledge": request.knowledge,
+            "environment": request.source,
+            "package_name": projection.package_name,
+            "package_version": projection.package_version,
             "self_contained": request.knowledge == "portable"
             or not any(agent["knowledge"] for agent in agents),
         }
@@ -203,6 +208,12 @@ class PackageExportRepository:
             "self_contained": record.source["self_contained"],
             "knowledge": record.source["knowledge"],
             "expires_at": record.expires_at.isoformat(),
+            "source": {
+                "environment": record.source.get("environment"),
+                **record.source["captured"],
+            },
+            "name": record.source.get("package_name"),
+            "version": record.source.get("package_version"),
         }
 
     async def capture_artifact(self, *, project_id, principal, export_id):

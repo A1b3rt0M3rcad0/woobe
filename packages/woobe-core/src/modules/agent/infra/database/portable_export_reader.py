@@ -222,6 +222,7 @@ class PortableAgentExportReader:
         source=None,
         snapshot_id=None,
         expected_snapshot=None,
+        release_version=None,
     ):
         if (source is None) == (snapshot_id is None):
             raise ValidationError("Export requires source or snapshot identity")
@@ -249,6 +250,10 @@ class PortableAgentExportReader:
                 if source == "release"
                 else query.where(AgentReleaseModel.status == source)
             )
+            if release_version is not None:
+                if source != "release":
+                    raise ValidationError("Release version requires release source")
+                query = query.where(AgentReleaseModel.version == release_version)
             release = await session.scalar(
                 query.order_by(
                     AgentReleaseModel.created_at.desc(), AgentReleaseModel.id.desc()

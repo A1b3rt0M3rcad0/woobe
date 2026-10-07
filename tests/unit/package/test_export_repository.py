@@ -101,6 +101,26 @@ async def test_exports_have_independent_ids_and_scope_rechecks_every_dependency(
         first["artifact_digest"] == second["artifact_digest"]
         and first["transport_digest"] == second["transport_digest"]
     )
+    defaults = ExportPackageRequest(
+        kind="Agent", target_id=str(target), source="release", release_version="1.0.0"
+    )
+    inferred = await repo.create(project_id=project, principal=actor, request=defaults)
+    assert inferred["name"] == "Support" and inferred["version"] == "1.0.0"
+    assert inferred["source"]["environment"] == "release"
+    assert (
+        repo.agents.capture.await_args.kwargs["sources"][0]["release_version"]
+        == "1.0.0"
+    )
+    captured["source"]["version"] = None
+    unversioned = ExportPackageRequest(kind="Agent", target_id=str(target))
+    unversioned_first = await repo.create(
+        project_id=project, principal=actor, request=unversioned
+    )
+    unversioned_second = await repo.create(
+        project_id=project, principal=actor, request=unversioned
+    )
+    assert unversioned_first["version"].startswith("0.0.0+")
+    assert unversioned_first["version"] == unversioned_second["version"]
     authority.reset_mock()
     receipt, content = await repo.capture_artifact(
         project_id=project,

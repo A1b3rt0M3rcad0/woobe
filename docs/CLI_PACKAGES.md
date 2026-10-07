@@ -2,9 +2,9 @@
 
 Package schema `1.0` describes a closed, portable author definition. It uses its
 own API, operation worker and CLI commands; Manifest reconciliation remains a
-separate contract. The implementation is reviewed in draft PRs
+separate contract. The implementation is reviewed in
 [Woobe #179](https://github.com/A1b3rt0M3rcad0/woobe/pull/179) and
-[woobe-cli #10](https://github.com/A1b3rt0M3rcad0/woobe-cli/pull/10).
+[woobe-cli](https://github.com/A1b3rt0M3rcad0/woobe-cli).
 
 ## Workflow
 
@@ -13,20 +13,42 @@ Project grants needed to read or create the composition. Configure `woobe` with
 the API origin and Project. A Runtime Key is separate and is needed only to run
 the imported Agent or Network.
 
-```sh
-woobe package validate ./support
-woobe package plan ./support --project PROJECT_UUID \
-  --bind credential.primary=CREDENTIAL_UUID --save-plan ./approved-plan.json
-woobe package import --plan-file ./approved-plan.json --project PROJECT_UUID \
-  --checkpoint ./import-checkpoint.json --wait --wait-timeout 5m
-woobe package status --checkpoint ./import-checkpoint.json
-woobe package resume --checkpoint ./import-checkpoint.json --revision REVISION
-woobe package cancel --checkpoint ./import-checkpoint.json
-woobe package export agent AGENT_UUID --source staging \
-  --destination ./portable-support --name support --version 1.0.0
-woobe package export network NETWORK_UUID --snapshot-id SNAPSHOT_UUID \
-  --destination ./portable-network --name network --version 1.0.0
+```powershell
+woobe package export agent "Support Agent"
+woobe package export agent AGENT_UUID --env staging
+woobe package export agent AGENT_UUID --env release --version v1.0.20261007.01
+woobe package export agent AGENT_UUID --env production
+woobe package export network "Support Network" --env production
+woobe package validate ./support-agent --locked
+woobe package bindings ./support-agent --destination ./destination.yaml
+# Fill destination placeholders before planning/importing.
+woobe package plan ./support-agent --bindings ./destination.yaml --save-plan ./approved-plan.json
+woobe package import --plan-file ./approved-plan.json --wait
+woobe package status --checkpoint PATH_FROM_IMPORT_OUTPUT --wait
 ```
+
+Export accepts an exact name or UUID. Names resolve in the selected project; duplicate
+names require a terminal selection or explicit UUID. Draft is the default source.
+Staging/production resolve current assignments; release selects the exact version.
+The server freezes the source and its dependency bindings before artifact IO, without
+falling back to another environment. Optional package name/version derive from the
+captured definition. Unversioned sources use a deterministic portable-definition hash.
+`--package-version` overrides metadata; `--version` selects a release with `--env release`.
+Legacy `--source`/`--snapshot-id` requests remain supported.
+
+Export writes readable YAML, multiline author instructions and an integrity lock.
+`--destination` defaults to `./normalized-resource-name`; existing paths are never
+replaced. `--output` controls terminal responses. JSON descriptors remain accepted;
+plans, checkpoints and locks remain JSON. Edited files no longer match their old lock.
+
+Import creates draft resources by default. Its checkpoint is automatically managed in
+private CLI state, scoped to API/project/principal/input/lifecycle. Repeating the same
+input reconciles the same operation, including after completion. An explicit new
+`--checkpoint` opts into another import. Uncertain acceptance never authorizes replay.
+Keep bindings/plans outside the portable directory. Packages without requirements
+need no bindings. Focused command examples are available through `COMMAND --help`
+and `woobe help package export agent --output compact`.
+
 
 Validation and `--dry-run` are offline. Planning checks native configuration,
 resource ownership, destination bindings, capabilities and required grants; it

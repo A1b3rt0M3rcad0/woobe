@@ -2,6 +2,9 @@
 
 from copy import deepcopy
 import json
+from hashlib import sha256
+
+import yaml
 import re
 
 from modules.package.domain.bundle import (
@@ -357,6 +360,9 @@ class ExportProjection:
         )
 
     def finish(self, *, kind, captured, name, version):
+        name = name or (
+            captured["definition"]["name"] if kind == "Agent" else captured["name"]
+        )
         if kind == "Agent":
             entry = self.agent(captured, "agent-1")
         else:
@@ -369,6 +375,27 @@ class ExportProjection:
                 key="network-1",
                 description=captured["description"],
             )
+        version = version or captured["source"].get("version")
+        if version is None:
+            # Portable author data only: destination identities/secrets do not define a version.
+            version = (
+                "0.0.0+"
+                + sha256(
+                    json.dumps(
+                        {
+                            "documents": self.documents,
+                            "files": {
+                                key: sha256(value).hexdigest()
+                                for key, value in self.files.items()
+                            },
+                        },
+                        sort_keys=True,
+                        ensure_ascii=False,
+                        allow_nan=False,
+                    ).encode()
+                ).hexdigest()[:12]
+            )
+        self.package_name, self.package_version = name, version
         for key in sorted(self.environment):
             if key not in self.environment_kinds:
                 raise PackageError(
@@ -383,12 +410,7 @@ class ExportProjection:
         for key, document in self.documents.items():
             self.add_bytes(
                 key + ".yaml",
-                (
-                    json.dumps(
-                        document, ensure_ascii=False, sort_keys=True, allow_nan=False
-                    )
-                    + "\n"
-                ).encode(),
+                portable_yaml(document),
             )
         manifest = {
             "format": "woobe-package",
@@ -412,11 +434,31 @@ class ExportProjection:
         }
         self.add_bytes(
             "woobe.yaml",
-            (
-                json.dumps(
-                    manifest, ensure_ascii=False, sort_keys=True, allow_nan=False
-                )
-                + "\n"
-            ).encode(),
+            portable_yaml(manifest),
         )
         return self
+
+
+class _PortableDumper(yaml.SafeDumper):
+    def ignore_aliases(self, data):
+        return True
+
+
+def _portable_string(dumper, value):
+    return dumper.represent_scalar(
+        "tag:yaml.org,2002:str", value, style="|" if "\n" in value else None
+    )
+
+
+_PortableDumper.add_representer(str, _portable_string)
+
+
+def portable_yaml(document):
+    return yaml.dump(
+        document,
+        Dumper=_PortableDumper,
+        allow_unicode=True,
+        sort_keys=False,
+        default_flow_style=False,
+        width=100,
+    ).encode("utf-8")

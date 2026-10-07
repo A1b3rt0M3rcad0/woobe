@@ -1,6 +1,7 @@
 """The paired CLI plans through live authorization, PostgreSQL and owner validation."""
 
 import json
+import yaml
 import os
 import shutil
 import asyncio
@@ -13,6 +14,17 @@ import pytest
 from tests.integration.cli.test_control_plane_workflow import cli as _live_cli
 
 cli = _live_cli
+
+
+async def release_export_arguments(cli, kind, target):
+    if kind == "Agent":
+        versions = await cli.data("agent", "release", "list", target)
+        releases = [item for item in versions if item.get("snapshot_kind") == "release"]
+    else:
+        versions = await cli.data("network", "version", "list", target)
+        releases = [item for item in versions if item.get("kind") == "release"]
+    assert releases, "Fixture must have an immutable release"
+    return ["--version", releases[0]["version"]]
 
 
 @pytest.mark.asyncio
@@ -561,13 +573,18 @@ async def test_cli_upload_and_native_plan_against_live_postgres(
             "export",
             entry_kind.lower(),
             target,
-            "--source",
+            "--env",
             lifecycle,
+            *(
+                await release_export_arguments(cli, entry_kind, target)
+                if lifecycle == "release"
+                else []
+            ),
             "--destination",
             str(exported),
             "--name",
             "Support",
-            "--version",
+            "--package-version",
             "1.0.0",
             "--validate-body",
             "--validate-parameters",
@@ -612,9 +629,9 @@ async def test_cli_upload_and_native_plan_against_live_postgres(
         cli.secret_values.add("ephemeral-package-destination-provider-key")
         destination_binding_arguments = []
         if complete_fixture:
-            requirements = json.loads((exported / "woobe.yaml").read_text())["spec"][
-                "requires"
-            ]
+            requirements = yaml.safe_load((exported / "woobe.yaml").read_text())[
+                "spec"
+            ]["requires"]
             bindings = {
                 "format": "woobe-package",
                 "schema_version": "1.0",
@@ -672,20 +689,26 @@ async def test_cli_upload_and_native_plan_against_live_postgres(
             "export",
             entry_kind.lower(),
             imported_target,
-            "--source",
+            "--env",
             lifecycle,
+            *(
+                await release_export_arguments(cli, entry_kind, imported_target)
+                if lifecycle == "release"
+                else []
+            ),
             "--destination",
             str(reexported),
             "--name",
             "Support",
-            "--version",
+            "--package-version",
             "1.0.0",
         )
         left = {
-            path.name: json.loads(path.read_text()) for path in exported.glob("*.yaml")
+            path.name: yaml.safe_load(path.read_text())
+            for path in exported.glob("*.yaml")
         }
         right = {
-            path.name: json.loads(path.read_text())
+            path.name: yaml.safe_load(path.read_text())
             for path in reexported.glob("*.yaml")
         }
         for documents in (left, right):
