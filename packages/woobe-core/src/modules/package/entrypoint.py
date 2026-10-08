@@ -19,3 +19,6 @@ __all__ = [
     "PackageError",
     "build_package_service",
 ]
+
+# Closed object retention gateway; Agent/Network own their lifecycle records.
+from modules.package.composition.snapshot_artifacts import build_snapshot_artifacts

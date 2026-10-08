@@ -38,3 +38,4 @@ __all__.extend(["build_development_network_reader", "build_network_dependency_im
 
 from modules.network.composition.asac_history import build_network_history_reader
 __all__.append("build_network_history_reader")
+from modules.network.composition.asac_drafts import build_network_asac_drafts

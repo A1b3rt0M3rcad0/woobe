@@ -52,3 +52,48 @@ This read contract does not advertise isolated Draft lines, candidate evaluation
 gates, publication-only Network semantics or fenced deployment. Existing native
 mutation semantics remain unchanged; history is not authorization or deployment
 preconditions.
+
+## Isolated Draft storage contract
+
+Schema `1.0` adds owner-scoped `/asac/drafts`, `/asac/revisions` and
+`/asac/operations/{operation_id}` endpoints for both Agents and Networks.
+An isolated Draft keeps the existing native resource identity, a logical UID,
+its name, a monotonic generation, verified origin and a retained closed artifact.
+Opening `hotfix` lazily records the existing `default` as an unsealed legacy
+Draft; it does not replace its content with the hotfix's historical snapshot.
+Neither opening, saving nor checkpoint registration changes native singleton
+Draft content, Staging or Production.
+
+Writes require the owner's Draft write grant. Opening also rechecks the captured
+source environment's read authority. Logical UID/native bindings are unique per
+Project; client IDs never grant access. Save requires `expected_generation`.
+Registering a revision verifies the exact retained artifact and recomputes its
+portable definition/component digests. Parents must already exist under that
+same owner identity. Published checkpoint bytes and lineage cannot be replaced.
+The operation receipt is committed in the owner's transaction with the Draft
+change. Replaying its exact operation ID returns its committed result; another
+payload conflicts. A missing receipt reports `not_observed`, incomplete and
+`retry_authorized: false`; this is not authorization for a second mutation.
+
+Package owns retained closed objects independently of expiring upload/export
+handles. Materialization revalidates inventory, not just metadata. This contract
+advertises `isolated_drafts`, `retained_artifacts` and `revision_registration` in
+Package capabilities. `candidate_lifecycle` and `fenced_deployment` remain false
+until their corresponding lifecycle contracts are available. Saving a closed
+object validates its portable schema/inventory; runtime semantic qualification
+is explicitly `stage_required`, not a claim of Production readiness.
+
+The `woobe-portable-definition@1.0` digest scope resolves component references to
+semantic digests, model credential references to public provider requirements,
+and support-file paths to captured content hashes. Package labels, alias keys,
+physical paths and destination credential IDs do not determine it. Only captured
+Providers participate in checkpoint dependencies. Native runtime-binding digests
+remain separate. The Go/Python shared complete-package fixture validates parity.
+Development export revalidates captured Draft generations before returning native
+bindings, refusing a raced capture instead of associating old content with a
+new generation.
+
+Native identities with retained ASaC history cannot be physically deleted. Agent
+archiving remains the supported retirement path; Network deletion already refuses
+version/runtime history and now includes retained ASaC history in that refusal.
+This preserves immutable references rather than cascading their deletion.

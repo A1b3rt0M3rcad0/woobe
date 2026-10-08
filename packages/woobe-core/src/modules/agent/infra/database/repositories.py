@@ -271,6 +271,12 @@ class SQLAlchemyAgentRepository(
     async def delete(self, agent_id: UUID) -> None:
         model = await self._get_model_by_id(agent_id)
         if model:
+            from modules.agent.infra.database.asac_models import ASaCResourceModel
+            from shared.contracts.errors import ConflictError
+            retained = await self._session.scalar(select(ASaCResourceModel.id).where(
+                ASaCResourceModel.resource_id == agent_id).limit(1))
+            if retained is not None:
+                raise ConflictError("Agent has retained ASaC history; archive it instead of deleting its identity")
             await self._delete_model(model)
 
 

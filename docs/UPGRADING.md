@@ -60,3 +60,15 @@ Application rollback and Agent/Network Release rollback are different operations
 - Platform deployment rollback restores a previous Woobe application artifact/source version.
 
 Do not automatically execute `alembic downgrade` merely because an application artifact is rolled back. Use release-specific schema compatibility notes and a tested backup/restore path.
+
+### ASaC retained artifacts and isolated Drafts
+
+Migrations `0082` and `0083` add Package retained artifacts and Agent/Network
+isolated Draft, revision, resource identity and operation tables. Existing native
+Drafts/releases/selections are not rewritten. The default isolated Draft is
+created lazily and marked `unknown_origin` until explicitly captured. Retained
+artifacts must remain available independently of temporary upload expiration;
+future storage cleanup must preserve references from ASaC records. Do not run
+these migrations' destructive downgrades on a database whose new ASaC history
+must be preserved. Lifecycle callers must negotiate the advertised capability;
+isolated object storage alone does not provide publication or deployment fencing.

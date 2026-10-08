@@ -146,6 +146,8 @@ class PackageExportRepository:
                         kind=binding["kind"],
                         resource_id=binding["resource_id"],
                     )
+                    if binding.get("revision") is not None and binding["revision"] != evidence["revision"]:
+                        raise PackageError("PACKAGE_EXPORT_SOURCE_CHANGED", "Native Draft changed during capture; retry the read")
                     binding["revision"] = evidence["revision"]
                     binding["identifiers"] = {field: evidence[field] for field in ("skill_id", "collection_id") if evidence.get(field)}
                     if evidence.get("owner_agent_id"):

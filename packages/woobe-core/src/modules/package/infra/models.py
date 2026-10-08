@@ -129,3 +129,20 @@ class PackageResourceBindingModel(BaseModel):
     definition_digest: Mapped[str | None] = mapped_column(String(64), nullable=True)
     operation_id: Mapped[UUID | None] = mapped_column(nullable=True)
     preparation: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")
+
+
+class PackageSnapshotArtifactModel(BaseModel):
+    """Retained closed objects: upload expiry does not expire referenced history."""
+    __tablename__ = "snapshot_artifacts"
+    __table_args__ = (
+        UniqueConstraint("project_id", "artifact_digest", name="uq_package_snapshot_artifact"),
+        {"schema": "package"},
+    )
+    project_id: Mapped[UUID]
+    artifact_digest: Mapped[str] = mapped_column(String(64))
+    definition_digest: Mapped[str] = mapped_column(String(71))
+    storage_key: Mapped[str] = mapped_column(String(512))
+    inventory: Mapped[list] = mapped_column(JSON)
+    manifest: Mapped[dict] = mapped_column(JSON)
+    component_digests: Mapped[dict] = mapped_column(JSON)
+    size_bytes: Mapped[int] = mapped_column(Integer)

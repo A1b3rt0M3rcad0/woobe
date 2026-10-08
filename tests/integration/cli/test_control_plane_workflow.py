@@ -33,7 +33,7 @@ from shared.security.control_plane import (
 )
 
 CLI_COMMIT = os.environ.get(
-    "WOOBE_TEST_CLI_SHA", "970879f65f62c25b947d26f1a933360961412491"
+    "WOOBE_TEST_CLI_SHA", "59fb851ad6d60c8dacd6a50edb97e428ebb413d4"
 )
 
 
@@ -946,6 +946,7 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
         item["action"] == "rollback" and item["release_id"] == production["id"]
         for item in activations
     )
+    await exercise_asac_isolated_drafts(cli, "Agent", agent_id)
     await cli.run("request", "POST", "/v1/run", body={"message": "Hello"}, expected=4)
     await cli.run("project", "agent", "list", key=staging_key, expected=4)
     network_body = {"name": "CLI network"}
@@ -1144,6 +1145,7 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
     assert {network_release["id"], second_network_release["id"]} <= {item["id"] for item in network_history["records"]}
     network_deployments = await cli.data("request", "GET", f"/projects/{cli.project_id}/networks/{network_id}/asac/history", "--query", "stream=deployments")
     assert any(item["release_id"] == network_release["id"] and item["action"] == "rollback" for item in network_deployments["records"])
+    await exercise_asac_isolated_drafts(cli, "Network", network_id)
     _, network_key = await cli.issue(
         "project",
         "runtime-key",
@@ -1224,6 +1226,74 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
     await cli.run("project", "agent", "get", agent_id, key=builder_key, expected=3)
     await cli.data("project", "agent", "get", agent_id, key=rotated_key)
 
+
+
+async def exercise_asac_isolated_drafts(cli, kind, resource_id):
+    """Both owners retain exact objects without rewriting default or Production."""
+    import io
+    from modules.package.application.asac_definition import portable_definition
+    from modules.package.infra.bundles import receive_archive
+    from shared.contracts.asac import asac_digest
+    base = f"/projects/{cli.project_id}/{kind.lower()}s/{resource_id}/asac"
+    export = await cli.data("request", "POST", f"/projects/{cli.project_id}/packages/export", body={
+        "kind":kind,"target_id":resource_id,"source":"production","knowledge":"portable","development":True})
+    import yaml
+    registry = cli.directory / ("asac-" + kind.lower())
+    registry.mkdir()
+    await cli.run("init", "--root", ".woobe", cwd=registry)
+    pulled = await cli.run(kind.lower(), resource_id, "pull", "--alias", "captured", "--env", "production", cwd=registry)
+    config = yaml.safe_load((registry / ".woobe-config").read_text())
+    root_resource = next(item for item in config["resources"] if item["kind"] == kind and item["alias"] == "captured")
+    uid = root_resource["uid"]
+    cli_open = (await cli.run(kind.lower(), "@captured", "draft", "open", "cli-hotfix", "--from", "production", cwd=registry))["data"]
+    assert cli_open["resource_uid"] == uid and not cli_open["production_changed"]
+    cli_saved = (await cli.run(kind.lower(), "@captured", "draft", "push", cwd=registry))["data"]
+    assert cli_saved["generation"] == 2
+    checkpoint = (await cli.run(kind.lower(), "@captured", "revision", "create", "--message", "CLI exact checkpoint", cwd=registry))["data"]
+    cli_revision = (await cli.run(kind.lower(), "@captured", "draft", "checkpoint", checkpoint["revision_id"], cwd=registry))["data"]
+    assert cli_revision["record"] == checkpoint
+    opening = {"operation_id":str(uuid4()),"resource_uid":uid,"name":"hotfix","source_export_id":export["export_id"]}
+    first = await cli.data("request","POST",base+"/drafts",body=opening)
+    replay = await cli.data("request","POST",base+"/drafts",body=opening)
+    assert first == replay and first["generation"] == 1 and not first["production_changed"]
+    feature = await cli.data("request","POST",base+"/drafts",body={**opening,"operation_id":str(uuid4()),"name":"feature"})
+    assert feature["draft_id"] != first["draft_id"]
+    listing = await cli.data("request","GET",base+"/drafts")
+    assert {item["name"] for item in listing["drafts"]} == {"default","hotfix","feature","cli-hotfix"}
+    assert next(item for item in listing["drafts"] if item["name"]=="default")["content_status"] == "legacy_native_draft"
+    async with httpx.AsyncClient(base_url=cli.origin, headers={"Authorization":"Bearer "+cli.credential}) as http:
+        response = await http.get(f"/projects/{cli.project_id}/packages/exports/{export['export_id']}/artifact")
+        assert response.status_code == 200
+        content = response.content
+        uploaded = await http.post(f"/projects/{cli.project_id}/packages/uploads?locked=true", files={"file":("package.tar.gz", content, "application/gzip")})
+        assert uploaded.status_code == 201
+        upload = uploaded.json()["data"]
+    with receive_archive(io.BytesIO(content),locked=True) as bundle:
+        definition, components = portable_definition(bundle)
+        assert definition == first["definition_digest"]
+        entry = bundle.graph.manifest["spec"]["entrypoint"]["ref"]
+    save = {"operation_id":str(uuid4()),"expected_generation":1,"upload_id":upload["upload_id"],"artifact_digest":"sha256:"+upload["artifact_digest"]}
+    saved = await cli.data("request","PUT",base+"/drafts/"+first["draft_id"],body=save)
+    assert saved["generation"] == 2
+    assert await cli.data("request","PUT",base+"/drafts/"+first["draft_id"],body=save) == saved
+    stale = await cli.run("request","PUT",base+"/drafts/"+first["draft_id"],body={**save,"operation_id":str(uuid4())},expected=6)
+    assert stale["error"]["http_status"] == 409
+    async with httpx.AsyncClient(base_url=cli.origin, headers={"Authorization":"Bearer "+cli.credential}) as http:
+        refused = await http.put(base+"/drafts/"+first["draft_id"],json={**save,"operation_id":str(uuid4())})
+        assert refused.status_code == 409
+        assert refused.json()["data"]["diagnostics"][0]["code"] == "ASAC_DRAFT_CHANGED"
+    component_uids = {key:str(uuid4()) for key in components}; component_uids[entry] = uid
+    record = {"format":"woobe-revision","schema_version":"1.0","revision_id":"rv_"+str(uuid4()),"resource_uid":uid,"kind":kind,"parents":[],"message":"Captured exact object","artifact_digest":save["artifact_digest"],"definition_digest":definition,"definition_digest_scope":"woobe-portable-definition@1.0","component_digests":{component_uids[key]:value for key,value in components.items()}}
+    record["record_digest"] = asac_digest("record",record)
+    registration = {"operation_id":str(uuid4()),"draft_id":first["draft_id"],"expected_generation":2,"record":record,"component_uids":component_uids}
+    accepted = await cli.data("request","POST",base+"/revisions",body=registration)
+    assert accepted["record"] == record and not accepted["production_changed"]
+    reconciled = await cli.data("request","GET",base+"/operations/"+registration["operation_id"])
+    assert reconciled["state"] == "committed" and reconciled["result"] == accepted
+    unknown = await cli.data("request","GET",base+"/operations/"+str(uuid4()))
+    assert not unknown["complete"] and not unknown["retry_authorized"]
+    observed = (await cli.run(kind.lower(),resource_id,"current","--env","production"))["data"]
+    assert observed["snapshot_id"] == export["source"]["snapshot_id"]
 
 @pytest.mark.asyncio
 async def test_cli_categories_pin_authority_and_preflight_matches_requests(cli):
