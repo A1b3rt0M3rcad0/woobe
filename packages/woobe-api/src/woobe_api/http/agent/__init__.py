@@ -33,7 +33,13 @@ from woobe_api.http.agent.vector_snapshot_routes import (
 
 from woobe_api.http.agent.skill_routes import router as skill_router
 
+from modules.agent.entrypoint import build_agent_history_reader
+from woobe_api.http.shared.asac_history_routes import history_router
+
+asac_history_router = history_router("/projects/{project_id}/agents/{resource_id}/asac", build_agent_history_reader, "Agent")
+
 HTTP_ROUTERS = (
+    asac_history_router,
     skill_router,
     context_assembler_router,
     rag_strategy_router,

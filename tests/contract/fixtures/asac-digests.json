@@ -1,0 +1,42 @@
+[
+  {
+    "scope": "definition",
+    "json": "null",
+    "digest": "sha256:cd53a2f43cfcc27a26b9e4544ea4bff117ec864ba230e24d0978fba24d0b5464"
+  },
+  {
+    "scope": "definition",
+    "json": "{}",
+    "digest": "sha256:8933991d6d62cca0669091d82c4a92baebed60b3ccc46911e314f0d42078e637"
+  },
+  {
+    "scope": "definition",
+    "json": "{\"nullable\":null}",
+    "digest": "sha256:8b8bae3d80cf4e6e5e9fcc9a436a7157a7d71fc3390063d0ea95b7c14ad2784b"
+  },
+  {
+    "scope": "definition",
+    "json": "{\"text\":\"ação\\n\\tSuporte\\u2028\"}",
+    "digest": "sha256:1f2fa30db97ee7acaf6b15b69a8c59c416261c778509126c9e436b74c2175e3d"
+  },
+  {
+    "scope": "definition",
+    "json": "{\"number\":900719925474099312345,\"fraction\":0.7,\"exp\":1e30,\"zero\":-0.0}",
+    "digest": "sha256:cc3b88b1b05095ffc21331428e98db803d4cfcb955ed7d4c3db961a2084045c8"
+  },
+  {
+    "scope": "definition",
+    "json": "[\"a\",\"b\"]",
+    "digest": "sha256:92c17866418611873710dbe145d8b242f710374dc0ddb20652b0abdf9bbc2ab2"
+  },
+  {
+    "scope": "definition",
+    "json": "[\"b\",\"a\"]",
+    "digest": "sha256:91e3c8fb9dcd887b1ac75f5dbc338f3ae062a46add07016b5220ea1cce61d20b"
+  },
+  {
+    "scope": "definition",
+    "json": "{\"nested\":{\"absent\":[],\"empty\":\"\",\"enabled\":false}}",
+    "digest": "sha256:f3985b954aa4215fbd141c69feeadaabe8d1b1aa069e3d45d4b8e304a8e9bab1"
+  }
+]

@@ -276,6 +276,15 @@ class HttpSecurityGuard:
         request: Request,
         path_params: dict[str, Any],
     ) -> dict[str, Any]:
+        if request.method == "GET" and "project_id" in path_params and "resource_id" in path_params:
+            project, resource = path_params["project_id"], path_params["resource_id"]
+            for plural, identifier in (("agents", "agent_id"), ("networks", "network_id")):
+                base = f"/projects/{project}/{plural}/{resource}/asac/"
+                if request.url.path in {base + "current", base + "history"}:
+                    normalized = dict(path_params)
+                    normalized[identifier] = normalized.pop("resource_id")
+                    normalized["environment"] = (request.query_params.get("environment") or "production") if request.url.path == base + "current" else "production"
+                    return normalized
         if request.url.path.startswith("/core/projects/") and "resource_id" in path_params:
             normalized = dict(path_params)
             normalized["project_id"] = normalized.pop("resource_id")

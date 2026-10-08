@@ -30,7 +30,7 @@ class DevelopmentResourceReader:
         self._tool_projection = tool_projection
 
     async def inspect(
-        self, session, *, project_id, principal, kind, resource_id, lock=False
+        self, session, *, project_id, principal, kind, resource_id, lock=False, environment=None
     ):
         models = {
             "Agent": (AgentModel, "agent:read", "agent_id"),
@@ -49,7 +49,7 @@ class DevelopmentResourceReader:
             principal,
             project_id,
             permission,
-            identifiers={parameter: str(resource_id)},
+            identifiers={parameter: str(resource_id), **({"environment": environment} if environment else {})},
         )
         row = await session.get(
             model, UUID(str(resource_id)), with_for_update=lock, populate_existing=lock

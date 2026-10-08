@@ -427,3 +427,6 @@ from modules.agent.composition.public_api import (
     verify_development_agent_composer,
 )
 __all__.extend(['build_development_resource_reader', 'prepare_existing_agent_composer', 'reuse_development_resource_composer', 'reuse_frozen_agent_composer', 'materialize_development_prompt_composer', 'materialize_development_contract_composer', 'materialize_development_collection_composer', 'materialize_development_document_composer', 'create_development_vector_composer', 'find_development_document_composer', 'finalize_existing_agent_composer', 'verify_development_agent_composer'])
+
+from modules.agent.composition.composers.asac_history_composer import build_agent_history_reader
+__all__.append("build_agent_history_reader")
