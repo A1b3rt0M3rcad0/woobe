@@ -118,3 +118,12 @@ async def test_key_management_uses_one_consistent_grant_snapshot():
         await service._assert_target_manageable(object(), actor=actor,
             workspace_id=actor.workspace_id,
             target={"credential_id": uuid4(), "permissions": []}, target_grants=[unrestricted])
+
+
+@pytest.mark.asyncio
+async def test_self_discovery_rejects_non_control_principal_before_database_access():
+    service = ControlKeyService(
+        lambda: pytest.fail("Non-control discovery touched database")
+    )
+    with pytest.raises(AuthorizationError, match="Control Key"):
+        await service.identify_key(actor=object())

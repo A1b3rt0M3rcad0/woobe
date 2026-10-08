@@ -25,7 +25,6 @@ htmlcov/
 node_modules/
 web/
 docs/
-specs/
 .opencode/
 src/editions/cloud/
 src/editions/enterprise/

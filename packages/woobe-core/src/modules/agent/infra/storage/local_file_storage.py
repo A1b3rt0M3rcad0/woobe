@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import os
+import stat
 from pathlib import Path
 from uuid import UUID
 
@@ -38,7 +40,9 @@ class LocalFileStorage:
         base_dir = self._base_dir.resolve()
         target_path = (base_dir / storage_key).resolve()
         if not target_path.is_relative_to(base_dir):
-            raise ValueError("Resolved upload path escapes configured local storage root")
+            raise ValueError(
+                "Resolved upload path escapes configured local storage root"
+            )
 
         def write_file() -> None:
             target_path.parent.mkdir(parents=True, exist_ok=True)
@@ -73,3 +77,46 @@ class LocalFileStorage:
                 return
 
         await asyncio.to_thread(delete_file)
+
+    async def read_document_bounded(self, storage_key: str, *, max_bytes: int) -> bytes:
+        parts = storage_key.split("/")
+        if (
+            max_bytes < 1
+            or "\\" in storage_key
+            or any(part in {"", ".", ".."} for part in parts)
+        ):
+            raise ValueError("Invalid bounded document read")
+
+        def read_file():
+            descriptors = []
+            try:
+                fd = os.open(
+                    self._base_dir.resolve(),
+                    os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                )
+                descriptors.append(fd)
+                for part in parts[:-1]:
+                    fd = os.open(
+                        part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fd
+                    )
+                    descriptors.append(fd)
+                target = os.open(
+                    parts[-1], os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=fd
+                )
+                with os.fdopen(target, "rb") as stream:
+                    info = os.fstat(stream.fileno())
+                    if (
+                        not stat.S_ISREG(info.st_mode)
+                        or info.st_nlink != 1
+                        or info.st_size > max_bytes
+                    ):
+                        raise ValueError("Document is not a bounded regular file")
+                    content = stream.read(max_bytes + 1)
+                    if len(content) > max_bytes:
+                        raise ValueError("Document exceeds bounded read")
+                    return content
+            finally:
+                for descriptor in reversed(descriptors):
+                    os.close(descriptor)
+
+        return await asyncio.to_thread(read_file)

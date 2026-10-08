@@ -1,3 +1,11 @@
+from modules.agent.composition.public_api import verify_imported_agent_composer
+from modules.agent.composition.public_api import configure_provider_dependency_readers
+from modules.agent.composition.public_api import build_release_test_execution_handler, ExecuteReleaseTestInput
+from modules.agent.composition.public_api import materialize_imported_tool_composer
+from modules.agent.composition.public_api import resolve_imported_model_composer
+from modules.agent.composition.public_api import inspect_destination_bindings_composer
+from modules.agent.composition.public_api import finalize_imported_agent_composer
+from modules.agent.composition.public_api import inspect_provider_model_definition_composer
 from modules.agent.composition.public_api import CreateReleaseInput
 from modules.agent.composition.public_api import McpOAuthStartInput, McpOAuthCompleteInput, McpOAuthDeviceStartInput, McpOAuthDevicePollInput, McpOAuthStatusInput, McpOAuthDisconnectInput
 from modules.agent.composition.public_api import ImportSkillInput, SkillListQuery
@@ -192,7 +200,21 @@ from modules.agent.composition.factories.rag_runtime_factory import (
     list_rag_strategies,
 )
 
+from modules.agent.composition.public_api import build_imported_document_preparation
+from modules.agent.composition.public_api import create_imported_vector_composer, verify_imported_vector_composer
+from modules.agent.composition.public_api import build_imported_mcp_preparation, commit_imported_mcp_composer
+
 __all__ = [
+    "build_imported_mcp_preparation",
+    "commit_imported_mcp_composer",
+    "create_imported_vector_composer",
+    "verify_imported_vector_composer",
+    "build_imported_document_preparation",
+    'inspect_destination_bindings_composer',
+    'finalize_imported_agent_composer',
+    'verify_imported_agent_composer',
+    'resolve_imported_model_composer',
+    "inspect_provider_model_definition_composer",
     "CreateReleaseInput",
     'McpOAuthStartInput',
     'McpOAuthCompleteInput',
@@ -291,6 +313,7 @@ __all__ = [
     'create_secret_composer',
     'create_session_composer',
     'create_tool_composer',
+    'materialize_imported_tool_composer',
     'create_vector_snapshot_composer',
     'CreateVectorSnapshotInput',
     'credential_usage_composer',
@@ -383,3 +406,24 @@ __all__ = [
     'UploadDocumentFileInput',
     'UseCase',
 ]
+
+from modules.agent.composition.public_api import build_portable_agent_export_reader
+__all__.append("build_portable_agent_export_reader")
+__all__.append("configure_provider_dependency_readers")
+__all__.extend(["build_release_test_execution_handler", "ExecuteReleaseTestInput"])
+
+from modules.agent.composition.public_api import (
+    build_development_resource_reader,
+    prepare_existing_agent_composer,
+    reuse_development_resource_composer,
+    reuse_frozen_agent_composer,
+    materialize_development_prompt_composer,
+    materialize_development_contract_composer,
+    materialize_development_collection_composer,
+    materialize_development_document_composer,
+    create_development_vector_composer,
+    find_development_document_composer,
+    finalize_existing_agent_composer,
+    verify_development_agent_composer,
+)
+__all__.extend(['build_development_resource_reader', 'prepare_existing_agent_composer', 'reuse_development_resource_composer', 'reuse_frozen_agent_composer', 'materialize_development_prompt_composer', 'materialize_development_contract_composer', 'materialize_development_collection_composer', 'materialize_development_document_composer', 'create_development_vector_composer', 'find_development_document_composer', 'finalize_existing_agent_composer', 'verify_development_agent_composer'])

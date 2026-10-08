@@ -92,6 +92,7 @@ class UpdateAgentRequest(BaseModel):
 
 
 class AgentResponse(BaseModel):
+    revision: int = 1
     id: UUID
     project_id: UUID
     name: str
@@ -534,6 +535,9 @@ class SourceResponse(BaseModel):
 
 
 class ToolCallResponse(BaseModel):
+    tool_call_id: str | None = None
+    status: str | None = None
+    error_code: str | None = None
     tool_name: str
     input: dict | None = None
     output: dict | None = None

@@ -1,0 +1,54 @@
+[module]
+name = "package"
+root = "packages/woobe-core/src/modules/package"
+package = "modules.package"
+required_layers = ["domain", "application", "infra", "presentation", "composition"]
+
+[constraints]
+forbid_cross_module_imports = false
+forbid_dynamic_imports = true
+forbid_wildcard_imports = true
+forbid_cycles = true
+forbidden_paths = ["application/composers", "presentation/http"]
+
+[[rules]]
+id = "ARCH360"
+description = "the Package public entrypoint reaches internals through composition"
+source = ["entrypoint.py", "background_boundary.py", "__init__.py"]
+allow = ["modules.package.composition"]
+deny = ["modules.package.application", "modules.package.infra", "modules.package.presentation"]
+
+[[rules]]
+id = "ARCH361"
+description = "Package domain is independent of adapters, hosts and owner internals"
+source = ["domain/**"]
+allow = ["modules.package.domain", "shared.contracts"]
+deny = ["modules.package.application", "modules.package.infra", "modules.package.presentation", "modules.package.composition", "sqlalchemy", "fastapi", "starlette", "woobe_api", "woobe_workers"]
+
+[[rules]]
+id = "ARCH362"
+description = "Package application consumes pure owner contracts and its own ports"
+source = ["application/**"]
+allow = ["modules.package.application", "modules.package.domain", "modules.agent.contract_boundary", "shared.contracts"]
+deny = ["modules.package.infra", "modules.package.presentation", "modules.package.composition", "shared.infra", "sqlalchemy", "fastapi", "starlette", "woobe_api", "woobe_workers"]
+
+[[rules]]
+id = "ARCH363"
+description = "Package adapters only call public native owner boundaries"
+source = ["infra/**"]
+allow = ["modules.package.infra", "modules.package.application", "modules.package.domain", "modules.agent.entrypoint", "modules.agent.contract_boundary", "modules.network.entrypoint", "modules.core.entrypoint", "shared"]
+deny = ["modules.package.presentation", "modules.package.composition", "modules.agent.infra", "modules.agent.application", "modules.network.infra", "modules.network.application", "modules.core.infra", "modules.core.application", "fastapi", "starlette", "woobe_api", "woobe_workers"]
+
+[[rules]]
+id = "ARCH364"
+description = "Package presentation remains transport neutral"
+source = ["presentation/**"]
+allow = ["modules.package.presentation", "modules.package.application", "modules.package.domain", "shared.presentation", "shared.contracts"]
+deny = ["modules.package.infra", "modules.package.composition", "sqlalchemy", "fastapi", "starlette", "woobe_api", "woobe_workers"]
+
+[[rules]]
+id = "ARCH365"
+description = "Package composition wires adapters without depending on process hosts"
+source = ["composition/**"]
+allow = ["modules.package", "modules.agent.entrypoint", "modules.agent.contract_boundary", "modules.network.entrypoint", "modules.core.entrypoint", "shared"]
+deny = ["fastapi", "starlette", "woobe_api", "woobe_workers"]

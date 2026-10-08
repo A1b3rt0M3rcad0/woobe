@@ -179,3 +179,21 @@ async def test_streaming_handler_can_close_uow_before_long_lived_stream() -> Non
     assert uow.exited == 1
     assert uow.committed is True
     assert await _collect(response.stream) == ["event"]
+
+
+@pytest.mark.asyncio
+async def test_phase_replay_precedes_revision_guard_and_never_repeats_effect():
+    from unittest.mock import AsyncMock
+    uow = RecordingUnitOfWork()
+    uow.validate_revision = AsyncMock(side_effect=RuntimeError("stale revision"))
+    effect = AsyncMock(return_value="created")
+    receipt = type("Receipt", (), {"lookup": AsyncMock(return_value="recorded"), "save": AsyncMock()})()
+    result = await TransactionalHandler(uow, effect).with_receipt(receipt)("request")
+    assert result == "recorded"
+    uow.validate_revision.assert_not_awaited()
+    effect.assert_not_awaited()
+    receipt.save.assert_not_awaited()
+    receipt.lookup.return_value = None
+    with pytest.raises(RuntimeError, match="stale revision"):
+        await TransactionalHandler(uow, effect).with_receipt(receipt)("request")
+    effect.assert_not_awaited()

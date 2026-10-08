@@ -1,0 +1,94 @@
+from typing import Literal
+
+from pydantic import Field, StrictInt, StrictStr, field_validator, model_validator
+
+from modules.package.application.dtos import StrictDTO, ImportBindingsV1
+
+UUID_PATTERN = (
+    r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+)
+DIGEST_PATTERN = r"^[a-f0-9]{64}$"
+
+
+class DevelopmentResourceTarget(StrictDTO):
+    resource_uid: str = Field(pattern=UUID_PATTERN)
+    resource_id: str | None = Field(default=None, pattern=UUID_PATTERN)
+    expected_revision: StrictInt | StrictStr | None = None
+    release_id: str | None = Field(default=None, pattern=UUID_PATTERN)
+    source_export_id: str | None = Field(default=None, pattern=UUID_PATTERN)
+    source_component: str | None = Field(default=None, max_length=128)
+
+    @field_validator("expected_revision")
+    @classmethod
+    def valid_revision(cls, value):
+        if isinstance(value, int) and value < 1:
+            raise ValueError("Revision must be positive")
+        if isinstance(value, str) and (not value or len(value) > 128 or any(ord(character) < 32 for character in value)):
+            raise ValueError("Invalid revision evidence")
+        return value
+
+
+class PlanPackageRequest(StrictDTO):
+    mode: Literal["create", "sync"] = "create"
+    registry_id: str | None = Field(default=None, pattern=UUID_PATTERN)
+    resource_bindings: dict[str, DevelopmentResourceTarget] = Field(default_factory=dict, max_length=1024)
+    upload_id: str = Field(pattern=UUID_PATTERN)
+    artifact_digest: str = Field(pattern=DIGEST_PATTERN)
+    bindings: ImportBindingsV1
+    lifecycle: Literal["draft", "staging", "release", "production"] = "draft"
+    release_notes: str | None = Field(default=None, max_length=4000)
+    reason: str | None = Field(default=None, max_length=1000)
+
+    @model_validator(mode="after")
+    def development_scope(self):
+        if self.mode == "sync" and (not self.registry_id or not self.resource_bindings or self.lifecycle != "draft"):
+            raise ValueError("Synchronization requires registry identity, resource bindings and Draft lifecycle")
+        if self.mode == "create" and (self.registry_id or self.resource_bindings):
+            raise ValueError("Development bindings require sync mode")
+        return self
+
+
+class ApplyPackageRequest(StrictDTO):
+    plan_id: str = Field(pattern=UUID_PATTERN)
+    plan_digest: str = Field(pattern=DIGEST_PATTERN)
+    upload_id: str = Field(pattern=UUID_PATTERN)
+    artifact_digest: str = Field(pattern=DIGEST_PATTERN)
+    bindings: ImportBindingsV1
+    protected_bindings: dict[str, str] = Field(default_factory=dict, max_length=1024)
+    lifecycle: Literal["draft", "staging", "release", "production"] = "draft"
+    release_notes: str | None = Field(default=None, max_length=4000)
+    reason: str | None = Field(default=None, max_length=1000)
+
+
+class LookupPackageOperationRequest(StrictDTO):
+    idempotency_key: str = Field(
+        min_length=1, max_length=128, pattern=r"^[A-Za-z0-9_.:-]+$"
+    )
+
+
+class ResumePackageOperationRequest(StrictDTO):
+    expected_revision: int = Field(ge=1)
+
+
+class ExportPackageRequest(StrictDTO):
+    development: bool = False
+    kind: Literal["Agent", "Network"]
+    target_id: str = Field(pattern=UUID_PATTERN)
+    source: Literal["draft", "staging", "release", "production"] | None = None
+    snapshot_id: str | None = Field(default=None, pattern=UUID_PATTERN)
+    knowledge: Literal["portable", "binding"] = "portable"
+    name: str | None = Field(default=None, min_length=1, max_length=255)
+    version: str | None = Field(default=None, min_length=1, max_length=64)
+    release_version: str | None = Field(default=None, min_length=1, max_length=64)
+
+    @model_validator(mode="after")
+    def exclusive_source(self):
+        if self.source is None and self.snapshot_id is None:
+            self.source = "draft"
+        if self.release_version is not None and (
+            self.source != "release" or self.snapshot_id is not None
+        ):
+            raise ValueError("release_version requires the release environment")
+        if (self.source is None) == (self.snapshot_id is None):
+            raise ValueError("Export requires exactly one source selector")
+        return self

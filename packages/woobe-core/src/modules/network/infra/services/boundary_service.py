@@ -89,105 +89,120 @@ class NetworkBoundaryService(NetworkApplicationService):
         idempotency_key: str | None = None,
     ) -> NetworkModel:
         async with self._session_factory() as session, session.begin():
-            project_exists = await session.scalar(
-                select(ProjectModel.id).where(ProjectModel.id == project_id)
+            return await self._create_project_network_in_session(
+                session, project_id=project_id, name=name, description=description,
+                actor=actor, idempotency_key=idempotency_key,
             )
-            if project_exists is None:
-                raise NotFoundError("Project not found")
-            workspace_id = await TenantAuthorizer(session)._project_workspace_id(
-                project_id
-            )
-            if isinstance(actor, ControlPlanePrincipal):
-                await TenantAuthorizer(session).require_active_control(actor)
-                await TenantAuthorizer(session).authorize_control_key(
-                    api_key_id=actor.api_key_id,
-                    workspace_id=actor.workspace_id,
-                    workspace_permissions=actor.permissions,
-                    required_permission="network:write",
-                    path_params={"project_id": project_id},
-                    query_params={},
-                    body={},
-                )
-            elif isinstance(actor, AuthenticatedPrincipal):
-                await TenantAuthorizer(session).require_human_permission(
-                    user_id=actor.user_id,
-                    workspace_id=workspace_id,
-                    project_id=project_id,
-                    permission="network:write",
-                )
-            ledger = AdministrativeIdempotency(
-                session, encryption_key=Settings.model_validate({}).encryption_key
-            )
-            if idempotency_key is not None and actor is None:
-                raise AuthorizationError("Idempotency requires authenticated authority")
-            replay = await ledger.begin(
-                key=idempotency_key,
-                actor=actor,
-                workspace_id=workspace_id,
-                operation="network.create",
-                payload={
-                    "project_id": project_id,
-                    "name": name,
-                    "description": description,
-                },
-            )
-            if replay is not None:
-                from datetime import datetime
 
-                data = replay["network"]
-                for key in ("id", "project_id"):
-                    data[key] = UUID(data[key])
-                for key in ("created_at", "updated_at"):
-                    data[key] = datetime.fromisoformat(data[key])
-                network = NetworkModel(**data)
-                network.idempotency_replayed = True
-                return network
-            duplicate = await session.scalar(
-                select(NetworkModel.id).where(
-                    NetworkModel.project_id == project_id,
-                    func.lower(func.btrim(NetworkModel.name)) == name.lower(),
-                )
+    async def _create_project_network_in_session(
+        self,
+        session,
+        *,
+        project_id: UUID,
+        name: str,
+        description: str,
+        actor: SecurityPrincipal | None = None,
+        idempotency_key: str | None = None,
+    ) -> NetworkModel:
+        project_exists = await session.scalar(
+            select(ProjectModel.id).where(ProjectModel.id == project_id)
+        )
+        if project_exists is None:
+            raise NotFoundError("Project not found")
+        workspace_id = await TenantAuthorizer(session)._project_workspace_id(
+            project_id
+        )
+        if isinstance(actor, ControlPlanePrincipal):
+            await TenantAuthorizer(session).require_active_control(actor)
+            await TenantAuthorizer(session).authorize_control_key(
+                api_key_id=actor.api_key_id,
+                workspace_id=actor.workspace_id,
+                workspace_permissions=actor.permissions,
+                required_permission="network:write",
+                path_params={"project_id": project_id},
+                query_params={},
+                body={},
             )
-            if duplicate is not None:
-                raise ConflictError(
-                    "A Network with this name already exists in the Project"
-                )
-            network = NetworkModel(
+        elif isinstance(actor, AuthenticatedPrincipal):
+            await TenantAuthorizer(session).require_human_permission(
+                user_id=actor.user_id,
+                workspace_id=workspace_id,
                 project_id=project_id,
-                name=name,
-                description=description,
-                draft_definition={},
-                draft_revision=0,
-                staging_version_id=None,
-                production_version_id=None,
+                permission="network:write",
             )
-            session.add(network)
-            try:
-                await session.flush()
-            except IntegrityError as exc:
-                raise ConflictError(
-                    "A Network with this name already exists in the Project"
-                ) from exc
-            await ledger.save(
-                {
-                    "network": {
-                        name: getattr(network, name)
-                        for name in (
-                            "id",
-                            "project_id",
-                            "name",
-                            "description",
-                            "draft_definition",
-                            "draft_revision",
-                            "staging_version_id",
-                            "production_version_id",
-                            "created_at",
-                            "updated_at",
-                        )
-                    }
-                }
-            )
+        ledger = AdministrativeIdempotency(
+            session, encryption_key=Settings.model_validate({}).encryption_key
+        )
+        if idempotency_key is not None and actor is None:
+            raise AuthorizationError("Idempotency requires authenticated authority")
+        replay = await ledger.begin(
+            key=idempotency_key,
+            actor=actor,
+            workspace_id=workspace_id,
+            operation="network.create",
+            payload={
+                "project_id": project_id,
+                "name": name,
+                "description": description,
+            },
+        )
+        if replay is not None:
+            from datetime import datetime
+
+            data = replay["network"]
+            for key in ("id", "project_id"):
+                data[key] = UUID(data[key])
+            for key in ("created_at", "updated_at"):
+                data[key] = datetime.fromisoformat(data[key])
+            network = NetworkModel(**data)
+            network.idempotency_replayed = True
             return network
+        duplicate = await session.scalar(
+            select(NetworkModel.id).where(
+                NetworkModel.project_id == project_id,
+                func.lower(func.btrim(NetworkModel.name)) == name.lower(),
+            )
+        )
+        if duplicate is not None:
+            raise ConflictError(
+                "A Network with this name already exists in the Project"
+            )
+        network = NetworkModel(
+            project_id=project_id,
+            name=name,
+            description=description,
+            draft_definition={},
+            draft_revision=0,
+            staging_version_id=None,
+            production_version_id=None,
+        )
+        session.add(network)
+        try:
+            await session.flush()
+        except IntegrityError as exc:
+            raise ConflictError(
+                "A Network with this name already exists in the Project"
+            ) from exc
+        await ledger.save(
+            {
+                "network": {
+                    name: getattr(network, name)
+                    for name in (
+                        "id",
+                        "project_id",
+                        "name",
+                        "description",
+                        "draft_definition",
+                        "draft_revision",
+                        "staging_version_id",
+                        "production_version_id",
+                        "created_at",
+                        "updated_at",
+                    )
+                }
+            }
+        )
+        return network
 
     async def get_project_network(
         self,

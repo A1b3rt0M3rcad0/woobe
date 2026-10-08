@@ -89,6 +89,20 @@ async def test_catalog_persists_versions_atomically_with_project_isolation():
                 )
                 == 2
             )
+        edited = package.model_copy(update={"skill_md": package.skill_md + "\nLocal author change."})
+        async with AgentUnitOfWork(engine) as uow:
+            catalog = SkillCatalog(SQLAlchemySkillRepository(uow))
+            development, created = await catalog.resolve_development_import(project_id, edited, first.skill_id)
+            assert created is True
+            assert development.skill_id == first.skill_id
+            assert development.version.startswith("0.0.0-dev.")
+        async with AgentUnitOfWork(engine) as uow:
+            catalog = SkillCatalog(SQLAlchemySkillRepository(uow))
+            reused, created = await catalog.resolve_development_import(project_id, edited, first.skill_id)
+            assert created is False
+            assert reused.id == development.id
+            assert (await catalog.get_version(project_id, first.id)).package == first.package
+            assert len(await catalog.versions(project_id, first.skill_id, offset=0, limit=50)) == 3
     finally:
         await engine.dispose()
 

@@ -28,6 +28,12 @@ def validate_network_definition(
     nodes = {node.id: node for node in definition.nodes}
     if len(nodes) != len(definition.nodes):
         raise NetworkGraphError("Network node ids must be unique")
+    portable_keys = [node.portable_key for node in definition.nodes if node.portable_key is not None]
+    if len(set(portable_keys)) != len(portable_keys) or any(
+        not isinstance(key, str) or not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}", key)
+        for key in portable_keys
+    ):
+        raise NetworkGraphError("Network portable node keys must be valid and unique")
     if definition.root_node_id not in nodes:
         raise NetworkGraphError("Network must have exactly one valid root Agent")
     if definition.session_mode not in {"stateful", "stateless"}:

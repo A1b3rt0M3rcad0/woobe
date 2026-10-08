@@ -330,6 +330,8 @@ class ChatSurfaceService:
         self,
         surface_id: UUID,
         payload: UpdateChatSurfaceRequest,
+        *,
+        expected_updated_at: datetime | None = None,
     ) -> ChatSurfaceModel:
         async with self._session_factory() as session, session.begin():
             surface = await session.get(
@@ -341,6 +343,8 @@ class ChatSurfaceService:
                 raise NotFoundError("ChatSurface not found")
             if surface.status == "archived":
                 raise ConflictError("Archived ChatSurface cannot be changed")
+            if expected_updated_at is not None and surface.updated_at != expected_updated_at:
+                raise ConflictError("ChatSurface changed remotely; pull and reconcile before updating")
             changes = payload.model_dump(exclude_unset=True)
             if "name" in changes:
                 name = " ".join(str(changes["name"]).split())

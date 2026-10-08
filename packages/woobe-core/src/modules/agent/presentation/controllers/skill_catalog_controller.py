@@ -43,7 +43,9 @@ def skill_summary(summary: SkillSummary) -> dict:
         "latest_version_id": str(latest.id) if latest else None,
         "latest_version": latest.version if latest else None,
         "latest_description": latest.package["description"] if latest else None,
-        "latest_required_tools": list(latest.package["required_tools"]) if latest else [],
+        "latest_required_tools": list(latest.package["required_tools"])
+        if latest
+        else [],
         "latest_estimated_instruction_units": (
             _estimated_instruction_units(latest) if latest else None
         ),
@@ -80,16 +82,31 @@ class SkillCatalogController:
                 project_id, UUID(str(request.path_params["skill_version_id"]))
             )
             data = {**version_summary(version), **version.snapshot()}
-        elif operation in {"create", "add_version"}:
+        elif operation in {
+            "create",
+            "add_version",
+            "resolve_import",
+            "resolve_development_import",
+        }:
             incoming = ImportSkillInput.model_validate(request.body)
-            if operation == "create":
+            if operation == "resolve_development_import":
+                skill_id = request.path_params.get("skill_id")
+                version, created = await self._catalog.resolve_development_import(
+                    project_id, incoming, UUID(str(skill_id)) if skill_id else None
+                )
+            elif operation == "resolve_import":
+                version, created = await self._catalog.resolve_import(
+                    project_id, incoming
+                )
+            elif operation == "create":
                 version = await self._catalog.create(project_id, incoming)
             else:
                 version = await self._catalog.add_version(
                     project_id, UUID(str(request.path_params["skill_id"])), incoming
                 )
             data = {**version_summary(version), **version.snapshot()}
-            created = True
+            if operation not in {"resolve_import", "resolve_development_import"}:
+                created = True
         else:
             raise ValueError("Unknown Skill catalog operation")
         return OperationResult(

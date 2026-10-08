@@ -11,6 +11,11 @@ from shared.security.principal import ProjectApiPrincipal
 
 
 async def _security_body(request: Request) -> Any:
+    route = request.scope.get("route")
+    if request.method == "POST" and getattr(route, "path", None) == "/projects/{project_id}/packages/uploads":
+        # Authority for this endpoint is fully identified by the project path.
+        # Authenticate before parsing the bounded archive upload.
+        return None
     content_type = request.headers.get("content-type", "").lower()
     if "multipart/form-data" in content_type or "application/x-www-form-urlencoded" in content_type:
         try:
@@ -58,4 +63,3 @@ async def enforce_request_security(request: Request) -> AsyncIterator[None]:
     finally:
         if lease_id is not None:
             await guard.release_runtime_permit(lease_id)
-

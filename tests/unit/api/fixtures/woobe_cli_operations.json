@@ -1,5 +1,5 @@
 {
-  "cli_commit": "8c90273e9e1bf1871a3fc85f67e5fbfa6f7494c7",
+  "cli_commit": "a49cc4db8a85ab550f9d0802d67bbbba28c57354",
   "operations": [
     {
       "command": "auth invite accept",
@@ -11,6 +11,12 @@
       "command": "auth invite list",
       "method": "GET",
       "path": "/identity/invites/pending",
+      "body_required": false
+    },
+    {
+      "command": "auth key inspect",
+      "method": "GET",
+      "path": "/identity/control-key/me",
       "body_required": false
     },
     {
@@ -114,6 +120,12 @@
       "method": "POST",
       "path": "/ai/agents",
       "body_required": true
+    },
+    {
+      "command": "project agent delete",
+      "method": "DELETE",
+      "path": "/ai/agents/{agent_id}",
+      "body_required": false
     },
     {
       "command": "project agent environment list",
@@ -245,6 +257,12 @@
       "command": "project agent release rollback",
       "method": "POST",
       "path": "/ai/agents/{agent_id}/releases/{release_id}/rollback",
+      "body_required": true
+    },
+    {
+      "command": "project agent release run-test",
+      "method": "POST",
+      "path": "/ai/agents/{agent_id}/release-tests/run",
       "body_required": true
     },
     {

@@ -129,10 +129,10 @@ export function useCreateAgent(projectId?: string) {
     },
   })
 }
-export function useUpdateAgent(agentId?: string) {
+export function useUpdateAgent(agentId?: string, revision?: number) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (data: UpdateAgentRequest) => updateAgent(agentId!, data),
+    mutationFn: (data: UpdateAgentRequest) => updateAgent(agentId!, data, revision),
     onSuccess: (agent) => {
       queryClient.invalidateQueries({ queryKey: ['agent', agentId] })
       queryClient.invalidateQueries({ queryKey: ['agents'] })

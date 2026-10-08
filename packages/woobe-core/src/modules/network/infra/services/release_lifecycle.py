@@ -64,7 +64,7 @@ async def _equivalent_agent_snapshot(
     if lock:
         query = query.with_for_update()
     for candidate in (await session.scalars(query)).all():
-        if agent_snapshot_hash(candidate) == agent_snapshot_hash(source):
+        if agent_snapshot_hash(candidate, schema_version="2") == agent_snapshot_hash(source, schema_version="2"):
             return candidate
     return None
 
@@ -84,7 +84,8 @@ async def _candidate_manifest(session, definition, nodes: list[dict[str, Any]]):
             "agent_id": str(node.agent_id),
             "release_id": str(release.id),
             "release_version": release.version,
-            "snapshot_hash": agent_snapshot_hash(release),
+            "snapshot_hash": agent_snapshot_hash(release, schema_version="2"),
+            "snapshot_schema_version": "2",
             "output_contract_hash": output_contract_hash(release),
         }
         manifest.append(record)
@@ -132,7 +133,8 @@ async def _decorate_plan(self, session, definition, project_id, environment, *, 
                 lock=lock,
             )
         if equivalent is None:
-            node["snapshot_hash"] = agent_snapshot_hash(source)
+            node["snapshot_hash"] = agent_snapshot_hash(source, schema_version="2")
+            node["snapshot_schema_version"] = "2"
             continue
         removed_action_ids.add(str(action_id))
         node["action_id"] = None
@@ -144,7 +146,8 @@ async def _decorate_plan(self, session, definition, project_id, environment, *, 
             f"No execution-relevant changes since {equivalent.version}. "
             f"The existing Agent {equivalent.snapshot_kind.title()} snapshot will be reused."
         )
-        node["snapshot_hash"] = agent_snapshot_hash(equivalent)
+        node["snapshot_hash"] = agent_snapshot_hash(equivalent, schema_version="2")
+        node["snapshot_schema_version"] = "2"
         reused += 1
     plan["actions"] = [
         action
@@ -245,7 +248,8 @@ async def _release_metadata(session, version: NetworkVersionModel, definition) -
             "agent_id": str(node.agent_id),
             "release_id": str(release.id),
             "release_version": release.version,
-            "snapshot_hash": agent_snapshot_hash(release),
+            "snapshot_hash": agent_snapshot_hash(release, schema_version="2"),
+            "snapshot_schema_version": "2",
             "output_contract_hash": output_contract_hash(release),
         }
         manifest.append(item)

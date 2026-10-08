@@ -5,6 +5,8 @@ import json
 from typing import Any
 from uuid import UUID
 
+from modules.agent.domain.execution_definition import hash_agent_execution_snapshot
+
 
 SNAPSHOT_FIELDS = (
     "project_id",
@@ -81,4 +83,5 @@ def release_snapshot_hash(release: Any) -> str:
 
 
 def release_snapshots_equal(left: Any, right: Any) -> bool:
-    return release_snapshot_hash(left) == release_snapshot_hash(right)
+    # Compare the complete v2 material without altering historical v1 receipts.
+    return hash_agent_execution_snapshot(left) == hash_agent_execution_snapshot(right)

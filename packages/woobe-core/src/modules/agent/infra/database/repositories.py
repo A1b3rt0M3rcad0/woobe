@@ -139,6 +139,16 @@ class SQLAlchemyProviderCredentialRepository(
         model = await self._get_model_by_id(credential_id)
         return provider_credential_model_to_entity(model) if model else None
 
+    async def lock_by_id(self, credential_id: UUID) -> ProviderCredential | None:
+        result = await self._session.execute(
+            select(ProviderCredentialModel)
+            .where(ProviderCredentialModel.id == credential_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        model = result.scalar_one_or_none()
+        return provider_credential_model_to_entity(model) if model else None
+
     async def list_by_project(
         self, project_id: UUID
     ) -> list[ProviderCredential]:
@@ -213,6 +223,9 @@ class SQLAlchemyAgentRepository(
         if not model:
             from modules.agent.domain.errors import AgentNotFoundError
             raise AgentNotFoundError(agent.id)
+        if (model.revision or 1) != agent.revision:
+            from shared.contracts.errors import ConflictError
+            raise ConflictError("Agent Draft revision changed; pull before updating")
         model.name = agent.name
         model.description = agent.description
         model.behavior_spec = agent.behavior_spec
@@ -1488,6 +1501,14 @@ class SQLAlchemyAgentInboxRepository(AgentInboxRepository):
 
 
 class SQLAlchemyAgentToolRepository(ToolRepository):
+
+    async def lock_by_id(self, tool_id: UUID) -> Tool:
+        result = await self._session.execute(select(AgentToolModel).where(AgentToolModel.id == tool_id)
+            .with_for_update().execution_options(populate_existing=True))
+        model = result.scalar_one_or_none()
+        if model is None:
+            raise ToolNotFoundError(tool_id)
+        return model_to_tool(model)
 
     def __init__(self, session: UnitOfWork) -> None:
         self._base = BaseSQLAlchemyRepository(session, AgentToolModel)

@@ -1,4 +1,5 @@
 """Explicit transport-neutral public surface for ChatSurface hosts."""
+from modules.chat_surface.composition.dependency_impact import build_surface_dependency_impact_reader
 
 from modules.chat_surface.application.runtime_gateway import (
     ChatRunIdentity,
@@ -26,6 +27,7 @@ from modules.chat_surface.application.dtos import (
 from modules.chat_surface.infra.services.chat_surface_service import surface_payload
 
 __all__ = [
+    "build_surface_dependency_impact_reader",
     "CONTROL_PLANE_TEST_SOURCE",
     "ChatRunIdentity",
     "ChatMessageRequestSnapshot",

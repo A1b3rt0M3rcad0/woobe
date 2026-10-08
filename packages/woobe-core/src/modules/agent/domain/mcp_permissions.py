@@ -12,6 +12,12 @@ MCP_PERMISSION_MODES = {
 }
 
 
+def parent_tool_permission_mode(config):
+    if config.get("permission") is None:
+        return MCP_PERMISSION_ALLOW
+    return normalize_permission(config["permission"])["mode"]
+
+
 def normalize_permission(
     value: Any,
     *,

@@ -18,6 +18,7 @@ CORE_CONSUMER_MODULES: tuple[str, ...] = (
     "metering",
     "network",
     "observability",
+    "package",
 )
 
 

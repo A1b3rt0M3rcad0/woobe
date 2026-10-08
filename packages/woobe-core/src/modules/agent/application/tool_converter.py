@@ -15,7 +15,7 @@ from modules.agent.application.interfaces.tool_types import (
 )
 from modules.agent.application.tool_context_bindings import strip_bound_parameters
 from modules.agent.domain.enums import ToolType
-from modules.agent.domain.mcp_permissions import allowed_mcp_discovered_tools
+from modules.agent.domain.mcp_permissions import allowed_mcp_discovered_tools, parent_tool_permission_mode
 
 MCP_PROVIDER_ROUTE_SEPARATOR = "::mcp::"
 
@@ -250,6 +250,8 @@ def agent_tools_to_openai_definitions_and_mapping(
     used_names: set[str] = set()
 
     for tool in tools:
+        if parent_tool_permission_mode(getattr(tool, "config", None) or {}) != "allow":
+            continue
         if _is_http_group_provider(tool):
             provider_definitions, provider_mapping = _http_provider_tool_definitions(
                 tool,

@@ -14,7 +14,7 @@ from shared.infra.errors import (
     ConflictError,
     NotFoundError,
 )
-from shared.security.principal import ControlPlanePrincipal
+from shared.security.principal import AuthenticatedPrincipal, ControlPlanePrincipal
 from shared.security.control_plane import (
     PROJECT_CONTROL_PERMISSIONS,
     WORKSPACE_CONTROL_PERMISSIONS,
@@ -159,6 +159,54 @@ def _uuid(value: Any) -> UUID | None:
 class TenantAuthorizer:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
+
+    async def require_active_human(self, actor: AuthenticatedPrincipal) -> None:
+        """Revalidate durable administrative work against the current session lineage."""
+        session_id, seen = actor.session_id, set()
+        for _ in range(64):
+            if session_id in seen:
+                break
+            seen.add(session_id)
+            statement = """SELECT sessions.revoked_at, sessions.expires_at,
+                sessions.replaced_by_session_id, users.status
+                FROM identity.user_sessions AS sessions
+                JOIN identity.users AS users ON users.id = sessions.user_id
+                WHERE sessions.id = :id AND sessions.user_id = :user_id"""
+            if (
+                self._session.bind is not None
+                and self._session.bind.dialect.name == "postgresql"
+            ):
+                statement += " FOR SHARE OF sessions, users"
+            row = (
+                (
+                    await self._session.execute(
+                        text(statement).bindparams(
+                            bindparam("id", type_=Uuid()),
+                            bindparam("user_id", type_=Uuid()),
+                        ),
+                        {"id": session_id, "user_id": actor.user_id},
+                    )
+                )
+                .mappings()
+                .first()
+            )
+            if (
+                row is None
+                or row["revoked_at"] is not None
+                or row["status"] != "active"
+            ):
+                raise AuthenticationError("Administrative session is inactive")
+            replacement = row["replaced_by_session_id"]
+            if replacement is not None:
+                session_id = UUID(str(replacement))
+                continue
+            expiry = row["expires_at"]
+            if isinstance(expiry, str):
+                expiry = datetime.fromisoformat(expiry)
+            if expiry.replace(tzinfo=expiry.tzinfo or UTC) <= datetime.now(UTC):
+                raise AuthenticationError("Administrative session is expired")
+            return
+        raise AuthenticationError("Administrative session lineage is unavailable")
 
     async def require_active_control(self, actor: ControlPlanePrincipal) -> None:
         statement = """SELECT keys.permissions, keys.status, keys.revoked_at, keys.expires_at, keys.delegation_expires_at,

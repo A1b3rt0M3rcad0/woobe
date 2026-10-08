@@ -2,3 +2,8 @@
 
 # Shell scripts are executed inside Linux containers and must keep LF endings.
 *.sh text eol=lf
+
+# Package compatibility digests use LF on every checkout/platform.
+specs/package/v1/catalog.json text eol=lf
+specs/package/v1/catalog.sha256 text eol=lf
+packages/woobe-core/src/modules/package/domain/schemas/catalog.json text eol=lf

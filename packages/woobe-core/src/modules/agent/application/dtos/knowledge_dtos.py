@@ -3,9 +3,14 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, AliasChoices
 
-from modules.agent.domain.enums import CollectionStatus, DocumentStatus, KnowledgeVersionStatus, ParserType
+from modules.agent.domain.enums import (
+    CollectionStatus,
+    DocumentStatus,
+    KnowledgeVersionStatus,
+    ParserType,
+)
 
 
 class CreateCollectionInput(BaseModel):
@@ -63,6 +68,10 @@ class AgentCollectionOutput(BaseModel):
 
 
 class UploadDocumentInput(BaseModel):
+    document_id: UUID | None = Field(
+        default=None, validation_alias=AliasChoices("document_id", "new_document_id")
+    )
+    sha256: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
     project_id: UUID
     collection_id: UUID
     title: str = Field(..., min_length=1, max_length=255)

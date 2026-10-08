@@ -206,6 +206,20 @@ def _sync_agent_projection(agent: Any, draft: Any) -> None:
     else:
         settings["knowledge_version_id"] = str(draft.knowledge_version_id)
     settings["runtime_config"] = deepcopy(draft.runtime_config or {})
+    for field in (
+        "prompt_version_id", "contract_version_id", "model_config_version_id",
+        "output_schema", "model_spec_snapshot", "model_spec_hash",
+        "fallback_model_spec_snapshot", "fallback_model_spec_hash", "collection_ids", "risk_score",
+    ):
+        value = getattr(draft, field, None)
+        if value is None:
+            settings.pop(field, None)
+        elif isinstance(value, UUID):
+            settings[field] = str(value)
+        elif field == "collection_ids":
+            settings[field] = [str(item) for item in value]
+        else:
+            settings[field] = deepcopy(value)
     agent.settings = settings
 
 
@@ -234,5 +248,7 @@ class SessionModeCompatibleCreateReleaseUseCase:
 
         draft = await self._delegate.execute(input_dto, change_kind=change_kind)
         _sync_agent_projection(agent, draft)
-        await self._agent_repo.update(agent)
+        saved = await self._agent_repo.update(agent)
+        if hasattr(draft, "agent_revision"):
+            draft.agent_revision = getattr(saved, "revision", None)
         return draft

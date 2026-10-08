@@ -26,6 +26,7 @@ from modules.metering.infra.database.models import *  # noqa: F401,F403
 from modules.network.infra.database.models import *  # noqa: F401,F403
 from modules.network.infra.database.schema_extensions import *  # noqa: F401,F403
 from modules.observability.infra.database.models import *  # noqa: F401,F403
+from modules.package.infra.models import *  # noqa: F401,F403
 from shared.infra.database.admin_idempotency import AdministrativeOperationModel  # noqa: F401
 from shared.infra.database.base import Base
 
@@ -64,6 +65,7 @@ MANAGED_SCHEMAS = {
     "network",
     "metering",
     "observability",
+    "package",
 }
 
 

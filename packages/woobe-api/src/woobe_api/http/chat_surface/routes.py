@@ -4,6 +4,7 @@ from woobe_api.http.shared.openapi_contracts import bodyless_command_contract
 
 from collections.abc import AsyncIterator
 from uuid import UUID
+from datetime import datetime
 
 from fastapi import APIRouter, Header, Request
 from fastapi.responses import StreamingResponse
@@ -32,6 +33,7 @@ from shared.infra.errors import (
     AuthorizationError,
     ConflictError,
     NotFoundError,
+    ValidationError,
 )
 from shared.security.principal import AuthenticatedPrincipal, ControlPlanePrincipal
 from shared.security.rate_limit import SlidingWindowRateLimiter
@@ -150,9 +152,24 @@ async def update_surface(
     surface_id: UUID,
     payload: UpdateChatSurfaceRequest,
     request: Request,
+    if_match: str | None = Header(default=None),
 ):
     _management_actor(request)[0]
-    surface = await _service(request).update_surface(surface_id, payload)
+    expected_updated_at = None
+    if if_match is not None:
+        try:
+            if not (if_match.startswith('"') and if_match.endswith('"')):
+                raise ValueError("quoted revision required")
+            expected_updated_at = datetime.fromisoformat(if_match[1:-1])
+            if expected_updated_at.tzinfo is None:
+                raise ValueError("timezone required")
+        except ValueError as exc:
+            raise ValidationError("If-Match requires the quoted timezone-aware updated_at revision") from exc
+    service = _service(request)
+    if expected_updated_at is None:
+        surface = await service.update_surface(surface_id, payload)
+    else:
+        surface = await service.update_surface(surface_id, payload, expected_updated_at=expected_updated_at)
     return {"success": True, "data": surface_payload(surface)}
 
 

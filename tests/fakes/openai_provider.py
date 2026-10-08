@@ -9,8 +9,10 @@ from uuid import uuid4
 
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import StreamingResponse
+from tests.fakes.mcp_provider import app as mcp_peer
 
 app = FastAPI(title="Woobe deterministic fake provider", version="1.0")
+app.mount("/mcp-peer", mcp_peer)
 
 _DEFAULT_TOKENS = ("Woo", "be", " release", " gate", " passed")
 
@@ -31,6 +33,38 @@ def _completion(payload: dict[str, Any], *, scenario: str) -> dict[str, Any]:
         "content": "".join(_DEFAULT_TOKENS),
     }
     finish_reason = "stop"
+    if payload.get("response_format"):
+        message["content"] = json.dumps({"answer": "Woobe portable composition passed"})
+    observed_tool = any(
+        item.get("role") == "tool" or "portable-tenant" in str(item.get("content", ""))
+        for item in payload.get("messages", [])
+    )
+    if (
+        scenario in {"portable-tool", "portable-http"}
+        and payload.get("tools")
+        and payload.get("tool_choice") != "none"
+        and not observed_tool
+    ):
+        available = [
+            tool["function"]["name"]
+            for tool in payload["tools"]
+            if "lookup" in tool["function"]["name"].lower()
+        ]
+        if scenario == "portable-http":
+            available = [name for name in available if "guarded" in name]
+        if available:
+            message = {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {
+                        "id": "call_portable_" + uuid4().hex,
+                        "type": "function",
+                        "function": {"name": available[0], "arguments": "{}"},
+                    }
+                ],
+            }
+            finish_reason = "tool_calls"
     if scenario == "tool":
         message = {
             "role": "assistant",
@@ -88,7 +122,9 @@ async def _stream(
             "object": "chat.completion.chunk",
             "created": created,
             "model": model,
-            "choices": [{"index": 0, "delta": {"role": "assistant"}, "finish_reason": None}],
+            "choices": [
+                {"index": 0, "delta": {"role": "assistant"}, "finish_reason": None}
+            ],
         }
     )
 
@@ -110,7 +146,7 @@ async def _stream(
                                     "type": "function",
                                     "function": {
                                         "name": "release_gate",
-                                        "arguments": "{\"project_id\":\"project-a\"}",
+                                        "arguments": '{"project_id":"project-a"}',
                                     },
                                 }
                             ]
@@ -121,6 +157,28 @@ async def _stream(
             }
         )
         finish_reason = "tool_calls"
+    elif scenario in {"portable-tool", "portable-http"}:
+        choice = _completion(payload, scenario=scenario)["choices"][0]
+        message = choice["message"]
+        if message.get("tool_calls"):
+            delta = {
+                "tool_calls": [
+                    {"index": index, **call}
+                    for index, call in enumerate(message["tool_calls"])
+                ]
+            }
+        else:
+            delta = {"content": message["content"]}
+        yield _sse(
+            {
+                "id": completion_id,
+                "object": "chat.completion.chunk",
+                "created": created,
+                "model": model,
+                "choices": [{"index": 0, "delta": delta, "finish_reason": None}],
+            }
+        )
+        finish_reason = choice["finish_reason"]
     else:
         token_count = 100 if scenario == "cancel" else len(_DEFAULT_TOKENS)
         for index in range(token_count):
@@ -189,3 +247,63 @@ async def chat_completions(
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
     return _completion(payload, scenario=scenario)
+
+
+@app.post("/v1/embeddings")
+async def embeddings(request: Request) -> dict[str, Any]:
+    """Deterministic local vectors for real ingestion/build/runtime tests."""
+    import hashlib
+    import math
+
+    payload = await request.json()
+    values = payload.get("input")
+    values = [values] if isinstance(values, str) else values
+    dimensions = payload.get("dimensions", 1536)
+
+    def valid_input(value):
+        if isinstance(value, str):
+            return len(value.encode("utf-8")) <= 1 << 20
+        return (
+            isinstance(value, list)
+            and 1 <= len(value) <= 65536
+            and all(type(token) is int and 0 <= token <= 2**32 - 1 for token in value)
+        )
+
+    if (
+        not isinstance(values, list)
+        or not 1 <= len(values) <= 256
+        or any(not valid_input(value) for value in values)
+        or type(dimensions) is not int
+        or not 1 <= dimensions <= 4096
+    ):
+        raise HTTPException(status_code=422, detail="Invalid embedding input")
+    data = []
+    for index, value in enumerate(values):
+        material = (
+            value.encode("utf-8")
+            if isinstance(value, str)
+            else json.dumps(value, separators=(",", ":")).encode()
+        )
+        digest = hashlib.sha256(material).digest()
+        vector = [
+            (digest[position % len(digest)] - 127.5) / 127.5
+            for position in range(dimensions)
+        ]
+        norm = math.sqrt(sum(item * item for item in vector)) or 1.0
+        data.append(
+            {
+                "object": "embedding",
+                "index": index,
+                "embedding": [item / norm for item in vector],
+            }
+        )
+    tokens = sum(
+        max(1, len(value.split()) if isinstance(value, str) else len(value))
+        for value in values
+    )
+    return {
+        "object": "list",
+        "model": payload.get("model", "fake-embedding"),
+        "data": data,
+        "usage": {"prompt_tokens": tokens, "total_tokens": tokens},
+    }

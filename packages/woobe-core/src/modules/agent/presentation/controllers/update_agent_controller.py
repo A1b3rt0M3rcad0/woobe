@@ -33,5 +33,6 @@ class UpdateAgentController(Controller):
         return OperationResult(
             outcome=OperationOutcome.SUCCESS,
             body={"success": True, "message": "ok", "data": _agent_payload(result)},
+            metadata={"ETag": f'"{getattr(result, "revision", 1)}"'},
         )
 

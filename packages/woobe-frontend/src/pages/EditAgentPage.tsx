@@ -36,7 +36,8 @@ export default function EditAgentPage() {
   const { workspaceId, projectId, agentId } = useParams<{ workspaceId?: string; projectId: string; agentId: string }>()
   const navigate = useNavigate()
   const { data: agent, isLoading, isError, error } = useAgent(agentId)
-  const updateAgent = useUpdateAgent(agentId)
+  const [baseRevision, setBaseRevision] = useState<number | undefined>()
+  const updateAgent = useUpdateAgent(agentId, baseRevision)
   const { data: credentials = [], refetch: refetchCredentials } = useCredentials(projectId)
   const [showAddCredential, setShowAddCredential] = useState(false)
   const [selectedCredential, setSelectedCredential] = useState<ProviderCredential | null>(null)
@@ -46,12 +47,15 @@ export default function EditAgentPage() {
   const p = (projId: string, ...segments: string[]) => workspaceProjectPath(workspaceId, projId, ...segments)
   const form = useForm<CreateAgentFormData>({ resolver: zodResolver(createAgentSchema) })
 
+  useEffect(() => { setFormReady(false); setBaseRevision(undefined) }, [agentId])
+
   useEffect(() => {
     if (!agent || !credentials.length || formReady) return
     const cred = credentials.find(c => c.id === agent.provider_credential_id) || null
     setSelectedCredential(cred)
     form.reset({ name: agent.name, description: agent.description || '', provider: agent.provider, model: agent.model, temperature: agent.temperature ?? 0.7, max_output_tokens: agent.max_output_tokens ?? 2048, provider_credential_id: agent.provider_credential_id || '', session_mode: (agent.session_mode === 'stateless' ? 'stateless' : 'stateful') as 'stateful' | 'stateless', status: agent.status === 'active' ? 'active' : 'inactive' })
     setBehavior(behaviorFromSpec(agent.behavior_spec, agent.system_prompt))
+    setBaseRevision(agent.revision)
     setFormReady(true)
   }, [agent, credentials, form, formReady])
 
@@ -87,7 +91,8 @@ export default function EditAgentPage() {
     try {
       const payload: Record<string, unknown> = { name: data.name, provider: selectedCredential.provider, model: isCustom ? getCredentialModel(selectedCredential) : data.model, behavior_spec: behaviorToSpec(behavior), description: data.description || '', temperature: data.temperature, max_output_tokens: data.max_output_tokens, provider_credential_id: selectedCredential.id, session_mode: data.session_mode || 'stateful', status: data.status }
       if (isCustom) { const baseUrl = getCredentialBaseUrl(selectedCredential); if (baseUrl) payload.settings = { base_url: baseUrl } }
-      await updateAgent.mutateAsync(payload as any)
+      const saved = await updateAgent.mutateAsync(payload as any)
+      setBaseRevision(saved.revision)
       toast.success('Agent updated')
     } catch (err) { toast.error(err instanceof Error ? err.message : 'Failed to update agent') }
   }

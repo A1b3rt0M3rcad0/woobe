@@ -18,7 +18,7 @@ from modules.agent.application.interfaces.provider_model_repository import (
     ProviderModelRepository,
 )
 from modules.agent.application.interfaces.repositories import ProviderCredentialRepository
-from modules.agent.domain.entities import ProviderModel
+from modules.agent.domain.entities import ProviderCredential, ProviderModel
 from modules.agent.domain.enums import CredentialStatus, ProviderModelStatus
 from modules.agent.domain.model_spec import (
     ModelCapability,
@@ -151,6 +151,7 @@ def _apply_model_spec_overrides(
 
     return replace(
         spec,
+        metadata={**spec.metadata, **({"base_url": metadata["base_url"]} if metadata.get("base_url") else {})},
         capabilities=capabilities,
         limits=limits,
         pricing=pricing,
@@ -224,10 +225,21 @@ class CreateProviderModelUseCase:
         self._credential_repo = credential_repo
 
     async def execute(self, input_dto: CreateProviderModelInput) -> ProviderModelOutput:
+        item, credential = await self.prepare(input_dto)
+        saved = await self._provider_model_repo.save(item)
+        return _provider_model_to_output(saved, credential.provider)
+
+    async def prepare(self, input_dto: CreateProviderModelInput) -> tuple[ProviderModel, ProviderCredential]:
+        """Validate a model definition without saving or invoking a provider."""
         credential = await self._load_active_credential(
             input_dto.provider_credential_id,
             input_dto.project_id,
         )
+        return self.prepare_definition(input_dto, credential), credential
+
+    @staticmethod
+    def prepare_definition(input_dto: CreateProviderModelInput, credential: ProviderCredential) -> ProviderModel:
+        """Canonical definition preparation shared by create and protected-binding previews."""
         normalized_name = input_dto.name.strip()
         normalized_model = input_dto.model.strip()
         if not normalized_name:
@@ -266,8 +278,7 @@ class CreateProviderModelUseCase:
             spec = _apply_model_spec_overrides(spec, metadata)
         _apply_normalized_spec(item, spec)
 
-        saved = await self._provider_model_repo.save(item)
-        return _provider_model_to_output(saved, credential.provider)
+        return item
 
     async def _load_active_credential(self, credential_id: UUID, project_id: UUID):
         credential = await self._credential_repo.get_by_id(credential_id)

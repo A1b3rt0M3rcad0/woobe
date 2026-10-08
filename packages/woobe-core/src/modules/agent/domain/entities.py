@@ -67,6 +67,7 @@ class ProviderModel:
 
 @dataclass
 class Agent:
+    revision: int = 1
     id: UUID = field(default_factory=uuid6.uuid7)
     project_id: UUID = field(default_factory=uuid6.uuid7)
     provider_model_id: UUID | None = None

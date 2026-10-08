@@ -2,6 +2,7 @@ from collections.abc import Awaitable, Callable
 from typing import Generic, TypeVar
 
 from shared.contracts.unit_of_work import UnitOfWork
+from shared.contracts.transaction_receipt import TransactionReceipt
 
 
 RequestT = TypeVar("RequestT")
@@ -15,9 +16,30 @@ class TransactionalHandler(Generic[RequestT, ResponseT]):
         self,
         uow: UnitOfWork,
         handler: Handler[RequestT, ResponseT],
+        *, guarded: bool = True,
     ) -> None:
         self._uow = uow
         self._handler = handler
+        self._guarded = guarded
+
+    def with_receipt(
+        self, receipt: TransactionReceipt[RequestT, ResponseT]
+    ) -> "TransactionalHandler[RequestT, ResponseT]":
+        async def recorded(request: RequestT) -> ResponseT:
+            replay = await receipt.lookup(self._uow, request)
+            if replay is not None:
+                return replay
+            result = await self._invoke(request)
+            await receipt.save(self._uow, request, result)
+            return result
+
+        return TransactionalHandler(self._uow, recorded, guarded=False)
+
+    async def _invoke(self, request: RequestT) -> ResponseT:
+        guard = getattr(self._uow, "validate_revision", None)
+        if self._guarded and guard is not None:
+            await guard(request)
+        return await self._handler(request)
 
     async def __call__(self, request: RequestT) -> ResponseT:
         async with self._uow:
@@ -101,7 +123,7 @@ class TransactionalHandler(Generic[RequestT, ResponseT]):
                     result = OperationResult.model_validate(replay["result"])
                     result.metadata["Idempotency-Replayed"] = "true"
                     return result
-                result = await self._handler(request)
+                result = await self._invoke(request)
                 if isinstance(result, OperationResult) and result.outcome.value in {
                     "success",
                     "created",
@@ -111,4 +133,4 @@ class TransactionalHandler(Generic[RequestT, ResponseT]):
                 elif ledger.record is not None:
                     await session.delete(ledger.record)
                 return result
-            return await self._handler(request)
+            return await self._invoke(request)

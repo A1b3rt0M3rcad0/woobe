@@ -37,6 +37,11 @@ class HttpAuthConfig(BaseModel):
     credentials: list[str] | None = None
 
 
+class ToolPermissionConfig(BaseModel):
+    mode: Literal["allow", "deny", "review"]
+    risk_level: RiskLevel | None = None
+
+
 class HttpRouteConfig(BaseModel):
     id: str = Field(..., min_length=1)
     operation_id: str | None = None
@@ -60,6 +65,7 @@ class HttpRouteConfig(BaseModel):
 
 
 class HttpToolConfig(BaseModel):
+    permission: ToolPermissionConfig | None = None
     protocol: Literal["http"] | None = None
     mode: Literal["single", "group"] = "single"
     schema_version: int | None = None
@@ -106,6 +112,7 @@ class McpDiscoveredToolConfig(BaseModel):
 
 
 class McpToolConfig(BaseModel):
+    permission: ToolPermissionConfig | None = None
     protocol: Literal["mcp"] | None = None
     mode: Literal["tool", "server"] = "tool"
     exposure: Literal["single", "all_discovered"] = "single"

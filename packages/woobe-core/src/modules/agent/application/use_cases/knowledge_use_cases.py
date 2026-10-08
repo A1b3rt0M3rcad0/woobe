@@ -258,9 +258,13 @@ class UploadDocumentUseCase:
         self,
         input_dto: UploadDocumentInput,
     ) -> UploadDocumentOutput:
-        await self.collection_repo.get_by_id(input_dto.collection_id)
+        collection = await self.collection_repo.get_by_id(input_dto.collection_id)
+        if collection is None or collection.project_id != input_dto.project_id:
+            raise NotFoundError("Document collection not found")
         document = await self.doc_repo.create(
             Document(
+                id=input_dto.document_id or uuid4(),
+                sha256=input_dto.sha256,
                 project_id=input_dto.project_id,
                 collection_id=input_dto.collection_id,
                 title=input_dto.title,
@@ -285,7 +289,78 @@ class UploadDocumentUseCase:
         return _document_to_upload_output(document)
 
 
-class UploadDocumentFileUseCase:
+class DocumentUploadPolicy:
+    def __init__(self, settings: UploadSettings):
+        self._settings = settings
+
+    def prepare(self, *, file_name, content_type, content):
+        name = self._validate_file_name(file_name)
+        extension = Path(name).suffix.lower()
+        parser = self._validate_extension(extension)
+        media = self._resolve_content_type(name, content_type, extension)
+        self._validate_content(content, extension)
+        return name, media, parser
+
+    def _validate_file_name(self, file_name: str | None) -> str:
+        if not file_name or not file_name.strip():
+            raise ValidationError("File name is required")
+        name = Path(file_name.replace("\\", "/")).name.strip()
+        if not name:
+            raise ValidationError("File name is invalid")
+        return name
+
+    def _allowed_extensions(self) -> set[str]:
+        return {
+            item.strip().lower()
+            for item in self._settings.upload_allowed_extensions.split(",")
+            if item.strip()
+        }
+
+    def _validate_extension(self, extension: str) -> ParserType:
+        if extension not in self._allowed_extensions():
+            raise ValidationError("Only .txt, .md and .pdf uploads are supported")
+        parser = _EXTENSION_TO_PARSER.get(extension)
+        if parser is None:
+            raise ValidationError(f"Unsupported document extension: {extension}")
+        return parser
+
+    def _resolve_content_type(
+        self,
+        file_name: str,
+        content_type: str | None,
+        extension: str,
+    ) -> str:
+        guessed = mimetypes.guess_type(file_name)[0]
+        normalized = (
+            content_type or guessed or "application/octet-stream"
+        ).split(";", 1)[0].strip().lower()
+        if normalized not in _CONTENT_TYPES_BY_EXTENSION.get(extension, set()):
+            raise ValidationError(
+                f"Invalid content type for {extension}: {normalized or 'unknown'}"
+            )
+        if normalized == "application/octet-stream" and guessed:
+            return guessed
+        return normalized
+
+    def _validate_content(self, content: bytes, extension: str) -> None:
+        if not content:
+            raise ValidationError("Uploaded file is empty")
+        if len(content) > self._settings.upload_max_mb * 1024 * 1024:
+            raise ValidationError(
+                f"Uploaded file exceeds {self._settings.upload_max_mb} MB"
+            )
+        if extension == ".pdf" and not content.startswith(b"%PDF"):
+            raise ValidationError("Uploaded file is not a valid PDF")
+        if extension in {".txt", ".md"}:
+            try:
+                content.decode("utf-8")
+            except UnicodeDecodeError as exc:
+                raise ValidationError(
+                    "Text and Markdown uploads must be valid UTF-8"
+                ) from exc
+
+
+class UploadDocumentFileUseCase(DocumentUploadPolicy):
     def __init__(
         self,
         doc_repo: DocumentRepository,
@@ -370,63 +445,6 @@ class UploadDocumentFileUseCase:
             raise
         return _document_to_upload_output(saved)
 
-    def _validate_file_name(self, file_name: str | None) -> str:
-        if not file_name or not file_name.strip():
-            raise ValidationError("File name is required")
-        name = Path(file_name.replace("\\", "/")).name.strip()
-        if not name:
-            raise ValidationError("File name is invalid")
-        return name
-
-    def _allowed_extensions(self) -> set[str]:
-        return {
-            item.strip().lower()
-            for item in self._settings.upload_allowed_extensions.split(",")
-            if item.strip()
-        }
-
-    def _validate_extension(self, extension: str) -> ParserType:
-        if extension not in self._allowed_extensions():
-            raise ValidationError("Only .txt, .md and .pdf uploads are supported")
-        parser = _EXTENSION_TO_PARSER.get(extension)
-        if parser is None:
-            raise ValidationError(f"Unsupported document extension: {extension}")
-        return parser
-
-    def _resolve_content_type(
-        self,
-        file_name: str,
-        content_type: str | None,
-        extension: str,
-    ) -> str:
-        guessed = mimetypes.guess_type(file_name)[0]
-        normalized = (
-            content_type or guessed or "application/octet-stream"
-        ).split(";", 1)[0].strip().lower()
-        if normalized not in _CONTENT_TYPES_BY_EXTENSION.get(extension, set()):
-            raise ValidationError(
-                f"Invalid content type for {extension}: {normalized or 'unknown'}"
-            )
-        if normalized == "application/octet-stream" and guessed:
-            return guessed
-        return normalized
-
-    def _validate_content(self, content: bytes, extension: str) -> None:
-        if not content:
-            raise ValidationError("Uploaded file is empty")
-        if len(content) > self._settings.upload_max_mb * 1024 * 1024:
-            raise ValidationError(
-                f"Uploaded file exceeds {self._settings.upload_max_mb} MB"
-            )
-        if extension == ".pdf" and not content.startswith(b"%PDF"):
-            raise ValidationError("Uploaded file is not a valid PDF")
-        if extension in {".txt", ".md"}:
-            try:
-                content.decode("utf-8")
-            except UnicodeDecodeError as exc:
-                raise ValidationError(
-                    "Text and Markdown uploads must be valid UTF-8"
-                ) from exc
 
 
 class DeleteDocumentUseCase:

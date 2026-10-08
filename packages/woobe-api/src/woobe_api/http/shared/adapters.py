@@ -70,6 +70,8 @@ async def request_adapter(
             idempotency_key=fastapi_request.headers["idempotency-key"],
             operation_name=operation_name,
         )
+    if "agent_id" in fastapi_request.path_params and fastapi_request.method in {"POST", "PATCH", "PUT", "DELETE"} and fastapi_request.headers.get("if-match"):
+        operation_metadata["expected_agent_revision"] = fastapi_request.headers["if-match"]
     operation_request = OperationRequest(
         principal=principal,
         body=body,

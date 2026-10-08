@@ -72,6 +72,7 @@ export interface ExecutionStrategyDescriptor {
 }
 
 export interface Agent {
+  revision?: number
   id: string
   project_id: string
   name: string
@@ -270,6 +271,7 @@ export type ReleaseStatus = 'draft' | 'staging' | 'released' | 'production' | 'a
 export type ReleaseSnapshotKind = 'draft' | 'staging' | 'release'
 
 export interface AgentRelease {
+  agent_revision?: number
   id: string
   project_id: string
   agent_id: string
@@ -326,6 +328,7 @@ export interface AgentReleaseActivation {
 }
 
 export interface CreateReleaseRequest {
+  expected_revision?: number
   project_id: string
   agent_id: string
   version: string

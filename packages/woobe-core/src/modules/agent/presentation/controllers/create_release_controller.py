@@ -9,6 +9,7 @@ from shared.presentation.contracts import OperationResult
 
 def _release_payload(release):
     data = release_to_response(release).model_dump()
+    data["agent_revision"] = getattr(release, "agent_revision", None)
     data["provider_model_id"] = getattr(release, "provider_model_id", None)
     data["fallback_provider_model_id"] = getattr(release, "fallback_provider_model_id", None)
     return data

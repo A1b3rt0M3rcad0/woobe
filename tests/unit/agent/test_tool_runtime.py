@@ -68,6 +68,15 @@ class FakeExecutor(ToolExecutionPort):
         )
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize("runtime_type", [HttpToolRuntime, McpToolRuntime])
+async def test_parent_permission_prevents_every_remote_call(runtime_type):
+    executor = FakeExecutor()
+    result = await runtime_type(executor).execute(FakeTool(config={"permission": {"mode": "deny"}}))
+    assert result.success is False
+    assert not executor.calls
+
+
 class MemoryMcpSessionStore(McpSessionStorePort):
     def __init__(self) -> None:
         self.values: dict[str, str] = {}

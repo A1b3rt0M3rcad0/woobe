@@ -19,7 +19,7 @@ from uuid import UUID, uuid4
 import httpx
 import pytest
 import pytest_asyncio
-from sqlalchemy import delete
+from sqlalchemy import delete, text
 
 from modules.core.infra.database.control_key_models import WorkspaceControlKeyModel
 from modules.identity.infra.database.models import WorkspaceModel
@@ -32,19 +32,24 @@ from shared.security.control_plane import (
     WORKSPACE_CONTROL_PERMISSIONS,
 )
 
-CLI_COMMIT = "8c90273e9e1bf1871a3fc85f67e5fbfa6f7494c7"
+CLI_COMMIT = os.environ.get(
+    "WOOBE_TEST_CLI_SHA", "a49cc4db8a85ab550f9d0802d67bbbba28c57354"
+)
 
 
 @pytest.mark.asyncio
 async def test_cli_full_registry_matches_the_live_server_schema(cli):
     contract = json.loads(
-        (Path(__file__).parents[2] / "unit/api/fixtures/woobe_cli_operations.json").read_text()
+        (
+            Path(__file__).parents[2] / "unit/api/fixtures/woobe_cli_operations.json"
+        ).read_text()
     )
     assert contract["cli_commit"] == CLI_COMMIT
     discovery = await cli.run("help")
     actual = [
         {key: item[key] for key in ("command", "method", "path", "body_required")}
-        for item in discovery["data"] if item.get("method") and item.get("path")
+        for item in discovery["data"]
+        if item.get("method") and item.get("path")
     ]
     assert actual == contract["operations"]
     for operation in actual:
@@ -52,10 +57,15 @@ async def test_cli_full_registry_matches_the_live_server_schema(cli):
         definition = result["data"]["definition"]
         assert definition, operation["command"]
         if operation["body_required"]:
-            assert definition["requestBody"]["content"]["application/json"]["schema"], operation["command"]
+            assert definition["requestBody"]["content"]["application/json"]["schema"], (
+                operation["command"]
+            )
             validation = await cli.run(
-                "validate-input", "--command", operation["command"],
-                body={}, expected=(0, 2),
+                "validate-input",
+                "--command",
+                operation["command"],
+                body={},
+                expected=(0, 2),
             )
             # Missing required fields may fail validation. Unsupported schemas,
             # transport errors and accidental mutation never count as compatibility.
@@ -73,7 +83,16 @@ class Cli:
         self.evidence = []
         self.openapi_sha256 = None
 
-    async def run(self, *arguments, body=None, key=None, runtime_key=None, expected=0):
+    async def run(
+        self,
+        *arguments,
+        body=None,
+        key=None,
+        runtime_key=None,
+        expected=0,
+        stdin_bytes=None,
+        cwd=None,
+    ):
         args = [
             self.binary,
             "--config",
@@ -99,6 +118,7 @@ class Cli:
         process = await asyncio.create_subprocess_exec(
             *args,
             env=env,
+            cwd=cwd,
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
@@ -106,7 +126,11 @@ class Cli:
         try:
             stdout, stderr = await asyncio.wait_for(
                 process.communicate(
-                    json.dumps(body).encode() if body is not None else None
+                    stdin_bytes
+                    if stdin_bytes is not None
+                    else json.dumps(body).encode()
+                    if body is not None
+                    else None
                 ),
                 100,
             )
@@ -130,7 +154,7 @@ class Cli:
         )
         accepted = expected if isinstance(expected, tuple) else (expected,)
         assert process.returncode in accepted, (
-            f"CLI command failed: exit={process.returncode}, status={error.get('http_status')}, message={error.get('message')}"
+            f"CLI command failed: exit={process.returncode}, status={error.get('http_status')}, message={error.get('message')}, domain={error.get('domain_code')}, diagnostics={error.get('diagnostics')}"
         )
         return payload
 
@@ -169,6 +193,9 @@ async def cli(tmp_path):
     root_id = uuid4()
     expiration = datetime.now(UTC) + timedelta(hours=3)
     async with factory() as session:
+        database_revision = await session.scalar(
+            text("SELECT version_num FROM alembic_version")
+        )
         session.add(
             WorkspaceModel(
                 id=workspace_id, name="CLI E2E", slug=str(workspace_id), status="active"
@@ -226,7 +253,9 @@ async def cli(tmp_path):
                 try:
                     schema = await client.get(f"{origin}/openapi.json")
                     if schema.status_code == 200:
-                        harness.openapi_sha256 = hashlib.sha256(schema.content).hexdigest()
+                        harness.openapi_sha256 = hashlib.sha256(
+                            schema.content
+                        ).hexdigest()
                         break
                 except httpx.TransportError:
                     pass
@@ -256,10 +285,11 @@ async def cli(tmp_path):
                     {
                         "cli_commit": CLI_COMMIT,
                         "server_commit": os.environ.get("WOOBE_TEST_SERVER_SHA"),
-                        "database_revision": "0077",
+                        "database_revision": database_revision,
                         "openapi_sha256": harness.openapi_sha256,
                         "requests": harness.evidence,
-                    }, indent=2
+                    },
+                    indent=2,
                 )
             )
         # PostgreSQL is disposable in Compose. Retain failed resources for diagnosis;
@@ -277,24 +307,41 @@ async def cli(tmp_path):
 @pytest.mark.asyncio
 async def test_cli_project_configuration_keys_and_knowledge_lifecycle(cli):
     project = await cli.data(
-        "project", "create", "--validate-body",
-        body={"workspace_id": cli.workspace_id, "name": "CLI configuration", "slug": str(uuid4())},
+        "project",
+        "create",
+        "--validate-body",
+        body={
+            "workspace_id": cli.workspace_id,
+            "name": "CLI configuration",
+            "slug": str(uuid4()),
+        },
     )
     cli.project_id = project["id"]
     await cli.data(
-        "project", "update", cli.project_id,
-        "--validate-body", "--validate-parameters", body={"name": "Updated configuration"},
+        "project",
+        "update",
+        cli.project_id,
+        "--validate-body",
+        "--validate-parameters",
+        body={"name": "Updated configuration"},
     )
     observed = await cli.data("project", "get", cli.project_id)
     assert observed["name"] == "Updated configuration"
     assert observed["id"] == project["id"]
-    assert datetime.fromisoformat(observed["created_at"]) == datetime.fromisoformat(project["created_at"])
+    assert datetime.fromisoformat(observed["created_at"]) == datetime.fromisoformat(
+        project["created_at"]
+    )
     await cli.data("project", "update", cli.project_id, body={"name": "Second edit"})
     assert (await cli.data("project", "get", cli.project_id))["name"] == "Second edit"
 
     environment_key = await cli.data(
-        "project", "env", "set", "--key", "CLI_VALUE",
-        "--validate-body", "--validate-parameters",
+        "project",
+        "env",
+        "set",
+        "--key",
+        "CLI_VALUE",
+        "--validate-body",
+        "--validate-parameters",
         body={"kind": "value", "values": {"staging": "stage", "production": "prod"}},
     )
     keys = await cli.data("project", "env", "list")
@@ -306,32 +353,68 @@ async def test_cli_project_configuration_keys_and_knowledge_lifecycle(cli):
         assert value["values"][environment]["configured"] is True
         assert value["values"][environment]["value"] == "[REDACTED]"
     await cli.data(
-        "project", "env", "set", "--key", "CLI_VALUE", "--validate-body",
+        "project",
+        "env",
+        "set",
+        "--key",
+        "CLI_VALUE",
+        "--validate-body",
         body={"clear_environments": ["staging"]},
     )
     keys = await cli.data("project", "env", "list")
-    assert next(item for item in keys if item["id"] == environment_key["id"])["values"]["staging"]["configured"] is False
+    assert (
+        next(item for item in keys if item["id"] == environment_key["id"])["values"][
+            "staging"
+        ]["configured"]
+        is False
+    )
     await cli.run("project", "env", "unset", "--key", "CLI_VALUE")
     assert await cli.data("project", "env", "list") == []
 
     expiry = (datetime.now(UTC) + timedelta(hours=1)).isoformat()
     issued, _ = await cli.issue(
-        "project", "api-key", "create", "--validate-body", "--validate-parameters",
-        body={"name": "CLI legacy key", "scopes": ["runtime:execute"], "expires_at": expiry},
+        "project",
+        "api-key",
+        "create",
+        "--validate-body",
+        "--validate-parameters",
+        body={
+            "name": "CLI legacy key",
+            "scopes": ["runtime:execute"],
+            "expires_at": expiry,
+        },
     )
     await cli.data(
-        "project", "api-key", "update", issued["id"],
-        "--validate-body", "--validate-parameters", body={"name": "Updated key"},
+        "project",
+        "api-key",
+        "update",
+        issued["id"],
+        "--validate-body",
+        "--validate-parameters",
+        body={"name": "Updated key"},
     )
     rotated, _ = await cli.issue(
-        "project", "api-key", "rotate", issued["id"],
-        "--validate-parameters", body=None,
+        "project",
+        "api-key",
+        "rotate",
+        issued["id"],
+        "--validate-parameters",
+        body=None,
     )
     assert rotated["rotated_from_id"] == issued["id"]
     assert rotated["name"] == "Updated key"
     replacement, _ = await cli.issue(
-        "project", "api-key", "rotate", rotated["id"], "--validate-body", "--validate-parameters",
-        body={"name": "Replacement key", "scopes": ["runtime:execute"], "expires_at": expiry},
+        "project",
+        "api-key",
+        "rotate",
+        rotated["id"],
+        "--validate-body",
+        "--validate-parameters",
+        body={
+            "name": "Replacement key",
+            "scopes": ["runtime:execute"],
+            "expires_at": expiry,
+        },
     )
     assert replacement["rotated_from_id"] == rotated["id"]
     assert replacement["name"] == "Replacement key"
@@ -340,34 +423,72 @@ async def test_cli_project_configuration_keys_and_knowledge_lifecycle(cli):
     assert all(item["status"] == "revoked" for item in listed)
 
     collection = await cli.data(
-        "project", "knowledge", "collection", "create", "--validate-body",
+        "project",
+        "knowledge",
+        "collection",
+        "create",
+        "--validate-body",
         body={"project_id": cli.project_id, "name": "CLI collection"},
     )
     await cli.data(
-        "project", "knowledge", "collection", "update", collection["id"],
-        "--validate-body", "--validate-parameters", body={"name": "Updated collection"},
+        "project",
+        "knowledge",
+        "collection",
+        "update",
+        collection["id"],
+        "--validate-body",
+        "--validate-parameters",
+        body={"name": "Updated collection"},
     )
     observed = await cli.data(
-        "project", "knowledge", "collection", "get", collection["id"],
+        "project",
+        "knowledge",
+        "collection",
+        "get",
+        collection["id"],
     )
     assert observed["name"] == "Updated collection"
     tool = await cli.data(
-        "project", "tool", "create", "--validate-body",
-        body={"project_id": cli.project_id, "name": "CLI HTTP metadata", "config": {"url": "https://example.com", "method": "GET"}},
+        "project",
+        "tool",
+        "create",
+        "--validate-body",
+        body={
+            "project_id": cli.project_id,
+            "name": "CLI HTTP metadata",
+            "config": {"url": "https://example.com", "method": "GET"},
+        },
     )
     edited_tool = await cli.data(
-        "project", "tool", "update", tool["id"], "--validate-body", "--validate-parameters",
+        "project",
+        "tool",
+        "update",
+        tool["id"],
+        "--validate-body",
+        "--validate-parameters",
         body={"name": "Updated HTTP metadata"},
     )
     assert edited_tool["name"] == "Updated HTTP metadata"
     await cli.data(
-        "project", "tool", "status", tool["id"], "--validate-body", body={"status": "disabled"},
+        "project",
+        "tool",
+        "status",
+        tool["id"],
+        "--validate-body",
+        body={"status": "disabled"},
     )
-    impact = await cli.data("project", "tool", "usage-impact", tool["id"], "--validate-parameters")
+    impact = await cli.data(
+        "project", "tool", "usage-impact", tool["id"], "--validate-parameters"
+    )
     assert impact["in_use"] is False
     assert impact["can_delete"] is True
     await cli.run("project", "tool", "delete", tool["id"], "--validate-parameters")
-    for catalog in ("context-assemblers", "execution-strategies", "knowledge-strategies", "rag-strategies"):
+    for catalog in (
+        "context-assemblers",
+        "execution-strategies",
+        "knowledge-strategies",
+        "rag-strategies",
+    ):
         result = await cli.run("project", "catalog", catalog, "--validate-parameters")
         assert result["success"] is True
 
@@ -381,7 +502,9 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
         "slug": unique,
     }
     invalid_project = await cli.run(
-        "project", "create", "--validate-body",
+        "project",
+        "create",
+        "--validate-body",
         body={**project_body, "workspace_id": "not-a-uuid"},
         expected=2,
     )
@@ -394,8 +517,12 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
     assert validated_project["data"]["validation_direction"] == "request"
     assert validated_project["data"]["executed"] is False
     project = await cli.data(
-        "project", "create", "--validate-body",
-        "--idempotency-key", "project-create", body=project_body
+        "project",
+        "create",
+        "--validate-body",
+        "--idempotency-key",
+        "project-create",
+        body=project_body,
     )
     replay = await cli.data(
         "project", "create", "--idempotency-key", "project-create", body=project_body
@@ -411,34 +538,73 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
     protected_file.write_text(provider_secret)
     protected_file.chmod(0o600)
     credential_plan = {
-        "schema_version": "1", "project_id": cli.project_id,
-        "steps": [{"id": "provider", "command": "project provider-credential create", "body": {
-            "project_id": cli.project_id, "provider": "custom", "name": "Fake provider",
-            "secret": {"$secret_ref": "fake-provider"},
-            "metadata": {"provider_family": "openai", "compatibility": "compatible",
-                         "base_url": os.environ["WOOBE_TEST_FAKE_PROVIDER_URL"],
-                         "model_discovery_strategy": "openai_compatible_models"},
-        }}],
+        "schema_version": "1",
+        "project_id": cli.project_id,
+        "steps": [
+            {
+                "id": "provider",
+                "command": "project provider-credential create",
+                "body": {
+                    "project_id": cli.project_id,
+                    "provider": "custom",
+                    "name": "Fake provider",
+                    "secret": {"$secret_ref": "fake-provider"},
+                    "metadata": {
+                        "provider_family": "openai",
+                        "compatibility": "compatible",
+                        "base_url": os.environ["WOOBE_TEST_FAKE_PROVIDER_URL"],
+                        "model_discovery_strategy": "openai_compatible_models",
+                    },
+                },
+            }
+        ],
     }
     protected_preflight = await cli.run("manifest", "preflight", body=credential_plan)
     assert protected_preflight["data"]["complete"] is False
-    assert protected_preflight["data"]["operations"][0]["body_validation"] == "deferred_protected_credential"
+    assert (
+        protected_preflight["data"]["operations"][0]["body_validation"]
+        == "deferred_protected_credential"
+    )
     provider_checkpoint = cli.directory / "provider.checkpoint.json"
-    applied = await cli.run("manifest", "apply", "--validate-body", "--checkpoint", str(provider_checkpoint), body=credential_plan)
+    applied = await cli.run(
+        "manifest",
+        "apply",
+        "--validate-body",
+        "--checkpoint",
+        str(provider_checkpoint),
+        body=credential_plan,
+    )
     credential = applied["data"]["results"]["provider"]
-    resumed = await cli.run("manifest", "apply", "--validate-body", "--checkpoint", str(provider_checkpoint), body=credential_plan)
+    resumed = await cli.run(
+        "manifest",
+        "apply",
+        "--validate-body",
+        "--checkpoint",
+        str(provider_checkpoint),
+        body=credential_plan,
+    )
     assert resumed["data"]["results"]["provider"]["id"] == credential["id"]
     assert provider_secret not in provider_checkpoint.read_text()
     assert provider_checkpoint.stat().st_mode & 0o777 == 0o600
-    listed_credentials = await cli.data("project", "provider-credential", "list", "--validate-parameters")
+    listed_credentials = await cli.data(
+        "project", "provider-credential", "list", "--validate-parameters"
+    )
     assert [item["id"] for item in listed_credentials] == [credential["id"]]
     protected_file.write_text("rotated-local-fixture")
-    await cli.run("manifest", "apply", "--checkpoint", str(provider_checkpoint), body=credential_plan, expected=6)
+    await cli.run(
+        "manifest",
+        "apply",
+        "--checkpoint",
+        str(provider_checkpoint),
+        body=credential_plan,
+        expected=6,
+    )
     protected_file.write_text(provider_secret)
     model = await cli.data(
         "project",
         "provider-model",
-        "create", "--validate-body",
+        "create",
+        "--validate-body",
         body={
             "project_id": cli.project_id,
             "provider_credential_id": credential["id"],
@@ -461,7 +627,8 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
     agent = await cli.data(
         "project",
         "agent",
-        "create", "--validate-body",
+        "create",
+        "--validate-body",
         "--idempotency-key",
         "agent-create",
         body=agent_body,
@@ -477,7 +644,13 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
     assert agent["id"] == agent_replay["id"]
     agent_id = agent["id"]
     await cli.data(
-        "project", "agent", "update", agent_id, "--validate-body", "--validate-parameters", body={"name": "Configured through CLI"}
+        "project",
+        "agent",
+        "update",
+        agent_id,
+        "--validate-body",
+        "--validate-parameters",
+        body={"name": "Configured through CLI"},
     )
     draft = await cli.data(
         "project",
@@ -506,13 +679,17 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
         ],
     }
     invalid_expiration = await cli.run(
-        "validate-input", "--command", "workspace control-key create",
+        "validate-input",
+        "--command",
+        "workspace control-key create",
         body={**builder_body, "expires_at": "2026-02-29T00:00:00Z"},
         expected=2,
     )
     assert invalid_expiration["error"].get("http_status") is None
     valid_expiration = await cli.run(
-        "validate-input", "--command", "workspace control-key create",
+        "validate-input",
+        "--command",
+        "workspace control-key create",
         body=builder_body,
     )
     assert valid_expiration["data"]["valid"] is True
@@ -529,7 +706,8 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
         "agent",
         "release",
         "promote",
-        "--validate-body", "--validate-parameters",
+        "--validate-body",
+        "--validate-parameters",
         agent_id,
         draft["id"],
         body={"target_status": "staging"},
@@ -540,7 +718,8 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
         "agent",
         "release",
         "promote",
-        "--validate-body", "--validate-parameters",
+        "--validate-body",
+        "--validate-parameters",
         agent_id,
         staging["id"],
         body={"target_status": "production"},
@@ -551,7 +730,8 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
         "project",
         "runtime-key",
         "create",
-        "--validate-body", "--validate-parameters",
+        "--validate-body",
+        "--validate-parameters",
         body={
             "project_id": cli.project_id,
             "name": "Staging runtime",
@@ -575,30 +755,49 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
     )
     assert result["data"]["success"] is True
     second_run = await cli.run(
-        "runtime", "target", "run", "staging-agent", "--target-kind", "agent",
-        body={"input": "Second independent session"}, runtime_key=staging_key,
+        "runtime",
+        "target",
+        "run",
+        "staging-agent",
+        "--target-kind",
+        "agent",
+        body={"input": "Second independent session"},
+        runtime_key=staging_key,
     )
     assert second_run["data"]["success"] is True
     _, session_reader = await cli.issue(
-        "workspace", "control-key", "create",
+        "workspace",
+        "control-key",
+        "create",
         body={
             "name": "Scoped session observer",
             "expires_at": expiry,
             "on_project_create_permissions": [],
-            "project_grants": [{
-                "project_id": cli.project_id,
-                "permissions": ["run:read"],
-                "conditions": {
-                    "environments": ["staging"],
-                    "target_types": ["agent"],
-                    "target_ids": [agent_id],
-                },
-            }],
+            "project_grants": [
+                {
+                    "project_id": cli.project_id,
+                    "permissions": ["run:read"],
+                    "conditions": {
+                        "environments": ["staging"],
+                        "target_types": ["agent"],
+                        "target_ids": [agent_id],
+                    },
+                }
+            ],
         },
     )
     sessions_all = await cli.run(
-        "runtime", "agent", "sessions", agent_id, "--query", "environment=staging",
-        "--limit", "1", "--all", "--validate-parameters", key=session_reader,
+        "runtime",
+        "agent",
+        "sessions",
+        agent_id,
+        "--query",
+        "environment=staging",
+        "--limit",
+        "1",
+        "--all",
+        "--validate-parameters",
+        key=session_reader,
     )
     assert sessions_all["meta"]["complete"] is True
     sessions = [
@@ -611,17 +810,40 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
     assert len({item["id"] for item in sessions}) == len(sessions)
     for query in ([], ["--query", "environment=production"]):
         await cli.run(
-            "runtime", "agent", "sessions", agent_id, *query,
-            "--limit", "1", "--all", key=session_reader, expected=4,
+            "runtime",
+            "agent",
+            "sessions",
+            agent_id,
+            *query,
+            "--limit",
+            "1",
+            "--all",
+            key=session_reader,
+            expected=4,
         )
     await cli.run(
-        "runtime", "agent", "sessions", str(uuid4()),
-        "--query", "environment=staging", "--all", key=session_reader, expected=5,
+        "runtime",
+        "agent",
+        "sessions",
+        str(uuid4()),
+        "--query",
+        "environment=staging",
+        "--all",
+        key=session_reader,
+        expected=5,
     )
     # Publication still enforces the Agent lifecycle DTO/domain validation.
     missing_notes = await cli.run(
-        "project", "agent", "release", "promote", "--validate-body", "--validate-parameters", agent_id, staging["id"],
-        body={"target_status": "production"}, expected=2,
+        "project",
+        "agent",
+        "release",
+        "promote",
+        "--validate-body",
+        "--validate-parameters",
+        agent_id,
+        staging["id"],
+        body={"target_status": "production"},
+        expected=2,
     )
     assert missing_notes["error"]["http_status"] == 422
     production = await cli.data(
@@ -629,37 +851,84 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
         "agent",
         "release",
         "promote",
-        "--validate-body", "--validate-parameters",
+        "--validate-body",
+        "--validate-parameters",
         agent_id,
         staging["id"],
-        body={"target_status": "production", "release_notes": "Validated CLI publication"},
+        body={
+            "target_status": "production",
+            "release_notes": "Validated CLI publication",
+        },
     )
     assert production["id"] != staging["id"]
     second_draft = await cli.data(
-        "project", "agent", "release", "create", agent_id,
-        "--validate-body", "--validate-parameters",
-        body={"project_id": cli.project_id, "agent_id": agent_id, "version": "auto", "system_prompt": "Second version."},
+        "project",
+        "agent",
+        "release",
+        "create",
+        agent_id,
+        "--validate-body",
+        "--validate-parameters",
+        body={
+            "project_id": cli.project_id,
+            "agent_id": agent_id,
+            "version": "auto",
+            "system_prompt": "Second version.",
+        },
     )
     second_stage = await cli.data(
-        "project", "agent", "release", "promote", "--validate-body", "--validate-parameters", agent_id, second_draft["id"],
+        "project",
+        "agent",
+        "release",
+        "promote",
+        "--validate-body",
+        "--validate-parameters",
+        agent_id,
+        second_draft["id"],
         body={"target_status": "staging"},
     )
     second_release = await cli.data(
-        "project", "agent", "release", "promote", "--validate-body", "--validate-parameters", agent_id, second_stage["id"],
+        "project",
+        "agent",
+        "release",
+        "promote",
+        "--validate-body",
+        "--validate-parameters",
+        agent_id,
+        second_stage["id"],
         body={"target_status": "production", "release_notes": "Second CLI publication"},
     )
     assert second_release["id"] != production["id"]
     await cli.run(
-        "project", "agent", "release", "rollback", "--validate-body", "--validate-parameters", agent_id, production["id"],
-        body={"change_description": "Restore first release"}, key=builder_key, expected=4,
+        "project",
+        "agent",
+        "release",
+        "rollback",
+        "--validate-body",
+        "--validate-parameters",
+        agent_id,
+        production["id"],
+        body={"change_description": "Restore first release"},
+        key=builder_key,
+        expected=4,
     )
     restored = await cli.data(
-        "project", "agent", "release", "rollback", "--validate-body", "--validate-parameters", agent_id, production["id"],
+        "project",
+        "agent",
+        "release",
+        "rollback",
+        "--validate-body",
+        "--validate-parameters",
+        agent_id,
+        production["id"],
         body={"change_description": "Restore first release"},
     )
     assert restored["id"] == production["id"]
     activations = await cli.data("project", "agent", "release", "activations", agent_id)
-    assert any(item["action"] == "rollback" and item["release_id"] == production["id"] for item in activations)
+    assert any(
+        item["action"] == "rollback" and item["release_id"] == production["id"]
+        for item in activations
+    )
     await cli.run("request", "POST", "/v1/run", body={"message": "Hello"}, expected=4)
     await cli.run("project", "agent", "list", key=staging_key, expected=4)
     network_body = {"name": "CLI network"}
@@ -753,23 +1022,37 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
         },
     )
     production_preview = await cli.data(
-        "project", "network", "promotion", "preview", network_id,
+        "project",
+        "network",
+        "promotion",
+        "preview",
+        network_id,
         body={"project_id": cli.project_id, "environment": "production"},
     )
     network_release = await cli.data(
-        "project", "network", "promotion", "create", network_id,
+        "project",
+        "network",
+        "promotion",
+        "create",
+        network_id,
         body={
             "project_id": cli.project_id,
             "environment": "production",
             "expected_network_version_id": stage_version["id"],
-            "approved_action_ids": [a["id"] for a in production_preview.get("actions", [])],
+            "approved_action_ids": [
+                a["id"] for a in production_preview.get("actions", [])
+            ],
         },
     )
     assert network_release["kind"] == "release"
     # Activation restores an existing immutable Release; it does not publish Staging.
     definition["settings"]["max_invocations"] = 5
     network = await cli.data(
-        "project", "network", "draft", "update", network_id,
+        "project",
+        "network",
+        "draft",
+        "update",
+        network_id,
         body={
             "project_id": cli.project_id,
             "name": "CLI network second release",
@@ -778,11 +1061,19 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
         },
     )
     second_preview = await cli.data(
-        "project", "network", "promotion", "preview", network_id,
+        "project",
+        "network",
+        "promotion",
+        "preview",
+        network_id,
         body={"project_id": cli.project_id, "environment": "staging"},
     )
     second_network_stage = await cli.data(
-        "project", "network", "promotion", "create", network_id,
+        "project",
+        "network",
+        "promotion",
+        "create",
+        network_id,
         body={
             "project_id": cli.project_id,
             "environment": "staging",
@@ -791,16 +1082,26 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
         },
     )
     second_production_preview = await cli.data(
-        "project", "network", "promotion", "preview", network_id,
+        "project",
+        "network",
+        "promotion",
+        "preview",
+        network_id,
         body={"project_id": cli.project_id, "environment": "production"},
     )
     second_network_release = await cli.data(
-        "project", "network", "promotion", "create", network_id,
+        "project",
+        "network",
+        "promotion",
+        "create",
+        network_id,
         body={
             "project_id": cli.project_id,
             "environment": "production",
             "expected_network_version_id": second_network_stage["id"],
-            "approved_action_ids": [a["id"] for a in second_production_preview.get("actions", [])],
+            "approved_action_ids": [
+                a["id"] for a in second_production_preview.get("actions", [])
+            ],
         },
     )
     assert second_network_release["id"] != network_release["id"]
@@ -823,7 +1124,8 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
         "project",
         "runtime-key",
         "create",
-        "--validate-body", "--validate-parameters",
+        "--validate-body",
+        "--validate-parameters",
         body={
             "project_id": cli.project_id,
             "name": "Production network",
@@ -902,121 +1204,310 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
 @pytest.mark.asyncio
 async def test_cli_categories_pin_authority_and_preflight_matches_requests(cli):
     project = await cli.data(
-        "project", "create",
-        body={"workspace_id": cli.workspace_id, "name": "Authority contract", "slug": str(uuid4())},
+        "project",
+        "create",
+        body={
+            "workspace_id": cli.workspace_id,
+            "name": "Authority contract",
+            "slug": str(uuid4()),
+        },
     )
     cli.project_id = project["id"]
     catalog = await cli.data("permission", "list")
     # Seed remote discovery evidence without making an external MCP network call.
     from modules.agent.infra.database.models import AgentToolModel
+
     tool_id = uuid4()
     tool_engine = create_engine(Settings())
     tool_factory = create_session_factory(tool_engine)
     try:
         async with tool_factory() as session:
-            session.add(AgentToolModel(id=tool_id, project_id=UUID(cli.project_id), name="CLI MCP permissions", type="mcp", config={
-                "protocol": "mcp", "discovered_tools": [
-                    {"name":"search", "permission":{"mode":"review"}},
-                    {"name":"write", "permission":{"mode":"deny"}},
-                ],
-            }))
+            session.add(
+                AgentToolModel(
+                    id=tool_id,
+                    project_id=UUID(cli.project_id),
+                    name="CLI MCP permissions",
+                    type="mcp",
+                    config={
+                        "protocol": "mcp",
+                        "discovered_tools": [
+                            {"name": "search", "permission": {"mode": "review"}},
+                            {"name": "write", "permission": {"mode": "deny"}},
+                        ],
+                    },
+                )
+            )
             await session.commit()
     finally:
         await tool_engine.dispose()
     for mode in ["allow", "deny", "review"]:
-        permissions = await cli.data("project", "tool", "mcp", "set", "--validate-body", body={
-            "tool_id":str(tool_id), "permissions":[{"remote_tool_name":"search","mode":mode}],
-        })
-        assert {item["name"]:item["mode"] for item in permissions["permissions"]} == {"search":mode,"write":"deny"}
-    await cli.run("project", "tool", "mcp", "set", body={"tool_id":str(tool_id),"permissions":[
-        {"remote_tool_name":"search","mode":"allow"},{"remote_tool_name":"missing","mode":"allow"},
-    ]}, expected=2)
+        permissions = await cli.data(
+            "project",
+            "tool",
+            "mcp",
+            "set",
+            "--validate-body",
+            body={
+                "tool_id": str(tool_id),
+                "permissions": [{"remote_tool_name": "search", "mode": mode}],
+            },
+        )
+        assert {item["name"]: item["mode"] for item in permissions["permissions"]} == {
+            "search": mode,
+            "write": "deny",
+        }
+    await cli.run(
+        "project",
+        "tool",
+        "mcp",
+        "set",
+        body={
+            "tool_id": str(tool_id),
+            "permissions": [
+                {"remote_tool_name": "search", "mode": "allow"},
+                {"remote_tool_name": "missing", "mode": "allow"},
+            ],
+        },
+        expected=2,
+    )
     observed = await cli.data("project", "tool", "list", "--validate-parameters")
-    provider = next(item for item in observed if item["id"]==str(tool_id))
-    assert {item["name"]:item["permission"]["mode"] for item in provider["config"]["discovered_tools"]} == {"search":"review","write":"deny"}
+    provider = next(item for item in observed if item["id"] == str(tool_id))
+    assert {
+        item["name"]: item["permission"]["mode"]
+        for item in provider["config"]["discovered_tools"]
+    } == {"search": "review", "write": "deny"}
     for mode in ["allow", "deny", "review"]:
-        bulk = await cli.data("project", "tool", "mcp", "bulk", "--validate-body", body={"tool_id":str(tool_id),"mode":mode})
-        assert all(item["mode"]==mode for item in bulk["permissions"])
+        bulk = await cli.data(
+            "project",
+            "tool",
+            "mcp",
+            "bulk",
+            "--validate-body",
+            body={"tool_id": str(tool_id), "mode": mode},
+        )
+        assert all(item["mode"] == mode for item in bulk["permissions"])
 
-    mcp_permission = {"tool_id": str(uuid4()), "permissions": [{"remote_tool_name": "search", "mode": "review"}]}
-    mcp_preflight = await cli.run("validate-input", "--command", "project tool mcp set", body=mcp_permission)
+    mcp_permission = {
+        "tool_id": str(uuid4()),
+        "permissions": [{"remote_tool_name": "search", "mode": "review"}],
+    }
+    mcp_preflight = await cli.run(
+        "validate-input", "--command", "project tool mcp set", body=mcp_permission
+    )
     assert mcp_preflight["data"]["valid"] is True
     assert mcp_preflight["data"]["executed"] is False
-    invalid_mcp = await cli.run("validate-input", "--command", "project tool mcp set", body={**mcp_permission, "permissions": [{"remote_tool_name": "search", "mode": "allow-everything"}]}, expected=2)
+    invalid_mcp = await cli.run(
+        "validate-input",
+        "--command",
+        "project tool mcp set",
+        body={
+            **mcp_permission,
+            "permissions": [{"remote_tool_name": "search", "mode": "allow-everything"}],
+        },
+        expected=2,
+    )
     assert invalid_mcp["error"].get("http_status") is None
     assert "agent:read" in catalog["permissions"]["project"]
     definition = {
-        "schema_version": "2", "workspace_id": cli.workspace_id,
-        "resources": [{"key": "reader", "kind": "AuthorityCategory", "action": "create",
-                       "spec": {"name": "scoped-reader", "scope": "project", "permissions": ["agent:read"]}}],
+        "schema_version": "2",
+        "workspace_id": cli.workspace_id,
+        "resources": [
+            {
+                "key": "reader",
+                "kind": "AuthorityCategory",
+                "action": "create",
+                "spec": {
+                    "name": "scoped-reader",
+                    "scope": "project",
+                    "permissions": ["agent:read"],
+                },
+            }
+        ],
     }
-    preflight = await cli.run("manifest", "preflight", "--validate-parameters", "--require-complete", body=definition)
+    preflight = await cli.run(
+        "manifest",
+        "preflight",
+        "--validate-parameters",
+        "--require-complete",
+        body=definition,
+    )
     assert preflight["data"]["complete"] is True
     assert preflight["data"]["executed"] is False
     checkpoint = str(cli.directory / "category-create-checkpoint.json")
-    imported = await cli.run("manifest", "apply", "--validate-body", "--validate-parameters", "--checkpoint", checkpoint, body=definition)
+    imported = await cli.run(
+        "manifest",
+        "apply",
+        "--validate-body",
+        "--validate-parameters",
+        "--checkpoint",
+        checkpoint,
+        body=definition,
+    )
     category = imported["data"]["results"]["reader"]
-    resumed = await cli.run("manifest", "apply", "--checkpoint", checkpoint, body=definition)
+    resumed = await cli.run(
+        "manifest", "apply", "--checkpoint", checkpoint, body=definition
+    )
     assert resumed["data"]["results"]["reader"]["id"] == category["id"]
     category_id = category["id"]
     etag = f'"category:{category_id}:{category["revision"]}"'
     _, reader_key = await cli.issue(
-        "workspace", "control-key", "create",
+        "workspace",
+        "control-key",
+        "create",
         body={
             "name": "Pinned reader",
             "expires_at": (datetime.now(UTC) + timedelta(hours=1)).isoformat(),
             "on_project_create_permissions": [],
-            "project_grants": [{"project_id": cli.project_id, "category_id": category_id, "category_revision": 1}],
+            "project_grants": [
+                {
+                    "project_id": cli.project_id,
+                    "category_id": category_id,
+                    "category_revision": 1,
+                }
+            ],
         },
     )
     changed = await cli.data(
-        "workspace", "authority", "category", "update", category_id, "--if-match", etag,
+        "workspace",
+        "authority",
+        "category",
+        "update",
+        category_id,
+        "--if-match",
+        etag,
         body={"permissions": ["agent:read", "agent:write"]},
     )
     assert changed["revision"] == 2
     revision_diff = await cli.run(
-        "workspace", "authority", "category", "diff", category_id, "--from-revision", "1", "--to-revision", "2",
+        "workspace",
+        "authority",
+        "category",
+        "diff",
+        category_id,
+        "--from-revision",
+        "1",
+        "--to-revision",
+        "2",
     )
     assert revision_diff["data"]["grants_changed"] is False
-    assert [item["field"] for item in revision_diff["data"]["changes"]] == ["permissions"]
+    assert [item["field"] for item in revision_diff["data"]["changes"]] == [
+        "permissions"
+    ]
     unchanged_definition = {
-        "schema_version": "2", "workspace_id": cli.workspace_id,
-        "resources": [{"key": "reader", "kind": "AuthorityCategory", "action": "update", "resource_id": category_id,
-                       "if_match": f'"category:{category_id}:2"', "spec": {"permissions": ["agent:write", "agent:read"]}}],
+        "schema_version": "2",
+        "workspace_id": cli.workspace_id,
+        "resources": [
+            {
+                "key": "reader",
+                "kind": "AuthorityCategory",
+                "action": "update",
+                "resource_id": category_id,
+                "if_match": f'"category:{category_id}:2"',
+                "spec": {"permissions": ["agent:write", "agent:read"]},
+            }
+        ],
     }
-    unchanged = await cli.run("manifest", "apply", "--skip-unchanged", "--checkpoint", str(cli.directory / "category-unchanged.json"), body=unchanged_definition)
+    unchanged = await cli.run(
+        "manifest",
+        "apply",
+        "--skip-unchanged",
+        "--checkpoint",
+        str(cli.directory / "category-unchanged.json"),
+        body=unchanged_definition,
+    )
     assert unchanged["data"]["steps"]["reader"] == "unchanged"
     observed = await cli.data("workspace", "authority", "category", "get", category_id)
     assert observed["revision"] == 2
-    capture = await cli.run("manifest", "capture", "--kind", "AuthorityCategory", "--id", category_id, "--field", "name", "--field", "permissions")
+    capture = await cli.run(
+        "manifest",
+        "capture",
+        "--kind",
+        "AuthorityCategory",
+        "--id",
+        category_id,
+        "--field",
+        "name",
+        "--field",
+        "permissions",
+    )
     assert capture["data"]["document"]["workspace_id"] == cli.workspace_id
-    assert capture["data"]["document"]["resources"][0]["if_match"] == f'"category:{category_id}:2"'
+    assert (
+        capture["data"]["document"]["resources"][0]["if_match"]
+        == f'"category:{category_id}:2"'
+    )
     stale = await cli.run(
-        "workspace", "authority", "category", "update", category_id, "--if-match", etag,
-        body={"name": "Rejected stale edit"}, expected=6,
+        "workspace",
+        "authority",
+        "category",
+        "update",
+        category_id,
+        "--if-match",
+        etag,
+        body={"name": "Rejected stale edit"},
+        expected=6,
     )
     assert stale["error"]["http_status"] == 412
     pinned = await cli.data(
-        "workspace", "authority", "category", "get", category_id, "--query", "revision=1",
+        "workspace",
+        "authority",
+        "category",
+        "get",
+        category_id,
+        "--query",
+        "revision=1",
     )
     assert pinned["permissions"] == ["agent:read"]
     authority = await cli.data(
-        "permission", "effective", "--query", f"project_id={cli.project_id}", key=reader_key,
+        "permission",
+        "effective",
+        "--query",
+        f"project_id={cli.project_id}",
+        key=reader_key,
     )
     assert "agent:write" not in authority["permissions"]
     assert authority["origin"]["revision"] == 1
-    for method, path, allowed in [("GET", "/ai/agents", True), ("POST", "/ai/agents", False)]:
+    for method, path, allowed in [
+        ("GET", "/ai/agents", True),
+        ("POST", "/ai/agents", False),
+    ]:
         decision = await cli.data(
-            "permission", "check", key=reader_key,
-            body={"method": method, "path": path, "query": {"project_id": cli.project_id}, "body": {"project_id": cli.project_id}},
+            "permission",
+            "check",
+            key=reader_key,
+            body={
+                "method": method,
+                "path": path,
+                "query": {"project_id": cli.project_id},
+                "body": {"project_id": cli.project_id},
+            },
         )
         assert decision["allowed"] is allowed
         if allowed:
-            await cli.run("request", method, path, "--query", f"project_id={cli.project_id}", key=reader_key)
+            await cli.run(
+                "request",
+                method,
+                path,
+                "--query",
+                f"project_id={cli.project_id}",
+                key=reader_key,
+            )
         else:
-            await cli.run("request", method, path, body={"project_id": cli.project_id}, key=reader_key, expected=4)
+            await cli.run(
+                "request",
+                method,
+                path,
+                body={"project_id": cli.project_id},
+                key=reader_key,
+                expected=4,
+            )
     history_response = await cli.run(
-        "workspace", "authority", "category", "history", category_id, "--limit", "1",
+        "workspace",
+        "authority",
+        "category",
+        "history",
+        category_id,
+        "--limit",
+        "1",
     )
     assert history_response["success"] is True
     assert history_response["meta"]["complete"] is False
@@ -1025,13 +1516,27 @@ async def test_cli_categories_pin_authority_and_preflight_matches_requests(cli):
     assert history["complete"] is False
     assert history["next_revision"] == 2
     page = await cli.data(
-        "workspace", "authority", "category", "history", category_id,
-        "--query", "limit=1", "--query", "before_revision=2",
+        "workspace",
+        "authority",
+        "category",
+        "history",
+        category_id,
+        "--query",
+        "limit=1",
+        "--query",
+        "before_revision=2",
     )
     assert page["complete"] is True
     assert page["items"][0]["permissions"] == ["agent:read"]
     history_all = await cli.run(
-        "workspace", "authority", "category", "history", category_id, "--limit", "1", "--all",
+        "workspace",
+        "authority",
+        "category",
+        "history",
+        category_id,
+        "--limit",
+        "1",
+        "--all",
     )
     assert history_all["meta"]["complete"] is True
     assert history_all["data"]["page_count"] == 2
@@ -1041,25 +1546,52 @@ async def test_cli_categories_pin_authority_and_preflight_matches_requests(cli):
         for item in received["data"]["items"]
     ] == [2, 1]
     history_remaining = await cli.run(
-        "workspace", "authority", "category", "history", category_id,
-        "--limit", "1", "--before-revision", "2", "--all",
+        "workspace",
+        "authority",
+        "category",
+        "history",
+        category_id,
+        "--limit",
+        "1",
+        "--before-revision",
+        "2",
+        "--all",
     )
     assert history_remaining["meta"]["complete"] is False
     assert history_remaining["meta"]["collection_complete"] == "remaining"
     bounded_history = await cli.run(
-        "workspace", "authority", "category", "history", category_id,
-        "--limit", "1", "--all", "--max-pages", "1", expected=10,
+        "workspace",
+        "authority",
+        "category",
+        "history",
+        category_id,
+        "--limit",
+        "1",
+        "--all",
+        "--max-pages",
+        "1",
+        expected=10,
     )
     assert bounded_history["data"]["page_count"] == 1
     assert bounded_history["data"]["next_query"]["before_revision"] == ["2"]
     assert bounded_history["meta"]["complete"] is False
     clone = await cli.data(
-        "workspace", "authority", "category", "clone", category_id,
+        "workspace",
+        "authority",
+        "category",
+        "clone",
+        category_id,
         body={"name": "unused-clone", "revision": 1},
     )
     assert clone["permissions"] == ["agent:read"]
     categories_all = await cli.run(
-        "workspace", "authority", "category", "list", "--limit", "1", "--all",
+        "workspace",
+        "authority",
+        "category",
+        "list",
+        "--limit",
+        "1",
+        "--all",
     )
     assert categories_all["meta"]["complete"] is True
     assert categories_all["data"]["page_count"] == 2
@@ -1075,7 +1607,12 @@ async def test_cli_categories_pin_authority_and_preflight_matches_requests(cli):
         for received in categories_all["data"]["pages"]
     )
     audit_all = await cli.run(
-        "workspace", "authority", "audit", "--limit", "1", "--all",
+        "workspace",
+        "authority",
+        "audit",
+        "--limit",
+        "1",
+        "--all",
     )
     assert audit_all["meta"]["complete"] is True
     audit_items = [
@@ -1086,12 +1623,178 @@ async def test_cli_categories_pin_authority_and_preflight_matches_requests(cli):
     assert len(audit_items) >= 3
     assert len({item["id"] for item in audit_items}) == len(audit_items)
     archived = await cli.data(
-        "workspace", "authority", "category", "archive", clone["id"],
-        "--validate-body", "--validate-parameters",
-        "--if-match", f'"category:{clone["id"]}:1"', body={},
+        "workspace",
+        "authority",
+        "category",
+        "archive",
+        clone["id"],
+        "--validate-body",
+        "--validate-parameters",
+        "--if-match",
+        f'"category:{clone["id"]}:1"',
+        body={},
     )
     assert archived["status"] == "archived"
     await cli.run(
-        "workspace", "authority", "category", "delete", clone["id"],
-        "--if-match", f'"category:{clone["id"]}:{archived["revision"]}"',
+        "workspace",
+        "authority",
+        "category",
+        "delete",
+        clone["id"],
+        "--if-match",
+        f'"category:{clone["id"]}:{archived["revision"]}"',
     )
+
+
+@pytest.mark.asyncio
+async def test_cli_connection_auth_discovers_scope_and_persists_without_environment(
+    cli,
+):
+    project = await cli.run(
+        "project",
+        "create",
+        body={
+            "workspace_id": cli.workspace_id,
+            "name": "Auth project",
+            "slug": "auth-project",
+        },
+    )
+    project_id = project["data"]["data"]["id"]
+    issued, secret = await cli.issue(
+        "workspace",
+        "control-key",
+        "create",
+        body={
+            "name": "Project-only connection",
+            "expires_at": (datetime.now(UTC) + timedelta(hours=1)).isoformat(),
+            "permissions": [],
+            "project_grants": [
+                {"project_id": project_id, "permissions": ["agent:read"]}
+            ],
+        },
+    )
+    known_secrets = [secret]
+    config_path = cli.directory / "connection-auth.json"
+    clean_env = {
+        k: v
+        for k, v in os.environ.items()
+        if not k.startswith("WOOBE_CONTEXT")
+        and k
+        not in {
+            "WOOBE_CONTROL_KEY",
+            "WOOBE_WORKSPACE_ID",
+            "WOOBE_PROJECT_ID",
+            "WOOBE_API_URL",
+            "WOOBE_CREDENTIAL",
+            "WOOBE_RUNTIME_CREDENTIAL",
+        }
+    }
+
+    async def run(*args, stdin=None, expected=0):
+        process = await asyncio.create_subprocess_exec(
+            cli.binary,
+            "--config",
+            str(config_path),
+            *args,
+            env=clean_env,
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        out, err = await asyncio.wait_for(process.communicate(stdin), 30)
+        assert process.returncode == expected, (out.decode(), err.decode())
+        assert all(value.encode() not in out + err for value in known_secrets)
+        return json.loads(out)
+
+    invocation_schema = await run("schema", "--command", "auth login", "--kind", "input")
+    flags_schema = invocation_schema["data"]["properties"]["flags"]
+    assert "file" not in flags_schema["required"]
+    assert len(flags_schema["anyOf"]) == 2
+    await run("context", "create", "connection", "--api-url", cli.origin)
+    await run("context", "use", "connection")
+    login = await run("auth", "login", "--cli-key", "--stdin", stdin=secret.encode())
+    assert login["data"]["project_id"] == project_id
+    saved = json.loads(config_path.read_text())["contexts"]["connection"]
+    assert (
+        saved["workspace_id"] == cli.workspace_id and saved["project_id"] == project_id
+    )
+    assert secret not in config_path.read_text()
+    status = await run("auth", "status")
+    assert status["data"]["identity"]["key_metadata"]["permissions"] == []
+    assert status["data"]["state"] == "authenticated"
+    assert (await run("project", "agent", "list"))["success"] is True
+    await run("auth", "logout", "--cli-key")
+    assert (
+        json.loads(config_path.read_text())["contexts"]["connection"].get("credential")
+        is None
+    )
+    # Local logout must not revoke the server key.
+    async with httpx.AsyncClient(trust_env=False) as client:
+        response = await client.get(
+            f"{cli.origin}/identity/control-key/me",
+            headers={"Authorization": f"Bearer {secret}"},
+        )
+    assert response.status_code == 200
+
+    other = await cli.data(
+        "project",
+        "create",
+        body={
+            "workspace_id": cli.workspace_id,
+            "name": "Other auth project",
+            "slug": "auth-other",
+        },
+    )
+    _, multi_secret = await cli.issue(
+        "workspace",
+        "control-key",
+        "create",
+        body={
+            "name": "Multiple projects",
+            "permissions": [],
+            "expires_at": (datetime.now(UTC) + timedelta(hours=1)).isoformat(),
+            "project_grants": [
+                {"project_id": target, "permissions": ["agent:read"]}
+                for target in [project_id, other["id"]]
+            ],
+        },
+    )
+    known_secrets.append(multi_secret)
+    await run("context", "create", "multi", "--api-url", cli.origin)
+    await run("context", "use", "multi")
+    result = await run(
+        "auth", "login", "--cli-key", "--stdin", stdin=multi_secret.encode()
+    )
+    assert result["data"]["state"] == "project_selection_required"
+    assert result["data"]["project_id"] == ""
+    await run("context", "project", "select", "auth-other")
+    assert (
+        json.loads(config_path.read_text())["contexts"]["multi"]["project_id"]
+        == other["id"]
+    )
+    assert (await run("project", "agent", "list"))["success"] is True
+    before = config_path.read_bytes()
+    await run(
+        "auth", "login", "--cli-key", "--stdin", stdin=b"invalid-cli-key", expected=3
+    )
+    assert config_path.read_bytes() == before
+    _, workspace_secret = await cli.issue(
+        "workspace",
+        "control-key",
+        "create",
+        body={
+            "name": "Workspace only",
+            "permissions": [],
+            "project_grants": [],
+            "expires_at": (datetime.now(UTC) + timedelta(hours=1)).isoformat(),
+        },
+    )
+    known_secrets.append(workspace_secret)
+    result = await run(
+        "auth", "login", "--cli-key", "--stdin", stdin=workspace_secret.encode()
+    )
+    assert (
+        result["data"]["state"] == "authenticated" and result["data"]["projects"] == []
+    )
+    assert "project_id" not in json.loads(config_path.read_text())["contexts"]["multi"]
+    await run("auth", "logout", "--cli-key")

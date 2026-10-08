@@ -157,8 +157,8 @@ class UpdateAgentUseCase:
                 remaining = len(references) - min(len(references), 5)
                 suffix = f" and {remaining} more" if remaining > 0 else ""
                 raise ConflictError(
-                    "Agent is referenced by active Network Drafts: "
-                    f"{names}{suffix}. Remove it from those Networks before deactivating it."
+                    "Agent is referenced by Networks or Chat Surfaces: "
+                    f"{names}{suffix}. Detach dependent references before deactivating it."
                 )
         for field, value in changes.items():
             setattr(existing, field, value)
@@ -188,6 +188,7 @@ class UpdateAgentUseCase:
             model=saved.model,
         ))
         return UpdateAgentOutput(
+            revision=getattr(saved, "revision", 1),
             id=saved.id,
             project_id=saved.project_id,
             name=saved.name,

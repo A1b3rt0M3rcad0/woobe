@@ -11,6 +11,18 @@ from shared.security.control_plane import (
 
 # Explicitly reviewed method/template pairs. Never derive authority from a prefix.
 _REVIEWED = [
+    ("GET", "/projects/{project_id}/packages/registries/{registry_id}", "project:read"),
+    ("POST", "/projects/{project_id}/packages/export", "project:read"),
+    ("GET", "/projects/{project_id}/packages/exports/{export_id}/artifact", "project:read"),
+    ("GET", "/projects/{project_id}/packages/capabilities", "project:read"),
+    ("POST", "/projects/{project_id}/packages/uploads", "project:read"),
+    ("GET", "/projects/{project_id}/packages/uploads/{upload_id}", "project:read"),
+    ("POST", "/projects/{project_id}/packages/plan", "project:read"),
+    ("POST", "/projects/{project_id}/packages/apply", "project:read"),
+    ("GET", "/projects/{project_id}/packages/operations/{operation_id}", "project:read"),
+    ("POST", "/projects/{project_id}/packages/operations/lookup", "project:read"),
+    ("POST", "/projects/{project_id}/packages/operations/{operation_id}/resume", "project:read"),
+    ("POST", "/projects/{project_id}/packages/operations/{operation_id}/cancel", "project:read"),
     (
         "GET",
         "/identity/workspaces/{workspace_id}/authority-categories",
@@ -204,6 +216,7 @@ _REVIEWED = [
     ),
     ("DELETE", "/ai/agents/{agent_id}/releases/{release_id}", "agent:version"),
     ("POST", "/ai/agents/{agent_id}/release-tests", "agent:version"),
+    ("POST", "/ai/agents/{agent_id}/release-tests/run", "agent:version"),
     ("GET", "/ai/agents/{agent_id}/releases/{release_id}/tests", "agent:read"),
     ("GET", "/knowledge/collections", "knowledge:read"),
     ("POST", "/knowledge/collections", "knowledge:write"),
@@ -315,6 +328,7 @@ _REVIEWED = [
     ("GET", "/network/executions/{execution_id}/diagnostics", "run:read"),
     ("GET", "/identity/permissions", "catalog:self"),
     ("GET", "/identity/access/me", "access:self"),
+    ("GET", "/identity/control-key/me", "access:self"),
     ("POST", "/identity/access/check", "access:self"),
     (
         "PUT",

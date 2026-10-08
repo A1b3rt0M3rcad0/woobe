@@ -1,8 +1,8 @@
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from modules.agent.application.dtos.behavior_dtos import BehaviorSpecification
 from modules.agent.domain.enums import (
@@ -136,10 +136,12 @@ class CreateAgentInput(BaseModel):
     temperature: float | None = None
     max_output_tokens: int | None = None
     session_mode: SessionMode = SessionMode.stateless
+    status: AgentStatus = AgentStatus.active
     settings: dict[str, Any] = {}
 
 
 class CreateAgentOutput(BaseModel):
+    revision: int = 1
     id: UUID
     project_id: UUID
     name: str
@@ -173,6 +175,7 @@ class UpdateAgentInput(BaseModel):
 
 
 class UpdateAgentOutput(BaseModel):
+    revision: int = 1
     id: UUID
     project_id: UUID
     name: str
@@ -247,6 +250,7 @@ class CreatePromptOutput(BaseModel):
     version: str
     name: str
     content: str
+    content_hash: str | None = None
     status: PromptStatus
     created_by: UUID | None = None
     created_at: datetime | None = None
@@ -412,6 +416,7 @@ class CreateReleaseInput(BaseModel):
 
 
 class CreateReleaseOutput(BaseModel):
+    agent_revision: int | None = None
     id: UUID
     project_id: UUID
     agent_id: UUID
@@ -478,6 +483,16 @@ class CreateReleaseTestInput(BaseModel):
     release_id: UUID | None = None
     contract_version_id: UUID | None = None
     input_payload: dict[str, Any] | None = None
+    expected_output: dict[str, Any] | None = None
+
+
+class ExecuteReleaseTestInput(BaseModel):
+    project_id: UUID
+    agent_id: UUID
+    release_id: UUID
+    message: str = Field(min_length=1, max_length=32768)
+    environment: Literal["draft", "staging", "release", "production"] = "staging"
+    external_context: dict[str, Any] | None = None
     expected_output: dict[str, Any] | None = None
 
 

@@ -20,6 +20,7 @@ from modules.agent.application.knowledge_strategy_config import (
 )
 from modules.agent.application.system_instruction_assembler import assemble_system_instructions
 from modules.agent.domain.entities import AgentRelease
+from modules.agent.domain.execution_definition import AGENT_SNAPSHOT_FIELDS
 from modules.agent.domain.enums import ReleaseStatus
 from modules.agent.domain.errors import ReleaseNotFoundError
 from modules.agent.domain.external_context_contract import (
@@ -31,18 +32,7 @@ from shared.contracts.errors import ConflictError, ValidationError
 
 
 _SINGLETON_STATUSES = {ReleaseStatus.draft, ReleaseStatus.staging, ReleaseStatus.production}
-_SNAPSHOT_FIELDS = (
-    "project_id", "agent_id", "prompt_version_id", "contract_version_id",
-    "knowledge_version_id", "model_config_version_id", "provider_model_id",
-    "fallback_provider_model_id", "name", "description", "behavior_spec", "system_prompt",
-    "response_format", "output_schema", "external_context_contract", "provider", "model",
-    "provider_credential_id", "model_spec_snapshot", "model_spec_hash",
-    "fallback_model_spec_snapshot", "fallback_model_spec_hash",
-    "fallback_provider", "fallback_model",
-    "fallback_credential_id", "base_url", "temperature", "max_output_tokens",
-    "session_mode", "agent_status", "collection_ids", "runtime_config",
-    "risk_score", "created_by",
-)
+_SNAPSHOT_FIELDS = AGENT_SNAPSHOT_FIELDS + ("created_by",)
 
 
 def _canonical_runtime_config(value) -> dict:

@@ -192,6 +192,10 @@ describe('Workspace CLI key management', () => {
       expect.any(String),
     )
     expect(container.textContent).toContain(secret)
+    expect(container.textContent).toContain('woobe auth login --cli-key')
+    expect(container.textContent).toContain('woobe context project select')
+    expect(container.textContent).not.toContain('credential attach')
+    expect(container.textContent).not.toContain('context set --workspace')
     expect(
       JSON.stringify(
         client

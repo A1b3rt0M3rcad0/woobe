@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from sqlalchemy.exc import PendingRollbackError
+from sqlalchemy.orm.exc import StaleDataError
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from shared.infra.config.interface.unit_of_work import UnitOfWork
@@ -33,12 +34,37 @@ class AgentUnitOfWork(UnitOfWork):
             raise RuntimeError("AgentUnitOfWork session not started")
         return self._session
 
+    async def validate_revision(self, request) -> None:
+        expected = getattr(request, "metadata", {}).get("expected_agent_revision")
+        if expected is None:
+            return
+        from uuid import UUID
+        from modules.agent.infra.database.models import AgentModel
+        from shared.contracts.errors import ConflictError, ValidationError, NotFoundError
+        raw = str(expected)
+        if raw.startswith('"') and raw.endswith('"'):
+            raw = raw[1:-1]
+        if not raw.isascii() or not raw.isdigit() or int(raw) < 1:
+            raise ValidationError("Expected a positive Agent revision")
+        identifier = request.path_params.get("agent_id")
+        if identifier is None:
+            raise ValidationError("Agent revision requires its resource identity")
+        agent = await self.session.get(AgentModel, UUID(str(identifier)), with_for_update=True, populate_existing=True)
+        if agent is None:
+            raise NotFoundError("Agent is unavailable")
+        if agent.revision != int(raw):
+            raise ConflictError("Agent Draft revision changed; pull before updating")
+
     async def commit(self) -> None:
         if self._read_only:
             raise RuntimeError("Read-only AgentUnitOfWork cannot commit")
         if self._session is not None:
             try:
                 await self._session.commit()
+            except StaleDataError:
+                await self.rollback()
+                from shared.contracts.errors import ConflictError
+                raise ConflictError("Agent revision changed during this operation") from None
             except PendingRollbackError:
                 await self.rollback()
                 raise
@@ -59,3 +85,6 @@ class AgentUnitOfWork(UnitOfWork):
         if self._session is not None:
             await self._session.close()
             self._session = None
+        if isinstance(exc_val, StaleDataError):
+            from shared.contracts.errors import ConflictError
+            raise ConflictError("Agent revision changed during this operation") from None

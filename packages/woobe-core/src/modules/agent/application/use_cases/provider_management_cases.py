@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from modules.agent.application.interfaces.provider_dependency_reader import (
+    ProviderDependencyReader,
+)
+
 from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
@@ -90,11 +94,13 @@ class ProviderCredentialUsageUseCase:
         provider_model_repo: ProviderModelRepository,
         agent_repo: AgentRepository,
         release_repo: AgentReleaseRepository,
+        dependency_reader: ProviderDependencyReader | None = None,
     ) -> None:
         self._credential_repo = credential_repo
         self._provider_model_repo = provider_model_repo
         self._agent_repo = agent_repo
         self._release_repo = release_repo
+        self._dependency_reader = dependency_reader
 
     async def execute(self, credential_id: UUID) -> dict[str, Any]:
         credential = await self._credential_repo.get_by_id(credential_id)
@@ -111,7 +117,9 @@ class ProviderCredentialUsageUseCase:
                 seen.add(key)
                 blocking.append(item)
 
-        provider_models = await self._provider_model_repo.list_by_credential(credential_id)
+        provider_models = await self._provider_model_repo.list_by_credential(
+            credential_id
+        )
         active_model_ids = {
             item.id for item in provider_models if not _is_archived(item.status)
         }
@@ -220,7 +228,10 @@ class ProviderCredentialUsageUseCase:
                             version=release.version,
                         )
                     )
-                if getattr(release, "fallback_provider_model_id", None) in active_model_ids:
+                if (
+                    getattr(release, "fallback_provider_model_id", None)
+                    in active_model_ids
+                ):
                     add(
                         _item(
                             type="release",
@@ -234,6 +245,16 @@ class ProviderCredentialUsageUseCase:
                         )
                     )
 
+        if self._dependency_reader is not None:
+            for dependency in await self._dependency_reader.embedding_consumers(
+                credential.project_id, {model.id for model in provider_models}
+            ):
+                add(dependency)
+            for dependency in await self._dependency_reader.downstream_consumers(
+                credential.project_id, {model.id for model in provider_models}
+            ):
+                add(dependency)
+
         return _usage(blocking)
 
 
@@ -243,10 +264,12 @@ class ProviderModelUsageUseCase:
         provider_model_repo: ProviderModelRepository,
         agent_repo: AgentRepository,
         release_repo: AgentReleaseRepository,
+        dependency_reader: ProviderDependencyReader | None = None,
     ) -> None:
         self._provider_model_repo = provider_model_repo
         self._agent_repo = agent_repo
         self._release_repo = release_repo
+        self._dependency_reader = dependency_reader
 
     async def execute(self, provider_model_id: UUID) -> dict[str, Any]:
         provider_model = await self._provider_model_repo.get_by_id(provider_model_id)
@@ -310,7 +333,10 @@ class ProviderModelUsageUseCase:
                             version=release.version,
                         )
                     )
-                if getattr(release, "fallback_provider_model_id", None) == provider_model_id:
+                if (
+                    getattr(release, "fallback_provider_model_id", None)
+                    == provider_model_id
+                ):
                     add(
                         _item(
                             type="release",
@@ -323,6 +349,16 @@ class ProviderModelUsageUseCase:
                             version=release.version,
                         )
                     )
+
+        if self._dependency_reader is not None:
+            for dependency in await self._dependency_reader.embedding_consumers(
+                provider_model.project_id, {provider_model_id}
+            ):
+                add(dependency)
+            for dependency in await self._dependency_reader.downstream_consumers(
+                provider_model.project_id, {provider_model_id}
+            ):
+                add(dependency)
 
         return _usage(blocking)
 

@@ -9,6 +9,7 @@ allowed = [
   "composition/resources.py",
   "composition/module.py",
   "composition/public_api.py",
+  "composition/contract_api.py",
 ]
 
 [transport_ownership]

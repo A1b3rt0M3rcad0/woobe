@@ -47,6 +47,7 @@ export type AgentEditorState = {
 
 export interface EditorContextValue {
   state: AgentEditorState
+  baseRevision: number | undefined
   setField: <K extends keyof AgentEditorState>(key: K, value: AgentEditorState[K]) => void
   setState: (state: AgentEditorState) => void
   toSnapshot: () => Record<string, unknown>
@@ -56,7 +57,7 @@ export interface EditorContextValue {
   isDirty: boolean
   activeSource: 'current_draft' | 'draft_unsaved'
   resetToBaseline: () => void
-  updateBaseline: (confirmedState?: AgentEditorState) => void
+  updateBaseline: (confirmedState?: AgentEditorState, revision?: number) => void
 }
 
 function recordValue(value: unknown): Record<string, unknown> {
@@ -324,6 +325,7 @@ const EditorContext = createContext<EditorContextValue | null>(null)
 export function AgentEditorProvider({ agent, projectId, collectionIds: propCollectionIds, knowledgeVersionId, children }: { agent: Agent; projectId?: string; collectionIds?: string[]; knowledgeVersionId?: string | null; children: ReactNode }) {
   const initial = () => agentToEditorState(agent, propCollectionIds, knowledgeVersionId)
   const [state, setEditorState] = useState<AgentEditorState>(initial)
+  const [baseRevision, setBaseRevision] = useState(agent.revision)
   const [baselineState, setBaselineState] = useState<AgentEditorState>(initial)
   const [loadedReleaseId, setLoadedReleaseId] = useState<string | null>(null)
   const [loadedReleaseVersion, setLoadedReleaseVersion] = useState<string | null>(null)
@@ -348,6 +350,7 @@ export function AgentEditorProvider({ agent, projectId, collectionIds: propColle
     editedFields.current.clear()
     setEditorState(next)
     setBaselineState(next)
+    setBaseRevision(agent.revision)
     setLoadedReleaseId(null)
     setLoadedReleaseVersion(null)
     initializedDraft.current = knowledgeVersionId !== undefined
@@ -467,7 +470,8 @@ export function AgentEditorProvider({ agent, projectId, collectionIds: propColle
     setEditorState(baselineState)
     setLoadedRelease(null, null)
   }, [baselineState, setLoadedRelease])
-  const updateBaseline = useCallback((confirmedState: AgentEditorState = state) => {
+  const updateBaseline = useCallback((confirmedState: AgentEditorState = state, revision?: number) => {
+    if (revision !== undefined) setBaseRevision(revision)
     setBaselineState(confirmedState)
     setEditorState((current) => {
       const remainingEdits = new Set<keyof AgentEditorState>()
@@ -479,7 +483,7 @@ export function AgentEditorProvider({ agent, projectId, collectionIds: propColle
     })
   }, [state])
 
-  return <EditorContext.Provider value={{ state, setField, setState, toSnapshot, loadedReleaseId, loadedReleaseVersion, setLoadedRelease, isDirty, activeSource, resetToBaseline, updateBaseline }}>{children}</EditorContext.Provider>
+  return <EditorContext.Provider value={{ state, baseRevision, setField, setState, toSnapshot, loadedReleaseId, loadedReleaseVersion, setLoadedRelease, isDirty, activeSource, resetToBaseline, updateBaseline }}>{children}</EditorContext.Provider>
 }
 
 export function useAgentEditor(): EditorContextValue {

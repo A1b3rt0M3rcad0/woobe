@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Any, Literal
 
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
@@ -14,6 +14,8 @@ class RAGStrategyDescriptorResponse(BaseModel):
     display_name: str = Field(min_length=1)
     description: str = Field(min_length=1)
     is_default: bool
+    config_schema: dict[str, Any]
+    config_schema_version: str
 
 
 class RAGStrategyCatalogResponse(BaseModel):

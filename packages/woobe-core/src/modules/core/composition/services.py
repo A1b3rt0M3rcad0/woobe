@@ -1,5 +1,6 @@
 """Core service factories exposed to process hosts."""
 
+from modules.core.infra.database.portable_environment_reader import PortableEnvironmentReader
 from modules.core.infra.services.control_key_service import ControlKeyService
 from modules.core.infra.services.project_access_service import ProjectAccessService
 from shared.composition_resources import SESSION_FACTORY
@@ -15,3 +16,11 @@ def build_control_key_service(*, category_resolver: CategoryResolver | None = No
 
 
 __all__ = ["build_control_key_service", "build_project_access_service"]
+
+
+
+def build_portable_environment_reader() -> PortableEnvironmentReader:
+    return PortableEnvironmentReader(SESSION_FACTORY)
+
+
+__all__.append("build_portable_environment_reader")

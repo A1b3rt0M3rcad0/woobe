@@ -66,43 +66,29 @@ for the complete permission, delegation and revision rules.
 
 ## Connect the CLI
 
-On Linux or macOS, import the secret from stdin. This Bash example reads it
-without displaying it or placing the value in command-line arguments:
-
-```bash
-read -r -s -p 'Control Key: ' woobe_cli_key
-printf '\n'
-printf '%s' "$woobe_cli_key" | woobe auth credential import --name workspace-cli --stdin
-unset woobe_cli_key
-
-woobe context create woobe --api-url http://localhost:8000
-woobe context credential attach woobe --credential workspace-cli
-woobe context use woobe
-woobe context set --workspace WORKSPACE_ID --project PROJECT_ID
+```sh
+woobe context create minha-woobe --api-url https://YOUR_WOOBE_API
+woobe context use minha-woobe
+woobe auth login --cli-key
 woobe project agent list
 ```
 
-Replace the API URL with your backend origin and the scope placeholders with
-real IDs. Use the API URL, rather than the frontend or ChatSurface URL. Contexts
-store local preferences; the backend still verifies ownership and permissions.
-Changing Workspace clears an inherited Project unless you explicitly supply a
-Project in the same command.
+Paste the key at the masked prompt; do not put it in arguments. The CLI validates
+it against this connection, discovers its Workspace and selects a single eligible
+Project automatically. For several Projects, choose by name/number. Switch later
+with `woobe context project select` or `woobe context project select production`.
+No Project grants means Workspace-only authentication. No UUIDs or environment
+variables are required. Linux/macOS store credentials in private files; Windows
+uses the current user's Credential Manager. Reopening the terminal retains the
+connection. Each named context has its own key and selected Project.
 
-Protected local credential import currently uses the POSIX store. Windows and
-CI can supply `WOOBE_CONTROL_KEY` through their environment. In PowerShell:
+For automation, pipe a secret from your secret manager into
+`woobe auth login --cli-key --stdin --select-project production --no-input`.
+Without a selection, multiple Projects produce `project_selection_required`.
+`woobe auth status` inspects the current key and scope;
+`woobe auth logout --cli-key` clears local authentication without server revocation.
+Changing the API URL requires login again. Runtime Keys remain separate.
 
-```powershell
-$env:WOOBE_CONTROL_KEY = [System.Net.NetworkCredential]::new('', (Read-Host 'Control Key' -AsSecureString)).Password
-woobe context create woobe --api-url http://localhost:8000
-woobe context use woobe
-woobe context set --workspace WORKSPACE_ID --project PROJECT_ID
-woobe project agent list
-Remove-Item Env:WOOBE_CONTROL_KEY
-```
-
-Supply CI credentials through the CI secret store; do not commit key values or
-print them in logs. Native keychain providers and protected Windows sessions
-remain in the client's [implementation status](https://github.com/A1b3rt0M3rcad0/woobe-cli/blob/v0.1.4/docs/STATUS.md).
 
 ## Discover and validate operations
 
@@ -149,7 +135,7 @@ for run input, streaming, checkpoints and output contracts.
 
 Update the CLI using the latest published native archive or a pinned GHCR tag.
 CLI distribution is maintained in `woobe-cli`; the platform release process
-remains [RELEASING.md](../RELEASING.md). npm distribution is deferred.
+remains [RELEASING.md](../RELEASING.md). npm installation and its trusted publisher are maintained in the CLI repository.
 
 The current client implements the reviewed operation catalog, with remaining
 design work recorded in its status documentation. A published CLI release does
@@ -158,3 +144,102 @@ not imply completion of every planned client feature.
 Before deploying the platform's Control Key support, follow [UPGRADING.md](UPGRADING.md)
 and apply migrations through `0077`. Existing human credentials and Project
 Runtime Keys remain separate from the new Workspace Control Keys.
+
+## Managed YAML development
+
+A matching development-capable CLI and backend support an optional local
+`.woobe-config`. `woobe init --context local` initializes a registry rooted at
+`.woobe/`; ordinary auth, runtime, API and standalone package commands remain
+independent of that file.
+
+```sh
+woobe agent UUID pull --alias support
+# Edit .woobe/agents/support/agent.yaml and registered dependencies.
+woobe agent "@support" diff
+woobe agent "@support" validate
+woobe agent "@support" push
+woobe network UUID pull --alias helpdesk
+woobe network "@helpdesk" push
+```
+
+UUIDs, typed aliases and linked paths are supported. Initial pull also accepts
+an exact remote name. `sync` aliases pull; reference-first `update` aliases push.
+A pull can select Draft, current Staging, an immutable Release version, or current
+Production. Push always updates Draft, preserving the native Agent/Network UUID.
+Stage, publish and activate explicitly after reviewing the Draft.
+
+The package registry binds each resource UID within its Project and registry.
+A synchronization plan carries complete native revision evidence and separates
+immutable Network constituents from mutable Agent Drafts. Shared Tool, Skill and
+Knowledge definitions are reused when proven unchanged; changed dependencies
+use copy-on-write. Models resolve through active native Provider connections.
+Provider YAML contains only public connection intent and credential references.
+
+Agent authoring writes atomically update the native Draft and its Agent
+projection. `If-Match` guards direct Agent updates and Save Draft requests; stale
+revisions fail with HTTP 409. The frontend uses the revision associated with its
+editor baseline. CLI pull performs a semantic three-way merge; conflicts leave
+local descriptors and registry state untouched.
+
+`diff` includes dependency and declared support-file changes offline. Local
+schema validation does not claim server authorization or runtime readiness.
+Private `.state/` contains destination bindings, base revisions and durable push
+checkpoints, is excluded from Git, and is never included in compiled packages.
+
+
+### Execute saved Agent tests from YAML
+
+After pushing author changes, explicitly stage and test the saved native snapshot:
+
+```sh
+woobe agent "@support" stage --yes
+woobe agent "@support" test --file support-test.yaml --yes
+woobe agent "@support" publish --notes "Validated support changes" --yes
+woobe agent "@support" activate --version 1.2.0 --notes "Deploy reviewed release" --yes
+```
+
+A testcase contains `message`, optional `external_context`, and optional
+`expected_output`. Execution records the actual answer, parsed output, Run ID,
+latency and validation errors on the selected native Release Test. Current
+Staging is the default; `--env draft`, `--env production`, or `--env release
+--version VERSION` select other saved snapshots. Failed execution/assertions exit
+with code 6 and include the recorded result. Both Agent versioning and Run
+execution permissions are checked before execution. Network uncertainty is never
+retried automatically.
+
+Development synchronization reuses proven unchanged Knowledge collections,
+documents and vector snapshots. Changed chunking or embedding configuration
+creates an immutable snapshot containing only declared document identities.
+Failed builds retain their history and get a separate retry version. Skill author
+edits preserve the native Skill namespace and fork immutable content versions.
+Provider/Model impact includes frozen Network versions and Chat Surfaces, not
+only the current Agent Draft.
+
+Migration `0081` retains committed preparation identities, including a Knowledge
+collection prepared before a failed vector build. Recovery must reuse those
+identities and reject roots changed by another client. Apply it together with
+`0080` before deploying the managed development endpoints.
+
+
+### Providers and Surfaces in the development registry
+
+A Provider author file contains public connection intent. `credential_ref` is
+optional for a new definition: use `woobe resources bind provider @alias UUID` to
+verify a native active credential in this Project. Its identity stays private and
+is reused by subsequent pulls. A second local Provider cannot bind that same
+credential. Provider impact includes embedding Knowledge dependencies through
+frozen Agent Releases, Networks and Surfaces.
+
+Surface author YAML has `spec.target_ref` to the stable registered Agent/Network
+key. `surface UUID pull --alias chat` requires the target to be pulled first;
+`surface @chat create --yes` resolves its current Production Release. `pull`,
+`diff`, `status`, `validate` and `push` use the registry and preserve native identity.
+Push compares `updated_at` and sends quoted `If-Match`, rechecked under a row lock.
+Independent edits merge, conflicts stop. The target is immutable and configuration
+push never refreshes or activates its Release. Native Surface configuration can
+affect active Surfaces: disable first when changes must stay offline. Unknown
+create outcomes persist an intent that blocks replay until explicit UUID pull.
+
+Registered bulk operations include Surfaces after their targets. Agent/Network
+dry runs validate exact server package plans; Surface dry runs report local and
+destination/CAS identity checks, with final native DTO validation on apply.
