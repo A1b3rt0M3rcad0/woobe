@@ -241,13 +241,8 @@ class PortableAgentExportReader:
             raise ValidationError("Release version requires release source")
         if snapshot_id is not None:
             release = await session.get(AgentReleaseModel, snapshot_id)
-        elif source == "draft":
-            # Native edits update AgentModel. A saved Draft snapshot may predate
-            # those edits or the ModelSpec migration; it is not the live author
-            # definition. Explicit snapshot IDs still capture their exact record.
-            release = None
         else:
-            if source not in {"staging", "release", "production"}:
+            if source not in {"draft", "staging", "release", "production"}:
                 raise ValidationError("Invalid export source")
             query = select(AgentReleaseModel).where(
                 AgentReleaseModel.agent_id == agent_id,
@@ -265,6 +260,18 @@ class PortableAgentExportReader:
                     AgentReleaseModel.created_at.desc(), AgentReleaseModel.id.desc()
                 ).limit(1)
             )
+        if source == "draft" and snapshot_id is None and release is not None:
+            # A legacy mutable Draft may predate ModelSpec snapshots. Resolve
+            # its current native author definition without rewriting that record.
+            # Complete Drafts retain their native version identity for lifecycle
+            # operations; historical/explicit snapshots never use current state.
+            primary_incomplete = not getattr(release, "model_spec_snapshot", None) or not getattr(release, "model_spec_hash", None)
+            fallback_incomplete = bool(getattr(release, "fallback_model", None)) and (
+                not getattr(release, "fallback_model_spec_snapshot", None)
+                or not getattr(release, "fallback_model_spec_hash", None)
+            )
+            if primary_incomplete or fallback_incomplete:
+                release = None
         if release is None and source == "draft":
             definition = await self._live_draft_definition(
                 session, agent=agent, project_id=project_id, principal=principal

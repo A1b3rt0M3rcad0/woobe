@@ -569,6 +569,7 @@ async def test_cli_upload_and_native_plan_against_live_postgres(
                 )
             await fixture_engine.dispose()
         if stale_saved_draft:
+            await cli.data("project", "agent", "update", target, body={"name": "Current native Draft"})
             from sqlalchemy import update
             from modules.agent.infra.database.models import AgentReleaseModel
             from shared.infra.config import Settings
@@ -583,7 +584,6 @@ async def test_cli_upload_and_native_plan_against_live_postgres(
                 )
                 assert changed.rowcount == 1
             await fixture_engine.dispose()
-            await cli.data("project", "agent", "update", target, body={"name": "Current native Draft"})
         exported = Path(tmp_path) / "exported"
         export_result = await cli.run(
             "package",

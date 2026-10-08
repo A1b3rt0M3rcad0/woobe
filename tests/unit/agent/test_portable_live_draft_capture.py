@@ -29,16 +29,16 @@ async def test_draft_export_uses_live_definition_even_with_incomplete_saved_draf
     assert captured["source"]["version"] is None
     assert captured["source"]["draft_revision"] == 3
     reader._live_draft_definition.assert_awaited_once()
-    session.scalar.assert_not_awaited()
+    session.scalar.assert_awaited_once()
     assert stale.model_spec_snapshot is None and stale.model_spec_hash is None
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("selector", [{"source": "staging"}, {"source": "release", "release_version": "1.2.0"}, {"source": "production"}, {"snapshot_id": uuid4()}])
-async def test_historical_export_does_not_repair_from_live_draft(monkeypatch, selector):
+@pytest.mark.parametrize("selector", [{"source": "draft"}, {"source": "staging"}, {"source": "release", "release_version": "1.2.0"}, {"source": "production"}, {"snapshot_id": uuid4()}])
+async def test_complete_saved_draft_and_historical_exports_keep_their_snapshot_definition(monkeypatch, selector):
     project_id, agent_id = uuid4(), uuid4()
     agent = SimpleNamespace(id=agent_id, project_id=project_id, revision=3)
-    saved = SimpleNamespace(id=uuid4(), project_id=project_id, agent_id=agent_id)
+    saved = SimpleNamespace(id=uuid4(), project_id=project_id, agent_id=agent_id, model_spec_snapshot={"model_id": "fake"}, model_spec_hash="captured")
     async def get(model, identifier):
         return agent if model is owner.AgentModel else saved
     session = SimpleNamespace(get=get, scalar=AsyncMock(return_value=saved))

@@ -76,10 +76,10 @@ Network packages include all selected Agent snapshots, stable portable node
 keys, positions, capability descriptions, topology and settings. Export reads the
 selected definition and its dependency closure in one consistent owner snapshot.
 It does not fall back to mutable current configuration for historical snapshots.
-Draft captures the current mutable Agent definition and resolves its complete
-Provider Model through the native owner compiler, even when an older saved Draft
-snapshot is incomplete or predates native edits. Capture creates no release and
-rewrites no historical snapshot. Explicit snapshot IDs and Staging/Release/Production
+A legacy Draft without a complete ModelSpec snapshot is captured from the current
+mutable Agent definition through the native owner compiler. Capture creates no
+release and rewrites no saved snapshot. Complete native Drafts retain their version
+identity for stage/test operations. Explicit snapshot IDs and Staging/Release/Production
 selectors retain their exact captured definitions. Legacy native Model definitions are resolved through the existing
 compatibility compiler and are not rewritten during export.
 
