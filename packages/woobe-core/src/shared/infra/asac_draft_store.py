@@ -40,7 +40,7 @@ class ASaCDraftStore:
             required_permission=self.kind.lower() + (":write" if write else ":read"))
 
     async def _operation(self, session, *, project_id, resource_id, principal, request, action):
-        digest = asac_digest("operation", {"action": action, "payload": request.model_dump(mode="json")})
+        digest = asac_digest("operation", {"action": action, "payload": request.model_dump(mode="json", exclude_none=True)})
         row = await session.scalar(select(self.operations).where(
             self.operations.project_id == project_id, self.operations.resource_id == resource_id,
             self.operations.actor == principal_identity(principal), self.operations.operation_id == request.operation_id))
@@ -168,7 +168,7 @@ class ASaCDraftStore:
             if artifact_id is None:
                 raise ConflictError("ASAC_DRAFT_UNSEALED: save a closed Draft first")
         artifact = await self.artifacts.get(project_id=project_id, principal=principal, artifact_id=artifact_id)
-        record = request.record.model_dump()
+        record = request.record.model_dump(exclude_none=True)
         entry = artifact["manifest"]["spec"]["entrypoint"]
         if (record["kind"] != self.kind or record["artifact_digest"] != artifact["artifact_digest"]
             or record["definition_digest"] != artifact["definition_digest"]
@@ -206,7 +206,7 @@ class ASaCDraftStore:
                     document=record, actor=principal_identity(principal)))
             line.working_revision_id = record["revision_id"]
             return self._receipt(session, project_id=project_id, resource_id=resource_id, principal=principal,
-                request=request, digest=digest, result={"record": record, "artifact_id": str(artifact_id),
+                request=request, digest=digest, result={"record": record, "author_artifact_status": "declared_not_retained" if record.get("author_artifact_digest") else "unavailable", "artifact_id": str(artifact_id),
                 "draft_id": str(line.id), "generation": line.generation, "production_changed": False, "complete": True})
 
     async def list_drafts(self, *, project_id, resource_id, principal):
@@ -233,7 +233,7 @@ class ASaCDraftStore:
                 self.revisions.resource_id == resource_id, self.revisions.revision_id == revision_id))
             if row is None:
                 raise NotFoundError("ASAC_REVISION_UNAVAILABLE")
-            return {"record": row.document, "artifact_id": str(row.artifact_id), "complete": True}
+            return {"record": row.document, "author_artifact_status": "declared_not_retained" if row.document.get("author_artifact_digest") else "unavailable", "artifact_id": str(row.artifact_id), "complete": True}
 
     async def operation(self, *, project_id, resource_id, operation_id, principal):
         async with self._read() as session:

@@ -97,3 +97,14 @@ Native identities with retained ASaC history cannot be physically deleted. Agent
 archiving remains the supported retirement path; Network deletion already refuses
 version/runtime history and now includes retained ASaC history in that refusal.
 This preserves immutable references rather than cascading their deletion.
+
+### Optional author source digest
+
+Revision records may include `author_artifact_digest`. The record digest includes
+this optional field when present; records without it retain their existing hashes.
+The server validates the executable closed object and declares author source as
+`declared_not_retained`: it does not possess or attest the author's YAML bytes.
+Capabilities advertise `author_digest_declarations` so clients negotiate this
+extension before registration. Author source does not grant authority or replace
+executable digest validation. Checkout must independently compile and validate
+retained source before changing local files.

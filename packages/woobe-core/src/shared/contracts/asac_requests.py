@@ -23,6 +23,7 @@ class ASaCRevision(StrictASaCRequest):
     parents: list[StrictStr] = Field(max_length=64)
     message: StrictStr = Field(min_length=1, max_length=4096)
     artifact_digest: StrictStr = Field(pattern=DIGEST)
+    author_artifact_digest: StrictStr | None = Field(default=None, pattern=DIGEST)
     definition_digest: StrictStr = Field(pattern=DIGEST)
     definition_digest_scope: Literal["woobe-portable-definition@1.0"]
     component_digests: dict[StrictStr, StrictStr] = Field(max_length=1024)
@@ -40,7 +41,7 @@ class ASaCRevision(StrictASaCRequest):
             UUID(uid)
             if not re.fullmatch(DIGEST, digest):
                 raise ValueError("Component digest is invalid")
-        document = self.model_dump()
+        document = self.model_dump(exclude_none=True)
         document.pop("record_digest")
         if self.record_digest != asac_digest("record", document):
             raise ValueError("Revision record digest mismatch")
