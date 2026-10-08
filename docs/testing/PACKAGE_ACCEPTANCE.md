@@ -79,14 +79,16 @@ Exact paired commit results are recorded in the two draft PR descriptions and
 the backend CI artifact `cli-contract-*.json`, including client/server build
 identity and public request outcomes. A schema version alone is insufficient
 to establish compatibility with older releases. The published pair table in those PRs is the compatibility reference for tested
-builds. Neither PR is merged or changed from draft by this delivery.
+builds. Backend PR #179 remains open in draft; CLI fixes are delivered through
+separate reviewed PRs and released after their validation gates pass.
 
 
 ## Managed YAML development qualification
 
 `test_development_sync_postgres.py` exercises actual CLI commands against the API,
-durable worker, PostgreSQL and deterministic runtime provider. Its three scenarios
-cover Agent, Network and Agent with Knowledge/Skill dependencies. They prove:
+durable worker, PostgreSQL and deterministic runtime provider. Its five scenarios
+cover Agent, Network, Agent with Knowledge/Skill dependencies, and Agent/Network
+with an MCP Tool in `review` with native `unknown` risk. They prove:
 
 - Provider registration/binding before first pull, matching native credential
   scope/type and reuse of a single local Provider identity.
@@ -109,3 +111,23 @@ Unit gates separately test timestamp checks under the locked native Surface row,
 uncertain create checkpoints, embedding Provider impact through frozen Knowledge,
 selected-document snapshots and retained partial materialization identities.
 Exact CLI revisions are pinned in the backend workflow and operation fixture.
+
+## Regression checks for development and MCP compatibility
+
+- `test_portable_export_tools.py` and shared schema parity fixtures preserve
+  native nullable MCP risk labels, including `unknown`, custom labels and Unicode
+  bounds, without changing permission modes.
+- `test_public_mcp_native_risk_labels_roundtrip` exports/imports/re-exports Agent
+  and Network packages across Projects while retaining native review/deny policy.
+- `test_development_registry.py` proves unchanged MCP Tools avoid writes from
+  rediscovery while changed Tools still require fresh discovery and readiness.
+  `test_imported_agent_dependency_readiness.py` keeps exact snapshots, active
+  credentials/Models/Tools and unavailable MCP readiness as native verification
+  requirements.
+- CLI author-path and creation tests protect private metadata, copy declared
+  Skill support files, and keep support files beside individually registered
+  descriptors after capture/move. These tests run on every native distribution
+  target.
+- CLI context, UUID and reconciliation tests detach credentials when changing
+  API origin, resolve UUID letter case consistently, and return an available
+  observation command without replaying an uncertain write.
