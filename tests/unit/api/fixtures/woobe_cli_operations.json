@@ -1,5 +1,5 @@
 {
-  "cli_commit": "a49cc4db8a85ab550f9d0802d67bbbba28c57354",
+  "cli_commit": "970879f65f62c25b947d26f1a933360961412491",
   "operations": [
     {
       "command": "auth invite accept",

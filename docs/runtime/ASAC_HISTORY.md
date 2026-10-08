@@ -26,6 +26,8 @@ Project/resource/stream. Later publications do not enter an in-progress traversa
 `complete` covers that watermark within `authorized_resource_metadata`, not global
 access, object availability or runtime executability. Queries retain owning
 Project/resource predicates after the owner gateway authorizes the principal.
+Published history requires Production read authority; `current` validates the
+explicit requested environment, so a Staging-only grant cannot read Production.
 
 Legacy records preserve original IDs and `unknown_origin`. No chronological parent
 chain or Git commit is invented. Publication metadata and activation events are

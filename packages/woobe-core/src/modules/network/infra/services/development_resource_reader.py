@@ -7,10 +7,12 @@ from shared.security.principal import ControlPlanePrincipal, AuthenticatedPrinci
 
 class DevelopmentNetworkReader:
     async def inspect(
-        self, session, *, project_id, principal, kind, resource_id, lock=False
+        self, session, *, project_id, principal, kind, resource_id, lock=False, environment=None
     ):
         authorizer = TenantAuthorizer(session)
         paths = {"project_id": str(project_id), "network_id": str(resource_id)}
+        if environment:
+            paths["environment"] = environment
         if isinstance(principal, ControlPlanePrincipal):
             await authorizer.require_active_control(principal)
             await authorizer.authorize_control_key(

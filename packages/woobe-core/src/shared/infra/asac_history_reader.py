@@ -67,7 +67,7 @@ class ASaCHistoryReader:
             if session.bind.dialect.name == "postgresql":
                 await session.execute(text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ"))
             await self.owner.inspect(session, project_id=project_id, principal=principal,
-                                     kind=self.kind, resource_id=resource_id)
+                                     kind=self.kind, resource_id=resource_id, environment="production")
             conditions = [model.project_id == project_id,
                           getattr(model, self.resource_column) == resource_id]
             if stream == "releases":
@@ -110,7 +110,7 @@ class ASaCHistoryReader:
             if session.bind.dialect.name == "postgresql":
                 await session.execute(text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ"))
             evidence = await self.owner.inspect(session, project_id=project_id, principal=principal,
-                                                kind=self.kind, resource_id=resource_id)
+                                                kind=self.kind, resource_id=resource_id, environment=environment)
             root = await session.get(self.root, resource_id)
             if root is None or root.project_id != project_id:
                 raise NotFoundError("Resource is unavailable")

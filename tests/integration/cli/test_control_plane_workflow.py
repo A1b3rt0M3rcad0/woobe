@@ -33,7 +33,7 @@ from shared.security.control_plane import (
 )
 
 CLI_COMMIT = os.environ.get(
-    "WOOBE_TEST_CLI_SHA", "a49cc4db8a85ab550f9d0802d67bbbba28c57354"
+    "WOOBE_TEST_CLI_SHA", "970879f65f62c25b947d26f1a933360961412491"
 )
 
 
@@ -924,6 +924,23 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
         body={"change_description": "Restore first release"},
     )
     assert restored["id"] == production["id"]
+    observed = await cli.data("agent", agent_id, "current", "--env", "production")
+    assert observed["snapshot_id"] == production["id"]
+    assert observed["environment_generation"] is None
+    publication_history = await cli.data("request", "GET", f"/projects/{cli.project_id}/agents/{agent_id}/asac/history", "--query", "limit=1")
+    watermark = publication_history["watermark"]
+    agent_records = list(publication_history["records"])
+    while publication_history["has_more"]:
+        publication_history = await cli.data("request", "GET", f"/projects/{cli.project_id}/agents/{agent_id}/asac/history", "--query", "limit=1", "--query", f"cursor={publication_history['next_cursor']}")
+        assert publication_history["watermark"] == watermark
+        agent_records.extend(publication_history["records"])
+    assert {production["id"], second_release["id"]} <= {item["id"] for item in agent_records}
+    for item in agent_records:
+        from shared.contracts.asac import asac_digest
+        payload = {key: value for key, value in item.items() if key != "record_digest"}
+        assert item["record_digest"] == asac_digest("history-receipt", payload)
+    await cli.run("agent", agent_id, "current", "--env", "production", key=builder_key, expected=4)
+    await cli.run("agent", agent_id, "current", "--env", "production", key=staging_key, expected=4)
     activations = await cli.data("project", "agent", "release", "activations", agent_id)
     assert any(
         item["action"] == "rollback" and item["release_id"] == production["id"]
@@ -1120,6 +1137,13 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
     )
     assert network_restored["version"]["id"] == network_release["id"]
     assert network_restored["activation"]["activation_kind"] == "rollback"
+    selected_network = await cli.data("network", network_id, "current", "--env", "production")
+    assert selected_network["snapshot_id"] == network_release["id"]
+    network_history = await cli.data("request", "GET", f"/projects/{cli.project_id}/networks/{network_id}/asac/history")
+    assert network_history["complete"]
+    assert {network_release["id"], second_network_release["id"]} <= {item["id"] for item in network_history["records"]}
+    network_deployments = await cli.data("request", "GET", f"/projects/{cli.project_id}/networks/{network_id}/asac/history", "--query", "stream=deployments")
+    assert any(item["release_id"] == network_release["id"] and item["action"] == "rollback" for item in network_deployments["records"])
     _, network_key = await cli.issue(
         "project",
         "runtime-key",
