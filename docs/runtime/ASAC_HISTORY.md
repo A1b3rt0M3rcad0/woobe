@@ -1,5 +1,14 @@
 # ASaC history observations
 
+Native binding recovery reads accepted owner-phase generations independently of
+later native observations. Frozen constituents retain their snapshot hash and
+source kind in the same owner transaction as acceptance. Reuse can therefore
+validate an exact unchanged snapshot without the original actor's export ticket.
+Older receipts recover proof only from their original server-retained plan, never
+from a newly observed snapshot. The native owner rechecks the snapshot hash before
+reuse. Incomplete or contradictory evidence rejects reuse; no latest-version
+selection, standalone Agent Draft mutation or credential transfer occurs.
+
 Agent and Network own their lifecycle. Read-only ASaC projections export native
 publication and activation identities without modifying Draft, Staging or
 Production. Package export remains the closed artifact codec.
