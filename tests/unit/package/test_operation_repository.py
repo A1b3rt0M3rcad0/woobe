@@ -5,6 +5,7 @@ from uuid import uuid4
 
 import pytest
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy import select, func
 
 from modules.package.domain.errors import PackageError
 from modules.package.domain.operations import operation_status
@@ -20,6 +21,41 @@ from modules.package.infra.operation_repository import (
 from shared.infra.admin_idempotency import principal_identity
 from shared.infra.database.base import Base
 from shared.security.principal import AuthenticatedPrincipal
+
+
+@pytest.mark.asyncio
+async def test_caller_owned_acceptance_rolls_back_and_preserves_all_plan_pins(monkeypatch):
+    engine = create_async_engine("sqlite+aiosqlite://", execution_options={"schema_translate_map": {"package": None}})
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with engine.begin() as connection:
+        await connection.run_sync(lambda sync: Base.metadata.create_all(sync, tables=[model.__table__ for model in (PackageUploadModel, PackagePlanModel, PackageOperationModel)]))
+    monkeypatch.setattr("modules.package.infra.operation_repository.authorize_phase", AsyncMock())
+    validator = AsyncMock()
+    repo = PackageOperationRepository(factory, encryption_key="private-test-key", plan_validator=validator)
+    now, project, upload_id, plan_id = datetime.now(UTC), uuid4(), uuid4(), uuid4()
+    principal = AuthenticatedPrincipal(user_id=uuid4(), session_id=uuid4(), issued_at=now, expires_at=now + timedelta(hours=1))
+    async with factory.begin() as session:
+        session.add(PackageUploadModel(id=upload_id, project_id=project, actor=principal_identity(principal), artifact_digest="a" * 64, storage_key="protected", manifest={}, inventory=[], size_bytes=1, expires_at=now + timedelta(hours=1)))
+        session.add(PackagePlanModel(id=plan_id, project_id=project, actor=principal_identity(principal), upload_id=upload_id, artifact_digest="a" * 64, plan_digest="b" * 64, document={"lifecycle": "staging", "required_permissions": ["agent:version"], "effects": [{"key": "candidate:root"}]}, expires_at=now + timedelta(hours=1)))
+    payload = {"plan_id": str(plan_id), "plan_digest": "b" * 64, "upload_id": str(upload_id), "artifact_digest": "a" * 64, "lifecycle": "staging", "bindings": {}}
+    with pytest.raises(RuntimeError, match="owner receipt failed"):
+        async with factory.begin() as session:
+            accepted, replay = await repo.accept_in_session(session=session, project_id=project, principal=principal, key="owner-stage", payload=payload)
+            assert not replay and accepted.state == "accepted"
+            assert await session.scalar(select(func.count()).select_from(PackageOperationModel)) == 1
+            raise RuntimeError("owner receipt failed")
+    async with factory() as session:
+        assert await session.scalar(select(func.count()).select_from(PackageOperationModel)) == 0
+    with pytest.raises(PackageError, match="differs from the approved plan"):
+        async with factory.begin() as session:
+            await repo.accept_in_session(session=session, project_id=project, principal=principal, key="owner-stage", payload={**payload, "artifact_digest": "c" * 64})
+    async with factory.begin() as session:
+        accepted, replay = await repo.accept_in_session(session=session, project_id=project, principal=principal, key="owner-stage", payload=payload)
+        assert not replay
+    recovered = await repo.lookup(project_id=project, principal=principal, key="owner-stage")
+    assert recovered.id == accepted.id
+    assert validator.await_count == 2  # failed owner transaction and successful retry
+    await engine.dispose()
 
 
 @pytest.mark.asyncio

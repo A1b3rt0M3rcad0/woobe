@@ -25,6 +25,29 @@ class ASaCRevisionColumns:
     author_artifact_id: Mapped[UUID | None] = mapped_column(nullable=True)
     document: Mapped[dict] = mapped_column(JSON)
     actor: Mapped[str] = mapped_column(String(96))
+    component_uids: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    provider_uids: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+
+class ASaCCandidateColumns:
+    project_id: Mapped[UUID]
+    resource_id: Mapped[UUID]
+    resource_uid: Mapped[UUID]
+    actor: Mapped[str] = mapped_column(String(96))
+    operation_id: Mapped[UUID]
+    request_digest: Mapped[str] = mapped_column(String(71))
+    revision_id: Mapped[str] = mapped_column(String(39))
+    record_digest: Mapped[str] = mapped_column(String(71))
+    artifact_id: Mapped[UUID]
+    draft_id: Mapped[UUID]
+    draft_generation: Mapped[int] = mapped_column(Integer)
+    preparation_operation_id: Mapped[UUID]
+    state: Mapped[str] = mapped_column(String(16), default="preparing")
+    root_snapshot_id: Mapped[UUID | None] = mapped_column(nullable=True)
+    snapshot_ids: Mapped[dict] = mapped_column(JSON)
+    native_bindings: Mapped[dict] = mapped_column(JSON, default=dict)
+    runtime_digest: Mapped[str | None] = mapped_column(String(71), nullable=True)
+    runtime_fingerprints: Mapped[dict] = mapped_column(JSON, default=dict)
 
 
 class ASaCOperationColumns:

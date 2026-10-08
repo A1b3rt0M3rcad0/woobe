@@ -33,7 +33,7 @@ from shared.security.control_plane import (
 )
 
 CLI_COMMIT = os.environ.get(
-    "WOOBE_TEST_CLI_SHA", "ea4a38c4dd360e850a9b60b0d4791d18cae7a13a"
+    "WOOBE_TEST_CLI_SHA", "a520afa68d9ffad48edc31cb546849ba456fed13"
 )
 
 
@@ -1312,6 +1312,53 @@ async def exercise_asac_isolated_drafts(cli, kind, resource_id):
     assert comment_revision["author_artifact_digest"] != checkpoint["author_artifact_digest"]
     comment_registered = (await cli.run(kind.lower(), "@captured", "draft", "checkpoint", comment_revision["revision_id"], cwd=registry))["data"]
     assert comment_registered["record"] == comment_revision
+    # Stage the registered exact closure in a detached candidate. The existing
+    # native Draft, native Staging and Production selection remain unchanged.
+    native_draft_before = (await cli.run(kind.lower(), resource_id, "current", "--env", "draft"))["data"]
+    native_staging_before = (await cli.run(kind.lower(), resource_id, "current", "--env", "staging"))["data"]
+    native_production_before = (await cli.run(kind.lower(), resource_id, "current", "--env", "production"))["data"]
+    scoped_state_file = private_state / (hashlib.sha256((cli.origin.rstrip("/") + "\n" + cli.workspace_id + "\n" + cli.project_id).encode()).hexdigest() + ".json")
+    state_before_stage = json.loads(scoped_state_file.read_text())
+    object_path = registry / config["root"] / "objects" / "sha256" / (comment_revision["artifact_digest"].removeprefix("sha256:") + ".tar.gz")
+    with receive_archive(io.BytesIO(object_path.read_bytes()), locked=True) as sealed:
+        requirements = sealed.graph.manifest["spec"].get("requires", {})
+    binding_spec = {"credentials": {}, "knowledge": {}, "secrets": {}, "project_environment": {}}
+    for item in requirements.get("credentials", []):
+        binding_spec["credentials"][item["ref"]] = {"credential_id": state_before_stage["credentials"][item["ref"]]}
+    for group in ("secrets", "project_environment"):
+        for item in requirements.get(group, []):
+            alias = item["key" if group == "project_environment" else "ref"]
+            binding_spec[group][alias] = {"existing_key": alias}
+    stage_body = {"operation_id": str(uuid4()), "draft_id": cli_open["draft_id"],
+        "expected_generation": cli_saved["generation"], "revision_id": comment_revision["revision_id"],
+        "registry_id": config["registry_id"], "bindings": {"format": "woobe-package", "schema_version": "1.0",
+            "kind": "ImportBindings", "metadata": {"name": "Candidate"}, "spec": binding_spec}}
+    preview = (await cli.run(kind.lower(), "@captured", "stage", "--revision", comment_revision["revision_id"], "--dry-run", cwd=registry))["data"]
+    assert not preview["executed"] and not preview["candidate_prepared"]
+    candidate_acceptance = (await cli.run(kind.lower(), "@captured", "stage", "--revision", comment_revision["revision_id"], "--yes", cwd=registry))["data"]
+    stage_body["operation_id"] = candidate_acceptance["operation_id"]
+    assert candidate_acceptance["state"] == "preparing" and not candidate_acceptance["published"]
+    assert candidate_acceptance["snapshot_id"] is None and candidate_acceptance["runtime_digest"] is None
+    assert await cli.data("request", "POST", base + "/candidates", body=stage_body) == candidate_acceptance
+    candidate_operation = await cli.data("request", "GET", f"/projects/{cli.project_id}/packages/operations/{candidate_acceptance['preparation_operation_id']}")
+    for _ in range(120):
+        if candidate_operation["state"] in {"succeeded", "failed", "cancelled", "uncertain"}:
+            break
+        await asyncio.sleep(0.5)
+        candidate_operation = await cli.data("request", "GET", f"/projects/{cli.project_id}/packages/operations/{candidate_acceptance['preparation_operation_id']}")
+    assert candidate_operation["state"] == "succeeded", candidate_operation
+    candidate = (await cli.run(kind.lower(), "@captured", "candidate", candidate_acceptance["candidate_id"], cwd=registry))["data"]
+    assert candidate["state"] == "ready" and candidate["snapshot_id"] and candidate["runtime_digest"]
+    assert candidate["revision_id"] == comment_revision["revision_id"] and not candidate["published"]
+    assert candidate["record_digest"] == comment_revision["record_digest"]
+    # observed_at is a fresh read timestamp, not lifecycle state or generation.
+    def selected_state(data):
+        return {key: value for key, value in data.items() if key != "observed_at"}
+    assert selected_state((await cli.run(kind.lower(), resource_id, "current", "--env", "draft"))["data"]) == selected_state(native_draft_before)
+    assert selected_state((await cli.run(kind.lower(), resource_id, "current", "--env", "staging"))["data"]) == selected_state(native_staging_before)
+    assert selected_state((await cli.run(kind.lower(), resource_id, "current", "--env", "production"))["data"]) == selected_state(native_production_before)
+    assert json.loads(scoped_state_file.read_text()) == state_before_stage
+    assert descriptor.read_bytes() == b"# local author comment\n" + original_source
     catalog_first = await cli.data("request", "GET", base + "/revisions", "--query", "limit=1")
     assert catalog_first["has_more"] and not catalog_first["complete"]
     import shutil

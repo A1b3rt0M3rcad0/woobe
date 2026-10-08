@@ -5,12 +5,12 @@ from fastapi import APIRouter, Query, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
 
-from shared.contracts.asac_requests import OpenASaCDraft, SaveASaCDraft, RegisterASaCRevision
+from shared.contracts.asac_requests import OpenASaCDraft, SaveASaCDraft, RegisterASaCRevision, StageASaCRevision
 from shared.contracts.errors import AuthorizationError, ConflictError, NotFoundError, ValidationError
-from modules.package.entrypoint import PackageError, build_snapshot_artifacts
+from modules.package.entrypoint import PackageError, build_snapshot_artifacts, build_candidate_preparation
 
 
-def draft_router(prefix, builder, kind):
+def draft_router(prefix, builder, kind, candidate_builder=None):
     router = APIRouter(prefix=prefix, tags=[kind.lower(), "asac-drafts"])
 
     def store():
@@ -44,6 +44,20 @@ def draft_router(prefix, builder, kind):
             return data
         return JSONResponse(jsonable_encoder({"success": True, "message": "ok", "data": data,
             "meta": {"complete": data.get("complete", True)}}))
+
+    if candidate_builder is not None:
+        def candidates():
+            return candidate_builder(artifacts=build_snapshot_artifacts(), preparation=build_candidate_preparation())
+
+        @router.post("/candidates")
+        async def stage(project_id: UUID, resource_id: UUID, body: StageASaCRevision, request: Request):
+            return response(await invoke(candidates().stage(project_id=project_id, resource_id=resource_id,
+                principal=actor(request), request=body, api_origin=str(request.base_url).rstrip("/"))))
+
+        @router.get("/candidates/{candidate_id}")
+        async def candidate(project_id: UUID, resource_id: UUID, candidate_id: UUID, request: Request):
+            return response(await invoke(candidates().get(project_id=project_id, resource_id=resource_id,
+                candidate_id=candidate_id, principal=actor(request))))
 
     @router.get("/drafts")
     async def drafts(project_id: UUID, resource_id: UUID, request: Request):

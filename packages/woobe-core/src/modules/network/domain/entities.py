@@ -33,8 +33,8 @@ class AgentBindingSelector:
     def from_dict(cls, value: Any) -> AgentBindingSelector:
         raw = value if isinstance(value, dict) else {}
         source = str(raw.get("source") or "draft").strip().lower()
-        if source not in {"draft", "staging", "release"}:
-            raise ValueError("Agent binding source must be draft, staging or release")
+        if source not in {"draft", "staging", "release", "candidate"}:
+            raise ValueError("Agent binding source must be draft, staging, release or candidate")
         release_value = raw.get("release_id")
         release_id = UUID(str(release_value)) if release_value else None
         if source == "draft" and release_id is not None:

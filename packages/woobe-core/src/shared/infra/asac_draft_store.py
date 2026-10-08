@@ -201,6 +201,12 @@ class ASaCDraftStore:
                 self.revisions.resource_uid == line.resource_uid, self.revisions.revision_id == record["revision_id"]))
             if existing is not None and existing.document != record:
                 raise ConflictError("ASAC_INTEGRITY_CONFLICT: immutable revision ID has different bytes or parents")
+            component_uids = {key: str(uid) for key, uid in request.component_uids.items()}
+            provider_uids = {key: str(uid) for key, uid in request.provider_uids.items()}
+            if existing is not None and existing.component_uids is not None and (
+                existing.component_uids != component_uids or existing.provider_uids != provider_uids
+            ):
+                raise ConflictError("ASAC_INTEGRITY_CONFLICT: immutable revision component identities differ")
             for parent in record["parents"]:
                 found = await session.scalar(select(self.revisions.id).where(self.revisions.project_id == project_id,
                     self.revisions.resource_id == resource_id, self.revisions.resource_uid == line.resource_uid,
@@ -210,7 +216,8 @@ class ASaCDraftStore:
             if existing is None:
                 session.add(self.revisions(project_id=project_id, resource_id=resource_id,
                     resource_uid=line.resource_uid, revision_id=record["revision_id"], artifact_id=artifact_id,
-                    document=record, actor=principal_identity(principal), author_artifact_id=author_id))
+                    document=record, actor=principal_identity(principal), author_artifact_id=author_id,
+                    component_uids=component_uids, provider_uids=provider_uids))
             elif author_id is not None:
                 existing.author_artifact_id = author_id
             line.working_revision_id = record["revision_id"]

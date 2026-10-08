@@ -15,6 +15,8 @@ from modules.agent.contract_boundary import (
     compile_imported_tool_inputs,
 )
 from modules.agent.entrypoint import (
+    create_candidate_snapshot_composer,
+    agent_candidate_lifecycle_composer,
     promote_release_composer,
     create_agent_composer,
     prepare_existing_agent_composer,
@@ -49,7 +51,7 @@ from modules.agent.entrypoint import (
 from modules.package.domain.errors import PackageError
 from modules.package.application.execution import DependencyWait
 from modules.core.entrypoint import create_imported_environment_composer
-from modules.network.entrypoint import imported_network_composer
+from modules.network.entrypoint import imported_network_composer, network_candidate_lifecycle_composer
 from modules.package.domain.bundle import portable_path
 from modules.package.infra.receipts import PackageTransactionReceipt
 from shared.presentation.contracts import OperationRequest
@@ -141,6 +143,8 @@ class NativePackageMaterializer:
         inspection = work.plan["inspections"].get(key, {})
         project = str(operation.project_id)
         paths = {"project_id": project}
+        if work.plan.get("mode") == "candidate":
+            paths["environment"] = "staging"
         metadata = {"required_permission": phase["permission"]}
         target = work.plan.get("resource_bindings", {}).get(key, {})
         if (
@@ -151,7 +155,34 @@ class NativePackageMaterializer:
             in {"prepare_existing_agent", "finalize_agent_draft", "reuse_resource"}
         ):
             metadata["expected_agent_revision"] = str(target["evidence"]["revision"])
-        if action == "reuse_frozen_snapshot":
+        if action in {"resolve_candidate_root", "create_candidate_snapshot", "verify_candidate_closure"}:
+            if work.plan.get("mode") != "candidate":
+                raise PackageError("ASAC_CANDIDATE_PHASE_INVALID", "Candidate effect requires an isolated approved plan")
+            candidate = work.plan["candidate"]
+            kind = document["kind"]
+            parameter = kind.lower() + "_id"
+            paths[parameter] = target["resource_id"]
+            body = {"project_id": project, parameter: target["resource_id"], "action": action}
+            handler = agent_candidate_lifecycle_composer() if kind == "Agent" else network_candidate_lifecycle_composer()
+            if action == "create_candidate_snapshot" and kind == "Agent":
+                body = compile_imported_agent_inputs(resolve_skill_versions=True,
+                    project_id=operation.project_id, document=document, definitions=definitions,
+                    resources=resources, agent_id=UUID(target["resource_id"]), release_notes=None)
+                body["candidate_snapshot_id"] = candidate["snapshot_ids"][key]
+                handler = create_candidate_snapshot_composer()
+            else:
+                if action != "resolve_candidate_root":
+                    body["candidate_snapshot_id"] = candidate["snapshot_ids"][key]
+                if kind == "Network" and action != "resolve_candidate_root":
+                    body.update(portable_spec=document["spec"],
+                        agents={node["agent_ref"]: resources[node["agent_ref"]]["id"] for node in document["spec"]["nodes"]},
+                        snapshots={node["agent_ref"]: resources["candidate:" + node["agent_ref"]]["id"] for node in document["spec"]["nodes"]})
+                if action == "verify_candidate_closure":
+                    body.update(candidate_id=candidate["candidate_id"],
+                        preparation_operation_id=str(operation.id),
+                        expected_runtime_digest=resources["candidate:" + key]["runtime_digest"],
+                        runtime_fingerprints=work.plan["binding_resolutions"])
+        elif action == "reuse_frozen_snapshot":
             paths["agent_id"] = target["resource_id"]
             body = {
                 "project_id": project,
@@ -424,7 +455,7 @@ class NativePackageMaterializer:
                     if action == "create_prompt_version"
                     else materialize_development_contract_composer()
                 )
-                if work.plan.get("mode") == "sync"
+                if work.plan.get("mode") in {"sync", "candidate"}
                 else (
                     create_prompt_version_composer()
                     if action == "create_prompt_version"

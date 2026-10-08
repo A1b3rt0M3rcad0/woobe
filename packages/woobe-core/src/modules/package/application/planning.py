@@ -108,6 +108,7 @@ class PlanPackageUseCase:
         release_notes=None,
         reason=None,
         api_origin: str,
+        candidate=None,
     ) -> ApprovedPlan:
         if lifecycle not in {"draft", "staging", "release", "production"}:
             raise PackageError(
@@ -337,9 +338,6 @@ class PlanPackageUseCase:
             }
             | {"project:read"}
         )
-        await self._inspector.authorize(
-            project_id=project_id, principal=principal, permissions=permissions
-        )
         now = datetime.now(UTC)
         expires_at = now + timedelta(seconds=self._lifetime)
         document = {
@@ -370,4 +368,9 @@ class PlanPackageUseCase:
             "created_at": now.isoformat(),
             "expires_at": expires_at.isoformat(),
         }
+        if candidate is not None:
+            from modules.package.application.candidate_planning import isolate_candidate_plan
+            document = isolate_candidate_plan(document, **candidate)
+        await self._inspector.authorize(project_id=project_id, principal=principal,
+            permissions=document["required_permissions"])
         return ApprovedPlan(document, definition_digest(document), expires_at)

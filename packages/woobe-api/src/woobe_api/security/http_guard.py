@@ -290,6 +290,14 @@ class HttpSecurityGuard:
             # query parameters cannot turn Draft writes into Production grants.
             for plural, identifier in (("agents", "agent_id"), ("networks", "network_id")):
                 base = f"/projects/{path_params['project_id']}/{plural}/{path_params['resource_id']}/asac/"
+                candidate_route = (request.method == "POST" and request.url.path == base + "candidates") or (
+                    request.method == "GET" and "candidate_id" in path_params
+                    and request.url.path == base + "candidates/" + str(path_params["candidate_id"]))
+                if candidate_route:
+                    normalized = dict(path_params)
+                    normalized[identifier] = normalized.pop("resource_id")
+                    normalized["environment"] = "staging"
+                    return normalized
                 allowed = {("GET", "drafts"), ("POST", "drafts"), ("POST", "revisions")}
                 for parameter, route, methods in (("draft_id", "drafts", ("GET", "PUT")),
                         ("revision_id", "revisions", ("GET",)), ("operation_id", "operations", ("GET",))):

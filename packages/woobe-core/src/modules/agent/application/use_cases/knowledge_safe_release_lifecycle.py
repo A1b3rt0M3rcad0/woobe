@@ -70,13 +70,6 @@ class KnowledgeSafeCreateReleaseUseCase(AutoCreateReleaseUseCase):
         self._project_environment_reader = project_environment_reader
 
     async def execute(self, input_dto, change_kind: str = "change"):
-        candidate = AgentRelease(
-            project_id=input_dto.project_id,
-            agent_id=input_dto.agent_id,
-            knowledge_version_id=input_dto.knowledge_version_id,
-        )
-        await self._knowledge_validator.validate(candidate)
-
         previous_snapshots = None
         drafts = await self._release_repo.list_by_status(
             input_dto.agent_id,
@@ -85,7 +78,24 @@ class KnowledgeSafeCreateReleaseUseCase(AutoCreateReleaseUseCase):
         if drafts:
             current_draft = max(drafts, key=_release_sort_key)
             previous_snapshots = _tool_snapshots(current_draft.runtime_config)
+        input_dto = await self.prepare_snapshot(input_dto, previous_snapshots=previous_snapshots)
+        return await super().execute(input_dto, change_kind=change_kind)
 
+    async def prepare_snapshot(self, input_dto, *, previous_snapshots=None):
+        """Validate/freeze input without reading or overwriting singleton Drafts.
+
+        Candidate callers must supply their exact input, not defaults from the
+        current Agent projection. Normal Draft callers retain their old Tool
+        snapshots explicitly through execute above.
+        """
+        candidate = AgentRelease(
+            project_id=input_dto.project_id,
+            agent_id=input_dto.agent_id,
+            knowledge_version_id=input_dto.knowledge_version_id,
+        )
+        await self._knowledge_validator.validate(candidate)
+
+        input_dto = input_dto.model_copy(deep=True)
         runtime_config = dict(input_dto.runtime_config or {})
         raw_tools = runtime_config.get("tools")
         if isinstance(raw_tools, dict):
@@ -101,7 +111,7 @@ class KnowledgeSafeCreateReleaseUseCase(AutoCreateReleaseUseCase):
         runtime_config = await freeze_skill_bindings(self._skill_repo, project_id=input_dto.project_id, runtime_config=runtime_config)
         input_dto.runtime_config = runtime_config or None
 
-        return await super().execute(input_dto, change_kind=change_kind)
+        return input_dto
 
 
 class KnowledgeSafeReleaseLifecycleUseCase(AutoCompatibleReleaseLifecycleUseCase):
