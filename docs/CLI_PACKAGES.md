@@ -91,7 +91,11 @@ the bundle as not self-contained. Missing or unfinished dependencies remain
 observable waits and cannot produce final execution readiness.
 
 MCP imports perform fresh destination discovery and apply permissions/bindings
-by remote capability name. OAuth configuration belongs to the destination;
+by remote capability name. Each capability's `risk` preserves the native nullable
+string label (1–256 characters), including `unknown` and custom classifications.
+Risk labels do not change `review`, `deny` or `allow` permission modes.
+The backend and CLI must use the same generated Package schema catalog.
+OAuth configuration belongs to the destination;
 credentials, OAuth sessions, cached discovered schemas and live execution state
 are excluded. OAuth or readiness prerequisites can require an explicit resume.
 

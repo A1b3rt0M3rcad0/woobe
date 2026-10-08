@@ -54,6 +54,8 @@ async def test_cli_upload_and_native_plan_against_live_postgres(
     stale_saved_draft=False,
     with_mcp=False,
     complete_fixture=False,
+    mcp_permission="allow",
+    mcp_risk="low",
 ):
     project = await cli.data(
         "project",
@@ -130,8 +132,8 @@ async def test_cli_upload_and_native_plan_against_live_postgres(
                 "permissions": [
                     {
                         "remote_name": "lookup",
-                        "permission": "allow",
-                        "risk": "low",
+                        "permission": mcp_permission,
+                        "risk": mcp_risk,
                         "bindings": {
                             "tenant": {"source": {"kind": "context", "field": "tenant"}}
                         },
@@ -610,6 +612,11 @@ async def test_cli_upload_and_native_plan_against_live_postgres(
             export_result["data"]["closure_complete"]
             and export_result["data"]["self_contained"]
         )
+        if with_mcp:
+            descriptors = [yaml.safe_load(path.read_text()) for path in exported.glob("*.yaml")]
+            mcp = next(item for item in descriptors if item["kind"] == "Tool" and item["spec"]["type"] == "mcp")
+            assert mcp["spec"]["permissions"][0]["permission"] == mcp_permission
+            assert mcp["spec"]["permissions"][0]["risk"] == mcp_risk
         if stale_saved_draft:
             descriptors = [yaml.safe_load(path.read_text()) for path in exported.glob("*.yaml")]
             definition = next(item for item in descriptors if item["kind"] == "Agent")
@@ -1039,6 +1046,15 @@ async def test_public_export_reads_current_draft_with_incomplete_legacy_saved_sn
 async def test_public_mcp_fresh_discovery_roundtrip_and_runtime(cli, tmp_path):
     await test_cli_upload_and_native_plan_against_live_postgres(
         cli, tmp_path, False, "Agent", "staging", True, with_mcp=True
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("kind,permission,risk", [("Agent", "review", "unknown"), ("Agent", "deny", "internal-sensitive"), ("Network", "review", "unknown")])
+async def test_public_mcp_native_risk_labels_roundtrip(cli, tmp_path, kind, permission, risk):
+    await test_cli_upload_and_native_plan_against_live_postgres(
+        cli, tmp_path, False, kind, "draft", True, with_mcp=True,
+        mcp_permission=permission, mcp_risk=risk,
     )
 
 

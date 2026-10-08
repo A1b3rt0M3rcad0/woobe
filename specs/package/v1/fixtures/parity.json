@@ -172,5 +172,374 @@
     "input": "{\"format\": \"woobe-package\", \"schema_version\": \"1.0\", \"kind\": \"ImportBindings\", \"metadata\": {\"name\": \"Destination\"}, \"spec\": {\"credentials\": {\"primary\": {\"protected_ref\": \"provider-secret\", \"secret\": \"do-not-store\"}}}}",
     "validate": true,
     "error": "PACKAGE_SCHEMA_INVALID"
+  },
+  {
+    "name": "mcp-risk-unknown-review",
+    "file": "tool-1.yaml",
+    "input": "format: woobe-package\nschema_version: '1.0'\nkind: Tool\nmetadata:\n  key: mcp\n  name: MCP\nspec:\n  type: mcp\n  config:\n    mode: server\n    exposure: all_discovered\n    server:\n      url: https://mcp.test\n  permissions:\n  - remote_name: lookup\n    permission: review\n    risk: unknown\n",
+    "validate": true,
+    "expected": {
+      "format": "woobe-package",
+      "schema_version": "1.0",
+      "kind": "Tool",
+      "metadata": {
+        "key": "mcp",
+        "name": "MCP"
+      },
+      "spec": {
+        "type": "mcp",
+        "config": {
+          "mode": "server",
+          "exposure": "all_discovered",
+          "server": {
+            "url": "https://mcp.test"
+          }
+        },
+        "permissions": [
+          {
+            "remote_name": "lookup",
+            "permission": "review",
+            "risk": "unknown"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "mcp-risk-unknown-deny",
+    "file": "tool-1.yaml",
+    "input": "format: woobe-package\nschema_version: '1.0'\nkind: Tool\nmetadata:\n  key: mcp\n  name: MCP\nspec:\n  type: mcp\n  config:\n    mode: server\n    exposure: all_discovered\n    server:\n      url: https://mcp.test\n  permissions:\n  - remote_name: lookup\n    permission: deny\n    risk: unknown\n",
+    "validate": true,
+    "expected": {
+      "format": "woobe-package",
+      "schema_version": "1.0",
+      "kind": "Tool",
+      "metadata": {
+        "key": "mcp",
+        "name": "MCP"
+      },
+      "spec": {
+        "type": "mcp",
+        "config": {
+          "mode": "server",
+          "exposure": "all_discovered",
+          "server": {
+            "url": "https://mcp.test"
+          }
+        },
+        "permissions": [
+          {
+            "remote_name": "lookup",
+            "permission": "deny",
+            "risk": "unknown"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "mcp-risk-unknown-allow",
+    "file": "tool-1.yaml",
+    "input": "format: woobe-package\nschema_version: '1.0'\nkind: Tool\nmetadata:\n  key: mcp\n  name: MCP\nspec:\n  type: mcp\n  config:\n    mode: server\n    exposure: all_discovered\n    server:\n      url: https://mcp.test\n  permissions:\n  - remote_name: lookup\n    permission: allow\n    risk: unknown\n",
+    "validate": true,
+    "expected": {
+      "format": "woobe-package",
+      "schema_version": "1.0",
+      "kind": "Tool",
+      "metadata": {
+        "key": "mcp",
+        "name": "MCP"
+      },
+      "spec": {
+        "type": "mcp",
+        "config": {
+          "mode": "server",
+          "exposure": "all_discovered",
+          "server": {
+            "url": "https://mcp.test"
+          }
+        },
+        "permissions": [
+          {
+            "remote_name": "lookup",
+            "permission": "allow",
+            "risk": "unknown"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "mcp-risk-custom",
+    "file": "tool-1.yaml",
+    "input": "format: woobe-package\nschema_version: '1.0'\nkind: Tool\nmetadata:\n  key: mcp\n  name: MCP\nspec:\n  type: mcp\n  config:\n    mode: server\n    exposure: all_discovered\n    server:\n      url: https://mcp.test\n  permissions:\n  - remote_name: lookup\n    permission: deny\n    risk: internal-sensitive\n",
+    "validate": true,
+    "expected": {
+      "format": "woobe-package",
+      "schema_version": "1.0",
+      "kind": "Tool",
+      "metadata": {
+        "key": "mcp",
+        "name": "MCP"
+      },
+      "spec": {
+        "type": "mcp",
+        "config": {
+          "mode": "server",
+          "exposure": "all_discovered",
+          "server": {
+            "url": "https://mcp.test"
+          }
+        },
+        "permissions": [
+          {
+            "remote_name": "lookup",
+            "permission": "deny",
+            "risk": "internal-sensitive"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "mcp-risk-low",
+    "file": "tool-1.yaml",
+    "input": "format: woobe-package\nschema_version: '1.0'\nkind: Tool\nmetadata:\n  key: mcp\n  name: MCP\nspec:\n  type: mcp\n  config:\n    mode: server\n    exposure: all_discovered\n    server:\n      url: https://mcp.test\n  permissions:\n  - remote_name: lookup\n    permission: allow\n    risk: low\n",
+    "validate": true,
+    "expected": {
+      "format": "woobe-package",
+      "schema_version": "1.0",
+      "kind": "Tool",
+      "metadata": {
+        "key": "mcp",
+        "name": "MCP"
+      },
+      "spec": {
+        "type": "mcp",
+        "config": {
+          "mode": "server",
+          "exposure": "all_discovered",
+          "server": {
+            "url": "https://mcp.test"
+          }
+        },
+        "permissions": [
+          {
+            "remote_name": "lookup",
+            "permission": "allow",
+            "risk": "low"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "mcp-risk-medium",
+    "file": "tool-1.yaml",
+    "input": "format: woobe-package\nschema_version: '1.0'\nkind: Tool\nmetadata:\n  key: mcp\n  name: MCP\nspec:\n  type: mcp\n  config:\n    mode: server\n    exposure: all_discovered\n    server:\n      url: https://mcp.test\n  permissions:\n  - remote_name: lookup\n    permission: review\n    risk: medium\n",
+    "validate": true,
+    "expected": {
+      "format": "woobe-package",
+      "schema_version": "1.0",
+      "kind": "Tool",
+      "metadata": {
+        "key": "mcp",
+        "name": "MCP"
+      },
+      "spec": {
+        "type": "mcp",
+        "config": {
+          "mode": "server",
+          "exposure": "all_discovered",
+          "server": {
+            "url": "https://mcp.test"
+          }
+        },
+        "permissions": [
+          {
+            "remote_name": "lookup",
+            "permission": "review",
+            "risk": "medium"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "mcp-risk-high",
+    "file": "tool-1.yaml",
+    "input": "format: woobe-package\nschema_version: '1.0'\nkind: Tool\nmetadata:\n  key: mcp\n  name: MCP\nspec:\n  type: mcp\n  config:\n    mode: server\n    exposure: all_discovered\n    server:\n      url: https://mcp.test\n  permissions:\n  - remote_name: lookup\n    permission: deny\n    risk: high\n",
+    "validate": true,
+    "expected": {
+      "format": "woobe-package",
+      "schema_version": "1.0",
+      "kind": "Tool",
+      "metadata": {
+        "key": "mcp",
+        "name": "MCP"
+      },
+      "spec": {
+        "type": "mcp",
+        "config": {
+          "mode": "server",
+          "exposure": "all_discovered",
+          "server": {
+            "url": "https://mcp.test"
+          }
+        },
+        "permissions": [
+          {
+            "remote_name": "lookup",
+            "permission": "deny",
+            "risk": "high"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "mcp-risk-critical",
+    "file": "tool-1.yaml",
+    "input": "format: woobe-package\nschema_version: '1.0'\nkind: Tool\nmetadata:\n  key: mcp\n  name: MCP\nspec:\n  type: mcp\n  config:\n    mode: server\n    exposure: all_discovered\n    server:\n      url: https://mcp.test\n  permissions:\n  - remote_name: lookup\n    permission: deny\n    risk: critical\n",
+    "validate": true,
+    "expected": {
+      "format": "woobe-package",
+      "schema_version": "1.0",
+      "kind": "Tool",
+      "metadata": {
+        "key": "mcp",
+        "name": "MCP"
+      },
+      "spec": {
+        "type": "mcp",
+        "config": {
+          "mode": "server",
+          "exposure": "all_discovered",
+          "server": {
+            "url": "https://mcp.test"
+          }
+        },
+        "permissions": [
+          {
+            "remote_name": "lookup",
+            "permission": "deny",
+            "risk": "critical"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "mcp-risk-null",
+    "file": "tool-1.yaml",
+    "input": "format: woobe-package\nschema_version: '1.0'\nkind: Tool\nmetadata:\n  key: mcp\n  name: MCP\nspec:\n  type: mcp\n  config:\n    mode: server\n    exposure: all_discovered\n    server:\n      url: https://mcp.test\n  permissions:\n  - remote_name: lookup\n    permission: deny\n    risk: null\n",
+    "validate": true,
+    "expected": {
+      "format": "woobe-package",
+      "schema_version": "1.0",
+      "kind": "Tool",
+      "metadata": {
+        "key": "mcp",
+        "name": "MCP"
+      },
+      "spec": {
+        "type": "mcp",
+        "config": {
+          "mode": "server",
+          "exposure": "all_discovered",
+          "server": {
+            "url": "https://mcp.test"
+          }
+        },
+        "permissions": [
+          {
+            "remote_name": "lookup",
+            "permission": "deny",
+            "risk": null
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "mcp-risk-max-unicode",
+    "file": "tool-1.yaml",
+    "input": "format: woobe-package\nschema_version: '1.0'\nkind: Tool\nmetadata:\n  key: mcp\n  name: MCP\nspec:\n  type: mcp\n  config:\n    mode: server\n    exposure: all_discovered\n    server:\n      url: https://mcp.test\n  permissions:\n  - remote_name: lookup\n    permission: review\n    risk: éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé\n",
+    "validate": true,
+    "expected": {
+      "format": "woobe-package",
+      "schema_version": "1.0",
+      "kind": "Tool",
+      "metadata": {
+        "key": "mcp",
+        "name": "MCP"
+      },
+      "spec": {
+        "type": "mcp",
+        "config": {
+          "mode": "server",
+          "exposure": "all_discovered",
+          "server": {
+            "url": "https://mcp.test"
+          }
+        },
+        "permissions": [
+          {
+            "remote_name": "lookup",
+            "permission": "review",
+            "risk": "éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "mcp-risk-empty",
+    "file": "tool-1.yaml",
+    "input": "format: woobe-package\nschema_version: '1.0'\nkind: Tool\nmetadata:\n  key: mcp\n  name: MCP\nspec:\n  type: mcp\n  config:\n    mode: server\n    exposure: all_discovered\n    server:\n      url: https://mcp.test\n  permissions:\n  - remote_name: lookup\n    permission: review\n    risk: ''\n",
+    "validate": true,
+    "error": "PACKAGE_SCHEMA_INVALID"
+  },
+  {
+    "name": "mcp-risk-oversized",
+    "file": "tool-1.yaml",
+    "input": "format: woobe-package\nschema_version: '1.0'\nkind: Tool\nmetadata:\n  key: mcp\n  name: MCP\nspec:\n  type: mcp\n  config:\n    mode: server\n    exposure: all_discovered\n    server:\n      url: https://mcp.test\n  permissions:\n  - remote_name: lookup\n    permission: review\n    risk: ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé\n",
+    "validate": true,
+    "error": "PACKAGE_SCHEMA_INVALID"
+  },
+  {
+    "name": "mcp-risk-numeric",
+    "file": "tool-1.yaml",
+    "input": "format: woobe-package\nschema_version: '1.0'\nkind: Tool\nmetadata:\n  key: mcp\n  name: MCP\nspec:\n  type: mcp\n  config:\n    mode: server\n    exposure: all_discovered\n    server:\n      url: https://mcp.test\n  permissions:\n  - remote_name: lookup\n    permission: review\n    risk: 1\n",
+    "validate": true,
+    "error": "PACKAGE_SCHEMA_INVALID"
+  },
+  {
+    "name": "mcp-risk-boolean",
+    "file": "tool-1.yaml",
+    "input": "format: woobe-package\nschema_version: '1.0'\nkind: Tool\nmetadata:\n  key: mcp\n  name: MCP\nspec:\n  type: mcp\n  config:\n    mode: server\n    exposure: all_discovered\n    server:\n      url: https://mcp.test\n  permissions:\n  - remote_name: lookup\n    permission: review\n    risk: true\n",
+    "validate": true,
+    "error": "PACKAGE_SCHEMA_INVALID"
+  },
+  {
+    "name": "mcp-risk-object",
+    "file": "tool-1.yaml",
+    "input": "format: woobe-package\nschema_version: '1.0'\nkind: Tool\nmetadata:\n  key: mcp\n  name: MCP\nspec:\n  type: mcp\n  config:\n    mode: server\n    exposure: all_discovered\n    server:\n      url: https://mcp.test\n  permissions:\n  - remote_name: lookup\n    permission: review\n    risk: {}\n",
+    "validate": true,
+    "error": "PACKAGE_SCHEMA_INVALID"
+  },
+  {
+    "name": "mcp-risk-array",
+    "file": "tool-1.yaml",
+    "input": "format: woobe-package\nschema_version: '1.0'\nkind: Tool\nmetadata:\n  key: mcp\n  name: MCP\nspec:\n  type: mcp\n  config:\n    mode: server\n    exposure: all_discovered\n    server:\n      url: https://mcp.test\n  permissions:\n  - remote_name: lookup\n    permission: review\n    risk: []\n",
+    "validate": true,
+    "error": "PACKAGE_SCHEMA_INVALID"
+  },
+  {
+    "name": "mcp-risk-invalid-mode",
+    "file": "tool-1.yaml",
+    "input": "format: woobe-package\nschema_version: '1.0'\nkind: Tool\nmetadata:\n  key: mcp\n  name: MCP\nspec:\n  type: mcp\n  config:\n    mode: server\n    exposure: all_discovered\n    server:\n      url: https://mcp.test\n  permissions:\n  - remote_name: lookup\n    permission: approve\n    risk: unknown\n",
+    "validate": true,
+    "error": "PACKAGE_SCHEMA_INVALID"
   }
 ]

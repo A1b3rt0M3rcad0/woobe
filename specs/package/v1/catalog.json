@@ -3771,12 +3771,8 @@
           "risk": {
             "anyOf": [
               {
-                "enum": [
-                  "low",
-                  "medium",
-                  "high",
-                  "critical"
-                ],
+                "maxLength": 256,
+                "minLength": 1,
                 "type": "string"
               },
               {

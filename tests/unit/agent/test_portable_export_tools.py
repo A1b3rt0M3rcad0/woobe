@@ -6,6 +6,8 @@ from modules.agent.application.portable_export_tools import export_frozen_tool
 from modules.agent.application.tool_release_snapshots import tool_to_release_snapshot
 from modules.agent.domain.entities import Tool
 from modules.agent.domain.enums import ToolType
+from modules.agent.domain.mcp_permissions import normalize_permission
+from modules.package.application.validation import validate_document
 from shared.contracts.errors import ValidationError
 
 
@@ -122,3 +124,38 @@ def test_export_freezes_effective_root_risk_for_stable_policy_roundtrip():
         )
     )
     assert default["config"]["permission"]["risk_level"] == default["risk"]
+
+
+@pytest.mark.parametrize("mode", ["review", "deny", "allow"])
+@pytest.mark.parametrize(
+    "risk", ["unknown", "internal-sensitive", "low", "medium", "high", "critical", None]
+)
+def test_native_mcp_permission_risk_survives_export_schema_validation(mode, risk):
+    native_permission = normalize_permission({"mode": mode, "risk_level": risk})
+    tool = _tool(
+        {
+            "mode": "server",
+            "exposure": "all_discovered",
+            "server": {"url": "https://mcp.test"},
+            "discovered_tools": [{"name": "lookup", "permission": native_permission}],
+        },
+        ToolType.MCP,
+    )
+    exported = export_frozen_tool(tool_to_release_snapshot(tool))
+    validated = validate_document(
+        {
+            "format": "woobe-package",
+            "schema_version": "1.0",
+            "kind": "Tool",
+            "metadata": {"key": "lookup", "name": "Lookup"},
+            "spec": {
+                key: value
+                for key, value in exported.items()
+                if key not in {"id", "name"}
+            },
+        },
+        "tool-1.yaml",
+    )
+    permission = validated.spec.permissions[0]
+    assert permission.permission == mode
+    assert permission.risk == native_permission.get("risk_level")

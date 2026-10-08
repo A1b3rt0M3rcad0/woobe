@@ -12,9 +12,9 @@ cli = _live_cli
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("kind,with_knowledge", [("agent", False), ("network", False), ("agent", True)])
+@pytest.mark.parametrize("kind,with_knowledge,with_mcp", [("agent", False, False), ("network", False, False), ("agent", True, False), ("agent", False, True), ("network", False, True)])
 async def test_managed_agent_pull_edit_push_keeps_native_identity_and_rejects_stale_base(
-    cli, tmp_path, kind, with_knowledge
+    cli, tmp_path, kind, with_knowledge, with_mcp
 ):
     project = await cli.data(
         "project",
@@ -95,6 +95,12 @@ async def test_managed_agent_pull_edit_push_keeps_native_identity_and_rejects_st
     }
     documents["woobe.yaml"]["spec"]["resources"].append("tool.yaml")
     documents["agent.yaml"]["spec"]["tools"] = [{"ref": "lookup"}]
+    if with_mcp:
+        documents["tool.yaml"]["spec"] = {
+            "type": "mcp",
+            "config": {"mode": "server", "exposure": "all_discovered", "server": {"url": os.environ["WOOBE_TEST_FAKE_MCP_URL"]}},
+            "permissions": [{"remote_name": "lookup", "permission": "review", "risk": "unknown"}],
+        }
     if with_knowledge:
         documents["embedding.yaml"] = {
             "kind": "Model", "metadata": {"key": "embedding", "name": "Embedding"},
@@ -189,6 +195,11 @@ async def test_managed_agent_pull_edit_push_keeps_native_identity_and_rejects_st
     ]
     assert pulled["pulled"] is True
     provider_registry = yaml.safe_load((local / ".woobe-config").read_text())
+    if with_mcp:
+        tool_resource = next(item for item in provider_registry["resources"] if item["kind"] == "Tool")
+        tool_descriptor = yaml.safe_load((local / ".woobe" / tool_resource["path"] / "tool.yaml").read_text())
+        permission = tool_descriptor["spec"]["permissions"][0]
+        assert {key: permission[key] for key in ("remote_name", "permission", "risk")} == {"remote_name": "lookup", "permission": "review", "risk": "unknown"}
     provider_alias = next(item["alias"] for item in provider_registry["resources"] if item["kind"] == "Provider")
     assert sum(item["kind"] == "Provider" for item in provider_registry["resources"]) == 1
     verified = (await cli.run("resources", "bind", "provider", f"@{provider_alias}", credential["id"], cwd=local))["data"]

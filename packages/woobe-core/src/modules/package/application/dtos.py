@@ -236,7 +236,8 @@ class McpPermission(StrictDTO):
     bindings: dict[str, ToolInputBinding] = Field(default_factory=dict)
     remote_name: str
     permission: Literal["allow", "deny", "review"]
-    risk: Literal["low", "medium", "high", "critical"] | None = None
+    # Native MCP risk labels include unknown and user-defined classifications.
+    risk: str | None = Field(default=None, min_length=1, max_length=256)
 
 
 class ToolSpecV1(StrictDTO):
