@@ -467,6 +467,9 @@ class SQLAlchemyAgentReleaseRepository(
     async def save(self, release: AgentRelease) -> AgentRelease:
         existing = await self._get_model_by_id(release.id)
         if existing:
+            if existing.snapshot_kind == "candidate":
+                from shared.contracts.errors import ConflictError
+                raise ConflictError("ASAC_CANDIDATE_IMMUTABLE: candidate snapshots cannot be edited")
             new_model = agent_release_entity_to_model(release)
             for key, value in new_model.__dict__.items():
                 if key in ("_sa_instance_state", "created_at", "updated_at"):
@@ -476,6 +479,11 @@ class SQLAlchemyAgentReleaseRepository(
             await self._refresh_model(existing)
             return agent_release_model_to_entity(existing)
         model = agent_release_entity_to_model(release)
+        if getattr(release, "snapshot_kind", None) == "candidate":
+            # Candidate insertion is complete in one SQL row. The provider-model
+            # adapter must not need a second UPDATE of an immutable snapshot.
+            model.provider_model_id = getattr(release, "provider_model_id", None)
+            model.fallback_provider_model_id = getattr(release, "fallback_provider_model_id", None)
         await self._add_model(model)
         await self._flush()
         await self._refresh_model(model)

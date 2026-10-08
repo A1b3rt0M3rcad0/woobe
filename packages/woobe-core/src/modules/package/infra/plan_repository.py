@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Mapping
 from datetime import UTC, datetime
+from uuid import UUID
 
 from modules.package.application.planning import PlanPackageUseCase, definition_digest
 from modules.package.domain.bundle import PackageGraph, support_paths
@@ -69,6 +70,7 @@ class PackagePlanRepository:
         mode="create",
         registry_id=None,
         resource_bindings=None,
+        candidate=None,
     ):
         upload = await self._artifacts.get_record(
             project_id=project_id, principal=principal, upload_id=upload_id
@@ -93,6 +95,7 @@ class PackagePlanRepository:
                 release_notes=release_notes,
                 reason=reason,
                 api_origin=api_origin,
+                candidate=candidate if mode == "candidate" else None,
             )
             if mode == "sync":
                 if self.registry is None:
@@ -129,6 +132,13 @@ class PackagePlanRepository:
         document = plan.document
         if self.registry and document.get("mode") == "sync":
             await self.registry.validate(session, plan, principal)
+        elif document.get("mode") == "candidate":
+            for target in document["resource_bindings"].values():
+                # Candidate inputs are identities, not claims that today's mutable
+                # Draft equals the sealed historical object being prepared.
+                await self.registry.inspect(session, project_id=plan.project_id,
+                    principal=principal, kind=target["kind"],
+                    resource_id=UUID(target["resource_id"]), lock=True)
         if payload.get("bindings") != document["bindings"]:
             raise PackageError(
                 "PACKAGE_PLAN_MISMATCH", "Bindings differ from the approved plan"

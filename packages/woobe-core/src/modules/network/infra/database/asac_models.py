@@ -1,6 +1,6 @@
 from sqlalchemy import CheckConstraint, ForeignKeyConstraint, UniqueConstraint
 from shared.infra.database.base import BaseModel
-from shared.infra.asac_record_models import ASaCDraftColumns, ASaCRevisionColumns, ASaCOperationColumns
+from shared.infra.asac_record_models import ASaCDraftColumns, ASaCRevisionColumns, ASaCOperationColumns, ASaCCandidateColumns
 
 
 class ASaCDraftModel(ASaCDraftColumns, BaseModel):
@@ -42,5 +42,19 @@ class ASaCResourceModel(BaseModel):
         UniqueConstraint("project_id", "resource_id", name="uq_network_asac_resource_native"),
         UniqueConstraint("project_id", "resource_uid", name="uq_network_asac_resource_uid"),
         ForeignKeyConstraint(["resource_id"], ["network.networks.id"], ondelete="RESTRICT"),
+        {"schema": "network"},
+    )
+
+
+class ASaCCandidateModel(ASaCCandidateColumns, BaseModel):
+    __tablename__ = "asac_candidates"
+    __table_args__ = (
+        UniqueConstraint("project_id", "resource_id", "actor", "operation_id", name="uq_network_asac_candidate_operation"),
+        CheckConstraint("draft_generation >= 1", name="ck_network_asac_candidate_generation"),
+        CheckConstraint("state IN ('preparing', 'ready', 'rejected')", name="ck_network_asac_candidate_state"),
+        ForeignKeyConstraint(["resource_id"], ["network.networks.id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(["draft_id"], ["network.asac_drafts.id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(["project_id", "resource_uid", "revision_id"], ["network.asac_revisions.project_id", "network.asac_revisions.resource_uid", "network.asac_revisions.revision_id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(["root_snapshot_id"], ["network.network_versions.id"], ondelete="RESTRICT"),
         {"schema": "network"},
     )

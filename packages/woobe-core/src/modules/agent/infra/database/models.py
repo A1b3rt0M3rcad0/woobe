@@ -179,6 +179,7 @@ class AgentReleaseModel(BaseModel):
     __table_args__ = (
         Index("ix_agent_releases_agent_version", "agent_id", "version", unique=True),
         Index("ix_agent_releases_agent_status", "agent_id", "status"),
+        CheckConstraint("snapshot_kind IN ('draft', 'staging', 'release', 'candidate')", name="ck_agent_releases_snapshot_kind"),
         CheckConstraint(
             "session_mode IN ('stateful', 'stateless')",
             name="ck_agent_releases_session_mode",

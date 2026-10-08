@@ -68,7 +68,7 @@ def test_release_binding_preserves_exact_reference():
 
 
 def test_invalid_binding_source_is_rejected():
-    with pytest.raises(ValueError, match="draft, staging or release"):
+    with pytest.raises(ValueError, match="draft, staging, release or candidate"):
         NetworkDefinition.from_dict(
             definition_payload(binding={"source": "latest", "release_id": RELEASE_ID})
         )
@@ -80,3 +80,13 @@ def test_graph_validation_rejects_a_draft_with_release_id():
 
     with pytest.raises(NetworkGraphError, match="Draft Agent binding"):
         validate_network_definition(definition)
+
+
+def test_exact_candidate_binding_cannot_enter_legacy_environments():
+    from modules.network.domain.environment_bindings import validate_network_environment_bindings, NetworkEnvironmentBindingError
+    definition = NetworkDefinition.from_dict(definition_payload(binding={"source": "candidate", "release_id": RELEASE_ID}))
+    validate_network_definition(definition)
+    validate_network_environment_bindings(definition, "candidate")
+    for environment in ("draft", "staging", "production"):
+        with pytest.raises(NetworkEnvironmentBindingError):
+            validate_network_environment_bindings(definition, environment)
