@@ -146,3 +146,18 @@ class PackageSnapshotArtifactModel(BaseModel):
     manifest: Mapped[dict] = mapped_column(JSON)
     component_digests: Mapped[dict] = mapped_column(JSON)
     size_bytes: Mapped[int] = mapped_column(Integer)
+
+
+class PackageAuthorArtifactModel(BaseModel):
+    """Immutable source custody; upload authority expires, linked history does not."""
+    __tablename__ = "author_artifacts"
+    __table_args__ = ({"schema": "package"},)
+    project_id: Mapped[UUID]
+    actor: Mapped[str] = mapped_column(String(96))
+    author_digest: Mapped[str] = mapped_column(String(71))
+    resource_uid: Mapped[UUID]
+    components: Mapped[dict] = mapped_column(JSON)
+    storage_key: Mapped[str] = mapped_column(String(512))
+    transport_digest: Mapped[str] = mapped_column(String(64))
+    size_bytes: Mapped[int] = mapped_column(Integer)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

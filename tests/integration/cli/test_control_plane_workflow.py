@@ -33,7 +33,7 @@ from shared.security.control_plane import (
 )
 
 CLI_COMMIT = os.environ.get(
-    "WOOBE_TEST_CLI_SHA", "f3e10c3bcd5ac719a7340aa9ce262004a8e5938c"
+    "WOOBE_TEST_CLI_SHA", "d11bfbe8b6b1f87f1c3ce519b1c905706ecf0ee7"
 )
 
 
@@ -1277,7 +1277,7 @@ async def exercise_asac_isolated_drafts(cli, kind, resource_id):
     checkpoint = (await cli.run(kind.lower(), "@captured", "revision", "create", "--message", "CLI exact checkpoint", cwd=registry))["data"]
     cli_revision = (await cli.run(kind.lower(), "@captured", "draft", "checkpoint", checkpoint["revision_id"], cwd=registry))["data"]
     assert cli_revision["record"] == checkpoint
-    assert cli_revision["author_artifact_status"] == "declared_not_retained"
+    assert cli_revision["author_artifact_status"] == "retained_custody"
     descriptor = registry / config["root"] / root_resource["path"]
     if descriptor.suffix.lower() not in {".yaml", ".yml", ".json"}:
         descriptor = descriptor / (kind.lower() + ".yaml")
@@ -1356,6 +1356,22 @@ async def exercise_asac_isolated_drafts(cli, kind, resource_id):
     assert executable_path.is_file()
 
     assert descriptor.read_bytes() == original_source
+    # Recover exact commented source using a different server reader, with no
+    # local source objects or private bindings left to supply its original bytes.
+    author_root = registry / config["root"] / "objects" / "author"
+    shutil.rmtree(author_root)
+    _, source_reader = await cli.issue("workspace", "control-key", "create", body={
+        "name": "Independent history reader", "expires_at": (datetime.now(UTC) + timedelta(minutes=30)).isoformat(), "on_project_create_permissions": [],
+        "project_grants": [{"project_id": cli.project_id, "permissions": ["project:read", kind.lower() + ":read"]}]})
+    source_hydrated = (await cli.run(kind.lower(), "@captured", "revision", "hydrate", comment_revision["revision_id"], cwd=registry, key=source_reader))["data"]
+    assert source_hydrated["author_object"] == "verified_source_and_compilation"
+    assert not source_hydrated["bindings_restored"] and not source_hydrated["author_files_changed"]
+    assert descriptor.read_bytes() == original_source
+    # Guarded checkout must also verify the current clean source anchor. Do not
+    # bypass this protection merely because the target source was recovered.
+    await cli.run(kind.lower(), "@captured", "revision", "hydrate", checkpoint["revision_id"], cwd=registry, key=source_reader)
+    commented_checkout = (await cli.run(kind.lower(), "@captured", "checkout", "--revision", comment_revision["revision_id"], cwd=registry))["data"]
+    assert commented_checkout["working_revision"] == comment_revision["revision_id"] and descriptor.read_bytes() == b"# local author comment\n" + original_source
 
     reconciled = await cli.data("request","GET",base+"/operations/"+registration["operation_id"])
     assert reconciled["state"] == "committed" and reconciled["result"] == accepted

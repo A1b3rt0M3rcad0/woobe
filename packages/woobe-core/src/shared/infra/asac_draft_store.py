@@ -183,6 +183,12 @@ class ASaCDraftStore:
         expected_components.update({str(uid): artifact["provider_digests"][key] for key, uid in request.provider_uids.items()})
         if record["component_digests"] != expected_components:
             raise ConflictError("ASAC_REVISION_MISMATCH: component definitions differ from the captured object")
+        author_id = None
+        if request.author_upload_id is not None:
+            identities = {str(uid): key for key, uid in request.component_uids.items()}
+            identities.update({str(uid): key for key, uid in request.provider_uids.items()})
+            author_id = await self.artifacts.authors.retain(project_id=project_id, principal=principal,
+                upload_id=request.author_upload_id, record=record, identities=identities)
         async with self.transactions.begin() as session:
             await self._authorize(session, project_id, resource_id, principal, write=True, lock=True)
             digest, replay = await self._operation(session, project_id=project_id, resource_id=resource_id, principal=principal, request=request, action="revision")
@@ -204,10 +210,12 @@ class ASaCDraftStore:
             if existing is None:
                 session.add(self.revisions(project_id=project_id, resource_id=resource_id,
                     resource_uid=line.resource_uid, revision_id=record["revision_id"], artifact_id=artifact_id,
-                    document=record, actor=principal_identity(principal)))
+                    document=record, actor=principal_identity(principal), author_artifact_id=author_id))
+            elif author_id is not None:
+                existing.author_artifact_id = author_id
             line.working_revision_id = record["revision_id"]
             return self._receipt(session, project_id=project_id, resource_id=resource_id, principal=principal,
-                request=request, digest=digest, result={"record": record, "author_artifact_status": "declared_not_retained" if record.get("author_artifact_digest") else "unavailable", "artifact_id": str(artifact_id),
+                request=request, digest=digest, result={"record": record, "author_artifact_status": "retained_custody" if author_id is not None or existing is not None and existing.author_artifact_id is not None else "declared_not_retained" if record.get("author_artifact_digest") else "unavailable", "artifact_id": str(artifact_id),
                 "draft_id": str(line.id), "generation": line.generation, "production_changed": False, "complete": True})
 
     async def list_drafts(self, *, project_id, resource_id, principal):
@@ -246,7 +254,7 @@ class ASaCDraftStore:
                     raise ValueError("stored identity mismatch")
             except (ValueError, TypeError) as exc:
                 raise ConflictError("ASAC_INTEGRITY_CONFLICT: retained revision metadata is inconsistent") from exc
-            return {"record": record, "author_artifact_status": "declared_not_retained" if row.document.get("author_artifact_digest") else "unavailable", "artifact_id": str(row.artifact_id), "complete": True}
+            return {"record": record, "author_artifact_status": "retained_custody" if row.author_artifact_id is not None else "declared_not_retained" if row.document.get("author_artifact_digest") else "unavailable", "author_artifact_id": str(row.author_artifact_id) if row.author_artifact_id else None, "artifact_id": str(row.artifact_id), "complete": True}
 
     async def revision_transfer(self, *, project_id, resource_id, revision_id, principal):
         from shared.contracts.asac_requests import ASaCRevision
@@ -272,6 +280,22 @@ class ASaCDraftStore:
             "record_digest": record["record_digest"], **evidence,
             "author_artifact_status": observed["author_artifact_status"], "complete": True}
         return receipt, content
+
+    async def author_transfer(self, *, project_id, resource_id, revision_id, principal):
+        observed = await self.get_revision(project_id=project_id, resource_id=resource_id,
+            revision_id=revision_id, principal=principal)
+        if observed["author_artifact_id"] is None:
+            raise NotFoundError("ASAC_AUTHOR_UNAVAILABLE: author source was not retained")
+        evidence, content = await self.artifacts.authors.transfer(project_id=project_id, principal=principal,
+            artifact_id=observed["author_artifact_id"])
+        record = observed["record"]
+        if evidence["author_digest"] != record.get("author_artifact_digest") or evidence["resource_uid"] != record["resource_uid"]:
+            raise ConflictError("ASAC_INTEGRITY_CONFLICT: author source differs from its revision")
+        async with self._read() as session:
+            await self._authorize(session, project_id, resource_id, principal)
+        return {"package_schema_version": "1.0", "schema_version": "1.0", "kind": self.kind, "project_id": str(project_id),
+            "resource_id": str(resource_id), "revision_id": revision_id, "record_digest": record["record_digest"],
+            **evidence, "complete": True}, content
 
     async def operation(self, *, project_id, resource_id, operation_id, principal):
         async with self._read() as session:

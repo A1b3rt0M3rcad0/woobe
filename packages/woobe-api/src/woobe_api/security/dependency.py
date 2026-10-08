@@ -12,7 +12,7 @@ from shared.security.principal import ProjectApiPrincipal
 
 async def _security_body(request: Request) -> Any:
     route = request.scope.get("route")
-    if request.method == "POST" and getattr(route, "path", None) == "/projects/{project_id}/packages/uploads":
+    if request.method == "POST" and getattr(route, "path", None) in {"/projects/{project_id}/packages/uploads", "/projects/{project_id}/packages/author-uploads"}:
         # Authority for this endpoint is fully identified by the project path.
         # Authenticate before parsing the bounded archive upload.
         return None
