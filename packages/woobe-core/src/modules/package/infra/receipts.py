@@ -305,6 +305,8 @@ class PackageTransactionReceipt:
                             "definition_digest": target["definition_digest"],
                             "frozen": bool(target.get("frozen")),
                             "snapshot_id": accepted.get("snapshot_id"),
+                            "snapshot_digest": accepted.get("snapshot_digest"),
+                            "source_kind": accepted.get("source_kind"),
                         }
                     binding.preparation = preparation
         operation.dependencies = []

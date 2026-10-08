@@ -33,7 +33,7 @@ from shared.security.control_plane import (
 )
 
 CLI_COMMIT = os.environ.get(
-    "WOOBE_TEST_CLI_SHA", "d11bfbe8b6b1f87f1c3ce519b1c905706ecf0ee7"
+    "WOOBE_TEST_CLI_SHA", "ea4a38c4dd360e850a9b60b0d4791d18cae7a13a"
 )
 
 
@@ -1238,6 +1238,7 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
 async def exercise_asac_isolated_drafts(cli, kind, resource_id):
     """Both owners retain exact objects without rewriting default or Production."""
     import io
+    import shutil
     from modules.package.application.asac_definition import portable_definition
     from modules.package.infra.bundles import receive_archive
     from shared.contracts.asac import asac_digest
@@ -1261,6 +1262,29 @@ async def exercise_asac_isolated_drafts(cli, kind, resource_id):
     assert accepted_root["revision"] == accepted_root["accepted_revision"] == accepted_root["current_revision"]
     assert accepted_root["binding_status"] == "unchanged"
     assert accepted_root["operation_id"] == pushed["operation_id"]
+    private_state = registry / config["root"] / ".state"
+    saved_state = {file.relative_to(private_state): file.read_bytes() for file in private_state.rglob("*") if file.is_file()}
+    shutil.rmtree(private_state)
+    recovery_preview = (await cli.run(kind.lower(), resource_id, "bindings", "recover", "--dry-run", cwd=registry))["data"]
+    assert not recovery_preview["bindings_recovered"]
+    assert not list(private_state.glob("*.json"))
+    recovery = (await cli.run(kind.lower(), resource_id, "bindings", "recover", cwd=registry))["data"]
+    assert recovery["bindings_recovered"] and recovery["author_base"] == "not_recovered"
+    assert not recovery["credentials_restored"] and not recovery["remote_changed"] and not recovery["local_files_changed"]
+    recovered_state = json.loads(next(private_state.glob("*.json")).read_text())
+    assert recovered_state["bindings"][uid]["revision"] == accepted_root["accepted_revision"]
+    assert recovered_state["bindings"][uid]["base"] is None and recovered_state["credentials"] == {}
+    for binding in registered["resources"]:
+        if binding["frozen"]:
+            assert recovered_state["bindings"][binding["resource_uid"]]["snapshot_id"] == binding["snapshot_id"]
+    # Keep original accepted author bases for the remaining independent history
+    # scenarios. Identity recovery itself never supplies those bases.
+    shutil.rmtree(private_state)
+    for relative, content in saved_state.items():
+        target = private_state / relative
+        target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        target.write_bytes(content)
+        target.chmod(0o600)
     production_after = (await cli.run(kind.lower(), resource_id, "current", "--env", "production"))["data"]
     assert production_after["snapshot_id"] == production_before["snapshot_id"]
     if kind == "Agent":

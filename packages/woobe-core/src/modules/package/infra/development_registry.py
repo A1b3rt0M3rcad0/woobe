@@ -13,6 +13,7 @@ from modules.package.domain.errors import PackageError
 from modules.package.domain.operations import TERMINAL_STATES
 from modules.package.infra.models import (
     PackageOperationModel,
+    PackagePlanModel,
     PackageResourceBindingModel,
     PackageExportModel,
 )
@@ -35,6 +36,32 @@ class DevelopmentRegistry:
             )
         }
         self._readers["Network"] = network_reader
+
+    async def frozen_evidence(self, session, row):
+        """Read a sealed owner receipt, including its original pre-upgrade plan."""
+        accepted = (row.preparation or {}).get("accepted_native") if row else None
+        if not accepted or not accepted.get("frozen"):
+            return accepted
+        if accepted.get("snapshot_digest") and accepted.get("source_kind"):
+            return accepted
+        operation = await session.get(PackageOperationModel, row.operation_id)
+        plan = await session.get(PackagePlanModel, operation.plan_id) if operation else None
+        if not plan or operation.project_id != row.project_id or plan.project_id != row.project_id or str(plan.document.get("registry_id")) != str(row.registry_id):
+            return accepted
+        matches = [target for target in plan.document.get("resource_bindings", {}).values() if (
+            target.get("resource_uid") == str(row.resource_uid)
+            and target.get("kind") == row.kind
+            and target.get("resource_id") == str(row.resource_id)
+            and target.get("definition_digest") == row.definition_digest
+            and target.get("frozen")
+            and target.get("evidence", {}).get("snapshot_id") == accepted.get("snapshot_id")
+        )]
+        if len(matches) != 1:
+            return accepted
+        # This is server-retained validated plan evidence, never a client claim
+        # or a later observation of a mutable snapshot.
+        evidence = matches[0]["evidence"]
+        return {**accepted, **{field: evidence.get(field) for field in ("snapshot_digest", "source_kind")}}
 
     async def inspect(
         self, session, *, project_id, principal, kind, resource_id, lock=False
@@ -76,7 +103,7 @@ class DevelopmentRegistry:
                         kind=row.kind,
                         resource_id=row.resource_id,
                     )
-                accepted = (row.preparation or {}).get("accepted_native")
+                accepted = await self.frozen_evidence(session, row)
                 unfinished = False
                 if accepted and (
                     accepted.get("operation_id") != str(row.operation_id)
@@ -142,6 +169,8 @@ class DevelopmentRegistry:
                         "snapshot_id": accepted.get("snapshot_id")
                         if accepted
                         else None,
+                        "source_kind": accepted.get("source_kind") if accepted else None,
+                        "frozen_evidence_retained": bool(accepted and accepted.get("frozen") and accepted.get("snapshot_digest") and accepted.get("source_kind")),
                         "identifiers": {
                             field: evidence[field]
                             for field in ("skill_id", "collection_id")
@@ -307,6 +336,32 @@ class DevelopmentRegistry:
                 )
             )
             if frozen:
+                accepted = await self.frozen_evidence(session, row)
+                durable = bool(
+                    accepted
+                    and accepted.get("frozen")
+                    and accepted.get("resource_id") == resource_id
+                    and accepted.get("operation_id") == str(row.operation_id)
+                    and accepted.get("definition_digest") == row.definition_digest
+                    and row.definition_digest == digests[key]
+                    and accepted.get("snapshot_id") == target["release_id"]
+                    and accepted.get("snapshot_digest")
+                    and accepted.get("source_kind")
+                )
+                if kind == "Agent" and resource_id and durable:
+                    # No actor-scoped export ticket is needed after an owner
+                    # receipt retained the exact immutable snapshot evidence.
+                    # reuse_frozen rechecks its owner/hash in the native phase.
+                    evidence.update({field: accepted[field] for field in (
+                        "revision", "snapshot_id", "snapshot_digest", "source_kind"
+                    )})
+                    prepared[key] = {
+                        **target, "frozen": True, "kind": kind,
+                        "resource_id": resource_id, "definition_digest": digests[key],
+                        "evidence": evidence, "preparation": row.preparation,
+                        "unchanged": True,
+                    }
+                    continue
                 if (
                     kind != "Agent"
                     or not resource_id
