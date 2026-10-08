@@ -33,7 +33,7 @@ from shared.security.control_plane import (
 )
 
 CLI_COMMIT = os.environ.get(
-    "WOOBE_TEST_CLI_SHA", "d0f8baad9982b400985a813d55b9074ff4bfb756"
+    "WOOBE_TEST_CLI_SHA", "c799d99b1dd7702c7f9d64f2ae3c72d08538f7eb"
 )
 
 
@@ -245,7 +245,14 @@ async def cli(tmp_path):
             log = (tmp_path / f"{name}.log").open("wb")
             logs.append(log)
             processes.append(
-                await asyncio.create_subprocess_exec(*command, stdout=log, stderr=log)
+                await asyncio.create_subprocess_exec(
+                    *command, stdout=log, stderr=log,
+                    # This contract drives hundreds of deliberate administrative
+                    # requests in one minute. Keep throttling enabled with an
+                    # explicit harness budget; dedicated security tests exercise
+                    # the production/default limit and rejection behavior.
+                    env={**os.environ, "WOOBE_API_KEY_RATE_LIMIT_REQUESTS": "1000"},
+                )
             )
         async with httpx.AsyncClient(trust_env=False) as client:
             for _ in range(120):
@@ -1245,6 +1252,24 @@ async def exercise_asac_isolated_drafts(cli, kind, resource_id):
     config = yaml.safe_load((registry / ".woobe-config").read_text())
     root_resource = next(item for item in config["resources"] if item["kind"] == kind and item["alias"] == "captured")
     uid = root_resource["uid"]
+    production_before = (await cli.run(kind.lower(), resource_id, "current", "--env", "production"))["data"]
+    pushed = (await cli.run(kind.lower(), "@captured", "push", cwd=registry))["data"]
+    assert pushed["pushed"] and pushed["environment"] == "draft"
+    registered = await cli.data("request", "GET", f"/projects/{cli.project_id}/packages/registries/{config['registry_id']}")
+    accepted_root = next(item for item in registered["resources"] if item["resource_uid"] == uid)
+    assert accepted_root["generation_scope"] == "accepted_native_phase"
+    assert accepted_root["revision"] == accepted_root["accepted_revision"] == accepted_root["current_revision"]
+    assert accepted_root["binding_status"] == "unchanged"
+    assert accepted_root["operation_id"] == pushed["operation_id"]
+    production_after = (await cli.run(kind.lower(), resource_id, "current", "--env", "production"))["data"]
+    assert production_after["snapshot_id"] == production_before["snapshot_id"]
+    if kind == "Agent":
+        await cli.data("project", "agent", "update", resource_id, body={"description": "Concurrent native edit after accepted synchronization"})
+        changed = await cli.data("request", "GET", f"/projects/{cli.project_id}/packages/registries/{config['registry_id']}")
+        changed_root = next(item for item in changed["resources"] if item["resource_uid"] == uid)
+        assert changed_root["revision"] == accepted_root["accepted_revision"]
+        assert changed_root["current_revision"] != changed_root["accepted_revision"]
+        assert changed_root["binding_status"] == "resource_changed"
     cli_open = (await cli.run(kind.lower(), "@captured", "draft", "open", "cli-hotfix", "--from", "production", cwd=registry))["data"]
     assert cli_open["resource_uid"] == uid and not cli_open["production_changed"]
     cli_saved = (await cli.run(kind.lower(), "@captured", "draft", "push", cwd=registry))["data"]
@@ -1266,6 +1291,10 @@ async def exercise_asac_isolated_drafts(cli, kind, resource_id):
     restored = (await cli.run(kind.lower(), "@captured", "checkout", "--revision", checkpoint["revision_id"], cwd=registry))["data"]
     assert restored["working_revision"] == checkpoint["revision_id"] and restored["origin_preserved"]
     assert not restored["remote_changed"] and descriptor.read_bytes() == original_source
+    selected = (await cli.run(kind.lower(), "@captured", "draft", "select", "cli-hotfix", cwd=registry))["data"]
+    assert selected["selected"] and not selected["remote_changed"] and not selected["local_files_changed"]
+    assert selected["draft"]["draft_id"] == cli_open["draft_id"]
+    assert descriptor.read_bytes() == original_source
     opening = {"operation_id":str(uuid4()),"resource_uid":uid,"name":"hotfix","source_export_id":export["export_id"]}
     first = await cli.data("request","POST",base+"/drafts",body=opening)
     replay = await cli.data("request","POST",base+"/drafts",body=opening)
