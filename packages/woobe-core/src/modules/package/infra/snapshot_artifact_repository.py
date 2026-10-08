@@ -34,6 +34,11 @@ class PackageSnapshotArtifactRepository:
     def __init__(self, sessions, artifacts, exports):
         self.sessions, self.artifacts, self.exports = sessions, artifacts, exports
 
+    @property
+    def authors(self):
+        from modules.package.infra.author_artifact_repository import PackageAuthorArtifactRepository
+        return PackageAuthorArtifactRepository(self.sessions, self.artifacts.storage)
+
     def _verify(self, upload):
         with self.artifacts.capture_record(upload) as bundle:
             digest, components = portable_definition(bundle)

@@ -190,3 +190,30 @@ async def test_revision_transfer_matches_closed_object_and_rechecks_authority(dr
         row.document = {**row.document, "message": "Changed without a new record digest"}
     with pytest.raises(ConflictError, match="metadata is inconsistent"):
         await store.get_revision(**args, revision_id=record["revision_id"])
+
+
+@pytest.mark.asyncio
+async def test_retained_author_link_keeps_record_immutable_and_rechecks_owner(drafts):
+    store, sessions, args, uid, artifact = drafts
+    author_id = uuid4()
+    source_digest = "sha256:" + "f" * 64
+    store.artifacts.authors = SimpleNamespace(retain=AsyncMock(return_value=author_id), transfer=AsyncMock(return_value=({"author_digest": source_digest, "resource_uid": str(uid), "transport_digest": "d"*64, "size_bytes": 4, "verification": "canonical_source_custody"}, b"data")))
+    draft = await store.open_draft(**args, request=OpenASaCDraft(operation_id=uuid4(), resource_uid=uid, name="retained", source_export_id=uuid4()))
+    record = dict(format="woobe-revision", schema_version="1.0", revision_id="rv_"+str(uuid4()), resource_uid=str(uid), kind="Agent", parents=[], message="Retained source", artifact_digest=artifact["artifact_digest"], author_artifact_digest=source_digest, definition_digest=artifact["definition_digest"], definition_digest_scope="woobe-portable-definition@1.0", component_digests={str(uid): artifact["component_digests"]["root"]})
+    record["record_digest"] = asac_digest("record", record)
+    request = RegisterASaCRevision(operation_id=uuid4(), draft_id=draft["draft_id"], expected_generation=1, record=record, component_uids={"root": uid}, author_upload_id=uuid4())
+    result = await store.register_revision(**args, request=request)
+    assert result["author_artifact_status"] == "retained_custody" and result["record"] == record
+    calls = store.artifacts.authors.retain.await_count
+    assert await store.register_revision(**args, request=request) == result
+    assert store.artifacts.authors.retain.await_count == calls
+    fetched = await store.get_revision(**args, revision_id=record["revision_id"])
+    assert fetched["author_artifact_id"] == str(author_id)
+    receipt, content = await store.author_transfer(**args, revision_id=record["revision_id"])
+    assert receipt["record_digest"] == record["record_digest"] and content == b"data"
+    async def revoke(**kwargs):
+        store.owner.inspect.side_effect = AuthorizationError("revoked")
+        return {"author_digest": source_digest, "resource_uid": str(uid)}, b"data"
+    store.artifacts.authors.transfer.side_effect = revoke
+    with pytest.raises(AuthorizationError):
+        await store.author_transfer(**args, revision_id=record["revision_id"])

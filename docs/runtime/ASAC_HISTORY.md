@@ -171,3 +171,25 @@ host can spend up to 40 minutes acquiring its exclusive validation lock. The
 complete test contract still runs after acquisition; lock wait limits, checks
 and assertions are unchanged. This budget avoids reducing a 25-minute suite
 to a few minutes when another required container/acceptance job owns Docker.
+
+### Exact author source custody
+
+`asac.author_source_retention` advertises bounded gzip/JSON author uploads and
+Agent/Network-owned revision source transfer. A canonical author object preserves
+original YAML/comments and declared support bytes, separately from the compiled
+closed object. Both formats and hashes are checked before custody. Upload tickets
+are actor scoped with a 24-hour registration window; an accepted revision link
+retains source independently of ticket expiry and uploader identity. Owner read
+permission and Project read permission are rechecked around storage I/O.
+
+Checkpoint registration matches the author digest, Root UID and complete component
+UID/key mapping, rechecks the selected Draft generation, and records the retained
+link with the owner receipt in one transaction. Replays recover their original
+receipt. Custody is explicitly **not** a server compiler attestation. The CLI
+verifies recovered YAML/support files and uses the recorded compiler recipe to
+compare the complete source closure with the sealed executable definition before
+publishing local source. This transfer changes neither working files, selected
+revision, native bindings nor Production. A separate guarded checkout restores
+source. Legacy declared-only revisions remain executable-readable and explicitly
+report unavailable source. Migration `0084` adds nullable retained source links
+and Package-owned source custody rows without rewriting historical record bytes.
