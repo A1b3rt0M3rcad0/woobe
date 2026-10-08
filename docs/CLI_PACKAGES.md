@@ -40,6 +40,11 @@ Export writes readable YAML, multiline author instructions and an integrity lock
 `--destination` defaults to `./normalized-resource-name`; existing paths are never
 replaced. `--output` controls terminal responses. JSON descriptors remain accepted;
 plans, checkpoints and locks remain JSON. Edited files no longer match their old lock.
+Managed pull/create/clone and compiled packages use block YAML with two-space
+indentation and multiline instruction blocks. Explicit `.json` author descriptors
+remain JSON. Formatting preserves numbers, nulls, empty collections and exact text;
+CRLF and Unicode line separators use quoted escapes where YAML would normalize
+them. Declared support files and downloaded export locks are never reformatted.
 
 Import creates draft resources by default. Its checkpoint is automatically managed in
 private CLI state, scoped to API/project/principal/input/lifecycle. Repeating the same

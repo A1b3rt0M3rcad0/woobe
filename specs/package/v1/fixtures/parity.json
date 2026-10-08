@@ -541,5 +541,85 @@
     "input": "format: woobe-package\nschema_version: '1.0'\nkind: Tool\nmetadata:\n  key: mcp\n  name: MCP\nspec:\n  type: mcp\n  config:\n    mode: server\n    exposure: all_discovered\n    server:\n      url: https://mcp.test\n  permissions:\n  - remote_name: lookup\n    permission: approve\n    risk: unknown\n",
     "validate": true,
     "error": "PACKAGE_SCHEMA_INVALID"
+  },
+  {
+    "name": "json-unicode-separator-0-json",
+    "file": "agent.json",
+    "input": "{\"instructions\": \"FirstSecond\\n\"}",
+    "expected": {
+      "instructions": "FirstSecond\n"
+    }
+  },
+  {
+    "name": "json-unicode-separator-0-yaml",
+    "file": "agent.yaml",
+    "input": "{\"instructions\": \"FirstSecond\\n\"}",
+    "expected": {
+      "instructions": "FirstSecond\n"
+    }
+  },
+  {
+    "name": "json-unicode-separator-1-json",
+    "file": "agent.json",
+    "input": "{\"instructions\": \"FirstSecond\\n\"}",
+    "expected": {
+      "instructions": "FirstSecond\n"
+    }
+  },
+  {
+    "name": "json-unicode-separator-1-yaml",
+    "file": "agent.yaml",
+    "input": "{\"instructions\": \"FirstSecond\\n\"}",
+    "expected": {
+      "instructions": "FirstSecond\n"
+    }
+  },
+  {
+    "name": "json-unicode-separator-2-json",
+    "file": "agent.json",
+    "input": "{\"instructions\": \"FirstSecond\\n\"}",
+    "expected": {
+      "instructions": "FirstSecond\n"
+    }
+  },
+  {
+    "name": "json-unicode-separator-2-yaml",
+    "file": "agent.yaml",
+    "input": "{\"instructions\": \"FirstSecond\\n\"}",
+    "expected": {
+      "instructions": "FirstSecond\n"
+    }
+  },
+  {
+    "name": "json-unicode-separator-3-json",
+    "file": "agent.json",
+    "input": "{\"instructions\": \"First Second\\n\"}",
+    "expected": {
+      "instructions": "First Second\n"
+    }
+  },
+  {
+    "name": "json-unicode-separator-3-yaml",
+    "file": "agent.yaml",
+    "input": "{\"instructions\": \"First Second\\n\"}",
+    "expected": {
+      "instructions": "First Second\n"
+    }
+  },
+  {
+    "name": "json-unicode-separator-4-json",
+    "file": "agent.json",
+    "input": "{\"instructions\": \"First Second\\n\"}",
+    "expected": {
+      "instructions": "First Second\n"
+    }
+  },
+  {
+    "name": "json-unicode-separator-4-yaml",
+    "file": "agent.yaml",
+    "input": "{\"instructions\": \"First Second\\n\"}",
+    "expected": {
+      "instructions": "First Second\n"
+    }
   }
 ]

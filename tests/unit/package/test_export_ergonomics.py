@@ -56,6 +56,20 @@ def test_yaml_shared_values_do_not_emit_forbidden_anchors():
     assert "&id" not in serialized and "*id" not in serialized
 
 
+@pytest.mark.parametrize("text", [
+    "First\nSecond", "First\nSecond\n", "\n", "\n\n", "  \n",
+    "First\r\nSecond\r\n", "First\rSecond", "First\u0085Second\n",
+    "First\u2028Second\n", "First\u2029Second\n", "\x00",
+])
+def test_yaml_preserves_instruction_line_separators_exactly(text):
+    from modules.package.domain.parsing import decode_document
+
+    value = {"instructions": text}
+    serialized = portable_yaml(value)
+    assert yaml.safe_load(serialized) == value
+    assert decode_document(serialized, "agent.yaml") == value
+
+
 @pytest.mark.parametrize("specification,credentials,message", [
     (None, {"credential": {"provider": "custom"}}, "ModelSpec"),
     ({"model_id": "fake"}, {}, "credential intent"),

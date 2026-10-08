@@ -529,8 +529,11 @@ class _PortableDumper(yaml.SafeDumper):
 
 
 def _portable_string(dumper, value):
+    # YAML normalizes NEL and CR in literal/plain scalars. Quoted escapes
+    # preserve the exact author text, including non-LF line separators.
+    style = '"' if any(char in value for char in "\r\u0085\u2028\u2029") else "|" if "\n" in value else None
     return dumper.represent_scalar(
-        "tag:yaml.org,2002:str", value, style="|" if "\n" in value else None
+        "tag:yaml.org,2002:str", value, style=style
     )
 
 

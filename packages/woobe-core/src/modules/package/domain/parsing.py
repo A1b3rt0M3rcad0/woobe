@@ -74,6 +74,19 @@ def decode_document(data: bytes, file: str = "") -> dict:
         text = data.decode("utf-8", errors="strict")
         if file.endswith(".json"):
             _check_json(text, file)
+        try:
+            json.loads(text)
+        except (ValueError, RecursionError):
+            pass
+        else:
+            # JSON allows raw C1 characters. YAML rejects some and normalizes
+            # NEL; retain exact string values while using the shared YAML AST.
+            text = "".join(
+                f"\\u{ord(char):04x}"
+                if "\x7f" <= char <= "\x9f" or char in "\u2028\u2029"
+                else char
+                for char in text
+            )
         depth = count = 0
         for event in yaml.parse(text, Loader=JsonScalars):
             count += 1
