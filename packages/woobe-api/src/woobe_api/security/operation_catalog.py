@@ -11,6 +11,21 @@ from shared.security.control_plane import (
 
 # Explicitly reviewed method/template pairs. Never derive authority from a prefix.
 _REVIEWED = [
+    ("GET", "/projects/{project_id}/agents/{resource_id}/asac/drafts", "agent:read"),
+    ("POST", "/projects/{project_id}/agents/{resource_id}/asac/drafts", "agent:write"),
+    ("GET", "/projects/{project_id}/agents/{resource_id}/asac/drafts/{draft_id}", "agent:read"),
+    ("PUT", "/projects/{project_id}/agents/{resource_id}/asac/drafts/{draft_id}", "agent:write"),
+    ("POST", "/projects/{project_id}/agents/{resource_id}/asac/revisions", "agent:write"),
+    ("GET", "/projects/{project_id}/agents/{resource_id}/asac/revisions/{revision_id}", "agent:read"),
+    ("GET", "/projects/{project_id}/agents/{resource_id}/asac/operations/{operation_id}", "agent:read"),
+    ("GET", "/projects/{project_id}/networks/{resource_id}/asac/drafts", "network:read"),
+    ("POST", "/projects/{project_id}/networks/{resource_id}/asac/drafts", "network:write"),
+    ("GET", "/projects/{project_id}/networks/{resource_id}/asac/drafts/{draft_id}", "network:read"),
+    ("PUT", "/projects/{project_id}/networks/{resource_id}/asac/drafts/{draft_id}", "network:write"),
+    ("POST", "/projects/{project_id}/networks/{resource_id}/asac/revisions", "network:write"),
+    ("GET", "/projects/{project_id}/networks/{resource_id}/asac/revisions/{revision_id}", "network:read"),
+    ("GET", "/projects/{project_id}/networks/{resource_id}/asac/operations/{operation_id}", "network:read"),
+
     ("GET", "/projects/{project_id}/agents/{resource_id}/asac/current", "agent:read"),
     ("GET", "/projects/{project_id}/agents/{resource_id}/asac/history", "agent:read"),
     ("GET", "/projects/{project_id}/networks/{resource_id}/asac/current", "network:read"),

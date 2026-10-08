@@ -19,3 +19,31 @@ def test_asac_reads_have_reviewed_target_and_verified_environment(plural, identi
     assert normalized == {"project_id": project, identifier: resource, "environment": environment}
     assert resolve_operation("POST", path)[0] is None
     assert resolve_operation("GET", path + "/unknown")[0] is None
+
+
+@pytest.mark.parametrize("plural,identifier", [("agents", "agent_id"), ("networks", "network_id")])
+@pytest.mark.parametrize("method,suffix,permission", [("POST", "drafts", "write"), ("PUT", "drafts/{draft_id}", "write"), ("POST", "revisions", "write"), ("GET", "operations/{operation_id}", "read")])
+def test_asac_draft_routes_are_explicitly_scoped(plural, identifier, method, suffix, permission):
+    project, resource = str(uuid4()), str(uuid4())
+    suffix = suffix.format(draft_id=uuid4(), operation_id=uuid4())
+    path = f"/projects/{project}/{plural}/{resource}/asac/{suffix}"
+    request = Request({"type": "http", "method": method, "path": path,
+        "query_string": b"environment=production", "headers": []})
+    allowed, params = resolve_operation(method, path)
+    assert allowed == f"{plural[:-1]}:{permission}"
+    normalized = HttpSecurityGuard._authorization_path_params(request, params)
+    assert normalized[identifier] == resource and normalized["environment"] == "draft"
+    assert "resource_id" not in normalized
+    assert resolve_operation("DELETE", path)[0] is None
+
+
+@pytest.mark.asyncio
+async def test_asac_invalid_request_does_not_echo_author_or_unknown_fields():
+    from fastapi.exceptions import RequestValidationError
+    from woobe_api.http.shared.errors import request_validation_handler
+    request = Request({"type":"http","method":"POST","path":f"/projects/{uuid4()}/agents/{uuid4()}/asac/revisions","query_string":b"","headers":[]})
+    error = RequestValidationError([{"type":"value_error","loc":("body","record"),"input":{"message":"private-provider-secret"}}])
+    result = await request_validation_handler(request,error)
+    assert result.status_code == 422
+    assert b"ASAC_REQUEST_INVALID" in result.body
+    assert b"private-provider-secret" not in result.body

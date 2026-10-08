@@ -285,6 +285,21 @@ class HttpSecurityGuard:
                     normalized[identifier] = normalized.pop("resource_id")
                     normalized["environment"] = (request.query_params.get("environment") or "production") if request.url.path == base + "current" else "production"
                     return normalized
+        if "project_id" in path_params and "resource_id" in path_params:
+            # Normalize only the reviewed Draft transport's exact shapes. Client
+            # query parameters cannot turn Draft writes into Production grants.
+            for plural, identifier in (("agents", "agent_id"), ("networks", "network_id")):
+                base = f"/projects/{path_params['project_id']}/{plural}/{path_params['resource_id']}/asac/"
+                allowed = {("GET", "drafts"), ("POST", "drafts"), ("POST", "revisions")}
+                for parameter, route, methods in (("draft_id", "drafts", ("GET", "PUT")),
+                        ("revision_id", "revisions", ("GET",)), ("operation_id", "operations", ("GET",))):
+                    if parameter in path_params:
+                        allowed.update((method, f"{route}/{path_params[parameter]}") for method in methods)
+                if request.url.path.startswith(base) and (request.method, request.url.path[len(base):]) in allowed:
+                    normalized = dict(path_params)
+                    normalized[identifier] = normalized.pop("resource_id")
+                    normalized["environment"] = "draft"
+                    return normalized
         if request.url.path.startswith("/core/projects/") and "resource_id" in path_params:
             normalized = dict(path_params)
             normalized["project_id"] = normalized.pop("resource_id")

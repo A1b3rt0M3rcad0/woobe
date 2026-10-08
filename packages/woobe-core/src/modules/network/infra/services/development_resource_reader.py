@@ -7,7 +7,7 @@ from shared.security.principal import ControlPlanePrincipal, AuthenticatedPrinci
 
 class DevelopmentNetworkReader:
     async def inspect(
-        self, session, *, project_id, principal, kind, resource_id, lock=False, environment=None
+        self, session, *, project_id, principal, kind, resource_id, lock=False, environment=None, required_permission=None
     ):
         authorizer = TenantAuthorizer(session)
         paths = {"project_id": str(project_id), "network_id": str(resource_id)}
@@ -19,7 +19,7 @@ class DevelopmentNetworkReader:
                 api_key_id=principal.api_key_id,
                 workspace_id=principal.workspace_id,
                 workspace_permissions=principal.permissions,
-                required_permission="network:read",
+                required_permission=required_permission or "network:read",
                 path_params=paths,
                 query_params={},
                 body={},
@@ -31,7 +31,7 @@ class DevelopmentNetworkReader:
                 user_id=principal.user_id,
                 workspace_id=workspace,
                 project_id=project_id,
-                permission="network:read",
+                permission=required_permission or "network:read",
                 path_context=paths,
             )
         else:

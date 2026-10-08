@@ -301,14 +301,19 @@ class NetworkBoundaryService(NetworkApplicationService):
                 .where(NetworkProductionActivationModel.network_id == network_id)
                 .limit(1)
             )
+            from modules.network.infra.database.asac_models import ASaCResourceModel
+            asac_id = await session.scalar(select(ASaCResourceModel.id).where(
+                ASaCResourceModel.project_id == project_id,
+                ASaCResourceModel.resource_id == network_id).limit(1))
             if (
-                version_id is not None
+                asac_id is not None
+                or version_id is not None
                 or session_id is not None
                 or execution_id is not None
                 or activation_id is not None
             ):
                 raise ConflictError(
-                    "Network has version or runtime history and cannot be deleted"
+                    "Network has version, runtime or ASaC history and cannot be deleted"
                 )
 
             await session.delete(network)

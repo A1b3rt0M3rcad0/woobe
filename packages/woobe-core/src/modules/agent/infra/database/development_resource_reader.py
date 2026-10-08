@@ -30,7 +30,7 @@ class DevelopmentResourceReader:
         self._tool_projection = tool_projection
 
     async def inspect(
-        self, session, *, project_id, principal, kind, resource_id, lock=False, environment=None
+        self, session, *, project_id, principal, kind, resource_id, lock=False, environment=None, required_permission=None
     ):
         models = {
             "Agent": (AgentModel, "agent:read", "agent_id"),
@@ -44,6 +44,7 @@ class DevelopmentResourceReader:
         if kind not in models:
             raise ValidationError("Unsupported development resource kind")
         model, permission, parameter = models[kind]
+        permission = required_permission or permission
         await authorize_export_read(
             session,
             principal,

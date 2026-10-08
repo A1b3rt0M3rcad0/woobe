@@ -133,6 +133,13 @@ async def request_validation_handler(
     request: Request,
     exc: RequestValidationError,
 ) -> JSONResponse:
+    if request.url.path.startswith("/projects/") and "/asac/" in request.url.path:
+        # Strict ASaC requests contain free-form author messages. Rejection must
+        # not echo those messages, unknown fields or Pydantic input snapshots.
+        return JSONResponse(status_code=422, content={"success": False,
+            "message": "ASaC request does not match its advertised contract",
+            "data": {"asac_schema_version": "1.0", "diagnostics": [{"code": "ASAC_REQUEST_INVALID"}]},
+            "meta": {"complete": False}})
     return JSONResponse(
         status_code=422,
         content={
