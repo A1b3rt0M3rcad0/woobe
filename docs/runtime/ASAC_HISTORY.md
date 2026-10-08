@@ -132,3 +132,18 @@ later operation has reserved/prepared a binding but has not accepted its new
 definition, the registry reports `generation_scope: unsealed_native_binding`,
 `binding_status: binding_incomplete` and no accepted revision. It does not combine
 the earlier receipt's definition with the partially prepared native generation.
+
+## Isolated revision metadata catalog
+
+`GET /projects/{project_id}/agents/{resource_id}/asac/revisions` and the Network
+counterpart list immutable revision records under the native owner's current
+read authority. Pages use an authenticated resource/kind scope and fixed
+watermark. PostgreSQL reads use a transaction snapshot; records appended after
+the first page are fetched in the next traversal. Limits are 1–200 per page.
+
+The catalog verifies persisted record digests and identities. It is metadata
+coverage for the authorized resource, not a global-history claim. Executable
+objects are not loaded by this endpoint; missing author objects remain
+`declared_not_retained` or `unavailable`. The capability `asac.revision_catalog`
+advertises support. Neither listing nor its CLI mirror moves a Draft head or
+changes native Draft, Staging or Production.

@@ -1,7 +1,7 @@
 """Strict versioned Draft transports; validation and writes belong to Core owners."""
 from uuid import UUID
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Query, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 
@@ -64,6 +64,12 @@ def draft_router(prefix, builder, kind):
     @router.post("/revisions")
     async def register_revision(project_id: UUID, resource_id: UUID, body: RegisterASaCRevision, request: Request):
         return response(await invoke(store().register_revision(project_id=project_id, resource_id=resource_id, principal=actor(request), request=body)))
+
+    @router.get("/revisions")
+    async def revisions(project_id: UUID, resource_id: UUID, request: Request,
+                        cursor: str | None = None, limit: int = Query(default=100, ge=1, le=200)):
+        return response(await invoke(store().list_revisions(project_id=project_id,
+            resource_id=resource_id, principal=actor(request), cursor=cursor, limit=limit)))
 
     @router.get("/revisions/{revision_id}")
     async def revision(project_id: UUID, resource_id: UUID, revision_id: str, request: Request):
