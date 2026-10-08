@@ -105,3 +105,18 @@ async def test_registration_verifies_closed_object_and_immutable_lineage(drafts)
     store.owner.inspect.side_effect = AuthorizationError("revoked")
     with pytest.raises(AuthorizationError):
         await store.register_revision(**args,request=request)
+
+
+@pytest.mark.asyncio
+async def test_author_digest_is_explicitly_declared_not_verified(drafts):
+    store, sessions, args, uid, artifact = drafts
+    draft = await store.open_draft(**args, request=OpenASaCDraft(operation_id=uuid4(), resource_uid=uid, name="source", source_export_id=uuid4()))
+    record = dict(format="woobe-revision", schema_version="1.0", revision_id="rv_"+str(uuid4()), resource_uid=str(uid), kind="Agent", parents=[], message="Source checkpoint", artifact_digest=artifact["artifact_digest"], author_artifact_digest="sha256:"+"f"*64, definition_digest=artifact["definition_digest"], definition_digest_scope="woobe-portable-definition@1.0", component_digests={str(uid): artifact["component_digests"]["root"]})
+    record["record_digest"] = asac_digest("record", record)
+    request = RegisterASaCRevision(operation_id=uuid4(), draft_id=draft["draft_id"], expected_generation=1, record=record, component_uids={"root":uid})
+    result = await store.register_revision(**args, request=request)
+    assert result["record"] == record
+    assert result["author_artifact_status"] == "declared_not_retained"
+    fetched = await store.get_revision(**args, revision_id=record["revision_id"])
+    assert fetched["author_artifact_status"] == "declared_not_retained"
+    assert fetched["record"] == record

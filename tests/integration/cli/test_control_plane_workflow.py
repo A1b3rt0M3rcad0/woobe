@@ -33,7 +33,7 @@ from shared.security.control_plane import (
 )
 
 CLI_COMMIT = os.environ.get(
-    "WOOBE_TEST_CLI_SHA", "59fb851ad6d60c8dacd6a50edb97e428ebb413d4"
+    "WOOBE_TEST_CLI_SHA", "d0f8baad9982b400985a813d55b9074ff4bfb756"
 )
 
 
@@ -1252,6 +1252,20 @@ async def exercise_asac_isolated_drafts(cli, kind, resource_id):
     checkpoint = (await cli.run(kind.lower(), "@captured", "revision", "create", "--message", "CLI exact checkpoint", cwd=registry))["data"]
     cli_revision = (await cli.run(kind.lower(), "@captured", "draft", "checkpoint", checkpoint["revision_id"], cwd=registry))["data"]
     assert cli_revision["record"] == checkpoint
+    assert cli_revision["author_artifact_status"] == "declared_not_retained"
+    descriptor = registry / config["root"] / root_resource["path"]
+    if descriptor.suffix.lower() not in {".yaml", ".yml", ".json"}:
+        descriptor = descriptor / (kind.lower() + ".yaml")
+    original_source = descriptor.read_bytes()
+    descriptor.write_bytes(b"# local author comment\n" + original_source)
+    comment_revision = (await cli.run(kind.lower(), "@captured", "revision", "create", "--message", "Preserve author comment", cwd=registry))["data"]
+    assert comment_revision["definition_digest"] == checkpoint["definition_digest"]
+    assert comment_revision["author_artifact_digest"] != checkpoint["author_artifact_digest"]
+    import shutil
+    shutil.rmtree(registry / config["root"] / ".state")
+    restored = (await cli.run(kind.lower(), "@captured", "checkout", "--revision", checkpoint["revision_id"], cwd=registry))["data"]
+    assert restored["working_revision"] == checkpoint["revision_id"] and restored["origin_preserved"]
+    assert not restored["remote_changed"] and descriptor.read_bytes() == original_source
     opening = {"operation_id":str(uuid4()),"resource_uid":uid,"name":"hotfix","source_export_id":export["export_id"]}
     first = await cli.data("request","POST",base+"/drafts",body=opening)
     replay = await cli.data("request","POST",base+"/drafts",body=opening)
