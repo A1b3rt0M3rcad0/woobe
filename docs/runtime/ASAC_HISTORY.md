@@ -108,3 +108,27 @@ Capabilities advertise `author_digest_declarations` so clients negotiate this
 extension before registration. Author source does not grant authority or replace
 executable digest validation. Checkout must independently compile and validate
 retained source before changing local files.
+
+## Accepted synchronization generations
+
+The Package synchronization registry records each completed native phase's
+`accepted_native` generation with its operation ID and definition digest in the
+same owner transaction as the mutation and receipt. A later registry read
+returns `revision`/`accepted_revision` from that accepted evidence and a separate
+`current_revision`. `binding_status: resource_changed` means another edit occurred
+after acceptance; it must not advance the client's accepted content base.
+Frozen dependencies report `frozen_snapshot` and retain their exact snapshot ID.
+
+The capability `asac.accepted_binding_generations` announces this contract.
+Legacy rows report `generation_scope: legacy_current_observation` and
+`accepted_generation_unavailable`; their observed current generation is not proof
+that the recorded definition was accepted at that generation. This endpoint does
+not grant permissions or restore credentials. Authority is checked for every
+native binding during traversal; a failed authority or receipt consistency check
+prevents claiming a complete registry.
+
+Registry traversal uses a repeatable transaction snapshot on PostgreSQL. If a
+later operation has reserved/prepared a binding but has not accepted its new
+definition, the registry reports `generation_scope: unsealed_native_binding`,
+`binding_status: binding_incomplete` and no accepted revision. It does not combine
+the earlier receipt's definition with the partially prepared native generation.
