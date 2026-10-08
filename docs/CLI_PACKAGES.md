@@ -153,3 +153,14 @@ executable gates. Exact supported client/server build pairs and results are
 published in the corresponding PR descriptions. Woobe PR #179 remains open in draft. Development improvements are delivered
 in separate CLI PRs and merged only after their native distribution checks and
 paired backend integration pass; backend approval and merge remain separate.
+
+## Development compatibility diagnostics
+
+Managed development requires the same Package catalog as the CLI. The server
+normalizes CRLF to LF before hashing the catalog so a Windows checkout advertises
+the same compatibility digest as Linux and macOS. A real schema change still
+requires a matching CLI. Restart API processes after updating backend source.
+
+The local `.woobe-config` can pin a connection independently of `context use`.
+Pass `--context NAME` to explicitly select a different connection for a managed
+command; private state remains scoped to that API, Workspace and Project.

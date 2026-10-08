@@ -42,7 +42,10 @@ class NativePackageInspectorGateway:
         )
         return {
             "package_schema_version": "1.0",
-            "schema_catalog_sha256": sha256(catalog).hexdigest(),
+            # Git may check this text resource out with CRLF on Windows. The
+            # compatibility contract hashes LF bytes, matching the pinned CLI
+            # catalog; line endings do not change the schema itself.
+            "schema_catalog_sha256": sha256(catalog.replace(b"\r\n", b"\n")).hexdigest(),
             "agent": portable_definition_capabilities(),
             "network": self._network.package_capabilities(),
         }
