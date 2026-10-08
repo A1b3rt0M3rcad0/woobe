@@ -23,11 +23,11 @@ class AgentASaCTransactions:
 
 class AgentASaCDraftStore(ASaCDraftStore):
     """Owner adapter wires the shared persistence mechanism to Agent tables/UoW."""
-    def __init__(self, *, uow_factory, owner, artifacts):
+    def __init__(self, *, uow_factory, owner, artifacts, cursor_key=None):
         from modules.agent.infra.database.asac_models import (
             ASaCDraftModel, ASaCRevisionModel, ASaCOperationModel, ASaCResourceModel,
         )
         super().__init__(transactions=AgentASaCTransactions(uow_factory),
             kind="Agent", owner=owner, drafts=ASaCDraftModel,
             revisions=ASaCRevisionModel, operations=ASaCOperationModel,
-            identities=ASaCResourceModel, artifacts=artifacts)
+            identities=ASaCResourceModel, artifacts=artifacts, cursor_key=cursor_key)

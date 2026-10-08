@@ -25,10 +25,11 @@ def draft_output(row):
 
 
 class ASaCDraftStore:
-    def __init__(self, *, transactions, kind, owner, drafts, revisions, operations, artifacts, identities):
+    def __init__(self, *, transactions, kind, owner, drafts, revisions, operations, artifacts, identities, cursor_key=None):
         self.transactions, self.kind, self.owner = transactions, kind, owner
         self.drafts, self.revisions, self.operations, self.artifacts = drafts, revisions, operations, artifacts
         self.identities = identities
+        self.cursor_key = cursor_key
 
     def _read(self):
         reader = getattr(self.transactions, "read", None)
@@ -225,6 +226,11 @@ class ASaCDraftStore:
             if row is None or row.project_id != project_id or row.resource_id != resource_id:
                 raise NotFoundError("ASAC_DRAFT_UNAVAILABLE")
             return draft_output(row)
+
+    async def list_revisions(self, *, project_id, resource_id, principal, cursor=None, limit=100):
+        from shared.infra.asac_revision_catalog import ASaCRevisionCatalog
+        return await ASaCRevisionCatalog(self, self.cursor_key).fetch(project_id=project_id,
+            resource_id=resource_id, principal=principal, cursor=cursor, limit=limit)
 
     async def get_revision(self, *, project_id, resource_id, revision_id, principal):
         async with self._read() as session:

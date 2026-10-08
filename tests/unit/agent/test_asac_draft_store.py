@@ -120,3 +120,42 @@ async def test_author_digest_is_explicitly_declared_not_verified(drafts):
     fetched = await store.get_revision(**args, revision_id=record["revision_id"])
     assert fetched["author_artifact_status"] == "declared_not_retained"
     assert fetched["record"] == record
+
+
+@pytest.mark.asyncio
+async def test_revision_catalog_watermark_scope_and_revoked_authority(drafts):
+    from shared.contracts.errors import ValidationError
+    store, sessions, args, uid, artifact = drafts
+    store.cursor_key = "test-cursor-key"
+    draft = await store.open_draft(**args, request=OpenASaCDraft(operation_id=uuid4(), resource_uid=uid, name="catalog", source_export_id=uuid4()))
+    records = []
+
+    async def checkpoint():
+        record = dict(format="woobe-revision", schema_version="1.0", revision_id="rv_" + str(uuid4()), resource_uid=str(uid), kind="Agent", parents=[records[-1]["revision_id"]] if records else [], message="Immutable checkpoint", artifact_digest=artifact["artifact_digest"], definition_digest=artifact["definition_digest"], definition_digest_scope="woobe-portable-definition@1.0", component_digests={str(uid): artifact["component_digests"]["root"]})
+        record["record_digest"] = asac_digest("record", record)
+        await store.register_revision(**args, request=RegisterASaCRevision(operation_id=uuid4(), draft_id=draft["draft_id"], expected_generation=1, record=record, component_uids={"root": uid}))
+        records.append(record)
+
+    for _ in range(3):
+        await checkpoint()
+    first = await store.list_revisions(**args, limit=1)
+    assert first["has_more"] and not first["complete"]
+    assert first["records"][0]["record"] == records[0]
+    # A fourth revision inserted after page one is outside the retained watermark.
+    await checkpoint()
+    seen, page = [first["records"][0]["record"]], first
+    while page["has_more"]:
+        page = await store.list_revisions(**args, limit=1, cursor=page["next_cursor"])
+        assert page["watermark"] == first["watermark"]
+        seen.extend(item["record"] for item in page["records"])
+    assert seen == records[:3] and page["complete"]
+    assert (await store.list_revisions(**args))["records"][-1]["record"] == records[3]
+    with pytest.raises(ValidationError, match="CURSOR_INVALID"):
+        await store.list_revisions(**{**args, "resource_id": uuid4()}, cursor=first["next_cursor"])
+    with pytest.raises(ValidationError, match="CURSOR_INVALID"):
+        await store.list_revisions(**args, cursor=first["next_cursor"] + "tampered")
+    with pytest.raises(ValidationError, match="REVISION_LIMIT"):
+        await store.list_revisions(**args, limit=201)
+    store.owner.inspect.side_effect = AuthorizationError("revoked")
+    with pytest.raises(AuthorizationError):
+        await store.list_revisions(**args, cursor=first["next_cursor"])
