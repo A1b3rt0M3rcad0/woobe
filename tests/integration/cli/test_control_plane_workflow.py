@@ -33,7 +33,7 @@ from shared.security.control_plane import (
 )
 
 CLI_COMMIT = os.environ.get(
-    "WOOBE_TEST_CLI_SHA", "c799d99b1dd7702c7f9d64f2ae3c72d08538f7eb"
+    "WOOBE_TEST_CLI_SHA", "74fcce94f7dff769fdbd40c441270bbeb45a6db1"
 )
 
 
@@ -1286,6 +1286,10 @@ async def exercise_asac_isolated_drafts(cli, kind, resource_id):
     comment_revision = (await cli.run(kind.lower(), "@captured", "revision", "create", "--message", "Preserve author comment", cwd=registry))["data"]
     assert comment_revision["definition_digest"] == checkpoint["definition_digest"]
     assert comment_revision["author_artifact_digest"] != checkpoint["author_artifact_digest"]
+    comment_registered = (await cli.run(kind.lower(), "@captured", "draft", "checkpoint", comment_revision["revision_id"], cwd=registry))["data"]
+    assert comment_registered["record"] == comment_revision
+    catalog_first = await cli.data("request", "GET", base + "/revisions", "--query", "limit=1")
+    assert catalog_first["has_more"] and not catalog_first["complete"]
     import shutil
     shutil.rmtree(registry / config["root"] / ".state")
     restored = (await cli.run(kind.lower(), "@captured", "checkout", "--revision", checkpoint["revision_id"], cwd=registry))["data"]
@@ -1331,6 +1335,20 @@ async def exercise_asac_isolated_drafts(cli, kind, resource_id):
     registration = {"operation_id":str(uuid4()),"draft_id":first["draft_id"],"expected_generation":2,"record":record,"component_uids":component_uids}
     accepted = await cli.data("request","POST",base+"/revisions",body=registration)
     assert accepted["record"] == record and not accepted["production_changed"]
+    # Page one's watermark excludes the independently registered third record.
+    catalog_ids = [item["record"]["revision_id"] for item in catalog_first["records"]]
+    page = catalog_first
+    while page["has_more"]:
+        page = await cli.data("request", "GET", base + "/revisions", "--query", "limit=1", "--query", "cursor=" + page["next_cursor"])
+        assert page["watermark"] == catalog_first["watermark"]
+        catalog_ids.extend(item["record"]["revision_id"] for item in page["records"])
+    assert set(catalog_ids) == {checkpoint["revision_id"], comment_revision["revision_id"]}
+    fetched = (await cli.run(kind.lower(), "@captured", "history", "fetch", "--revisions", cwd=registry))["data"]
+    assert fetched["fetched"] == 3 and fetched["metadata_complete"]
+    assert fetched["objects_available"] == "not_downloaded"
+    assert not fetched["author_files_changed"] and not fetched["production_changed"]
+    assert descriptor.read_bytes() == original_source
+
     reconciled = await cli.data("request","GET",base+"/operations/"+registration["operation_id"])
     assert reconciled["state"] == "committed" and reconciled["result"] == accepted
     unknown = await cli.data("request","GET",base+"/operations/"+str(uuid4()))

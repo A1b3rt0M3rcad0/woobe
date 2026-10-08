@@ -33,7 +33,7 @@ class PackageService:
         ).hexdigest()
         return {
             **capabilities,
-            "asac": {"schema_version": "1.0", "definition_digest_scope": "woobe-portable-definition@1.0", "isolated_drafts": True, "retained_artifacts": True, "revision_registration": True, "author_digest_declarations": True, "accepted_binding_generations": True, "candidate_lifecycle": False, "fenced_deployment": False},
+            "asac": {"schema_version": "1.0", "definition_digest_scope": "woobe-portable-definition@1.0", "isolated_drafts": True, "retained_artifacts": True, "revision_registration": True, "revision_catalog": True, "author_digest_declarations": True, "accepted_binding_generations": True, "candidate_lifecycle": False, "fenced_deployment": False},
             "supported_operations": [
                 "upload",
                 "plan",
