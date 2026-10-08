@@ -621,5 +621,75 @@
     "expected": {
       "instructions": "First Second\n"
     }
+  },
+  {
+    "name": "json-unicode-pair-json",
+    "file": "agent.json",
+    "input": "{\"text\":\"\\ud83d\\ude00\"}",
+    "expected": {
+      "text": "😀"
+    }
+  },
+  {
+    "name": "json-lone-surrogate-0-json",
+    "file": "agent.json",
+    "input": "{\"text\":\"\\ud800\"}",
+    "error": "PACKAGE_PARSE_INVALID"
+  },
+  {
+    "name": "json-lone-surrogate-1-json",
+    "file": "agent.json",
+    "input": "{\"text\":\"\\udc00\"}",
+    "error": "PACKAGE_PARSE_INVALID"
+  },
+  {
+    "name": "json-lone-surrogate-2-json",
+    "file": "agent.json",
+    "input": "{\"text\":\"\\ud800\\ud800\"}",
+    "error": "PACKAGE_PARSE_INVALID"
+  },
+  {
+    "name": "json-unicode-pair-yaml",
+    "file": "agent.yaml",
+    "input": "{\"text\":\"\\ud83d\\ude00\"}",
+    "expected": {
+      "text": "😀"
+    }
+  },
+  {
+    "name": "json-lone-surrogate-0-yaml",
+    "file": "agent.yaml",
+    "input": "{\"text\":\"\\ud800\"}",
+    "error": "PACKAGE_PARSE_INVALID"
+  },
+  {
+    "name": "json-lone-surrogate-1-yaml",
+    "file": "agent.yaml",
+    "input": "{\"text\":\"\\udc00\"}",
+    "error": "PACKAGE_PARSE_INVALID"
+  },
+  {
+    "name": "json-lone-surrogate-2-yaml",
+    "file": "agent.yaml",
+    "input": "{\"text\":\"\\ud800\\ud800\"}",
+    "error": "PACKAGE_PARSE_INVALID"
+  },
+  {
+    "name": "yaml-surrogate-0",
+    "file": "agent.yaml",
+    "input": "text: \"\\ud800\"",
+    "error": "PACKAGE_PARSE_INVALID"
+  },
+  {
+    "name": "yaml-surrogate-1",
+    "file": "agent.yaml",
+    "input": "text: \"\\udc00\"",
+    "error": "PACKAGE_PARSE_INVALID"
+  },
+  {
+    "name": "yaml-surrogate-2",
+    "file": "agent.yaml",
+    "input": "\"\\ud800\": value",
+    "error": "PACKAGE_PARSE_INVALID"
   }
 ]

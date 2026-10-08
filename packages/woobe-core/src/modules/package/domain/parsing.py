@@ -79,14 +79,20 @@ def decode_document(data: bytes, file: str = "") -> dict:
         except (ValueError, RecursionError):
             pass
         else:
-            # JSON allows raw C1 characters. YAML rejects some and normalizes
-            # NEL; retain exact string values while using the shared YAML AST.
-            text = "".join(
-                f"\\u{ord(char):04x}"
-                if "\x7f" <= char <= "\x9f" or char in "\u2028\u2029"
-                else char
-                for char in text
-            )
+            # Normalize strings only: YAML cannot combine JSON surrogate pairs
+            # and normalizes NEL. Keep numeric lexemes and duplicate keys intact.
+            def compatible_string(match):
+                value = json.loads(match.group())
+                value.encode("utf-8", errors="strict")
+                encoded = json.dumps(value, ensure_ascii=False)
+                return "".join(
+                    f"\\u{ord(char):04x}"
+                    if "\x7f" <= char <= "\x9f" or char in "\u2028\u2029"
+                    else char
+                    for char in encoded
+                )
+
+            text = re.sub(r'"(?:\\.|[^"\\])*"', compatible_string, text)
         depth = count = 0
         for event in yaml.parse(text, Loader=JsonScalars):
             count += 1
@@ -147,6 +153,10 @@ def decode_document(data: bytes, file: str = "") -> dict:
                     fail("Mapping keys must be strings; merge keys are forbidden")
                 if key.value in result:
                     fail("Duplicate mapping key")
+                try:
+                    key.value.encode("utf-8", errors="strict")
+                except UnicodeError:
+                    fail("Invalid Unicode mapping key")
                 escaped = key.value.replace("~", "~0").replace("/", "~1")
                 result[key.value] = convert(child, pointer + "/" + escaped)
             return result
@@ -165,6 +175,10 @@ def decode_document(data: bytes, file: str = "") -> dict:
                 fail("Nonfinite numbers are forbidden")
             return number
         if item.tag == "tag:yaml.org,2002:str":
+            try:
+                item.value.encode("utf-8", errors="strict")
+            except UnicodeError:
+                fail("Invalid Unicode scalar")
             return item.value
         if item.tag == "tag:yaml.org,2002:null":
             return None
