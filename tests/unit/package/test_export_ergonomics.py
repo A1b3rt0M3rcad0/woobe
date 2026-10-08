@@ -54,3 +54,21 @@ def test_yaml_shared_values_do_not_emit_forbidden_anchors():
     serialized = portable_yaml(value).decode()
     assert yaml.safe_load(serialized) == value
     assert "&id" not in serialized and "*id" not in serialized
+
+
+@pytest.mark.parametrize("specification,credentials,message", [
+    (None, {"credential": {"provider": "custom"}}, "ModelSpec"),
+    ({"model_id": "fake"}, {}, "credential intent"),
+    ({"model_id": "fake"}, {"credential": {"provider": "openai"}}, "provider differs"),
+])
+def test_incomplete_export_locates_the_agent_model_without_protected_values(specification, credentials, message):
+    from modules.package.application.export_projection import ExportProjection
+    from modules.package.domain.errors import PackageError
+    projection = ExportProjection(knowledge_mode="binding", environment_kinds={})
+    captured = {"definition": {"runtime_config": {}, "provider": "custom", "model": "fake", "provider_credential_id": "credential", "model_spec_snapshot": specification}, "credentials": credentials}
+    with pytest.raises(PackageError, match=message) as caught:
+        projection.agent(captured, "agent-1")
+    diagnostic = caught.value.as_dict()
+    assert diagnostic["code"] == "PACKAGE_EXPORT_INCOMPLETE"
+    assert diagnostic["file"] == "agent-1.yaml"
+    assert diagnostic["path"] == "/spec/model/primary"

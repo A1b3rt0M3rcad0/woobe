@@ -237,10 +237,17 @@ class PortableAgentExportReader:
         agent = await session.get(AgentModel, agent_id)
         if agent is None or agent.project_id != project_id:
             raise NotFoundError("Agent is unavailable")
+        if release_version is not None and source != "release":
+            raise ValidationError("Release version requires release source")
         if snapshot_id is not None:
             release = await session.get(AgentReleaseModel, snapshot_id)
+        elif source == "draft":
+            # Native edits update AgentModel. A saved Draft snapshot may predate
+            # those edits or the ModelSpec migration; it is not the live author
+            # definition. Explicit snapshot IDs still capture their exact record.
+            release = None
         else:
-            if source not in {"draft", "staging", "release", "production"}:
+            if source not in {"staging", "release", "production"}:
                 raise ValidationError("Invalid export source")
             query = select(AgentReleaseModel).where(
                 AgentReleaseModel.agent_id == agent_id,
@@ -252,8 +259,6 @@ class PortableAgentExportReader:
                 else query.where(AgentReleaseModel.status == source)
             )
             if release_version is not None:
-                if source != "release":
-                    raise ValidationError("Release version requires release source")
                 query = query.where(AgentReleaseModel.version == release_version)
             release = await session.scalar(
                 query.order_by(

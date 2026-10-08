@@ -51,6 +51,7 @@ async def test_cli_upload_and_native_plan_against_live_postgres(
     public_apply,
     with_knowledge=False,
     without_saved_draft=False,
+    stale_saved_draft=False,
     with_mcp=False,
     complete_fixture=False,
 ):
@@ -567,6 +568,22 @@ async def test_cli_upload_and_native_plan_against_live_postgres(
                     )
                 )
             await fixture_engine.dispose()
+        if stale_saved_draft:
+            from sqlalchemy import update
+            from modules.agent.infra.database.models import AgentReleaseModel
+            from shared.infra.config import Settings
+            from shared.infra.database.session import create_engine, create_session_factory
+            fixture_engine = create_engine(Settings())
+            async with create_session_factory(fixture_engine).begin() as session:
+                changed = await session.execute(
+                    update(AgentReleaseModel).where(
+                        AgentReleaseModel.agent_id == target,
+                        AgentReleaseModel.snapshot_kind == "draft",
+                    ).values(model_spec_snapshot=None, model_spec_hash=None, name="Old saved Draft")
+                )
+                assert changed.rowcount == 1
+            await fixture_engine.dispose()
+            await cli.data("project", "agent", "update", target, body={"name": "Current native Draft"})
         exported = Path(tmp_path) / "exported"
         export_result = await cli.run(
             "package",
@@ -593,6 +610,22 @@ async def test_cli_upload_and_native_plan_against_live_postgres(
             export_result["data"]["closure_complete"]
             and export_result["data"]["self_contained"]
         )
+        if stale_saved_draft:
+            descriptors = [yaml.safe_load(path.read_text()) for path in exported.glob("*.yaml")]
+            definition = next(item for item in descriptors if item["kind"] == "Agent")
+            model = next(item for item in descriptors if item["kind"] == "Model")
+            assert definition["metadata"]["name"] == "Current native Draft"
+            assert model["spec"]["model_spec_hint"]
+            from sqlalchemy import select
+            fixture_engine = create_engine(Settings())
+            async with create_session_factory(fixture_engine).begin() as session:
+                saved = await session.scalar(select(AgentReleaseModel).where(
+                    AgentReleaseModel.agent_id == target,
+                    AgentReleaseModel.snapshot_kind == "draft",
+                ))
+                assert saved.name == "Old saved Draft"
+                assert saved.model_spec_snapshot is None and saved.model_spec_hash is None
+            await fixture_engine.dispose()
         validated = await cli.run("package", "validate", str(exported), "--locked")
         assert (
             validated["data"]["artifact_digest"]
@@ -992,6 +1025,13 @@ async def test_public_export_captures_a_live_draft_without_creating_a_snapshot(
 ):
     await test_cli_upload_and_native_plan_against_live_postgres(
         cli, tmp_path, False, "Agent", "draft", True, without_saved_draft=True
+    )
+
+
+@pytest.mark.asyncio
+async def test_public_export_reads_current_draft_with_incomplete_legacy_saved_snapshot(cli, tmp_path):
+    await test_cli_upload_and_native_plan_against_live_postgres(
+        cli, tmp_path, False, "Agent", "draft", True, stale_saved_draft=True
     )
 
 

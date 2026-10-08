@@ -117,19 +117,27 @@ class ExportProjection:
         base_url=None,
         model_type="language",
         resource_id=None,
+        diagnostic_file="",
+        diagnostic_path="",
     ):
         if not specification:
             raise PackageError(
-                "PACKAGE_EXPORT_INCOMPLETE", "Snapshot has no complete ModelSpec"
+                "PACKAGE_EXPORT_INCOMPLETE", "Snapshot has no complete ModelSpec",
+                file=diagnostic_file,
+                path=diagnostic_path,
             )
         if credential_id not in credentials:
             raise PackageError(
-                "PACKAGE_EXPORT_INCOMPLETE", "Snapshot credential intent is unavailable"
+                "PACKAGE_EXPORT_INCOMPLETE", "Snapshot credential intent is unavailable",
+                file=diagnostic_file,
+                path=diagnostic_path,
             )
         intent = credentials[credential_id]
         if intent["provider"] != provider:
             raise PackageError(
-                "PACKAGE_EXPORT_INCOMPLETE", "Snapshot credential provider differs"
+                "PACKAGE_EXPORT_INCOMPLETE", "Snapshot credential provider differs",
+                file=diagnostic_file,
+                path=diagnostic_path,
             )
         if credential_id not in self.credential_aliases:
             alias = f"credential-{len(self.credential_aliases) + 1}"
@@ -166,6 +174,8 @@ class ExportProjection:
             credentials=captured["credentials"],
             base_url=definition.get("base_url"),
             resource_id=definition.get("provider_model_id"),
+            diagnostic_file=key + ".yaml",
+            diagnostic_path="/spec/model/primary",
         )
         model = {
             "primary": {"ref": primary},
@@ -183,6 +193,8 @@ class ExportProjection:
                     specification=definition.get("fallback_model_spec_snapshot"),
                     credentials=captured["credentials"],
                     resource_id=definition.get("fallback_provider_model_id"),
+                    diagnostic_file=key + ".yaml",
+                    diagnostic_path="/spec/model/fallback",
                 )
             }
         tools = []
@@ -353,6 +365,8 @@ class ExportProjection:
                     model_type=embedding["model_type"],
                     base_url=(embedding.get("meta") or {}).get("base_url"),
                     resource_id=vector.get("embedding_provider_model_id"),
+                    diagnostic_file=knowledge_key + ".yaml",
+                    diagnostic_path="/spec/vector_snapshot/embedding_model",
                 )
                 documents = []
                 for index, document in enumerate(knowledge["documents"]):
@@ -469,6 +483,8 @@ class ExportProjection:
                 raise PackageError(
                     "PACKAGE_EXPORT_INCOMPLETE",
                     "Project Environment requirement is unavailable",
+                    file="woobe.yaml",
+                    path="/spec/requires/project_environment/" + key,
                 )
             self.requirements["project_environment"].append(
                 {"key": key, "kind": self.environment_kinds[key]}
