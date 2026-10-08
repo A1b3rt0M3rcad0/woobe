@@ -50,6 +50,10 @@ class DevelopmentRegistry:
 
     async def bindings(self, *, project_id, principal, registry_id):
         async with self._sessions() as session:
+            if session.bind.dialect.name == "postgresql":
+                await session.execute(
+                    text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
+                )
             await authorize_phase(session, principal, project_id, "project:read")
             rows = (
                 await session.scalars(
@@ -72,6 +76,34 @@ class DevelopmentRegistry:
                         kind=row.kind,
                         resource_id=row.resource_id,
                     )
+                accepted = (row.preparation or {}).get("accepted_native")
+                unfinished = False
+                if accepted and (
+                    accepted.get("operation_id") != str(row.operation_id)
+                    or accepted.get("definition_digest") != row.definition_digest
+                    or accepted.get("resource_id") != str(row.resource_id)
+                ):
+                    operation = (
+                        await session.get(PackageOperationModel, row.operation_id)
+                        if row.operation_id
+                        else None
+                    )
+                    if operation and operation.state != "succeeded":
+                        # A new operation has reserved/prepared this binding but
+                        # has not accepted its new definition. Do not combine its
+                        # current native ID/generation with the prior receipt.
+                        accepted, unfinished = None, True
+                    else:
+                        raise PackageError(
+                            "PACKAGE_NATIVE_EVIDENCE_INVALID",
+                            "Accepted generation belongs to another binding receipt",
+                        )
+                if not accepted and not unfinished and row.operation_id:
+                    operation = await session.get(
+                        PackageOperationModel, row.operation_id
+                    )
+                    unfinished = bool(operation and operation.state != "succeeded")
+                current = evidence["revision"] if evidence else None
                 result.append(
                     {
                         "resource_uid": str(row.resource_uid),
@@ -83,8 +115,38 @@ class DevelopmentRegistry:
                         "operation_id": str(row.operation_id)
                         if row.operation_id
                         else None,
-                        "revision": evidence["revision"] if evidence else None,
-                        "identifiers": {field: evidence[field] for field in ("skill_id", "collection_id") if evidence and evidence.get(field)},
+                        "revision": accepted["revision"]
+                        if accepted
+                        else None
+                        if unfinished
+                        else current,
+                        "accepted_revision": accepted["revision"] if accepted else None,
+                        "current_revision": current,
+                        "generation_scope": "unsealed_native_binding"
+                        if unfinished
+                        else "accepted_native_phase"
+                        if accepted
+                        else "legacy_current_observation",
+                        "binding_status": (
+                            "frozen_snapshot"
+                            if accepted.get("frozen")
+                            else "unchanged"
+                            if str(accepted["revision"]) == str(current)
+                            else "resource_changed"
+                        )
+                        if accepted
+                        else "binding_incomplete"
+                        if unfinished
+                        else "accepted_generation_unavailable",
+                        "frozen": bool(accepted and accepted.get("frozen")),
+                        "snapshot_id": accepted.get("snapshot_id")
+                        if accepted
+                        else None,
+                        "identifiers": {
+                            field: evidence[field]
+                            for field in ("skill_id", "collection_id")
+                            if evidence and evidence.get(field)
+                        },
                     }
                 )
             return {
@@ -269,18 +331,33 @@ class DevelopmentRegistry:
                     source is None
                     or source.project_id != project_id
                     or source.actor != principal_identity(principal)
-                    or not original
+                ):
+                    raise PackageError(
+                        "PACKAGE_FROZEN_RESOURCE_CHANGED",
+                        "Frozen constituent source export is unavailable",
+                        path="/source_export_id",
+                    )
+                if (
+                    not original
                     or not original.get("frozen")
                     or original.get("resource_id") != resource_id
                     or original.get("snapshot_id") != target["release_id"]
-                    or source.source.get("semantic_digests", {}).get(
+                ):
+                    raise PackageError(
+                        "PACKAGE_FROZEN_RESOURCE_CHANGED",
+                        "Frozen constituent identity differs from its source",
+                        path="/release_id",
+                    )
+                if (
+                    source.source.get("semantic_digests", {}).get(
                         target["source_component"]
                     )
                     != semantic[key]
                 ):
                     raise PackageError(
                         "PACKAGE_FROZEN_RESOURCE_CHANGED",
-                        "Frozen Network constituent changed; edit the Agent Draft or clone it explicitly",
+                        "Frozen Network constituent definition changed; edit the Agent Draft or clone it explicitly",
+                        path="/definition_digest",
                     )
                 evidence["snapshot_id"] = target["release_id"]
                 evidence["source_kind"] = original["source_kind"]

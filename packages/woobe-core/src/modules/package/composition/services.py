@@ -47,7 +47,8 @@ def build_package_service() -> PackageService:
 def build_package_executor() -> ExecutePackageOperation:
     service = build_package_service()
     materializer = NativePackageMaterializer(
-        encryption_key=SETTINGS.encryption_key, artifacts=service.artifacts
+        encryption_key=SETTINGS.encryption_key, artifacts=service.artifacts,
+        binding_reader=service.plans.registry.inspect
     )
     return ExecutePackageOperation(
         service.operations,

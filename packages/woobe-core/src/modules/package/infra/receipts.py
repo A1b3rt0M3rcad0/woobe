@@ -74,6 +74,7 @@ class PackageTransactionReceipt:
         permission: str,
         encryption_key: str,
         evidence: dict | None = None,
+        binding_reader=None,
     ):
         self.operation_id, self.lease_token, self.phase = (
             operation_id,
@@ -82,6 +83,7 @@ class PackageTransactionReceipt:
         )
         self.permission, self.encryption_key = permission, encryption_key
         self.evidence = evidence or {}
+        self.binding_reader = binding_reader
         self.operation = None
 
     async def lookup(self, uow, request: OperationRequest) -> OperationResult | None:
@@ -276,8 +278,35 @@ class PackageTransactionReceipt:
                         or target.get("resource_id") is None,
                         "root_revision": data.get("revision", 1),
                     }
-                elif target["kind"] in {"Agent", "Network"}:
-                    binding.preparation = {}
+                else:
+                    # This evidence belongs to this exact accepted phase, not a
+                    # later GET of a resource that another writer can mutate.
+                    await uow.session.flush()
+                    accepted = None
+                    if target.get("frozen"):
+                        accepted = target.get("evidence")
+                    elif self.binding_reader is not None:
+                        accepted = await self.binding_reader(
+                            uow.session, project_id=operation.project_id,
+                            principal=request.principal, kind=target["kind"],
+                            resource_id=binding.resource_id, lock=True,
+                        )
+                    preparation = dict(binding.preparation or {})
+                    preparation.pop("root_revision", None)
+                    preparation.pop("new_root", None)
+                    # Never carry evidence from an older phase forward when this
+                    # writer cannot provide a new accepted generation.
+                    preparation.pop("accepted_native", None)
+                    if accepted and accepted.get("revision") is not None:
+                        preparation["accepted_native"] = {
+                            "revision": accepted["revision"],
+                            "resource_id": str(binding.resource_id),
+                            "operation_id": str(operation.id),
+                            "definition_digest": target["definition_digest"],
+                            "frozen": bool(target.get("frozen")),
+                            "snapshot_id": accepted.get("snapshot_id"),
+                        }
+                    binding.preparation = preparation
         operation.dependencies = []
         operation.phases_completed += 1
         operation.phase = self.phase

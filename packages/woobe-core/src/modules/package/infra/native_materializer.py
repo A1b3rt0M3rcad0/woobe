@@ -81,9 +81,10 @@ def installed_resources(work):
 
 
 class NativePackageMaterializer:
-    def __init__(self, *, encryption_key, artifacts=None):
+    def __init__(self, *, encryption_key, artifacts=None, binding_reader=None):
         self._encryption_key = encryption_key
         self._artifacts = artifacts
+        self._binding_reader = binding_reader
 
     def _skill_input(self, work, key, document):
         if self._artifacts is None:
@@ -556,6 +557,7 @@ class NativePackageMaterializer:
                 "Native phase composition is not implemented",
             )
         receipt = PackageTransactionReceipt(
+            binding_reader=self._binding_reader,
             operation_id=operation.id,
             lease_token=operation.lease_token,
             phase=phase["key"],
