@@ -3,6 +3,7 @@ from __future__ import annotations
 from modules.agent.infra.storage.factory import create_file_storage
 from shared.composition_resources import (
     DATABASE_ENGINE,
+    SESSION_FACTORY,
     EXECUTION_STATE_STORE,
     RUN_EVENT_JOURNAL,
     SETTINGS,
