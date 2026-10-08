@@ -159,3 +159,34 @@ async def test_revision_catalog_watermark_scope_and_revoked_authority(drafts):
     store.owner.inspect.side_effect = AuthorizationError("revoked")
     with pytest.raises(AuthorizationError):
         await store.list_revisions(**args, cursor=first["next_cursor"])
+
+
+@pytest.mark.asyncio
+async def test_revision_transfer_matches_closed_object_and_rechecks_authority(drafts):
+    store, sessions, args, uid, artifact = drafts
+    draft = await store.open_draft(**args, request=OpenASaCDraft(operation_id=uuid4(), resource_uid=uid, name="transfer", source_export_id=uuid4()))
+    record = dict(format="woobe-revision", schema_version="1.0", revision_id="rv_" + str(uuid4()), resource_uid=str(uid), kind="Agent", parents=[], message="Transfer checkpoint", artifact_digest=artifact["artifact_digest"], definition_digest=artifact["definition_digest"], definition_digest_scope="woobe-portable-definition@1.0", component_digests={str(uid): artifact["component_digests"]["root"]})
+    record["record_digest"] = asac_digest("record", record)
+    await store.register_revision(**args, request=RegisterASaCRevision(operation_id=uuid4(), draft_id=draft["draft_id"], expected_generation=1, record=record, component_uids={"root": uid}))
+    evidence = {"artifact_digest": record["artifact_digest"], "definition_digest": record["definition_digest"], "transport_digest": "c" * 64, "size_bytes": 7, "inventory": []}
+    store.artifacts.transfer = AsyncMock(return_value=(evidence, b"archive"))
+    receipt, content = await store.revision_transfer(**args, revision_id=record["revision_id"])
+    assert receipt["record_digest"] == record["record_digest"] and content == b"archive"
+    assert receipt["author_artifact_status"] == "unavailable"
+    store.artifacts.transfer.return_value = ({**evidence, "definition_digest": "sha256:" + "f" * 64}, b"archive")
+    with pytest.raises(ConflictError, match="executable object differs"):
+        await store.revision_transfer(**args, revision_id=record["revision_id"])
+
+    async def revoke_during_io(**kwargs):
+        store.owner.inspect.side_effect = AuthorizationError("revoked during capture")
+        return evidence, b"archive"
+
+    store.artifacts.transfer.side_effect = revoke_during_io
+    with pytest.raises(AuthorizationError, match="revoked during capture"):
+        await store.revision_transfer(**args, revision_id=record["revision_id"])
+    store.owner.inspect.side_effect = None
+    async with sessions.begin() as session:
+        row = await session.scalar(select(ASaCRevisionModel).where(ASaCRevisionModel.revision_id == record["revision_id"]))
+        row.document = {**row.document, "message": "Changed without a new record digest"}
+    with pytest.raises(ConflictError, match="metadata is inconsistent"):
+        await store.get_revision(**args, revision_id=record["revision_id"])

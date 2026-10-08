@@ -239,7 +239,39 @@ class ASaCDraftStore:
                 self.revisions.resource_id == resource_id, self.revisions.revision_id == revision_id))
             if row is None:
                 raise NotFoundError("ASAC_REVISION_UNAVAILABLE")
-            return {"record": row.document, "author_artifact_status": "declared_not_retained" if row.document.get("author_artifact_digest") else "unavailable", "artifact_id": str(row.artifact_id), "complete": True}
+            from shared.contracts.asac_requests import ASaCRevision
+            try:
+                record = ASaCRevision.model_validate(row.document).model_dump(exclude_none=True)
+                if record["kind"] != self.kind or record["revision_id"] != row.revision_id or record["resource_uid"] != str(row.resource_uid):
+                    raise ValueError("stored identity mismatch")
+            except (ValueError, TypeError) as exc:
+                raise ConflictError("ASAC_INTEGRITY_CONFLICT: retained revision metadata is inconsistent") from exc
+            return {"record": record, "author_artifact_status": "declared_not_retained" if row.document.get("author_artifact_digest") else "unavailable", "artifact_id": str(row.artifact_id), "complete": True}
+
+    async def revision_transfer(self, *, project_id, resource_id, revision_id, principal):
+        from shared.contracts.asac_requests import ASaCRevision
+        observed = await self.get_revision(project_id=project_id, resource_id=resource_id,
+            revision_id=revision_id, principal=principal)
+        try:
+            record = ASaCRevision.model_validate(observed["record"]).model_dump(exclude_none=True)
+        except (ValueError, TypeError) as exc:
+            raise ConflictError("ASAC_INTEGRITY_CONFLICT: retained revision metadata is inconsistent") from exc
+        if record["kind"] != self.kind or record["revision_id"] != revision_id:
+            raise ConflictError("ASAC_INTEGRITY_CONFLICT: retained revision identity differs")
+        evidence, content = await self.artifacts.transfer(project_id=project_id,
+            principal=principal, artifact_id=observed["artifact_id"])
+        if evidence["artifact_digest"] != record["artifact_digest"] or evidence["definition_digest"] != record["definition_digest"]:
+            raise ConflictError("ASAC_INTEGRITY_CONFLICT: executable object differs from its revision")
+        # Recheck owner authority after potentially long archive I/O. No transient
+        # uploader identity is reused, and no SQL transaction spans that I/O.
+        async with self._read() as session:
+            await self._authorize(session, project_id, resource_id, principal)
+        receipt = {"schema_version": "1.0", "package_schema_version": "1.0", "kind": self.kind,
+            "project_id": str(project_id), "resource_id": str(resource_id),
+            "resource_uid": record["resource_uid"], "revision_id": revision_id,
+            "record_digest": record["record_digest"], **evidence,
+            "author_artifact_status": observed["author_artifact_status"], "complete": True}
+        return receipt, content
 
     async def operation(self, *, project_id, resource_id, operation_id, principal):
         async with self._read() as session:

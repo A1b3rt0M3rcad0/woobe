@@ -18,6 +18,8 @@ _REVIEWED = [
     ("GET", "/projects/{project_id}/agents/{resource_id}/asac/revisions", "agent:read"),
     ("POST", "/projects/{project_id}/agents/{resource_id}/asac/revisions", "agent:write"),
     ("GET", "/projects/{project_id}/agents/{resource_id}/asac/revisions/{revision_id}", "agent:read"),
+    ("GET", "/projects/{project_id}/agents/{resource_id}/asac/revisions/{revision_id}/artifact/receipt", "agent:read"),
+    ("GET", "/projects/{project_id}/agents/{resource_id}/asac/revisions/{revision_id}/artifact", "agent:read"),
     ("GET", "/projects/{project_id}/agents/{resource_id}/asac/operations/{operation_id}", "agent:read"),
     ("GET", "/projects/{project_id}/networks/{resource_id}/asac/drafts", "network:read"),
     ("POST", "/projects/{project_id}/networks/{resource_id}/asac/drafts", "network:write"),
@@ -26,6 +28,8 @@ _REVIEWED = [
     ("GET", "/projects/{project_id}/networks/{resource_id}/asac/revisions", "network:read"),
     ("POST", "/projects/{project_id}/networks/{resource_id}/asac/revisions", "network:write"),
     ("GET", "/projects/{project_id}/networks/{resource_id}/asac/revisions/{revision_id}", "network:read"),
+    ("GET", "/projects/{project_id}/networks/{resource_id}/asac/revisions/{revision_id}/artifact/receipt", "network:read"),
+    ("GET", "/projects/{project_id}/networks/{resource_id}/asac/revisions/{revision_id}/artifact", "network:read"),
     ("GET", "/projects/{project_id}/networks/{resource_id}/asac/operations/{operation_id}", "network:read"),
 
     ("GET", "/projects/{project_id}/agents/{resource_id}/asac/current", "agent:read"),
