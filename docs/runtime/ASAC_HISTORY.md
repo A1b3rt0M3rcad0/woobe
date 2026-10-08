@@ -164,3 +164,10 @@ The capability `asac.retained_object_hydration` advertises this protocol.
 Hydration does not restore author YAML or native credential bindings, move a
 working head, or qualify runtime execution. Author-source availability remains
 separate from executable-object availability.
+
+
+CI backend validation has a 90-minute job budget because the shared Docker
+host can spend up to 40 minutes acquiring its exclusive validation lock. The
+complete test contract still runs after acquisition; lock wait limits, checks
+and assertions are unchanged. This budget avoids reducing a 25-minute suite
+to a few minutes when another required container/acceptance job owns Docker.
