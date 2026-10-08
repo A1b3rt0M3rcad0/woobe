@@ -7,11 +7,14 @@ from fastapi.responses import JSONResponse
 
 from shared.contracts.asac_requests import OpenASaCDraft, SaveASaCDraft, RegisterASaCRevision
 from shared.contracts.errors import AuthorizationError, ConflictError, NotFoundError, ValidationError
-from modules.package.entrypoint import PackageError
+from modules.package.entrypoint import PackageError, build_snapshot_artifacts
 
 
 def draft_router(prefix, builder, kind):
     router = APIRouter(prefix=prefix, tags=[kind.lower(), "asac-drafts"])
+
+    def store():
+        return builder(artifacts=build_snapshot_artifacts())
 
     def actor(request):
         principal = getattr(request.state, "principal", None)
@@ -44,30 +47,30 @@ def draft_router(prefix, builder, kind):
 
     @router.get("/drafts")
     async def drafts(project_id: UUID, resource_id: UUID, request: Request):
-        return response(await invoke(builder().list_drafts(project_id=project_id, resource_id=resource_id, principal=actor(request))))
+        return response(await invoke(store().list_drafts(project_id=project_id, resource_id=resource_id, principal=actor(request))))
 
     @router.post("/drafts")
     async def open_draft(project_id: UUID, resource_id: UUID, body: OpenASaCDraft, request: Request):
-        return response(await invoke(builder().open_draft(project_id=project_id, resource_id=resource_id, principal=actor(request), request=body)))
+        return response(await invoke(store().open_draft(project_id=project_id, resource_id=resource_id, principal=actor(request), request=body)))
 
     @router.get("/drafts/{draft_id}")
     async def draft(project_id: UUID, resource_id: UUID, draft_id: UUID, request: Request):
-        return response(await invoke(builder().get_draft(project_id=project_id, resource_id=resource_id, draft_id=draft_id, principal=actor(request))))
+        return response(await invoke(store().get_draft(project_id=project_id, resource_id=resource_id, draft_id=draft_id, principal=actor(request))))
 
     @router.put("/drafts/{draft_id}")
     async def save_draft(project_id: UUID, resource_id: UUID, draft_id: UUID, body: SaveASaCDraft, request: Request):
-        return response(await invoke(builder().save_draft(project_id=project_id, resource_id=resource_id, draft_id=draft_id, principal=actor(request), request=body)))
+        return response(await invoke(store().save_draft(project_id=project_id, resource_id=resource_id, draft_id=draft_id, principal=actor(request), request=body)))
 
     @router.post("/revisions")
     async def register_revision(project_id: UUID, resource_id: UUID, body: RegisterASaCRevision, request: Request):
-        return response(await invoke(builder().register_revision(project_id=project_id, resource_id=resource_id, principal=actor(request), request=body)))
+        return response(await invoke(store().register_revision(project_id=project_id, resource_id=resource_id, principal=actor(request), request=body)))
 
     @router.get("/revisions/{revision_id}")
     async def revision(project_id: UUID, resource_id: UUID, revision_id: str, request: Request):
-        return response(await invoke(builder().get_revision(project_id=project_id, resource_id=resource_id, revision_id=revision_id, principal=actor(request))))
+        return response(await invoke(store().get_revision(project_id=project_id, resource_id=resource_id, revision_id=revision_id, principal=actor(request))))
 
     @router.get("/operations/{operation_id}")
     async def operation(project_id: UUID, resource_id: UUID, operation_id: UUID, request: Request):
-        return response(await invoke(builder().operation(project_id=project_id, resource_id=resource_id, operation_id=operation_id, principal=actor(request))))
+        return response(await invoke(store().operation(project_id=project_id, resource_id=resource_id, operation_id=operation_id, principal=actor(request))))
 
     return router

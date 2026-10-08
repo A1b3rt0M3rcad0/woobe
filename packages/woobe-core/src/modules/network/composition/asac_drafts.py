@@ -4,9 +4,8 @@ from shared.composition_resources import SESSION_FACTORY
 from shared.infra.asac_draft_store import ASaCDraftStore
 
 
-def build_network_asac_drafts():
-    from modules.package.entrypoint import build_snapshot_artifacts
+def build_network_asac_drafts(*, artifacts):
     return ASaCDraftStore(transactions=SESSION_FACTORY, kind="Network",
         owner=DevelopmentNetworkReader(), drafts=ASaCDraftModel,
         revisions=ASaCRevisionModel, operations=ASaCOperationModel,
-        identities=ASaCResourceModel, artifacts=build_snapshot_artifacts())
+        identities=ASaCResourceModel, artifacts=artifacts)
