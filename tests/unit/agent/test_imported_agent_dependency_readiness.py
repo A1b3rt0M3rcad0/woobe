@@ -23,7 +23,7 @@ from shared.contracts.errors import ConflictError
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "changed",
-    ["inactive_model", "model_spec", "inactive_tool", "changed_tool", "inactive_existing", "archived_existing", "ready"],
+    ["inactive_model", "model_spec", "inactive_tool", "changed_tool", "unready_mcp", "inactive_existing", "archived_existing", "ready"],
 )
 async def test_import_verification_requires_live_models_and_exact_tools(
     monkeypatch, changed
@@ -47,6 +47,9 @@ async def test_import_verification_requires_live_models_and_exact_tools(
         type=ToolType.HTTP,
         config={"url": "https://tool.test"},
     )
+    if changed == "unready_mcp":
+        tool.type = ToolType.MCP
+        tool.config = {"mode": "server", "discovered_tools": []}
     draft = SimpleNamespace(
         id=draft_id,
         project_id=project,

@@ -331,6 +331,15 @@ class DevelopmentRegistry:
                     filtered.append(effect)
                     continue
             if target["unchanged"] and kind in reuse_actions:
+                if kind == "Tool" and action in {
+                    "verify_mcp_discovery",
+                    "verify_mcp_readiness",
+                }:
+                    # Rediscovery writes timestamps and increments the native
+                    # Tool revision, invalidating unchanged Agent Draft snapshots.
+                    # Reuse checks its approved revision; final owner verification
+                    # still checks exact snapshots and persisted MCP readiness.
+                    continue
                 if kind == "Knowledge" and action in {
                     "create_collection",
                     "upload_document",

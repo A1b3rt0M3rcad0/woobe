@@ -6,11 +6,62 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 from modules.package.application.semantic_definition import semantic_digests
+from modules.package.application.planning import definition_digest
 from modules.package.domain.bundle import PackageGraph
 from modules.package.domain.errors import PackageError
 from modules.package.infra.development_registry import DevelopmentRegistry
 from modules.package.infra.models import PackageResourceBindingModel
 from shared.infra.database.base import Base
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("unchanged", [True, False])
+async def test_mcp_sync_preserves_discovery_for_unchanged_native_tool(unchanged):
+    engine = create_async_engine(
+        "sqlite+aiosqlite://",
+        execution_options={"schema_translate_map": {"package": None}},
+    )
+    sessions = async_sessionmaker(engine, expire_on_commit=False)
+    async with engine.begin() as connection:
+        await connection.run_sync(lambda sync: Base.metadata.create_all(
+            sync, tables=[PackageResourceBindingModel.__table__]
+        ))
+    project, registry_id, tool_id, uid = (uuid4() for _ in range(4))
+    reader = SimpleNamespace(inspect=AsyncMock(return_value={
+        "resource_id": str(tool_id), "revision": 7,
+    }))
+    component = {
+        "kind": "Tool", "metadata": {"key": "tool", "name": "Lookup"},
+        "spec": {"type": "mcp", "permissions": [
+            {"remote_name": "lookup", "permission": "review", "risk": "unknown"}
+        ]},
+    }
+    digest = definition_digest({
+        "component": component, "dependencies": {}, "support": [], "bindings": {},
+    })
+    async with sessions.begin() as session:
+        session.add(PackageResourceBindingModel(
+            project_id=project, registry_id=registry_id, resource_uid=uid,
+            kind="Tool", resource_id=tool_id,
+            definition_digest=digest if unchanged else "old-definition",
+        ))
+    document = {"bindings": {}, "binding_resolutions": {}, "effects": [
+        {"component": "tool", "action": action, "permission": "tool:write"}
+        for action in ("materialize_tool", "verify_mcp_discovery", "verify_mcp_readiness")
+    ]}
+    async with sessions.begin() as session:
+        await DevelopmentRegistry(sessions, reader, reader).prepare(
+            session, project_id=project, principal="principal",
+            registry_id=str(registry_id),
+            targets={"tool": {"resource_uid": str(uid), "resource_id": str(tool_id), "expected_revision": 7}},
+            graph=PackageGraph({}, {"tool": component}, {"tool": "tool.yaml"}, ("tool",)),
+            inventory=[], document=document,
+        )
+    actions = [effect["action"] for effect in document["effects"]]
+    assert actions == (["reuse_resource"] if unchanged else [
+        "materialize_tool", "verify_mcp_discovery", "verify_mcp_readiness"
+    ])
+    await engine.dispose()
 
 
 @pytest.mark.asyncio

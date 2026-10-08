@@ -99,6 +99,13 @@ OAuth configuration belongs to the destination;
 credentials, OAuth sessions, cached discovered schemas and live execution state
 are excluded. OAuth or readiness prerequisites can require an explicit resume.
 
+Managed synchronization reuses an unchanged native MCP Tool without rediscovery.
+Its approved revision is checked before reuse, and final Agent verification still
+checks exact Tool snapshots and persisted MCP readiness. Rediscovery of an
+unchanged Tool would increment its revision and invalidate saved Agent Drafts,
+including Draft constituents of a Network. Edited Tools and new destination
+imports continue to perform fresh discovery.
+
 ## API and security
 
 All paths below are relative to `/projects/{project_id}/packages` and require
