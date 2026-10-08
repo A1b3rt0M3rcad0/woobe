@@ -924,7 +924,7 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
         body={"change_description": "Restore first release"},
     )
     assert restored["id"] == production["id"]
-    observed = await cli.data("agent", agent_id, "current", "--env", "production")
+    observed = (await cli.run("agent", agent_id, "current", "--env", "production"))["data"]
     assert observed["snapshot_id"] == production["id"]
     assert observed["environment_generation"] is None
     publication_history = await cli.data("request", "GET", f"/projects/{cli.project_id}/agents/{agent_id}/asac/history", "--query", "limit=1")
@@ -1137,7 +1137,7 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
     )
     assert network_restored["version"]["id"] == network_release["id"]
     assert network_restored["activation"]["activation_kind"] == "rollback"
-    selected_network = await cli.data("network", network_id, "current", "--env", "production")
+    selected_network = (await cli.run("network", network_id, "current", "--env", "production"))["data"]
     assert selected_network["snapshot_id"] == network_release["id"]
     network_history = await cli.data("request", "GET", f"/projects/{cli.project_id}/networks/{network_id}/asac/history")
     assert network_history["complete"]
