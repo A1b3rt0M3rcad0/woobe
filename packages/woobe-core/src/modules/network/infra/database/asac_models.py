@@ -161,3 +161,33 @@ class ASaCLeaseModel(ASaCLeaseColumns, BaseModel):
         ForeignKeyConstraint(["resource_id"], ["network.networks.id"], ondelete="CASCADE"),
         {"schema": "network"},
     )
+
+
+from shared.infra.asac_record_models import ASaCDeploymentPlanColumns, ASaCDeploymentColumns
+
+class ASaCDeploymentPlanModel(ASaCDeploymentPlanColumns, BaseModel):
+    __tablename__ = "asac_deployment_plans"
+    __table_args__ = (
+        UniqueConstraint("project_id", "resource_id", "actor", "operation_id", name="uq_network_asac_deployment_plans_operation"),
+        CheckConstraint("expected_generation >= 0", name="ck_network_asac_plan_generation"),
+        CheckConstraint("environment IN ('staging', 'production') AND action IN ('activate', 'rollback')", name="ck_network_asac_plan_scope"),
+        ForeignKeyConstraint(["resource_id"], ["network.networks.id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(["release_id"], ["network.network_versions.id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(["publication_id"], ["network.asac_publications.id"], ondelete="RESTRICT"),
+        {"schema": "network"},
+    )
+
+class ASaCDeploymentModel(ASaCDeploymentColumns, BaseModel):
+    __tablename__ = "asac_deployments"
+    __table_args__ = (
+        UniqueConstraint("project_id", "resource_id", "actor", "operation_id", name="uq_network_asac_deployments_operation"),
+        UniqueConstraint("plan_id", name="uq_network_asac_deployment_plan"),
+        CheckConstraint("generation_before >= 0 AND generation_after >= generation_before AND generation_after <= generation_before + 1", name="ck_network_asac_deployment_generation"),
+        CheckConstraint("environment IN ('staging', 'production') AND action IN ('activate', 'rollback')", name="ck_network_asac_deployment_scope"),
+        ForeignKeyConstraint(["resource_id"], ["network.networks.id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(["release_id"], ["network.network_versions.id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(["publication_id"], ["network.asac_publications.id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(["plan_id"], ["network.asac_deployment_plans.id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(["outbox_id"], ["network.outbox_events.id"], ondelete="RESTRICT", deferrable=True, initially="DEFERRED"),
+        {"schema": "network"},
+    )

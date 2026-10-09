@@ -19,7 +19,7 @@ from uuid import UUID, uuid4
 import httpx
 import pytest
 import pytest_asyncio
-from sqlalchemy import delete, text
+from sqlalchemy import delete, select, text
 
 from modules.core.infra.database.control_key_models import WorkspaceControlKeyModel
 from modules.identity.infra.database.models import WorkspaceModel
@@ -33,7 +33,7 @@ from shared.security.control_plane import (
 )
 
 CLI_COMMIT = os.environ.get(
-    "WOOBE_TEST_CLI_SHA", "138d786ee3b6b100bf952364dde473a7e7dde645"
+    "WOOBE_TEST_CLI_SHA", "b4034475e49aead88cf59f1cdbe7e97dae3ed302"
 )
 
 
@@ -960,7 +960,7 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
         item["action"] == "rollback" and item["release_id"] == production["id"]
         for item in activations
     )
-    await exercise_asac_isolated_drafts(cli, "Agent", agent_id)
+    agent_publication = await exercise_asac_isolated_drafts(cli, "Agent", agent_id)
     await cli.run("request", "POST", "/v1/run", body={"message": "Hello"}, expected=4)
     await cli.run("project", "agent", "list", key=staging_key, expected=4)
     network_body = {"name": "CLI network"}
@@ -1164,7 +1164,7 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
     assert {network_release["id"], second_network_release["id"]} <= {item["id"] for item in network_history["records"]}
     network_deployments = await cli.data("request", "GET", f"/projects/{cli.project_id}/networks/{network_id}/asac/history", "--query", "stream=deployments")
     assert any(item["release_id"] == network_release["id"] and item["action"] == "rollback" for item in network_deployments["records"])
-    await exercise_asac_isolated_drafts(cli, "Network", network_id)
+    network_publication = await exercise_asac_isolated_drafts(cli, "Network", network_id)
     _, network_key = await cli.issue(
         "project",
         "runtime-key",
@@ -1217,6 +1217,8 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
         runtime_key=staging_key,
         expected=5,
     )
+    await exercise_asac_deployments(cli, "Agent", agent_id, agent_publication)
+    await exercise_asac_deployments(cli, "Network", network_id, network_publication)
     # CAS applies before mutation; retrying a completed rotation recovers the same key.
     rotated, rotated_key = await cli.issue(
         "workspace",
@@ -1650,6 +1652,7 @@ async def exercise_asac_isolated_drafts(cli, kind, resource_id):
     assert not unknown["complete"] and not unknown["retry_authorized"]
     observed = (await cli.run(kind.lower(),resource_id,"current","--env","production"))["data"]
     assert observed["snapshot_id"] == export["source"]["snapshot_id"]
+    return {"publication": publication, "registry": registry}
 
 @pytest.mark.asyncio
 async def test_cli_categories_pin_authority_and_preflight_matches_requests(cli):
@@ -2298,3 +2301,140 @@ async def exercise_asac_workflow_leases(cli,kind,resource_id,draft_id):
         assert (await cli.data("request","GET",base+"/drafts/"+draft_id))["generation"]==1
     finally:
         await engine.dispose()
+
+
+async def exercise_asac_deployments(cli, kind, resource_id, publication):
+    from sqlalchemy.exc import DBAPIError
+    registry=publication["registry"];publication=publication["publication"]
+    """Real PostgreSQL owner selection/receipt/outbox and exact replay."""
+    base=f"/projects/{cli.project_id}/{kind.lower()}s/{resource_id}/asac"
+    production=(await cli.run(kind.lower(),resource_id,"current","--env","production"))["data"]
+    plan_body={"operation_id":str(uuid4()),"release_id":publication["release_id"],
+        "publication_id":publication["publication_id"],"environment":"production",
+        "expected_generation":production["environment_generation"],"reason":"Activate the exact qualified Release"}
+    plan=(await cli.run(kind.lower(),"@captured","deployment","plan","--release",publication["release_id"],"--publication",publication["publication_id"],"--expected-generation",str(production["environment_generation"]),"--notes",plan_body["reason"],cwd=registry))["data"]
+    plan_body["operation_id"]=plan["operation_id"]
+    assert not plan["executed"] and plan["release_id"]==publication["release_id"]
+    assert await cli.data("request","POST",base+"/deployment-plans",body=plan_body)==plan
+    lease=await cli.data("request","POST",base+"/leases/acquire",body={"operation_id":str(uuid4()),
+        "workflow_id":str(uuid4()),"scope":"production","ttl_seconds":4})
+    proof={key:lease[key] for key in ("lease_id","workflow_id","fencing_token")}
+    apply={"operation_id":str(uuid4()),"plan_id":plan["plan_id"],"environment":"production","leases":[proof]}
+    # The outbox insert happens after pointer/native-history mutation. Prove
+    # that expiry during that insert rejects the entire commit, not just a
+    # preliminary check. A sequence survives rollback and proves SQL was reached.
+    expiry_engine=create_engine(Settings());expiry_sessions=create_session_factory(expiry_engine)
+    owner=kind.lower();outbox="agent_outbox_events" if kind=="Agent" else "outbox_events"
+    fault="expiry_"+uuid4().hex; sequence=fault+"_seq"
+    async with expiry_sessions.begin() as session:
+        await session.execute(text(f"CREATE SEQUENCE {owner}.{sequence}"))
+        await session.execute(text(f"CREATE FUNCTION {owner}.{fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM nextval('{owner}.{sequence}'); PERFORM pg_sleep(4.2); RETURN NEW; END $$"))
+        await session.execute(text(f"CREATE TRIGGER {fault} BEFORE INSERT ON {owner}.{outbox} FOR EACH ROW WHEN (NEW.aggregate_id='{resource_id}'::uuid AND NEW.event_type='{owner}.asac.environment.selected') EXECUTE FUNCTION {owner}.{fault}()"))
+    try:
+        expired_operation=apply["operation_id"]
+        failed=await cli.run("request","POST",base+"/deployments",body=apply,expected=6)
+        assert failed["error"]["http_status"]==409
+        async with expiry_sessions() as session:
+            assert await session.scalar(text(f"SELECT is_called FROM {owner}.{sequence}"))
+            observed=await session.scalar(text(f"SELECT generation FROM {owner}.asac_environment_selections WHERE resource_id=:root AND environment='production'"),{"root":UUID(resource_id)})
+            assert observed==production["environment_generation"]
+            for table in ("asac_deployments","asac_operations"):
+                assert await session.scalar(text(f"SELECT count(*) FROM {owner}.{table} WHERE operation_id=:id"),{"id":UUID(expired_operation)})==0
+    finally:
+        async with expiry_sessions.begin() as session:
+            await session.execute(text(f"DROP TRIGGER {fault} ON {owner}.{outbox}"))
+            await session.execute(text(f"DROP FUNCTION {owner}.{fault}()"))
+            await session.execute(text(f"DROP SEQUENCE {owner}.{sequence}"))
+        await expiry_engine.dispose()
+    lease=(await cli.run(kind.lower(),"@captured","lease","acquire","--scope","production","--ttl","120",cwd=registry))["data"]
+    replacement={key:lease[key] for key in ("lease_id","workflow_id","fencing_token")}
+    assert replacement["fencing_token"]==proof["fencing_token"]+1
+    await cli.run("request","POST",base+"/deployments",body={**apply,"operation_id":str(uuid4())},expected=6)
+    proof=replacement;apply={**apply,"operation_id":str(uuid4()),"leases":[proof]}
+    receipt=(await cli.run(kind.lower(),"@captured","deployment","apply",plan["plan_id"],"--yes",cwd=registry))["data"]
+    apply["operation_id"]=receipt["operation_id"]
+    assert (await cli.run(kind.lower(),"@captured","history","verify",cwd=registry))["data"]["deployment_receipts"]==1
+    assert receipt["release_id"]==publication["release_id"] and receipt["state"]=="committed"
+    assert receipt["generation_after"]==production["environment_generation"]+1
+    assert await cli.data("request","POST",base+"/deployments",body=apply)==receipt
+    assert await cli.data("request","GET",base+"/deployments/"+receipt["deployment_id"])==receipt
+    assert (await cli.data("request","GET",base+"/operations/"+apply["operation_id"]))["result"]==receipt
+    await cli.run("request","POST",base+"/deployments",body={**apply,"operation_id":str(uuid4())},expected=6)
+    current=(await cli.run(kind.lower(),resource_id,"current","--env","production"))["data"]
+    assert current["snapshot_id"]==publication["release_id"] and current["selection_authority"]=="asac"
+    assert current["environment_generation"]==receipt["generation_after"]
+    engine=create_engine(Settings());sessions=create_session_factory(engine)
+    owner=kind.lower();outbox="agent_outbox_events" if kind=="Agent" else "outbox_events"
+    try:
+        async with sessions() as session:
+            payload=await session.scalar(text(f"SELECT payload FROM {owner}.{outbox} WHERE id=:id"),{"id":UUID(receipt["outbox_id"])})
+            assert payload==receipt
+            if kind=="Agent":
+                from modules.agent.infra.database.asac_runtime_release_repository import SQLAlchemySelectedAgentReleaseRepository
+                selected=await SQLAlchemySelectedAgentReleaseRepository(session).get_active_production(UUID(resource_id))
+                assert str(selected.id)==publication["release_id"]
+        with pytest.raises(DBAPIError,match="immutable"):
+            async with sessions.begin() as session:
+                await session.execute(text(f"UPDATE {owner}.{outbox} SET payload='{{}}'::jsonb WHERE id=:id"),{"id":UUID(receipt["outbox_id"])})
+        with pytest.raises(DBAPIError,match="DEPLOYMENT_RECEIPT_REQUIRED"):
+            async with sessions.begin() as session:
+                await session.execute(text(f"UPDATE {owner}.asac_environment_selections SET snapshot_id=NULL,execution_fingerprint=NULL,generation=generation+1 WHERE resource_id=:id AND environment='production'"),{"id":UUID(resource_id)})
+    finally:
+        await engine.dispose()
+    await cli.data("request","POST",base+"/leases/release",body={**proof,"operation_id":str(uuid4()),"scope":"production"})
+
+    # Both independent environments can select the same immutable Release.
+    staging=(await cli.run(kind.lower(),resource_id,"current","--env","staging"))["data"]
+    stage_plan=await cli.data("request","POST",base+"/deployment-plans",body={**plan_body,"operation_id":str(uuid4()),"environment":"staging","expected_generation":staging["environment_generation"]})
+    stage_lease=await cli.data("request","POST",base+"/leases/acquire",body={"operation_id":str(uuid4()),"workflow_id":str(uuid4()),"scope":"staging","ttl_seconds":120})
+    stage_proof={key:stage_lease[key] for key in ("lease_id","workflow_id","fencing_token")}
+    stage_receipt=await cli.data("request","POST",base+"/deployments",body={"operation_id":str(uuid4()),"plan_id":stage_plan["plan_id"],"environment":"staging","leases":[stage_proof]})
+    assert stage_receipt["generation_after"]==staging["environment_generation"]+1
+    for environment in ("staging","production"):
+        selected=(await cli.run(kind.lower(),resource_id,"current","--env",environment))["data"]
+        assert selected["snapshot_id"]==publication["release_id"] and selected["selection_authority"]=="asac"
+    await cli.data("request","POST",base+"/leases/release",body={**stage_proof,"operation_id":str(uuid4()),"scope":"staging"})
+    # Runtime admission and environment export must consume the exact immutable
+    # selection, including an Agent Release whose legacy status is still release.
+    for environment in ("staging", "production"):
+        _, runtime_key = await cli.issue(
+            "project", "runtime-key", "create",
+            body={"project_id": cli.project_id, "name": "Selected ASaC runtime",
+                  "target_type": kind.lower(), "target_id": resource_id,
+                  "environment": environment, "interfaces": ["http"],
+                  "expires_at": (datetime.now(UTC)+timedelta(hours=1)).isoformat()},
+        )
+        result = await cli.run(
+            "runtime", "target", "run", "selected-asac",
+            "--target-kind", kind.lower(), body={"input": "Hello"},
+            runtime_key=runtime_key,
+        )
+        assert result["data"]["success"] is True
+        run_engine=create_engine(Settings());run_sessions=create_session_factory(run_engine)
+        try:
+            async with run_sessions() as session:
+                if kind == "Agent":
+                    from modules.agent.infra.database.run_models import AgentRunModel
+                    run=await session.scalar(select(AgentRunModel).where(
+                        AgentRunModel.agent_id==UUID(resource_id),
+                        AgentRunModel.environment==environment,
+                    ).order_by(AgentRunModel.created_at.desc()).limit(1))
+                    assert run and str(run.agent_release_id)==publication["release_id"]
+                    assert run.status == "completed"
+                else:
+                    from modules.network.infra.database.models import NetworkExecutionModel
+                    run=await session.get(NetworkExecutionModel,UUID(result["data"]["data"]["execution_id"]))
+                    assert run and str(run.network_version_id)==publication["release_id"]
+        finally:
+            await run_engine.dispose()
+        exported=await cli.data("request","POST",f"/projects/{cli.project_id}/packages/export",
+            body={"kind":kind,"target_id":resource_id,"source":environment,
+                  "knowledge":"portable","development":True})
+        assert exported["export_id"]
+    # A new audited selection of the same executable is a no-op for generation.
+    no_op_plan=await cli.data("request","POST",base+"/deployment-plans",body={**plan_body,"operation_id":str(uuid4()),"expected_generation":receipt["generation_after"]})
+    no_op_lease=await cli.data("request","POST",base+"/leases/acquire",body={"operation_id":str(uuid4()),"workflow_id":str(uuid4()),"scope":"production","ttl_seconds":120})
+    no_op_proof={key:no_op_lease[key] for key in ("lease_id","workflow_id","fencing_token")}
+    no_op=await cli.data("request","POST",base+"/deployments",body={"operation_id":str(uuid4()),"plan_id":no_op_plan["plan_id"],"environment":"production","leases":[no_op_proof]})
+    assert not no_op["selection_changed"] and no_op["generation_after"]==receipt["generation_after"]
+    await cli.data("request","POST",base+"/leases/release",body={**no_op_proof,"operation_id":str(uuid4()),"scope":"production"})

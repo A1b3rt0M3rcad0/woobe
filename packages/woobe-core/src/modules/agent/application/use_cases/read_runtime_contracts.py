@@ -30,17 +30,16 @@ class ReadRuntimeContractsUseCase:
         if input_dto.environment not in {"staging", "production"}:
             raise ValidationError("Runtime Key binding is incomplete")
 
-        releases = await self._release_repo.list_by_agent(input_dto.agent_id)
-        release = next(
-            (
-                candidate
-                for candidate in releases
+        selected = getattr(self._release_repo, "get_active_" + input_dto.environment, None)
+        if callable(selected):
+            release = await selected(input_dto.agent_id)
+        else:
+            releases = await self._release_repo.list_by_agent(input_dto.agent_id)
+            release = next((candidate for candidate in releases
                 if candidate.project_id == input_dto.project_id
-                and str(getattr(candidate.status, "value", candidate.status))
-                == input_dto.environment
-            ),
-            None,
-        )
+                and str(getattr(candidate.status, "value", candidate.status)) == input_dto.environment), None)
+        if release is not None and (release.project_id != input_dto.project_id or release.agent_id != input_dto.agent_id):
+            release = None
         if release is None:
             raise NotFoundError(
                 f"Agent {input_dto.environment} Release not found"

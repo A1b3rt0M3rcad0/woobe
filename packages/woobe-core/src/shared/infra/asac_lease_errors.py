@@ -10,8 +10,8 @@ def asac_lease_database_errors(method):
         try:
             return await method(*args,**kwargs)
         except DBAPIError as error:
-            for code in ('ASAC_LEASE_FENCED','ASAC_LEASE_EXPIRED'):
+            for code in ('ASAC_LEASE_FENCED','ASAC_LEASE_EXPIRED','ASAC_DEPLOYMENT_COMMIT_INVALID','ASAC_DEPLOYMENT_RECEIPT_REQUIRED','ASAC_SELECTION_MANAGED'):
                 if code in str(error.orig):
-                    raise ConflictError(code+': Database rejected a superseded or expired workflow lease') from None
+                    raise ConflictError(code+': Database rejected an incompatible lifecycle transaction') from None
             raise
     return guarded

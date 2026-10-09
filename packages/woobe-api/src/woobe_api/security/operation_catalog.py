@@ -62,6 +62,14 @@ _REVIEWED = [
     ("GET", "/projects/{project_id}/networks/{resource_id}/asac/revisions/{revision_id}/artifact", "network:read"),
     ("GET", "/projects/{project_id}/networks/{resource_id}/asac/operations/{operation_id}", "network:read"),
 
+    ("POST", "/projects/{project_id}/agents/{resource_id}/asac/deployment-plans", "agent:production"),
+    ("POST", "/projects/{project_id}/agents/{resource_id}/asac/deployments", "agent:production"),
+    ("GET", "/projects/{project_id}/agents/{resource_id}/asac/deployment-plans/{plan_id}", "agent:read"),
+    ("GET", "/projects/{project_id}/agents/{resource_id}/asac/deployments/{deployment_id}", "agent:read"),
+    ("POST", "/projects/{project_id}/networks/{resource_id}/asac/deployment-plans", "network:production"),
+    ("POST", "/projects/{project_id}/networks/{resource_id}/asac/deployments", "network:production"),
+    ("GET", "/projects/{project_id}/networks/{resource_id}/asac/deployment-plans/{plan_id}", "network:read"),
+    ("GET", "/projects/{project_id}/networks/{resource_id}/asac/deployments/{deployment_id}", "network:read"),
     ("GET", "/projects/{project_id}/agents/{resource_id}/asac/current", "agent:read"),
     ("GET", "/projects/{project_id}/agents/{resource_id}/asac/history", "agent:read"),
     ("GET", "/projects/{project_id}/networks/{resource_id}/asac/current", "network:read"),
@@ -426,6 +434,9 @@ def resolve_operation(
         if method.upper()=="POST" and template.endswith(("/asac/leases/acquire","/asac/leases/renew","/asac/leases/release")):
             kind="agent" if "/agents/" in template else "network"
             permission=kind+(":production" if data.get("scope")=="production" else ":version" if data.get("scope")=="staging" else ":write")
+        if method.upper()=="POST" and template.endswith(("/asac/deployment-plans","/asac/deployments")):
+            kind="agent" if "/agents/" in template else "network"
+            permission=kind+(":version" if data.get("environment")=="staging" else ":production")
         if template.startswith("/ai/agents/") and template.endswith("/promote"):
             permission = (
                 "agent:version"

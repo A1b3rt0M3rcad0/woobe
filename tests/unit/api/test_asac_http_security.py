@@ -145,3 +145,31 @@ async def test_database_fencing_errors_never_echo_sql_author_or_protected_parame
     assert b'private_table' not in result.body and 'private_table' not in caplog.text
     if status==409:
         assert code.encode() in result.body
+
+
+@pytest.mark.parametrize('plural,identifier',[('agents','agent_id'),('networks','network_id')])
+@pytest.mark.parametrize('suffix',['deployment-plans','deployments'])
+@pytest.mark.parametrize('environment,permission',[('staging','version'),('production','production')])
+def test_deployment_writes_cannot_spoof_environment_with_query(plural,identifier,suffix,environment,permission):
+    project,resource=str(uuid4()),str(uuid4())
+    path=f'/projects/{project}/{plural}/{resource}/asac/{suffix}'
+    request=Request({'type':'http','method':'POST','path':path,'query_string':b'environment=draft','headers':[]})
+    body={'environment':environment}
+    allowed,params=resolve_operation('POST',path,body)
+    assert allowed==f'{plural[:-1]}:{permission}'
+    normalized=HttpSecurityGuard._authorization_path_params(request,params,body)
+    assert normalized[identifier]==resource and normalized['environment']==environment
+    assert resolve_operation('DELETE',path)[0] is None
+
+
+@pytest.mark.parametrize("plural,mapped",[("agents","release_id"),("networks","network_version_id")])
+def test_deployment_release_authorization_uses_exact_owner_table_without_changing_transport(plural,mapped):
+    project,resource=str(uuid4()),str(uuid4())
+    path=f"/projects/{project}/{plural}/{resource}/asac/deployment-plans"
+    request=Request({"type":"http","method":"POST","path":path,"query_string":b"","headers":[]})
+    body={"release_id":str(uuid4()),"environment":"production"}
+    original=dict(body)
+    normalized=HttpSecurityGuard._authorization_body(request,{"project_id":project,"resource_id":resource},body)
+    assert normalized[mapped]==original["release_id"] and normalized["environment"]=="production"
+    assert body==original
+    if mapped!="release_id": assert "release_id" not in normalized

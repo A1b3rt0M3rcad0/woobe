@@ -484,3 +484,22 @@ async def test_provider_model_binding_resolves_model_credential_and_pricing_snap
     assert resolved.provider_credential_id == credential.id
     assert resolved.provider == Provider.openai
     assert resolved.settings["model_pricing"]["provider_model_id"] == str(provider_model.id)
+
+@pytest.mark.asyncio
+async def test_staging_runtime_uses_selected_immutable_release_without_legacy_status():
+    project_id = uuid4()
+    agent = _agent(project_id=project_id)
+    legacy = _release(project_id=project_id, agent_id=agent.id, version="staging",
+                      status=ReleaseStatus.staging, model="legacy-model")
+    selected = _release(project_id=project_id, agent_id=agent.id, version="1.2.0",
+                        status=ReleaseStatus.released, model="selected-model")
+    repository = MemoryReleaseRepository(legacy, selected)
+    repository.get_active_staging = AsyncMock(return_value=selected)
+    input_dto = AskInput(project_id=project_id, agent_id=agent.id, message="hello",
+                         execution_context="staging")
+    loaded, context = await _load(ReleaseRuntimeResolver.__new__(ReleaseRuntimeResolver),
+                                 _uow(agent, repository), input_dto)
+    assert loaded.model == "selected-model"
+    assert input_dto.loaded_release_id == selected.id
+    assert context.agent_release_id == selected.id
+    repository.get_active_staging.assert_awaited_once_with(agent.id)

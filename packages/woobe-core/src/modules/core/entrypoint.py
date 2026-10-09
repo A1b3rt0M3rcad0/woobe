@@ -49,3 +49,6 @@ __all__ = [
     "update_api_key_credential_composer",
     "update_project_composer",
 ]
+
+from modules.core.composition.public_api import build_asac_environment_binding_reader
+__all__.append('build_asac_environment_binding_reader')
