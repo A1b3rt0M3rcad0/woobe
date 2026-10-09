@@ -82,6 +82,14 @@ def draft_router(prefix, builder, kind, candidate_builder=None, evaluation_build
                     raise ValidationError("ASAC_RECEIPT_KIND_UNAVAILABLE: Receipt category is unavailable")
             if receipt.get("complete") is not True:
                 raise ConflictError("ASAC_RECEIPT_NOT_TERMINAL: Reconcile the original operation before attesting it")
+            # Lease proofs are private operational credentials, not portable
+            # provenance. Attest an explicit public projection while preserving
+            # the immutable owner's digest as a separate referenced claim.
+            if category == "deployment":
+                original_digest = receipt["receipt_digest"]
+                receipt = {key: value for key, value in receipt.items() if key not in {"leases", "receipt_digest"}}
+                receipt["projection_scope"] = "public-owner-deployment@1"
+                receipt["owner_receipt_digest"] = original_digest
             try:
                 return {**build_asac_receipt_signer().attest(category=category, project_id=project_id,
                     resource_id=resource_id, kind=kind, receipt=receipt), "complete": True}

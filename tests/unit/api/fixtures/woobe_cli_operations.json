@@ -1,5 +1,5 @@
 {
-  "cli_commit": "247e33ae66f9874e1827877504288944a8898cfe",
+  "cli_commit": "c3818fd170f4e840166425223c20fd7e48bc5ee5",
   "operations": [
     {
       "command": "auth invite accept",
@@ -275,6 +275,12 @@
       "command": "project agent release tests",
       "method": "GET",
       "path": "/ai/agents/{agent_id}/releases/{release_id}/tests",
+      "body_required": false
+    },
+    {
+      "command": "project agent signed-receipt get",
+      "method": "GET",
+      "path": "/projects/{project_id}/agents/{resource_id}/asac/signed-receipts/{category}/{receipt_id}",
       "body_required": false
     },
     {
@@ -630,6 +636,12 @@
       "method": "POST",
       "path": "/network/{network_id}/sessions/{session_id}/reset-context",
       "body_required": true
+    },
+    {
+      "command": "project network signed-receipt get",
+      "method": "GET",
+      "path": "/projects/{project_id}/networks/{resource_id}/asac/signed-receipts/{category}/{receipt_id}",
+      "body_required": false
     },
     {
       "command": "project network update",

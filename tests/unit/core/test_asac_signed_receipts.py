@@ -5,7 +5,7 @@ import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.exceptions import InvalidSignature
 from shared.contracts.asac import asac_digest
-from modules.core.infra.receipts.asac_signer import ASaCReceiptSigner, encode, decode
+from modules.core.infra.receipts.asac_signer import ASaCReceiptSigner, create_trust_manifest, encode, decode
 
 NOW=datetime(2026,10,9,tzinfo=UTC)
 
@@ -18,7 +18,9 @@ def signer(**changes):
         'expires_at':'2026-11-01T00:00:00Z','clock':lambda:NOW,
         'keys':[{'public_key':encode(online.public_key().public_bytes_raw()),'status':'active',
                  'not_before':'2026-10-01T00:00:00Z','not_after':'2026-12-01T00:00:00Z'}]}
-    return ASaCReceiptSigner(**{**args,**changes}),root,online
+    args.update(changes)
+    manifest=create_trust_manifest(**{key:args[key] for key in ('instance_id','root_private_key','epoch','expires_at','keys')})
+    return ASaCReceiptSigner(trust_manifest=manifest,receipt_private_key=args['receipt_private_key'],clock=args['clock']),root,online
 
 
 def test_receipt_and_rotatable_key_manifest_have_independent_verifiable_signatures():

@@ -505,3 +505,9 @@ CLI verifies route advertisement and keeps a stable original operation for
 recovery rather than repeating an uncertain write under a new identity.
 Project policy does not replace signed offline receipts, Git attestations,
 Web isolated-Draft UX or runtime continuity work.
+
+For optional instance-signed owner receipts, configure an online signing key
+and an offline-root-signed public manifest as described in
+[signed ASaC receipts](ASAC_SIGNED_RECEIPTS.md). The API never holds the offline root seed.
+Existing authenticated history reads do not automatically establish offline
+trust; clients pin an independently confirmed root fingerprint.

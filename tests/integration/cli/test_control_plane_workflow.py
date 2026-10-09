@@ -33,7 +33,7 @@ from shared.security.control_plane import (
 )
 
 CLI_COMMIT = os.environ.get(
-    "WOOBE_TEST_CLI_SHA", "247e33ae66f9874e1827877504288944a8898cfe"
+    "WOOBE_TEST_CLI_SHA", "c3818fd170f4e840166425223c20fd7e48bc5ee5"
 )
 
 
@@ -225,6 +225,19 @@ async def cli(tmp_path):
     processes = []
     logs = []
     harness = Cli(binary, origin, workspace_id, issued.value, tmp_path)
+    # Disposable test-only signing authority: root remains in this fixture and
+    # only its public manifest and distinct online seed reach the API process.
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    from modules.core.infra.receipts.asac_signer import create_trust_manifest, encode
+    online = Ed25519PrivateKey.from_private_bytes(bytes(range(32, 64)))
+    harness.signing_root = encode(bytes(range(32)))
+    harness.trust_manifest = create_trust_manifest(
+        instance_id=str(uuid4()), root_private_key=harness.signing_root, epoch=1,
+        expires_at=(datetime.now(UTC)+timedelta(hours=3)).isoformat(),
+        keys=[{"public_key": encode(online.public_key().public_bytes_raw()), "status": "active",
+               "not_before": (datetime.now(UTC)-timedelta(minutes=1)).isoformat(),
+               "not_after": (datetime.now(UTC)+timedelta(hours=3)).isoformat()}],
+    )
     try:
         for command, name in [
             (
@@ -251,7 +264,9 @@ async def cli(tmp_path):
                     # requests in one minute. Keep throttling enabled with an
                     # explicit harness budget; dedicated security tests exercise
                     # the production/default limit and rejection behavior.
-                    env={**os.environ, "WOOBE_API_KEY_RATE_LIMIT_REQUESTS": "1000"},
+                    env={**os.environ, "WOOBE_API_KEY_RATE_LIMIT_REQUESTS": "1000",
+                         "WOOBE_ASAC_SIGNING_RECEIPT_PRIVATE_KEY": encode(bytes(range(32, 64))),
+                         "WOOBE_ASAC_SIGNING_TRUST_MANIFEST": json.dumps(harness.trust_manifest)},
                 )
             )
         async with httpx.AsyncClient(trust_env=False) as client:
@@ -2440,6 +2455,52 @@ async def exercise_asac_deployments(cli, kind, resource_id, publication):
     no_op=await cli.data("request","POST",base+"/deployments",body={"operation_id":str(uuid4()),"plan_id":no_op_plan["plan_id"],"environment":"production","leases":[no_op_proof]})
     assert not no_op["selection_changed"] and no_op["generation_after"]==receipt["generation_after"]
     await cli.data("request","POST",base+"/leases/release",body={**no_op_proof,"operation_id":str(uuid4()),"scope":"production"})
+    await exercise_signed_receipts(cli, kind, resource_id, publication, receipt)
+
+
+async def exercise_signed_receipts(cli, kind, resource_id, publication, deployment):
+    """Actual authorized owner reads followed by offline CLI verification."""
+    from copy import deepcopy
+    from modules.core.infra.receipts.asac_signer import create_trust_manifest
+    root = cli.directory / (kind.lower()+"-signed")
+    root.mkdir()
+    pin = root / "trust.yaml"
+    records = (("revision", publication["revision_id"]),
+               ("evaluation", publication["evaluation_id"]),
+               ("publication", publication["publication_id"]),
+               ("deployment", deployment["deployment_id"]))
+    for category, identifier in records:
+        exported = root / (category+".yaml")
+        summary = (await cli.run(kind.lower(),resource_id,"receipt",category,identifier,
+                                 "--path",str(exported),"--no-project-config"))["data"]
+        assert summary["authenticity"] == "signature_not_yet_verified"
+        source = exported.read_text()
+        assert "\npayload:\n" in "\n"+source and "\\n" not in source[:80]
+        if not pin.exists():
+            await cli.run("trust","pin",str(exported),"--root-fingerprint","sha256:"+"0"*64,
+                          "--path",str(pin),expected=9)
+            assert not pin.exists()
+            await cli.run("trust","pin",str(exported),"--root-fingerprint",
+                          cli.trust_manifest["root_fingerprint"],"--path",str(pin))
+        verified=(await cli.run("receipt","verify",str(exported),"--trust",str(pin)))["data"]
+        assert verified["verified"] and verified["category"]==category
+        assert verified["current_selection"]=="not_observed" and verified["git_provenance"]=="not_upgraded"
+        if category=="deployment":
+            import yaml
+            public=yaml.safe_load(source)["payload"]["receipt"]
+            assert "leases" not in public and public["owner_receipt_digest"]==deployment["receipt_digest"]
+        await cli.run(kind.lower(),resource_id,"receipt",category,identifier,"--path",str(exported),expected=2)
+        assert exported.read_text()==source
+    # Root-signed revocation advances trust explicitly and invalidates an old
+    # receipt, while leaving the original pinned file available for review.
+    keys=deepcopy(cli.trust_manifest["keys"])
+    keys[0]["status"]="revoked"
+    revoked=create_trust_manifest(instance_id=cli.trust_manifest["instance_id"],
+        root_private_key=cli.signing_root,epoch=2,expires_at=cli.trust_manifest["expires_at"],keys=keys)
+    next_manifest=root/"revoked.json";next_manifest.write_text(json.dumps(revoked))
+    next_pin=root/"reviewed-trust.yaml"
+    await cli.run("trust","refresh",str(next_manifest),"--trust",str(pin),"--path",str(next_pin))
+    await cli.run("receipt","verify",str(root/"deployment.yaml"),"--trust",str(next_pin),expected=9)
 
 
 async def exercise_asac_project_policy(cli, agent_id, publication, agent_body, definition, network_id, network_publication):

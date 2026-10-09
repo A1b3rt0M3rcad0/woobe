@@ -25,6 +25,7 @@ Keep this file small. It is an index and routing guide, not a duplicate of produ
 - Control Plane authority: [docs/security/CONTROL_PLANE.md](docs/security/CONTROL_PLANE.md)
 
 - Runtime streaming: [docs/runtime/STREAMING.md](docs/runtime/STREAMING.md)
+- Signed ASaC receipts and instance trust: [docs/runtime/ASAC_SIGNED_RECEIPTS.md](docs/runtime/ASAC_SIGNED_RECEIPTS.md)
 - ASaC history and portable digests: [docs/runtime/ASAC_HISTORY.md](docs/runtime/ASAC_HISTORY.md)
 - Unified runtime observer: [docs/runtime/UNIFIED_OBSERVER.md](docs/runtime/UNIFIED_OBSERVER.md)
 - ChatSurface: [docs/runtime/CHAT_SURFACE.md](docs/runtime/CHAT_SURFACE.md)
