@@ -80,13 +80,28 @@ def test_evaluation_routes_cannot_escalate_environment_or_omit_native_scope(plur
     assert resolve_operation("DELETE",path)[0] is None
 
 
-@pytest.mark.parametrize("method,suffix,permission", [("POST","publications","agent:version"),("GET","publications/{publication_id}","agent:read")])
-def test_exact_publication_routes_use_saved_candidate_authority(method,suffix,permission):
+@pytest.mark.parametrize("plural,identifier", [("agents", "agent_id"), ("networks", "network_id")])
+@pytest.mark.parametrize("method,suffix,permission", [("POST","publications","version"),("GET","publications/{publication_id}","read")])
+def test_exact_publication_routes_use_saved_candidate_authority(plural,identifier,method,suffix,permission):
     project,resource=str(uuid4()),str(uuid4())
-    path=f"/projects/{project}/agents/{resource}/asac/"+suffix.format(publication_id=uuid4())
+    path=f"/projects/{project}/{plural}/{resource}/asac/"+suffix.format(publication_id=uuid4())
     request=Request({"type":"http","method":method,"path":path,"query_string":b"environment=production","headers":[]})
     allowed,params=resolve_operation(method,path)
-    assert allowed==permission
+    assert allowed==f"{plural[:-1]}:{permission}"
     normalized=HttpSecurityGuard._authorization_path_params(request,params)
-    assert normalized["agent_id"]==resource and normalized["environment"]=="staging"
+    assert normalized[identifier]==resource and normalized["environment"]=="staging"
     assert resolve_operation("DELETE",path)[0] is None
+
+
+@pytest.mark.parametrize("action", ["reconcile", "cancel"])
+def test_network_publication_recovery_requires_version_authority(action):
+    project,resource=str(uuid4()),str(uuid4())
+    path=f"/projects/{project}/networks/{resource}/asac/publications/{uuid4()}/{action}"
+    request=Request({"type":"http","method":"POST","path":path,"query_string":b"environment=production","headers":[]})
+    permission,params=resolve_operation("POST",path)
+    assert permission=="network:version"
+    normalized=HttpSecurityGuard._authorization_path_params(request,params)
+    assert normalized["network_id"]==resource and normalized["project_id"]==project and normalized["environment"]=="staging"
+    for method in ("GET","PUT","DELETE"):
+        assert resolve_operation(method,path)[0] is None
+    assert resolve_operation("POST",path.replace("/networks/","/agents/"))[0] is None

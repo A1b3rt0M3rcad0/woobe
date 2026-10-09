@@ -71,3 +71,66 @@ class ASaCEvaluationModel(ASaCEvaluationColumns, BaseModel):
         ForeignKeyConstraint(["candidate_id"], ["network.asac_candidates.id"], ondelete="RESTRICT"),
         {"schema": "network"},
     )
+
+
+from shared.infra.asac_record_models import ASaCPublicationColumns
+from sqlalchemy import JSON, String
+from sqlalchemy.orm import Mapped, mapped_column
+from uuid import UUID
+
+
+class ASaCPublicationModel(ASaCPublicationColumns, BaseModel):
+    __tablename__ = "asac_publications"
+    __table_args__ = (
+        UniqueConstraint("project_id", "resource_id", "actor", "operation_id", name="uq_network_asac_publication_operation"),
+        ForeignKeyConstraint(["resource_id"], ["network.networks.id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(["candidate_id"], ["network.asac_candidates.id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(["evaluation_id"], ["network.asac_evaluations.id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(["release_id"], ["network.network_versions.id"], ondelete="RESTRICT"),
+        {"schema": "network"},
+    )
+
+
+class ASaCPublicationPreparationModel(BaseModel):
+    __tablename__ = "asac_publication_preparations"
+    project_id: Mapped[UUID]
+    resource_id: Mapped[UUID]
+    resource_uid: Mapped[UUID]
+    candidate_id: Mapped[UUID]
+    evaluation_id: Mapped[UUID]
+    actor: Mapped[str] = mapped_column(String(96))
+    operation_id: Mapped[UUID]
+    request_digest: Mapped[str] = mapped_column(String(71))
+    request: Mapped[dict] = mapped_column(JSON)
+    source: Mapped[dict] = mapped_column(JSON)
+    children: Mapped[dict] = mapped_column(JSON, default=dict)
+    state: Mapped[str] = mapped_column(String(16))
+    error_code: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    cancel_reason: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+    __table_args__ = (
+        UniqueConstraint("project_id", "resource_id", "actor", "operation_id", name="uq_network_asac_publication_preparation_operation"),
+        CheckConstraint("state IN ('preparing', 'published', 'cancelled')", name="ck_network_asac_publication_preparation_state"),
+        ForeignKeyConstraint(["resource_id"], ["network.networks.id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(["candidate_id"], ["network.asac_candidates.id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(["evaluation_id"], ["network.asac_evaluations.id"], ondelete="RESTRICT"),
+        {"schema": "network"},
+    )
+
+
+class ASaCConstituentPublicationModel(BaseModel):
+    __tablename__ = "asac_constituent_publications"
+    project_id: Mapped[UUID]
+    resource_id: Mapped[UUID]
+    publication_id: Mapped[UUID]
+    node_id: Mapped[UUID]
+    agent_id: Mapped[UUID]
+    source_snapshot_id: Mapped[UUID]
+    release_id: Mapped[UUID]
+    runtime_digest: Mapped[str] = mapped_column(String(71))
+    __table_args__ = (
+        UniqueConstraint("publication_id", "node_id", name="uq_network_asac_constituent_publication_node"),
+        ForeignKeyConstraint(["publication_id"], ["network.asac_publications.id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(["source_snapshot_id"], ["agent.agent_releases.id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(["release_id"], ["agent.agent_releases.id"], ondelete="RESTRICT"),
+        {"schema": "network"},
+    )

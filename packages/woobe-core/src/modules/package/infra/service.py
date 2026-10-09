@@ -33,7 +33,7 @@ class PackageService:
         ).hexdigest()
         return {
             **capabilities,
-            "asac": {"schema_version": "1.0", "definition_digest_scope": "woobe-portable-definition@1.0", "isolated_drafts": True, "retained_artifacts": True, "revision_registration": True, "revision_catalog": True, "retained_object_hydration": True, "author_source_retention": True, "author_digest_declarations": True, "accepted_binding_generations": True, "candidate_preparation": True, "candidate_evaluation": True, "candidate_publication_kinds": ["Agent"], "network_runtime_digest_scope": "network-execution-runtime@2", "candidate_lifecycle": False, "fenced_deployment": False},
+            "asac": {"schema_version": "1.0", "definition_digest_scope": "woobe-portable-definition@1.0", "isolated_drafts": True, "retained_artifacts": True, "revision_registration": True, "revision_catalog": True, "retained_object_hydration": True, "author_source_retention": True, "author_digest_declarations": True, "accepted_binding_generations": True, "candidate_preparation": True, "candidate_evaluation": True, "candidate_publication_kinds": ["Agent", "Network"], "network_runtime_digest_scope": "network-execution-runtime@2", "candidate_lifecycle": False, "fenced_deployment": False},
             "supported_operations": [
                 "upload",
                 "plan",
