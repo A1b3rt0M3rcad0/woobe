@@ -137,6 +137,7 @@ class ExplicitRuntimePersistenceMixin:
                 "origin": str((input_dto.metadata or {}).get("source") or "runtime_api"),
                 "input_message": input_dto.message,
                 "execution_snapshot": execution_snapshot,
+                "runtime_identity": context.runtime_identity,
                 "agent_release_id": str(context.agent_release_id) if context.agent_release_id else None,
                 "agent_release_version": context.agent_release_version,
             },
@@ -376,7 +377,25 @@ class ExplicitRuntimePersistenceMixin:
                 tool_to_snapshot=tool_to_release_snapshot,
             )
 
+            def credential_revision(credential):
+                if credential is None:
+                    return None
+                instant=getattr(credential,"updated_at",None) or getattr(credential,"created_at",None)
+                return {"credential_id":str(credential.id), "revision":instant.isoformat() if instant else None}
+            execution_snapshot["binding_revisions"] = {
+                "primary":credential_revision(primary_credential),
+                "fallback":credential_revision(fallback_credential),
+            }
             from modules.agent.application.interfaces.candidate_execution import candidate_execution
+            execution_snapshot["continuity_policy"] = (
+                "pinned_network_constituent" if metadata.get("source") == "network_runtime"
+                else "exact_candidate" if candidate_execution.get() is not None
+                else "follow_selection_between_runs"
+            )
+            if release_id and hasattr(type(repositories.releases), "runtime_provenance"):
+                execution_snapshot["asac"] = await repositories.releases.runtime_provenance(
+                    project_id=input_dto.project_id, agent_id=agent.id, release_id=release_id,
+                    environment=normalize_runtime_environment(input_dto.execution_context))
             evaluation_grant = candidate_execution.get()
             evaluation_identity = {"id": evaluation_grant.run_id} if evaluation_grant and evaluation_grant.run_id else {}
             if evaluation_grant is not None:
@@ -489,12 +508,16 @@ class ExplicitRuntimePersistenceMixin:
             context.session_id = session.id
             context.trace_id = trace_id
             context.storage_version = self._storage_version()
+            from modules.agent.application.runtime_identity import accepted_agent_identity
+            context.runtime_identity = accepted_agent_identity(project_id=input_dto.project_id,
+                agent_id=agent.id,session_id=session.id,environment=normalize_runtime_environment(input_dto.execution_context),
+                snapshot=execution_snapshot,continuity_policy=execution_snapshot["continuity_policy"])
 
         stream = current_runtime_stream.get()
         if stream is not None:
             stream.run_id = run_id
             stream.session_id = session.id
-            await stream.emit("agent.run.accepted", trace_id=str(trace_id))
+            await stream.emit("agent.run.accepted", trace_id=str(trace_id), runtime_identity=context.runtime_identity if context else None)
 
         await self._bind_durable_run_recorder(
             input_dto=input_dto,

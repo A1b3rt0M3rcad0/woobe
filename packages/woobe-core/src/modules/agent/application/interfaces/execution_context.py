@@ -23,6 +23,7 @@ class RequestExecutionContext:
     execution_started_at: str
     client_sent_at: str | None = None
     run_id: UUID | None = None
+    runtime_identity: dict[str, Any] | None = None
     terminal_persisted: bool = False
     project_id: UUID | None = None
     agent_id: UUID | None = None

@@ -432,6 +432,13 @@ class AgentRunRecoveryRuntime(FrozenSnapshotStructuredOutputRuntime):
         context.input_message_id = accepted.input_message_id
         context.agent_release_id = accepted.agent_release_id
         context.execution_context = accepted.environment
+        from modules.agent.application.runtime_identity import accepted_agent_identity
+        context.runtime_identity = accepted_agent_identity(
+            project_id=accepted.project_id, agent_id=accepted.agent_id,
+            session_id=accepted.session_id, environment=accepted.environment,
+            snapshot=accepted.execution_snapshot,
+            continuity_policy=accepted.execution_snapshot.get("continuity_policy", "historical_run_snapshot"),
+        )
 
         await self._bind_durable_run_recorder(
             input_dto=input_dto,

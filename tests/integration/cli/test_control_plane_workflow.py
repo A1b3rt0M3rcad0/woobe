@@ -2415,6 +2415,15 @@ async def exercise_asac_deployments(cli, kind, resource_id, publication):
     assert replacement["fencing_token"]==proof["fencing_token"]+1
     await cli.run("request","POST",base+"/deployments",body={**apply,"operation_id":str(uuid4())},expected=6)
     proof=replacement;apply={**apply,"operation_id":str(uuid4()),"leases":[proof]}
+    _, pinned_runtime_key = await cli.issue("project", "runtime-key", "create", body={
+        "project_id": cli.project_id, "name": "Session across ASaC deployment", "target_type": kind.lower(),
+        "target_id": resource_id, "environment": "production", "interfaces": ["http"],
+        "expires_at": (datetime.now(UTC)+timedelta(hours=1)).isoformat()})
+    pinned_before = await cli.run("runtime", "target", "run", "before-deployment", "--target-kind",kind.lower(),
+        body={"input":"Hello before deployment"},runtime_key=pinned_runtime_key)
+    pinned_data=pinned_before["data"]["data"]
+    pinned_identity=pinned_data["runtime_identity"]
+    assert pinned_identity["snapshot_id"]==production["snapshot_id"]
     receipt=(await cli.run(kind.lower(),"@captured","deployment","apply",plan["plan_id"],"--yes",cwd=registry))["data"]
     apply["operation_id"]=receipt["operation_id"]
     assert (await cli.run(kind.lower(),"@captured","history","verify",cwd=registry))["data"]["deployment_receipts"]==1
@@ -2474,6 +2483,25 @@ async def exercise_asac_deployments(cli, kind, resource_id, publication):
             runtime_key=runtime_key,
         )
         assert result["data"]["success"] is True
+        admitted=result["data"]["data"]["runtime_identity"]
+        assert admitted["snapshot_id"]==publication["release_id"]
+        assert admitted["asac"]["revision_id"]==publication["revision_id"]
+        assert admitted["asac"]["runtime_digest"]==publication["runtime_digest"]
+        assert admitted["asac"]["selection_relation"]=="matches_at_admission"
+        assert admitted["admission_digest_scope"]==kind.lower()+"-run-admission@1"
+        if environment=="production":
+            continued=await cli.run("runtime", "target", "run", "after-deployment-existing-session", "--target-kind",kind.lower(),
+                body={"input":"Hello after deployment", "options":{"SessionID":pinned_data["session_id"]}},runtime_key=pinned_runtime_key)
+            assert continued["data"]["data"]["session_id"]==pinned_data["session_id"]
+            continued_identity=continued["data"]["data"]["runtime_identity"]
+            if kind=="Agent":
+                assert continued_identity["snapshot_id"]==publication["release_id"]
+                assert continued_identity["admission_digest"]!=pinned_identity["admission_digest"]
+                assert continued_identity["continuity_policy"]=="follow_selection_between_runs"
+            else:
+                assert continued_identity["snapshot_id"]==pinned_identity["snapshot_id"]
+                assert continued_identity["admission_digest"]==pinned_identity["admission_digest"]
+                assert continued_identity["continuity_policy"]=="pinned_session_version"
         run_engine=create_engine(Settings());run_sessions=create_session_factory(run_engine)
         try:
             async with run_sessions() as session:

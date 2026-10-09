@@ -144,6 +144,7 @@ class EventJournalAgentRunPersistence:
             for call in execution.tool_calls
         ]
         payload = {
+            "runtime_identity": context.runtime_identity if context else None,
             "run_id": str(context.run_id),
             "trace_id": str(kw["trace_id"]),
             "project_id": str(kw["input_dto"].project_id),
@@ -276,6 +277,7 @@ class EventJournalAgentRunPersistence:
         )
         failure_context = execution.failure_context or {}
         payload = {
+            "runtime_identity": context.runtime_identity if context else None,
             "run_id": str(context.run_id),
             "trace_id": str(kw["trace_id"]),
             "project_id": str(kw["input_dto"].project_id),
@@ -308,6 +310,7 @@ class EventJournalAgentRunPersistence:
     ) -> bool:
         context, recorder = _recorder()
         payload = {
+            "runtime_identity": context.runtime_identity if context else None,
             "run_id": str(context.run_id),
             "trace_id": str(context.trace_id) if context.trace_id else None,
             "project_id": str(input_dto.project_id),

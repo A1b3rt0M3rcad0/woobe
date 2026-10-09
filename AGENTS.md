@@ -24,6 +24,7 @@ Keep this file small. It is an index and routing guide, not a duplicate of produ
 
 - Control Plane authority: [docs/security/CONTROL_PLANE.md](docs/security/CONTROL_PLANE.md)
 
+- Accepted Run identity and Session continuity: [docs/runtime/ASAC_RUNTIME_IDENTITY.md](docs/runtime/ASAC_RUNTIME_IDENTITY.md)
 - Runtime streaming: [docs/runtime/STREAMING.md](docs/runtime/STREAMING.md)
 - Trusted Git pipeline provenance: [docs/runtime/ASAC_GIT_PROVENANCE.md](docs/runtime/ASAC_GIT_PROVENANCE.md)
 - Signed ASaC receipts and instance trust: [docs/runtime/ASAC_SIGNED_RECEIPTS.md](docs/runtime/ASAC_SIGNED_RECEIPTS.md)

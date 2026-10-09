@@ -245,6 +245,7 @@ async def finalize_failed_instrumented_execution(
         execution_strategy=runtime_binding_payload["execution_strategy"],
     )
     payload = {
+        "runtime_identity": context.runtime_identity if context else None,
         "run_id": str(run_id) if run_id else None,
         "trace_id": trace_id_text,
         "project_id": project_id_text,

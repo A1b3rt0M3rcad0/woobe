@@ -258,6 +258,8 @@ class NetworkApplicationService(SessionModeNetworkApplicationService):
                 definition = self._definition(version.definition)
                 accepted_version = version.version
                 accepted_composition_hash = version.composition_hash
+                definition_snapshot = deepcopy(version.definition)
+                bindings_snapshot = deepcopy(version.resolved_bindings or {})
                 effective_external_context_contract = (
                     await self._effective_external_context_contract(
                         session,
@@ -292,6 +294,11 @@ class NetworkApplicationService(SessionModeNetworkApplicationService):
                     resolved_external_context.session_snapshot
                 )
 
+            if version is not None:
+                from modules.network.infra.database.asac_runtime_identity import network_publication_identity
+                bindings_snapshot["asac_run_identity"] = await network_publication_identity(
+                    session, project_id=project_id, network_id=network_id,
+                    version_id=accepted_version_id, environment=network_session.environment)
             execution = NetworkExecutionModel(
                 **({"id": candidate_run_id} if candidate_run_id else {}),
                 network_id=network_id,
