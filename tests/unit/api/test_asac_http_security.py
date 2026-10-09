@@ -105,3 +105,43 @@ def test_network_publication_recovery_requires_version_authority(action):
     for method in ("GET","PUT","DELETE"):
         assert resolve_operation(method,path)[0] is None
     assert resolve_operation("POST",path.replace("/networks/","/agents/"))[0] is None
+
+
+@pytest.mark.parametrize('plural,identifier',[('agents','agent_id'),('networks','network_id')])
+@pytest.mark.parametrize('action',['acquire','renew','release','break'])
+@pytest.mark.parametrize('scope,environment,suffix',[('resource','draft','write'),('draft','draft','write'),('staging','staging','version'),('production','production','production')])
+def test_lease_permission_and_environment_come_from_validated_scope_not_query(plural,identifier,action,scope,environment,suffix):
+    project,resource=str(uuid4()),str(uuid4())
+    path=f'/projects/{project}/{plural}/{resource}/asac/leases/{action}'
+    request=Request({'type':'http','method':'POST','path':path,'query_string':b'environment=draft&scope=draft','headers':[]})
+    permission,params=resolve_operation('POST',path,{'scope':scope})
+    assert permission==('project:access:write' if action=='break' else f'{plural[:-1]}:{suffix}')
+    normalized=HttpSecurityGuard._authorization_path_params(request,params,{'scope':scope})
+    assert normalized[identifier]==resource and normalized['environment']==environment
+    assert resolve_operation('DELETE',path)[0] is None
+
+
+@pytest.mark.parametrize('plural,identifier',[('agents','agent_id'),('networks','network_id')])
+@pytest.mark.parametrize('scope,environment',[('resource','draft'),('draft','draft'),('staging','staging'),('production','production')])
+def test_lease_reads_keep_exact_owner_scope(plural,identifier,scope,environment):
+    path=f'/projects/{uuid4()}/{plural}/{uuid4()}/asac/leases'
+    request=Request({'type':'http','method':'GET','path':path,'query_string':f'scope={scope}&environment=production'.encode(),'headers':[]})
+    permission,params=resolve_operation('GET',path)
+    assert permission==f'{plural[:-1]}:read'
+    normalized=HttpSecurityGuard._authorization_path_params(request,params)
+    assert identifier in normalized and normalized['environment']==environment
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('code,status',[('ASAC_LEASE_FENCED',409),('ASAC_LEASE_EXPIRED',409),('unexpected database failure',500)])
+async def test_database_fencing_errors_never_echo_sql_author_or_protected_parameters(code,status,caplog):
+    from sqlalchemy.exc import DBAPIError
+    from woobe_api.http.shared.errors import database_exception_handler
+    request=Request({'type':'http','method':'PUT','path':f'/projects/{uuid4()}/agents/{uuid4()}/asac/drafts/{uuid4()}','query_string':b'','headers':[]})
+    error=DBAPIError('UPDATE private_table SET payload=:value',{'value':'private-provider-secret'},Exception(code+' private-provider-secret'),False)
+    result=await database_exception_handler(request,error)
+    assert result.status_code==status
+    assert b'private-provider-secret' not in result.body and 'private-provider-secret' not in caplog.text
+    assert b'private_table' not in result.body and 'private_table' not in caplog.text
+    if status==409:
+        assert code.encode() in result.body

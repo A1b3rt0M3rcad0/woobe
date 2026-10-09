@@ -5,10 +5,16 @@ from shared.infra.asac_draft_store import ASaCDraftStore
 
 
 def build_network_asac_drafts(*, artifacts):
-    return ASaCDraftStore(transactions=SESSION_FACTORY, kind="Network",
+    store = ASaCDraftStore(transactions=SESSION_FACTORY, kind="Network",
         owner=DevelopmentNetworkReader(), drafts=ASaCDraftModel,
         revisions=ASaCRevisionModel, operations=ASaCOperationModel,
         identities=ASaCResourceModel, artifacts=artifacts, cursor_key=SETTINGS.secret_key)
+    from modules.network.infra.database.asac_models import ASaCLeaseModel
+    from shared.infra.asac_lease_store import ASaCLeaseStore
+    store.leases=ASaCLeaseStore(drafts=store,leases=ASaCLeaseModel,
+        maximum_ttl_seconds=SETTINGS.asac_lease_maximum_ttl_seconds,
+        maximum_duration_seconds=SETTINGS.asac_lease_maximum_duration_seconds)
+    return store
 
 
 def build_network_asac_candidates(*, artifacts, preparation):
@@ -43,3 +49,7 @@ def build_network_asac_publications(*, artifacts, preparation):
     return NetworkASaCPublicationStore(evaluations=build_network_asac_evaluations(artifacts=artifacts, preparation=preparation),
         publications=ASaCPublicationModel, publisher=NetworkASaCNativePublisher(),
         constituents=build_agent_frozen_publication_gateway())
+
+
+def build_network_asac_leases(*, artifacts):
+    return build_network_asac_drafts(artifacts=artifacts).leases

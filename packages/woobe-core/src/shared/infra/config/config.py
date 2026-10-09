@@ -62,6 +62,8 @@ class Settings(BaseSettings):
 
     service_role: str = "api"
     edition: str = "core"
+    asac_lease_maximum_ttl_seconds: int = Field(default=300, ge=1, le=86400)
+    asac_lease_maximum_duration_seconds: int = Field(default=900, ge=1, le=86400)
 
     database_url: str = "postgresql://postgres:postgres@localhost:5432/woobe"
     debug: bool = False
@@ -290,6 +292,8 @@ class Settings(BaseSettings):
             raise ValueError("service_role must be 'api' or 'worker'")
 
         errors: list[str] = []
+        if self.asac_lease_maximum_ttl_seconds > self.asac_lease_maximum_duration_seconds:
+            errors.append("ASaC lease TTL cannot exceed maximum total duration")
         if not self.database_url.strip():
             errors.append("WOOBE_DATABASE_URL is required")
         if len(self.encryption_key.strip()) < 16:

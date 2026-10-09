@@ -70,6 +70,7 @@ from woobe_api.http.shared.errors import (
     request_validation_handler,
     runtime_timeout_handler,
     unhandled_exception_handler,
+    database_exception_handler,
     validation_handler,
 )
 from woobe_api.http.shared.runtime_environment_routes import (
@@ -279,6 +280,8 @@ def create_app() -> FastAPI:
         Exception,
         cast(ExceptionHandler, unhandled_exception_handler),
     )
+    from sqlalchemy.exc import DBAPIError
+    app.add_exception_handler(DBAPIError,cast(ExceptionHandler,database_exception_handler))
 
     app.include_router(instance_router)
 

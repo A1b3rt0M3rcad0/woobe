@@ -169,3 +169,19 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
         },
     )
 
+
+
+async def database_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    # SQLAlchemy exception text can contain bound author content or protected
+    # runtime data. Return only a reviewed fencing code, never SQL/parameters.
+    origin=getattr(exc,"orig",None)
+    for code in ("ASAC_LEASE_FENCED","ASAC_LEASE_EXPIRED"):
+        if code in str(origin):
+            logger.info("Database rejected workflow lease: %s",code)
+            return JSONResponse(status_code=409,content={"success":False,
+                "message":"Database rejected an expired or superseded workflow lease",
+                "data":{"asac_schema_version":"1.0","diagnostics":[{"code":code}]},
+                "meta":{"complete":False}})
+    logger.error("Unhandled database exception (%s)",type(exc).__name__)
+    return JSONResponse(status_code=500,content={"success":False,
+        "message":"Internal server error","data":None})

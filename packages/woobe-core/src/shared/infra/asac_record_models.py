@@ -105,3 +105,19 @@ class ASaCEnvironmentSelectionColumns:
     generation: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
     snapshot_id: Mapped[UUID | None] = mapped_column(nullable=True)
     execution_fingerprint: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+
+class ASaCLeaseColumns:
+    from datetime import datetime
+    from sqlalchemy import BigInteger, DateTime
+    project_id: Mapped[UUID]
+    resource_id: Mapped[UUID]
+    scope: Mapped[str] = mapped_column(String(64))
+    lease_id: Mapped[UUID]
+    workflow_id: Mapped[UUID]
+    fencing_token: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    actor: Mapped[str] = mapped_column(String(96))
+    state: Mapped[str] = mapped_column(String(16))
+    acquired_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    maximum_expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

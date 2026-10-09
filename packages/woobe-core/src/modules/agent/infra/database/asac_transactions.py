@@ -49,3 +49,9 @@ from shared.infra.asac_publication_store import ASaCPublicationStore
 
 class AgentASaCPublicationStore(ASaCPublicationStore):
     """Agent-owned publication transaction and immutable receipt adapter."""
+
+
+from shared.infra.asac_lease_store import ASaCLeaseStore
+
+class AgentASaCLeaseStore(ASaCLeaseStore):
+    """Agent-owned workflow lease scopes and original operation receipts."""

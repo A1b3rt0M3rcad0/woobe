@@ -232,6 +232,7 @@ class HttpSecurityGuard:
         authorization_path_params = self._authorization_path_params(
             request,
             path_params,
+            body,
         )
 
         authorization_path_params = verified_query_context(
@@ -275,6 +276,7 @@ class HttpSecurityGuard:
     def _authorization_path_params(
         request: Request,
         path_params: dict[str, Any],
+        body: Any = None,
     ) -> dict[str, Any]:
         if request.method == "GET" and "project_id" in path_params and "resource_id" in path_params:
             project, resource = path_params["project_id"], path_params["resource_id"]
@@ -290,6 +292,14 @@ class HttpSecurityGuard:
             # query parameters cannot turn Draft writes into Production grants.
             for plural, identifier in (("agents", "agent_id"), ("networks", "network_id")):
                 base = f"/projects/{path_params['project_id']}/{plural}/{path_params['resource_id']}/asac/"
+                lease_route=(request.method=="GET" and request.url.path==base+"leases") or (request.method=="POST" and request.url.path in {base+"leases/"+action for action in ("acquire","renew","release","break")})
+                if lease_route:
+                    data=body if isinstance(body,dict) else {}
+                    scope=(request.query_params.get("scope") or "resource") if request.method=="GET" else data.get("scope")
+                    normalized=dict(path_params)
+                    normalized[identifier]=normalized.pop("resource_id")
+                    normalized["environment"]=scope if scope in {"staging","production"} else "draft"
+                    return normalized
                 candidate_route = (request.method == "POST" and request.url.path == base + "candidates") or (
                     request.method == "GET" and "candidate_id" in path_params
                     and request.url.path == base + "candidates/" + str(path_params["candidate_id"]))

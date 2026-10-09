@@ -147,3 +147,17 @@ class ASaCEnvironmentSelectionModel(ASaCEnvironmentSelectionColumns, BaseModel):
         ForeignKeyConstraint(["resource_id"], ["network.networks.id"], ondelete="CASCADE"),
         {"schema": "network"},
     )
+
+
+from shared.infra.asac_record_models import ASaCLeaseColumns
+
+class ASaCLeaseModel(ASaCLeaseColumns, BaseModel):
+    __tablename__ = "asac_operation_leases"
+    __table_args__ = (
+        UniqueConstraint("project_id", "resource_id", "scope", name="uq_network_asac_lease_scope"),
+        CheckConstraint("fencing_token >= 1", name="ck_network_asac_lease_fence"),
+        CheckConstraint("state IN ('active', 'released', 'broken')", name="ck_network_asac_lease_state"),
+        CheckConstraint("expires_at > acquired_at AND expires_at <= maximum_expires_at", name="ck_network_asac_lease_deadline"),
+        ForeignKeyConstraint(["resource_id"], ["network.networks.id"], ondelete="CASCADE"),
+        {"schema": "network"},
+    )
