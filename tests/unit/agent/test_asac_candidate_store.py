@@ -109,3 +109,27 @@ async def test_owner_failure_rolls_back_candidate_and_native_acceptance(candidat
     async with sessions() as session:
         assert await session.scalar(select(func.count()).select_from(PackageOperationModel)) == 0
         assert await session.scalar(select(func.count()).select_from(tables.ASaCCandidateModel)) == 0
+
+
+@pytest.mark.asyncio
+async def test_sealed_candidate_waits_for_preparation_receipt(candidate_fixture):
+    store, drafts, sessions, tables, args, request = candidate_fixture
+    staged = await store.stage(**args, request=request, api_origin="https://woobe.invalid")
+    candidate_id = UUID(staged["candidate_id"])
+    async with sessions.begin() as session:
+        row = await session.get(tables.ASaCCandidateModel, candidate_id)
+        row.state = "ready"
+        row.root_snapshot_id = UUID(next(iter(row.snapshot_ids.values())))
+        row.runtime_digest = "sha256:" + "d" * 64
+        preparation_id = row.preparation_operation_id
+    store.preparation.acceptance_ready.return_value = False
+    waiting = await store.get(**args, candidate_id=candidate_id)
+    assert waiting["state"] == "preparing" and not waiting["complete"]
+    assert waiting["native_closure_state"] == "sealed_waiting_preparation_receipt"
+    store.preparation.acceptance_ready.assert_awaited_once_with(
+        project_id=args["project_id"], candidate_id=candidate_id,
+        preparation_operation_id=preparation_id)
+    store.preparation.acceptance_ready.return_value = True
+    ready = await store.get(**args, candidate_id=candidate_id)
+    assert ready["state"] == "ready" and ready["complete"]
+    assert ready["snapshot_id"] == waiting["snapshot_id"]
