@@ -390,6 +390,8 @@ class AgentExecutionSnapshotResolver:
         elif self._release_repo is not None:
             if environment == "production":
                 release = await self._release_repo.get_active_production(agent_id)
+            elif environment == "staging" and callable(getattr(self._release_repo, "get_active_staging", None)):
+                release = await self._release_repo.get_active_staging(agent_id)
             else:
                 status = (
                     ReleaseStatus.draft

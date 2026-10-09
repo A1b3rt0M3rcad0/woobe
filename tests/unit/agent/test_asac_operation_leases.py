@@ -144,7 +144,11 @@ async def test_resource_and_draft_reservations_require_each_exact_proof(leases):
         await store.check(session,**args,scope='draft:'+str(stage.draft_id),proofs=[proof(root),proof(draft)],required=True)
         with pytest.raises(ValidationError,match='duplicate'):
             await store.check(session,**args,scope='draft:'+str(stage.draft_id),proofs=[proof(root),proof(root)])
-        await store.check(session,**args,scope='production',proofs=[proof(root)],required=True)
+        with pytest.raises(ConflictError,match='FENCED'):
+            await store.check(session,**args,scope='production',proofs=[proof(root)],required=True)
+        await store.check(session,**args,scope='production')
+        with pytest.raises(ConflictError,match='REQUIRED'):
+            await store.check(session,**args,scope='production',required=True)
     lease=request.model_copy(update={'operation_id':uuid4(),'scope':'draft','draft_id':uuid4()})
     from shared.contracts.errors import NotFoundError
     with pytest.raises(NotFoundError):

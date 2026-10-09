@@ -7,7 +7,7 @@ from modules.agent.application.use_cases.read_runtime_contracts import (
     ReadRuntimeContractsUseCase,
 )
 from modules.agent.composition.factories.agent_uow_factory import build_agent_read_uow
-from modules.agent.infra.database.repositories import SQLAlchemyAgentReleaseRepository
+from modules.agent.infra.database.asac_runtime_release_repository import SQLAlchemySelectedAgentReleaseRepository
 from shared.infra.transactional_handler import TransactionalHandler
 
 
@@ -16,7 +16,7 @@ def build_agent_runtime_contract_reader(
     uow: Any | None = None,
 ) -> TransactionalHandler:
     unit_of_work = uow or build_agent_read_uow()
-    release_repo = SQLAlchemyAgentReleaseRepository(unit_of_work)
+    release_repo = SQLAlchemySelectedAgentReleaseRepository(unit_of_work)
     use_case = ReadRuntimeContractsUseCase(release_repo)
     return TransactionalHandler(unit_of_work, use_case.execute)
 

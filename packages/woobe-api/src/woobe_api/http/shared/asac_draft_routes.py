@@ -10,11 +10,13 @@ from shared.contracts.asac_requests import OpenASaCDraft, SaveASaCDraft, Registe
 from shared.contracts.asac_leases import ASaCLeaseScope, AcquireASaCLease, ChangeASaCLease, RenewASaCLease, BreakASaCLease
 from shared.contracts.asac_evaluation import EvaluateASaCCandidate
 from shared.contracts.asac_publication import PublishASaCCandidate, CancelASaCPublication
+from shared.contracts.asac_deployment import PlanASaCDeployment, ApplyASaCDeployment
 from shared.contracts.errors import AuthorizationError, ConflictError, NotFoundError, ValidationError
 from modules.package.entrypoint import PackageError, build_snapshot_artifacts, build_candidate_preparation
+from modules.core.entrypoint import build_asac_environment_binding_reader
 
 
-def draft_router(prefix, builder, kind, candidate_builder=None, evaluation_builder=None, publication_builder=None):
+def draft_router(prefix, builder, kind, candidate_builder=None, evaluation_builder=None, publication_builder=None, deployment_builder=None):
     router = APIRouter(prefix=prefix, tags=[kind.lower(), "asac-drafts"])
 
     def store():
@@ -59,6 +61,33 @@ def draft_router(prefix, builder, kind, candidate_builder=None, evaluation_build
             return await store().leases.get(project_id=project_id,resource_id=resource_id,
                 principal=actor(request),scope=selected)
         return response(await invoke(operation()))
+
+    if deployment_builder is not None:
+        def deployments():
+            return deployment_builder(artifacts=build_snapshot_artifacts(),preparation=build_candidate_preparation(),
+                environment_reader=build_asac_environment_binding_reader())
+
+        @router.post('/deployment-plans')
+        async def deployment_plan(project_id: UUID,resource_id: UUID,body: PlanASaCDeployment,request: Request):
+            return response(await invoke(deployments().plan(project_id=project_id,resource_id=resource_id,
+                principal=actor(request),request=body)))
+
+        @router.get('/deployment-plans/{plan_id}')
+        async def planned_deployment(project_id: UUID,resource_id: UUID,plan_id: UUID,request: Request,
+                environment: Literal['staging','production']=Query('production')):
+            return response(await invoke(deployments().get(project_id=project_id,resource_id=resource_id,
+                principal=actor(request),identifier=plan_id,plan=True,environment=environment)))
+
+        @router.post('/deployments')
+        async def apply_deployment(project_id: UUID,resource_id: UUID,body: ApplyASaCDeployment,request: Request):
+            return response(await invoke(deployments().apply(project_id=project_id,resource_id=resource_id,
+                principal=actor(request),request=body)))
+
+        @router.get('/deployments/{deployment_id}')
+        async def deployment(project_id: UUID,resource_id: UUID,deployment_id: UUID,request: Request,
+                environment: Literal['staging','production']=Query('production')):
+            return response(await invoke(deployments().get(project_id=project_id,resource_id=resource_id,
+                principal=actor(request),identifier=deployment_id,environment=environment)))
 
     @router.post("/leases/acquire")
     async def acquire_lease(project_id: UUID,resource_id: UUID,body: AcquireASaCLease,request: Request):

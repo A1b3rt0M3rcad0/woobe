@@ -33,7 +33,7 @@ from woobe_api.http.agent.vector_snapshot_routes import (
 
 from woobe_api.http.agent.skill_routes import router as skill_router
 
-from modules.agent.entrypoint import build_agent_history_reader, build_agent_asac_drafts, build_agent_asac_candidates, build_agent_asac_evaluations, build_agent_asac_publications
+from modules.agent.entrypoint import build_agent_history_reader, build_agent_asac_drafts, build_agent_asac_candidates, build_agent_asac_evaluations, build_agent_asac_publications, build_agent_asac_deployments
 from woobe_api.http.shared.asac_draft_routes import draft_router
 from woobe_api.http.shared.asac_history_routes import history_router
 
@@ -41,7 +41,7 @@ asac_history_router = history_router("/projects/{project_id}/agents/{resource_id
 
 HTTP_ROUTERS = (
     asac_history_router,
-    draft_router("/projects/{project_id}/agents/{resource_id}/asac", build_agent_asac_drafts, "Agent", build_agent_asac_candidates, build_agent_asac_evaluations, build_agent_asac_publications),
+    draft_router("/projects/{project_id}/agents/{resource_id}/asac", build_agent_asac_drafts, "Agent", build_agent_asac_candidates, build_agent_asac_evaluations, build_agent_asac_publications, build_agent_asac_deployments),
     skill_router,
     context_assembler_router,
     rag_strategy_router,

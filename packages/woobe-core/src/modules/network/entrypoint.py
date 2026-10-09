@@ -43,3 +43,5 @@ from modules.network.composition.candidate_lifecycle import network_candidate_li
 from modules.network.composition.asac_drafts import build_network_asac_publications
 
 from modules.network.composition.asac_drafts import build_network_asac_leases
+
+from modules.network.composition.asac_drafts import build_network_asac_deployments

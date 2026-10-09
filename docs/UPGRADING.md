@@ -81,3 +81,14 @@ cannot be reset or deleted while their native resource exists. The downgrade
 refuses retained lease/operation evidence; do not rewrite applied migrations.
 Active authoring reservations also gate legacy native writes. Use isolated Draft
 proofs or explicitly release the owned reservation before a legacy edit.
+
+ASaC exact Release selection adds migrations 0093–0094. Upgrade before using the
+CLI deployment-plan workflow. Migration 0094 compares existing JSON operation
+receipts to JSONB outbox evidence without changing retained records. Independent
+selection authority cannot be downgraded by reverting migrations; recovery requires
+an explicit forward migration preserving receipts and generations.
+
+After an environment's first ASaC selection, legacy status/pointer writes are
+rejected for that environment. Use a new exact plan with current generation,
+current qualification and an owned environment lease. Agent Releases remain
+immutable and can be selected independently by both Staging and Production.

@@ -53,3 +53,14 @@ def build_network_asac_publications(*, artifacts, preparation):
 
 def build_network_asac_leases(*, artifacts):
     return build_network_asac_drafts(artifacts=artifacts).leases
+
+
+def build_network_asac_deployments(*, artifacts, preparation, environment_reader):
+    from modules.agent.entrypoint import build_agent_asac_binding_guard
+    from modules.network.infra.database.asac_models import ASaCDeploymentPlanModel, ASaCDeploymentModel, ASaCEnvironmentSelectionModel
+    from modules.network.infra.database.models import NetworkOutboxEventModel
+    from modules.network.infra.services.asac_environment_selector import NetworkASaCEnvironmentSelector
+    from shared.infra.asac_deployment_store import ASaCDeploymentStore
+    return ASaCDeploymentStore(publications=build_network_asac_publications(artifacts=artifacts,preparation=preparation),
+        plans=ASaCDeploymentPlanModel,deployments=ASaCDeploymentModel,selections=ASaCEnvironmentSelectionModel,
+        selector=NetworkASaCEnvironmentSelector(),outbox=NetworkOutboxEventModel,bindings=build_agent_asac_binding_guard(environment_reader=environment_reader))
