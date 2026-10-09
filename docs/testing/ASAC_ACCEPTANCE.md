@@ -41,7 +41,7 @@ stored graphs and bindings must be inspected through the scoped diagnostics.
 | F05 | `tests/unit/agent/test_release_test_selection.py`; live deployment helper | Staging and Production tests use the exact selected immutable Release; changed selection is rejected |
 | F06 | live `test_development_sync_postgres.py`; CLI clone tests | edited presentation names survive create/push and alias/path changes |
 | F07 | CLI output regression tests | absent projected fields differ from explicit null; optional strict validation is confined to read-only inspection |
-| F08 | CLI `package_author_test.go` | sealed sources remain verified and untouched; explicit author copies can be edited and sealed into a new destination |
+| F08 | CLI `package_author_test.go` | sealed sources remain verified and untouched; explicit `--structure-only` validation checks edited current author data without certifying the lock; transfers retain integrity gates |
 
 Agent PATCH DTO tests additionally reject unknown fields instead of accepting
 misspelled edits without effect. Help, output guides, Package authoring guides and
@@ -50,3 +50,28 @@ the canonical assistant skill accompany the CLI changes.
 Use the canonical host unit/quality/selected architecture command from the contribution/testing guides, the tracked import-boundary checker, frontend test/build, and the Compose backend test contract. CLI requires `make check` (race), six archive verification and native/npm/skill smoke tests. Latest-SHA CI is required before merge; Linux-only smoke checks do not establish Windows/macOS compatibility.
 
 Operator deployment must migrate forward through the ASaC migrations, explicitly configure Project managed policy and Production actors as appropriate, and provision instance receipt trust and optional trusted Git builders. Neither installing a new CLI nor a signed receipt grants these permissions. See [history](../runtime/ASAC_HISTORY.md), [Run identity](../runtime/ASAC_RUNTIME_IDENTITY.md), [signed receipts](../runtime/ASAC_SIGNED_RECEIPTS.md) and [Git provenance](../runtime/ASAC_GIT_PROVENANCE.md).
+
+
+## 0.32.2 retest follow-up qualification
+
+`tests/integration/cli/retest_operational.py` extends the primary live Agent/Network
+workflow. It uses two CLI processes with independent configuration directories
+and distinct workflow IDs against the same API/PostgreSQL instance: exactly one
+concurrent lease acquisition succeeds, a mismatched workflow proof is rejected,
+release/reacquisition increments fencing and an old proof cannot mutate selection.
+These are independent clients on one test machine, not a multi-host network test.
+
+A fault proxy forwards an actual deployment, waits for committed API acceptance
+and truncates its response. The CLI reports unknown write outcome. Original
+operation reconciliation by either client returns the same retained receipt;
+replay does not duplicate selection. Reader, Staging-only and Production-only
+Control Keys are tested separately for read/plan/apply permissions without
+Workspace administration. Managed Production rollback selects a previously
+qualified exact Release, executes a real Runtime Key Run against it, then restores
+the new Release; both transitions increment generation.
+
+The provider in this reproducible CI topology is deterministic. This qualification
+does not certify the operator's real Production deployment, four legacy Network
+snapshots, real-provider latency/cost, physical multi-host failures, disk exhaustion
+or load stability. The external retest's 182 recorded commands and seven smokes
+are separate evidence and are not converted to independent test counts here.

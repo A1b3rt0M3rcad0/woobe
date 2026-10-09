@@ -92,13 +92,16 @@ class PackageExportRepository:
         if request.release_version is not None:
             selector["release_version"] = request.release_version
         if request.kind == "Agent":
-            captured = (
-                await self.agents.capture(
-                    project_id=project_id,
-                    principal=principal,
-                    sources=[{"agent_id": UUID(request.target_id), **selector}],
-                )
-            )[0]
+            try:
+                captured = (
+                    await self.agents.capture(
+                        project_id=project_id,
+                        principal=principal,
+                        sources=[{"agent_id": UUID(request.target_id), **selector}],
+                    )
+                )[0]
+            except SnapshotCaptureConflict as exc:
+                raise PackageError(exc.code, str(exc), file="agent.yaml", path=exc.path) from exc
             agents = [captured]
         else:
             try:

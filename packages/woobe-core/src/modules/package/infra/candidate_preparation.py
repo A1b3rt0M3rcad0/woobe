@@ -43,7 +43,12 @@ class PackageCandidatePreparation:
                         PackageResourceBindingModel.registry_id == request.registry_id,
                         PackageResourceBindingModel.resource_uid == uid))
                     if binding is None or binding.resource_id is None or binding.kind != components[key]["kind"]:
-                        raise PackageError("ASAC_CANDIDATE_BINDING_UNAVAILABLE", "Resolve every native root identity before Stage")
+                        raise PackageError(
+                            "ASAC_CANDIDATE_BINDING_UNAVAILABLE",
+                            "Component has no accepted native identity in this registry; inspect bindings recover --dry-run and establish the closure with a managed push before checkpointing and staging again",
+                            file=bundle.graph.paths[key],
+                            path="/metadata/key",
+                        )
                     if key == entry["ref"] and binding.resource_id != resource_id:
                         raise PackageError("ASAC_CANDIDATE_IDENTITY_INVALID", "Registry root differs from the lifecycle owner")
                     await self.service.plans.registry.inspect(session, project_id=project_id,

@@ -33,7 +33,7 @@ from shared.security.control_plane import (
 )
 
 CLI_COMMIT = os.environ.get(
-    "WOOBE_TEST_CLI_SHA", "38ae1ba1cef531735a9a7088121e4bc3b2dbb40c"
+    "WOOBE_TEST_CLI_SHA", "e043cd9b31efb6749372127864eea08a7e6c1841"
 )
 
 
@@ -2546,6 +2546,9 @@ async def exercise_asac_deployments(cli, kind, resource_id, publication):
     assert not no_op["selection_changed"] and no_op["generation_after"]==receipt["generation_after"]
     await cli.data("request","POST",base+"/leases/release",body={**no_op_proof,"operation_id":str(uuid4()),"scope":"production"})
     await exercise_signed_receipts(cli, kind, resource_id, publication, receipt)
+    from retest_operational import exercise_independent_clients_and_lost_response, exercise_non_admin_deployment_grants
+    await exercise_independent_clients_and_lost_response(cli, kind, resource_id, publication)
+    await exercise_non_admin_deployment_grants(cli, kind, resource_id, publication)
 
 
 async def exercise_signed_receipts(cli, kind, resource_id, publication, deployment):
@@ -2773,6 +2776,8 @@ async def exercise_managed_qualified_lifecycle(cli, kind, resource_id, previous)
     assert pushed['pushed'] and pushed['environment'] == 'draft'
     selected = (await cli.run(kind.lower(), resource_id, 'current', '--env', 'production'))['data']
     assert selected['snapshot_id'] == published['release_id']
+    from retest_operational import exercise_managed_rollback
+    await exercise_managed_rollback(cli,kind,resource_id,previous['publication'],published)
 
 
 async def exercise_web_workbench(cli, kind, resource_id):

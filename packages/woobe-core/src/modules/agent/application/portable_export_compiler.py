@@ -8,7 +8,7 @@ from modules.agent.application.execution_snapshot import build_agent_execution_s
 from modules.agent.application.portable_export_tools import export_frozen_tool
 from modules.agent.application.skill_bindings import frozen_enabled_skills
 from modules.agent.domain.model_spec import ModelSpec, model_spec_hash
-from shared.contracts.errors import ConflictError
+from shared.contracts.errors import ConflictError, SnapshotCaptureConflict
 from modules.agent.application.model_spec_compatibility import LegacyModelSpecResolver
 
 
@@ -19,6 +19,14 @@ class PortableAgentExportCompiler:
         for prefix in ("", "fallback_"):
             specification = definition.get(prefix + "model_spec_snapshot")
             expected = definition.get(prefix + "model_spec_hash")
+            if (not prefix or definition.get("fallback_model")) and (
+                not specification or not expected
+            ):
+                raise SnapshotCaptureConflict(
+                    "PACKAGE_EXPORT_INCOMPLETE",
+                    "Snapshot has no complete ModelSpec",
+                    path="/spec/model/" + ("fallback" if prefix else "primary"),
+                )
             validate_portable_model_authentication(
                 specification, base_url=definition.get(prefix + "base_url")
             )

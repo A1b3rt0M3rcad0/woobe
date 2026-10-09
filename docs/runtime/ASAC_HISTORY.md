@@ -586,3 +586,23 @@ constituents, with `/spec` or node paths. They never reveal provider exceptions 
 substitute latest dependencies for a pinned snapshot. Agent PATCH rejects unknown
 top-level fields rather than silently discarding them; advertised schema validation
 exposes `additionalProperties: false`.
+
+
+## Incomplete captures and accepted closure recovery
+
+A missing native registry identity at Stage returns
+`ASAC_CANDIDATE_BINDING_UNAVAILABLE` with the affected component descriptor and
+`/metadata/key`. Canonical create plus capture does not prove accepted registry
+closure. Inspect bindings recovery in dry-run, explicitly bind destination
+Providers and use managed push to establish the accepted closure, then refresh
+and checkpoint the isolated Draft before preparing a new Candidate. A rejected
+preparation creates no Candidate/accepted operation; uncertain acceptances still
+require original-operation reconciliation.
+
+A Network constituent missing a complete primary/fallback ModelSpec adds
+`/spec/model/primary` or `/spec/model/fallback` to its node diagnostic. Exact
+historical captures never rebuild that evidence from the latest Provider Model.
+For mutable author state, repair the Agent configuration and save/rebind a new
+Network Draft explicitly. For incomplete immutable history, preserve the old
+snapshot and prepare/evaluate/publish a new complete closure. These diagnostics
+identify an inspection path; they do not repair operator data automatically.

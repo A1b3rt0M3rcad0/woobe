@@ -204,10 +204,13 @@ class PortableNetworkExportReader:
                         ValidationError,
                         ValueError,
                     ) as exc:
+                        detail_path = (
+                            exc.path if isinstance(exc, SnapshotCaptureConflict) else ""
+                        )
                         raise SnapshotCaptureConflict(
                             "PACKAGE_EXPORT_NETWORK_CONSTITUENT",
                             "Network constituent cannot be captured as a complete exact Agent snapshot",
-                            path=f"/spec/nodes/{index}/agent_ref",
+                            path=f"/spec/nodes/{index}/agent_ref" + detail_path,
                         ) from exc
                     agents.append(
                         {"key": reference, **captured, "frozen": not live_draft}

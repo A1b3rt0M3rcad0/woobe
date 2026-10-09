@@ -23,6 +23,7 @@ from shared.security.principal import AuthenticatedPrincipal
         "binding-snapshot",
         "definition",
         "constituent",
+        "constituent-model",
         "integrity",
         "none",
     ],
@@ -110,6 +111,11 @@ async def test_network_capture_diagnoses_exact_closure_and_never_falls_back(
         agents.capture_in_session.side_effect = ConflictError(
             "protected-detail-not-for-client"
         )
+    if failure == "constituent-model":
+        agents.capture_in_session.side_effect = SnapshotCaptureConflict(
+            "PACKAGE_EXPORT_INCOMPLETE", "Snapshot has no complete ModelSpec",
+            path="/spec/model/primary",
+        )
     reader = PortableNetworkExportReader(
         N(begin=begin), N(_definition=NetworkDefinition.from_dict), agents
     )
@@ -134,5 +140,7 @@ async def test_network_capture_diagnoses_exact_closure_and_never_falls_back(
         )
         assert caught.value.path.startswith("/spec")
         assert "protected-detail" not in str(caught.value)
-        if failure != "constituent":
+        if failure == "constituent-model":
+            assert caught.value.path == "/spec/nodes/0/agent_ref/spec/model/primary"
+        if not failure.startswith("constituent"):
             agents.capture_in_session.assert_not_awaited()
