@@ -6,6 +6,8 @@ Woobe follows Semantic Versioning for public releases.
 
 ### Changed
 
+- Platform release preparation, candidate builds and publication now use the existing self-hosted CI runners, with shared Docker locking, private registry credentials and cleanup on failure.
+
 - Reviewed merges into `master` now start platform release preparation automatically. Conventional Commits select the version, all platform mirrors are synchronized through a validated release PR, and successful candidate/published-image smoke gates produce the immutable Git tag, GitHub Release and four multi-architecture GHCR image packages.
 - Automatic release selection resumes interrupted publications, skips superseded/already-published source pushes, and blocks ambiguous state or concurrent changes requiring a higher version.
 

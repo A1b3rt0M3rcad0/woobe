@@ -12,6 +12,14 @@ The published packages are the existing GHCR images `woobe-api`, `woobe-workers`
 
 To retry or publish intentionally, open **Actions → Release Woobe → Run workflow**, select `master` and leave `version` empty for automatic selection/recovery. An explicit version remains available for recovery, prereleases and reviewed overrides. Publication succeeds only after the entire validation and promotion transaction succeeds.
 
+## Publication runners
+
+All parent, candidate and publication jobs run on the existing `[self-hosted, Linux, X64]` runner pool, just like normal CI. GitHub-hosted execution and its billing quota are not required. Runners need Docker/Compose, `flock`, Git, GitHub CLI and outbound access to GitHub, GHCR and build dependencies; Python and Buildx are configured by pinned setup actions. QEMU enables arm64 image builds on the X64 host.
+
+Docker jobs acquire the same host-level lock as normal CI before configuring QEMU/Buildx, accessing the registry or running Compose. Candidate image builds run one matrix unit at a time. Each Docker job has a private temporary `DOCKER_CONFIG`; registry credentials are never written to the runner's persistent Docker configuration. Cleanup removes the job's builder and credentials before releasing the daemon, including on failure. Compose teardown is restricted to the job's own project and runs only after Docker access was acquired.
+
+The preparation job waits for the required CI workflows without acquiring the Docker lock, so those workflows can finish. Docker jobs allow 75 minutes, including the existing 40-minute lock wait budget. Queueing behind normal CI is expected; an offline runner or exhausted capacity still blocks publication and never counts as a successful release.
+
 ## Versioning policy
 
 Woobe platform releases use Semantic Versioning:
