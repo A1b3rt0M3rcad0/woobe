@@ -16,7 +16,7 @@ from modules.agent.infra.database.candidate_lifecycle import AgentCandidateLifec
 from modules.agent.composition.composers.development_resources import build_development_resource_reader
 
 
-def create_candidate_snapshot_composer():
+def create_candidate_snapshot_composer() -> TransactionalHandler:
     uow = AgentUnitOfWork(DATABASE_ENGINE)
     releases = SQLAlchemyAgentReleaseRepositoryWithProviderModels(uow)
     preparation = KnowledgeSafeCreateReleaseUseCase(releases,
@@ -29,7 +29,7 @@ def create_candidate_snapshot_composer():
     return TransactionalHandler(uow, controller.handle)
 
 
-def agent_candidate_lifecycle_composer():
+def agent_candidate_lifecycle_composer() -> TransactionalHandler:
     uow = AgentUnitOfWork(DATABASE_ENGINE)
     handler = AgentCandidateLifecycleHandler(uow, build_development_resource_reader(),
         SQLAlchemyAgentReleaseRepositoryWithProviderModels(uow))
