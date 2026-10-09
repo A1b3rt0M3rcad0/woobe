@@ -33,7 +33,7 @@ from shared.security.control_plane import (
 )
 
 CLI_COMMIT = os.environ.get(
-    "WOOBE_TEST_CLI_SHA", "c3818fd170f4e840166425223c20fd7e48bc5ee5"
+    "WOOBE_TEST_CLI_SHA", "ab3131e29167a53ca894cfdb70d3e09f41f0ebfd"
 )
 
 
@@ -1669,6 +1669,21 @@ async def exercise_asac_isolated_drafts(cli, kind, resource_id):
     assert not unknown["complete"] and not unknown["retry_authorized"]
     observed = (await cli.run(kind.lower(),resource_id,"current","--env","production"))["data"]
     assert observed["snapshot_id"] == export["source"]["snapshot_id"]
+    # A second developer's fresh registry must keep the canonical logical UID,
+    # so opening an independent line does not collide with the first developer.
+    fresh_registry=cli.directory/(kind.lower()+"-fresh-identity")
+    fresh_registry.mkdir()
+    await cli.run("init","--root",".woobe",cwd=fresh_registry)
+    fresh_capture=(await cli.run(kind.lower(),resource_id,"pull","--alias","independent",
+                                 "--env","production",cwd=fresh_registry))["data"]
+    assert fresh_capture["environment"]=="production"
+    import yaml
+    fresh_config=yaml.safe_load((fresh_registry/".woobe-config").read_text())
+    fresh_root=next(item for item in fresh_config["resources"] if item["kind"]==kind and item["alias"]=="independent")
+    assert fresh_root["uid"]==uid
+    independent=(await cli.run(kind.lower(),"@independent","draft","open","fresh-developer",
+                               "--from","production",cwd=fresh_registry))["data"]
+    assert independent["resource_uid"]==uid and independent["draft_id"]!=first["draft_id"]
     return {"publication": publication, "registry": registry, "binding_spec": binding_spec}
 
 @pytest.mark.asyncio
