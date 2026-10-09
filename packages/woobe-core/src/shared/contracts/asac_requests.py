@@ -14,6 +14,12 @@ class StrictASaCRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class ASaCLeaseProof(StrictASaCRequest):
+    lease_id: UUID
+    workflow_id: UUID
+    fencing_token: StrictInt = Field(ge=1)
+
+
 class ASaCRevision(StrictASaCRequest):
     format: Literal["woobe-revision"]
     schema_version: Literal["1.0"]
@@ -49,6 +55,7 @@ class ASaCRevision(StrictASaCRequest):
 
 
 class OpenASaCDraft(StrictASaCRequest):
+    leases: list[ASaCLeaseProof] | None = Field(default=None, max_length=2)
     operation_id: UUID
     resource_uid: UUID
     name: StrictStr = Field(min_length=1, max_length=80, pattern=r"^[a-zA-Z0-9][a-zA-Z0-9._-]*$")
@@ -56,6 +63,7 @@ class OpenASaCDraft(StrictASaCRequest):
 
 
 class SaveASaCDraft(StrictASaCRequest):
+    leases: list[ASaCLeaseProof] | None = Field(default=None, max_length=2)
     operation_id: UUID
     expected_generation: StrictInt = Field(ge=1)
     upload_id: UUID
@@ -63,6 +71,7 @@ class SaveASaCDraft(StrictASaCRequest):
 
 
 class RegisterASaCRevision(StrictASaCRequest):
+    leases: list[ASaCLeaseProof] | None = Field(default=None, max_length=2)
     operation_id: UUID
     draft_id: UUID
     expected_generation: StrictInt = Field(ge=1)

@@ -1,11 +1,13 @@
 """Strict versioned Draft transports; validation and writes belong to Core owners."""
 from uuid import UUID
+from typing import Literal
 
 from fastapi import APIRouter, Query, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
 
 from shared.contracts.asac_requests import OpenASaCDraft, SaveASaCDraft, RegisterASaCRevision, StageASaCRevision
+from shared.contracts.asac_leases import ASaCLeaseScope, AcquireASaCLease, ChangeASaCLease, RenewASaCLease, BreakASaCLease
 from shared.contracts.asac_evaluation import EvaluateASaCCandidate
 from shared.contracts.asac_publication import PublishASaCCandidate, CancelASaCPublication
 from shared.contracts.errors import AuthorizationError, ConflictError, NotFoundError, ValidationError
@@ -46,6 +48,37 @@ def draft_router(prefix, builder, kind, candidate_builder=None, evaluation_build
             return data
         return JSONResponse(jsonable_encoder({"success": True, "message": "ok", "data": data,
             "meta": {"complete": data.get("complete", True)}}))
+
+    @router.get("/leases")
+    async def lease(project_id: UUID, resource_id: UUID, request: Request,
+                    scope: Literal["resource", "draft", "staging", "production"] = Query("resource"), draft_id: UUID | None = Query(None)):
+        async def operation():
+            if draft_id is not None and scope != "draft":
+                raise ValidationError("ASAC_LEASE_SCOPE_INVALID: Draft identity requires Draft scope")
+            selected=ASaCLeaseScope(scope=scope,draft_id=draft_id)
+            return await store().leases.get(project_id=project_id,resource_id=resource_id,
+                principal=actor(request),scope=selected)
+        return response(await invoke(operation()))
+
+    @router.post("/leases/acquire")
+    async def acquire_lease(project_id: UUID,resource_id: UUID,body: AcquireASaCLease,request: Request):
+        return response(await invoke(store().leases.acquire(project_id=project_id,resource_id=resource_id,
+            principal=actor(request),request=body)))
+
+    @router.post("/leases/renew")
+    async def renew_lease(project_id: UUID,resource_id: UUID,body: RenewASaCLease,request: Request):
+        return response(await invoke(store().leases.change(project_id=project_id,resource_id=resource_id,
+            principal=actor(request),request=body,action="renew")))
+
+    @router.post("/leases/release")
+    async def release_lease(project_id: UUID,resource_id: UUID,body: ChangeASaCLease,request: Request):
+        return response(await invoke(store().leases.change(project_id=project_id,resource_id=resource_id,
+            principal=actor(request),request=body,action="release")))
+
+    @router.post("/leases/break")
+    async def break_lease(project_id: UUID,resource_id: UUID,body: BreakASaCLease,request: Request):
+        return response(await invoke(store().leases.change(project_id=project_id,resource_id=resource_id,
+            principal=actor(request),request=body,action="break")))
 
     if candidate_builder is not None:
         def candidates():

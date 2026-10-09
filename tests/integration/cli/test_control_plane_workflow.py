@@ -33,7 +33,7 @@ from shared.security.control_plane import (
 )
 
 CLI_COMMIT = os.environ.get(
-    "WOOBE_TEST_CLI_SHA", "12277d3c086be91805831ca329d402cdd90cc86e"
+    "WOOBE_TEST_CLI_SHA", "b949b6d0ef53f9807e88949e14504196d47360f4"
 )
 
 
@@ -1308,6 +1308,7 @@ async def exercise_asac_isolated_drafts(cli, kind, resource_id):
         assert changed_root["binding_status"] == "resource_changed"
     cli_open = (await cli.run(kind.lower(), "@captured", "draft", "open", "cli-hotfix", "--from", "production", cwd=registry))["data"]
     assert cli_open["resource_uid"] == uid and not cli_open["production_changed"]
+    await exercise_asac_workflow_leases(cli,kind,resource_id,cli_open["draft_id"])
     cli_saved = (await cli.run(kind.lower(), "@captured", "draft", "push", cwd=registry))["data"]
     assert cli_saved["generation"] == 2
     checkpoint = (await cli.run(kind.lower(), "@captured", "revision", "create", "--message", "CLI exact checkpoint", cwd=registry))["data"]
@@ -2234,3 +2235,53 @@ async def test_cli_connection_auth_discovers_scope_and_persists_without_environm
     )
     assert "project_id" not in json.loads(config_path.read_text())["contexts"]["multi"]
     await run("auth", "logout", "--cli-key")
+
+
+async def exercise_asac_workflow_leases(cli,kind,resource_id,draft_id):
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+    from sqlalchemy.exc import DBAPIError
+    from shared.infra.database.session import create_engine
+    from shared.infra.config import Settings
+    owner=kind.lower()
+    base=f"/projects/{cli.project_id}/{owner}s/{resource_id}/asac"
+    acquire={"operation_id":str(uuid4()),"workflow_id":str(uuid4()),"scope":"draft","draft_id":draft_id,"ttl_seconds":3}
+    first=await cli.data("request","POST",base+"/leases/acquire",body=acquire)
+    assert first["clock_authority"]=="database" and first["fencing_token"]==1
+    assert await cli.data("request","POST",base+"/leases/acquire",body=acquire)==first
+    await cli.run("request","POST",base+"/leases/acquire",body={**acquire,"operation_id":str(uuid4())},expected=6)
+    proof={key:first[key] for key in ("lease_id","workflow_id","fencing_token")}
+    engine=create_engine(Settings())
+    sessions=async_sessionmaker(engine,expire_on_commit=False)
+    try:
+        # A lease valid at SQL mutation can expire before commit. The deferred
+        # database guard must roll back the authoring write, independently of API.
+        with pytest.raises(DBAPIError,match="ASAC_LEASE_EXPIRED"):
+            async with sessions.begin() as session:
+                await session.execute(text("SELECT set_config('woobe.asac_actor',:actor,true),set_config('woobe.asac_lease_proofs',:proofs,true),set_config('woobe.asac_lease_resource',:root,true)"),{"actor":first["actor"],"proofs":json.dumps([proof]),"root":resource_id})
+                await session.execute(text(f"UPDATE {owner}.asac_drafts SET generation=generation+1 WHERE id=:draft"),{"draft":UUID(draft_id)})
+                await session.execute(text("SELECT pg_sleep(3.1)"))
+        expired=await cli.data("request","GET",base+"/leases","--query","scope=draft","--query",f"draft_id={draft_id}")
+        assert expired["state"]=="expired"
+        await cli.run("request","POST",base+"/leases/renew",body={**proof,"operation_id":str(uuid4()),"scope":"draft","draft_id":draft_id,"ttl_seconds":30},expected=6)
+        second=await cli.data("request","POST",base+"/leases/acquire",body={**acquire,"operation_id":str(uuid4()),"workflow_id":str(uuid4()),"ttl_seconds":60})
+        assert second["fencing_token"]==2 and second["lease_id"]!=first["lease_id"]
+        body={"operation_id":str(uuid4()),"expected_generation":1,"upload_id":str(uuid4()),"artifact_digest":"sha256:"+"0"*64,"leases":[proof]}
+        await cli.run("request","PUT",base+"/drafts/"+draft_id,body=body,expected=6)
+        second_proof={key:second[key] for key in ("lease_id","workflow_id","fencing_token")}
+        # A current authenticated workflow proof passes the real commit guard;
+        # this no-op leaves the selected author's CAS unchanged for later cases.
+        async with sessions.begin() as session:
+            await session.execute(text("SELECT set_config('woobe.asac_actor',:actor,true),set_config('woobe.asac_lease_proofs',:proofs,true),set_config('woobe.asac_lease_resource',:root,true)"),{"actor":second["actor"],"proofs":json.dumps([second_proof]),"root":resource_id})
+            await session.execute(text(f"UPDATE {owner}.asac_drafts SET generation=generation WHERE id=:draft"),{"draft":UUID(draft_id)})
+        for statement in (
+            f"UPDATE {owner}.asac_operation_leases SET fencing_token=fencing_token-1 WHERE project_id=:project AND resource_id=:root",
+            f"DELETE FROM {owner}.asac_operation_leases WHERE project_id=:project AND resource_id=:root",
+        ):
+            with pytest.raises(DBAPIError,match="(cannot regress|cannot be deleted)"):
+                async with sessions.begin() as session:
+                    await session.execute(text(statement),{"project":UUID(cli.project_id),"root":UUID(resource_id)})
+        released=await cli.data("request","POST",base+"/leases/release",body={**second_proof,"operation_id":str(uuid4()),"scope":"draft","draft_id":draft_id})
+        assert released["state"]=="released"
+        assert (await cli.data("request","GET",base+"/drafts/"+draft_id))["generation"]==1
+    finally:
+        await engine.dispose()

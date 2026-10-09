@@ -434,3 +434,5 @@ from modules.agent.composition.composers.asac_draft_composer import build_agent_
 from modules.agent.composition.composers.candidate_snapshot_composer import CandidateExecutionGrant, candidate_execution
 from modules.agent.composition.composers.candidate_snapshot_composer import create_candidate_snapshot_composer, agent_candidate_lifecycle_composer
 from modules.agent.composition.composers.asac_draft_composer import build_agent_frozen_publication_gateway
+
+from modules.agent.composition.composers.asac_draft_composer import build_agent_asac_leases

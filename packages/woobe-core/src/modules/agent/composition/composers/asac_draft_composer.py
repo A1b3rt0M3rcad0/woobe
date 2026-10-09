@@ -10,8 +10,14 @@ def _uow_factory():
 
 
 def build_agent_asac_drafts(*, artifacts):
-    return AgentASaCDraftStore(uow_factory=_uow_factory,
+    store = AgentASaCDraftStore(uow_factory=_uow_factory,
         owner=build_development_resource_reader(), artifacts=artifacts, cursor_key=SETTINGS.secret_key)
+    from modules.agent.infra.database.asac_models import ASaCLeaseModel
+    from modules.agent.infra.database.asac_transactions import AgentASaCLeaseStore
+    store.leases=AgentASaCLeaseStore(drafts=store,leases=ASaCLeaseModel,
+        maximum_ttl_seconds=SETTINGS.asac_lease_maximum_ttl_seconds,
+        maximum_duration_seconds=SETTINGS.asac_lease_maximum_duration_seconds)
+    return store
 
 
 def build_agent_asac_candidates(*, artifacts, preparation):
@@ -47,3 +53,7 @@ def build_agent_frozen_publication_gateway():
     from modules.agent.infra.database.frozen_snapshot_reader import AgentFrozenSnapshotReader
     return AgentFrozenPublicationGateway(drafts=build_agent_asac_drafts(artifacts=None),
         publisher=AgentASaCPublisher(), snapshots=AgentFrozenSnapshotReader())
+
+
+def build_agent_asac_leases(*, artifacts):
+    return build_agent_asac_drafts(artifacts=artifacts).leases

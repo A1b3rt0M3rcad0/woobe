@@ -11,6 +11,16 @@ from shared.security.control_plane import (
 
 # Explicitly reviewed method/template pairs. Never derive authority from a prefix.
 _REVIEWED = [
+    ("GET", "/projects/{project_id}/agents/{resource_id}/asac/leases", "agent:read"),
+    ("POST", "/projects/{project_id}/agents/{resource_id}/asac/leases/acquire", "agent:write"),
+    ("POST", "/projects/{project_id}/agents/{resource_id}/asac/leases/renew", "agent:write"),
+    ("POST", "/projects/{project_id}/agents/{resource_id}/asac/leases/release", "agent:write"),
+    ("POST", "/projects/{project_id}/agents/{resource_id}/asac/leases/break", "project:access:write"),
+    ("GET", "/projects/{project_id}/networks/{resource_id}/asac/leases", "network:read"),
+    ("POST", "/projects/{project_id}/networks/{resource_id}/asac/leases/acquire", "network:write"),
+    ("POST", "/projects/{project_id}/networks/{resource_id}/asac/leases/renew", "network:write"),
+    ("POST", "/projects/{project_id}/networks/{resource_id}/asac/leases/release", "network:write"),
+    ("POST", "/projects/{project_id}/networks/{resource_id}/asac/leases/break", "project:access:write"),
     ("POST", "/projects/{project_id}/agents/{resource_id}/asac/candidates", "agent:version"),
     ("POST", "/projects/{project_id}/agents/{resource_id}/asac/publications", "agent:version"),
     ("POST", "/projects/{project_id}/networks/{resource_id}/asac/publications", "network:version"),
@@ -413,6 +423,9 @@ def resolve_operation(
         params = match.groupdict()
         data = body if isinstance(body, dict) else {}
         environment = params.get("environment") or data.get("environment")
+        if method.upper()=="POST" and template.endswith(("/asac/leases/acquire","/asac/leases/renew","/asac/leases/release")):
+            kind="agent" if "/agents/" in template else "network"
+            permission=kind+(":production" if data.get("scope")=="production" else ":version" if data.get("scope")=="staging" else ":write")
         if template.startswith("/ai/agents/") and template.endswith("/promote"):
             permission = (
                 "agent:version"
