@@ -670,6 +670,7 @@ class NetworkExecutor:
                     ),
                     internal_tools=tools,
                     network_context={
+                        "candidate_evaluation": version is not None and version.kind == "candidate",
                         "network_id": str(execution.network_id),
                         "network_version_id": (
                             str(execution.network_version_id)
