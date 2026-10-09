@@ -571,3 +571,18 @@ is never silently upgraded or rewritten.
 ## Acceptance and Run continuity
 
 The [acceptance matrix](../testing/ASAC_ACCEPTANCE.md) maps H01–H35 to regression coverage and separates live integration from unit checks. [Accepted Run identity](ASAC_RUNTIME_IDENTITY.md) documents native Session continuity and the exact admission/binding digest scopes.
+
+## Environment tests and capture diagnostics
+
+Agent administrative tests in Staging/Production validate the authoritative ASaC
+selection under an environment row lock. A selected immutable Release remains
+`release` kind, including when selected in Staging; it is not copied or relabeled.
+A stale selected UUID is rejected. Without ASaC selection, legacy snapshot-kind
+validation remains intact. Runtime execution still uses the exact tested snapshot.
+
+Portable Network captures return bounded `PACKAGE_EXPORT_NETWORK_*` conflicts
+for incompatible definitions, graph integrity, unavailable bindings or incomplete
+constituents, with `/spec` or node paths. They never reveal provider exceptions or
+substitute latest dependencies for a pinned snapshot. Agent PATCH rejects unknown
+top-level fields rather than silently discarding them; advertised schema validation
+exposes `additionalProperties: false`.

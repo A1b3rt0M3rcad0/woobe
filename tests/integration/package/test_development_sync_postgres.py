@@ -421,12 +421,19 @@ async def _assert_explicit_clone_creation(cli, local, kind, tools_before):
         )
     )["data"]
     assert cloned["resource"]["uid"]
+    # A local alias is not the remote presentation name. An edited descriptor
+    # controls create/push, including after moving or changing its local alias.
+    descriptor = local / ".woobe" / f"{kind}s/support-copy/{kind}.yaml"
+    document = yaml.safe_load(descriptor.read_text())
+    document["metadata"]["name"] = "Managed presentation independent of alias"
+    descriptor.write_text(yaml.safe_dump(document,sort_keys=False))
     preview = (await cli.run(kind, "@support-copy", "create", "--dry-run", cwd=local))[
         "data"
     ]
     assert preview["executed"] is False
     assert preview["semantic_validation"] == "server_validated"
     assert preview["effects"]
+    assert preview["name"] == document["metadata"]["name"]
     reply = await cli.run(kind, "@support-copy", "create", cwd=local, expected=(0, 7))
     assert reply["success"], [
         (item.get("code"), item.get("message"))
@@ -438,6 +445,7 @@ async def _assert_explicit_clone_creation(cli, local, kind, tools_before):
     roots = await cli.data(kind, "list")
     assert len(roots) == 2
     assert len({item["id"] for item in roots}) == 2
+    assert any(item["name"] == document["metadata"]["name"] for item in roots)
     await cli.run(kind, "@support-copy", "create", cwd=local, expected=2)
     assert len(await cli.data(kind, "list")) == 2
     await cli.run(
@@ -460,6 +468,7 @@ async def _assert_explicit_clone_creation(cli, local, kind, tools_before):
     )
     await cli.run(kind, "@support-next", "push", cwd=local)
     assert len(await cli.data(kind, "list")) == 2
+    assert any(item["name"] == document["metadata"]["name"] for item in await cli.data(kind,"list"))
 
 
 async def _assert_surface_authoring(cli, local, target_kind):

@@ -10,6 +10,14 @@ class ConflictError(DomainError):
     pass
 
 
+class SnapshotCaptureConflict(ConflictError):
+    """Safe owner diagnostic for an incomplete or inconsistent portable capture."""
+
+    def __init__(self, code: str, message: str, *, path: str = ""):
+        super().__init__(message)
+        self.code, self.path = code, path
+
+
 class PreconditionFailedError(ConflictError):
     pass
 

@@ -47,10 +47,13 @@ class AgentASaCEnvironmentSelector:
             correlation_id=operation_id,causation_id=identifier,status='pending',attempts=0))
 
 
-async def selected_agent_release(session,agent_id,environment):
-    selection=await session.scalar(select(ASaCEnvironmentSelectionModel).where(
+async def selected_agent_release(session,agent_id,environment,*,lock=False):
+    query=select(ASaCEnvironmentSelectionModel).where(
         ASaCEnvironmentSelectionModel.resource_id==agent_id,ASaCEnvironmentSelectionModel.environment==environment,
-        ASaCEnvironmentSelectionModel.selection_authority=='asac'))
+        ASaCEnvironmentSelectionModel.selection_authority=='asac')
+    if lock:
+        query=query.with_for_update()
+    selection=await session.scalar(query)
     if selection is None: return None
     row=await session.get(AgentReleaseModel,selection.snapshot_id)
     if row is None or row.project_id!=selection.project_id or row.agent_id!=agent_id:
