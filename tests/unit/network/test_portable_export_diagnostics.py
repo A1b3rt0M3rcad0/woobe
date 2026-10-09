@@ -14,7 +14,19 @@ from shared.security.principal import AuthenticatedPrincipal
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("failure", ["binding", "constituent", "integrity", "none"])
+@pytest.mark.parametrize(
+    "failure",
+    [
+        "binding",
+        "binding-map",
+        "binding-value",
+        "binding-snapshot",
+        "definition",
+        "constituent",
+        "integrity",
+        "none",
+    ],
+)
 async def test_network_capture_diagnoses_exact_closure_and_never_falls_back(
     monkeypatch, failure
 ):
@@ -44,6 +56,12 @@ async def test_network_capture_diagnoses_exact_closure_and_never_falls_back(
     }
     if failure == "binding":
         bindings = {}
+    elif failure == "binding-map":
+        bindings = []
+    elif failure == "binding-value":
+        bindings[str(node_id)] = "not-a-binding"
+    elif failure == "binding-snapshot":
+        bindings[str(node_id)]["snapshot_override"] = "not-a-snapshot"
     version = N(
         project_id=project,
         network_id=network_id,
@@ -56,6 +74,8 @@ async def test_network_capture_diagnoses_exact_closure_and_never_falls_back(
         if failure == "integrity"
         else composition_hash(definition, bindings),
     )
+    if failure == "definition":
+        version.definition = None
     network = N(
         project_id=project,
         id=network_id,
@@ -108,7 +128,10 @@ async def test_network_capture_diagnoses_exact_closure_and_never_falls_back(
     else:
         with pytest.raises(SnapshotCaptureConflict) as caught:
             await reader.capture(**kwargs)
-        assert caught.value.code == "PACKAGE_EXPORT_NETWORK_" + failure.upper()
+        assert (
+            caught.value.code
+            == "PACKAGE_EXPORT_NETWORK_" + failure.split("-")[0].upper()
+        )
         assert caught.value.path.startswith("/spec")
         assert "protected-detail" not in str(caught.value)
         if failure != "constituent":

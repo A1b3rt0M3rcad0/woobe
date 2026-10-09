@@ -138,6 +138,12 @@ class PortableNetworkExportReader:
                         "Network Draft has an unavailable Agent or pinned snapshot",
                         path="/spec/nodes",
                     ) from exc
+            if not isinstance(bindings, dict):
+                raise SnapshotCaptureConflict(
+                    "PACKAGE_EXPORT_NETWORK_BINDING",
+                    "Network snapshot contains an invalid binding map",
+                    path="/spec/nodes",
+                )
             agents, selections = [], {}
             nodes = []
             keys = {
@@ -145,7 +151,16 @@ class PortableNetworkExportReader:
                 for index, node in enumerate(definition.nodes)
             }
             for index, node in enumerate(definition.nodes):
-                binding = bindings.get(str(node.id)) or {}
+                binding = bindings.get(str(node.id), {})
+                if not isinstance(binding, dict) or (
+                    binding.get("snapshot_override") is not None
+                    and not isinstance(binding["snapshot_override"], dict)
+                ):
+                    raise SnapshotCaptureConflict(
+                        "PACKAGE_EXPORT_NETWORK_BINDING",
+                        "Network binding contains an invalid snapshot descriptor",
+                        path=f"/spec/nodes/{index}/binding",
+                    )
                 release_id = binding.get("release_id") or binding.get(
                     "draft_release_id"
                 )
@@ -246,6 +261,12 @@ class PortableNetworkExportReader:
             }
 
     def _capture_definition(self, raw):
+        if not isinstance(raw, dict):
+            raise SnapshotCaptureConflict(
+                "PACKAGE_EXPORT_NETWORK_DEFINITION",
+                "Network snapshot contains an invalid graph descriptor",
+                path="/spec",
+            )
         try:
             return self._service._definition(raw)
         except (ValidationError, ValueError, KeyError, TypeError) as exc:
