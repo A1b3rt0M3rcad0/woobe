@@ -4,6 +4,7 @@ from typing import Any
 
 from modules.agent.application.dtos.runtime_dtos import AskInput
 from modules.agent.application.interfaces.execution_context import current_execution
+from modules.agent.application.interfaces.candidate_execution import candidate_execution
 from modules.agent.domain.entities import Agent
 from modules.agent.domain.errors import SessionNotFoundError
 from modules.agent.infra.execution.ask_use_case import AskAgentUseCase
@@ -40,7 +41,7 @@ class SessionContinuityReleaseRuntimeResolver(CanonicalExecutionSnapshotRuntimeR
     """
 
     async def _session_runtime_binding(self, uow: Any, input_dto: AskInput):
-        if input_dto.session_id is None or self._is_network_runtime(input_dto):
+        if input_dto.session_id is None or self._is_network_runtime(input_dto) or candidate_execution.get() is not None:
             return None
 
         session_repo = getattr(uow, "sessions", None)
@@ -62,7 +63,7 @@ class SessionContinuityReleaseRuntimeResolver(CanonicalExecutionSnapshotRuntimeR
 
     async def _load_agent(self, uow: Any, input_dto: AskInput) -> Agent:
         runtime_session_mode = None
-        if not self._is_network_runtime(input_dto):
+        if not self._is_network_runtime(input_dto) and candidate_execution.get() is None:
             current_agent = await uow.agents.get_by_id(input_dto.agent_id)
             if current_agent is not None:
                 runtime_session_mode = current_agent.session_mode

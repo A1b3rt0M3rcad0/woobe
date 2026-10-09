@@ -5,7 +5,7 @@ from uuid import UUID, uuid4
 from sqlalchemy import select
 
 from modules.package.domain.errors import PackageError
-from modules.package.infra.models import PackageResourceBindingModel, PackageSnapshotArtifactModel, PackageUploadModel
+from modules.package.infra.models import PackageResourceBindingModel, PackageSnapshotArtifactModel, PackageUploadModel, PackageOperationModel, PackagePlanModel
 from modules.package.infra.snapshot_artifact_repository import PackageSnapshotArtifactRepository
 from shared.infra.admin_idempotency import principal_identity
 
@@ -80,3 +80,25 @@ class PackageCandidatePreparation:
         operation, _ = await self.service.operations.accept_in_session(session=session,
             project_id=project_id, principal=principal, key=proposal["key"], payload=proposal["payload"])
         return {"operation_id": str(operation.id)}
+
+    async def verify_runtime_bindings(self, *, project_id, candidate_id,
+                                      preparation_operation_id, principal,
+                                      expected_fingerprints):
+        # Retained evidence is independent of a planning ticket's expiry/actor.
+        # Current permission and version checks remain mandatory for the caller.
+        async with self.sessions() as session:
+            operation = await session.get(PackageOperationModel, preparation_operation_id)
+            plan = await session.get(PackagePlanModel, operation.plan_id) if operation else None
+            if (operation is None or plan is None or operation.project_id != project_id
+                or plan.project_id != project_id or operation.state != "succeeded"
+                or plan.document.get("mode") != "candidate"
+                or plan.document.get("candidate", {}).get("candidate_id") != str(candidate_id)):
+                raise PackageError("ASAC_CANDIDATE_EVIDENCE_INVALID", "Retained native preparation evidence is unavailable")
+            document = plan.document
+        actual = await self.service.plans._inspector.inspect_bindings(
+            project_id=project_id, principal=principal,
+            requirements=document["source_definition"]["manifest"]["spec"].get("requires", {}),
+            bindings=document["bindings"]["spec"])
+        if actual != expected_fingerprints or actual != document["binding_resolutions"]:
+            raise PackageError("ASAC_RUNTIME_BINDINGS_CHANGED", "Destination binding versions differ from the prepared candidate")
+        return actual

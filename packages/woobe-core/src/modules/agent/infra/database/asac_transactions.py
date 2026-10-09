@@ -37,3 +37,9 @@ from shared.infra.asac_candidate_store import ASaCCandidateStore
 
 class AgentASaCCandidateStore(ASaCCandidateStore):
     """Agent-owned adapter for candidate receipt mechanics."""
+
+
+from shared.infra.asac_evaluation_store import ASaCEvaluationStore
+
+class AgentASaCEvaluationStore(ASaCEvaluationStore):
+    """Agent-owned adapter for evaluation receipt and evidence mechanics."""

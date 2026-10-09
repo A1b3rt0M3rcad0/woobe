@@ -376,8 +376,20 @@ class ExplicitRuntimePersistenceMixin:
                 tool_to_snapshot=tool_to_release_snapshot,
             )
 
+            from modules.agent.application.interfaces.candidate_execution import candidate_execution
+            evaluation_grant = candidate_execution.get()
+            evaluation_identity = {"id": evaluation_grant.run_id} if evaluation_grant and evaluation_grant.run_id else {}
+            if evaluation_grant is not None:
+                execution_snapshot["asac"] = {
+                    "evaluation_id": str(evaluation_grant.evaluation_id),
+                    "candidate_snapshot_id": str(evaluation_grant.snapshot_id),
+                    "runtime_digest": evaluation_grant.runtime_digest,
+                    "record_digest": evaluation_grant.record_digest,
+                    "binding_digest": evaluation_grant.binding_digest,
+                }
             run = await repositories.runs.create(
                 AgentRun(
+                    **evaluation_identity,
                     project_id=input_dto.project_id,
                     agent_id=agent.id,
                     session_id=session.id,

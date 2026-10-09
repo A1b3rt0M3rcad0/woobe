@@ -6,11 +6,12 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
 
 from shared.contracts.asac_requests import OpenASaCDraft, SaveASaCDraft, RegisterASaCRevision, StageASaCRevision
+from shared.contracts.asac_evaluation import EvaluateASaCCandidate
 from shared.contracts.errors import AuthorizationError, ConflictError, NotFoundError, ValidationError
 from modules.package.entrypoint import PackageError, build_snapshot_artifacts, build_candidate_preparation
 
 
-def draft_router(prefix, builder, kind, candidate_builder=None):
+def draft_router(prefix, builder, kind, candidate_builder=None, evaluation_builder=None):
     router = APIRouter(prefix=prefix, tags=[kind.lower(), "asac-drafts"])
 
     def store():
@@ -58,6 +59,35 @@ def draft_router(prefix, builder, kind, candidate_builder=None):
         async def candidate(project_id: UUID, resource_id: UUID, candidate_id: UUID, request: Request):
             return response(await invoke(candidates().get(project_id=project_id, resource_id=resource_id,
                 candidate_id=candidate_id, principal=actor(request))))
+
+    if evaluation_builder is not None:
+        def evaluations():
+            return evaluation_builder(artifacts=build_snapshot_artifacts(), preparation=build_candidate_preparation())
+
+        @router.post("/candidates/{candidate_id}/evaluations")
+        async def evaluate(project_id: UUID, resource_id: UUID, candidate_id: UUID,
+                           body: EvaluateASaCCandidate, request: Request):
+            service = evaluations()
+            async def operation():
+                receipt, accepted = await service.accept(project_id=project_id, resource_id=resource_id,
+                    candidate_id=candidate_id, principal=actor(request), request=body)
+                if accepted:
+                    await service.execute(project_id=project_id, resource_id=resource_id,
+                        evaluation_id=UUID(receipt["evaluation_id"]), principal=actor(request))
+                # Preserve the original acceptance receipt on every replay. The
+                # current outcome is separately read from the evaluation ledger.
+                return receipt
+            return response(await invoke(operation()))
+
+        @router.get("/evaluations/{evaluation_id}")
+        async def evaluation(project_id: UUID, resource_id: UUID, evaluation_id: UUID, request: Request):
+            return response(await invoke(evaluations().get(project_id=project_id, resource_id=resource_id,
+                evaluation_id=evaluation_id, principal=actor(request))))
+
+        @router.post("/evaluations/{evaluation_id}/reconcile")
+        async def reconcile_evaluation(project_id: UUID, resource_id: UUID, evaluation_id: UUID, request: Request):
+            return response(await invoke(evaluations().reconcile(project_id=project_id, resource_id=resource_id,
+                evaluation_id=evaluation_id, principal=actor(request))))
 
     @router.get("/drafts")
     async def drafts(project_id: UUID, resource_id: UUID, request: Request):

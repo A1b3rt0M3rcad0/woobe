@@ -14,7 +14,10 @@ from modules.agent.entrypoint import (
     current_execution,
     current_runtime_stream,
     new_execution_context,
+    CandidateExecutionGrant,
+    candidate_execution,
 )
+from modules.network.entrypoint import build_network_candidate_admission_reader
 from modules.network.background_boundary import AgentInvocationResult, InternalDelegationTool
 from modules.network.background_boundary import (
     NetworkRuntimeFailure,
@@ -83,6 +86,7 @@ class ProjectRAIAgentInvoker:
     def __init__(self, settings: WorkerSettings, http_executor: HttpToolExecutor) -> None:
         self._settings = settings
         self._http_executor = http_executor
+        self._candidate_admission = build_network_candidate_admission_reader()
         self._use_case = build_internal_agent_runtime(
             self._settings,
             self._http_executor,
@@ -147,6 +151,14 @@ class ProjectRAIAgentInvoker:
             snapshot_override=runtime_snapshot_override,
         )
 
+        candidate_token = None
+        if network_context.get("candidate_evaluation") is True and context.network_execution_id and context.network_id and release_id:
+            proof = await self._candidate_admission.read(project_id=project_id,
+                network_id=context.network_id, execution_id=context.network_execution_id,
+                agent_id=agent_id, snapshot_id=release_id)
+            if proof:
+                candidate_token = candidate_execution.set(CandidateExecutionGrant(project_id=project_id,
+                    agent_id=agent_id, snapshot_id=release_id, **proof))
         execution_token = current_execution.set(context)
         channel: RuntimeStreamChannel | None = None
         stream_token = None
@@ -256,3 +268,5 @@ class ProjectRAIAgentInvoker:
             if stream_token is not None:
                 current_runtime_stream.reset(stream_token)
             current_execution.reset(execution_token)
+            if candidate_token is not None:
+                candidate_execution.reset(candidate_token)

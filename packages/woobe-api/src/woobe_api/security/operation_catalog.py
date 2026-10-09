@@ -12,6 +12,9 @@ from shared.security.control_plane import (
 # Explicitly reviewed method/template pairs. Never derive authority from a prefix.
 _REVIEWED = [
     ("POST", "/projects/{project_id}/agents/{resource_id}/asac/candidates", "agent:version"),
+    ("POST", "/projects/{project_id}/agents/{resource_id}/asac/candidates/{candidate_id}/evaluations", "run:execute"),
+    ("GET", "/projects/{project_id}/agents/{resource_id}/asac/evaluations/{evaluation_id}", "run:read"),
+    ("POST", "/projects/{project_id}/agents/{resource_id}/asac/evaluations/{evaluation_id}/reconcile", "run:execute"),
     ("GET", "/projects/{project_id}/agents/{resource_id}/asac/candidates/{candidate_id}", "agent:read"),
     ("GET", "/projects/{project_id}/agents/{resource_id}/asac/drafts", "agent:read"),
     ("POST", "/projects/{project_id}/agents/{resource_id}/asac/drafts", "agent:write"),
@@ -26,6 +29,9 @@ _REVIEWED = [
     ("GET", "/projects/{project_id}/agents/{resource_id}/asac/revisions/{revision_id}/artifact", "agent:read"),
     ("GET", "/projects/{project_id}/agents/{resource_id}/asac/operations/{operation_id}", "agent:read"),
     ("POST", "/projects/{project_id}/networks/{resource_id}/asac/candidates", "network:version"),
+    ("POST", "/projects/{project_id}/networks/{resource_id}/asac/candidates/{candidate_id}/evaluations", "run:execute"),
+    ("GET", "/projects/{project_id}/networks/{resource_id}/asac/evaluations/{evaluation_id}", "run:read"),
+    ("POST", "/projects/{project_id}/networks/{resource_id}/asac/evaluations/{evaluation_id}/reconcile", "run:execute"),
     ("GET", "/projects/{project_id}/networks/{resource_id}/asac/candidates/{candidate_id}", "network:read"),
     ("GET", "/projects/{project_id}/networks/{resource_id}/asac/drafts", "network:read"),
     ("POST", "/projects/{project_id}/networks/{resource_id}/asac/drafts", "network:write"),

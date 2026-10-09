@@ -152,6 +152,7 @@ class NetworkApplicationService(SessionModeNetworkApplicationService):
         idempotency_key: str | None,
         expected_draft_revision: int | None = None,
         external_context: dict[str, Any] | None = None,
+        _candidate_evaluation: dict[str, Any] | None = None,
     ) -> NetworkExecutionModel:
         if not message.strip():
             raise ValidationError("Network message cannot be blank")
@@ -169,6 +170,16 @@ class NetworkApplicationService(SessionModeNetworkApplicationService):
                 or network_session.status != "active"
             ):
                 raise NotFoundError("Network Session not found")
+
+            candidate_run_id = None
+            if getattr(network_session, "origin", None) == "asac_evaluation":
+                from modules.network.infra.services.candidate_evaluation_runtime import validate_candidate_case_admission
+                candidate_run_id = await validate_candidate_case_admission(session,
+                    project_id=project_id, network_id=network_id,
+                    network_session=network_session, message=message,
+                    request=_candidate_evaluation)
+            elif _candidate_evaluation is not None:
+                raise ConflictError("ASAC_EVALUATION_SESSION_INVALID")
 
             if idempotency_key:
                 existing = await session.scalar(
@@ -282,6 +293,7 @@ class NetworkApplicationService(SessionModeNetworkApplicationService):
                 )
 
             execution = NetworkExecutionModel(
+                **({"id": candidate_run_id} if candidate_run_id else {}),
                 network_id=network_id,
                 network_version_id=accepted_version_id,
                 network_session_id=network_session_id,

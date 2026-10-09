@@ -19,3 +19,15 @@ def build_agent_asac_candidates(*, artifacts, preparation):
     from modules.agent.infra.database.asac_transactions import AgentASaCCandidateStore
     return AgentASaCCandidateStore(drafts=build_agent_asac_drafts(artifacts=artifacts),
         candidates=ASaCCandidateModel, preparation=preparation)
+
+
+def build_agent_asac_evaluations(*, artifacts, preparation):
+    from modules.agent.infra.database.asac_models import ASaCEvaluationModel
+    from modules.agent.infra.execution.candidate_evaluation_runtime import AgentCandidateEvaluationRuntime
+    from modules.agent.composition.factories.ask_agent_runtime_factory import build_ask_agent_handler
+    from modules.agent.composition.resources import RUN_EVENT_JOURNAL
+    from modules.agent.infra.database.asac_transactions import AgentASaCEvaluationStore
+    runtime = AgentCandidateEvaluationRuntime(uow_factory=_uow_factory,
+        handler=build_ask_agent_handler(SETTINGS), journal=RUN_EVENT_JOURNAL)
+    return AgentASaCEvaluationStore(candidates=build_agent_asac_candidates(artifacts=artifacts, preparation=preparation),
+        evaluations=ASaCEvaluationModel, runtime=runtime)

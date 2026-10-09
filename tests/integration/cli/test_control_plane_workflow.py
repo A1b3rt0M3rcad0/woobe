@@ -33,7 +33,7 @@ from shared.security.control_plane import (
 )
 
 CLI_COMMIT = os.environ.get(
-    "WOOBE_TEST_CLI_SHA", "a520afa68d9ffad48edc31cb546849ba456fed13"
+    "WOOBE_TEST_CLI_SHA", "bfec295703a7ee29c335f6f16d362c60e158f211"
 )
 
 
@@ -1351,6 +1351,39 @@ async def exercise_asac_isolated_drafts(cli, kind, resource_id):
     assert candidate["state"] == "ready" and candidate["snapshot_id"] and candidate["runtime_digest"]
     assert candidate["revision_id"] == comment_revision["revision_id"] and not candidate["published"]
     assert candidate["record_digest"] == comment_revision["record_digest"]
+    evaluation_body = {"operation_id": str(uuid4()), "suite": {"schema_version":"1.0",
+        "suite_id":"native-cli-smoke", "suite_version":"1", "dataset_version":"1",
+        "cases":[{"id":"greeting", "message":"Hello from the exact candidate"}]}}
+    evaluation_preview = (await cli.run(kind.lower(), "@captured", "test", "--candidate", candidate["candidate_id"], "--dry-run", body=evaluation_body["suite"], cwd=registry))["data"]
+    assert not evaluation_preview["executed"] and not evaluation_preview["production_changed"]
+    evaluation = (await cli.run(kind.lower(), "@captured", "test", "--candidate", candidate["candidate_id"], "--yes", body=evaluation_body["suite"], cwd=registry))["data"]
+    assert evaluation["state"] == "passed", evaluation
+    assert evaluation["runtime_digest"] == candidate["runtime_digest"] and evaluation["record_digest"] == candidate["record_digest"]
+    assert evaluation["cases"][0]["state"] == "passed" and evaluation["cases"][0]["run_id"]
+    evaluation_body["operation_id"] = evaluation["operation_id"]
+    original_evaluation = await cli.data("request", "GET", base + "/operations/" + evaluation["operation_id"])
+    evaluation_receipt = original_evaluation["result"]
+    assert evaluation_receipt["state"] == "accepted" and not evaluation_receipt["complete"]
+    assert await cli.data("request", "POST", base + "/candidates/" + candidate["candidate_id"] + "/evaluations", body=evaluation_body) == evaluation_receipt
+    assert (await cli.run(kind.lower(), "@captured", "evaluation", evaluation["evaluation_id"], cwd=registry))["data"] == evaluation
+    assert (await cli.run(kind.lower(), "@captured", "evaluation", evaluation["evaluation_id"], "reconcile", "--yes", cwd=registry))["data"] == evaluation
+    # The actual PostgreSQL triggers protect the ledger even against paths
+    # which bypass the application store. Both failed writes roll back.
+    from sqlalchemy.exc import DBAPIError
+    evidence_engine = create_engine(Settings())
+    evidence_sessions = create_session_factory(evidence_engine)
+    owner_schema = kind.lower()
+    try:
+        for statement in (
+            f"UPDATE {owner_schema}.asac_evaluations SET suite_digest = :changed WHERE id = :id",
+            f"DELETE FROM {owner_schema}.asac_evaluations WHERE id = :id",
+        ):
+            with pytest.raises(DBAPIError, match="(immutable|cannot be deleted)"):
+                async with evidence_sessions.begin() as evidence_session:
+                    await evidence_session.execute(text(statement), {"id": UUID(evaluation["evaluation_id"]), "changed": "sha256:" + "0" * 64})
+    finally:
+        await evidence_engine.dispose()
+    assert (await cli.run(kind.lower(), "@captured", "evaluation", evaluation["evaluation_id"], cwd=registry))["data"] == evaluation
     # observed_at is a fresh read timestamp, not lifecycle state or generation.
     def selected_state(data):
         return {key: value for key, value in data.items() if key != "observed_at"}
