@@ -1,7 +1,7 @@
 """Run identity is derived from accepted frozen content, never current Production."""
 from copy import deepcopy
 from uuid import uuid4
-from modules.agent.application.runtime_identity import accepted_agent_identity, output_runtime_identity
+from modules.agent.application.interfaces.runtime_identity import accepted_agent_identity, output_runtime_identity
 from modules.agent.application.interfaces.execution_context import current_execution, new_execution_context
 
 

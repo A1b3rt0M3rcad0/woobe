@@ -508,7 +508,7 @@ class ExplicitRuntimePersistenceMixin:
             context.session_id = session.id
             context.trace_id = trace_id
             context.storage_version = self._storage_version()
-            from modules.agent.application.runtime_identity import accepted_agent_identity
+            from modules.agent.application.interfaces.runtime_identity import accepted_agent_identity
             context.runtime_identity = accepted_agent_identity(project_id=input_dto.project_id,
                 agent_id=agent.id,session_id=session.id,environment=normalize_runtime_environment(input_dto.execution_context),
                 snapshot=execution_snapshot,continuity_policy=execution_snapshot["continuity_policy"])
@@ -739,6 +739,7 @@ class ExplicitRuntimePersistenceMixin:
                     await repositories.runs.save(run)
 
             return AskOutput(
+            runtime_identity=context.runtime_identity,
                 run_id=run_id,
                 answer=answer,
                 session_id=session.id,

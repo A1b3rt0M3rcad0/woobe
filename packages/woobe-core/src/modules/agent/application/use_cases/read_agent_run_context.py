@@ -140,7 +140,7 @@ def _run_detail(run: AgentRun) -> dict[str, Any]:
     llm_calls = result.get("llm_calls")
     diagnostics = _normalized_diagnostics(result, tool_calls)
 
-    from modules.agent.application.runtime_identity import accepted_agent_identity
+    from modules.agent.application.interfaces.runtime_identity import accepted_agent_identity
     identity = accepted_agent_identity(project_id=run.project_id,agent_id=run.agent_id,
         session_id=run.session_id,environment=run.environment,snapshot=run.execution_snapshot,
         continuity_policy=run.execution_snapshot.get('continuity_policy', 'historical_run_snapshot')) if run.execution_snapshot else None

@@ -402,6 +402,7 @@ async def finalize_instrumented_execution(owner, **kw):
                 await repositories.runs.save(run)
 
         output = AskOutput(
+            runtime_identity=context.runtime_identity,
             run_id=run_id,
             answer=kw["answer"],
             session_id=session.id,

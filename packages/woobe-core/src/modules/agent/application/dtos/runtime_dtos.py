@@ -182,12 +182,6 @@ class AskOutput(BaseModel):
     diagnostics: dict | None = None
 
 
-    @model_validator(mode='after')
-    def bind_accepted_identity(self):
-        from modules.agent.application.runtime_identity import output_runtime_identity
-        if self.runtime_identity is None and self.run_id is not None:
-            self.runtime_identity = output_runtime_identity(self.run_id)
-        return self
 
 
 class CreateAskJobInput(BaseModel):

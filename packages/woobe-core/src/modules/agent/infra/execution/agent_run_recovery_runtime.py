@@ -432,7 +432,7 @@ class AgentRunRecoveryRuntime(FrozenSnapshotStructuredOutputRuntime):
         context.input_message_id = accepted.input_message_id
         context.agent_release_id = accepted.agent_release_id
         context.execution_context = accepted.environment
-        from modules.agent.application.runtime_identity import accepted_agent_identity
+        from modules.agent.application.interfaces.runtime_identity import accepted_agent_identity
         context.runtime_identity = accepted_agent_identity(
             project_id=accepted.project_id, agent_id=accepted.agent_id,
             session_id=accepted.session_id, environment=accepted.environment,

@@ -104,7 +104,7 @@ def build_asac_receipt_signer():
 
 def build_asac_git_verifier():
     from modules.core.infra.receipts.asac_git_verifier import ASaCGitVerifier
-    from shared.infra.config import SETTINGS
+    from shared.composition_resources import SETTINGS
     return ASaCGitVerifier(SETTINGS.asac_git_trusted_builders)
 
 __all__.append('build_asac_git_verifier')
