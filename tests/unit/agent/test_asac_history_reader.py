@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock
 from uuid import UUID, uuid4
 
 import pytest
-from sqlalchemy import DateTime, Integer, String
+from sqlalchemy import DateTime, Integer, String, select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -108,3 +108,44 @@ async def test_history_authority_refusal_precedes_projection(history):
     reader.owner.inspect.side_effect = AuthorizationError("denied")
     with pytest.raises(AuthorizationError):
         await reader.fetch(project_id=project, resource_id=resource, principal=object())
+
+
+class Selection(HistoryBase):
+    __tablename__ = "selections"
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    project_id: Mapped[UUID]
+    resource_id: Mapped[UUID]
+    environment: Mapped[str] = mapped_column(String)
+    generation: Mapped[int] = mapped_column(Integer)
+    snapshot_id: Mapped[UUID | None]
+
+
+@pytest.mark.asyncio
+async def test_current_monotonic_generation_is_independent_of_draft_generation(history):
+    reader,sessions,project,resource=history
+    reader.selections=Selection
+    async with sessions.begin() as session:
+        selected=await session.scalar(select(Release).where(Release.project_id==project,Release.agent_id==resource,Release.status=='production'))
+        selection=Selection(id=uuid4(),project_id=project,resource_id=resource,environment='production',generation=19,snapshot_id=selected.id)
+        session.add(selection)
+    result=await reader.current(project_id=project,resource_id=resource,principal=object(),environment='production')
+    assert result['environment_generation']==19 and result['draft_generation']==4
+    assert result['generation_status']=='monotonic_owner_selection'
+    async with sessions.begin() as session:
+        row=await session.get(Selection,selection.id)
+        row.generation=21
+    returned=await reader.current(project_id=project,resource_id=resource,principal=object(),environment='production')
+    assert returned['snapshot_id']==result['snapshot_id'] and returned['environment_generation']==21
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('missing',[False,True])
+async def test_current_refuses_unsynchronized_generation_instead_of_claiming_cas_safety(history,missing):
+    from shared.contracts.errors import ConflictError
+    reader,sessions,project,resource=history
+    reader.selections=Selection
+    if not missing:
+        async with sessions.begin() as session:
+            session.add(Selection(id=uuid4(),project_id=project,resource_id=resource,environment='production',generation=1,snapshot_id=uuid4()))
+    with pytest.raises(ConflictError,match='ASAC_SELECTION_INCONSISTENT'):
+        await reader.current(project_id=project,resource_id=resource,principal=object(),environment='production')
