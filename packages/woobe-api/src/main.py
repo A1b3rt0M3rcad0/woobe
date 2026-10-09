@@ -119,7 +119,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="Woobe",
         description="Control plane and runtime for versioned AI products",
-        version="0.12.1",
+        version="0.13.0",
         lifespan=lifespan,
     )
 
