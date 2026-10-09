@@ -134,10 +134,11 @@ jobs:
           export PATH="$pg_client_bin:$PATH"
           docker exec "$WOOBE_ACCEPTANCE_POSTGRES_CONTAINER" \
             sh -c "pg_dump --version | grep -Eq ' 17\\.'"
-      - name: Migration rollback, legacy Run backfill, and re-upgrade
+      - name: Historical rollback, legacy Run backfill, and forward upgrade
         run: |
           set -euo pipefail
-          uv run alembic -c packages/woobe-core/alembic.ini upgrade head
+          # Exercise reversible historical migrations before introducing durable ASaC history.
+          uv run alembic -c packages/woobe-core/alembic.ini upgrade 0069
 
           # Regression probe: 0068 was already applied on developer databases before
           # runtime-environment External Context values were introduced. The new
@@ -282,7 +283,7 @@ jobs:
           );
           SQL
 
-          uv run alembic -c packages/woobe-core/alembic.ini upgrade head
+          uv run alembic -c packages/woobe-core/alembic.ini upgrade 0067
 
           backfill_probe="$(
             docker exec -e PGPASSWORD "$WOOBE_ACCEPTANCE_POSTGRES_CONTAINER" \
