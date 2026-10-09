@@ -98,6 +98,28 @@ def draft_router(prefix, builder, kind):
             "X-Woobe-Record-Digest": receipt["record_digest"],
             "Cache-Control": "no-store"})
 
+    @router.get("/revisions/{revision_id}/author/receipt")
+    async def revision_author_receipt(project_id: UUID, resource_id: UUID, revision_id: str, request: Request):
+        result = await invoke(store().author_transfer(project_id=project_id,
+            resource_id=resource_id, revision_id=revision_id, principal=actor(request)))
+        if isinstance(result, JSONResponse):
+            return result
+        receipt, _ = result
+        return response(receipt)
+
+    @router.get("/revisions/{revision_id}/author")
+    async def revision_author(project_id: UUID, resource_id: UUID, revision_id: str, request: Request):
+        result = await invoke(store().author_transfer(project_id=project_id,
+            resource_id=resource_id, revision_id=revision_id, principal=actor(request)))
+        if isinstance(result, JSONResponse):
+            return result
+        receipt, content = result
+        return Response(content=content, media_type="application/gzip", headers={
+            "Content-Length": str(receipt["size_bytes"]), "Cache-Control": "no-store",
+            "X-Woobe-Transport-Sha256": receipt["transport_digest"],
+            "X-Woobe-Author-Digest": receipt["author_digest"],
+            "X-Woobe-Record-Digest": receipt["record_digest"]})
+
     @router.get("/operations/{operation_id}")
     async def operation(project_id: UUID, resource_id: UUID, operation_id: UUID, request: Request):
         return response(await invoke(store().operation(project_id=project_id, resource_id=resource_id, operation_id=operation_id, principal=actor(request))))

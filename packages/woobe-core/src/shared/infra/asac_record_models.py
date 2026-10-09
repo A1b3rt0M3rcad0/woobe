@@ -22,6 +22,7 @@ class ASaCRevisionColumns:
     resource_uid: Mapped[UUID]
     revision_id: Mapped[str] = mapped_column(String(39))
     artifact_id: Mapped[UUID]
+    author_artifact_id: Mapped[UUID | None] = mapped_column(nullable=True)
     document: Mapped[dict] = mapped_column(JSON)
     actor: Mapped[str] = mapped_column(String(96))
 

@@ -14,6 +14,7 @@ from modules.package.entrypoint import (
     LookupPackageOperationRequest,
     ResumePackageOperationRequest,
     build_package_service,
+    build_snapshot_artifacts,
 )
 from shared.infra.errors import AuthenticationError
 from woobe_api.http.shared.openapi_contracts import request_body_contract
@@ -134,6 +135,20 @@ async def upload(project_id: UUID, request: Request, locked: bool = False):
                 ),
                 201,
             )
+    except PackageError as exc:
+        return failure(exc)
+
+
+@router.post("/author-uploads", status_code=201)
+async def upload_author(project_id: UUID, request: Request):
+    try:
+        authors, actor = build_snapshot_artifacts().authors, principal(request)
+        await authors.authorize(project_id, actor)
+        async with request.form(max_files=1, max_fields=0) as form:
+            file = form.get("file")
+            if not isinstance(file, UploadFile) or len(form.multi_items()) != 1:
+                raise PackageError("PACKAGE_REQUEST_INVALID", "Upload requires one author-source file")
+            return response(await authors.upload(project_id=project_id, principal=actor, stream=file.file), 201)
     except PackageError as exc:
         return failure(exc)
 

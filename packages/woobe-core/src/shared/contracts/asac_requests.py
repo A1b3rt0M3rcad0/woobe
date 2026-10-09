@@ -66,6 +66,7 @@ class RegisterASaCRevision(StrictASaCRequest):
     operation_id: UUID
     draft_id: UUID
     expected_generation: StrictInt = Field(ge=1)
+    author_upload_id: UUID | None = None
     record: ASaCRevision
     component_uids: dict[StrictStr, UUID] = Field(max_length=1024)
     provider_uids: dict[StrictStr, UUID] = Field(default_factory=dict, max_length=1024)
