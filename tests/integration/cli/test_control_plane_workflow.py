@@ -693,11 +693,12 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
     )
     assert agent["id"] == agent_replay["id"]
     agent_id = agent["id"]
-    unknown_update = await cli.run(
-        "project", "agent", "update", agent_id,
-        body={"nmae": "Silently ignored edits must be rejected"}, expected=2,
-    )
-    assert unknown_update["error"]["http_status"] == 422
+    for unknown_value in ("Silently ignored edits must be rejected", None):
+        unknown_update = await cli.run(
+            "project", "agent", "update", agent_id,
+            body={"nmae": unknown_value}, expected=2,
+        )
+        assert unknown_update["error"]["http_status"] == 422
     assert (await cli.data("project", "agent", "get", agent_id))["name"] == agent["name"]
     await cli.data(
         "project",

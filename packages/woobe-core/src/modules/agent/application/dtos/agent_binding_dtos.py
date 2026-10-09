@@ -1,7 +1,7 @@
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from modules.agent.application.dtos.behavior_dtos import BehaviorSpecification
 from modules.agent.domain.enums import AgentStatus, AgentType, Provider, SessionMode
@@ -30,6 +30,8 @@ class CreateAgentInput(BaseModel):
 
 
 class UpdateAgentInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     name: str | None = None
     description: str | None = None
     behavior_spec: BehaviorSpecification | None = None

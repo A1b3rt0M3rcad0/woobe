@@ -23,6 +23,9 @@ class UpdateAgentController(Controller):
         if request.metadata.get("agent_operation") == "archive":
             raw = {"status": "archived"}
         else:
+            # Validate every supplied key before retaining the existing null
+            # omission behavior. Unknown null-valued keys are still typos.
+            UpdateAgentInput.model_validate(request.body or {})
             raw = {
                 key: value
                 for key, value in (request.body or {}).items()

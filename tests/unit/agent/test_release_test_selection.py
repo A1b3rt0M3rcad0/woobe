@@ -14,7 +14,7 @@ from shared.contracts.errors import ConflictError, NotFoundError, ValidationErro
 
 def test_agent_patch_rejects_unknown_fields_instead_of_dropping_them():
     from pydantic import ValidationError as InputValidationError
-    from modules.agent.application.dtos.ai_dtos import UpdateAgentInput
+    from modules.agent.entrypoint import UpdateAgentInput
 
     assert UpdateAgentInput.model_json_schema()["additionalProperties"] is False
     with pytest.raises(InputValidationError):
@@ -22,6 +22,27 @@ def test_agent_patch_rejects_unknown_fields_instead_of_dropping_them():
             {"name": "Support", "unexpected_audit_field": True}
         )
     assert UpdateAgentInput.model_validate({"name": "Support"}).name == "Support"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("value", [True, None])
+async def test_public_agent_patch_controller_rejects_unknown_keys_before_mutation(
+    value,
+):
+    from pydantic import ValidationError as InputValidationError
+    from modules.agent.presentation.controllers.update_agent_controller import (
+        UpdateAgentController,
+    )
+
+    use_case = N(execute=AsyncMock())
+    request = N(
+        path_params={"agent_id": uuid4()},
+        metadata={},
+        body={"name": "Support", "unexpected_audit_field": value},
+    )
+    with pytest.raises(InputValidationError):
+        await UpdateAgentController(use_case).handle(request)
+    use_case.execute.assert_not_awaited()
 
 
 @pytest.mark.asyncio
