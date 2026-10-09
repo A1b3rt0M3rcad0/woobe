@@ -301,3 +301,73 @@ The CLI saves pending identity before acceptance and writes an append-only,
 destination-scoped documentary receipt afterward. Local mirror failure cannot
 roll back a remote commit and does not authorize a second publication. Read-only
 original-operation reconciliation retries the local mirror without another POST.
+
+### Versioned Network runtime identity
+
+New Network Candidates advertise `network-execution-runtime@2` and retain that
+scope in their ledger (`0089`). Historical Candidate hashes and native
+`composition_hash` values remain unchanged. Native composition hashes include
+exact stored snapshot selectors; the ASaC execution identity includes topology,
+settings, full constituent execution hashes, frozen overrides and effective
+external context, excluding only lifecycle copy IDs/version/status metadata.
+The legacy override's `pinned_release_id` repeats the loaded snapshot selection
+and is excluded; executable overrides and unknown future fields remain included.
+This allows an exact immutable constituent copy to preserve execution identity
+while retaining distinct storage identities. Source/Release ownership and content
+must still be independently verified. Scope is unavailable for older ledgers;
+it is never silently asserted or rewritten. Shared Go/Python digest fixtures
+cover the normalized payload, and differential tests reject changed content,
+missing closure, wrong ownership and unsupported selectors.
+
+The Agent-owned frozen publication gateway is internal composition infrastructure,
+not a client HTTP endpoint. Each constituent copy verifies current Agent authority
+and exact snapshot hash, uses the existing Agent transaction owner, and commits
+its native Release plus original parent-scoped operation receipt together. It
+never changes standalone Agent environment selection. The Network publisher will
+coordinate these receipts through its own durable preparation and finalization;
+this foundation does not yet advertise exact Network publication.
+
+
+## Exact Network publication and durable constituent preparation
+
+Migration `0089` retains Candidate runtime scope. New Network Candidates use
+`network-execution-runtime@2`: graph and routing, complete semantic child runtime
+digests, overrides and effective external-context contracts remain executable
+identity; immutable lifecycle reference IDs/versions are storage identity. Legacy
+Candidate evidence is not rewritten; prepare and evaluate a new scoped Candidate.
+
+`asac.candidate_publication_kinds` now includes Agent and Network. Exact Network
+publication requires its frozen ready Candidate and passed exact Evaluation,
+current `network:version` plus constituent `agent:version` authorization and fresh
+binding fingerprints. It does not read current Staging as publication source or
+change Production/native Draft/Staging/standalone Agent selections.
+
+Network accepts an original operation/preparation before calling the Agent-owned
+frozen-publication gateway. Each child copy has a deterministic original operation
+identity; reuse and immutable receipts commit in its Agent owner transaction.
+The final Network Release, publication receipt, constituent retention references
+and preparation terminal state commit together in the Network owner transaction.
+No transaction spans provider IO or another owner's write.
+
+`GET /asac/publications/{id}` exposes preparation counts or immutable publication.
+`POST /asac/publications/{id}/reconcile` resumes only the original preparation,
+reauthorizing and checking Candidate/Evaluation/bindings before each child and
+final commit. `POST /asac/publications/{id}/cancel` with a reason seals unfinished
+preparation without deleting already copied immutable children. Original accepted
+operation receipts never change; a replayed original POST returns that acceptance,
+not a second execution. Cancellation cannot undo a final published Network.
+
+Migration `0090` protects publication/constituent ledgers, original operation
+receipts and executable content of retained native Releases. Preparations allow
+append-only child observations and terminal transitions. References retain child
+snapshots even across partial failures. Downgrade refuses retained evidence.
+Existing Production activation metadata is distinct from immutable executable
+content. This phase still does not implement fenced deployment or signed offline
+server attestation; Git remains declared and local mirrors are authenticated-fetch
+observations with content-integrity checks.
+
+Regression coverage includes real PostgreSQL publication, direct tamper attempts,
+controlled final-commit failures, original replay, deterministic child reuse,
+resume/cancel and unchanged standalone environments. CLI recovery mirrors terminal
+publication/cancellation only after reading original acceptance; it never repeats
+publication on an uncertain outcome.

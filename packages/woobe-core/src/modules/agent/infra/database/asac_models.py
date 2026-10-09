@@ -1,4 +1,4 @@
-from sqlalchemy import CheckConstraint, ForeignKeyConstraint, UniqueConstraint
+from sqlalchemy import CheckConstraint, ForeignKeyConstraint, UniqueConstraint, Index, text
 from shared.infra.database.base import BaseModel
 from shared.infra.asac_record_models import ASaCDraftColumns, ASaCRevisionColumns, ASaCOperationColumns, ASaCCandidateColumns
 
@@ -27,6 +27,8 @@ class ASaCOperationModel(ASaCOperationColumns, BaseModel):
     __tablename__ = "asac_operations"
     __table_args__ = (
         UniqueConstraint("project_id", "resource_id", "actor", "operation_id", name="uq_agent_asac_operation_identity"),
+        Index("ix_agent_asac_constituent_release", text("(result::jsonb ->> 'release_id')"),
+            postgresql_where=text("result::jsonb ? 'parent_operation_id'")).ddl_if(dialect="postgresql"),
         {"schema": "agent"},
     )
 

@@ -38,5 +38,10 @@
     "scope": "definition",
     "json": "{\"nested\":{\"absent\":[],\"empty\":\"\",\"enabled\":false}}",
     "digest": "sha256:f3985b954aa4215fbd141c69feeadaabe8d1b1aa069e3d45d4b8e304a8e9bab1"
+  },
+  {
+    "scope": "network-execution-runtime",
+    "json": "{\"schema_version\":\"2\",\"definition\":{\"root_node_id\":\"12345678-1234-4321-8321-123456789011\",\"nodes\":[{\"id\":\"12345678-1234-4321-8321-123456789011\",\"agent_id\":\"12345678-1234-4321-8321-123456789012\",\"label\":\"Suporte\",\"binding\":{\"runtime_digest\":\"sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\"}}],\"edges\":[],\"settings\":{\"session_mode\":\"stateless\",\"temperature\":0.7}},\"bindings\":{\"12345678-1234-4321-8321-123456789011\":{\"node_id\":\"12345678-1234-4321-8321-123456789011\",\"agent_id\":\"12345678-1234-4321-8321-123456789012\",\"runtime_digest\":\"sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\",\"session_mode\":\"stateless\",\"snapshot_override\":{\"provider\":\"custom\",\"model\":\"exact\",\"external_context_contract\":null}}},\"external_context_contract\":null}",
+    "digest": "sha256:7e14954b49f51c1560195440f1e0b64e8b5a56e9d7a6a6ffab43eabb16d5616f"
   }
 ]

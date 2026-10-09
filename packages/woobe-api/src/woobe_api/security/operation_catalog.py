@@ -13,6 +13,10 @@ from shared.security.control_plane import (
 _REVIEWED = [
     ("POST", "/projects/{project_id}/agents/{resource_id}/asac/candidates", "agent:version"),
     ("POST", "/projects/{project_id}/agents/{resource_id}/asac/publications", "agent:version"),
+    ("POST", "/projects/{project_id}/networks/{resource_id}/asac/publications", "network:version"),
+    ("GET", "/projects/{project_id}/networks/{resource_id}/asac/publications/{publication_id}", "network:read"),
+    ("POST", "/projects/{project_id}/networks/{resource_id}/asac/publications/{publication_id}/reconcile", "network:version"),
+    ("POST", "/projects/{project_id}/networks/{resource_id}/asac/publications/{publication_id}/cancel", "network:version"),
     ("GET", "/projects/{project_id}/agents/{resource_id}/asac/publications/{publication_id}", "agent:read"),
     ("POST", "/projects/{project_id}/agents/{resource_id}/asac/candidates/{candidate_id}/evaluations", "run:execute"),
     ("GET", "/projects/{project_id}/agents/{resource_id}/asac/evaluations/{evaluation_id}", "run:read"),

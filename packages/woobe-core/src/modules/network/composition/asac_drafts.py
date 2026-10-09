@@ -33,3 +33,13 @@ def build_network_asac_evaluations(*, artifacts, preparation):
 def build_network_candidate_admission_reader():
     from modules.network.infra.services.candidate_evaluation_runtime import NetworkCandidateRuntimeAdmissionReader
     return NetworkCandidateRuntimeAdmissionReader(SESSION_FACTORY)
+
+
+def build_network_asac_publications(*, artifacts, preparation):
+    from modules.agent.entrypoint import build_agent_frozen_publication_gateway
+    from modules.network.infra.database.asac_models import ASaCPublicationModel
+    from modules.network.infra.services.asac_native_publisher import NetworkASaCNativePublisher
+    from modules.network.infra.services.asac_publication_store import NetworkASaCPublicationStore
+    return NetworkASaCPublicationStore(evaluations=build_network_asac_evaluations(artifacts=artifacts, preparation=preparation),
+        publications=ASaCPublicationModel, publisher=NetworkASaCNativePublisher(),
+        constituents=build_agent_frozen_publication_gateway())

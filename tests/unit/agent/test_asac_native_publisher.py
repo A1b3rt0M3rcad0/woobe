@@ -36,3 +36,28 @@ async def test_exact_native_agent_publication_copies_or_reuses_without_selection
     with pytest.raises(ConflictError,match="RUNTIME_CHANGED"):
         await AgentASaCPublisher().publish(session=session,project_id=project,resource_id=agent,
             candidate=candidate,principal=N(),reason="Invalid source")
+
+
+@pytest.mark.asyncio
+async def test_constituent_owner_snapshot_projection_keeps_native_hash_and_scope():
+    import json
+    from modules.agent.infra.database.frozen_snapshot_reader import AgentFrozenSnapshotReader
+    project, agent, snapshot = uuid4(), uuid4(), uuid4()
+    source = AgentReleaseModel(id=snapshot, project_id=project, agent_id=agent,
+        version=snapshot.hex, status="archived", snapshot_kind="candidate",
+        session_mode="stateless", name="Frozen", provider="custom", model="exact",
+        runtime_config={"execution_strategy": "standard"})
+    source.provider_model_id = uuid4()
+    session = N(get=AsyncMock(return_value=source))
+    from modules.agent.application.execution_snapshot import build_agent_execution_snapshot
+    reader = AgentFrozenSnapshotReader(snapshot_builder=build_agent_execution_snapshot)
+    projection = await reader.read(session, project_id=project, resource_id=agent,
+        snapshot_id=snapshot, expected_kind="candidate")
+    assert projection["runtime_digest"] == "sha256:" + hash_agent_execution_snapshot(frozen_release_entity(source))
+    assert projection["runtime_snapshot"]["model"] == "exact"
+    json.dumps(projection)
+    for field, value in (("project_id", uuid4()), ("resource_id", uuid4()), ("expected_kind", "release")):
+        arguments = dict(project_id=project, resource_id=agent, snapshot_id=snapshot, expected_kind="candidate")
+        arguments[field] = value
+        with pytest.raises(ConflictError, match="SOURCE_INVALID"):
+            await reader.read(session, **arguments)

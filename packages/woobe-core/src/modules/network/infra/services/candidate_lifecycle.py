@@ -7,7 +7,8 @@ from modules.network.domain.environment_bindings import validate_network_environ
 from modules.network.domain.graph import composition_hash
 from modules.network.infra.database.models import NetworkVersionModel
 from modules.network.infra.database.asac_models import ASaCCandidateModel
-from shared.contracts.asac import asac_digest
+from modules.agent.contract_boundary import hash_agent_execution_snapshot
+from modules.network.domain.execution_identity import NETWORK_RUNTIME_SCOPE, network_runtime_digest
 from shared.contracts.errors import ConflictError
 from shared.infra.asac_candidate_store import seal_candidate
 from shared.presentation.contracts import OperationResult
@@ -42,6 +43,7 @@ class NetworkCandidateLifecycleHandler:
                 raise ConflictError("ASAC_CANDIDATE_EVIDENCE_INVALID: exact Agent candidate is unavailable")
             bindings[str(node.id)] = self.service._release_binding_payload(node.id, node.agent_id, release, "candidate")
             bindings[str(node.id)]["snapshot_override"]["external_context_contract"] = release.external_context_contract
+            bindings[str(node.id)]["runtime_digest"] = "sha256:" + hash_agent_execution_snapshot(release)
         digest = composition_hash(parsed, bindings)
         snapshot_id = UUID(body["candidate_snapshot_id"])
         version = await session.get(NetworkVersionModel, snapshot_id)
@@ -60,21 +62,19 @@ class NetworkCandidateLifecycleHandler:
                 session.add(version)
                 await session.flush()
             result = {"id": str(version.id), "network_id": str(network_id), "snapshot_kind": "candidate",
-                "runtime_digest": asac_digest("network-candidate-runtime", {"composition_hash": digest,
-                    "external_context_contract": version.effective_external_context_contract}),
+                "runtime_digest": network_runtime_digest(parsed, bindings, version.effective_external_context_contract),
                 "configuration_ready": True, "execution_ready": True}
         else:
             if (version is None or version.project_id != project or version.network_id != network_id
                 or version.kind != "candidate" or version.definition != definition or version.resolved_bindings != bindings
                 or version.composition_hash != digest):
                 raise ConflictError("ASAC_CANDIDATE_EVIDENCE_INVALID: exact Network candidate differs from its sealed closure")
-            runtime_digest = asac_digest("network-candidate-runtime", {"composition_hash": digest,
-                "external_context_contract": version.effective_external_context_contract})
+            runtime_digest = network_runtime_digest(parsed, bindings, version.effective_external_context_contract)
             if runtime_digest != body["expected_runtime_digest"]:
                 raise ConflictError("ASAC_CANDIDATE_EVIDENCE_INVALID: executable Network snapshot changed")
             result = await seal_candidate(session, ASaCCandidateModel, project_id=project, resource_id=network_id,
                 candidate_id=UUID(body["candidate_id"]), preparation_operation_id=UUID(body["preparation_operation_id"]),
                 snapshot_id=snapshot_id, runtime_digest=runtime_digest, native_bindings=bindings,
-                runtime_fingerprints=body["runtime_fingerprints"])
+                runtime_fingerprints=body["runtime_fingerprints"], runtime_digest_scope=NETWORK_RUNTIME_SCOPE)
             result.update(configuration_ready=True, execution_ready=True)
         return OperationResult(body={"success": True, "data": result})
