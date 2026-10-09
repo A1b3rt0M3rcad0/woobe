@@ -243,3 +243,5 @@ create outcomes persist an intent that blocks replay until explicit UUID pull.
 Registered bulk operations include Surfaces after their targets. Agent/Network
 dry runs validate exact server package plans; Surface dry runs report local and
 destination/CAS identity checks, with final native DTO validation on apply.
+
+Exact evaluated Agent publication uses `woobe agent '@support' publish --candidate CANDIDATE_UUID --evaluation EVALUATION_UUID --notes 'Validated update' --yes`, then `publication PUBLICATION_UUID`. It preserves Production and recovers uncertain acceptance/local receipt failures through `draft reconcile`. See [the server contract](runtime/ASAC_HISTORY.md#exact-evaluated-agent-publication).
