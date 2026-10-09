@@ -65,7 +65,7 @@ def draft_router(prefix, builder, kind, candidate_builder=None, evaluation_build
     if deployment_builder is not None:
         def deployments():
             return deployment_builder(artifacts=build_snapshot_artifacts(),preparation=build_candidate_preparation(),
-                environment_reader=build_asac_environment_binding_reader())
+                environment_reader=build_asac_environment_binding_reader(),policy=build_project_lifecycle_policy_reader())
 
         @router.post('/deployment-plans')
         async def deployment_plan(project_id: UUID,resource_id: UUID,body: PlanASaCDeployment,request: Request):
@@ -258,3 +258,5 @@ def draft_router(prefix, builder, kind, candidate_builder=None, evaluation_build
         return response(await invoke(store().operation(project_id=project_id, resource_id=resource_id, operation_id=operation_id, principal=actor(request))))
 
     return router
+
+from modules.core.entrypoint import build_project_lifecycle_policy_reader

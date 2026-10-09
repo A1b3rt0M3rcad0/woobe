@@ -52,3 +52,6 @@ __all__ = [
 
 from modules.core.composition.public_api import build_asac_environment_binding_reader
 __all__.append('build_asac_environment_binding_reader')
+
+from modules.core.composition.public_api import build_project_lifecycle_policy_reader, build_project_lifecycle_policy_service
+from modules.core.composition.public_api import ChangeProjectLifecyclePolicy

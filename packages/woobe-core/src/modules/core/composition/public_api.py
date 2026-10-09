@@ -76,3 +76,16 @@ __all__ = [
 def build_asac_environment_binding_reader():
     from modules.core.infra.database.asac_binding_reader import ASaCEnvironmentBindingReader
     return ASaCEnvironmentBindingReader()
+
+
+def build_project_lifecycle_policy_reader():
+    from modules.core.infra.database.asac_policy import ProjectLifecyclePolicyReader
+    return ProjectLifecyclePolicyReader()
+
+
+def build_project_lifecycle_policy_service():
+    from modules.core.infra.database.asac_policy import ProjectLifecyclePolicyService
+    from shared.composition_resources import SESSION_FACTORY
+    return ProjectLifecyclePolicyService(SESSION_FACTORY)
+
+from modules.core.application.dtos.asac_policy import ChangeProjectLifecyclePolicy

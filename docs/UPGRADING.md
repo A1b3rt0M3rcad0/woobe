@@ -92,3 +92,30 @@ After an environment's first ASaC selection, legacy status/pointer writes are
 rejected for that environment. Use a new exact plan with current generation,
 current qualification and an owned environment lease. Agent Releases remain
 immutable and can be selected independently by both Staging and Production.
+
+### ASaC Project lifecycle policy (0095–0096)
+
+Apply both migrations before exposing Project lifecycle policy. Existing
+Projects remain explicit legacy mode until an administrator enables managed
+mode using expected policy generation zero and a stable operation UUID. Every
+new accepted policy change increments generation; identical replay does not.
+Changes invalidate existing deployment plans. Policy changes require
+`project:access:write`; optional stable Production actors narrow existing
+permissions and never grant them.
+
+Managed mode blocks legacy promotion, including Web and Package writes that
+would create an unqualified immutable Release or bypass fenced environment
+selection. Keep existing runtime keys and in-flight Runs; enabling the policy
+does not rewrite existing executable snapshots. Deployers must use exact
+Candidate evaluation/publication and deployment plans/leases. Do not silently
+disable managed mode to make an old client work.
+
+0096 permits normal outbox delivery fields to change while preserving policy
+receipt/event content. Policy audit is append-only and generation cannot reset.
+These migrations deliberately refuse downgrades that would remove authority;
+use an explicit audited policy change or a reviewed forward migration.
+
+Migration `0097` checks the captured Project lifecycle policy again at deferred
+deployment commit. A changed policy generation or managed mode rejects the
+transaction, and managed Production also checks the stable actor allowlist.
+Apply migrations before serving traffic; this guard does not grant permissions.

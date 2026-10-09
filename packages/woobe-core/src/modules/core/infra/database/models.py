@@ -318,3 +318,5 @@ class InboxEventModel(BaseInbox):
         Index("ix_core_inbox_correlation_id", "correlation_id"),
         {"schema": "core"},
     )
+
+from modules.core.infra.database.asac_policy_models import ProjectLifecyclePolicyModel, ProjectLifecyclePolicyOperationModel  # noqa: F401

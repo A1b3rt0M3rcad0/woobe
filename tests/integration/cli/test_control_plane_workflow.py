@@ -33,7 +33,7 @@ from shared.security.control_plane import (
 )
 
 CLI_COMMIT = os.environ.get(
-    "WOOBE_TEST_CLI_SHA", "b4034475e49aead88cf59f1cdbe7e97dae3ed302"
+    "WOOBE_TEST_CLI_SHA", "247e33ae66f9874e1827877504288944a8898cfe"
 )
 
 
@@ -1219,6 +1219,8 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
     )
     await exercise_asac_deployments(cli, "Agent", agent_id, agent_publication)
     await exercise_asac_deployments(cli, "Network", network_id, network_publication)
+    cli.policy_denied_key=builder_key
+    await exercise_asac_project_policy(cli, agent_id, agent_publication, agent_body, definition, network_id, network_publication)
     # CAS applies before mutation; retrying a completed rotation recovers the same key.
     rotated, rotated_key = await cli.issue(
         "workspace",
@@ -1652,7 +1654,7 @@ async def exercise_asac_isolated_drafts(cli, kind, resource_id):
     assert not unknown["complete"] and not unknown["retry_authorized"]
     observed = (await cli.run(kind.lower(),resource_id,"current","--env","production"))["data"]
     assert observed["snapshot_id"] == export["source"]["snapshot_id"]
-    return {"publication": publication, "registry": registry}
+    return {"publication": publication, "registry": registry, "binding_spec": binding_spec}
 
 @pytest.mark.asyncio
 async def test_cli_categories_pin_authority_and_preflight_matches_requests(cli):
@@ -2438,3 +2440,185 @@ async def exercise_asac_deployments(cli, kind, resource_id, publication):
     no_op=await cli.data("request","POST",base+"/deployments",body={"operation_id":str(uuid4()),"plan_id":no_op_plan["plan_id"],"environment":"production","leases":[no_op_proof]})
     assert not no_op["selection_changed"] and no_op["generation_after"]==receipt["generation_after"]
     await cli.data("request","POST",base+"/leases/release",body={**no_op_proof,"operation_id":str(uuid4()),"scope":"production"})
+
+
+async def exercise_asac_project_policy(cli, agent_id, publication, agent_body, definition, network_id, network_publication):
+    from sqlalchemy.exc import DBAPIError
+    policy_path=f"/core/projects/{cli.project_id}/lifecycle-policy"
+    base=f"/projects/{cli.project_id}/agents/{agent_id}/asac"
+    original=await cli.data("project","lifecycle","show")
+    assert original['generation']==0 and not original['managed']
+    current=(await cli.run("agent",agent_id,"current","--env","staging"))["data"]
+    plan=await cli.data("request","POST",base+"/deployment-plans",body={
+        "operation_id":str(uuid4()),"release_id":publication['publication']['release_id'],
+        "environment":"staging","expected_generation":current['environment_generation'],
+        "reason":"Before policy change"})
+    body={'operation_id':str(uuid4()),'expected_generation':0,'managed':True,
+          'production_actors':[],'reason':'Enable evaluated lifecycle'}
+    await cli.run("request","PUT",policy_path,body=body,key=cli.policy_denied_key,expected=4)
+    changed=await cli.data("project","lifecycle","update",body=body)
+    assert changed['policy']['generation']==1 and changed['policy']['managed']
+    assert await cli.data("request","PUT",policy_path,body=body)==changed
+    assert await cli.data("project","lifecycle","operation",body['operation_id'])==changed
+    await cli.run("request","PUT",policy_path,body={**body,'operation_id':str(uuid4())},expected=6)
+    lease=await cli.data("request","POST",base+"/leases/acquire",body={
+        "operation_id":str(uuid4()),"workflow_id":str(uuid4()),"scope":"staging","ttl_seconds":120})
+    proof={key:lease[key] for key in ('lease_id','workflow_id','fencing_token')}
+    stale=await cli.run("request","POST",base+"/deployments",body={
+        'operation_id':str(uuid4()),'plan_id':plan['plan_id'],'environment':'staging','leases':[proof]},expected=6)
+    assert stale['error']['http_status']==409
+    await cli.data("request","POST",base+"/leases/release",body={
+        **proof,'operation_id':str(uuid4()),'scope':'staging'})
+    # A new legacy resource is still authorable, but promotion cannot bypass
+    # the managed Project gate even before any ASaC selection exists for it.
+    legacy=await cli.data('project','agent','create',body={**agent_body,'name':'Managed legacy probe'})
+    draft=await cli.data('project','agent','release','create',legacy['id'],body={
+        'project_id':cli.project_id,'agent_id':legacy['id'],'version':'auto'})
+    rejected=await cli.run('project','agent','release','promote',legacy['id'],draft['id'],
+        body={'target_status':'staging'},expected=6)
+    assert rejected['error']['http_status']==409
+    assert rejected['error']['domain_code']=='ASAC_PROJECT_MANAGED_LIFECYCLE_REQUIRED'
+    legacy_network=await cli.data('project','network','create',body={'name':'Managed network probe'})
+    legacy_network=await cli.data('project','network','draft','update',legacy_network['id'],body={
+        'project_id':cli.project_id,'name':'Managed network probe',
+        'expected_revision':legacy_network['draft_revision'],'definition':definition})
+    network_preview=await cli.data('project','network','promotion','preview',legacy_network['id'],body={
+        'project_id':cli.project_id,'environment':'staging'})
+    network_rejected=await cli.run('project','network','promotion','create',legacy_network['id'],body={
+        'project_id':cli.project_id,'environment':'staging','expected_revision':legacy_network['draft_revision'],
+        'approved_action_ids':[item['id'] for item in network_preview.get('actions',[])]},expected=6)
+    assert network_rejected['error']['http_status']==409
+    assert network_rejected['error']['domain_code']=='ASAC_PROJECT_MANAGED_LIFECYCLE_REQUIRED'
+    restricted=await cli.data('request','PUT',policy_path,body={
+        **body,'operation_id':str(uuid4()),'expected_generation':1,
+        'production_actors':['control:'+str(uuid4())],'reason':'Restrict production actor'})
+    observed=(await cli.run('agent',agent_id,'current','--env','production'))['data']
+    await cli.run('request','POST',base+'/deployment-plans',body={
+        'operation_id':str(uuid4()),'release_id':publication['publication']['release_id'],
+        'expected_generation':observed['environment_generation'],'environment':'production',
+        'reason':'Unauthorized production actor'},expected=4)
+    allowed=await cli.data('request','PUT',policy_path,body={
+        **body,'operation_id':str(uuid4()),'expected_generation':2,
+        'production_actors':[changed['actor']],'reason':'Allow the qualified deployer'})
+    assert allowed['policy']['generation']==3
+    allowed_plan=await cli.data('request','POST',base+'/deployment-plans',body={
+        'operation_id':str(uuid4()),'release_id':publication['publication']['release_id'],
+        'expected_generation':observed['environment_generation'],'environment':'production',
+        'reason':'Authorized production actor'})
+    assert allowed_plan['policy']==allowed['policy']
+    engine=create_engine(Settings());sessions=create_session_factory(engine)
+    try:
+        # The public database guard independently enforces the captured policy.
+        # These calls exercise the same function as the deferred owner triggers.
+        import json
+        policy_guard = text("SELECT core.assert_asac_deployment_policy(:project, :environment, :actor, CAST(:evidence AS jsonb))")
+        guard_parameters = {'project': UUID(cli.project_id), 'environment': 'production',
+                            'actor': changed['actor'],
+                            'evidence': json.dumps({'policy': allowed['policy']})}
+        async with sessions.begin() as session:
+            await session.execute(policy_guard, guard_parameters)
+        for captured in ({**allowed['policy'], 'generation': 2},
+                         {**allowed['policy'], 'managed': False}, {}):
+            with pytest.raises(DBAPIError, match='ASAC_PROJECT_POLICY_STALE'):
+                async with sessions.begin() as session:
+                    await session.execute(policy_guard, {**guard_parameters,
+                        'evidence': json.dumps({'policy': captured})})
+        with pytest.raises(DBAPIError, match='ASAC_PROJECT_PRODUCTION_ACTOR_REQUIRED'):
+            async with sessions.begin() as session:
+                await session.execute(policy_guard, {**guard_parameters,
+                    'actor': 'control:' + str(uuid4())})
+        async with sessions.begin() as session:
+            await session.execute(policy_guard, {**guard_parameters,
+                'environment': 'staging', 'actor': 'control:' + str(uuid4())})
+        with pytest.raises(DBAPIError,match='ASAC_PROJECT_QUALIFIED_PUBLICATION_REQUIRED'):
+            async with sessions.begin() as session:
+                await session.execute(text("INSERT INTO agent.agent_releases SELECT (jsonb_populate_record(NULL::agent.agent_releases,to_jsonb(source)||jsonb_build_object('id',gen_random_uuid(),'version','9.9.9','status','released','snapshot_kind','release'))).* FROM agent.agent_releases source WHERE id=:id"),{'id':UUID(draft['id'])})
+        with pytest.raises(DBAPIError,match='ASAC_PROJECT_POLICY_STALE'):
+            async with sessions.begin() as session:
+                await session.execute(text('UPDATE core.asac_project_lifecycle_policies SET generation=generation-1 WHERE project_id=:id'),{'id':UUID(cli.project_id)})
+        with pytest.raises(DBAPIError,match='ASAC_PROJECT_POLICY_IMMUTABLE'):
+            async with sessions.begin() as session:
+                await session.execute(text("UPDATE core.outbox_events SET payload='{}'::jsonb WHERE id=:id"),{'id':UUID(changed['outbox_id'])})
+        async with sessions.begin() as session:
+            await session.execute(text("UPDATE core.outbox_events SET status='published',published_at=now(),locked_at=now(),locked_by='policy-probe',attempts=attempts+1 WHERE id=:id"),{'id':UUID(changed['outbox_id'])})
+    finally:
+        await engine.dispose()
+    await exercise_managed_qualified_lifecycle(cli, 'Agent', agent_id, publication)
+    await exercise_managed_qualified_lifecycle(cli, 'Network', network_id, network_publication)
+
+
+async def exercise_managed_qualified_lifecycle(cli, kind, resource_id, previous):
+    """Author, qualify and select a distinct executable after enabling policy."""
+    import yaml
+    registry = previous['registry']
+    config = yaml.safe_load((registry / '.woobe-config').read_text())
+    await cli.run(kind.lower(), '@captured', 'bindings', 'recover', cwd=registry)
+    for alias, binding in previous['binding_spec']['credentials'].items():
+        provider = next(item for item in config['resources'] if item['kind'] == 'Provider' and item['key'] == alias)
+        await cli.run('resources', 'bind', 'provider', '@' + provider['alias'], binding['credential_id'], cwd=registry)
+    resource = next(item for item in config['resources']
+                    if item['kind'] == kind and item['alias'] == 'captured')
+    descriptor = registry / config['root'] / resource['path']
+    if descriptor.suffix.lower() not in {'.yaml', '.yml', '.json'}:
+        descriptor = descriptor / (kind.lower() + '.yaml')
+    document = yaml.safe_load(descriptor.read_text())
+    if kind == 'Agent':
+        behavior = document['spec'].get('behavior')
+        if behavior is not None:
+            behavior['objective'] = (behavior.get('objective') or '') + ' Use the managed qualified lifecycle.'
+        else:
+            assert isinstance(document['spec'].get('legacy_system_prompt'), str)
+            document['spec']['legacy_system_prompt'] += ' Use the managed qualified lifecycle.'
+    else:
+        # The root runtime settings are executable configuration, independent
+        # of changes to standalone Agents or metadata.
+        settings = document['spec'].setdefault('settings', {})
+        settings['max_invocations'] = 63
+    descriptor.write_text(yaml.safe_dump(document, sort_keys=False, allow_unicode=True))
+    saved = (await cli.run(kind.lower(), '@captured', 'draft', 'push', cwd=registry))['data']
+    assert saved['generation'] >= 3
+    revision = (await cli.run(kind.lower(), '@captured', 'revision', 'create',
+                             '--message', 'Managed qualified change', cwd=registry))['data']
+    await cli.run(kind.lower(), '@captured', 'draft', 'checkpoint', revision['revision_id'], cwd=registry)
+    accepted = (await cli.run(kind.lower(), '@captured', 'stage', '--revision',
+                             revision['revision_id'], cwd=registry))['data']
+    base = f"/projects/{cli.project_id}/{kind.lower()}s/{resource_id}/asac"
+    for _ in range(120):
+        candidate = await cli.data('request', 'GET', base + '/candidates/' + accepted['candidate_id'])
+        if candidate['state'] in {'ready', 'failed', 'cancelled', 'uncertain'}:
+            break
+        await asyncio.sleep(0.5)
+    assert candidate['state'] == 'ready'
+    suite = {'schema_version':'1.0', 'suite_id':'managed-lifecycle', 'suite_version':'1',
+             'dataset_version':'1', 'cases':[{'id':'greeting','message':'Hello managed lifecycle'}]}
+    evaluation = (await cli.run(kind.lower(), '@captured', 'test', '--candidate',
+                               candidate['candidate_id'], body=suite, cwd=registry))['data']
+    assert evaluation['state'] == 'passed'
+    published = (await cli.run(kind.lower(), '@captured', 'publish', '--candidate',
+                              candidate['candidate_id'], '--evaluation', evaluation['evaluation_id'],
+                              '--notes', 'Publish managed qualified change', cwd=registry))['data']
+    assert published['state'] == 'published' and not published['production_changed']
+    assert published['release_id'] != previous['publication']['release_id']
+    current = (await cli.run(kind.lower(), resource_id, 'current', '--env', 'production'))['data']
+    plan = await cli.data('request', 'POST', base + '/deployment-plans', body={
+        'operation_id':str(uuid4()), 'release_id':published['release_id'], 'environment':'production',
+        'expected_generation':current['environment_generation'], 'reason':'Select managed qualified change'})
+    lease = await cli.data('request', 'POST', base + '/leases/acquire', body={
+        'operation_id':str(uuid4()),'workflow_id':str(uuid4()),'scope':'production','ttl_seconds':120})
+    proof = {key:lease[key] for key in ('lease_id','workflow_id','fencing_token')}
+    deployed = await cli.data('request', 'POST', base + '/deployments', body={
+        'operation_id':str(uuid4()),'plan_id':plan['plan_id'],'environment':'production','leases':[proof]})
+    assert deployed['selection_changed'] and deployed['release_id'] == published['release_id']
+    await cli.data('request', 'POST', base + '/leases/release', body={
+        **proof,'operation_id':str(uuid4()),'scope':'production'})
+    # Managed policy gates lifecycle; ordinary closed-package editing still
+    # writes a Draft and must remain available for both kinds.
+    roundtrip = cli.directory / ('managed-roundtrip-' + kind.lower())
+    roundtrip.mkdir()
+    await cli.run('init', '--root', '.woobe', cwd=roundtrip)
+    await cli.run(kind.lower(), resource_id, 'pull', '--alias', 'roundtrip',
+                  '--env', 'production', cwd=roundtrip)
+    pushed = (await cli.run(kind.lower(), '@roundtrip', 'push', cwd=roundtrip))['data']
+    assert pushed['pushed'] and pushed['environment'] == 'draft'
+    selected = (await cli.run(kind.lower(), resource_id, 'current', '--env', 'production'))['data']
+    assert selected['snapshot_id'] == published['release_id']
