@@ -430,4 +430,5 @@ __all__.extend(['build_development_resource_reader', 'prepare_existing_agent_com
 
 from modules.agent.composition.composers.asac_history_composer import build_agent_history_reader
 __all__.append("build_agent_history_reader")
-from modules.agent.composition.composers.asac_draft_composer import build_agent_asac_drafts
+from modules.agent.composition.composers.asac_draft_composer import build_agent_asac_drafts, build_agent_asac_candidates
+from modules.agent.composition.composers.candidate_snapshot_composer import create_candidate_snapshot_composer, agent_candidate_lifecycle_composer

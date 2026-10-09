@@ -9,3 +9,10 @@ def build_network_asac_drafts(*, artifacts):
         owner=DevelopmentNetworkReader(), drafts=ASaCDraftModel,
         revisions=ASaCRevisionModel, operations=ASaCOperationModel,
         identities=ASaCResourceModel, artifacts=artifacts, cursor_key=SETTINGS.secret_key)
+
+
+def build_network_asac_candidates(*, artifacts, preparation):
+    from modules.network.infra.database.asac_models import ASaCCandidateModel
+    from shared.infra.asac_candidate_store import ASaCCandidateStore
+    return ASaCCandidateStore(drafts=build_network_asac_drafts(artifacts=artifacts),
+        candidates=ASaCCandidateModel, preparation=preparation)

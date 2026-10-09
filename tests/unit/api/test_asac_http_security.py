@@ -47,3 +47,16 @@ async def test_asac_invalid_request_does_not_echo_author_or_unknown_fields():
     assert result.status_code == 422
     assert b"ASAC_REQUEST_INVALID" in result.body
     assert b"private-provider-secret" not in result.body
+
+
+@pytest.mark.parametrize("plural,identifier", [("agents", "agent_id"), ("networks", "network_id")])
+@pytest.mark.parametrize("method,suffix,permission", [("POST", "candidates", "version"), ("GET", "candidates/{candidate_id}", "read")])
+def test_candidate_routes_use_staging_authority_even_with_forged_environment(plural, identifier, method, suffix, permission):
+    project, resource = str(uuid4()), str(uuid4())
+    path = f"/projects/{project}/{plural}/{resource}/asac/" + suffix.format(candidate_id=uuid4())
+    request = Request({"type": "http", "method": method, "path": path, "query_string": b"environment=production", "headers": []})
+    allowed, params = resolve_operation(method, path)
+    assert allowed == f"{plural[:-1]}:{permission}"
+    normalized = HttpSecurityGuard._authorization_path_params(request, params)
+    assert normalized[identifier] == resource and normalized["environment"] == "staging"
+    assert resolve_operation("DELETE", path)[0] is None

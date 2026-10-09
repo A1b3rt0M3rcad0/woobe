@@ -109,91 +109,100 @@ class PackageOperationRepository:
             await authorize_phase(session, principal, operation.project_id, permission)
 
     async def accept(self, *, project_id: UUID, principal, key: str, payload: dict):
-        """Accept and pin the protected request atomically; never silently replan."""
+        async with self.session_factory.begin() as session:
+            return await self.accept_in_session(session=session, project_id=project_id,
+                principal=principal, key=key, payload=payload)
+
+    async def accept_in_session(self, *, session, project_id: UUID, principal, key: str, payload: dict):
+        """Accept in a caller-owned transaction; this method never commits it.
+
+        Owner candidate acceptance can commit its source CAS, candidate ledger
+        and native preparation operation together. Normal Package callers use
+        accept above. All existing pins, authority checks and replay guards apply.
+        """
         identity, key_digest = principal_identity(principal), self.key_digest(key)
         fingerprint = self.protected_fingerprint(project_id, payload)
         encoded = canonical_bytes(payload).decode()
         if len(encoded.encode()) > 2 << 20:
             raise PackageError("PACKAGE_LIMIT_EXCEEDED", "Apply request exceeds 2 MiB")
-        async with self.session_factory.begin() as session:
-            if session.bind.dialect.name == "postgresql":
-                material = canonical_bytes(
-                    [str(project_id), identity, key_digest.hex()]
-                )
-                lock = int.from_bytes(sha256(material).digest()[:8], "big", signed=True)
-                await session.execute(
-                    text("SELECT pg_advisory_xact_lock(:key)"), {"key": lock}
-                )
-            existing = (
-                await session.execute(
-                    select(PackageOperationModel)
-                    .where(
-                        PackageOperationModel.project_id == project_id,
-                        PackageOperationModel.actor == identity,
-                        PackageOperationModel.key_digest == key_digest,
-                    )
-                    .with_for_update()
-                )
-            ).scalar_one_or_none()
-            if existing is not None:
-                await self._authorize(session, principal, existing, write=True)
-                if not hmac.compare_digest(existing.payload_fingerprint, fingerprint):
-                    raise PackageError(
-                        "PACKAGE_IDEMPOTENCY_CONFLICT",
-                        "Idempotency key is bound to a different request",
-                    )
-                return existing, True
-            plan = await session.get(PackagePlanModel, UUID(payload["plan_id"]))
-            if plan is None or plan.project_id != project_id or plan.actor != identity:
-                raise PackageError("PACKAGE_PLAN_NOT_FOUND", "Plan is unavailable")
-            for permission in sorted(set(plan.document["required_permissions"])):
-                await authorize_phase(session, principal, project_id, permission)
-            if as_utc(plan.expires_at) <= datetime.now(UTC):
-                raise PackageError("PACKAGE_PLAN_EXPIRED", "Approved plan has expired")
-            pins = {
-                "plan_digest": plan.plan_digest,
-                "upload_id": str(plan.upload_id),
-                "artifact_digest": plan.artifact_digest,
-                "lifecycle": plan.document["lifecycle"],
-            }
-            if any(payload.get(field) != value for field, value in pins.items()):
-                raise PackageError(
-                    "PACKAGE_PLAN_MISMATCH",
-                    "Apply request differs from the approved plan",
-                )
-            upload = await session.get(PackageUploadModel, plan.upload_id)
-            if (
-                upload is None
-                or upload.project_id != project_id
-                or upload.actor != identity
-                or upload.artifact_digest != plan.artifact_digest
-                or as_utc(upload.expires_at) <= datetime.now(UTC)
-            ):
-                raise PackageError(
-                    "PACKAGE_UPLOAD_EXPIRED", "Uploaded package has expired"
-                )
-            # Owner revisions, capability identities and bindings are rechecked
-            # in the acceptance transaction against the pinned plan.
-            await self.plan_validator(session, plan, payload, principal=principal)
-            record = PackageOperationModel(
-                project_id=project_id,
-                actor=identity,
-                key_digest=key_digest,
-                payload_fingerprint=fingerprint,
-                payload_ciphertext=encrypt_secret(encoded, self.encryption_key),
-                principal_ciphertext=encode_principal(principal, self.encryption_key),
-                artifact_digest=plan.artifact_digest,
-                upload_id=plan.upload_id,
-                plan_id=plan.id,
-                lifecycle=payload["lifecycle"],
-                phases_total=len(plan.document["effects"]),
-                state="accepted",
+        if session.bind.dialect.name == "postgresql":
+            material = canonical_bytes(
+                [str(project_id), identity, key_digest.hex()]
             )
-            session.add(record)
-            await session.flush()
-            if self.registry_reserver is not None:
-                await self.registry_reserver(session, plan, record)
-            return record, False
+            lock = int.from_bytes(sha256(material).digest()[:8], "big", signed=True)
+            await session.execute(
+                text("SELECT pg_advisory_xact_lock(:key)"), {"key": lock}
+            )
+        existing = (
+            await session.execute(
+                select(PackageOperationModel)
+                .where(
+                    PackageOperationModel.project_id == project_id,
+                    PackageOperationModel.actor == identity,
+                    PackageOperationModel.key_digest == key_digest,
+                )
+                .with_for_update()
+            )
+        ).scalar_one_or_none()
+        if existing is not None:
+            await self._authorize(session, principal, existing, write=True)
+            if not hmac.compare_digest(existing.payload_fingerprint, fingerprint):
+                raise PackageError(
+                    "PACKAGE_IDEMPOTENCY_CONFLICT",
+                    "Idempotency key is bound to a different request",
+                )
+            return existing, True
+        plan = await session.get(PackagePlanModel, UUID(payload["plan_id"]))
+        if plan is None or plan.project_id != project_id or plan.actor != identity:
+            raise PackageError("PACKAGE_PLAN_NOT_FOUND", "Plan is unavailable")
+        for permission in sorted(set(plan.document["required_permissions"])):
+            await authorize_phase(session, principal, project_id, permission)
+        if as_utc(plan.expires_at) <= datetime.now(UTC):
+            raise PackageError("PACKAGE_PLAN_EXPIRED", "Approved plan has expired")
+        pins = {
+            "plan_digest": plan.plan_digest,
+            "upload_id": str(plan.upload_id),
+            "artifact_digest": plan.artifact_digest,
+            "lifecycle": plan.document["lifecycle"],
+        }
+        if any(payload.get(field) != value for field, value in pins.items()):
+            raise PackageError(
+                "PACKAGE_PLAN_MISMATCH",
+                "Apply request differs from the approved plan",
+            )
+        upload = await session.get(PackageUploadModel, plan.upload_id)
+        if (
+            upload is None
+            or upload.project_id != project_id
+            or upload.actor != identity
+            or upload.artifact_digest != plan.artifact_digest
+            or as_utc(upload.expires_at) <= datetime.now(UTC)
+        ):
+            raise PackageError(
+                "PACKAGE_UPLOAD_EXPIRED", "Uploaded package has expired"
+            )
+        # Owner revisions, capability identities and bindings are rechecked
+        # in the acceptance transaction against the pinned plan.
+        await self.plan_validator(session, plan, payload, principal=principal)
+        record = PackageOperationModel(
+            project_id=project_id,
+            actor=identity,
+            key_digest=key_digest,
+            payload_fingerprint=fingerprint,
+            payload_ciphertext=encrypt_secret(encoded, self.encryption_key),
+            principal_ciphertext=encode_principal(principal, self.encryption_key),
+            artifact_digest=plan.artifact_digest,
+            upload_id=plan.upload_id,
+            plan_id=plan.id,
+            lifecycle=payload["lifecycle"],
+            phases_total=len(plan.document["effects"]),
+            state="accepted",
+        )
+        session.add(record)
+        await session.flush()
+        if self.registry_reserver is not None:
+            await self.registry_reserver(session, plan, record)
+        return record, False
 
     async def get(self, *, project_id, principal, operation_id):
         async with self.session_factory() as session:

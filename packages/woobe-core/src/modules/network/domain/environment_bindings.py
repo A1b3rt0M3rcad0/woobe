@@ -15,6 +15,7 @@ def validate_network_environment_bindings(
         "draft": {"draft", "staging", "release"},
         "staging": {"staging", "release"},
         "production": {"release"},
+        "candidate": {"candidate"},
     }.get(environment)
     if allowed is None:
         raise NetworkEnvironmentBindingError(

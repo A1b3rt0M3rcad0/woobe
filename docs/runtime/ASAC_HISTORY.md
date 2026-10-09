@@ -202,3 +202,42 @@ revision, native bindings nor Production. A separate guarded checkout restores
 source. Legacy declared-only revisions remain executable-readable and explicitly
 report unavailable source. Migration `0084` adds nullable retained source links
 and Package-owned source custody rows without rewriting historical record bytes.
+
+## Detached native candidate preparation
+
+`asac.candidate_preparation` advertises POST `/asac/candidates` and GET
+`/asac/candidates/{candidate_id}` for both Agent and Network. Stage selects an
+exact registered revision from an isolated Draft with its expected generation.
+The server verifies the retained executable object, Root/component identities,
+scoped native bindings and current grants. It accepts the durable native Package
+operation, candidate ledger and original Stage receipt in the same owner SQL
+transaction. Object I/O and semantic planning occur outside that transaction;
+source generation and authorization are checked again before acceptance.
+
+The acceptance receipt is **preparing**, never ready or published. Durable native
+phases create detached immutable Agent snapshots and a Network snapshot with
+exact constituent candidate IDs. Final verification seals readiness and its
+runtime digest in the original native receipt transaction. Native singleton
+Draft, Staging and Production selections are unchanged. Database guards reject
+updates/deletes of candidate snapshots, including through legacy persistence.
+Partial preparation can be inspected through the returned Package operation and
+resumed through that original operation; it cannot announce an incomplete root
+as ready. Lost HTTP acceptance is recovered from the original owner operation
+receipt, never by creating a second Stage identity.
+
+Stage reads the sealed object, not current author files. The registered revision
+and selected isolated Draft must agree; a divergent current working file is not
+silently recompiled under that revision. Provider requirements need verified
+private destination bindings. Protected values are not created or copied from
+historical credentials. External Knowledge references currently need explicit
+binding support; closed portable Knowledge remains supported.
+
+CLI commands are `agent|network REF stage --revision rv_UUID --yes`, its read-only
+`--dry-run`, and `agent|network REF candidate CANDIDATE_UUID`. The companion CLI
+normalizes inspection output and checks response owner/protocol identity. This
+phase does not provide evaluation, publication or Production promotion;
+`candidate_lifecycle` and `fenced_deployment` remain false until their actual
+protocols and gates are implemented. Migration `0085` preserves historical
+revision bytes and adds owner candidate ledgers, verified revision component maps
+and immutable native candidate guards. Its downgrade refuses retained candidates
+instead of removing their protection.

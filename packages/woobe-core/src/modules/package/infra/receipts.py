@@ -200,7 +200,7 @@ class PackageTransactionReceipt:
                 self.evidence.get("artifact_component")
                 or self.evidence.get("component")
             )
-            if plan
+            if plan and plan.document.get("mode") != "candidate"
             else None
         )
         completed_actions = {
