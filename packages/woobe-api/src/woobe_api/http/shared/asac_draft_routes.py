@@ -3,7 +3,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Query, Request
 from fastapi.encoders import jsonable_encoder
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 from shared.contracts.asac_requests import OpenASaCDraft, SaveASaCDraft, RegisterASaCRevision
 from shared.contracts.errors import AuthorizationError, ConflictError, NotFoundError, ValidationError
@@ -74,6 +74,29 @@ def draft_router(prefix, builder, kind):
     @router.get("/revisions/{revision_id}")
     async def revision(project_id: UUID, resource_id: UUID, revision_id: str, request: Request):
         return response(await invoke(store().get_revision(project_id=project_id, resource_id=resource_id, revision_id=revision_id, principal=actor(request))))
+
+    @router.get("/revisions/{revision_id}/artifact/receipt")
+    async def revision_artifact_receipt(project_id: UUID, resource_id: UUID, revision_id: str, request: Request):
+        result = await invoke(store().revision_transfer(project_id=project_id,
+            resource_id=resource_id, revision_id=revision_id, principal=actor(request)))
+        if isinstance(result, JSONResponse):
+            return result
+        receipt, _ = result
+        return response(receipt)
+
+    @router.get("/revisions/{revision_id}/artifact")
+    async def revision_artifact(project_id: UUID, resource_id: UUID, revision_id: str, request: Request):
+        result = await invoke(store().revision_transfer(project_id=project_id,
+            resource_id=resource_id, revision_id=revision_id, principal=actor(request)))
+        if isinstance(result, JSONResponse):
+            return result
+        receipt, content = result
+        return Response(content=content, media_type="application/gzip", headers={
+            "Content-Length": str(receipt["size_bytes"]),
+            "X-Woobe-Transport-Sha256": receipt["transport_digest"],
+            "X-Woobe-Artifact-Digest": receipt["artifact_digest"].removeprefix("sha256:"),
+            "X-Woobe-Record-Digest": receipt["record_digest"],
+            "Cache-Control": "no-store"})
 
     @router.get("/operations/{operation_id}")
     async def operation(project_id: UUID, resource_id: UUID, operation_id: UUID, request: Request):

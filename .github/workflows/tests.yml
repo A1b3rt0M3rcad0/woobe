@@ -17,7 +17,9 @@ jobs:
   tests:
     name: tests
     runs-on: [self-hosted, Linux, X64]
-    timeout-minutes: 45
+    # Shared Docker acquisition can wait up to 40 minutes; leave the full
+    # test contract its execution budget after acquisition.
+    timeout-minutes: 90
     steps:
 
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -39,7 +41,7 @@ jobs:
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           repository: A1b3rt0M3rcad0/woobe-cli
-          ref: 74fcce94f7dff769fdbd40c441270bbeb45a6db1
+          ref: f3e10c3bcd5ac719a7340aa9ce262004a8e5938c
           path: .ci/woobe-cli
           persist-credentials: false
 
@@ -55,7 +57,7 @@ jobs:
           CGO_ENABLED: '0'
         run: |
           go mod verify
-          go build -trimpath -ldflags '-X github.com/A1b3rt0M3rcad0/woobe-cli/internal/cli.Commit=74fcce94f7dff769fdbd40c441270bbeb45a6db1' -o ../../.test-artifacts/woobe ./cmd/woobe
+          go build -trimpath -ldflags '-X github.com/A1b3rt0M3rcad0/woobe-cli/internal/cli.Commit=f3e10c3bcd5ac719a7340aa9ce262004a8e5938c' -o ../../.test-artifacts/woobe ./cmd/woobe
           ../../.test-artifacts/woobe version > ../../.test-artifacts/cli-version.json
 
       - name: Validate standalone backend test Compose contract

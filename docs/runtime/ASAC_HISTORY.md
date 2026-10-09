@@ -147,3 +147,27 @@ objects are not loaded by this endpoint; missing author objects remain
 `declared_not_retained` or `unavailable`. The capability `asac.revision_catalog`
 advertises support. Neither listing nor its CLI mirror moves a Draft head or
 changes native Draft, Staging or Production.
+
+
+## Retained executable hydration
+
+Owner-scoped GET endpoints at `/asac/revisions/{revision_id}/artifact/receipt`
+and `/artifact` transfer an immutable retained package. The owner validates
+record integrity, checks current read authority, delegates bounded archive
+verification to Package, compares artifact/definition digests and rechecks
+owner authority after I/O. No transaction spans archive encoding. Transfers
+are deterministic, bounded to 128 MiB and carry transport, record and artifact
+digests with `Cache-Control: no-store`. Missing bytes are reported as
+`ASAC_OBJECT_UNAVAILABLE`; metadata remains independently queryable.
+
+The capability `asac.retained_object_hydration` advertises this protocol.
+Hydration does not restore author YAML or native credential bindings, move a
+working head, or qualify runtime execution. Author-source availability remains
+separate from executable-object availability.
+
+
+CI backend validation has a 90-minute job budget because the shared Docker
+host can spend up to 40 minutes acquiring its exclusive validation lock. The
+complete test contract still runs after acquisition; lock wait limits, checks
+and assertions are unchanged. This budget avoids reducing a 25-minute suite
+to a few minutes when another required container/acceptance job owns Docker.

@@ -33,7 +33,7 @@ from shared.security.control_plane import (
 )
 
 CLI_COMMIT = os.environ.get(
-    "WOOBE_TEST_CLI_SHA", "74fcce94f7dff769fdbd40c441270bbeb45a6db1"
+    "WOOBE_TEST_CLI_SHA", "f3e10c3bcd5ac719a7340aa9ce262004a8e5938c"
 )
 
 
@@ -1347,6 +1347,14 @@ async def exercise_asac_isolated_drafts(cli, kind, resource_id):
     assert fetched["fetched"] == 3 and fetched["metadata_complete"]
     assert fetched["objects_available"] == "not_downloaded"
     assert not fetched["author_files_changed"] and not fetched["production_changed"]
+    hydrated = (await cli.run(kind.lower(), "@captured", "revision", "hydrate", record["revision_id"], cwd=registry))["data"]
+    assert hydrated["hydrated"] and hydrated["executable_object"] == "verified"
+    assert hydrated["author_object"] == "unavailable" and not hydrated["bindings_restored"]
+    assert not hydrated["working_head_changed"] and not hydrated["author_files_changed"]
+    assert not hydrated["production_changed"]
+    executable_path = registry / config["root"] / "objects" / "sha256" / (record["artifact_digest"].removeprefix("sha256:") + ".tar.gz")
+    assert executable_path.is_file()
+
     assert descriptor.read_bytes() == original_source
 
     reconciled = await cli.data("request","GET",base+"/operations/"+registration["operation_id"])
