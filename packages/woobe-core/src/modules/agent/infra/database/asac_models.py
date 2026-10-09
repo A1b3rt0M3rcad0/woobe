@@ -58,3 +58,16 @@ class ASaCCandidateModel(ASaCCandidateColumns, BaseModel):
         ForeignKeyConstraint(["root_snapshot_id"], ["agent.agent_releases.id"], ondelete="RESTRICT"),
         {"schema": "agent"},
     )
+
+
+from shared.infra.asac_record_models import ASaCEvaluationColumns
+
+class ASaCEvaluationModel(ASaCEvaluationColumns, BaseModel):
+    __tablename__ = "asac_evaluations"
+    __table_args__ = (
+        UniqueConstraint("project_id", "resource_id", "actor", "operation_id", name="uq_agent_asac_evaluation_operation"),
+        CheckConstraint("state IN ('accepted', 'running', 'passed', 'failed', 'uncertain')", name="ck_agent_asac_evaluation_state"),
+        ForeignKeyConstraint(["resource_id"], ["agent.agents.id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(["candidate_id"], ["agent.asac_candidates.id"], ondelete="RESTRICT"),
+        {"schema": "agent"},
+    )

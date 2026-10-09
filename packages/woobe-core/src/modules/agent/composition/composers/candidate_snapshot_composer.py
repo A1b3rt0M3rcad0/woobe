@@ -34,3 +34,5 @@ def agent_candidate_lifecycle_composer() -> TransactionalHandler:
     handler = AgentCandidateLifecycleHandler(uow, build_development_resource_reader(),
         SQLAlchemyAgentReleaseRepositoryWithProviderModels(uow))
     return TransactionalHandler(uow, handler.handle)
+
+from modules.agent.application.interfaces.candidate_execution import CandidateExecutionGrant, candidate_execution

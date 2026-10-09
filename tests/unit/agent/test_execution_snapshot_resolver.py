@@ -273,3 +273,34 @@ def test_apply_snapshot_replaces_runtime_state_instead_of_merging_environments()
     assert "knowledge_version_id" not in agent.settings
     assert "response_format" not in agent.settings
     assert agent.settings["runtime_config"] == {}
+
+
+def test_candidate_snapshot_requires_internal_exact_evaluation_scope():
+    from modules.agent.application.interfaces.candidate_execution import CandidateExecutionGrant, candidate_execution
+    project = uuid4()
+    agent = _agent(project)
+    release = _release(project, agent.id, status=ReleaseStatus.archived)
+    release.snapshot_kind = "candidate"
+    resolver = AgentExecutionSnapshotResolver()
+    def resolve(environment="staging"):
+        return resolver.resolve_loaded(project_id=project, agent=agent, environment=environment, release=release)
+    with pytest.raises(ValidationError, match="internal evaluation admission"):
+        resolve()
+    token = candidate_execution.set(CandidateExecutionGrant(project,agent.id,release.id,uuid4()))
+    try:
+        resolved = resolve()
+        assert resolved.source == "candidate" and resolved.snapshot["system_prompt"] == "release prompt"
+        for environment in ["draft", "production"]:
+            with pytest.raises(ValidationError, match="internal evaluation admission"):
+                resolve(environment)
+    finally:
+        candidate_execution.reset(token)
+    for wrong in [CandidateExecutionGrant(uuid4(),agent.id,release.id,uuid4()),
+                  CandidateExecutionGrant(project,uuid4(),release.id,uuid4()),
+                  CandidateExecutionGrant(project,agent.id,uuid4(),uuid4())]:
+        token = candidate_execution.set(wrong)
+        try:
+            with pytest.raises(ValidationError, match="internal evaluation admission"):
+                resolve()
+        finally:
+            candidate_execution.reset(token)

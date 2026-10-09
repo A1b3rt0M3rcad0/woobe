@@ -11,12 +11,12 @@ from woobe_api.http.network.runtime_environment_dependency import (
 )
 
 
-from modules.network.entrypoint import build_network_history_reader, build_network_asac_drafts, build_network_asac_candidates
+from modules.network.entrypoint import build_network_history_reader, build_network_asac_drafts, build_network_asac_candidates, build_network_asac_evaluations
 from woobe_api.http.shared.asac_draft_routes import draft_router
 from woobe_api.http.shared.asac_history_routes import history_router
 
 router = APIRouter()
-router.include_router(draft_router("/projects/{project_id}/networks/{resource_id}/asac", build_network_asac_drafts, "Network", build_network_asac_candidates))
+router.include_router(draft_router("/projects/{project_id}/networks/{resource_id}/asac", build_network_asac_drafts, "Network", build_network_asac_candidates, build_network_asac_evaluations))
 router.include_router(history_router("/projects/{project_id}/networks/{resource_id}/asac", build_network_history_reader, "Network"))
 router.include_router(resource_router)
 router.include_router(

@@ -241,3 +241,29 @@ protocols and gates are implemented. Migration `0085` preserves historical
 revision bytes and adds owner candidate ledgers, verified revision component maps
 and immutable native candidate guards. Its downgrade refuses retained candidates
 instead of removing their protection.
+
+## Versioned Candidate evaluation
+
+Owner routes accept `POST /asac/candidates/{candidate_id}/evaluations` with an
+operation UUID and a strict suite, expose `GET /asac/evaluations/{evaluation_id}`,
+and reconcile original Runs through `POST /asac/evaluations/{evaluation_id}/reconcile`.
+Agent and Network scopes require current `run:execute` for acceptance/reconciliation
+and `run:read` for inspection. Query parameters cannot change the staging authority.
+
+The original acceptance, planned native Run identities and suite/content digests
+commit together before provider I/O. Replaying the operation returns its original
+accepted receipt without another execution. Qualification is a separate owner
+ledger backed by exact native snapshots, current binding fingerprints and terminal
+SQL/journal evidence. Missing or conflicting evidence cannot pass. Network case
+Runs invoke frozen child Agent candidates through an internal server-only grant;
+public metadata and ordinary sessions cannot grant candidate execution authority.
+
+Suite/dataset/policy versions are declarations, not attestations. Server-verified
+content digests bind them to the actual bounded suite. Only `all-cases-pass@1` is
+supported; expected output uses typed canonical comparison. Failures and costs
+come from actual native Runs, never client-supplied success flags. SQL migration
+0087 protects accepted identity, planned case Run IDs and terminal evidence from
+mutation/deletion. Provider exception messages are not exported.
+
+`asac.candidate_evaluation` advertises this protocol. Publication, activation and
+fenced deployment remain separately gated until their complete implementation.

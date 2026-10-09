@@ -57,3 +57,22 @@ class ASaCOperationColumns:
     operation_id: Mapped[UUID]
     request_digest: Mapped[str] = mapped_column(String(71))
     result: Mapped[dict] = mapped_column(JSON)
+
+
+class ASaCEvaluationColumns:
+    project_id: Mapped[UUID]
+    resource_id: Mapped[UUID]
+    candidate_id: Mapped[UUID]
+    actor: Mapped[str] = mapped_column(String(96))
+    operation_id: Mapped[UUID]
+    request_digest: Mapped[str] = mapped_column(String(71))
+    state: Mapped[str] = mapped_column(String(16))
+    suite: Mapped[dict] = mapped_column(JSON)
+    suite_digest: Mapped[str] = mapped_column(String(71))
+    dataset_digest: Mapped[str] = mapped_column(String(71))
+    policy_digest: Mapped[str] = mapped_column(String(71))
+    runtime_digest: Mapped[str] = mapped_column(String(71))
+    record_digest: Mapped[str] = mapped_column(String(71))
+    binding_digest: Mapped[str] = mapped_column(String(71))
+    cases: Mapped[list] = mapped_column(JSON)
+    error_code: Mapped[str | None] = mapped_column(String(128), nullable=True)

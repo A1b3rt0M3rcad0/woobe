@@ -6,6 +6,7 @@ from typing import Any
 from uuid import UUID
 
 from modules.agent.application.skill_bindings import frozen_enabled_skills, skill_bindings
+from modules.agent.application.interfaces.candidate_execution import candidate_execution
 from modules.agent.domain.enums import AgentStatus, Provider, ReleaseStatus, SessionMode
 from modules.agent.domain.errors import AgentNotFoundError, RuntimeEnvironmentNotReadyError
 from modules.agent.domain.execution_definition import canonicalize_agent_execution_definition
@@ -339,7 +340,15 @@ class AgentExecutionSnapshotResolver:
         ):
             raise ValidationError("Pinned Agent release was not found")
 
-        source = self._validate_environment_policy(environment, release)
+        if getattr(release, "snapshot_kind", None) == "candidate":
+            grant = candidate_execution.get()
+            if (environment != "staging" or grant is None
+                or grant.project_id != project_id or grant.agent_id != agent.id
+                or grant.snapshot_id != release.id):
+                raise ValidationError("Candidate execution requires exact internal evaluation admission")
+            source = "candidate"
+        else:
+            source = self._validate_environment_policy(environment, release)
         if source == "draft" and validate_draft_projection:
             validate_agent_draft_projection(
                 getattr(agent, "settings", None),

@@ -60,3 +60,21 @@ def test_candidate_routes_use_staging_authority_even_with_forged_environment(plu
     normalized = HttpSecurityGuard._authorization_path_params(request, params)
     assert normalized[identifier] == resource and normalized["environment"] == "staging"
     assert resolve_operation("DELETE", path)[0] is None
+
+
+@pytest.mark.parametrize("plural,identifier", [("agents", "agent_id"), ("networks", "network_id")])
+@pytest.mark.parametrize("method,suffix,permission", [
+    ("POST", "candidates/{candidate_id}/evaluations", "run:execute"),
+    ("GET", "evaluations/{evaluation_id}", "run:read"),
+    ("POST", "evaluations/{evaluation_id}/reconcile", "run:execute"),
+])
+def test_evaluation_routes_cannot_escalate_environment_or_omit_native_scope(plural, identifier, method, suffix, permission):
+    project, resource = str(uuid4()), str(uuid4())
+    path = f"/projects/{project}/{plural}/{resource}/asac/" + suffix.format(candidate_id=uuid4(),evaluation_id=uuid4())
+    request = Request({"type":"http","method":method,"path":path,"query_string":b"environment=production","headers":[]})
+    allowed, params = resolve_operation(method,path)
+    assert allowed == permission
+    normalized = HttpSecurityGuard._authorization_path_params(request,params)
+    assert normalized[identifier] == resource and normalized["project_id"] == project
+    assert normalized["environment"] == "staging" and "resource_id" not in normalized
+    assert resolve_operation("DELETE",path)[0] is None
