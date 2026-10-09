@@ -2,6 +2,7 @@
 from uuid import UUID
 from sqlalchemy import Integer, JSON, String
 from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.dialects.postgresql import JSONB
 
 
 class ASaCDraftColumns:
@@ -105,6 +106,48 @@ class ASaCEnvironmentSelectionColumns:
     generation: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
     snapshot_id: Mapped[UUID | None] = mapped_column(nullable=True)
     execution_fingerprint: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    selection_authority: Mapped[str] = mapped_column(String(16), nullable=False, default='legacy', server_default='legacy')
+
+
+class ASaCDeploymentPlanColumns:
+    from datetime import datetime
+    from sqlalchemy import BigInteger, DateTime
+    project_id: Mapped[UUID]
+    resource_id: Mapped[UUID]
+    publication_id: Mapped[UUID]
+    release_id: Mapped[UUID]
+    environment: Mapped[str] = mapped_column(String(16))
+    expected_generation: Mapped[int] = mapped_column(BigInteger)
+    previous_release_id: Mapped[UUID | None] = mapped_column(nullable=True)
+    previous_fingerprint: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    actor: Mapped[str] = mapped_column(String(96))
+    operation_id: Mapped[UUID]
+    request_digest: Mapped[str] = mapped_column(String(71))
+    action: Mapped[str] = mapped_column(String(16))
+    reason: Mapped[str] = mapped_column(String(2048))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    evidence: Mapped[dict] = mapped_column(JSON().with_variant(JSONB(), "postgresql"))
+
+
+class ASaCDeploymentColumns:
+    from sqlalchemy import BigInteger
+    project_id: Mapped[UUID]
+    resource_id: Mapped[UUID]
+    plan_id: Mapped[UUID]
+    publication_id: Mapped[UUID]
+    release_id: Mapped[UUID]
+    previous_release_id: Mapped[UUID | None] = mapped_column(nullable=True)
+    environment: Mapped[str] = mapped_column(String(16))
+    generation_before: Mapped[int] = mapped_column(BigInteger)
+    generation_after: Mapped[int] = mapped_column(BigInteger)
+    actor: Mapped[str] = mapped_column(String(96))
+    operation_id: Mapped[UUID]
+    request_digest: Mapped[str] = mapped_column(String(71))
+    action: Mapped[str] = mapped_column(String(16))
+    reason: Mapped[str] = mapped_column(String(2048))
+    selection_changed: Mapped[bool]
+    outbox_id: Mapped[UUID]
+    evidence: Mapped[dict] = mapped_column(JSON().with_variant(JSONB(), "postgresql"))
 
 
 class ASaCLeaseColumns:

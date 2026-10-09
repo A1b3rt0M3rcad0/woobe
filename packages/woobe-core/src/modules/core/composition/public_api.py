@@ -71,3 +71,8 @@ __all__ = [
     "update_api_key_credential_composer",
     "update_project_composer",
 ]
+
+
+def build_asac_environment_binding_reader():
+    from modules.core.infra.database.asac_binding_reader import ASaCEnvironmentBindingReader
+    return ASaCEnvironmentBindingReader()

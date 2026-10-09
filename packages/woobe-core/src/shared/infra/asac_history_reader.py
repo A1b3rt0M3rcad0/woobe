@@ -128,12 +128,17 @@ class ASaCHistoryReader:
                 selection = await session.scalar(select(self.selections).where(
                     self.selections.project_id == project_id, self.selections.resource_id == resource_id,
                     self.selections.environment == environment))
+                if selection is not None and self.kind == "Agent" and getattr(selection,"selection_authority","legacy") == "asac":
+                    snapshot = await session.get(self.release, selection.snapshot_id)
+                    if snapshot is None or snapshot.project_id != project_id or getattr(snapshot,self.resource_column) != resource_id:
+                        raise ConflictError("ASAC_SELECTION_INCONSISTENT: selected immutable Release unavailable")
                 if selection is None or selection.snapshot_id != (snapshot.id if snapshot else None):
                     raise ConflictError("ASAC_SELECTION_INCONSISTENT: monotonic selection is not synchronized with its native owner")
             return {"schema_version": "1.0", "resource_id": str(resource_id), "kind": self.kind,
                     "environment": environment, "snapshot_id": str(snapshot.id) if snapshot else None,
                     "draft_generation": evidence["revision"],
                     "environment_generation": selection.generation if selection is not None else None,
+                    "selection_authority": getattr(selection,"selection_authority","legacy") if selection is not None else "native_draft",
                     "generation_status": "monotonic_owner_selection" if selection is not None else "draft_line_generation" if environment == "draft" and self.selections is not None else "legacy_unavailable",
                     "remote_status": "verified", "observed_at": datetime.now(UTC).isoformat(),
                     "snapshot": self.render_release(snapshot) if snapshot else None,

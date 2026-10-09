@@ -304,3 +304,20 @@ def test_candidate_snapshot_requires_internal_exact_evaluation_scope():
                 resolve()
         finally:
             candidate_execution.reset(token)
+
+
+@pytest.mark.asyncio
+async def test_staging_resolves_effective_selection_instead_of_legacy_status() -> None:
+    project_id = uuid4()
+    agent = _agent(project_id)
+    legacy = _release(project_id, agent.id, status=ReleaseStatus.staging, model="legacy")
+    selected = _release(project_id, agent.id, status=ReleaseStatus.released, model="selected")
+    repository = MemoryReleaseRepository(legacy, selected)
+    repository.get_active_staging = AsyncMock(return_value=selected)
+    resolver = AgentExecutionSnapshotResolver(
+        SimpleNamespace(get_by_id=AsyncMock(return_value=agent)), repository)
+    resolved = await resolver.resolve(project_id=project_id, agent_id=agent.id, environment="staging")
+    assert resolved.source == "release"
+    assert resolved.release_id == selected.id
+    assert resolved.snapshot["model"] == "selected"
+    repository.get_active_staging.assert_awaited_once_with(agent.id)

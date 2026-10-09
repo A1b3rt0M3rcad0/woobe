@@ -1,4 +1,4 @@
-from sqlalchemy import CheckConstraint, ForeignKeyConstraint, UniqueConstraint
+from sqlalchemy import CheckConstraint, ForeignKeyConstraint, UniqueConstraint, Index, text
 from shared.infra.database.base import BaseModel
 from shared.infra.asac_record_models import ASaCDraftColumns, ASaCRevisionColumns, ASaCOperationColumns, ASaCCandidateColumns
 
@@ -27,6 +27,8 @@ class ASaCOperationModel(ASaCOperationColumns, BaseModel):
     __tablename__ = "asac_operations"
     __table_args__ = (
         UniqueConstraint("project_id", "resource_id", "actor", "operation_id", name="uq_agent_asac_operation_identity"),
+        Index("ix_agent_asac_constituent_release", text("(result::jsonb ->> 'release_id')"),
+            postgresql_where=text("result::jsonb ? 'parent_operation_id'")).ddl_if(dialect="postgresql"),
         {"schema": "agent"},
     )
 
@@ -110,5 +112,35 @@ class ASaCLeaseModel(ASaCLeaseColumns, BaseModel):
         CheckConstraint("state IN ('active', 'released', 'broken')", name="ck_agent_asac_lease_state"),
         CheckConstraint("expires_at > acquired_at AND expires_at <= maximum_expires_at", name="ck_agent_asac_lease_deadline"),
         ForeignKeyConstraint(["resource_id"], ["agent.agents.id"], ondelete="CASCADE"),
+        {"schema": "agent"},
+    )
+
+
+from shared.infra.asac_record_models import ASaCDeploymentPlanColumns, ASaCDeploymentColumns
+
+class ASaCDeploymentPlanModel(ASaCDeploymentPlanColumns, BaseModel):
+    __tablename__ = "asac_deployment_plans"
+    __table_args__ = (
+        UniqueConstraint("project_id", "resource_id", "actor", "operation_id", name="uq_agent_asac_deployment_plans_operation"),
+        CheckConstraint("expected_generation >= 0", name="ck_agent_asac_plan_generation"),
+        CheckConstraint("environment IN ('staging', 'production') AND action IN ('activate', 'rollback')", name="ck_agent_asac_plan_scope"),
+        ForeignKeyConstraint(["resource_id"], ["agent.agents.id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(["release_id"], ["agent.agent_releases.id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(["publication_id"], ["agent.asac_publications.id"], ondelete="RESTRICT"),
+        {"schema": "agent"},
+    )
+
+class ASaCDeploymentModel(ASaCDeploymentColumns, BaseModel):
+    __tablename__ = "asac_deployments"
+    __table_args__ = (
+        UniqueConstraint("project_id", "resource_id", "actor", "operation_id", name="uq_agent_asac_deployments_operation"),
+        UniqueConstraint("plan_id", name="uq_agent_asac_deployment_plan"),
+        CheckConstraint("generation_before >= 0 AND generation_after >= generation_before AND generation_after <= generation_before + 1", name="ck_agent_asac_deployment_generation"),
+        CheckConstraint("environment IN ('staging', 'production') AND action IN ('activate', 'rollback')", name="ck_agent_asac_deployment_scope"),
+        ForeignKeyConstraint(["resource_id"], ["agent.agents.id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(["release_id"], ["agent.agent_releases.id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(["publication_id"], ["agent.asac_publications.id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(["plan_id"], ["agent.asac_deployment_plans.id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(["outbox_id"], ["agent.agent_outbox_events.id"], ondelete="RESTRICT", deferrable=True, initially="DEFERRED"),
         {"schema": "agent"},
     )

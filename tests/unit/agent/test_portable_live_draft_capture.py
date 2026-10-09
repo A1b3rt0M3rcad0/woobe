@@ -41,7 +41,10 @@ async def test_complete_saved_draft_and_historical_exports_keep_their_snapshot_d
     saved = SimpleNamespace(id=uuid4(), project_id=project_id, agent_id=agent_id, model_spec_snapshot={"model_id": "fake"}, model_spec_hash="captured")
     async def get(model, identifier):
         return agent if model is owner.AgentModel else saved
-    session = SimpleNamespace(get=get, scalar=AsyncMock(return_value=saved))
+    # Legacy snapshot selection and the independent ASaC selection are separate
+    # queries. This fixture has no ASaC environment selection.
+    reads = [saved, None] if selector.get("source") in {"staging", "production"} else [saved]
+    session = SimpleNamespace(get=get, scalar=AsyncMock(side_effect=reads))
     class HistoricalRead(Exception):
         pass
     def definition(record):

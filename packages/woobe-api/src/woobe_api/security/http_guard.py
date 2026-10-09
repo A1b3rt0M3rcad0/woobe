@@ -238,6 +238,7 @@ class HttpSecurityGuard:
         authorization_path_params = verified_query_context(
             request.method, path, authorization_path_params, query_params
         )
+        body = self._authorization_body(request, path_params, body)
         authorization = request.headers.get("authorization", "")
         scheme, _, credentials = authorization.partition(" ")
         if scheme.lower() == "bearer" and credentials:
@@ -292,6 +293,13 @@ class HttpSecurityGuard:
             # query parameters cannot turn Draft writes into Production grants.
             for plural, identifier in (("agents", "agent_id"), ("networks", "network_id")):
                 base = f"/projects/{path_params['project_id']}/{plural}/{path_params['resource_id']}/asac/"
+                deployment_route=(request.method=="POST" and request.url.path in {base+"deployment-plans",base+"deployments"}) or (request.method=="GET" and (("plan_id" in path_params and request.url.path==base+"deployment-plans/"+str(path_params["plan_id"])) or ("deployment_id" in path_params and request.url.path==base+"deployments/"+str(path_params["deployment_id"]))))
+                if deployment_route:
+                    data=body if isinstance(body,dict) else {}
+                    normalized=dict(path_params)
+                    normalized[identifier]=normalized.pop("resource_id")
+                    normalized["environment"]=(request.query_params.get("environment") or "production") if request.method=="GET" else data.get("environment","production")
+                    return normalized
                 lease_route=(request.method=="GET" and request.url.path==base+"leases") or (request.method=="POST" and request.url.path in {base+"leases/"+action for action in ("acquire","renew","release","break")})
                 if lease_route:
                     data=body if isinstance(body,dict) else {}
@@ -352,6 +360,18 @@ class HttpSecurityGuard:
             normalized["environment"] = environment
             return normalized
         return path_params
+
+    @staticmethod
+    def _authorization_body(request: Request, path_params: dict, body: Any) -> Any:
+        # The portable deployment vocabulary uses release_id for both owners.
+        # Tenant references must resolve that UUID in its exact owning table.
+        if (request.method == "POST" and "project_id" in path_params and "resource_id" in path_params
+            and request.url.path == f"/projects/{path_params['project_id']}/networks/{path_params['resource_id']}/asac/deployment-plans"
+            and isinstance(body, dict) and "release_id" in body):
+            normalized = dict(body)
+            normalized["network_version_id"] = normalized.pop("release_id")
+            return normalized
+        return body
 
     async def _authenticate_api_key(
         self,

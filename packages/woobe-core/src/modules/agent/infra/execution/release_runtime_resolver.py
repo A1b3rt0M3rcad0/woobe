@@ -513,10 +513,14 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
         if execution_context == "staging":
             if release_repo is None:
                 raise ValidationError("Staging runtime requires release repository")
-            releases = await release_repo.list_by_status(agent.id, ReleaseStatus.staging)
-            if not releases:
+            selected = getattr(release_repo, "get_active_staging", None)
+            if callable(selected):
+                release = await selected(agent.id)
+            else:
+                releases = await release_repo.list_by_status(agent.id, ReleaseStatus.staging)
+                release = max(releases, key=_release_sort_key) if releases else None
+            if release is None:
                 raise RuntimeEnvironmentNotReadyError("staging", input_dto.agent_id)
-            release = max(releases, key=_release_sort_key)
             input_dto.loaded_release_id = release.id
             self._bind_release_context(release)
             agent = self._apply_release_to_agent(agent, release)

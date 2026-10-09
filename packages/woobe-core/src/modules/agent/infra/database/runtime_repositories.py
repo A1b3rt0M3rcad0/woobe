@@ -71,7 +71,7 @@ def build_agent_runtime_repositories(
         agents=SQLAlchemyAgentRepositoryWithProviderModels(uow),
         provider_credentials=SQLAlchemyProviderCredentialRepository(uow),
         provider_models=SQLAlchemyProviderModelRepository(uow),
-        releases=SQLAlchemyAgentReleaseRepositoryWithProviderModels(uow),
+        releases=SQLAlchemySelectedAgentReleaseRepository(uow),
         sessions=SQLAlchemyRuntimeSessionRepository(uow),
         messages=SQLAlchemyMessageRepository(uow),
         runs=SQLAlchemyAgentRunRepository(uow),
@@ -86,3 +86,5 @@ def build_agent_runtime_repositories(
         vector_snapshots=SQLAlchemyVectorSnapshotRepository(uow),
         skills=SQLAlchemySkillRepository(uow),
     )
+
+from modules.agent.infra.database.asac_runtime_release_repository import SQLAlchemySelectedAgentReleaseRepository

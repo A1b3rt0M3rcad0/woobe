@@ -51,9 +51,25 @@ def build_agent_frozen_publication_gateway():
     from modules.agent.infra.database.asac_publisher import AgentASaCPublisher
     from modules.agent.infra.database.frozen_publication_gateway import AgentFrozenPublicationGateway
     from modules.agent.infra.database.frozen_snapshot_reader import AgentFrozenSnapshotReader
+    from modules.agent.application.execution_snapshot import build_agent_execution_snapshot
     return AgentFrozenPublicationGateway(drafts=build_agent_asac_drafts(artifacts=None),
-        publisher=AgentASaCPublisher(), snapshots=AgentFrozenSnapshotReader())
+        publisher=AgentASaCPublisher(), snapshots=AgentFrozenSnapshotReader(snapshot_builder=build_agent_execution_snapshot))
 
 
 def build_agent_asac_leases(*, artifacts):
     return build_agent_asac_drafts(artifacts=artifacts).leases
+
+
+def build_agent_asac_binding_guard(*, environment_reader):
+    from modules.agent.infra.database.asac_binding_guard import AgentASaCBindingGuard
+    return AgentASaCBindingGuard(environment_reader)
+
+
+def build_agent_asac_deployments(*, artifacts, preparation, environment_reader):
+    from modules.agent.infra.database.asac_models import ASaCDeploymentPlanModel, ASaCDeploymentModel, ASaCEnvironmentSelectionModel
+    from modules.agent.infra.database.asac_transactions import AgentASaCDeploymentStore
+    from modules.agent.infra.database.asac_environment_selector import AgentASaCEnvironmentSelector
+    from modules.agent.infra.database.models import AgentOutboxEventModel
+    return AgentASaCDeploymentStore(publications=build_agent_asac_publications(artifacts=artifacts,preparation=preparation),
+        plans=ASaCDeploymentPlanModel,deployments=ASaCDeploymentModel,selections=ASaCEnvironmentSelectionModel,
+        selector=AgentASaCEnvironmentSelector(),outbox=AgentOutboxEventModel,bindings=build_agent_asac_binding_guard(environment_reader=environment_reader))

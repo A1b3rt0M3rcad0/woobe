@@ -69,7 +69,7 @@ def build_public_stream_components() -> tuple:
 def public_create_job_composer() -> TransactionalHandler:
     uow = build_agent_uow()
     ask_job_repo = SQLAlchemyAskJobRepository(uow)
-    release_repo = SQLAlchemyAgentReleaseRepositoryWithProviderModels(uow)
+    release_repo = SQLAlchemySelectedAgentReleaseRepository(uow)
     session_repo = SQLAlchemyRuntimeSessionRepository(uow)
     agent_repo = SQLAlchemyAgentRepositoryWithProviderModels(uow)
     outbox = SQLAlchemyAgentOutboxEventWriter(uow)
@@ -97,3 +97,5 @@ __all__ = [
     "public_run_composer",
     "build_public_stream_components",
 ]
+
+from modules.agent.infra.database.asac_runtime_release_repository import SQLAlchemySelectedAgentReleaseRepository

@@ -260,6 +260,11 @@ class PortableAgentExportReader:
                     AgentReleaseModel.created_at.desc(), AgentReleaseModel.id.desc()
                 ).limit(1)
             )
+        if snapshot_id is None and source in {"staging","production"}:
+            from modules.agent.infra.database.asac_environment_selector import selected_agent_release
+            selected = await selected_agent_release(session,agent_id,source)
+            if selected is not None:
+                release = selected
         if source == "draft" and snapshot_id is None and release is not None:
             # A legacy mutable Draft may predate ModelSpec snapshots. Resolve
             # its current native author definition without rewriting that record.

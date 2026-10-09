@@ -135,7 +135,8 @@ class ASaCLeaseStore:
         """Call under the native root lock in the transaction that writes."""
         now=await self.clock(session)
         args=dict(project_id=project_id,resource_id=resource_id)
-        rows=[await self._row(session,args,key) for key in {'resource',scope}]
+        keys={scope} if scope in {'staging','production'} else {'resource',scope}
+        rows=[await self._row(session,args,key) for key in keys]
         active={row.lease_id:row for row in rows if row is not None and row.state=='active' and _utc(row.expires_at)>now}
         seen=set()
         for proof in proofs:

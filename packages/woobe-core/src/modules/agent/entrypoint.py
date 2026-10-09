@@ -436,3 +436,5 @@ from modules.agent.composition.composers.candidate_snapshot_composer import crea
 from modules.agent.composition.composers.asac_draft_composer import build_agent_frozen_publication_gateway
 
 from modules.agent.composition.composers.asac_draft_composer import build_agent_asac_leases
+
+from modules.agent.composition.composers.asac_draft_composer import build_agent_asac_deployments, build_agent_asac_binding_guard

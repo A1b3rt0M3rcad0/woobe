@@ -76,12 +76,14 @@ class PublicRuntimeRequestPreparer:
             return release
 
         if environment == ReleaseStatus.staging.value:
-            releases = await self._release_repo.list_by_status(
-                agent_id,
-                ReleaseStatus.staging,
-            )
-            if not releases:
+            selected = getattr(self._release_repo, "get_active_staging", None)
+            if callable(selected):
+                release = await selected(agent_id)
+            else:
+                releases = await self._release_repo.list_by_status(agent_id, ReleaseStatus.staging)
+                release = releases[0] if releases else None
+            if release is None:
                 raise RuntimeEnvironmentNotReadyError(environment, agent_id)
-            return releases[0]
+            return release
 
         raise ValueError("Unsupported runtime environment")

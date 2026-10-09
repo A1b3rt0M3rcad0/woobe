@@ -55,3 +55,8 @@ from shared.infra.asac_lease_store import ASaCLeaseStore
 
 class AgentASaCLeaseStore(ASaCLeaseStore):
     """Agent-owned workflow lease scopes and original operation receipts."""
+
+from shared.infra.asac_deployment_store import ASaCDeploymentStore
+
+class AgentASaCDeploymentStore(ASaCDeploymentStore):
+    """Agent-owned plan, selection, native activation and outbox adapter."""

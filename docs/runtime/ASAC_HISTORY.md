@@ -436,3 +436,37 @@ Operational proofs belong in private `.state`, never portable author lockfiles,
 Git or skill assets. `fencing_token` is a numeric concurrency counter rather than
 an authentication secret. Lease conflict/expiry database errors return safe
 409 diagnostics without SQL or private bound parameters.
+
+## Exact fenced Release selection
+
+Candidate publication and environment selection are distinct. Agent and Network
+owners retain immutable deployment plans fixing an evaluated published Release,
+Candidate/Evaluation evidence, runtime fingerprints, expected monotonic environment
+generation, previous pointer and audit reason. Planning does not activate.
+
+Applying a plan requires current environment authority and an exact short
+Staging/Production workflow lease. Recheck retained qualification, current binding
+versions, runtime identity, expected generation and the database-clock plan deadline
+before the owner transaction changes selection. Hold destination binding versions
+through commit. Resource-authoring reservations are independent and do not grant
+selection authority. Original-operation replay reads retained acceptance rather
+than applying a second transition.
+
+The owner commits independent selection, native Production history when changed,
+immutable deployment receipt, original operation acceptance and outbox together.
+Deferred PostgreSQL guards recheck plan/selection/receipt/outbox consistency and
+lease expiry at commit, including expiry after SQL mutation. Outbox delivery state
+can advance, but its evidence payload cannot change. A new audited selection of
+an unchanged executable keeps the same environment generation.
+
+An Agent selection uses a separate pointer rather than rewriting Release status;
+Staging and Production can select the same immutable Release. Runtime admission,
+current inspection and environment export resolve this owner pointer. Network
+selection changes only the native environment pointer and leaves the Release's
+closed constituent bindings unchanged. Once an environment uses ASaC selection
+authority, legacy writes to that selection reject with `ASAC_SELECTION_MANAGED`;
+create an exact deployment plan instead.
+
+This owner selection protocol is separate from Project-wide managed lifecycle
+policy, Web editor integration, signed offline receipts and Git verification.
+Those features must not be inferred from an accepted deployment receipt.
