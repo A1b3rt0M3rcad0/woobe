@@ -87,3 +87,16 @@ class ASaCPublicationModel(ASaCPublicationColumns, BaseModel):
         ForeignKeyConstraint(["release_id"], ["agent.agent_releases.id"], ondelete="RESTRICT"),
         {"schema": "agent"},
     )
+
+
+from shared.infra.asac_record_models import ASaCEnvironmentSelectionColumns
+
+class ASaCEnvironmentSelectionModel(ASaCEnvironmentSelectionColumns, BaseModel):
+    __tablename__ = "asac_environment_selections"
+    __table_args__ = (
+        UniqueConstraint("project_id", "resource_id", "environment", name="uq_agent_asac_environment_selection"),
+        CheckConstraint("generation >= 0", name="ck_agent_asac_environment_generation"),
+        CheckConstraint("environment IN ('staging', 'production')", name="ck_agent_asac_selection_environment"),
+        ForeignKeyConstraint(["resource_id"], ["agent.agents.id"], ondelete="CASCADE"),
+        {"schema": "agent"},
+    )

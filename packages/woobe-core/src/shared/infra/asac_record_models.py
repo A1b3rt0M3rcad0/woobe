@@ -94,3 +94,14 @@ class ASaCPublicationColumns:
     reused: Mapped[bool]
     reason: Mapped[str] = mapped_column(String(2048))
     evidence: Mapped[dict] = mapped_column(JSON)
+
+
+class ASaCEnvironmentSelectionColumns:
+    """Selection identity is distinct from a mutable Draft's generation."""
+    from sqlalchemy import BigInteger
+    project_id: Mapped[UUID]
+    resource_id: Mapped[UUID]
+    environment: Mapped[str] = mapped_column(String(16))
+    generation: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    snapshot_id: Mapped[UUID | None] = mapped_column(nullable=True)
+    execution_fingerprint: Mapped[str | None] = mapped_column(String(64), nullable=True)

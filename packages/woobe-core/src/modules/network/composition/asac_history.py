@@ -1,3 +1,4 @@
+from modules.network.infra.database.asac_models import ASaCEnvironmentSelectionModel
 from modules.network.infra.database.models import NetworkModel, NetworkVersionModel
 from modules.network.infra.database.schema_extensions import NetworkProductionActivationModel
 from modules.network.infra.services.development_resource_reader import DevelopmentNetworkReader
@@ -8,7 +9,7 @@ from shared.infra.asac_history_reader import ASaCHistoryReader
 def build_network_history_reader():
     return ASaCHistoryReader(
         SESSION_FACTORY, cursor_key=SETTINGS.secret_key, kind="Network", root=NetworkModel, release=NetworkVersionModel,
-        activation=NetworkProductionActivationModel, owner=DevelopmentNetworkReader(),
+        activation=NetworkProductionActivationModel, owner=DevelopmentNetworkReader(), selections=ASaCEnvironmentSelectionModel,
         resource_column="network_id", release_kind=("kind", "release"),
         render_release=lambda row: {"snapshot_id": str(row.id), "version": row.version,
                                     "runtime_digest": "sha256:" + row.composition_hash,
