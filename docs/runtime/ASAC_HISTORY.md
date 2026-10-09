@@ -301,3 +301,28 @@ The CLI saves pending identity before acceptance and writes an append-only,
 destination-scoped documentary receipt afterward. Local mirror failure cannot
 roll back a remote commit and does not authorize a second publication. Read-only
 original-operation reconciliation retries the local mirror without another POST.
+
+### Versioned Network runtime identity
+
+New Network Candidates advertise `network-execution-runtime@2` and retain that
+scope in their ledger (`0089`). Historical Candidate hashes and native
+`composition_hash` values remain unchanged. Native composition hashes include
+exact stored snapshot selectors; the ASaC execution identity includes topology,
+settings, full constituent execution hashes, frozen overrides and effective
+external context, excluding only lifecycle copy IDs/version/status metadata.
+The legacy override's `pinned_release_id` repeats the loaded snapshot selection
+and is excluded; executable overrides and unknown future fields remain included.
+This allows an exact immutable constituent copy to preserve execution identity
+while retaining distinct storage identities. Source/Release ownership and content
+must still be independently verified. Scope is unavailable for older ledgers;
+it is never silently asserted or rewritten. Shared Go/Python digest fixtures
+cover the normalized payload, and differential tests reject changed content,
+missing closure, wrong ownership and unsupported selectors.
+
+The Agent-owned frozen publication gateway is internal composition infrastructure,
+not a client HTTP endpoint. Each constituent copy verifies current Agent authority
+and exact snapshot hash, uses the existing Agent transaction owner, and commits
+its native Release plus original parent-scoped operation receipt together. It
+never changes standalone Agent environment selection. The Network publisher will
+coordinate these receipts through its own durable preparation and finalization;
+this foundation does not yet advertise exact Network publication.

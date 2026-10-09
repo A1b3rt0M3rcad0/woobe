@@ -21,7 +21,7 @@ def candidate_output(row):
         "preparation_operation_id": str(row.preparation_operation_id),
         "state": row.state, "operation_id": str(row.operation_id), "write_outcome": "committed",
         "snapshot_id": str(row.root_snapshot_id) if row.root_snapshot_id else None,
-        "runtime_digest": row.runtime_digest, "production_changed": False,
+        "runtime_digest": row.runtime_digest, "runtime_digest_scope": row.runtime_digest_scope, "production_changed": False,
         "published": False, "complete": row.state in {"ready", "rejected"}}
 
 
@@ -118,7 +118,7 @@ class ASaCCandidateStore:
 
 async def seal_candidate(session, model, *, project_id, resource_id, candidate_id,
                          preparation_operation_id, snapshot_id, runtime_digest,
-                         native_bindings, runtime_fingerprints):
+                         native_bindings, runtime_fingerprints, runtime_digest_scope=None):
     """Called after native verification, in that owner's receipt transaction."""
     row = await session.get(model, candidate_id, with_for_update=True)
     if (row is None or row.project_id != project_id or row.resource_id != resource_id
@@ -133,6 +133,7 @@ async def seal_candidate(session, model, *, project_id, resource_id, candidate_i
             raise ConflictError("ASAC_CANDIDATE_IMMUTABLE: verification evidence changed")
         return candidate_output(row)
     row.root_snapshot_id, row.runtime_digest = snapshot_id, runtime_digest
+    row.runtime_digest_scope = runtime_digest_scope
     row.native_bindings, row.runtime_fingerprints = native_bindings, runtime_fingerprints
     row.state = "ready"
     await session.flush()

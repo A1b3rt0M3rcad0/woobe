@@ -33,6 +33,6 @@ class AgentCandidateLifecycleHandler:
                 project_id=project, resource_id=agent_id, candidate_id=UUID(body["candidate_id"]),
                 preparation_operation_id=UUID(body["preparation_operation_id"]), snapshot_id=snapshot_id,
                 runtime_digest=runtime_digest, native_bindings={"agent_id": str(agent_id), "snapshot_id": str(snapshot_id)},
-                runtime_fingerprints=body["runtime_fingerprints"])
+                runtime_fingerprints=body["runtime_fingerprints"], runtime_digest_scope="agent-execution-snapshot@2")
             result.update(configuration_ready=True, execution_ready=True)
         return OperationResult(body={"success": True, "data": result})
