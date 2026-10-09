@@ -10,6 +10,8 @@ deploy/dev/          optional contributor infrastructure
 
 `compose.test.yaml` is standalone and intentionally backend-only. It does not start or validate Web, ChatSurface, Vite, Vitest, Playwright, browser E2E or any other frontend surface.
 
+Automatic platform-release tests live in `tests/architecture/test_automatic_platform_release.py` and run in the required **Quality Gate** workflow against the full repository checkout. They require Git and the real Python/browser version manifests. These engineering tests do not belong in the slim backend-only test image; release workflow state-machine and version-synchronization checks remain mandatory in CI.
+
 ## Canonical command
 
 Local development and GitHub Actions use the same command:
