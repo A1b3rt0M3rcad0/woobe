@@ -41,11 +41,11 @@ async def lose_committed_response(origin, path):
             if scope["query_string"]:
                 url += "?" + scope["query_string"].decode()
             response = await upstream.request(
-                scope["method"], url, content=body, headers=headers
+                scope["method"], url, content=bytes(body), headers=headers
             )
             lose = scope["method"] == "POST" and scope["path"] == path and not accepted
             if lose:
-                assert response.status_code < 300, "fault must occur after acceptance"
+                assert response.status_code < 300, f"fault must occur after acceptance, status={response.status_code}"
                 accepted.append(response.json()["data"])
             content = b"{" if lose else response.content
             await send(
