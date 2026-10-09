@@ -33,7 +33,7 @@ from shared.security.control_plane import (
 )
 
 CLI_COMMIT = os.environ.get(
-    "WOOBE_TEST_CLI_SHA", "b949b6d0ef53f9807e88949e14504196d47360f4"
+    "WOOBE_TEST_CLI_SHA", "138d786ee3b6b100bf952364dde473a7e7dde645"
 )
 
 
@@ -1309,11 +1309,24 @@ async def exercise_asac_isolated_drafts(cli, kind, resource_id):
     cli_open = (await cli.run(kind.lower(), "@captured", "draft", "open", "cli-hotfix", "--from", "production", cwd=registry))["data"]
     assert cli_open["resource_uid"] == uid and not cli_open["production_changed"]
     await exercise_asac_workflow_leases(cli,kind,resource_id,cli_open["draft_id"])
+    cli_lease = (await cli.run(kind.lower(), "@captured", "lease", "acquire", "--scope", "draft", "--ttl", "60", cwd=registry))["data"]
+    assert cli_lease["fencing_token"] == 3 and cli_lease["state"] == "active"
+    assert cli_lease["scope"] == "draft:" + cli_open["draft_id"]
+    # Same credentials and another workflow cannot inherit the reservation.
+    await cli.run(kind.lower(),resource_id,"lease","acquire","--scope","draft","--draft",cli_open["draft_id"],"--ttl","60","--operation",str(uuid4()),"--workflow",str(uuid4()),expected=6)
     cli_saved = (await cli.run(kind.lower(), "@captured", "draft", "push", cwd=registry))["data"]
     assert cli_saved["generation"] == 2
     checkpoint = (await cli.run(kind.lower(), "@captured", "revision", "create", "--message", "CLI exact checkpoint", cwd=registry))["data"]
     cli_revision = (await cli.run(kind.lower(), "@captured", "draft", "checkpoint", checkpoint["revision_id"], cwd=registry))["data"]
     assert cli_revision["record"] == checkpoint
+    assert cli_lease["lease_id"] not in json.dumps(checkpoint) and cli_lease["workflow_id"] not in json.dumps(checkpoint)
+    renewed = (await cli.run(kind.lower(),"@captured","lease","renew","--scope","draft","--ttl","120",cwd=registry))["data"]
+    assert renewed["lease_id"] == cli_lease["lease_id"] and renewed["fencing_token"] == 3
+    assert renewed["maximum_expires_at"] == cli_lease["maximum_expires_at"]
+    current_lease = (await cli.run(kind.lower(),"@captured","lease","show","--scope","draft",cwd=registry))["data"]
+    assert current_lease["workflow_id"] == cli_lease["workflow_id"]
+    released_lease = (await cli.run(kind.lower(),"@captured","lease","release","--scope","draft",cwd=registry))["data"]
+    assert released_lease["state"] == "released" and released_lease["lease_id"] == cli_lease["lease_id"]
     assert cli_revision["author_artifact_status"] == "retained_custody"
     descriptor = registry / config["root"] / root_resource["path"]
     if descriptor.suffix.lower() not in {".yaml", ".yml", ".json"}:
