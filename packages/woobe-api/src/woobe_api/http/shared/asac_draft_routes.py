@@ -11,6 +11,7 @@ from shared.contracts.asac_leases import ASaCLeaseScope, AcquireASaCLease, Chang
 from shared.contracts.asac_evaluation import EvaluateASaCCandidate
 from shared.contracts.asac_publication import PublishASaCCandidate, CancelASaCPublication
 from shared.contracts.asac_deployment import PlanASaCDeployment, ApplyASaCDeployment
+from shared.contracts.asac_workbench import EditASaCDraft, CheckpointASaCDraft, StageWorkbenchDraft
 from shared.contracts.errors import AuthorizationError, ConflictError, NotFoundError, ValidationError
 from modules.package.entrypoint import PackageError, build_snapshot_artifacts, build_candidate_preparation
 from modules.core.entrypoint import build_asac_environment_binding_reader, build_asac_receipt_signer
@@ -97,6 +98,21 @@ def draft_router(prefix, builder, kind, candidate_builder=None, evaluation_build
                 raise ValidationError("ASAC_SIGNATURES_UNAVAILABLE: Instance signing authority is not currently valid") from None
         return response(await invoke(operation()))
 
+    @router.get("/drafts/{draft_id}/editor")
+    async def editor_source(project_id: UUID,resource_id: UUID,draft_id: UUID,request: Request):
+        return response(await invoke(store().editor_source(project_id=project_id,resource_id=resource_id,
+            draft_id=draft_id,principal=actor(request))))
+
+    @router.put("/drafts/{draft_id}/editor")
+    async def edit_source(project_id: UUID,resource_id: UUID,draft_id: UUID,body: EditASaCDraft,request: Request):
+        return response(await invoke(store().edit_author_files(project_id=project_id,resource_id=resource_id,
+            draft_id=draft_id,principal=actor(request),request=body)))
+
+    @router.post("/drafts/{draft_id}/checkpoint")
+    async def editor_checkpoint(project_id: UUID,resource_id: UUID,draft_id: UUID,body: CheckpointASaCDraft,request: Request):
+        return response(await invoke(store().checkpoint_editor(project_id=project_id,resource_id=resource_id,
+            draft_id=draft_id,principal=actor(request),request=body)))
+
     @router.get("/leases")
     async def lease(project_id: UUID, resource_id: UUID, request: Request,
                     scope: Literal["resource", "draft", "staging", "production"] = Query("resource"), draft_id: UUID | None = Query(None)):
@@ -156,6 +172,12 @@ def draft_router(prefix, builder, kind, candidate_builder=None, evaluation_build
             principal=actor(request),request=body,action="break")))
 
     if candidate_builder is not None:
+        @router.post('/drafts/{draft_id}/stage')
+        async def editor_stage(project_id: UUID,resource_id: UUID,draft_id: UUID,body: StageWorkbenchDraft,request: Request):
+            candidate=candidate_builder(artifacts=build_snapshot_artifacts(),preparation=build_candidate_preparation())
+            return response(await invoke(candidate.stage_editor(project_id=project_id,resource_id=resource_id,
+                draft_id=draft_id,principal=actor(request),request=body,api_origin=str(request.base_url).rstrip('/'))))
+
         def candidates():
             return candidate_builder(artifacts=build_snapshot_artifacts(), preparation=build_candidate_preparation())
 

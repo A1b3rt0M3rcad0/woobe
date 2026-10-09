@@ -519,3 +519,47 @@ and an offline-root-signed public manifest as described in
 [signed ASaC receipts](ASAC_SIGNED_RECEIPTS.md). The API never holds the offline root seed.
 Existing authenticated history reads do not automatically establish offline
 trust; clients pin an independently confirmed root fingerprint.
+
+## Web isolated-Draft workbench
+
+Agent details and the Network workspace expose **History & lifecycle**. The
+workbench opens a named isolated Draft from an authorized Draft, Staging,
+Production or fixed Release capture. Opening a line, saving author files,
+checkpointing, preparing a Candidate and publishing a Release do not select
+Production. Native resource identity is reused; an isolated line is not a new
+Agent or Network.
+
+The editor exposes bounded UTF-8 files from the retained closed Package. The
+Package manifest and binary/oversized files remain read-only. A save rebuilds the
+canonical graph, checks schemas/references and retains a new immutable object.
+It uses the selected Draft's exact generation. Semantic preparation remains a
+separate Stage operation; a valid YAML document alone does not qualify runtime.
+
+A checkpoint computes definition/component identities on the server and records
+explicit parents. Stage prepares that exact checkpoint using authorized captured
+native bindings. Candidate readiness and worker evaluation are observed by ID.
+Publishing requires evidence for this Candidate, leaves Production unchanged and
+does not invent Git provenance. Production/Staging activation requires a reviewed
+plan with expected environment generation and a private environment lease. The
+Project policy and owner permissions apply to these paths as they do to CLI.
+
+Metadata refresh never replaces editor files. A remote generation conflict keeps
+local edits and blocks saving; compare remote files or download local author files
+before explicitly discarding/reloading. Local editor text is not written to
+browser storage. Private lease proof is held in browser memory only. Do not close
+the editor with unsaved files without saving or downloading them.
+
+Before each owner mutation the browser stores only original operation UUID,
+action and generation in session storage. A lost/uncertain response blocks new
+writes. **Reconcile original operation** performs a read-only lookup; unobserved
+results never authorize another POST. Source capture/current-selection preflight
+failures occur before this checkpoint. Refresh/reload can recover an original
+accepted operation; lost volatile deployment context must be inspected/planned
+again, and any abandoned lease expires according to the server clock.
+
+Editor requests are `GET/PUT .../asac/drafts/{draft_id}/editor`, checkpoint is
+`POST .../checkpoint`, and Web Stage is `POST .../stage`, for both owner kinds.
+They delegate to the canonical Package and lifecycle owners rather than a second
+Web publication engine. `origin.authoring_channel` is derived from authenticated
+principal type (`web` human session or `api` Control Key); it is not an attestation
+that a particular UI or Git workflow was used.

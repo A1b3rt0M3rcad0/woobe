@@ -334,7 +334,15 @@ class HttpSecurityGuard:
                     normalized[identifier] = normalized.pop("resource_id")
                     normalized["environment"] = "staging"
                     return normalized
+                if request.method=='POST' and 'draft_id' in path_params and request.url.path==base+'drafts/'+str(path_params['draft_id'])+'/stage':
+                    normalized=dict(path_params)
+                    normalized[identifier]=normalized.pop('resource_id')
+                    normalized['environment']='staging'
+                    return normalized
                 allowed = {("GET", "drafts"), ("POST", "drafts"), ("POST", "revisions")}
+                if 'draft_id' in path_params:
+                    draft='drafts/'+str(path_params['draft_id'])
+                    allowed.update({('GET',draft+'/editor'),('PUT',draft+'/editor'),('POST',draft+'/checkpoint')})
                 for parameter, route, methods in (("draft_id", "drafts", ("GET", "PUT")),
                         ("revision_id", "revisions", ("GET",)), ("operation_id", "operations", ("GET",))):
                     if parameter in path_params:

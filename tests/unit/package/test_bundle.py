@@ -243,3 +243,35 @@ def test_complete_shared_composition_fixture_and_locked_archive(tmp_path):
         bundle.archive(output, include_lock=True)
         with receive_archive(io.BytesIO(output.getvalue()), locked=True) as restored:
             assert restored.artifact_digest == bundle.artifact_digest
+
+
+def test_web_editor_rebuilds_closed_graph_without_modifying_original(tmp_path):
+    from modules.package.infra.editor_artifacts import editor_files, edited_archive
+    _, agent, _ = package(tmp_path)
+    original = (tmp_path/'agent.yaml').read_bytes()
+    agent['spec']['legacy_system_prompt'] = 'New author text\nwith multiline instructions'
+    bundle = snapshot_directory(tmp_path)
+    before = bundle.artifact_digest
+    files = editor_files(bundle)
+    assert files['entrypoint_path'] == 'agent.yaml'
+    assert next(item for item in files['files'] if item['path']=='woobe.yaml')['editable'] is False
+    archive = edited_archive(bundle,[{'path':'agent.yaml','content':json.dumps(agent)}])
+    with receive_archive(archive,locked=True) as rebuilt:
+        assert rebuilt.artifact_digest != before
+        assert rebuilt.graph.components['support']['spec']['legacy_system_prompt'].startswith('New author text')
+    assert (tmp_path/'agent.yaml').read_bytes() == original
+
+
+@pytest.mark.parametrize('edits',[
+    [{'path':'../escape','content':'x'}],
+    [{'path':'woobe.yaml','content':'x'}],
+    [{'path':'agent.yaml','content':'x'},{'path':'agent.yaml','content':'y'}],
+    [{'path':'agent.yaml','content':'bad\x00text'}],
+    [{'path':'agent.yaml','content':'x'*(1048576+1)}],
+    [{'path':'agent.yaml','content':'spec: [broken'}],
+])
+def test_web_editor_rejects_escape_manifest_duplicates_limits_and_schema(tmp_path,edits):
+    from modules.package.infra.editor_artifacts import edited_archive
+    package(tmp_path)
+    with pytest.raises(PackageError):
+        edited_archive(snapshot_directory(tmp_path),edits)

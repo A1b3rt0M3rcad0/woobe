@@ -245,3 +245,10 @@ dry runs validate exact server package plans; Surface dry runs report local and
 destination/CAS identity checks, with final native DTO validation on apply.
 
 Exact evaluated Agent publication uses `woobe agent '@support' publish --candidate CANDIDATE_UUID --evaluation EVALUATION_UUID --notes 'Validated update' --yes`, then `publication PUBLICATION_UUID`. It preserves Production and recovers uncertain acceptance/local receipt failures through `draft reconcile`. See [the server contract](runtime/ASAC_HISTORY.md#exact-evaluated-agent-publication).
+
+The Web **History & lifecycle** workbench uses the same isolated Draft, revision,
+Candidate, evaluation, publication and fenced deployment owners as the CLI.
+See [ASaC history](runtime/ASAC_HISTORY.md#web-isolated-draft-workbench). Web-created
+revisions can be inspected/exported by their durable IDs; Git provenance remains
+unavailable until separately declared or verified, rather than inferred from a
+browser edit.
