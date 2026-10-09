@@ -160,6 +160,17 @@ def resolve(
             current, releases, reason="Repair the incomplete permanent release record"
         )
 
+    if releases:
+        latest = max(releases, key=version_key)
+        if version_key(current) < version_key(latest):
+            raise ValueError(
+                "Canonical VERSION is older than the latest published release"
+            )
+        if version_key(current) > version_key(latest):
+            return selection(
+                current, releases, reason="Resume exact post-merge release finalization"
+            )
+
     pending = []
     for item in api_pages(repo, "pulls?state=open&base=master&per_page=100"):
         if (
@@ -185,15 +196,6 @@ def resolve(
         return selection(pending[0], releases, reason="Resume the existing release PR")
 
     if releases:
-        latest = max(releases, key=version_key)
-        if version_key(current) < version_key(latest):
-            raise ValueError(
-                "Canonical VERSION is older than the latest published release"
-            )
-        if version_key(current) > version_key(latest):
-            return selection(
-                current, releases, reason="Resume exact post-merge release finalization"
-            )
         if ancestor(head, released_revision(latest)):
             return selection(
                 current,

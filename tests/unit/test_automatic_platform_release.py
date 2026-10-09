@@ -159,6 +159,14 @@ def test_incomplete_release_is_repaired_before_another_version(repo):
     assert result["already_published"] == "false" and result["release_exists"] == "true"
 
 
+def test_unfinished_publication_precedes_a_future_open_release_pr(repo):
+    commit("chore(release): prepare Woobe v0.12.2", "0.12.2")
+    with metadata(pulls=[pending("0.13.0")]):
+        result = auto.resolve(REPO)
+    assert result["version"] == "0.12.2"
+    assert "post-merge" in result["reason"]
+
+
 def test_existing_same_repo_release_pr_is_resumed_and_fork_is_ignored(repo):
     commit("fix(agent): newer work")
     with metadata(pulls=[pending("0.12.2"), pending("0.13.0", "fork/woobe")]):
