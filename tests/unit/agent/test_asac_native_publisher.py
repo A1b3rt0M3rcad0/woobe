@@ -49,7 +49,8 @@ async def test_constituent_owner_snapshot_projection_keeps_native_hash_and_scope
         runtime_config={"execution_strategy": "standard"})
     source.provider_model_id = uuid4()
     session = N(get=AsyncMock(return_value=source))
-    reader = AgentFrozenSnapshotReader()
+    from modules.agent.application.execution_snapshot import build_agent_execution_snapshot
+    reader = AgentFrozenSnapshotReader(snapshot_builder=build_agent_execution_snapshot)
     projection = await reader.read(session, project_id=project, resource_id=agent,
         snapshot_id=snapshot, expected_kind="candidate")
     assert projection["runtime_digest"] == "sha256:" + hash_agent_execution_snapshot(frozen_release_entity(source))

@@ -45,5 +45,6 @@ def build_agent_frozen_publication_gateway():
     from modules.agent.infra.database.asac_publisher import AgentASaCPublisher
     from modules.agent.infra.database.frozen_publication_gateway import AgentFrozenPublicationGateway
     from modules.agent.infra.database.frozen_snapshot_reader import AgentFrozenSnapshotReader
+    from modules.agent.application.execution_snapshot import build_agent_execution_snapshot
     return AgentFrozenPublicationGateway(drafts=build_agent_asac_drafts(artifacts=None),
-        publisher=AgentASaCPublisher(), snapshots=AgentFrozenSnapshotReader())
+        publisher=AgentASaCPublisher(), snapshots=AgentFrozenSnapshotReader(snapshot_builder=build_agent_execution_snapshot))
