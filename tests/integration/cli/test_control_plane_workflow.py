@@ -2750,6 +2750,8 @@ async def exercise_web_workbench(cli, kind, resource_id):
     evaluation = await cli.data('request','POST',base+'/candidates/'+candidate['candidate_id']+'/evaluations',body={
         'operation_id':str(uuid4()),'suite':{'schema_version':'1.0','suite_id':'web-adapter',
         'suite_version':'1','dataset_version':'1','cases':[{'id':'web-case','message':'Hello Web lifecycle'}]}})
+    assert evaluation['state']=='accepted' and evaluation['write_outcome']=='committed'
+    evaluation = await cli.data('request','GET',base+'/evaluations/'+evaluation['evaluation_id'])
     assert evaluation['state']=='passed'
     publication = await cli.data('request','POST',base+'/publications',body={
         'operation_id':str(uuid4()),'candidate_id':candidate['candidate_id'],
