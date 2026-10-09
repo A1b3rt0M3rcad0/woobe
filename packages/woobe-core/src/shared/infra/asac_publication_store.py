@@ -78,7 +78,6 @@ class ASaCPublicationStore:
                 actor=principal_identity(principal), operation_id=request.operation_id, request_digest=digest,
                 reused=native["reused"], reason=request.reason, evidence={
                     "kind":self.drafts.kind,
-                    "authoring_channel":"web" if principal_identity(principal).startswith("user:") else "api",
                     "record_digest":candidate.record_digest, "runtime_digest":candidate.runtime_digest,
                     "definition_digest":record["definition_digest"], "artifact_digest":record["artifact_digest"],
                     "binding_digest":evaluation.binding_digest, "suite_digest":evaluation.suite_digest,
