@@ -371,3 +371,28 @@ controlled final-commit failures, original replay, deterministic child reuse,
 resume/cancel and unchanged standalone environments. CLI recovery mirrors terminal
 publication/cancellation only after reading original acceptance; it never repeats
 publication on an uncertain outcome.
+
+## Monotonic native environment selection generations
+
+Migration `0091` adds owner-scoped Staging/Production selections. Deferred native
+PostgreSQL triggers observe each transaction's final native selection, covering
+legacy promotion/rollback writes as well as future ASaC activation. A temporary
+status demotion/promotion in one transaction is not counted as two deployments.
+A -> B -> A advances twice even though the final Release ID equals the first.
+Read-only current queries never initialize or increment generation.
+
+Existing selections bootstrap at generation 1 (unselected environments at 0).
+This does not fabricate historical deployments or their missing generations.
+Native snapshot changes also advance a retained internal storage fingerprint;
+it is not a competing public semantic runtime digest. Counter rollback, deletion
+while its root exists and identity replacement are rejected by PostgreSQL.
+Root deletion still follows native retention rules. Downgrade refuses nonzero
+retained generations.
+
+Current reads verify the selection against the same repeatable-read native
+snapshot and expose `generation_status: monotonic_owner_selection`. Missing or
+mismatched state raises `ASAC_SELECTION_INCONSISTENT`, never a misleading CAS-safe
+observation. Draft lines retain their separate authoring generations. Capability
+`environment_generation_scope: monotonic-owner-selection@1` lists supported
+Staging/Production environments. Activation plans/fencing are a subsequent
+contract; these counters alone do not grant or enforce activation authorization.

@@ -894,6 +894,7 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
         second_draft["id"],
         body={"target_status": "staging"},
     )
+    first_agent_selection = (await cli.run("agent", agent_id, "current", "--env", "production"))["data"]
     second_release = await cli.data(
         "project",
         "agent",
@@ -906,6 +907,8 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
         body={"target_status": "production", "release_notes": "Second CLI publication"},
     )
     assert second_release["id"] != production["id"]
+    second_agent_selection = (await cli.run("agent", agent_id, "current", "--env", "production"))["data"]
+    assert second_agent_selection["environment_generation"] == first_agent_selection["environment_generation"] + 1
     await cli.run(
         "project",
         "agent",
@@ -933,7 +936,11 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
     assert restored["id"] == production["id"]
     observed = (await cli.run("agent", agent_id, "current", "--env", "production"))["data"]
     assert observed["snapshot_id"] == production["id"]
-    assert observed["environment_generation"] is None
+    assert observed["environment_generation"] == second_agent_selection["environment_generation"] + 1
+    assert observed["generation_status"] == "monotonic_owner_selection"
+    assert observed["snapshot_id"] == first_agent_selection["snapshot_id"]
+    repeated_observation = (await cli.run("agent", agent_id, "current", "--env", "production"))["data"]
+    assert repeated_observation["environment_generation"] == observed["environment_generation"]
     publication_history = await cli.data("request", "GET", f"/projects/{cli.project_id}/agents/{agent_id}/asac/history", "--query", "limit=1")
     watermark = publication_history["watermark"]
     agent_records = list(publication_history["records"])
@@ -1114,6 +1121,7 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
         network_id,
         body={"project_id": cli.project_id, "environment": "production"},
     )
+    first_network_selection = (await cli.run("network", network_id, "current", "--env", "production"))["data"]
     second_network_release = await cli.data(
         "project",
         "network",
@@ -1130,6 +1138,8 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
         },
     )
     assert second_network_release["id"] != network_release["id"]
+    second_network_selection = (await cli.run("network", network_id, "current", "--env", "production"))["data"]
+    assert second_network_selection["environment_generation"] == first_network_selection["environment_generation"] + 1
     network_restored = await cli.data(
         "project",
         "network",
@@ -1147,6 +1157,8 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
     assert network_restored["activation"]["activation_kind"] == "rollback"
     selected_network = (await cli.run("network", network_id, "current", "--env", "production"))["data"]
     assert selected_network["snapshot_id"] == network_release["id"]
+    assert selected_network["environment_generation"] == second_network_selection["environment_generation"] + 1
+    assert selected_network["generation_status"] == "monotonic_owner_selection"
     network_history = await cli.data("request", "GET", f"/projects/{cli.project_id}/networks/{network_id}/asac/history")
     assert network_history["complete"]
     assert {network_release["id"], second_network_release["id"]} <= {item["id"] for item in network_history["records"]}
@@ -1512,6 +1524,19 @@ async def exercise_asac_isolated_drafts(cli, kind, resource_id):
                 assert {key: value for key, value in after.items() if key != "observed_at"} == {key: value for key, value in before.items() if key != "observed_at"}
         finally:
             await publication_engine.dispose()
+    # Counter rollback and deletion cannot hide an A -> B -> A transition.
+    generation_engine=create_engine(Settings())
+    generation_sessions=create_session_factory(generation_engine)
+    try:
+        for statement in (
+            f"UPDATE {kind.lower()}.asac_environment_selections SET generation=generation-1 WHERE project_id=:project AND resource_id=:root AND environment='production'",
+            f"DELETE FROM {kind.lower()}.asac_environment_selections WHERE project_id=:project AND resource_id=:root AND environment='production'",
+        ):
+            with pytest.raises(DBAPIError,match="(generation must advance|cannot be deleted)"):
+                async with generation_sessions.begin() as generation_session:
+                    await generation_session.execute(text(statement),{"project":UUID(cli.project_id),"root":UUID(resource_id)})
+    finally:
+        await generation_engine.dispose()
     # observed_at is a fresh read timestamp, not lifecycle state or generation.
     def selected_state(data):
         return {key: value for key, value in data.items() if key != "observed_at"}

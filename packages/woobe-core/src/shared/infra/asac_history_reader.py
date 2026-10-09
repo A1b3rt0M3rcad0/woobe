@@ -12,7 +12,7 @@ from uuid import UUID
 from sqlalchemy import and_, or_, select, text
 
 from shared.contracts.asac import asac_digest
-from shared.contracts.errors import NotFoundError, ValidationError
+from shared.contracts.errors import ConflictError, NotFoundError, ValidationError
 
 
 def _utc(value):
@@ -32,8 +32,9 @@ def _bound(model, value, *, after):
 
 class ASaCHistoryReader:
     def __init__(self, sessions, *, kind, root, release, activation, owner,
-                 resource_column, release_kind, render_release, render_activation, cursor_key):
+                 resource_column, release_kind, render_release, render_activation, cursor_key, selections=None):
         self.sessions, self.kind, self.root = sessions, kind, root
+        self.selections = selections
         self.release, self.activation, self.owner = release, activation, owner
         self.resource_column, self.release_kind = resource_column, release_kind
         self.render_release, self.render_activation = render_release, render_activation
@@ -122,10 +123,18 @@ class ASaCHistoryReader:
             else:
                 identifier = getattr(root, environment + "_version_id", None)
                 snapshot = await session.get(self.release, identifier) if identifier else None
+            selection = None
+            if self.selections is not None and environment in {"staging", "production"}:
+                selection = await session.scalar(select(self.selections).where(
+                    self.selections.project_id == project_id, self.selections.resource_id == resource_id,
+                    self.selections.environment == environment))
+                if selection is None or selection.snapshot_id != (snapshot.id if snapshot else None):
+                    raise ConflictError("ASAC_SELECTION_INCONSISTENT: monotonic selection is not synchronized with its native owner")
             return {"schema_version": "1.0", "resource_id": str(resource_id), "kind": self.kind,
                     "environment": environment, "snapshot_id": str(snapshot.id) if snapshot else None,
                     "draft_generation": evidence["revision"],
-                    "environment_generation": None, "generation_status": "legacy_unavailable",
+                    "environment_generation": selection.generation if selection is not None else None,
+                    "generation_status": "monotonic_owner_selection" if selection is not None else "draft_line_generation" if environment == "draft" and self.selections is not None else "legacy_unavailable",
                     "remote_status": "verified", "observed_at": datetime.now(UTC).isoformat(),
                     "snapshot": self.render_release(snapshot) if snapshot else None,
                     "capture_consistency": "transaction_snapshot", "complete": True}
