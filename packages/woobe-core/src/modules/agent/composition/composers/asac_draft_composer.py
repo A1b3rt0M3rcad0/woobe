@@ -16,6 +16,6 @@ def build_agent_asac_drafts(*, artifacts):
 
 def build_agent_asac_candidates(*, artifacts, preparation):
     from modules.agent.infra.database.asac_models import ASaCCandidateModel
-    from shared.infra.asac_candidate_store import ASaCCandidateStore
-    return ASaCCandidateStore(drafts=build_agent_asac_drafts(artifacts=artifacts),
+    from modules.agent.infra.database.asac_transactions import AgentASaCCandidateStore
+    return AgentASaCCandidateStore(drafts=build_agent_asac_drafts(artifacts=artifacts),
         candidates=ASaCCandidateModel, preparation=preparation)

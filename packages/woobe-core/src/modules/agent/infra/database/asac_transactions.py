@@ -31,3 +31,9 @@ class AgentASaCDraftStore(ASaCDraftStore):
             kind="Agent", owner=owner, drafts=ASaCDraftModel,
             revisions=ASaCRevisionModel, operations=ASaCOperationModel,
             identities=ASaCResourceModel, artifacts=artifacts, cursor_key=cursor_key)
+
+
+from shared.infra.asac_candidate_store import ASaCCandidateStore
+
+class AgentASaCCandidateStore(ASaCCandidateStore):
+    """Agent-owned adapter for candidate receipt mechanics."""
