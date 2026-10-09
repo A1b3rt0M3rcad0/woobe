@@ -97,7 +97,7 @@ def test_release_candidate_builds_exactly_four_process_images() -> None:
     assert "provenance: mode=max" in candidate
     assert "sbom: true" in candidate
     assert "sha-$revision" in candidate
-    assert "ubuntu-24.04" in candidate
+    assert "runs-on: [self-hosted, Linux, X64]" in candidate
 
 
 def test_release_promotes_candidate_without_rebuilding() -> None:
@@ -212,7 +212,7 @@ def test_validated_release_candidate_is_bound_to_one_orchestrated_publication() 
     assert 'GITHUB_REF" != "refs/heads/master' in prepare
 
 
-def test_release_workflows_pin_hosted_runner_and_action_commits() -> None:
+def test_release_workflows_use_self_hosted_runners_and_pin_action_commits() -> None:
     for relative in (
         ".github/workflows/prepare-release.yml",
         ".github/workflows/release-candidate.yml",
@@ -220,7 +220,8 @@ def test_release_workflows_pin_hosted_runner_and_action_commits() -> None:
     ):
         workflow = (ROOT / relative).read_text(encoding="utf-8")
         assert "ubuntu-latest" not in workflow
-        assert "ubuntu-24.04" in workflow
+        assert "ubuntu-24.04" not in workflow
+        assert "runs-on: [self-hosted, Linux, X64]" in workflow
         for action in re.findall(r"uses:\s+([^\s#]+)", workflow):
             if action.startswith("./"):
                 continue

@@ -13,7 +13,7 @@ ghcr.io/a1b3rt0m3rcad0/woobe-embed:<VERSION>
 
 All application images in one deployment should use the same Woobe platform version.
 
-Reviewed merges into `master` start **Release Woobe** automatically. The workflow synchronizes platform versions through a validated release PR, publishes these four multi-architecture images, and records their exact digests in the GitHub Release's `release-manifest.json`. Choose a completed [GitHub Release](https://github.com/A1b3rt0M3rcad0/woobe/releases); a source merge or a still-running preparation job is not evidence that its image packages are ready. See [RELEASING.md](../../RELEASING.md) for version selection and recovery.
+Reviewed merges into `master` start **Release Woobe** automatically using the existing self-hosted Linux/X64 CI runners. The workflow synchronizes platform versions through a validated release PR, publishes these four multi-architecture images, and records their exact digests in the GitHub Release's `release-manifest.json`. Choose a completed [GitHub Release](https://github.com/A1b3rt0M3rcad0/woobe/releases); a source merge or a still-running preparation job is not evidence that its image packages are ready. See [RELEASING.md](../../RELEASING.md) for version selection and recovery.
 
 ## Pull the images
 

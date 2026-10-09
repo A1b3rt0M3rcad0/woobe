@@ -70,6 +70,11 @@ def run(
 
 
 def gh_json(args: list[str]) -> Any:
+    if "--paginate" in args:
+        # Older GitHub CLI versions commonly installed on self-hosted runners
+        # do not support --slurp. Emit one compact JSON document per page.
+        result = run(["gh", *args, "--jq", "@json"])
+        return [json.loads(line) for line in result.stdout.splitlines() if line.strip()]
     result = run(["gh", *args])
     return json.loads(result.stdout)
 
@@ -211,7 +216,6 @@ def workflow_runs(repo: str, head_sha: str) -> dict[str, dict[str, Any]]:
         [
             "api",
             "--paginate",
-            "--slurp",
             "--method",
             "GET",
             f"repos/{repo}/actions/runs",

@@ -21,6 +21,82 @@ def as_list(value):
     return [value]
 
 
+@pytest.mark.parametrize("workflow", ["prepare-release.yml", "release-candidate.yml", "release.yml"])
+def test_release_jobs_share_ci_runners_and_serialize_docker(workflow: str) -> None:
+    for name, job in load_workflow(workflow)["jobs"].items():
+        if "uses" in job:
+            continue
+        assert job["runs-on"] == ["self-hosted", "Linux", "X64"], name
+        steps = job["steps"]
+        docker_actions = [i for i, step in enumerate(steps) if step.get("uses", "").startswith("docker/")]
+        if not docker_actions:
+            # In particular, the job waiting for required CI must not hold its
+            # Docker lock: those CI jobs need the same daemon to finish.
+            assert not any("prepare_docker_access" in step.get("run", "") for step in steps)
+            continue
+        names = [step.get("name") for step in steps]
+        assert names.index("Prepare private release Docker configuration") < names.index("Prepare Docker access") < min(docker_actions)
+        assert int(job["timeout-minutes"]) >= 75  # Includes the shared lock's 40-minute queue budget.
+        assert steps[-1]["name"] == "Clean up release Docker resources"
+        assert steps[-1]["if"] == "always()"
+        assert any(step.get("uses", "").startswith("actions/checkout@") for step in steps)
+        for step in steps:
+            if step.get("uses", "").startswith("docker/setup-buildx-action@"):
+                assert step["with"]["cleanup"] == "false"
+                assert step["id"] == "release_buildx"
+                assert "steps.release_buildx.outputs.name" in steps[-1]["env"]["WOOBE_RELEASE_BUILDER"]
+            if step.get("uses", "").startswith("docker/login-action@"):
+                assert step["with"]["logout"] == "false"
+    if workflow == "release-candidate.yml":
+        assert load_workflow(workflow)["jobs"]["build"]["strategy"]["max-parallel"] == "1"
+
+
+@pytest.mark.parametrize("docker_exit", [0, 1])
+def test_release_docker_credentials_are_private_and_cleanup_survives_failure(tmp_path: Path, docker_exit: int) -> None:
+    original = tmp_path / "original"
+    plugins = original / "cli-plugins"
+    plugins.mkdir(parents=True)
+    (original / "config.json").write_text('{"auths":{"existing":"private"}}')
+    (plugins / "docker-compose").write_text("plugin")
+    environment_file = tmp_path / "environment"
+    env = {**os.environ, "RUNNER_TEMP": str(tmp_path), "GITHUB_ENV": str(environment_file), "DOCKER_CONFIG": str(original)}
+    subprocess.run(["bash", "scripts/release/prepare_docker_config.sh"], cwd=ROOT, env=env, check=True)
+    env.update(dict(line.split("=", 1) for line in environment_file.read_text().splitlines()))
+    private = Path(env["DOCKER_CONFIG"])
+    assert private != original
+    assert private.stat().st_mode & 0o777 == 0o700
+    assert (private / "cli-plugins/docker-compose").read_text() == "plugin"
+    assert not (private / "config.json").exists()
+    (private / "config.json").write_text("issued registry credential")
+    # Even a failed builder removal must remove the job's credentials and
+    # release its shared lock, preserving the runner's unrelated credentials.
+    docker = tmp_path / "docker"
+    docker.write_text(f"#!/bin/sh\nexit {docker_exit}\n")
+    docker.chmod(0o700)
+    release_file = tmp_path / "release-lock"
+    acquired_file = tmp_path / "acquired-lock"
+    acquired_file.touch()
+    env.update({"PATH": f"{tmp_path}:{env['PATH']}", "WOOBE_RELEASE_BUILDER": "owned-builder", "WOOBE_DOCKER_LOCK_RELEASE_FILE": str(release_file), "WOOBE_DOCKER_LOCK_ACQUIRED_FILE": str(acquired_file)})
+    result = subprocess.run(["bash", "scripts/release/cleanup_docker.sh"], cwd=ROOT, env=env, capture_output=True)
+    assert result.returncode == docker_exit
+    assert not private.exists()
+    assert not acquired_file.exists()
+    assert (original / "config.json").read_text() == '{"auths":{"existing":"private"}}'
+
+
+def test_release_cleanup_refuses_unrelated_configuration(tmp_path: Path) -> None:
+    original = tmp_path / "unrelated"
+    original.mkdir()
+    (original / "config.json").write_text("keep")
+    docker = tmp_path / "docker"
+    docker.write_text("#!/bin/sh\nexit 0\n")
+    docker.chmod(0o700)
+    env = {**os.environ, "RUNNER_TEMP": str(tmp_path), "WOOBE_RELEASE_DOCKER_CONFIG": str(original), "PATH": f"{tmp_path}:{os.environ['PATH']}"}
+    result = subprocess.run(["bash", "scripts/release/cleanup_docker.sh"], cwd=ROOT, env=env, capture_output=True)
+    assert result.returncode != 0
+    assert (original / "config.json").read_text() == "keep"
+
+
 def test_release_workflow_graph_is_parent_owned_and_serial() -> None:
     prepare = load_workflow("prepare-release.yml")
     jobs = prepare["jobs"]

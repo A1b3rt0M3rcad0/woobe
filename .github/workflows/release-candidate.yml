@@ -50,7 +50,7 @@ concurrency:
 
 jobs:
   metadata:
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 10
     outputs:
       version: ${{ steps.meta.outputs.version }}
@@ -58,6 +58,9 @@ jobs:
       revision: ${{ steps.meta.outputs.revision }}
       candidate_tag: ${{ steps.meta.outputs.candidate_tag }}
     steps:
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.14"
       - name: Require canonical manual workflow source
         if: ${{ github.event_name == 'workflow_dispatch' }}
         shell: bash
@@ -96,10 +99,11 @@ jobs:
 
   build:
     needs: metadata
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 75
     strategy:
       fail-fast: false
+      max-parallel: 1
       matrix:
         include:
           - unit: api
@@ -120,15 +124,26 @@ jobs:
             target: runtime
     env:
       DOCKER_BUILD_RECORD_UPLOAD: "false"
+      DOCKER_BUILD_SUMMARY: "false"
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           ref: ${{ inputs.ref }}
 
+      - name: Prepare private release Docker configuration
+        run: bash scripts/release/prepare_docker_config.sh
+      - name: Prepare Docker access
+        id: release_docker_access
+        run: bash scripts/ci/prepare_docker_access.sh
+
       - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+        id: release_buildx
+        with:
+          cleanup: false
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
         with:
+          logout: false
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
@@ -202,14 +217,34 @@ jobs:
           test "$revision" = "${{ needs.metadata.outputs.revision }}"
           test "$version" = "${{ needs.metadata.outputs.version }}"
 
+      - name: Clean up release Docker resources
+        if: always()
+        env:
+          WOOBE_RELEASE_BUILDER: ${{ steps.release_buildx.outputs.name }}
+        run: bash scripts/release/cleanup_docker.sh
+
   verify-platforms:
     needs: [metadata, build]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    runs-on: [self-hosted, Linux, X64]
+    timeout-minutes: 75
     steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Prepare private release Docker configuration
+        run: bash scripts/release/prepare_docker_config.sh
+      - name: Prepare Docker access
+        id: release_docker_access
+        run: bash scripts/ci/prepare_docker_access.sh
+
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+        id: release_buildx
+        with:
+          cleanup: false
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
         with:
+          logout: false
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
@@ -246,10 +281,16 @@ jobs:
             grep -q 'linux/arm64' <<<"$manifest"
           done
 
+      - name: Clean up release Docker resources
+        if: always()
+        env:
+          WOOBE_RELEASE_BUILDER: ${{ steps.release_buildx.outputs.name }}
+        run: bash scripts/release/cleanup_docker.sh
+
   smoke:
     needs: [metadata, build, verify-platforms]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    runs-on: [self-hosted, Linux, X64]
+    timeout-minutes: 75
     env:
       COMPOSE_PROJECT_NAME: woobe-candidate-${{ github.run_id }}-${{ github.run_attempt }}
       WOOBE_API_IMAGE: ghcr.io/${{ needs.metadata.outputs.owner }}/woobe-api:${{ needs.metadata.outputs.candidate_tag }}
@@ -260,12 +301,22 @@ jobs:
       WOOBE_WEB_BASE_URL: http://127.0.0.1:8080
       WOOBE_CHAT_EMBED_BASE_URL: http://127.0.0.1:8081
     steps:
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.14"
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           ref: ${{ inputs.ref }}
 
+      - name: Prepare private release Docker configuration
+        run: bash scripts/release/prepare_docker_config.sh
+      - name: Prepare Docker access
+        id: release_docker_access
+        run: bash scripts/ci/prepare_docker_access.sh
+
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
         with:
+          logout: false
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
@@ -309,19 +360,23 @@ jobs:
         run: bash scripts/ci/smoke_prebuilt_core_images.sh
 
       - name: Capture candidate diagnostics
-        if: failure()
+        if: ${{ failure() && steps.release_docker_access.outcome == 'success' }}
         run: |
           docker compose -f compose.yaml -f docker/ci/compose.release-images.yml ps --all || true
           docker compose -f compose.yaml -f docker/ci/compose.release-images.yml logs --no-color || true
 
       - name: Tear down
-        if: always()
+        if: ${{ always() && steps.release_docker_access.outcome == 'success' }}
         run: docker compose -f compose.yaml -f docker/ci/compose.release-images.yml down -v --remove-orphans || true
+
+      - name: Clean up release Docker resources
+        if: always()
+        run: bash scripts/release/cleanup_docker.sh
 
   manifest:
     needs: [metadata, smoke]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    runs-on: [self-hosted, Linux, X64]
+    timeout-minutes: 75
     outputs:
       validation_id: ${{ steps.identity.outputs.validation_id }}
       api_digest: ${{ steps.digests.outputs.api_digest }}
@@ -329,9 +384,23 @@ jobs:
       frontend_digest: ${{ steps.digests.outputs.frontend_digest }}
       embed_digest: ${{ steps.digests.outputs.embed_digest }}
     steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Prepare private release Docker configuration
+        run: bash scripts/release/prepare_docker_config.sh
+      - name: Prepare Docker access
+        id: release_docker_access
+        run: bash scripts/ci/prepare_docker_access.sh
+
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+        id: release_buildx
+        with:
+          cleanup: false
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
         with:
+          logout: false
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
@@ -394,3 +463,9 @@ jobs:
             printf 'Frontend: `%s`\n' "${{ steps.digests.outputs.frontend_digest }}"
             printf 'Embed: `%s`\n' "${{ steps.digests.outputs.embed_digest }}"
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Clean up release Docker resources
+        if: always()
+        env:
+          WOOBE_RELEASE_BUILDER: ${{ steps.release_buildx.outputs.name }}
+        run: bash scripts/release/cleanup_docker.sh
