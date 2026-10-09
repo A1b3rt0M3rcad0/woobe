@@ -43,3 +43,9 @@ from shared.infra.asac_evaluation_store import ASaCEvaluationStore
 
 class AgentASaCEvaluationStore(ASaCEvaluationStore):
     """Agent-owned adapter for evaluation receipt and evidence mechanics."""
+
+
+from shared.infra.asac_publication_store import ASaCPublicationStore
+
+class AgentASaCPublicationStore(ASaCPublicationStore):
+    """Agent-owned publication transaction and immutable receipt adapter."""

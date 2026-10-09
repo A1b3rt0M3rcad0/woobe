@@ -71,3 +71,17 @@ class ASaCEvaluationModel(ASaCEvaluationColumns, BaseModel):
         ForeignKeyConstraint(["candidate_id"], ["agent.asac_candidates.id"], ondelete="RESTRICT"),
         {"schema": "agent"},
     )
+
+
+from shared.infra.asac_record_models import ASaCPublicationColumns
+
+class ASaCPublicationModel(ASaCPublicationColumns, BaseModel):
+    __tablename__ = "asac_publications"
+    __table_args__ = (
+        UniqueConstraint("project_id", "resource_id", "actor", "operation_id", name="uq_agent_asac_publication_operation"),
+        ForeignKeyConstraint(["resource_id"], ["agent.agents.id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(["candidate_id"], ["agent.asac_candidates.id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(["evaluation_id"], ["agent.asac_evaluations.id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(["release_id"], ["agent.agent_releases.id"], ondelete="RESTRICT"),
+        {"schema": "agent"},
+    )

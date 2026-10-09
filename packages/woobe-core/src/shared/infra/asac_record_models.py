@@ -76,3 +76,20 @@ class ASaCEvaluationColumns:
     binding_digest: Mapped[str] = mapped_column(String(71))
     cases: Mapped[list] = mapped_column(JSON)
     error_code: Mapped[str | None] = mapped_column(String(128), nullable=True)
+
+
+class ASaCPublicationColumns:
+    project_id: Mapped[UUID]
+    resource_id: Mapped[UUID]
+    resource_uid: Mapped[UUID]
+    candidate_id: Mapped[UUID]
+    evaluation_id: Mapped[UUID]
+    release_id: Mapped[UUID]
+    release_version: Mapped[str] = mapped_column(String(64))
+    revision_id: Mapped[str] = mapped_column(String(40))
+    actor: Mapped[str] = mapped_column(String(96))
+    operation_id: Mapped[UUID]
+    request_digest: Mapped[str] = mapped_column(String(71))
+    reused: Mapped[bool]
+    reason: Mapped[str] = mapped_column(String(2048))
+    evidence: Mapped[dict] = mapped_column(JSON)

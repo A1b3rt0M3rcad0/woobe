@@ -267,3 +267,37 @@ mutation/deletion. Provider exception messages are not exported.
 
 `asac.candidate_evaluation` advertises this protocol. Publication, activation and
 fenced deployment remain separately gated until their complete implementation.
+
+## Exact evaluated Agent publication
+
+`asac.candidate_publication_kinds: ["Agent"]` advertises owner routes
+`POST /asac/publications` and `GET /asac/publications/{publication_id}`. The strict
+request names an original operation, ready Candidate and passed Evaluation plus
+an audit reason. It cannot assert successful evaluation or verified Git status.
+Write authority is `agent:version` at Staging; inspection requires `agent:read`.
+
+The server verifies retained revision/object identity, complete passed native Run
+evidence and matching record/runtime/binding digests. It refreshes destination
+bindings before acceptance, then rechecks authority, readiness and evidence under
+the owner root lock. Native Release insertion/reuse, immutable publication ledger
+and the original operation receipt commit in the same transaction. The selected
+Candidate remains the source even when current native Staging changed afterward.
+Default Draft, Staging and Production selections are untouched.
+
+Native runtime hashing retains canonical primary and fallback Provider Model IDs,
+matching the candidate/runtime repository rather than the legacy mapper projection.
+Identical native executable content may reuse an immutable Release; a new intentional
+publication still has separate revision/evaluation provenance. Replaying the original
+operation returns its original result and does not allocate another Release.
+
+Migration `0088` adds immutable Agent publication records and seals ready/rejected
+Agent/Network Candidate ledgers. Downgrade refuses retained publication records.
+The receipt digest verifies content integrity; Git is declared/unavailable and
+receipts are not yet signed offline attestations. Network exact publication and
+fenced deployment are not advertised by this phase. Legacy Network publication
+retains its Production activation behavior.
+
+The CLI saves pending identity before acceptance and writes an append-only,
+destination-scoped documentary receipt afterward. Local mirror failure cannot
+roll back a remote commit and does not authorize a second publication. Read-only
+original-operation reconciliation retries the local mirror without another POST.

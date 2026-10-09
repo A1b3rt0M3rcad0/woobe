@@ -33,7 +33,7 @@ from shared.security.control_plane import (
 )
 
 CLI_COMMIT = os.environ.get(
-    "WOOBE_TEST_CLI_SHA", "bfec295703a7ee29c335f6f16d362c60e158f211"
+    "WOOBE_TEST_CLI_SHA", "de84558ba15a20134e0f0c4c5d4c4e590bf06c7a"
 )
 
 
@@ -1384,6 +1384,52 @@ async def exercise_asac_isolated_drafts(cli, kind, resource_id):
     finally:
         await evidence_engine.dispose()
     assert (await cli.run(kind.lower(), "@captured", "evaluation", evaluation["evaluation_id"], cwd=registry))["data"] == evaluation
+    if kind == "Agent":
+        # Moving native current Staging after qualification cannot retarget an
+        # exact publication. Native Stage remains an explicitly separate action.
+        await cli.run("agent",resource_id,"stage","--yes")
+        moved_staging = (await cli.run("agent",resource_id,"current","--env","staging"))["data"]
+        assert moved_staging["snapshot_id"] != native_staging_before["snapshot_id"]
+        native_staging_before = moved_staging
+        publication_body={"operation_id":str(uuid4()),"candidate_id":candidate["candidate_id"],
+            "evaluation_id":evaluation["evaluation_id"],"reason":"Publish the exact qualified candidate"}
+        publication = (await cli.run("agent", "@captured", "publish", "--candidate", candidate["candidate_id"],
+            "--evaluation", evaluation["evaluation_id"], "--notes", publication_body["reason"], "--yes", cwd=registry))["data"]
+        publication_body["operation_id"] = publication["operation_id"]
+        assert (await cli.run("agent", resource_id, "publication", publication["publication_id"], "--no-project-config"))["data"] == publication
+        receipt_files = list(registry.glob(".woobe/**/publications/*.yaml"))
+        assert len(receipt_files) == 1
+        assert "authenticated_connection_observation" in receipt_files[0].read_text()
+        assert (await cli.run("agent", "@captured", "history", "verify", cwd=registry))["data"]["publication_receipts"] == 1
+        assert publication["published"] and not publication["production_changed"]
+        assert publication["runtime_digest"]==candidate["runtime_digest"]
+        assert publication["record_digest"]==candidate["record_digest"]
+        assert publication["git"]["status"]=="unavailable"
+        assert await cli.data("request","POST",base+"/publications",body=publication_body)==publication
+        assert await cli.data("request","GET",base+"/publications/"+publication["publication_id"])==publication
+        reused=await cli.data("request","POST",base+"/publications",body={**publication_body,"operation_id":str(uuid4()),"reason":"New provenance for the same exact published snapshot"})
+        assert reused["publication_id"]!=publication["publication_id"]
+        assert reused["release_id"]==publication["release_id"] and reused["reused"]
+        from modules.agent.infra.database.models import AgentReleaseModel
+        from modules.agent.infra.database.provider_model_repositories import SQLAlchemyAgentReleaseRepositoryWithProviderModels
+        from modules.agent.domain.execution_definition import hash_agent_execution_snapshot
+        publication_engine=create_engine(Settings())
+        publication_sessions=create_session_factory(publication_engine)
+        try:
+            async with publication_sessions() as publication_session:
+                frozen=await publication_session.get(AgentReleaseModel,UUID(candidate["snapshot_id"]))
+                published=await publication_session.get(AgentReleaseModel,UUID(publication["release_id"]))
+                assert frozen.snapshot_kind=="candidate" and published.snapshot_kind=="release"
+                assert "sha256:"+hash_agent_execution_snapshot(await SQLAlchemyAgentReleaseRepositoryWithProviderModels(publication_session).get_by_id(published.id))==candidate["runtime_digest"]
+            for statement in (
+                "UPDATE agent.asac_publications SET reason = :changed WHERE id = :id",
+                "DELETE FROM agent.asac_publications WHERE id = :id",
+            ):
+                with pytest.raises(DBAPIError,match="cannot be modified or deleted"):
+                    async with publication_sessions.begin() as publication_session:
+                        await publication_session.execute(text(statement),{"id":UUID(publication["publication_id"]),"changed":"tamper"})
+        finally:
+            await publication_engine.dispose()
     # observed_at is a fresh read timestamp, not lifecycle state or generation.
     def selected_state(data):
         return {key: value for key, value in data.items() if key != "observed_at"}
