@@ -18,6 +18,25 @@ def proof(receipt):
     return {key: receipt[key] for key in ("lease_id", "workflow_id", "fencing_token")}
 
 
+async def assert_one_deployment(kind, operation):
+    from sqlalchemy import text
+    from shared.infra.config import Settings
+    from shared.infra.database.session import create_engine, create_session_factory
+
+    engine = create_engine(Settings())
+    try:
+        async with create_session_factory(engine)() as session:
+            count = await session.scalar(
+                text(
+                    f"SELECT count(*) FROM {kind.lower()}.asac_deployments WHERE operation_id=:operation"
+                ),
+                {"operation": operation},
+            )
+            assert count == 1
+    finally:
+        await engine.dispose()
+
+
 @asynccontextmanager
 async def lose_committed_response(origin, path):
     """Forward to the actual API, then truncate exactly one committed response."""
@@ -45,7 +64,9 @@ async def lose_committed_response(origin, path):
             )
             lose = scope["method"] == "POST" and scope["path"] == path and not accepted
             if lose:
-                assert response.status_code < 300, f"fault must occur after acceptance, status={response.status_code}"
+                assert response.status_code < 300, (
+                    f"fault must occur after acceptance, status={response.status_code}"
+                )
                 accepted.append(response.json()["data"])
             content = b"{" if lose else response.content
             await send(
@@ -214,6 +235,7 @@ async def exercise_independent_clients_and_lost_response(
         await winner.data("request", "POST", base + "/deployments", body=body)
         == recovered
     )
+    await assert_one_deployment(kind, operation)
     await winner.data(
         "request",
         "POST",
@@ -406,17 +428,52 @@ async def exercise_managed_rollback(
                     "Qualify managed Production rollback and restore",
                 )
             )["data"]
-            receipt = await cli.data(
-                "request",
-                "POST",
-                base + "/deployments",
-                body={
-                    "operation_id": str(uuid4()),
-                    "plan_id": plan["plan_id"],
-                    "environment": "production",
-                    "leases": [proof(lease)],
-                },
+            apply = {
+                "operation_id": str(uuid4()),
+                "plan_id": plan["plan_id"],
+                "environment": "production",
+                "leases": [proof(lease)],
+            }
+            if action == "rollback":
+                # Qualify response loss for an effective pointer/generation
+                # transition as well as the audited no-op above.
+                async with lose_committed_response(
+                    cli.origin, base + "/deployments"
+                ) as (proxy, accepted):
+                    lost = await cli.run(
+                        "request",
+                        "POST",
+                        base + "/deployments",
+                        "--api-url",
+                        proxy,
+                        body=apply,
+                        expected=7,
+                    )
+                    assert lost["error"]["write_outcome"] == "unknown"
+                    assert len(accepted) == 1 and accepted[0]["selection_changed"]
+                    receipt = (
+                        await cli.run(
+                            kind.lower(),
+                            resource_id,
+                            "deployment",
+                            "reconcile",
+                            "--operation",
+                            apply["operation_id"],
+                            "--no-project-config",
+                            "--api-url",
+                            proxy,
+                        )
+                    )["data"]
+                    assert receipt == accepted[0]
+            else:
+                receipt = await cli.data(
+                    "request", "POST", base + "/deployments", body=apply
+                )
+            assert (
+                await cli.data("request", "POST", base + "/deployments", body=apply)
+                == receipt
             )
+            await assert_one_deployment(kind, apply["operation_id"])
             assert receipt["action"] == action and receipt["selection_changed"]
             assert (
                 receipt["generation_after"] == start["environment_generation"] + offset
