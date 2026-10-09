@@ -6,7 +6,10 @@ from modules.agent.infra.database.repositories import (
 from modules.agent.infra.database.portable_export_reader import authorize_export_read
 from modules.agent.domain.entities import AgentReleaseTest
 from modules.agent.domain.enums import ReleaseTestStatus
-from shared.contracts.errors import ValidationError, NotFoundError
+from shared.contracts.errors import ConflictError, NotFoundError, ValidationError
+from modules.agent.infra.database.asac_environment_selector import (
+    selected_agent_release,
+)
 
 
 class SQLReleaseTestExecutionStore:
@@ -26,6 +29,13 @@ class SQLReleaseTestExecutionStore:
                 },
             )
             release = await uow.session.get(AgentReleaseModel, request.release_id)
+            selected = None
+            if request.environment in {"staging", "production"}:
+                selected = await selected_agent_release(
+                    uow.session, request.agent_id, request.environment, lock=True
+                )
+                if selected is not None and selected.id != request.release_id:
+                    raise ConflictError("ASAC_TEST_SELECTION_CHANGED")
             if (
                 release is None
                 or release.project_id != request.project_id
@@ -37,7 +47,11 @@ class SQLReleaseTestExecutionStore:
                 and release.snapshot_kind != "release"
             ):
                 raise ValidationError("Release testing requires an immutable Release")
-            if request.environment == "staging" and release.snapshot_kind != "staging":
+            if (
+                request.environment == "staging"
+                and selected is None
+                and release.snapshot_kind != "staging"
+            ):
                 raise ValidationError("Staging testing requires a Staging snapshot")
             if request.environment == "draft" and release.snapshot_kind != "draft":
                 raise ValidationError("Draft testing requires a Draft snapshot")
@@ -58,7 +72,9 @@ class SQLReleaseTestExecutionStore:
 
     async def finish(self, test_id, *, actual_output, errors, latency_ms):
         async with self._build_uow() as uow:
-            test = await uow.session.get(AgentReleaseTestModel, test_id, with_for_update=True)
+            test = await uow.session.get(
+                AgentReleaseTestModel, test_id, with_for_update=True
+            )
             if test is None:
                 raise NotFoundError("Release test is unavailable")
             test.actual_output, test.validation_errors, test.latency_ms = (
@@ -67,7 +83,9 @@ class SQLReleaseTestExecutionStore:
                 latency_ms,
             )
             test.status = (
-                ReleaseTestStatus.failed.value if errors else ReleaseTestStatus.passed.value
+                ReleaseTestStatus.failed.value
+                if errors
+                else ReleaseTestStatus.passed.value
             )
             await uow.session.flush()
             await uow.session.refresh(test)

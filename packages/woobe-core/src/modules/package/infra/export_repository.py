@@ -16,6 +16,7 @@ from modules.package.infra.models import PackageExportModel
 from modules.package.infra.operation_repository import as_utc
 from modules.package.infra.receipts import authorize_phase
 from shared.infra.admin_idempotency import principal_identity
+from shared.contracts.errors import ConflictError, SnapshotCaptureConflict
 
 
 class PackageExportRepository:
@@ -100,12 +101,17 @@ class PackageExportRepository:
             )[0]
             agents = [captured]
         else:
-            captured = await self.networks.capture(
-                project_id=project_id,
-                principal=principal,
-                network_id=UUID(request.target_id),
-                **selector,
-            )
+            try:
+                captured = await self.networks.capture(
+                    project_id=project_id,
+                    principal=principal,
+                    network_id=UUID(request.target_id),
+                    **selector,
+                )
+            except SnapshotCaptureConflict as exc:
+                raise PackageError(exc.code, str(exc), file="network.yaml", path=exc.path) from exc
+            except ConflictError as exc:
+                raise PackageError("PACKAGE_EXPORT_NETWORK_CONFLICT", "Network capture conflicts with its saved snapshot or dependencies", file="network.yaml", path="/spec") from exc
             agents = captured["agents"]
         keys = set()
         for agent in agents:

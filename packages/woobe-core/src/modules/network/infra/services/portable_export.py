@@ -13,6 +13,7 @@ from shared.contracts.errors import (
     ConflictError,
     NotFoundError,
     ValidationError,
+    SnapshotCaptureConflict,
 )
 from shared.security.principal import AuthenticatedPrincipal, ControlPlanePrincipal
 from shared.security.tenancy import TenantAuthorizer
@@ -115,54 +116,87 @@ class PortableNetworkExportReader:
                     or version.kind not in {"staging", "release"}
                 ):
                     raise NotFoundError("Network snapshot is unavailable")
-                definition = self._service._definition(deepcopy(version.definition))
+                definition = self._capture_definition(deepcopy(version.definition))
                 bindings = deepcopy(version.resolved_bindings)
                 if composition_hash(definition, bindings) != version.composition_hash:
-                    raise ConflictError("Network snapshot integrity check failed")
+                    raise SnapshotCaptureConflict(
+                        "PACKAGE_EXPORT_NETWORK_INTEGRITY",
+                        "Network snapshot integrity check failed",
+                        path="/spec",
+                    )
             else:
-                definition = self._service._definition(
+                definition = self._capture_definition(
                     deepcopy(network.draft_definition)
                 )
-                bindings = await self._service._resolve_draft_bindings(
-                    session, definition, project_id
-                )
+                try:
+                    bindings = await self._service._resolve_draft_bindings(
+                        session, definition, project_id
+                    )
+                except ConflictError as exc:
+                    raise SnapshotCaptureConflict(
+                        "PACKAGE_EXPORT_NETWORK_BINDING",
+                        "Network Draft has an unavailable Agent or pinned snapshot",
+                        path="/spec/nodes",
+                    ) from exc
             agents, selections = [], {}
             nodes = []
             keys = {
                 node.id: node.portable_key or f"node-{index + 1}"
                 for index, node in enumerate(definition.nodes)
             }
-            for node in definition.nodes:
+            for index, node in enumerate(definition.nodes):
                 binding = bindings.get(str(node.id)) or {}
                 release_id = binding.get("release_id") or binding.get(
                     "draft_release_id"
                 )
-                live_draft = (
-                    version is None
-                    and node.binding.source == "draft"
-                )
+                live_draft = version is None and node.binding.source == "draft"
                 if release_id is None and not live_draft:
-                    raise ConflictError(
-                        "Network binding has no complete Agent snapshot"
+                    raise SnapshotCaptureConflict(
+                        "PACKAGE_EXPORT_NETWORK_BINDING",
+                        "Network binding has no complete Agent snapshot",
+                        path=f"/spec/nodes/{index}/binding",
                     )
-                identity = (
-                    node.agent_id,
-                    UUID(str(release_id)) if release_id and not live_draft else None,
-                )
+                try:
+                    identity = (
+                        node.agent_id,
+                        UUID(str(release_id))
+                        if release_id and not live_draft
+                        else None,
+                    )
+                except ValueError as exc:
+                    raise SnapshotCaptureConflict(
+                        "PACKAGE_EXPORT_NETWORK_BINDING",
+                        "Network binding contains an invalid snapshot identity",
+                        path=f"/spec/nodes/{index}/binding",
+                    ) from exc
                 if identity not in selections:
                     reference = f"agent-{len(agents) + 1}"
-                    captured = await self._agents.capture_in_session(
-                        session,
-                        project_id=project_id,
-                        principal=principal,
-                        agent_id=node.agent_id,
-                        source="draft" if live_draft else None,
-                        snapshot_id=identity[1],
-                        expected_snapshot=None
-                        if live_draft
-                        else binding.get("snapshot_override"),
+                    try:
+                        captured = await self._agents.capture_in_session(
+                            session,
+                            project_id=project_id,
+                            principal=principal,
+                            agent_id=node.agent_id,
+                            source="draft" if live_draft else None,
+                            snapshot_id=identity[1],
+                            expected_snapshot=None
+                            if live_draft
+                            else binding.get("snapshot_override"),
+                        )
+                    except (
+                        ConflictError,
+                        NotFoundError,
+                        ValidationError,
+                        ValueError,
+                    ) as exc:
+                        raise SnapshotCaptureConflict(
+                            "PACKAGE_EXPORT_NETWORK_CONSTITUENT",
+                            "Network constituent cannot be captured as a complete exact Agent snapshot",
+                            path=f"/spec/nodes/{index}/agent_ref",
+                        ) from exc
+                    agents.append(
+                        {"key": reference, **captured, "frozen": not live_draft}
                     )
-                    agents.append({"key": reference, **captured, "frozen": not live_draft})
                     selections[identity] = reference
                 nodes.append(
                     {
@@ -174,14 +208,18 @@ class PortableNetworkExportReader:
                         "binding": {"source": node.binding.source},
                     }
                 )
-            resource_uid = await session.scalar(select(ASaCResourceModel.resource_uid).where(
-                ASaCResourceModel.project_id == project_id,
-                ASaCResourceModel.resource_id == network_id,
-            ))
+            resource_uid = await session.scalar(
+                select(ASaCResourceModel.resource_uid).where(
+                    ASaCResourceModel.project_id == project_id,
+                    ASaCResourceModel.resource_id == network_id,
+                )
+            )
             return {
                 "source": {
                     "network_id": str(network.id),
-                    "resource_uid": str(resource_uid) if resource_uid is not None else None,
+                    "resource_uid": str(resource_uid)
+                    if resource_uid is not None
+                    else None,
                     "snapshot_id": str(version.id) if version else None,
                     "revision": network.draft_revision if version is None else None,
                     "draft_revision": network.draft_revision,
@@ -206,3 +244,13 @@ class PortableNetworkExportReader:
                 },
                 "agents": agents,
             }
+
+    def _capture_definition(self, raw):
+        try:
+            return self._service._definition(raw)
+        except (ValidationError, ValueError, KeyError, TypeError) as exc:
+            raise SnapshotCaptureConflict(
+                "PACKAGE_EXPORT_NETWORK_DEFINITION",
+                "Network definition is incompatible with the portable graph contract",
+                path="/spec",
+            ) from exc

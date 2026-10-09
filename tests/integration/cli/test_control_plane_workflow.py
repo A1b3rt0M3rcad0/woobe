@@ -33,7 +33,7 @@ from shared.security.control_plane import (
 )
 
 CLI_COMMIT = os.environ.get(
-    "WOOBE_TEST_CLI_SHA", "7361be14cb24685a3324ef6efddfe46bbdce1d1e"
+    "WOOBE_TEST_CLI_SHA", "38ae1ba1cef531735a9a7088121e4bc3b2dbb40c"
 )
 
 
@@ -2463,6 +2463,14 @@ async def exercise_asac_deployments(cli, kind, resource_id, publication):
     stage_proof={key:stage_lease[key] for key in ("lease_id","workflow_id","fencing_token")}
     stage_receipt=await cli.data("request","POST",base+"/deployments",body={"operation_id":str(uuid4()),"plan_id":stage_plan["plan_id"],"environment":"staging","leases":[stage_proof]})
     assert stage_receipt["generation_after"]==staging["environment_generation"]+1
+    if kind == "Agent":
+        testcase = registry / "environment-test.yaml"
+        testcase.write_text("message: Hello selected immutable Release\n")
+        for environment in ("staging", "production"):
+            tested = (await cli.run("agent",resource_id,"test","--env",environment,
+                "--file",str(testcase),cwd=registry))["data"]
+            assert tested["status"] == "passed" and tested["release_id"] == publication["release_id"]
+            assert tested["actual_output"]["run_id"]
     for environment in ("staging","production"):
         selected=(await cli.run(kind.lower(),resource_id,"current","--env",environment))["data"]
         assert selected["snapshot_id"]==publication["release_id"] and selected["selection_authority"]=="asac"

@@ -28,6 +28,25 @@ CLI paths below refer to [woobe-cli](https://github.com/A1b3rt0M3rcad0/woobe-cli
 
 ## Running qualification
 
+The 2026-10-09 functional audit adds the following regressions. These checks do
+not establish the cause of the report's four unavailable Network exports: their
+stored graphs and bindings must be inspected through the scoped diagnostics.
+
+| Audit item | Regression evidence | Resulting contract |
+|---|---|---|
+| F01 | CLI `asac_drafts_test.go`, `asac_leases_test.go` | absent/cleared checkpoints reconcile without writes; malformed or uncertain checkpoints cannot be overwritten |
+| F02 | CLI `audit_parsing_test.go` | unknown nested commands fail with exit 2; bare groups and explicit help succeed |
+| F03 | CLI `internal/output/audit_view_test.go` | compact receipts retain Candidate, preparation, evaluation and publication identities |
+| F04 | `tests/unit/network/test_portable_export_diagnostics.py`, `tests/unit/package/test_export_conflict_diagnostics.py`; live Agent/Network export and managed round trips | complete exact graphs export; incompatible graphs fail with bounded code/path diagnostics, without substituting another snapshot |
+| F05 | `tests/unit/agent/test_release_test_selection.py`; live deployment helper | Staging and Production tests use the exact selected immutable Release; changed selection is rejected |
+| F06 | live `test_development_sync_postgres.py`; CLI clone tests | edited presentation names survive create/push and alias/path changes |
+| F07 | CLI output regression tests | absent projected fields differ from explicit null; optional strict validation is confined to read-only inspection |
+| F08 | CLI `package_author_test.go` | sealed sources remain verified and untouched; explicit author copies can be edited and sealed into a new destination |
+
+Agent PATCH DTO tests additionally reject unknown fields instead of accepting
+misspelled edits without effect. Help, output guides, Package authoring guides and
+the canonical assistant skill accompany the CLI changes.
+
 Use the canonical host unit/quality/selected architecture command from the contribution/testing guides, the tracked import-boundary checker, frontend test/build, and the Compose backend test contract. CLI requires `make check` (race), six archive verification and native/npm/skill smoke tests. Latest-SHA CI is required before merge; Linux-only smoke checks do not establish Windows/macOS compatibility.
 
 Operator deployment must migrate forward through the ASaC migrations, explicitly configure Project managed policy and Production actors as appropriate, and provision instance receipt trust and optional trusted Git builders. Neither installing a new CLI nor a signed receipt grants these permissions. See [history](../runtime/ASAC_HISTORY.md), [Run identity](../runtime/ASAC_RUNTIME_IDENTITY.md), [signed receipts](../runtime/ASAC_SIGNED_RECEIPTS.md) and [Git provenance](../runtime/ASAC_GIT_PROVENANCE.md).
