@@ -33,7 +33,7 @@ from shared.security.control_plane import (
 )
 
 CLI_COMMIT = os.environ.get(
-    "WOOBE_TEST_CLI_SHA", "ab3131e29167a53ca894cfdb70d3e09f41f0ebfd"
+    "WOOBE_TEST_CLI_SHA", "9d986f57287e1834ea34caa92a6b8d701fc16888"
 )
 
 
@@ -2491,7 +2491,7 @@ async def exercise_asac_deployments(cli, kind, resource_id, publication):
         assert admitted["admission_digest_scope"]==kind.lower()+"-run-admission@1"
         if environment=="production":
             continued=await cli.run("runtime", "target", "run", "after-deployment-existing-session", "--target-kind",kind.lower(),
-                body={"input":"Hello after deployment", "options":{"SessionID":pinned_data["session_id"]}},runtime_key=pinned_runtime_key)
+                body={"input":"Hello after deployment", "session_id":pinned_data["session_id"]},runtime_key=pinned_runtime_key)
             assert continued["data"]["data"]["session_id"]==pinned_data["session_id"]
             continued_identity=continued["data"]["data"]["runtime_identity"]
             if kind=="Agent":

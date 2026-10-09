@@ -1,5 +1,5 @@
 {
-  "cli_commit": "ab3131e29167a53ca894cfdb70d3e09f41f0ebfd",
+  "cli_commit": "9d986f57287e1834ea34caa92a6b8d701fc16888",
   "operations": [
     {
       "command": "auth invite accept",
@@ -143,6 +143,18 @@
       "command": "project agent get",
       "method": "GET",
       "path": "/ai/agents/{agent_id}",
+      "body_required": false
+    },
+    {
+      "command": "project agent git-attestation create",
+      "method": "POST",
+      "path": "/projects/{project_id}/agents/{resource_id}/asac/git-attestations",
+      "body_required": true
+    },
+    {
+      "command": "project agent git-attestation get",
+      "method": "GET",
+      "path": "/projects/{project_id}/agents/{resource_id}/asac/git-attestations/{attestation_id}",
       "body_required": false
     },
     {
@@ -575,6 +587,18 @@
       "command": "project network get",
       "method": "GET",
       "path": "/network/projects/{project_id}/networks/{network_id}",
+      "body_required": false
+    },
+    {
+      "command": "project network git-attestation create",
+      "method": "POST",
+      "path": "/projects/{project_id}/networks/{resource_id}/asac/git-attestations",
+      "body_required": true
+    },
+    {
+      "command": "project network git-attestation get",
+      "method": "GET",
+      "path": "/projects/{project_id}/networks/{resource_id}/asac/git-attestations/{attestation_id}",
       "body_required": false
     },
     {

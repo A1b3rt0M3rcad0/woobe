@@ -13,6 +13,7 @@ Keep this file small. It is an index and routing guide, not a duplicate of produ
 - Change routing guide: [docs/agents/CHANGE_GUIDE.md](docs/agents/CHANGE_GUIDE.md)
 - Contribution and commit policy: [CONTRIBUTING.md](CONTRIBUTING.md)
 - Release procedure: [RELEASING.md](RELEASING.md)
+- ASaC acceptance matrix: [docs/testing/ASAC_ACCEPTANCE.md](docs/testing/ASAC_ACCEPTANCE.md)
 - Test topology: [docs/testing/COMPOSE_TESTS.md](docs/testing/COMPOSE_TESTS.md)
 - Self-hosting: [docs/SELF_HOSTING.md](docs/SELF_HOSTING.md)
 - Upgrade guidance: [docs/UPGRADING.md](docs/UPGRADING.md)

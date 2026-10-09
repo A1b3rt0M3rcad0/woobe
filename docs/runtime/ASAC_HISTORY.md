@@ -567,3 +567,7 @@ that a particular UI or Git workflow was used.
 Trusted Git origin has an independent append-only authority path; see
 [Git pipeline provenance](ASAC_GIT_PROVENANCE.md). Declared publication metadata
 is never silently upgraded or rewritten.
+
+## Acceptance and Run continuity
+
+The [acceptance matrix](../testing/ASAC_ACCEPTANCE.md) maps H01–H35 to regression coverage and separates live integration from unit checks. [Accepted Run identity](ASAC_RUNTIME_IDENTITY.md) documents native Session continuity and the exact admission/binding digest scopes.
