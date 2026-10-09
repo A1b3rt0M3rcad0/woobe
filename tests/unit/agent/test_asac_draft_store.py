@@ -255,11 +255,13 @@ async def test_web_checkpoint_original_replay_and_unauthorized_editor(drafts):
     from shared.contracts.asac_workbench import CheckpointASaCDraft
     store, sessions, args, uid, artifact = drafts
     artifact['definition_digest_scope'] = 'woobe-portable-definition@1.0'
+    artifact['provider_digests'] = {'provider':'sha256:'+'e'*64}
     line = await store.open_draft(**args, request=OpenASaCDraft(operation_id=uuid4(),resource_uid=uid,name='web',source_export_id=uuid4()))
     draft_id = UUID(line['draft_id'])
     request = CheckpointASaCDraft(operation_id=uuid4(), expected_generation=1, revision_id='rv_'+str(uuid4()),message='Web checkpoint')
     result = await store.checkpoint_editor(**args,draft_id=draft_id,request=request)
     assert result['record']['resource_uid'] == str(uid)
+    assert len(result['record']['component_digests']) == 2
     assert await store.checkpoint_editor(**args,draft_id=draft_id,request=request) == result
     with pytest.raises(ConflictError, match='ASAC_OPERATION_CONFLICT'):
         await store.checkpoint_editor(**args,draft_id=draft_id,request=request.model_copy(update={'message':'other'}))

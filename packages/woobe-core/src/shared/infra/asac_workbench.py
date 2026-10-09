@@ -82,13 +82,14 @@ class ASaCWorkbench:
         namespace=UUID(line['resource_uid']);entry=artifact['manifest']['spec']['entrypoint']['ref']
         uids={key:str(uuid5(namespace,'component:'+key)) for key in artifact['component_digests']}
         uids[entry]=line['resource_uid']
+        providers={key:uuid5(namespace,'provider:'+key) for key in artifact['provider_digests']}
         record={'format':'woobe-revision','schema_version':'1.0','revision_id':request.revision_id,
             'resource_uid':line['resource_uid'],'kind':self.kind,'parents':request.parents,'message':request.message,
             'artifact_digest':artifact['artifact_digest'],'definition_digest':artifact['definition_digest'],
             'definition_digest_scope':artifact['definition_digest_scope'],
             'component_digests':{uids[key]:value for key,value in artifact['component_digests'].items()}}
+        record['component_digests'].update({str(providers[key]):value for key,value in artifact['provider_digests'].items()})
         record['record_digest']=asac_digest('record',record)
-        providers={key:uuid5(namespace,'provider:'+key) for key in artifact['provider_digests']}
         return await self.register_revision(**args,request=RegisterASaCRevision(
             operation_id=request.operation_id,draft_id=draft_id,expected_generation=request.expected_generation,
             record=record,component_uids=uids,provider_uids=providers,leases=request.leases))
