@@ -86,3 +86,19 @@ def test_incomplete_export_locates_the_agent_model_without_protected_values(spec
     assert diagnostic["code"] == "PACKAGE_EXPORT_INCOMPLETE"
     assert diagnostic["file"] == "agent-1.yaml"
     assert diagnostic["path"] == "/spec/model/primary"
+
+
+@pytest.mark.parametrize('frozen',[False,True])
+def test_canonical_root_identity_is_private_capture_evidence_not_portable_content(frozen):
+    from modules.package.application.export_projection import ExportProjection
+    uid='00000000-0000-4000-8000-000000000005'
+    captured={'source':{'agent_id':TARGET,'kind':'draft','resource_uid':uid},
+        'definition':{'name':'Support','provider':'custom','model':'fake','provider_credential_id':'credential',
+                      'model_spec_snapshot':{'model_id':'fake'},'runtime_config':{},'system_prompt':'Help',
+                      'session_mode':'stateless'},
+        'credentials':{'credential':{'provider':'custom','metadata':{}}},
+        'tools':[],'skills':[],'artifacts':{},'knowledge':None,'frozen':frozen}
+    projection=ExportProjection(knowledge_mode='binding',environment_kinds={},development=True)
+    projection.agent(captured,'agent-1')
+    assert projection.native_bindings['agent-1'].get('resource_uid')==(None if frozen else uid)
+    assert uid not in repr(projection.documents) and uid not in repr(projection.files)

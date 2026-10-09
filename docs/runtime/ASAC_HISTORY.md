@@ -13,6 +13,14 @@ Agent and Network own their lifecycle. Read-only ASaC projections export native
 publication and activation identities without modifying Draft, Staging or
 Production. Package export remains the closed artifact codec.
 
+Development exports capture an existing Agent/Network ASaC resource UID inside
+the owner's authorized SQL snapshot. A fresh local registry reuses that UID,
+allowing independent isolated Drafts without inventing a second logical root.
+The UID is capture/binding evidence, not destination identity embedded in
+portable executable descriptors. Frozen Network constituents keep distinct
+local snapshot artifacts. A conflicting established local UID must be resolved
+from its original history rather than silently rewritten.
+
 Owner entrypoints expose administrative reads:
 
 ```text
