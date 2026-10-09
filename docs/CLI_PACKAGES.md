@@ -189,3 +189,15 @@ Knowledge embedding Model path. Check the corresponding Provider credential and
 Model binding; Project Environment diagnostics identify the missing field. A
 historical snapshot without ModelSpec remains incomplete and cannot be silently
 repaired from today's mutable configuration.
+
+
+### Editing and local validation
+
+CLI 0.32.3 adds `woobe package validate PATH --structure-only` for read-only
+schema/reference/path checks of an edited copy. It reports capture integrity as
+`not_evaluated`; it neither removes nor updates the old lock. Default validation
+verifies any present lock, and `--locked` additionally requires it. Import/planning
+keep their integrity gates. For a transferable new artifact, verify the captured
+original, create an author copy with `package edit`, edit it and seal into a new
+destination with `package seal`. Update installed assistant references after
+upgrading the CLI; their local bytes do not change with npm installation alone.

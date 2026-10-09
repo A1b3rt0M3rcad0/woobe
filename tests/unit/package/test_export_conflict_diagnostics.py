@@ -82,3 +82,39 @@ async def test_network_export_does_not_convert_authorization_denials_to_capture_
             principal=object(),
             request=ExportPackageRequest(kind="Network", target_id=str(uuid4())),
         )
+
+
+@pytest.mark.asyncio
+async def test_incomplete_pinned_agent_model_preserves_safe_inspection_path():
+    repository = PackageExportRepository(
+        None,
+        None,
+        N(
+            capture=AsyncMock(
+                side_effect=SnapshotCaptureConflict(
+                    "PACKAGE_EXPORT_INCOMPLETE",
+                    "Snapshot has no complete ModelSpec",
+                    path="/spec/model/primary",
+                )
+            )
+        ),
+        None,
+        None,
+        projection_factory=None,
+        reference_collector=None,
+    )
+    with pytest.raises(PackageError) as caught:
+        await repository.create(
+            project_id=uuid4(),
+            principal=object(),
+            request=ExportPackageRequest(
+                kind="Agent",
+                target_id=str(uuid4()),
+                source="release",
+                release_version="1.0.0",
+            ),
+        )
+    diagnostic = caught.value.as_dict()
+    assert diagnostic["file"] == "agent.yaml"
+    assert diagnostic["path"] == "/spec/model/primary"
+    assert failure(caught.value).status_code == 422

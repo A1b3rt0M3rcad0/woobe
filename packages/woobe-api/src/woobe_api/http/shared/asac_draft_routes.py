@@ -38,14 +38,16 @@ def draft_router(prefix, builder, kind, candidate_builder=None, evaluation_build
             if isinstance(exc, PackageError):
                 code, message = exc.code, str(exc)
                 status = 422
+                diagnostic = exc.as_dict()
             else:
                 code, separator, message = str(exc).partition(":")
                 if not code.startswith("ASAC_"):
                     raise
                 status = 409 if isinstance(exc, ConflictError) else 404 if isinstance(exc, NotFoundError) else 422
                 message = message.strip() or code
+                diagnostic = {"code": code, "message": message}
             return JSONResponse({"success": False, "message": message,
-                "data": {"asac_schema_version": "1.0", "diagnostics": [{"code": code, "message": message}]},
+                "data": {"asac_schema_version": "1.0", "diagnostics": [diagnostic]},
                 "meta": {"complete": False}}, status_code=status)
 
     def response(data):
