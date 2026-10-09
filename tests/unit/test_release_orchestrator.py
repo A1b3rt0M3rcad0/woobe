@@ -136,7 +136,17 @@ class ReleaseGateTests(unittest.TestCase):
         with patch.object(gate, "gh_json", return_value=pages) as api:
             self.assertEqual(gate.workflow_runs(REPO, HEAD), {old["name"]: new})
             self.assertIn("--paginate", api.call_args.args[0])
-            self.assertIn("--slurp", api.call_args.args[0])
+            self.assertNotIn("--slurp", api.call_args.args[0])
+
+    def test_paginated_api_supports_older_self_hosted_github_cli(self):
+        with patch.object(gate, "run") as command:
+            command.return_value.stdout = '{"workflow_runs":[]}\n{"workflow_runs":[{"id":1}]}\n'
+            self.assertEqual(
+                gate.gh_json(["api", "--paginate", "repos/example/actions/runs"]),
+                [{"workflow_runs": []}, {"workflow_runs": [{"id": 1}]}],
+            )
+            self.assertEqual(command.call_args.args[0][-2:], ["--jq", "@json"])
+            self.assertNotIn("--slurp", command.call_args.args[0])
 
     def test_approval_is_waited_for_and_never_redispatched(self):
         blocked = runs("action_required")
