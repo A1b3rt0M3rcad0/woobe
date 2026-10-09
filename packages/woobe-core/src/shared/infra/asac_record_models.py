@@ -48,6 +48,7 @@ class ASaCCandidateColumns:
     native_bindings: Mapped[dict] = mapped_column(JSON, default=dict)
     runtime_digest: Mapped[str | None] = mapped_column(String(71), nullable=True)
     runtime_fingerprints: Mapped[dict] = mapped_column(JSON, default=dict)
+    runtime_digest_scope: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
 
 class ASaCOperationColumns:
