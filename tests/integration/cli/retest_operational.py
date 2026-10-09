@@ -491,9 +491,9 @@ async def exercise_managed_rollback(
                     )
                     assert unknown["write_outcome"] == "unknown"
                     assert (
-                        rejected["http_status"] == 409
-                        and rejected["domain_code"] == "ASAC_DEPLOYMENT_STALE"
-                    )
+                        rejected.get("http_status") == 409
+                        and rejected.get("domain_code") == "ASAC_DEPLOYMENT_STALE"
+                    ), (rejected.get("http_status"), rejected.get("domain_code"))
                     assert len(accepted) == 1 and accepted[0]["selection_changed"]
                     if accepted[0]["operation_id"] != apply["operation_id"]:
                         apply, competing = competing, apply

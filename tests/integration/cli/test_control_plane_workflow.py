@@ -149,6 +149,7 @@ class Cli:
                 "command": list(arguments),
                 "exit_code": process.returncode,
                 "http_status": error.get("http_status"),
+                "domain_code": error.get("domain_code"),
                 "request_id": error.get("request_id"),
             }
         )
