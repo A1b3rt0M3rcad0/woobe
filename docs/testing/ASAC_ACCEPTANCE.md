@@ -64,7 +64,11 @@ These are independent clients on one test machine, not a multi-host network test
 A fault proxy forwards an actual deployment, waits for committed API acceptance
 and truncates its response. The CLI reports unknown write outcome. Original
 operation reconciliation by either client returns the same retained receipt;
-replay does not duplicate selection. Reader, Staging-only and Production-only
+replay does not duplicate selection. Concurrent rollback requests with the same
+valid workflow proof accept one transition and reject the other by generation
+CAS; response loss on the accepted rollback reconciles its original receipt.
+SQL counts verify exactly one deployment per accepted operation and none for
+the competing stale operation. Reader, Staging-only and Production-only
 Control Keys are tested separately for read/plan/apply permissions without
 Workspace administration. Managed Production rollback selects a previously
 qualified exact Release, executes a real Runtime Key Run against it, then restores

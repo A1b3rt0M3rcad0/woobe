@@ -8,7 +8,7 @@ import asyncio
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 import socket
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import httpx
 import uvicorn
@@ -18,7 +18,7 @@ def proof(receipt):
     return {key: receipt[key] for key in ("lease_id", "workflow_id", "fencing_token")}
 
 
-async def assert_one_deployment(kind, operation):
+async def assert_deployment_count(kind, operation, expected=1):
     from sqlalchemy import text
     from shared.infra.config import Settings
     from shared.infra.database.session import create_engine, create_session_factory
@@ -30,9 +30,9 @@ async def assert_one_deployment(kind, operation):
                 text(
                     f"SELECT count(*) FROM {kind.lower()}.asac_deployments WHERE operation_id=:operation"
                 ),
-                {"operation": operation},
+                {"operation": UUID(operation)},
             )
-            assert count == 1
+            assert count == expected
     finally:
         await engine.dispose()
 
@@ -62,7 +62,12 @@ async def lose_committed_response(origin, path):
             response = await upstream.request(
                 scope["method"], url, content=bytes(body), headers=headers
             )
-            lose = scope["method"] == "POST" and scope["path"] == path and not accepted
+            lose = (
+                scope["method"] == "POST"
+                and scope["path"] == path
+                and not accepted
+                and response.status_code < 300
+            )
             if lose:
                 assert response.status_code < 300, (
                     f"fault must occur after acceptance, status={response.status_code}"
@@ -235,7 +240,7 @@ async def exercise_independent_clients_and_lost_response(
         await winner.data("request", "POST", base + "/deployments", body=body)
         == recovered
     )
-    await assert_one_deployment(kind, operation)
+    await assert_deployment_count(kind, operation)
     await winner.data(
         "request",
         "POST",
@@ -440,17 +445,60 @@ async def exercise_managed_rollback(
                 async with lose_committed_response(
                     cli.origin, base + "/deployments"
                 ) as (proxy, accepted):
-                    lost = await cli.run(
-                        "request",
-                        "POST",
-                        base + "/deployments",
-                        "--api-url",
-                        proxy,
-                        body=apply,
-                        expected=7,
+                    # Two authorized clients intentionally carry this same
+                    # workflow proof; CAS must still accept only one transition.
+                    directory = cli.directory / (kind.lower() + "-rollback-peer")
+                    directory.mkdir()
+                    peer = type(cli)(
+                        cli.binary,
+                        cli.origin,
+                        cli.workspace_id,
+                        cli.credential,
+                        directory,
                     )
-                    assert lost["error"]["write_outcome"] == "unknown"
+                    peer.project_id, peer.secret_values = (
+                        cli.project_id,
+                        cli.secret_values,
+                    )
+                    competing = {**apply, "operation_id": str(uuid4())}
+                    raced = await asyncio.gather(
+                        *[
+                            client.run(
+                                "request",
+                                "POST",
+                                base + "/deployments",
+                                "--api-url",
+                                proxy,
+                                body=body,
+                                expected=(6, 7),
+                            )
+                            for client, body in ((cli, apply), (peer, competing))
+                        ]
+                    )
+                    assert sorted(item["error"]["exit_code"] for item in raced) == [
+                        6,
+                        7,
+                    ]
+                    unknown = next(
+                        item["error"]
+                        for item in raced
+                        if item["error"]["exit_code"] == 7
+                    )
+                    rejected = next(
+                        item["error"]
+                        for item in raced
+                        if item["error"]["exit_code"] == 6
+                    )
+                    assert unknown["write_outcome"] == "unknown"
+                    assert (
+                        rejected["http_status"] == 409
+                        and rejected["domain_code"] == "ASAC_DEPLOYMENT_STALE"
+                    )
                     assert len(accepted) == 1 and accepted[0]["selection_changed"]
+                    if accepted[0]["operation_id"] != apply["operation_id"]:
+                        apply, competing = competing, apply
+                    await assert_deployment_count(kind, competing["operation_id"], 0)
+                    cli.evidence.extend(peer.evidence)
                     receipt = (
                         await cli.run(
                             kind.lower(),
@@ -473,7 +521,7 @@ async def exercise_managed_rollback(
                 await cli.data("request", "POST", base + "/deployments", body=apply)
                 == receipt
             )
-            await assert_one_deployment(kind, apply["operation_id"])
+            await assert_deployment_count(kind, apply["operation_id"])
             assert receipt["action"] == action and receipt["selection_changed"]
             assert (
                 receipt["generation_after"] == start["environment_generation"] + offset
