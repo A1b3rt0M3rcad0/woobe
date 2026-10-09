@@ -7,6 +7,7 @@ from sqlalchemy import select, text
 
 from modules.network.domain.graph import composition_hash
 from modules.network.infra.database.models import NetworkModel, NetworkVersionModel
+from modules.network.infra.database.asac_models import ASaCResourceModel
 from shared.contracts.errors import (
     AuthorizationError,
     ConflictError,
@@ -173,9 +174,14 @@ class PortableNetworkExportReader:
                         "binding": {"source": node.binding.source},
                     }
                 )
+            resource_uid = await session.scalar(select(ASaCResourceModel.resource_uid).where(
+                ASaCResourceModel.project_id == project_id,
+                ASaCResourceModel.resource_id == network_id,
+            ))
             return {
                 "source": {
                     "network_id": str(network.id),
+                    "resource_uid": str(resource_uid) if resource_uid is not None else None,
                     "snapshot_id": str(version.id) if version else None,
                     "revision": network.draft_revision if version is None else None,
                     "draft_revision": network.draft_revision,
