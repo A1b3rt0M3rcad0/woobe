@@ -143,7 +143,13 @@ class ASaCCandidateStore:
             row = await session.get(self.candidates, candidate_id)
             if row is None or row.project_id != project_id or row.resource_id != resource_id:
                 raise NotFoundError("ASAC_CANDIDATE_UNAVAILABLE")
-            return candidate_output(row)
+            result=candidate_output(row)
+        if result['state']=='ready':
+            ready=await self.preparation.acceptance_ready(project_id=project_id,candidate_id=candidate_id,
+                preparation_operation_id=row.preparation_operation_id)
+            if not ready:
+                result.update(state='preparing',complete=False,native_closure_state='sealed_waiting_preparation_receipt')
+        return result
 
 
 async def seal_candidate(session, model, *, project_id, resource_id, candidate_id,

@@ -52,7 +52,7 @@ async def candidate_fixture(request):
         await session.flush()
         return {"operation_id": str(row.id)}
 
-    preparation = SimpleNamespace(prepare=AsyncMock(return_value=proposal), accept=AsyncMock(side_effect=accept))
+    preparation = SimpleNamespace(acceptance_ready=AsyncMock(return_value=True), prepare=AsyncMock(return_value=proposal), accept=AsyncMock(side_effect=accept))
     store = ASaCCandidateStore(drafts=drafts, candidates=tables.ASaCCandidateModel, preparation=preparation)
     stage = StageASaCRevision(operation_id=uuid4(), draft_id=opened["draft_id"], expected_generation=1, revision_id=record["revision_id"], registry_id=uuid4())
     yield store, drafts, sessions, tables, args, stage
