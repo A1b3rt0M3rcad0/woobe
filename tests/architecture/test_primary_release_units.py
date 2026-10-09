@@ -208,7 +208,7 @@ def test_validated_release_candidate_is_bound_to_one_orchestrated_publication() 
     assert "Verify completed release recovery" in prepare
     assert "Complete pending release branch cleanup" in prepare
     assert "${{ github.run_id }}-${{ github.run_attempt }}" in prepare
-    assert "Release Woobe v${{ inputs.version }}" in prepare
+    assert "Release Woobe ${{ inputs.version || github.sha }}" in prepare
     assert 'GITHUB_REF" != "refs/heads/master' in prepare
 
 

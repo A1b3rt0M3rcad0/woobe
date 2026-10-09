@@ -182,7 +182,9 @@ def refresh_from_master_if_needed(
         f"master advanced to {master_sha}; refreshing {branch} and requiring a new CI pass."
     )
     run(["git", "checkout", "-B", branch, f"origin/{branch}"], capture=False)
-    merge = run(["git", "merge", "--no-edit", "origin/master"], check=False, capture=False)
+    merge = run(
+        ["git", "merge", "--no-edit", "origin/master"], check=False, capture=False
+    )
     if merge.returncode != 0:
         run(["git", "merge", "--abort"], check=False, capture=False)
         fail(
@@ -423,6 +425,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--version", required=True)
     parser.add_argument("--branch", required=True)
     parser.add_argument("--timeout-seconds", type=int, default=10_800)
+    parser.add_argument(
+        "--automatic",
+        action="store_true",
+        help="Recheck Conventional Commit impact before merge",
+    )
     parser.add_argument("--github-output", default=os.environ.get("GITHUB_OUTPUT"))
     return parser.parse_args()
 
@@ -462,7 +469,9 @@ def main() -> int:
         # Protect the merge from both a new PR-head commit and a moving master.
         latest_pr = pr(args.repo, args.pr)
         if latest_pr["head"]["sha"] != head_sha:
-            print("Release PR head changed while CI was running; validating the new head.")
+            print(
+                "Release PR head changed while CI was running; validating the new head."
+            )
             continue
 
         refreshed_head, refreshed = refresh_from_master_if_needed(
@@ -476,6 +485,19 @@ def main() -> int:
                 "Release head changed after CI passed; a new validation cycle is required."
             )
             continue
+
+        if getattr(args, "automatic", False):
+            run(
+                [
+                    sys.executable,
+                    "scripts/release/resolve_auto_release.py",
+                    "--repo",
+                    args.repo,
+                    "--verify-version",
+                    args.version,
+                ],
+                capture=False,
+            )
 
         validated_head = head_sha
         break

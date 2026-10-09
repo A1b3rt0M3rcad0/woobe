@@ -11,6 +11,8 @@ import tempfile
 import textwrap
 from types import SimpleNamespace
 import unittest
+
+import yaml
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -48,7 +50,7 @@ class ReleaseGateTests(unittest.TestCase):
         self.assertIn("Validate target version and resolve release state", workflow)
         self.assertIn('resume_finalization="true"', workflow)
         self.assertIn("resuming post-merge finalization", workflow)
-        self.assertIn('gh release view "v$TARGET_VERSION"', workflow)
+        self.assertIn('release_exists="$TARGET_RELEASE_EXISTS"', workflow)
         self.assertIn("uses: ./.github/workflows/release-candidate.yml", workflow)
         self.assertNotIn("Create or verify immutable release tag", workflow)
         self.assertIn("uses: ./.github/workflows/release.yml", workflow)
@@ -59,12 +61,18 @@ class ReleaseGateTests(unittest.TestCase):
         self.assertNotIn("dispatch_and_wait.py", workflow)
         self.assertIn("Verify completed release recovery", workflow)
         self.assertIn("release-manifest.json", workflow)
-        self.assertIn("Branch $branch exists without an open or merged release PR", workflow)
+        self.assertIn(
+            "Branch $branch exists without an open or merged release PR", workflow
+        )
 
     def test_workflow_summary_reports_only_completed_end_to_end_release(self):
         workflow = (ROOT / ".github/workflows/prepare-release.yml").read_text()
-        step = workflow.split("      - name: Release orchestration summary\n", 1)[1]
-        script = textwrap.dedent(step.split("        run: |\n", 1)[1])
+        steps = yaml.load(workflow, Loader=yaml.BaseLoader)["jobs"]["summary"]["steps"]
+        script = next(
+            step["run"]
+            for step in steps
+            if step.get("name") == "Release orchestration summary"
+        )
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / "summary"
             subprocess.run(
@@ -90,7 +98,6 @@ class ReleaseGateTests(unittest.TestCase):
             self.assertIn("Candidate validation: `run-attempt:parent`", summary)
             self.assertIn("GitHub Release: https://example.test/release", summary)
             self.assertIn("all passed", summary)
-
 
     def test_publish_workflow_summary_renders_release_values_literally(self):
         workflow = (ROOT / ".github/workflows/release.yml").read_text()
@@ -133,10 +140,16 @@ class ReleaseGateTests(unittest.TestCase):
 
     def test_approval_is_waited_for_and_never_redispatched(self):
         blocked = runs("action_required")
-        running = {name: dict(item, status="in_progress", conclusion=None)
-                   for name, item in runs().items()}
+        running = {
+            name: dict(item, status="in_progress", conclusion=None)
+            for name, item in runs().items()
+        }
         with (
-            patch.object(gate, "workflow_runs", side_effect=[blocked, blocked, blocked, running, runs()]),
+            patch.object(
+                gate,
+                "workflow_runs",
+                side_effect=[blocked, blocked, blocked, running, runs()],
+            ),
             patch.object(gate.time, "monotonic", side_effect=count()),
             patch.object(gate.time, "sleep") as sleep,
             patch.object(gate, "run") as command,
@@ -162,7 +175,14 @@ class ReleaseGateTests(unittest.TestCase):
                 gate.wait_for_green(REPO, 166, BRANCH, HEAD, 3)
 
     def test_real_failures_block_even_when_other_checks_are_missing(self):
-        for conclusion in ("failure", "cancelled", "timed_out", "skipped", "neutral", None):
+        for conclusion in (
+            "failure",
+            "cancelled",
+            "timed_out",
+            "skipped",
+            "neutral",
+            None,
+        ):
             failed = {"Backend test suite": runs(conclusion)["Backend test suite"]}
             with (
                 self.subTest(conclusion=conclusion),
@@ -170,7 +190,9 @@ class ReleaseGateTests(unittest.TestCase):
                 patch.object(gate, "workflow_runs", return_value=failed),
                 patch.object(gate.time, "sleep") as sleep,
                 patch.object(gate, "comment"),
-                self.assertRaisesRegex(gate.ReleaseGateError, "Required CI did not pass"),
+                self.assertRaisesRegex(
+                    gate.ReleaseGateError, "Required CI did not pass"
+                ),
             ):
                 gate.wait_for_green(REPO, 166, BRANCH, HEAD, 60)
             sleep.assert_not_called()
@@ -186,34 +208,97 @@ class ReleaseGateTests(unittest.TestCase):
         ):
             gate.dispatch_missing(REPO, 166, BRANCH, HEAD)
             command.assert_called_once_with(
-                ["gh", "workflow", "run", "cla.yml", "--repo", REPO,
-                 "--ref", BRANCH, "-f", "pr_number=166"], capture=False,
+                [
+                    "gh",
+                    "workflow",
+                    "run",
+                    "cla.yml",
+                    "--repo",
+                    REPO,
+                    "--ref",
+                    BRANCH,
+                    "-f",
+                    "pr_number=166",
+                ],
+                capture=False,
             )
 
     def test_head_changed_during_final_fetch_is_validated_before_merge(self):
         new_head = "concurrent-head"
-        args = SimpleNamespace(repo=REPO, pr=166, branch=BRANCH, version="0.12.0",
-                               timeout_seconds=60, github_output=None)
+        args = SimpleNamespace(
+            repo=REPO,
+            pr=166,
+            branch=BRANCH,
+            version="0.12.0",
+            timeout_seconds=60,
+            github_output=None,
+        )
         with (
             patch.object(gate, "parse_args", return_value=args),
             patch.object(gate, "checkout_release_branch", side_effect=[HEAD, new_head]),
-            patch.object(gate, "refresh_from_master_if_needed", side_effect=[
-                (HEAD, False), (new_head, False), (new_head, False), (new_head, False),
-            ]),
-            patch.object(gate, "pr", side_effect=[{"head": {"sha": HEAD}}, {"head": {"sha": new_head}}]),
+            patch.object(
+                gate,
+                "refresh_from_master_if_needed",
+                side_effect=[
+                    (HEAD, False),
+                    (new_head, False),
+                    (new_head, False),
+                    (new_head, False),
+                ],
+            ),
+            patch.object(
+                gate,
+                "pr",
+                side_effect=[{"head": {"sha": HEAD}}, {"head": {"sha": new_head}}],
+            ),
             patch.object(gate, "wait_for_green") as wait,
             patch.object(gate, "merge_release", return_value="merge-sha") as merge,
             patch.object(gate, "comment"),
         ):
             self.assertEqual(gate.main(), 0)
-            self.assertEqual([call.args[3] for call in wait.call_args_list], [HEAD, new_head])
+            self.assertEqual(
+                [call.args[3] for call in wait.call_args_list], [HEAD, new_head]
+            )
             merge.assert_called_once_with(REPO, 166, new_head, "0.12.0")
+
+    def test_concurrent_impact_failure_blocks_merge_even_with_green_ci(self):
+        args = SimpleNamespace(
+            repo=REPO,
+            pr=166,
+            branch=BRANCH,
+            version="0.12.0",
+            timeout_seconds=60,
+            github_output=None,
+            automatic=True,
+        )
+        with (
+            patch.object(gate, "parse_args", return_value=args),
+            patch.object(gate, "checkout_release_branch", return_value=HEAD),
+            patch.object(
+                gate, "refresh_from_master_if_needed", return_value=(HEAD, False)
+            ),
+            patch.object(gate, "pr", return_value={"head": {"sha": HEAD}}),
+            patch.object(gate, "wait_for_green") as wait,
+            patch.object(
+                gate,
+                "run",
+                side_effect=gate.ReleaseGateError("higher version required"),
+            ) as command,
+            patch.object(gate, "merge_release") as merge,
+            self.assertRaisesRegex(gate.ReleaseGateError, "higher version"),
+        ):
+            gate.main()
+        wait.assert_called_once()
+        self.assertIn("--verify-version", command.call_args.args[0])
+        merge.assert_not_called()
 
     def test_wrong_base_or_release_branch_is_rejected_before_checkout(self):
         for base, branch in (("development", BRANCH), ("master", "release/0.13.0")):
             with (
                 self.subTest(base=base, branch=branch),
-                patch.object(gate, "pr", return_value={"state": "open", "base": {"ref": base}}),
+                patch.object(
+                    gate, "pr", return_value={"state": "open", "base": {"ref": base}}
+                ),
                 patch.object(gate, "comment"),
                 patch.object(gate, "run") as command,
                 self.assertRaisesRegex(gate.ReleaseGateError, "must target master"),

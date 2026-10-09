@@ -1,12 +1,14 @@
 name: Release Woobe
-run-name: Release Woobe v${{ inputs.version }}
+run-name: Release Woobe ${{ inputs.version || github.sha }}
 
 on:
+  push:
+    branches: [master]
   workflow_dispatch:
     inputs:
       version:
-        description: Target Semantic Version without the v prefix.
-        required: true
+        description: Optional exact Semantic Version for recovery or an intentional override; empty calculates automatically.
+        required: false
         type: string
       allow_initial_version_rebase:
         description: Allow the first-ever published release to be lower than the current development VERSION.
@@ -15,7 +17,7 @@ on:
         type: boolean
 
 permissions:
-  actions: read
+  actions: write
   contents: write
   pull-requests: write
   packages: write
@@ -25,7 +27,47 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  identity:
+    name: Resolve automatic release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.identity.outputs.version }}
+      skip: ${{ steps.identity.outputs.skip }}
+      reason: ${{ steps.identity.outputs.reason }}
+      release_exists: ${{ steps.identity.outputs.release_exists }}
+      already_published: ${{ steps.identity.outputs.already_published }}
+    steps:
+      - name: Require canonical workflow source
+        env:
+          SOURCE_REF: ${{ github.ref }}
+        run: |
+          test "$SOURCE_REF" = refs/heads/master
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: master
+          fetch-depth: 0
+          token: ${{ secrets.WOOBE_RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.14"
+      - name: Calculate or recover the release version
+        id: identity
+        env:
+          GH_TOKEN: ${{ secrets.WOOBE_RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          REQUESTED_VERSION: ${{ inputs.version }}
+          SOURCE_REVISION: ${{ github.sha }}
+          SOURCE_EVENT: ${{ github.event_name }}
+        run: |
+          python scripts/ci/check_package_versions.py
+          python scripts/release/resolve_auto_release.py \
+            --version "$REQUESTED_VERSION" --source "$SOURCE_REVISION" \
+            --event "$SOURCE_EVENT" --github-output "$GITHUB_OUTPUT"
+
   prepare:
+    needs: identity
+    if: needs.identity.outputs.skip != 'true'
+
     runs-on: ubuntu-24.04
     timeout-minutes: 210
     outputs:
@@ -42,7 +84,7 @@ jobs:
         run: |
           set -euo pipefail
           if [[ "$GITHUB_REF" != "refs/heads/master" ]]; then
-            echo "::error::Release Woobe must be dispatched from the master branch; got $GITHUB_REF."
+            echo "::error::Release Woobe must run from the master branch; got $GITHUB_REF."
             exit 1
           fi
 
@@ -80,22 +122,18 @@ jobs:
         id: target
         shell: bash
         env:
-          TARGET_VERSION: ${{ inputs.version }}
+          TARGET_VERSION: ${{ needs.identity.outputs.version }}
           ALLOW_INITIAL_REBASE: ${{ inputs.allow_initial_version_rebase }}
+          TARGET_RELEASE_EXISTS: ${{ needs.identity.outputs.release_exists }}
+          TARGET_ALREADY_PUBLISHED: ${{ needs.identity.outputs.already_published }}
           GH_TOKEN: ${{ secrets.WOOBE_RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
 
-          release_exists="false"
-          already_published="false"
-          if gh release view "v$TARGET_VERSION" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            release_exists="true"
-            release_assets="$(gh release view "v$TARGET_VERSION" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name')"
-            if grep -Fxq 'release-manifest.json' <<<"$release_assets"; then
-              already_published="true"
-            else
-              echo "::warning::GitHub Release v$TARGET_VERSION exists without release-manifest.json; resuming finalization to repair the permanent release record."
-            fi
+          release_exists="$TARGET_RELEASE_EXISTS"
+          already_published="$TARGET_ALREADY_PUBLISHED"
+          if [[ "$release_exists" == "true" && "$already_published" != "true" ]]; then
+            echo "::warning::GitHub Release v$TARGET_VERSION exists without release-manifest.json; resuming finalization to repair the permanent release record."
           fi
 
           published_tags="$(gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" --jq '.[].tag_name')"
@@ -374,13 +412,16 @@ jobs:
         if: steps.target.outputs.resume_finalization != 'true'
         env:
           GH_TOKEN: ${{ secrets.WOOBE_RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          AUTOMATIC_VERSION: ${{ inputs.version == '' }}
         run: |
+          flags=()
+          if [[ "$AUTOMATIC_VERSION" == true ]]; then flags+=(--automatic); fi
           python -u scripts/release/orchestrate_release_pr.py \
             --repo "$GITHUB_REPOSITORY" \
             --pr "${{ steps.target.outputs.existing_pr || steps.pr.outputs.number }}" \
             --version "${{ steps.target.outputs.version }}" \
             --branch "${{ steps.target.outputs.branch }}" \
-            --github-output "$GITHUB_OUTPUT"
+            --github-output "$GITHUB_OUTPUT" "${flags[@]}"
 
       - name: Resolve exact release revision
         id: revision
@@ -533,13 +574,15 @@ jobs:
 
   summary:
     name: Release result
-    needs: [prepare, candidate, publish, verify-published]
+    needs: [identity, prepare, candidate, publish, verify-published]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: Validate terminal orchestration state
         env:
+          SKIP_RELEASE: ${{ needs.identity.outputs.skip }}
+          IDENTITY_RESULT: ${{ needs.identity.result }}
           ALREADY_PUBLISHED: ${{ needs.prepare.outputs.already_published }}
           PREPARE_RESULT: ${{ needs.prepare.result }}
           CANDIDATE_RESULT: ${{ needs.candidate.result }}
@@ -548,6 +591,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          test "$IDENTITY_RESULT" = "success"
+          if [[ "$SKIP_RELEASE" == true ]]; then
+            test "$PREPARE_RESULT" = skipped
+            test "$CANDIDATE_RESULT" = skipped
+            test "$PUBLISH_RESULT" = skipped
+            test "$VERIFY_RESULT" = skipped
+            exit 0
+          fi
           test "$PREPARE_RESULT" = "success"
 
           if [[ "$ALREADY_PUBLISHED" == "true" ]]; then
@@ -558,6 +609,7 @@ jobs:
           fi
 
       - name: Release orchestration summary
+        if: needs.identity.outputs.skip != 'true'
         env:
           VERSION: ${{ needs.prepare.outputs.version }}
           REVISION: ${{ needs.prepare.outputs.revision }}
@@ -589,3 +641,10 @@ jobs:
               echo "Required PR CI, exact candidate build, multi-arch validation, candidate smoke, all-target registry preflight, immutable digest promotion, post-publish smoke, immutable Git tagging and GitHub Release creation all passed."
             fi
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Record an intentional release skip
+        if: needs.identity.outputs.skip == 'true'
+        env:
+          SKIP_REASON: ${{ needs.identity.outputs.reason }}
+        run: |
+          printf 'Release skipped: %s\n' "$SKIP_REASON" >> "$GITHUB_STEP_SUMMARY"

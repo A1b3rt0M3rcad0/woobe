@@ -69,6 +69,8 @@ Keep the description concise and specific to the change. Pull request titles sho
 
 GitHub-generated merge commit messages are exempt from this convention. Repository-authored commits and squash commit subjects are not. Existing history does not need to be rewritten to comply with this policy.
 
+Merging a reviewed PR into `master` starts automatic platform publication. Commit history since the latest published tag determines the next version: `feat` selects MINOR; breaking subjects/footers select MINOR before 1.0 and MAJOR from 1.0; other compatible changes select PATCH. Preserve this information in squash commits. The workflow synchronizes `VERSION` and its package/runtime mirrors through a separate validated release PR. Do not manually bump mirrors or create release tags in development PRs. See [RELEASING.md](RELEASING.md) for the complete flow and recovery.
+
 ## Product boundaries
 
 Woobe has two software boundaries:

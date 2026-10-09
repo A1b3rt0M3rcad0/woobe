@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from pathlib import Path
+import os
 import subprocess
 
+import pytest
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -40,6 +42,7 @@ def test_release_workflow_graph_is_parent_owned_and_serial() -> None:
 
     assert jobs["verify-published"]["needs"] == "prepare"
     assert set(as_list(jobs["summary"]["needs"])) == {
+        "identity",
         "prepare",
         "candidate",
         "publish",
@@ -70,9 +73,9 @@ def test_release_workflow_graph_is_parent_owned_and_serial() -> None:
         for step in release_jobs["publish"]["steps"]
         if step.get("name")
     ]
-    assert publish_steps.index("Preflight release version targets") < publish_steps.index(
-        "Promote exact validated digests to release version"
-    )
+    assert publish_steps.index(
+        "Preflight release version targets"
+    ) < publish_steps.index("Promote exact validated digests to release version")
 
     assert prepare["concurrency"]["cancel-in-progress"] == "false"
     assert prepare["permissions"]["packages"] == "write"
@@ -154,3 +157,50 @@ def test_release_target_resolution_shell_is_syntactically_valid() -> None:
     )
 
     assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize(
+    ("overrides", "passes"),
+    [
+        ({}, True),
+        ({"CANDIDATE_RESULT": "failure"}, False),
+        ({"PUBLISH_RESULT": "cancelled"}, False),
+        ({"IDENTITY_RESULT": "failure"}, False),
+        ({"ALREADY_PUBLISHED": "true", "VERIFY_RESULT": "failure"}, False),
+        ({"ALREADY_PUBLISHED": "true", "VERIFY_RESULT": "success"}, True),
+        (
+            {
+                "SKIP_RELEASE": "true",
+                "PREPARE_RESULT": "skipped",
+                "CANDIDATE_RESULT": "skipped",
+                "PUBLISH_RESULT": "skipped",
+            },
+            True,
+        ),
+        ({"SKIP_RELEASE": "true"}, False),
+    ],
+)
+def test_terminal_gate_distinguishes_publication_recovery_and_skip(overrides, passes):
+    step = next(
+        step
+        for step in load_workflow("prepare-release.yml")["jobs"]["summary"]["steps"]
+        if step.get("name") == "Validate terminal orchestration state"
+    )
+    result = subprocess.run(
+        ["bash", "-c", step["run"]],
+        capture_output=True,
+        text=True,
+        check=False,
+        env={
+            **os.environ,
+            "IDENTITY_RESULT": "success",
+            "SKIP_RELEASE": "false",
+            "ALREADY_PUBLISHED": "false",
+            "PREPARE_RESULT": "success",
+            "CANDIDATE_RESULT": "success",
+            "PUBLISH_RESULT": "success",
+            "VERIFY_RESULT": "skipped",
+            **overrides,
+        },
+    )
+    assert (result.returncode == 0) == passes
