@@ -73,6 +73,8 @@ _REVIEWED = [
     ("POST", "/projects/{project_id}/networks/{resource_id}/asac/deployments", "network:production"),
     ("GET", "/projects/{project_id}/networks/{resource_id}/asac/deployment-plans/{plan_id}", "network:read"),
     ("GET", "/projects/{project_id}/networks/{resource_id}/asac/deployments/{deployment_id}", "network:read"),
+    ("GET", "/projects/{project_id}/agents/{resource_id}/asac/signed-receipts/{category}/{receipt_id}", "agent:read"),
+    ("GET", "/projects/{project_id}/networks/{resource_id}/asac/signed-receipts/{category}/{receipt_id}", "network:read"),
     ("GET", "/projects/{project_id}/agents/{resource_id}/asac/current", "agent:read"),
     ("GET", "/projects/{project_id}/agents/{resource_id}/asac/history", "agent:read"),
     ("GET", "/projects/{project_id}/networks/{resource_id}/asac/current", "network:read"),

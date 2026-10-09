@@ -13,7 +13,7 @@ from shared.contracts.asac_publication import PublishASaCCandidate, CancelASaCPu
 from shared.contracts.asac_deployment import PlanASaCDeployment, ApplyASaCDeployment
 from shared.contracts.errors import AuthorizationError, ConflictError, NotFoundError, ValidationError
 from modules.package.entrypoint import PackageError, build_snapshot_artifacts, build_candidate_preparation
-from modules.core.entrypoint import build_asac_environment_binding_reader
+from modules.core.entrypoint import build_asac_environment_binding_reader, build_asac_receipt_signer
 
 
 def draft_router(prefix, builder, kind, candidate_builder=None, evaluation_builder=None, publication_builder=None, deployment_builder=None):
@@ -50,6 +50,44 @@ def draft_router(prefix, builder, kind, candidate_builder=None, evaluation_build
             return data
         return JSONResponse(jsonable_encoder({"success": True, "message": "ok", "data": data,
             "meta": {"complete": data.get("complete", True)}}))
+
+    @router.get("/signed-receipts/{category}/{receipt_id}")
+    async def signed_receipt(project_id: UUID, resource_id: UUID, request: Request,
+            category: Literal["revision", "evaluation", "publication", "deployment"], receipt_id: str,
+            environment: Literal["staging", "production"] = Query("production")):
+        async def operation():
+            principal = actor(request)
+            if category == "revision":
+                receipt = await store().get_revision(project_id=project_id, resource_id=resource_id,
+                    revision_id=receipt_id, principal=principal)
+            else:
+                try:
+                    identifier = UUID(receipt_id)
+                except ValueError:
+                    raise ValidationError("ASAC_RECEIPT_ID_INVALID: A receipt UUID is required") from None
+                if category == "evaluation" and evaluation_builder is not None:
+                    reader = evaluation_builder(artifacts=build_snapshot_artifacts(), preparation=build_candidate_preparation())
+                    receipt = await reader.get(project_id=project_id, resource_id=resource_id,
+                        evaluation_id=identifier, principal=principal)
+                elif category == "publication" and publication_builder is not None:
+                    reader = publication_builder(artifacts=build_snapshot_artifacts(), preparation=build_candidate_preparation())
+                    receipt = await reader.get(project_id=project_id, resource_id=resource_id,
+                        publication_id=identifier, principal=principal)
+                elif category == "deployment" and deployment_builder is not None:
+                    reader = deployment_builder(artifacts=build_snapshot_artifacts(), preparation=build_candidate_preparation(),
+                        environment_reader=build_asac_environment_binding_reader())
+                    receipt = await reader.get(project_id=project_id, resource_id=resource_id,
+                        identifier=identifier, principal=principal, environment=environment)
+                else:
+                    raise ValidationError("ASAC_RECEIPT_KIND_UNAVAILABLE: Receipt category is unavailable")
+            if receipt.get("complete") is not True:
+                raise ConflictError("ASAC_RECEIPT_NOT_TERMINAL: Reconcile the original operation before attesting it")
+            try:
+                return {**build_asac_receipt_signer().attest(category=category, project_id=project_id,
+                    resource_id=resource_id, kind=kind, receipt=receipt), "complete": True}
+            except ValueError:
+                raise ValidationError("ASAC_SIGNATURES_UNAVAILABLE: Instance signing authority is not currently valid") from None
+        return response(await invoke(operation()))
 
     @router.get("/leases")
     async def lease(project_id: UUID, resource_id: UUID, request: Request,

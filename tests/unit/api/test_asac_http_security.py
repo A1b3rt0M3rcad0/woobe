@@ -173,3 +173,16 @@ def test_deployment_release_authorization_uses_exact_owner_table_without_changin
     assert normalized[mapped]==original["release_id"] and normalized["environment"]=="production"
     assert body==original
     if mapped!="release_id": assert "release_id" not in normalized
+
+
+@pytest.mark.parametrize('plural,identifier',[('agents','agent_id'),('networks','network_id')])
+@pytest.mark.parametrize('category,environment',[('revision','draft'),('evaluation','staging'),('publication','staging'),('deployment','production')])
+def test_signed_receipts_preserve_exact_owner_and_lifecycle_read_authority(plural,identifier,category,environment):
+    project,resource,receipt=str(uuid4()),str(uuid4()),str(uuid4())
+    path=f'/projects/{project}/{plural}/{resource}/asac/signed-receipts/{category}/{receipt}'
+    request=Request({'type':'http','method':'GET','path':path,'query_string':b'environment=production','headers':[]})
+    permission,params=resolve_operation('GET',path)
+    assert permission==f'{plural[:-1]}:read'
+    normalized=HttpSecurityGuard._authorization_path_params(request,params)
+    assert normalized[identifier]==resource and normalized['environment']==environment
+    assert resolve_operation('POST',path)[0] is None
