@@ -11,6 +11,7 @@ from sqlalchemy.exc import IntegrityError
 from shared.contracts.asac import asac_digest
 from shared.contracts.errors import ConflictError, NotFoundError, ValidationError
 from shared.infra.admin_idempotency import principal_identity
+from shared.infra.asac_lease_errors import asac_lease_database_errors
 
 
 def draft_output(row):
@@ -30,6 +31,7 @@ class ASaCDraftStore:
         self.drafts, self.revisions, self.operations, self.artifacts = drafts, revisions, operations, artifacts
         self.identities = identities
         self.cursor_key = cursor_key
+        self.leases = None
 
     def _read(self):
         reader = getattr(self.transactions, "read", None)
@@ -39,6 +41,13 @@ class ASaCDraftStore:
         return await self.owner.inspect(session, project_id=project_id, principal=principal,
             kind=self.kind, resource_id=resource_id, environment="draft", lock=lock,
             required_permission=self.kind.lower() + (":write" if write else ":read"))
+
+    async def _check_leases(self, session, *, project_id, resource_id, principal, request, scope):
+        if self.leases is not None:
+            await self.leases.check(session, project_id=project_id, resource_id=resource_id,
+                principal=principal,scope=scope,proofs=request.leases or ())
+        elif request.leases:
+            raise ConflictError("ASAC_LEASE_PROTOCOL_UNAVAILABLE")
 
     async def _operation(self, session, *, project_id, resource_id, principal, request, action):
         digest = asac_digest("operation", {"action": action, "payload": request.model_dump(mode="json", exclude_none=True)})
@@ -56,6 +65,7 @@ class ASaCDraftStore:
             request_digest=digest, result=result))
         return result
 
+    @asac_lease_database_errors
     async def open_draft(self, *, project_id, resource_id, principal, request):
         # Replaying a committed opening needs neither a new export nor its expired
         # temporary ticket. Authentication still precedes replay and every write.
@@ -64,6 +74,8 @@ class ASaCDraftStore:
             digest, replay = await self._operation(session, project_id=project_id, resource_id=resource_id, principal=principal, request=request, action="open")
             if replay is not None:
                 return replay
+            await self._check_leases(session,project_id=project_id,resource_id=resource_id,
+                principal=principal,request=request,scope="resource")
         artifact = await self.artifacts.retain_export(project_id=project_id, principal=principal, export_id=request.source_export_id)
         if artifact["kind"] != self.kind or artifact["resource_id"] != str(resource_id):
             raise ConflictError("ASAC_ORIGIN_MISMATCH: export belongs to another native resource")
@@ -73,6 +85,8 @@ class ASaCDraftStore:
             digest, replay = await self._operation(session, project_id=project_id, resource_id=resource_id, principal=principal, request=request, action="open")
             if replay is not None:
                 return replay
+            await self._check_leases(session,project_id=project_id,resource_id=resource_id,
+                principal=principal,request=request,scope="resource")
             if source.get("kind") == "draft" and source.get("draft_revision") != native["revision"]:
                 raise ConflictError("ASAC_SOURCE_CHANGED: Draft changed after capture")
             # The owner locks the native root. A separate uniqueness constraint
@@ -127,12 +141,15 @@ class ASaCDraftStore:
             raise NotFoundError("ASAC_DRAFT_UNAVAILABLE: Draft is unavailable in this resource")
         return line
 
+    @asac_lease_database_errors
     async def save_draft(self, *, project_id, resource_id, draft_id, principal, request):
         async with self.transactions.begin() as session:
             await self._authorize(session, project_id, resource_id, principal, write=True, lock=True)
             digest, replay = await self._operation(session, project_id=project_id, resource_id=resource_id, principal=principal, request=request, action="save:" + str(draft_id))
             if replay is not None:
                 return replay
+            await self._check_leases(session,project_id=project_id,resource_id=resource_id,
+                principal=principal,request=request,scope="draft:"+str(draft_id))
         artifact = await self.artifacts.retain_upload(project_id=project_id, principal=principal,
             upload_id=request.upload_id, artifact_digest=request.artifact_digest)
         entry = artifact["manifest"]["spec"]["entrypoint"]
@@ -143,6 +160,8 @@ class ASaCDraftStore:
             digest, replay = await self._operation(session, project_id=project_id, resource_id=resource_id, principal=principal, request=request, action="save:" + str(draft_id))
             if replay is not None:
                 return replay
+            await self._check_leases(session,project_id=project_id,resource_id=resource_id,
+                principal=principal,request=request,scope="draft:"+str(draft_id))
             line = await self._line(session, project_id, resource_id, draft_id)
             if line.generation != request.expected_generation:
                 raise ConflictError("ASAC_DRAFT_CHANGED: expected Draft generation is stale")
@@ -154,6 +173,7 @@ class ASaCDraftStore:
             return self._receipt(session, project_id=project_id, resource_id=resource_id,
                 principal=principal, request=request, digest=digest, result=draft_output(line))
 
+    @asac_lease_database_errors
     async def register_revision(self, *, project_id, resource_id, principal, request):
         # Only an already accepted exact Draft object can be checkpointed remotely.
         # Claimed client hashes and UUIDs are metadata, never binding authority.
@@ -162,6 +182,8 @@ class ASaCDraftStore:
             digest, replay = await self._operation(session, project_id=project_id, resource_id=resource_id, principal=principal, request=request, action="revision")
             if replay is not None:
                 return replay
+            await self._check_leases(session,project_id=project_id,resource_id=resource_id,
+                principal=principal,request=request,scope="draft:"+str(request.draft_id))
             line = await self._line(session, project_id, resource_id, request.draft_id)
             if line.generation != request.expected_generation:
                 raise ConflictError("ASAC_DRAFT_CHANGED: expected Draft generation is stale")
@@ -194,6 +216,8 @@ class ASaCDraftStore:
             digest, replay = await self._operation(session, project_id=project_id, resource_id=resource_id, principal=principal, request=request, action="revision")
             if replay is not None:
                 return replay
+            await self._check_leases(session,project_id=project_id,resource_id=resource_id,
+                principal=principal,request=request,scope="draft:"+str(request.draft_id))
             line = await self._line(session, project_id, resource_id, request.draft_id)
             if line.generation != generation or line.artifact_id != artifact_id or str(line.resource_uid) != record["resource_uid"]:
                 raise ConflictError("ASAC_DRAFT_CHANGED: Draft changed during revision validation")

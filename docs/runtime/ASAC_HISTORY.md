@@ -396,3 +396,43 @@ observation. Draft lines retain their separate authoring generations. Capability
 `environment_generation_scope: monotonic-owner-selection@1` lists supported
 Staging/Production environments. Activation plans/fencing are a subsequent
 contract; these counters alone do not grant or enforce activation authorization.
+
+## Bounded workflow leases
+
+Migration `0092` adds owner-scoped lease cells and immutable original-operation
+receipts for Agent and Network. `GET /asac/leases` observes a reservation;
+`POST /asac/leases/{acquire,renew,release,break}` requires typed scope and stable
+operation identity. Scopes are resource authoring, a specific isolated Draft,
+native default Draft, Staging or Production selection. Resource authoring leases
+cover isolated Draft writes; they do not block reads, tracing or frozen Runs.
+
+Workflow UUID, lease UUID and positive monotonic fencing counter identify the
+reservation. Reusing a CLI Key does not imply ownership or reentrancy. Database
+time decides expiry. Requested TTL and total duration are bounded by
+`WOOBE_ASAC_LEASE_MAXIMUM_TTL_SECONDS` (300) and
+`WOOBE_ASAC_LEASE_MAXIMUM_DURATION_SECONDS` (900). Renewal cannot extend the
+original maximum. An expired workflow cannot renew or silently acquire a
+replacement. Reacquisition creates a new lease identity and increments fencing.
+Administrative break requires `project:access:write`, a meaningful reason and
+the exact current lease/fencing pair; it cannot accidentally break a replacement.
+
+Isolated Draft open/save/checkpoint requests optionally carry `leases` with the
+exact active authoring proofs. The owner checks them before artifact I/O and
+again in the short transaction that writes. Deferred PostgreSQL commit guards
+recheck database time, closing expiry between validation and commit. Old proofs
+are rejected even when the reservation has already expired. CAS remains required.
+A replay reads its original accepted receipt after current authorization; it does
+not revive the reservation or perform a second write.
+
+Legacy native authoring writes cannot bypass an active authoring reservation.
+Their old schemas do not transport isolated-workflow proofs: release the owned
+reservation explicitly or use the isolated Draft protocol. Native Draft leases
+must therefore be acquired only with an intentional understanding of this gate.
+Staging/Production lease storage is available for the forthcoming explicit
+activation protocol; this change alone does not turn legacy activation into a
+fenced deployment or enforce a managed Project policy.
+
+Operational proofs belong in private `.state`, never portable author lockfiles,
+Git or skill assets. `fencing_token` is a numeric concurrency counter rather than
+an authentication secret. Lease conflict/expiry database errors return safe
+409 diagnostics without SQL or private bound parameters.

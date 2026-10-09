@@ -72,3 +72,12 @@ future storage cleanup must preserve references from ASaC records. Do not run
 these migrations' destructive downgrades on a database whose new ASaC history
 must be preserved. Lifecycle callers must negotiate the advertised capability;
 isolated object storage alone does not provide publication or deployment fencing.
+
+### Workflow reservations
+
+Apply migration `0092` before using ASaC workflow leases. It adds durable owner
+lease counters, database-clock deadlines and deferred authoring guards. Counters
+cannot be reset or deleted while their native resource exists. The downgrade
+refuses retained lease/operation evidence; do not rewrite applied migrations.
+Active authoring reservations also gate legacy native writes. Use isolated Draft
+proofs or explicitly release the owned reservation before a legacy edit.
