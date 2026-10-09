@@ -89,3 +89,18 @@ def build_project_lifecycle_policy_service():
     return ProjectLifecyclePolicyService(SESSION_FACTORY)
 
 from modules.core.application.dtos.asac_policy import ChangeProjectLifecyclePolicy
+def build_asac_receipt_signer():
+    from shared.composition_resources import SETTINGS
+    from modules.core.infra.receipts.asac_signer import ASaCReceiptSigner
+    from shared.contracts.errors import ValidationError
+    if not SETTINGS.asac_signing_instance_id:
+        raise ValidationError("ASAC_SIGNATURES_UNAVAILABLE: Instance receipt signing is not configured")
+    try:
+        return ASaCReceiptSigner(instance_id=SETTINGS.asac_signing_instance_id,
+            root_private_key=SETTINGS.asac_signing_root_private_key.get_secret_value(),
+            receipt_private_key=SETTINGS.asac_signing_receipt_private_key.get_secret_value(),
+            epoch=SETTINGS.asac_signing_trust_epoch,
+            expires_at=SETTINGS.asac_signing_trust_expires_at,
+            keys=SETTINGS.asac_signing_verification_keys)
+    except (ValueError, TypeError, KeyError):
+        raise ValidationError("ASAC_SIGNATURES_UNAVAILABLE: Instance receipt signing configuration is invalid") from None

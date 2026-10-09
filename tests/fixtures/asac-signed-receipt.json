@@ -1,0 +1,75 @@
+{
+  "now": "2026-10-09T00:00:00Z",
+  "signed": {
+    "payload": {
+      "format": "woobe-signed-asac-receipt",
+      "schema_version": "1.0",
+      "instance_id": "00000000-0000-4000-8000-000000000001",
+      "project_id": "00000000-0000-4000-8000-000000000002",
+      "resource_id": "00000000-0000-4000-8000-000000000003",
+      "kind": "Agent",
+      "category": "publication",
+      "issued_at": "2026-10-09T00:00:00+00:00",
+      "key_id": "sha256:24f6ed6acbfe1009c030d7ca567c33ca4830911498236b5561a6c82abec5de28",
+      "receipt": {
+        "state": "published",
+        "complete": true,
+        "version": "1.2.0",
+        "definition_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "origin": {
+          "git_status": "declared",
+          "commit": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "fixture_number": 9007199254740993,
+        "instruction": "Olá\n保留空白  "
+      }
+    },
+    "record_digest": "sha256:2574817a0c49718c08551caad3e18873db9d59b7c8b9d913344c08f8993d12d8",
+    "signature": "ayzp74ujSzkOCLfr9B55KPCICeLh-mZ3JldXj19ufnWLFpPDxhL8sPGTkHaE4Bxa1U5YmQJxXsBwA9dHA-iBCw",
+    "trust": {
+      "format": "woobe-asac-trust",
+      "schema_version": "1.0",
+      "instance_id": "00000000-0000-4000-8000-000000000001",
+      "epoch": 1,
+      "expires_at": "2026-11-01T00:00:00Z",
+      "root_public_key": "A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg",
+      "root_fingerprint": "sha256:56475aa75463474c0285df5dbf2bcab73da651358839e9b77481b2eab107708c",
+      "keys": [
+        {
+          "key_id": "sha256:24f6ed6acbfe1009c030d7ca567c33ca4830911498236b5561a6c82abec5de28",
+          "public_key": "Kay64UG8yvCyLhqU000LxzYeUm0L_hLIl5S8kyKWbdc",
+          "status": "active",
+          "not_before": "2026-10-01T00:00:00Z",
+          "not_after": "2026-12-01T00:00:00Z"
+        }
+      ],
+      "record_digest": "sha256:dd91a2780a3350665cb436d1fc3b9dc0083f9cd2d42a5ae15c168c1c7e3fbb58",
+      "signature": "UA0T5_ADzqzwGtHQrM9PPFkECafIHkWNLXuZlp8JeCLRWJjEMVX-eYWN7NM5DQa6wnmTDdFE0jPWfFYT9OQiDg"
+    }
+  },
+  "pin": {
+    "format": "woobe-pinned-asac-trust",
+    "schema_version": "1.0",
+    "root_fingerprint": "sha256:56475aa75463474c0285df5dbf2bcab73da651358839e9b77481b2eab107708c",
+    "manifest": {
+      "format": "woobe-asac-trust",
+      "schema_version": "1.0",
+      "instance_id": "00000000-0000-4000-8000-000000000001",
+      "epoch": 1,
+      "expires_at": "2026-11-01T00:00:00Z",
+      "root_public_key": "A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg",
+      "root_fingerprint": "sha256:56475aa75463474c0285df5dbf2bcab73da651358839e9b77481b2eab107708c",
+      "keys": [
+        {
+          "key_id": "sha256:24f6ed6acbfe1009c030d7ca567c33ca4830911498236b5561a6c82abec5de28",
+          "public_key": "Kay64UG8yvCyLhqU000LxzYeUm0L_hLIl5S8kyKWbdc",
+          "status": "active",
+          "not_before": "2026-10-01T00:00:00Z",
+          "not_after": "2026-12-01T00:00:00Z"
+        }
+      ],
+      "record_digest": "sha256:dd91a2780a3350665cb436d1fc3b9dc0083f9cd2d42a5ae15c168c1c7e3fbb58",
+      "signature": "UA0T5_ADzqzwGtHQrM9PPFkECafIHkWNLXuZlp8JeCLRWJjEMVX-eYWN7NM5DQa6wnmTDdFE0jPWfFYT9OQiDg"
+    }
+  }
+}
