@@ -83,6 +83,12 @@ ChatSurface: http://localhost:8081
 
 For public exposure, TLS, secrets, backup, restore and upgrade requirements, see [`docs/SELF_HOSTING.md`](docs/SELF_HOSTING.md).
 
+## Platform releases
+
+Merging a reviewed PR into `master` starts **Release Woobe** automatically. It calculates the Semantic Version from Conventional Commits, synchronizes platform versions through a CI-validated release PR, then publishes an immutable Git tag, [GitHub Release](https://github.com/A1b3rt0M3rcad0/woobe/releases) and the four GHCR packages: `woobe-api`, `woobe-workers`, `woobe-frontend` and `woobe-embed` for amd64 and arm64.
+
+Developers do not bump manifests or create tags manually. See [the release procedure](RELEASING.md) for version rules, repository permissions and recovery.
+
 ## Woobe CLI
 
 Use the external [Woobe CLI](https://github.com/A1b3rt0M3rcad0/woobe-cli) to manage

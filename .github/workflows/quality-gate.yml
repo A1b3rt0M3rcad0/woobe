@@ -74,6 +74,7 @@ jobs:
           tests/unit/test_release_orchestrator.py
           tests/unit/test_release_workflow_graph.py
           tests/unit/test_release_registry_state_machine.py
+          tests/architecture/test_automatic_platform_release.py
       - name: Agent architecture policy
         run: >-
           PYTHONPATH=tooling/quality-gate/src
