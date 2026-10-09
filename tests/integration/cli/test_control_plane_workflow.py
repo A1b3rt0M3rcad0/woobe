@@ -1236,6 +1236,8 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
     await exercise_asac_deployments(cli, "Network", network_id, network_publication)
     cli.policy_denied_key=builder_key
     await exercise_asac_project_policy(cli, agent_id, agent_publication, agent_body, definition, network_id, network_publication)
+    await exercise_web_workbench(cli, 'Agent', agent_id)
+    await exercise_web_workbench(cli, 'Network', network_id)
     # CAS applies before mutation; retrying a completed rotation recovers the same key.
     rotated, rotated_key = await cli.issue(
         "workspace",
@@ -2698,3 +2700,60 @@ async def exercise_managed_qualified_lifecycle(cli, kind, resource_id, previous)
     assert pushed['pushed'] and pushed['environment'] == 'draft'
     selected = (await cli.run(kind.lower(), resource_id, 'current', '--env', 'production'))['data']
     assert selected['snapshot_id'] == published['release_id']
+
+
+async def exercise_web_workbench(cli, kind, resource_id):
+    """Public Web adapter: exact author save/checkpoint/Stage/evaluation/publication."""
+    import yaml
+    base = f"/projects/{cli.project_id}/{kind.lower()}s/{resource_id}/asac"
+    before = await cli.data('request','GET',base+'/current','--query','environment=production')
+    exported = await cli.data('request','POST',f'/projects/{cli.project_id}/packages/export',body={
+        'kind':kind,'target_id':resource_id,'source':'production','knowledge':'portable','development':True})
+    opened = await cli.data('request','POST',base+'/drafts',body={
+        'operation_id':str(uuid4()),'resource_uid':exported['source']['resource_uid'],
+        'name':'web-adapter','source_export_id':exported['export_id']})
+    draft = base+'/drafts/'+opened['draft_id']
+    editor = await cli.data('request','GET',draft+'/editor')
+    assert editor['production_changed'] is False and editor['complete']
+    root = next(item for item in editor['files'] if item['path']==editor['entrypoint_path'])
+    assert root['editable'] and root['content']
+    document = yaml.safe_load(root['content'])
+    if kind == 'Agent':
+        behavior = document['spec'].get('behavior')
+        if behavior is not None:
+            behavior['objective'] = (behavior.get('objective') or '') + ' Verify isolated Web authoring.'
+        else:
+            document['spec']['legacy_system_prompt'] += ' Verify isolated Web authoring.'
+    else:
+        document['spec']['settings']['max_invocations'] = 62
+    save = {'operation_id':str(uuid4()),'expected_generation':opened['generation'],
+            'files':[{'path':root['path'],'content':yaml.safe_dump(document,sort_keys=False,allow_unicode=True)}]}
+    saved = await cli.data('request','PUT',draft+'/editor',body=save)
+    assert saved['generation']==opened['generation']+1 and not saved['production_changed']
+    assert await cli.data('request','PUT',draft+'/editor',body=save)==saved
+    stale = await cli.run('request','PUT',draft+'/editor',body={**save,'operation_id':str(uuid4())},expected=6)
+    assert stale['error']['http_status']==409
+    checkpoint = {'operation_id':str(uuid4()),'expected_generation':saved['generation'],
+                  'revision_id':'rv_'+str(uuid4()),'message':'Web isolated checkpoint','parents':[]}
+    revision = await cli.data('request','POST',draft+'/checkpoint',body=checkpoint)
+    assert revision['record']['definition_digest']==saved['definition_digest']
+    assert await cli.data('request','POST',draft+'/checkpoint',body=checkpoint)==revision
+    stage = {'operation_id':str(uuid4()),'expected_generation':saved['generation'],'revision_id':checkpoint['revision_id']}
+    candidate = await cli.data('request','POST',draft+'/stage',body=stage)
+    assert await cli.data('request','POST',draft+'/stage',body=stage)==candidate
+    for _ in range(120):
+        candidate = await cli.data('request','GET',base+'/candidates/'+candidate['candidate_id'])
+        if candidate['state'] in {'ready','failed','rejected','uncertain'}:
+            break
+        await asyncio.sleep(0.5)
+    assert candidate['state']=='ready'
+    evaluation = await cli.data('request','POST',base+'/candidates/'+candidate['candidate_id']+'/evaluations',body={
+        'operation_id':str(uuid4()),'suite':{'schema_version':'1.0','suite_id':'web-adapter',
+        'suite_version':'1','dataset_version':'1','cases':[{'id':'web-case','message':'Hello Web lifecycle'}]}})
+    assert evaluation['state']=='passed'
+    publication = await cli.data('request','POST',base+'/publications',body={
+        'operation_id':str(uuid4()),'candidate_id':candidate['candidate_id'],
+        'evaluation_id':evaluation['evaluation_id'],'reason':'Web isolated publication'})
+    assert publication['state']=='published' and not publication['production_changed']
+    after = await cli.data('request','GET',base+'/current','--query','environment=production')
+    assert after['snapshot_id']==before['snapshot_id'] and after['environment_generation']==before['environment_generation']

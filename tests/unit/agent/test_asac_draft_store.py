@@ -217,3 +217,56 @@ async def test_retained_author_link_keeps_record_immutable_and_rechecks_owner(dr
     store.artifacts.authors.transfer.side_effect = revoke
     with pytest.raises(AuthorizationError):
         await store.author_transfer(**args, revision_id=record["revision_id"])
+
+
+@pytest.mark.asyncio
+async def test_editor_cas_replay_and_late_conflict_preserve_owner(drafts):
+    from uuid import UUID
+    from shared.contracts.asac_workbench import EditASaCDraft
+    store, sessions, args, uid, artifact = drafts
+    line = await store.open_draft(**args, request=OpenASaCDraft(operation_id=uuid4(), resource_uid=uid, name='web', source_export_id=uuid4()))
+    assert line['origin']['authoring_channel'] == 'web'
+    draft_id = UUID(line['draft_id'])
+    changed = {**artifact, 'artifact_id': str(uuid4()), 'definition_digest': 'sha256:'+'d'*64}
+    store.artifacts.retain_edits = AsyncMock(return_value=changed)
+    request = EditASaCDraft(operation_id=uuid4(), expected_generation=1, files=[{'path':'agent.yaml','content':'edited'}])
+    saved = await store.edit_author_files(**args, draft_id=draft_id, request=request)
+    assert saved['generation'] == 2 and saved['definition_digest'] == changed['definition_digest']
+    assert saved['working_revision_id'] is None and saved['production_changed'] is False
+    assert await store.edit_author_files(**args, draft_id=draft_id, request=request) == saved
+    assert store.artifacts.retain_edits.await_count == 1
+    with pytest.raises(ConflictError, match='ASAC_DRAFT_CHANGED'):
+        await store.edit_author_files(**args, draft_id=draft_id, request=request.model_copy(update={'operation_id':uuid4()}))
+    assert store.artifacts.retain_edits.await_count == 1
+    async def concurrent(**kwargs):
+        async with sessions.begin() as session:
+            row = await session.get(ASaCDraftModel, draft_id)
+            row.generation += 1
+        return changed
+    store.artifacts.retain_edits.side_effect = concurrent
+    with pytest.raises(ConflictError, match='ASAC_DRAFT_CHANGED'):
+        await store.edit_author_files(**args, draft_id=draft_id, request=request.model_copy(update={'operation_id':uuid4(),'expected_generation':2}))
+    assert (await store.get_draft(**args, draft_id=draft_id))['generation'] == 3
+
+
+@pytest.mark.asyncio
+async def test_web_checkpoint_original_replay_and_unauthorized_editor(drafts):
+    from uuid import UUID
+    from shared.contracts.asac_workbench import CheckpointASaCDraft
+    store, sessions, args, uid, artifact = drafts
+    artifact['definition_digest_scope'] = 'woobe-portable-definition@1.0'
+    line = await store.open_draft(**args, request=OpenASaCDraft(operation_id=uuid4(),resource_uid=uid,name='web',source_export_id=uuid4()))
+    draft_id = UUID(line['draft_id'])
+    request = CheckpointASaCDraft(operation_id=uuid4(), expected_generation=1, revision_id='rv_'+str(uuid4()),message='Web checkpoint')
+    result = await store.checkpoint_editor(**args,draft_id=draft_id,request=request)
+    assert result['record']['resource_uid'] == str(uid)
+    assert await store.checkpoint_editor(**args,draft_id=draft_id,request=request) == result
+    with pytest.raises(ConflictError, match='ASAC_OPERATION_CONFLICT'):
+        await store.checkpoint_editor(**args,draft_id=draft_id,request=request.model_copy(update={'message':'other'}))
+    store.artifacts.editor_source = AsyncMock(return_value={'files':[]})
+    store.owner.inspect.side_effect = AuthorizationError('denied')
+    with pytest.raises(AuthorizationError):
+        await store.editor_source(**args,draft_id=draft_id)
+    store.artifacts.editor_source.assert_not_awaited()
+    with pytest.raises(AuthorizationError):
+        await store.checkpoint_editor(**args,draft_id=draft_id,request=request)

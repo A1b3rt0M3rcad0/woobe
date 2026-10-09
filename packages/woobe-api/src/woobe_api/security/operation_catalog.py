@@ -11,6 +11,14 @@ from shared.security.control_plane import (
 
 # Explicitly reviewed method/template pairs. Never derive authority from a prefix.
 _REVIEWED = [
+    ("POST", "/projects/{project_id}/agents/{resource_id}/asac/drafts/{draft_id}/stage", "agent:version"),
+    ("POST", "/projects/{project_id}/networks/{resource_id}/asac/drafts/{draft_id}/stage", "network:version"),
+    ("GET", "/projects/{project_id}/agents/{resource_id}/asac/drafts/{draft_id}/editor", "agent:read"),
+    ("PUT", "/projects/{project_id}/agents/{resource_id}/asac/drafts/{draft_id}/editor", "agent:write"),
+    ("POST", "/projects/{project_id}/agents/{resource_id}/asac/drafts/{draft_id}/checkpoint", "agent:write"),
+    ("GET", "/projects/{project_id}/networks/{resource_id}/asac/drafts/{draft_id}/editor", "network:read"),
+    ("PUT", "/projects/{project_id}/networks/{resource_id}/asac/drafts/{draft_id}/editor", "network:write"),
+    ("POST", "/projects/{project_id}/networks/{resource_id}/asac/drafts/{draft_id}/checkpoint", "network:write"),
     ("GET", "/core/projects/{project_id}/lifecycle-policy/operations/{operation_id}", "project:read"),
     ("GET", "/core/projects/{project_id}/lifecycle-policy", "project:read"),
     ("PUT", "/core/projects/{project_id}/lifecycle-policy", "project:access:write"),

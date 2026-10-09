@@ -12,6 +12,7 @@ from shared.contracts.asac import asac_digest
 from shared.contracts.errors import ConflictError, NotFoundError, ValidationError
 from shared.infra.admin_idempotency import principal_identity
 from shared.infra.asac_lease_errors import asac_lease_database_errors
+from shared.infra.asac_workbench import ASaCWorkbench
 
 
 def draft_output(row):
@@ -25,7 +26,7 @@ def draft_output(row):
             "semantic_validation": "stage_required", "complete": True}
 
 
-class ASaCDraftStore:
+class ASaCDraftStore(ASaCWorkbench):
     def __init__(self, *, transactions, kind, owner, drafts, revisions, operations, artifacts, identities, cursor_key=None):
         self.transactions, self.kind, self.owner = transactions, kind, owner
         self.drafts, self.revisions, self.operations, self.artifacts = drafts, revisions, operations, artifacts
@@ -119,6 +120,8 @@ class ASaCDraftStore:
             origin = {"origin_status": "captured_snapshot", "environment": source.get("environment"),
                       "snapshot_id": source.get("snapshot_id"), "snapshot_digest": source.get("snapshot_digest"),
                       "draft_generation": source.get("draft_revision"), "version": source.get("version")}
+            origin['authoring_channel']='web' if principal_identity(principal).startswith('user:') else 'api'
+            origin['source_export_id']=str(request.source_export_id)
             if request.name != "default" and not any(row.name == "default" for row in rows):
                 # Lazy migration preserves the existing native default rather than
                 # replacing it with the historical hotfix's exported content.
