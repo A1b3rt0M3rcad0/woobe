@@ -175,11 +175,11 @@ async def database_exception_handler(request: Request, exc: Exception) -> JSONRe
     # SQLAlchemy exception text can contain bound author content or protected
     # runtime data. Return only a reviewed fencing code, never SQL/parameters.
     origin=getattr(exc,"orig",None)
-    for code in ("ASAC_LEASE_FENCED","ASAC_LEASE_EXPIRED","ASAC_DEPLOYMENT_COMMIT_INVALID","ASAC_DEPLOYMENT_RECEIPT_REQUIRED","ASAC_SELECTION_MANAGED"):
+    for code in ("ASAC_LEASE_FENCED","ASAC_LEASE_EXPIRED","ASAC_DEPLOYMENT_COMMIT_INVALID","ASAC_DEPLOYMENT_RECEIPT_REQUIRED","ASAC_SELECTION_MANAGED","ASAC_PROJECT_MANAGED_LIFECYCLE_REQUIRED","ASAC_PROJECT_QUALIFIED_PUBLICATION_REQUIRED","ASAC_PROJECT_POLICY_RECEIPT_REQUIRED","ASAC_PROJECT_POLICY_STALE","ASAC_PROJECT_POLICY_IMMUTABLE","ASAC_PROJECT_PRODUCTION_ACTOR_REQUIRED"):
         if code in str(origin):
             logger.info("Database rejected workflow lease: %s",code)
             return JSONResponse(status_code=409,content={"success":False,
-                "message":"Database rejected an expired or superseded workflow lease",
+                "message":"Database rejected an incompatible lifecycle transaction",
                 "data":{"asac_schema_version":"1.0","diagnostics":[{"code":code}]},
                 "meta":{"complete":False}})
     cause = getattr(origin, "__cause__", None)

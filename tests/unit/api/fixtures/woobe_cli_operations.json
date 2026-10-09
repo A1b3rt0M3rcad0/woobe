@@ -1,5 +1,5 @@
 {
-  "cli_commit": "b4034475e49aead88cf59f1cdbe7e97dae3ed302",
+  "cli_commit": "247e33ae66f9874e1827877504288944a8898cfe",
   "operations": [
     {
       "command": "auth invite accept",
@@ -462,6 +462,24 @@
       "method": "GET",
       "path": "/agent/knowledge/collections/{collection_id}/vector-snapshots",
       "body_required": false
+    },
+    {
+      "command": "project lifecycle operation",
+      "method": "GET",
+      "path": "/core/projects/{project_id}/lifecycle-policy/operations/{operation_id}",
+      "body_required": false
+    },
+    {
+      "command": "project lifecycle show",
+      "method": "GET",
+      "path": "/core/projects/{project_id}/lifecycle-policy",
+      "body_required": false
+    },
+    {
+      "command": "project lifecycle update",
+      "method": "PUT",
+      "path": "/core/projects/{project_id}/lifecycle-policy",
+      "body_required": true
     },
     {
       "command": "project list",

@@ -470,3 +470,38 @@ create an exact deployment plan instead.
 This owner selection protocol is separate from Project-wide managed lifecycle
 policy, Web editor integration, signed offline receipts and Git verification.
 Those features must not be inferred from an accepted deployment receipt.
+
+## Project lifecycle authority
+
+Core owns `GET/PUT /core/projects/{project_id}/lifecycle-policy` and read-only
+`GET /core/projects/{project_id}/lifecycle-policy/operations/{operation_id}`.
+An absent policy is explicit legacy mode, generation zero. Updating policy
+requires `project:access:write`, a stable operation UUID, expected policy
+generation, `managed`, optional `production_actors` and a meaningful audit
+reason. Core records the resulting policy, before/after generations, principal,
+server database time and immutable original-operation/outbox receipt together.
+A distinct accepted policy operation increments generation even if settings are
+unchanged; replay of the original operation returns its original receipt.
+
+`production_actors` optionally restricts Production planning/application to
+stable `user:UUID` / `control:credential-UUID` identities. It never grants
+resource permission and does not authorize a CLI key secret or a rotated key
+row. Empty restrictions retain ordinary environment/target grants. Policy
+changes invalidate plans captured under a different policy digest. A Project
+row lock also fences first policy insertion; the Core public reader holds policy
+through final owner deployment commit.
+
+Managed mode rejects legacy Agent/Network Staging/Production promotion at the
+persistence boundary, including legacy Web and materialization paths. New
+immutable native Releases require exact ASaC publication evidence (Network
+constituents retain their original Agent-owner receipts). Draft authoring,
+history reads and already admitted executions remain separate from selection.
+The gate returns bounded domain conflicts; local `force`/`--yes` cannot disable
+it. Administrative policy changes are explicit, audited CAS operations.
+
+CLI 0.30+ exposes `project lifecycle show`, YAML/JSON `update` and read-only
+`operation UUID`. These commands do not require a development registry. The
+CLI verifies route advertisement and keeps a stable original operation for
+recovery rather than repeating an uncertain write under a new identity.
+Project policy does not replace signed offline receipts, Git attestations,
+Web isolated-Draft UX or runtime continuity work.

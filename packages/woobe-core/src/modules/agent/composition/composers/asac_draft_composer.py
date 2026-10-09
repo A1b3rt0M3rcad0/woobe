@@ -65,11 +65,11 @@ def build_agent_asac_binding_guard(*, environment_reader):
     return AgentASaCBindingGuard(environment_reader)
 
 
-def build_agent_asac_deployments(*, artifacts, preparation, environment_reader):
+def build_agent_asac_deployments(*, artifacts, preparation, environment_reader, policy=None):
     from modules.agent.infra.database.asac_models import ASaCDeploymentPlanModel, ASaCDeploymentModel, ASaCEnvironmentSelectionModel
     from modules.agent.infra.database.asac_transactions import AgentASaCDeploymentStore
     from modules.agent.infra.database.asac_environment_selector import AgentASaCEnvironmentSelector
     from modules.agent.infra.database.models import AgentOutboxEventModel
     return AgentASaCDeploymentStore(publications=build_agent_asac_publications(artifacts=artifacts,preparation=preparation),
         plans=ASaCDeploymentPlanModel,deployments=ASaCDeploymentModel,selections=ASaCEnvironmentSelectionModel,
-        selector=AgentASaCEnvironmentSelector(),outbox=AgentOutboxEventModel,bindings=build_agent_asac_binding_guard(environment_reader=environment_reader))
+        selector=AgentASaCEnvironmentSelector(),outbox=AgentOutboxEventModel,policy=policy,bindings=build_agent_asac_binding_guard(environment_reader=environment_reader))
