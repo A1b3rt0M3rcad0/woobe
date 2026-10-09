@@ -64,12 +64,8 @@ class Settings(BaseSettings):
     edition: str = "core"
     asac_lease_maximum_ttl_seconds: int = Field(default=300, ge=1, le=86400)
     asac_lease_maximum_duration_seconds: int = Field(default=900, ge=1, le=86400)
-    asac_signing_instance_id: str = ""
-    asac_signing_root_private_key: SecretStr = Field(default=SecretStr(""), repr=False)
     asac_signing_receipt_private_key: SecretStr = Field(default=SecretStr(""), repr=False)
-    asac_signing_trust_epoch: int = Field(default=1, ge=1)
-    asac_signing_trust_expires_at: str = ""
-    asac_signing_verification_keys: list[dict[str, str]] = Field(default_factory=list)
+    asac_signing_trust_manifest: dict = Field(default_factory=dict)
 
 
     database_url: str = "postgresql://postgres:postgres@localhost:5432/woobe"

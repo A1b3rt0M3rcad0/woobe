@@ -119,3 +119,9 @@ Migration `0097` checks the captured Project lifecycle policy again at deferred
 deployment commit. A changed policy generation or managed mode rejects the
 transaction, and managed Production also checks the stable actor allowlist.
 Apply migrations before serving traffic; this guard does not grant permissions.
+
+For optional instance-signed owner receipts, configure an online signing key
+and an offline-root-signed public manifest as described in
+[signed ASaC receipts](runtime/ASAC_SIGNED_RECEIPTS.md). The API never holds the offline root seed.
+Existing authenticated history reads do not automatically establish offline
+trust; clients pin an independently confirmed root fingerprint.
