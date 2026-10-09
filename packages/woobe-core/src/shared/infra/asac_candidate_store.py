@@ -144,9 +144,10 @@ class ASaCCandidateStore:
             if row is None or row.project_id != project_id or row.resource_id != resource_id:
                 raise NotFoundError("ASAC_CANDIDATE_UNAVAILABLE")
             result=candidate_output(row)
+            preparation_id=row.preparation_operation_id
         if result['state']=='ready':
             ready=await self.preparation.acceptance_ready(project_id=project_id,candidate_id=candidate_id,
-                preparation_operation_id=row.preparation_operation_id)
+                preparation_operation_id=preparation_id)
             if not ready:
                 result.update(state='preparing',complete=False,native_closure_state='sealed_waiting_preparation_receipt')
         return result
