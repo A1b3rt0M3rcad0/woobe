@@ -31,3 +31,11 @@ def build_agent_asac_evaluations(*, artifacts, preparation):
         handler=build_ask_agent_handler(SETTINGS), journal=RUN_EVENT_JOURNAL)
     return AgentASaCEvaluationStore(candidates=build_agent_asac_candidates(artifacts=artifacts, preparation=preparation),
         evaluations=ASaCEvaluationModel, runtime=runtime)
+
+
+def build_agent_asac_publications(*, artifacts, preparation):
+    from modules.agent.infra.database.asac_models import ASaCPublicationModel
+    from modules.agent.infra.database.asac_publisher import AgentASaCPublisher
+    from modules.agent.infra.database.asac_transactions import AgentASaCPublicationStore
+    return AgentASaCPublicationStore(evaluations=build_agent_asac_evaluations(artifacts=artifacts,preparation=preparation),
+        publications=ASaCPublicationModel,publisher=AgentASaCPublisher())

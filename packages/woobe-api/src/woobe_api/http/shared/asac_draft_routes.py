@@ -7,11 +7,12 @@ from fastapi.responses import JSONResponse, Response
 
 from shared.contracts.asac_requests import OpenASaCDraft, SaveASaCDraft, RegisterASaCRevision, StageASaCRevision
 from shared.contracts.asac_evaluation import EvaluateASaCCandidate
+from shared.contracts.asac_publication import PublishASaCCandidate
 from shared.contracts.errors import AuthorizationError, ConflictError, NotFoundError, ValidationError
 from modules.package.entrypoint import PackageError, build_snapshot_artifacts, build_candidate_preparation
 
 
-def draft_router(prefix, builder, kind, candidate_builder=None, evaluation_builder=None):
+def draft_router(prefix, builder, kind, candidate_builder=None, evaluation_builder=None, publication_builder=None):
     router = APIRouter(prefix=prefix, tags=[kind.lower(), "asac-drafts"])
 
     def store():
@@ -88,6 +89,20 @@ def draft_router(prefix, builder, kind, candidate_builder=None, evaluation_build
         async def reconcile_evaluation(project_id: UUID, resource_id: UUID, evaluation_id: UUID, request: Request):
             return response(await invoke(evaluations().reconcile(project_id=project_id, resource_id=resource_id,
                 evaluation_id=evaluation_id, principal=actor(request))))
+
+    if publication_builder is not None:
+        def publications():
+            return publication_builder(artifacts=build_snapshot_artifacts(), preparation=build_candidate_preparation())
+
+        @router.post("/publications")
+        async def publish(project_id: UUID, resource_id: UUID, body: PublishASaCCandidate, request: Request):
+            return response(await invoke(publications().publish(project_id=project_id,resource_id=resource_id,
+                principal=actor(request),request=body)))
+
+        @router.get("/publications/{publication_id}")
+        async def publication(project_id: UUID, resource_id: UUID, publication_id: UUID, request: Request):
+            return response(await invoke(publications().get(project_id=project_id,resource_id=resource_id,
+                publication_id=publication_id,principal=actor(request))))
 
     @router.get("/drafts")
     async def drafts(project_id: UUID, resource_id: UUID, request: Request):

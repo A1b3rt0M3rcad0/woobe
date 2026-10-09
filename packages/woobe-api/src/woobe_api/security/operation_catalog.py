@@ -12,6 +12,8 @@ from shared.security.control_plane import (
 # Explicitly reviewed method/template pairs. Never derive authority from a prefix.
 _REVIEWED = [
     ("POST", "/projects/{project_id}/agents/{resource_id}/asac/candidates", "agent:version"),
+    ("POST", "/projects/{project_id}/agents/{resource_id}/asac/publications", "agent:version"),
+    ("GET", "/projects/{project_id}/agents/{resource_id}/asac/publications/{publication_id}", "agent:read"),
     ("POST", "/projects/{project_id}/agents/{resource_id}/asac/candidates/{candidate_id}/evaluations", "run:execute"),
     ("GET", "/projects/{project_id}/agents/{resource_id}/asac/evaluations/{evaluation_id}", "run:read"),
     ("POST", "/projects/{project_id}/agents/{resource_id}/asac/evaluations/{evaluation_id}/reconcile", "run:execute"),

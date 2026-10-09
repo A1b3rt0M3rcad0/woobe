@@ -299,6 +299,8 @@ class HttpSecurityGuard:
                     ("GET", base + "evaluations/" + str(path_params["evaluation_id"])),
                     ("POST", base + "evaluations/" + str(path_params["evaluation_id"]) + "/reconcile")}:
                     candidate_route = True
+                if plural == "agents" and ((request.method == "POST" and request.url.path == base + "publications") or (request.method == "GET" and "publication_id" in path_params and request.url.path == base + "publications/" + str(path_params["publication_id"]))):
+                    candidate_route = True
                 if candidate_route:
                     normalized = dict(path_params)
                     normalized[identifier] = normalized.pop("resource_id")
