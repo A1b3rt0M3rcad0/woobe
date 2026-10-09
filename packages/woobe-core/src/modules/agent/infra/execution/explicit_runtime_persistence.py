@@ -739,7 +739,7 @@ class ExplicitRuntimePersistenceMixin:
                     await repositories.runs.save(run)
 
             return AskOutput(
-            runtime_identity=context.runtime_identity,
+            runtime_identity=getattr(context, "runtime_identity", None),
                 run_id=run_id,
                 answer=answer,
                 session_id=session.id,

@@ -233,7 +233,7 @@ class EventJournalAgentRunPersistence:
         context.terminal_persisted = True
         await owner._hot_persisted("completed")
         output = AskOutput(
-            runtime_identity=context.runtime_identity,
+            runtime_identity=getattr(context, "runtime_identity", None),
             run_id=context.run_id,
             answer=kw["answer"],
             session_id=session.id,
