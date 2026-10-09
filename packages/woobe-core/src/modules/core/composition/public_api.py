@@ -100,3 +100,11 @@ def build_asac_receipt_signer():
             receipt_private_key=SETTINGS.asac_signing_receipt_private_key.get_secret_value())
     except (ValueError, TypeError, KeyError):
         raise ValidationError("ASAC_SIGNATURES_UNAVAILABLE: Instance receipt signing configuration is invalid") from None
+
+
+def build_asac_git_verifier():
+    from modules.core.infra.receipts.asac_git_verifier import ASaCGitVerifier
+    from shared.infra.config import SETTINGS
+    return ASaCGitVerifier(SETTINGS.asac_git_trusted_builders)
+
+__all__.append('build_asac_git_verifier')

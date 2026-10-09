@@ -563,3 +563,7 @@ They delegate to the canonical Package and lifecycle owners rather than a second
 Web publication engine. `origin.authoring_channel` is derived from authenticated
 principal type (`web` human session or `api` Control Key); it is not an attestation
 that a particular UI or Git workflow was used.
+
+Trusted Git origin has an independent append-only authority path; see
+[Git pipeline provenance](ASAC_GIT_PROVENANCE.md). Declared publication metadata
+is never silently upgraded or rewritten.

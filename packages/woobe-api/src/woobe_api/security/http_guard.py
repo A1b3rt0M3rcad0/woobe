@@ -301,6 +301,12 @@ class HttpSecurityGuard:
                     normalized["environment"] = ((request.query_params.get("environment") or "production")
                         if category == "deployment" else "draft" if category == "revision" else "staging")
                     return normalized
+                git_route=(request.method=='POST' and request.url.path==base+'git-attestations') or (request.method=='GET' and 'attestation_id' in path_params and request.url.path==base+'git-attestations/'+str(path_params['attestation_id']))
+                if git_route:
+                    normalized=dict(path_params)
+                    normalized[identifier]=normalized.pop('resource_id')
+                    normalized['environment']='staging'
+                    return normalized
                 deployment_route=(request.method=="POST" and request.url.path in {base+"deployment-plans",base+"deployments"}) or (request.method=="GET" and (("plan_id" in path_params and request.url.path==base+"deployment-plans/"+str(path_params["plan_id"])) or ("deployment_id" in path_params and request.url.path==base+"deployments/"+str(path_params["deployment_id"]))))
                 if deployment_route:
                     data=body if isinstance(body,dict) else {}

@@ -90,3 +90,7 @@ Private lease IDs/workflow/fencing proofs are omitted. The original immutable
 owner receipt digest is retained as owner_receipt_digest; the signature verifies
 the public projection, not a reconstruction of private operational evidence.
 The underlying owner receipt, operation and audit are not rewritten.
+
+Trusted Git origin has an independent append-only authority path; see
+[Git pipeline provenance](ASAC_GIT_PROVENANCE.md). Declared publication metadata
+is never silently upgraded or rewritten.

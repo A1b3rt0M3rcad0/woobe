@@ -11,6 +11,8 @@ from shared.contracts.asac_leases import ASaCLeaseScope, AcquireASaCLease, Chang
 from shared.contracts.asac_evaluation import EvaluateASaCCandidate
 from shared.contracts.asac_publication import PublishASaCCandidate, CancelASaCPublication
 from shared.contracts.asac_deployment import PlanASaCDeployment, ApplyASaCDeployment
+from shared.contracts.asac_git import AcceptGitAttestation
+from modules.core.entrypoint import build_asac_git_verifier
 from shared.contracts.asac_workbench import EditASaCDraft, CheckpointASaCDraft, StageWorkbenchDraft
 from shared.contracts.errors import AuthorizationError, ConflictError, NotFoundError, ValidationError
 from modules.package.entrypoint import PackageError, build_snapshot_artifacts, build_candidate_preparation
@@ -97,6 +99,21 @@ def draft_router(prefix, builder, kind, candidate_builder=None, evaluation_build
             except ValueError:
                 raise ValidationError("ASAC_SIGNATURES_UNAVAILABLE: Instance signing authority is not currently valid") from None
         return response(await invoke(operation()))
+
+    if publication_builder is not None:
+        def git_store():
+            owner=publication_builder(artifacts=build_snapshot_artifacts(),preparation=build_candidate_preparation())
+            return owner.git_attestations(build_asac_git_verifier())
+
+        @router.post('/git-attestations')
+        async def git_attestation(project_id: UUID,resource_id: UUID,body: AcceptGitAttestation,request: Request):
+            return response(await invoke(git_store().accept(project_id=project_id,resource_id=resource_id,
+                principal=actor(request),request=body)))
+
+        @router.get('/git-attestations/{attestation_id}')
+        async def git_attestation_read(project_id: UUID,resource_id: UUID,attestation_id: UUID,request: Request):
+            return response(await invoke(git_store().get(project_id=project_id,resource_id=resource_id,
+                principal=actor(request),attestation_id=attestation_id)))
 
     @router.get("/drafts/{draft_id}/editor")
     async def editor_source(project_id: UUID,resource_id: UUID,draft_id: UUID,request: Request):

@@ -225,6 +225,7 @@ async def cli(tmp_path):
     processes = []
     logs = []
     harness = Cli(binary, origin, workspace_id, issued.value, tmp_path)
+    harness.root_control_key_id = str(root_id)
     # Disposable test-only signing authority: root remains in this fixture and
     # only its public manifest and distinct online seed reach the API process.
     from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
@@ -238,6 +239,33 @@ async def cli(tmp_path):
                "not_before": (datetime.now(UTC)-timedelta(minutes=1)).isoformat(),
                "not_after": (datetime.now(UTC)+timedelta(hours=3)).isoformat()}],
     )
+    async def trust_git_pipeline(issuer, principal_id):
+        # Simulate an operator updating explicit public trust and restarting this
+        # disposable API after its Project/native Publication identities exist.
+        builder_key=Ed25519PrivateKey.from_private_bytes(bytes(range(64,96)))
+        builder={"issuer":issuer,"instance_id":harness.trust_manifest["instance_id"],
+            "principal":"control:"+principal_id,"project_ids":[harness.project_id],
+            "repository":"fixture/author-repository","public_key":encode(builder_key.public_key().public_bytes_raw()),
+            "status":"active"}
+        processes[0].terminate()
+        await asyncio.wait_for(processes[0].wait(),timeout=20)
+        log=(tmp_path/"api-git-trust.log").open("wb");logs.append(log)
+        processes[0]=await asyncio.create_subprocess_exec(
+            sys.executable,"-m","uvicorn","main:app","--host","127.0.0.1","--port",str(port),
+            stdout=log,stderr=log,env={**os.environ,"WOOBE_API_KEY_RATE_LIMIT_REQUESTS":"1000",
+                "WOOBE_ASAC_SIGNING_RECEIPT_PRIVATE_KEY":encode(bytes(range(32,64))),
+                "WOOBE_ASAC_SIGNING_TRUST_MANIFEST":json.dumps(harness.trust_manifest),
+                "WOOBE_ASAC_GIT_TRUSTED_BUILDERS":json.dumps([builder])})
+        async with httpx.AsyncClient(trust_env=False) as client:
+            for _ in range(120):
+                assert processes[0].returncode is None,"API Git trust restart failed"
+                try:
+                    if (await client.get(origin+"/openapi.json")).status_code==200: break
+                except httpx.TransportError: pass
+                await asyncio.sleep(0.25)
+            else: pytest.fail("API Git trust restart did not become ready")
+        return bytes(range(64,96))
+    harness.trust_git_pipeline=trust_git_pipeline
     try:
         for command, name in [
             (
@@ -976,6 +1004,7 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
         for item in activations
     )
     agent_publication = await exercise_asac_isolated_drafts(cli, "Agent", agent_id)
+    await exercise_trusted_git_pipeline(cli,"Agent",agent_id,agent_publication)
     await cli.run("request", "POST", "/v1/run", body={"message": "Hello"}, expected=4)
     await cli.run("project", "agent", "list", key=staging_key, expected=4)
     network_body = {"name": "CLI network"}
@@ -1180,6 +1209,7 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
     network_deployments = await cli.data("request", "GET", f"/projects/{cli.project_id}/networks/{network_id}/asac/history", "--query", "stream=deployments")
     assert any(item["release_id"] == network_release["id"] and item["action"] == "rollback" for item in network_deployments["records"])
     network_publication = await exercise_asac_isolated_drafts(cli, "Network", network_id)
+    await exercise_trusted_git_pipeline(cli,"Network",network_id,network_publication)
     _, network_key = await cli.issue(
         "project",
         "runtime-key",
@@ -2759,3 +2789,59 @@ async def exercise_web_workbench(cli, kind, resource_id):
     assert publication['state']=='published' and not publication['production_changed']
     after = await cli.data('request','GET',base+'/current','--query','environment=production')
     assert after['snapshot_id']==before['snapshot_id'] and after['environment_generation']==before['environment_generation']
+
+
+async def exercise_trusted_git_pipeline(cli,kind,resource_id,qualified):
+    """Clean CI clone, distinct scoped key and non-circular exact Git receipt."""
+    from modules.core.infra.receipts.asac_signer import encode
+    registry=qualified['registry'];publication=qualified['publication']
+    key_record,ci_key=await cli.issue('workspace','control-key','create',body={
+        'name':'Trusted Git pipeline '+kind,'expires_at':(datetime.now(UTC)+timedelta(minutes=30)).isoformat(),
+        'on_project_create_permissions':[],'project_grants':[{'project_id':cli.project_id,
+            'permissions':['project:read',kind.lower()+':read',kind.lower()+':version'],
+            'conditions':{'environments':['staging']}}]})
+    seed=await cli.trust_git_pipeline('fixture-ci',key_record['id'])
+    async def git(directory,*args):
+        process=await asyncio.create_subprocess_exec('git','-C',str(directory),*args,
+            stdout=asyncio.subprocess.PIPE,stderr=asyncio.subprocess.PIPE)
+        raw,_=await process.communicate();assert process.returncode==0,'Git fixture command failed'
+        return raw.decode().strip()
+    await git(registry,'init','-q')
+    await git(registry,'config','user.name','ASaC fixture')
+    await git(registry,'config','user.email','fixture@example.invalid')
+    await git(registry,'add','--','.')
+    # Private workflow state must never become proof input or Git content.
+    await git(registry,'rm','-r','--cached','--ignore-unmatch','--','.woobe/.state')
+    await git(registry,'commit','-q','-m','Exact sealed source without future commit identity')
+    commit=await git(registry,'rev-parse','HEAD')
+    tracked=await git(registry,'ls-files')
+    assert '.woobe/.state/' not in tracked
+    clone=cli.directory/(kind.lower()+'-trusted-ci-clone')
+    await git(cli.directory,'clone','-q',str(registry),str(clone))
+    assert not (clone/'.woobe'/'.state').exists()
+    private=cli.directory/(kind.lower()+'-pipeline-private');private.mkdir(mode=0o700)
+    seed_file=private/'builder.seed';seed_file.write_text(encode(seed));seed_file.chmod(0o600)
+    proof_file=cli.directory/(kind.lower()+'-git-proof.yaml')
+    proof_result=await cli.run(kind.lower(),'@captured','git-proof',
+        '--revision',publication['revision_id'],'--commit',commit,'--repository','fixture/author-repository',
+        '--publication',publication['publication_id'],'--resource-id',resource_id,'--issuer','fixture-ci',
+        '--instance',cli.trust_manifest['instance_id'],'--workflow-run','fixture:1',
+        '--signing-key-file',str(seed_file),'--path',str(proof_file),cwd=clone,key=ci_key)
+    assert proof_result['data']['git_status']=='pipeline_signed_not_server_verified'
+    seed_file.unlink()
+    import yaml
+    proof=yaml.safe_load(proof_file.read_text());operation=str(uuid4())
+    receipt=(await cli.run(kind.lower(),resource_id,'git-attest','--file',str(proof_file),
+        '--idempotency-key',operation,key=ci_key))['data']
+    assert receipt['git']['status']=='verified' and receipt['git']['commit']==commit
+    assert receipt['operation_id']==operation and receipt['original_publication_unchanged']
+    assert not receipt['published'] and not receipt['production_changed']
+    assert (await cli.run('project',kind.lower(),'git-attestation','get',resource_id,operation,key=ci_key))['data']['data']==receipt
+    assert (await cli.run(kind.lower(),resource_id,'git-attest','--file',str(proof_file),
+        '--idempotency-key',operation,key=ci_key))['data']==receipt
+    # Another credential cannot acquire this builder's authority by copying proof.
+    base=f'/projects/{cli.project_id}/{kind.lower()}s/{resource_id}/asac'
+    refused=await cli.run('request','POST',base+'/git-attestations',
+        body={'operation_id':str(uuid4()),'attestation':proof},expected=2)
+    assert refused['error']['http_status']==422
+    assert (await cli.data('request','GET',base+'/publications/'+publication['publication_id']))==publication
