@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from urllib.parse import urlsplit
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _INSECURE_SECRET_MARKERS = (
@@ -64,6 +64,10 @@ class Settings(BaseSettings):
     edition: str = "core"
     asac_lease_maximum_ttl_seconds: int = Field(default=300, ge=1, le=86400)
     asac_lease_maximum_duration_seconds: int = Field(default=900, ge=1, le=86400)
+    asac_signing_receipt_private_key: SecretStr = Field(default=SecretStr(""), repr=False)
+    asac_signing_trust_manifest: dict = Field(default_factory=dict)
+    asac_git_trusted_builders: list[dict] = Field(default_factory=list,max_length=64)
+
 
     database_url: str = "postgresql://postgres:postgres@localhost:5432/woobe"
     debug: bool = False

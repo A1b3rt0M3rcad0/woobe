@@ -17,6 +17,7 @@ from modules.agent.presentation.controllers.inspect_destination_bindings_control
     InspectDestinationBindingsController,
 )
 from shared.infra.transactional_handler import TransactionalHandler
+from modules.agent.infra.database.provider_model_repositories import SQLAlchemyProviderModelRepository
 
 
 def inspect_destination_bindings_composer() -> TransactionalHandler:
@@ -26,7 +27,7 @@ def inspect_destination_bindings_composer() -> TransactionalHandler:
     vectors = SQLAlchemyVectorSnapshotRepository(uow)
     environment = SQLAlchemyProjectEnvironmentReader(uow)
     use_case = InspectDestinationBindingsUseCase(
-        credentials, secrets, vectors, environment
+        credentials, secrets, vectors, environment, models=SQLAlchemyProviderModelRepository(uow)
     )
     controller = InspectDestinationBindingsController(use_case)
     return TransactionalHandler(uow, controller.handle)

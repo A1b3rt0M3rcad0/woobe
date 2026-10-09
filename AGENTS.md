@@ -13,6 +13,7 @@ Keep this file small. It is an index and routing guide, not a duplicate of produ
 - Change routing guide: [docs/agents/CHANGE_GUIDE.md](docs/agents/CHANGE_GUIDE.md)
 - Contribution and commit policy: [CONTRIBUTING.md](CONTRIBUTING.md)
 - Release procedure: [RELEASING.md](RELEASING.md)
+- ASaC acceptance matrix: [docs/testing/ASAC_ACCEPTANCE.md](docs/testing/ASAC_ACCEPTANCE.md)
 - Test topology: [docs/testing/COMPOSE_TESTS.md](docs/testing/COMPOSE_TESTS.md)
 - Self-hosting: [docs/SELF_HOSTING.md](docs/SELF_HOSTING.md)
 - Upgrade guidance: [docs/UPGRADING.md](docs/UPGRADING.md)
@@ -24,7 +25,10 @@ Keep this file small. It is an index and routing guide, not a duplicate of produ
 
 - Control Plane authority: [docs/security/CONTROL_PLANE.md](docs/security/CONTROL_PLANE.md)
 
+- Accepted Run identity and Session continuity: [docs/runtime/ASAC_RUNTIME_IDENTITY.md](docs/runtime/ASAC_RUNTIME_IDENTITY.md)
 - Runtime streaming: [docs/runtime/STREAMING.md](docs/runtime/STREAMING.md)
+- Trusted Git pipeline provenance: [docs/runtime/ASAC_GIT_PROVENANCE.md](docs/runtime/ASAC_GIT_PROVENANCE.md)
+- Signed ASaC receipts and instance trust: [docs/runtime/ASAC_SIGNED_RECEIPTS.md](docs/runtime/ASAC_SIGNED_RECEIPTS.md)
 - ASaC history and portable digests: [docs/runtime/ASAC_HISTORY.md](docs/runtime/ASAC_HISTORY.md)
 - Unified runtime observer: [docs/runtime/UNIFIED_OBSERVER.md](docs/runtime/UNIFIED_OBSERVER.md)
 - ChatSurface: [docs/runtime/CHAT_SURFACE.md](docs/runtime/CHAT_SURFACE.md)

@@ -76,3 +76,35 @@ __all__ = [
 def build_asac_environment_binding_reader():
     from modules.core.infra.database.asac_binding_reader import ASaCEnvironmentBindingReader
     return ASaCEnvironmentBindingReader()
+
+
+def build_project_lifecycle_policy_reader():
+    from modules.core.infra.database.asac_policy import ProjectLifecyclePolicyReader
+    return ProjectLifecyclePolicyReader()
+
+
+def build_project_lifecycle_policy_service():
+    from modules.core.infra.database.asac_policy import ProjectLifecyclePolicyService
+    from shared.composition_resources import SESSION_FACTORY
+    return ProjectLifecyclePolicyService(SESSION_FACTORY)
+
+from modules.core.application.dtos.asac_policy import ChangeProjectLifecyclePolicy
+def build_asac_receipt_signer():
+    from shared.composition_resources import SETTINGS
+    from modules.core.infra.receipts.asac_signer import ASaCReceiptSigner
+    from shared.contracts.errors import ValidationError
+    if not SETTINGS.asac_signing_trust_manifest:
+        raise ValidationError("ASAC_SIGNATURES_UNAVAILABLE: Instance receipt signing is not configured")
+    try:
+        return ASaCReceiptSigner(trust_manifest=SETTINGS.asac_signing_trust_manifest,
+            receipt_private_key=SETTINGS.asac_signing_receipt_private_key.get_secret_value())
+    except (ValueError, TypeError, KeyError):
+        raise ValidationError("ASAC_SIGNATURES_UNAVAILABLE: Instance receipt signing configuration is invalid") from None
+
+
+def build_asac_git_verifier():
+    from modules.core.infra.receipts.asac_git_verifier import ASaCGitVerifier
+    from shared.composition_resources import SETTINGS
+    return ASaCGitVerifier(SETTINGS.asac_git_trusted_builders)
+
+__all__.append('build_asac_git_verifier')

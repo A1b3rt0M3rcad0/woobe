@@ -11,9 +11,12 @@ from shared.contracts.asac_leases import ASaCLeaseScope, AcquireASaCLease, Chang
 from shared.contracts.asac_evaluation import EvaluateASaCCandidate
 from shared.contracts.asac_publication import PublishASaCCandidate, CancelASaCPublication
 from shared.contracts.asac_deployment import PlanASaCDeployment, ApplyASaCDeployment
+from shared.contracts.asac_git import AcceptGitAttestation
+from modules.core.entrypoint import build_asac_git_verifier
+from shared.contracts.asac_workbench import EditASaCDraft, CheckpointASaCDraft, StageWorkbenchDraft
 from shared.contracts.errors import AuthorizationError, ConflictError, NotFoundError, ValidationError
 from modules.package.entrypoint import PackageError, build_snapshot_artifacts, build_candidate_preparation
-from modules.core.entrypoint import build_asac_environment_binding_reader
+from modules.core.entrypoint import build_asac_environment_binding_reader, build_asac_receipt_signer
 
 
 def draft_router(prefix, builder, kind, candidate_builder=None, evaluation_builder=None, publication_builder=None, deployment_builder=None):
@@ -51,6 +54,82 @@ def draft_router(prefix, builder, kind, candidate_builder=None, evaluation_build
         return JSONResponse(jsonable_encoder({"success": True, "message": "ok", "data": data,
             "meta": {"complete": data.get("complete", True)}}))
 
+    @router.get("/signed-receipts/{category}/{receipt_id}")
+    async def signed_receipt(project_id: UUID, resource_id: UUID, request: Request,
+            category: Literal["revision", "evaluation", "publication", "deployment"], receipt_id: str,
+            environment: Literal["staging", "production"] = Query("production")):
+        async def operation():
+            principal = actor(request)
+            if category == "revision":
+                receipt = await store().get_revision(project_id=project_id, resource_id=resource_id,
+                    revision_id=receipt_id, principal=principal)
+            else:
+                try:
+                    identifier = UUID(receipt_id)
+                except ValueError:
+                    raise ValidationError("ASAC_RECEIPT_ID_INVALID: A receipt UUID is required") from None
+                if category == "evaluation" and evaluation_builder is not None:
+                    reader = evaluation_builder(artifacts=build_snapshot_artifacts(), preparation=build_candidate_preparation())
+                    receipt = await reader.get(project_id=project_id, resource_id=resource_id,
+                        evaluation_id=identifier, principal=principal)
+                elif category == "publication" and publication_builder is not None:
+                    reader = publication_builder(artifacts=build_snapshot_artifacts(), preparation=build_candidate_preparation())
+                    receipt = await reader.get(project_id=project_id, resource_id=resource_id,
+                        publication_id=identifier, principal=principal)
+                elif category == "deployment" and deployment_builder is not None:
+                    reader = deployment_builder(artifacts=build_snapshot_artifacts(), preparation=build_candidate_preparation(),
+                        environment_reader=build_asac_environment_binding_reader())
+                    receipt = await reader.get(project_id=project_id, resource_id=resource_id,
+                        identifier=identifier, principal=principal, environment=environment)
+                else:
+                    raise ValidationError("ASAC_RECEIPT_KIND_UNAVAILABLE: Receipt category is unavailable")
+            if receipt.get("complete") is not True:
+                raise ConflictError("ASAC_RECEIPT_NOT_TERMINAL: Reconcile the original operation before attesting it")
+            # Lease proofs are private operational credentials, not portable
+            # provenance. Attest an explicit public projection while preserving
+            # the immutable owner's digest as a separate referenced claim.
+            if category == "deployment":
+                original_digest = receipt["receipt_digest"]
+                receipt = {key: value for key, value in receipt.items() if key not in {"leases", "receipt_digest"}}
+                receipt["projection_scope"] = "public-owner-deployment@1"
+                receipt["owner_receipt_digest"] = original_digest
+            try:
+                return {**build_asac_receipt_signer().attest(category=category, project_id=project_id,
+                    resource_id=resource_id, kind=kind, receipt=receipt), "complete": True}
+            except ValueError:
+                raise ValidationError("ASAC_SIGNATURES_UNAVAILABLE: Instance signing authority is not currently valid") from None
+        return response(await invoke(operation()))
+
+    if publication_builder is not None:
+        def git_store():
+            owner=publication_builder(artifacts=build_snapshot_artifacts(),preparation=build_candidate_preparation())
+            return owner.git_attestations(build_asac_git_verifier())
+
+        @router.post('/git-attestations')
+        async def git_attestation(project_id: UUID,resource_id: UUID,body: AcceptGitAttestation,request: Request):
+            return response(await invoke(git_store().accept(project_id=project_id,resource_id=resource_id,
+                principal=actor(request),request=body)))
+
+        @router.get('/git-attestations/{attestation_id}')
+        async def git_attestation_read(project_id: UUID,resource_id: UUID,attestation_id: UUID,request: Request):
+            return response(await invoke(git_store().get(project_id=project_id,resource_id=resource_id,
+                principal=actor(request),attestation_id=attestation_id)))
+
+    @router.get("/drafts/{draft_id}/editor")
+    async def editor_source(project_id: UUID,resource_id: UUID,draft_id: UUID,request: Request):
+        return response(await invoke(store().editor_source(project_id=project_id,resource_id=resource_id,
+            draft_id=draft_id,principal=actor(request))))
+
+    @router.put("/drafts/{draft_id}/editor")
+    async def edit_source(project_id: UUID,resource_id: UUID,draft_id: UUID,body: EditASaCDraft,request: Request):
+        return response(await invoke(store().edit_author_files(project_id=project_id,resource_id=resource_id,
+            draft_id=draft_id,principal=actor(request),request=body)))
+
+    @router.post("/drafts/{draft_id}/checkpoint")
+    async def editor_checkpoint(project_id: UUID,resource_id: UUID,draft_id: UUID,body: CheckpointASaCDraft,request: Request):
+        return response(await invoke(store().checkpoint_editor(project_id=project_id,resource_id=resource_id,
+            draft_id=draft_id,principal=actor(request),request=body)))
+
     @router.get("/leases")
     async def lease(project_id: UUID, resource_id: UUID, request: Request,
                     scope: Literal["resource", "draft", "staging", "production"] = Query("resource"), draft_id: UUID | None = Query(None)):
@@ -65,7 +144,7 @@ def draft_router(prefix, builder, kind, candidate_builder=None, evaluation_build
     if deployment_builder is not None:
         def deployments():
             return deployment_builder(artifacts=build_snapshot_artifacts(),preparation=build_candidate_preparation(),
-                environment_reader=build_asac_environment_binding_reader())
+                environment_reader=build_asac_environment_binding_reader(),policy=build_project_lifecycle_policy_reader())
 
         @router.post('/deployment-plans')
         async def deployment_plan(project_id: UUID,resource_id: UUID,body: PlanASaCDeployment,request: Request):
@@ -110,6 +189,12 @@ def draft_router(prefix, builder, kind, candidate_builder=None, evaluation_build
             principal=actor(request),request=body,action="break")))
 
     if candidate_builder is not None:
+        @router.post('/drafts/{draft_id}/stage')
+        async def editor_stage(project_id: UUID,resource_id: UUID,draft_id: UUID,body: StageWorkbenchDraft,request: Request):
+            candidate=candidate_builder(artifacts=build_snapshot_artifacts(),preparation=build_candidate_preparation())
+            return response(await invoke(candidate.stage_editor(project_id=project_id,resource_id=resource_id,
+                draft_id=draft_id,principal=actor(request),request=body,api_origin=str(request.base_url).rstrip('/'))))
+
         def candidates():
             return candidate_builder(artifacts=build_snapshot_artifacts(), preparation=build_candidate_preparation())
 
@@ -258,3 +343,5 @@ def draft_router(prefix, builder, kind, candidate_builder=None, evaluation_build
         return response(await invoke(store().operation(project_id=project_id, resource_id=resource_id, operation_id=operation_id, principal=actor(request))))
 
     return router
+
+from modules.core.entrypoint import build_project_lifecycle_policy_reader

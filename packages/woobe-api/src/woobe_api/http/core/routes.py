@@ -460,3 +460,25 @@ async def update_api_key_credential(request: FastAPIRequest):
     handler = update_api_key_credential_composer()
     response = await request_adapter(request, handler)
     return response_adapter(response)
+
+
+from modules.core.entrypoint import ChangeProjectLifecyclePolicy, build_project_lifecycle_policy_service
+
+@router.get("/projects/{project_id}/lifecycle-policy")
+async def project_lifecycle_policy(project_id: UUID, request: FastAPIRequest):
+    data = await build_project_lifecycle_policy_service().get(
+        project_id=project_id, principal=request.state.principal)
+    return {"success":True,"message":"ok","data":data}
+
+@router.put("/projects/{project_id}/lifecycle-policy")
+async def change_project_lifecycle_policy(project_id: UUID, body: ChangeProjectLifecyclePolicy, request: FastAPIRequest):
+    data = await build_project_lifecycle_policy_service().change(
+        project_id=project_id, principal=request.state.principal, request=body)
+    return {"success":True,"message":"ok","data":data}
+
+
+@router.get("/projects/{project_id}/lifecycle-policy/operations/{operation_id}")
+async def project_lifecycle_policy_operation(project_id: UUID, operation_id: UUID, request: FastAPIRequest):
+    data = await build_project_lifecycle_policy_service().operation(
+        project_id=project_id, operation_id=operation_id, principal=request.state.principal)
+    return {"success":True,"message":"ok","data":data}

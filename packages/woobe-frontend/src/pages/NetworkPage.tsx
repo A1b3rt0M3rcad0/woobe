@@ -1,3 +1,5 @@
+import { AsacWorkbench } from '@/features/asac/AsacWorkbench'
+import { Dialog } from '@/components/ui/Dialog'
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
@@ -196,6 +198,7 @@ export default function NetworkPage() {
   const [showLeftPanel, setShowLeftPanel] = useState(false)
   const [networkSessionActionBlocked, setNetworkSessionActionBlocked] = useState(false)
   const [pendingNode, setPendingNode] = useState<string | null>(null)
+  const [showAsac, setShowAsac] = useState(false)
   const [showApi, setShowApi] = useState(false)
   const [networkManager, setNetworkManager] = useState<NetworkManagerState | null>(null)
   const [releaseAction, setReleaseAction] = useState<ReleaseAction>(null)
@@ -982,6 +985,7 @@ export default function NetworkPage() {
             </div>
             {environment === 'draft' ? <button type="button" disabled={!workspaceDirty || draftSavePending || editorHasErrors || Boolean(snapshotInspection)} onClick={() => void saveDraft()} className={smallButton}>{draftSavePending ? 'Saving…' : workspaceDirty ? 'Save Draft' : `Draft saved · r${editorRevision}`}</button> : null}
             <button type="button" onClick={() => openNetworkManager(environment)} className={smallButton}><History className="mr-ui-xs inline h-3.5 w-3.5" />Manage Network</button>
+            <button type="button" onClick={() => setShowAsac(true)} className={smallButton}>History & lifecycle</button>
             <button type="button" onClick={() => setShowApi(true)} className={smallButton}><Code2 className="mr-ui-xs inline h-3.5 w-3.5" />API Reference</button>
             {environment === 'production' ? (
               <button type="button" disabled={!rollbackAvailable} onClick={() => openNetworkManager('production', 'rollback')} title={rollbackAvailable ? 'Choose a historical Release to reactivate' : 'No previous Production Release is available'} className="inline-flex items-center gap-ui-xs rounded-control bg-primary px-ui-md py-ui-sm font-mono text-system-label font-semibold text-white transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-45"><RotateCcw className="h-3.5 w-3.5" />Rollback</button>
@@ -1059,6 +1063,7 @@ export default function NetworkPage() {
         }}
       />
       {showApi ? <NetworkApiModal open={showApi} onClose={() => setShowApi(false)} projectId={projectId!} networkId={network?.id || ''} versionIds={{ staging: network?.staging_version_id, production: network?.production_version_id }} bindings={apiBindings} /> : null}
+      {showAsac && network && projectId ? <Dialog open onClose={() => setShowAsac(false)} title="Network history & lifecycle" variant="workspace" height="workspace"><AsacWorkbench key={network.id} projectId={projectId} resourceId={network.id} kind="Network" /></Dialog> : null}
       {releaseAction === 'stage' || releaseAction === 'publish' ? <NetworkPromotionDialog environment={releaseAction === 'stage' ? 'staging' : 'production'} networkId={network?.id || ''} projectId={projectId!} definition={releaseAction === 'stage' ? editorDefinition : visibleDefinition} agents={projectAgents} issues={releaseAction === 'stage' ? editorIssues : visibleEditorIssues} pending={draftSavePending || promoteNetworkMutation.isPending} onClose={() => setReleaseAction(null)} onConfirm={confirmRelease} /> : null}
       {networkManager ? <NetworkVersionsModal open networkName={`${currentProject?.name || 'Project'} Network`} initialSection={networkManager.section} initialMode={networkManager.mode} draftDefinition={editorDefinition} draftRevision={editorRevision} draftDirty={workspaceDirty} stagingVersion={stagingVersion} productionVersion={productionVersion} versions={networkVersions} agents={projectAgents} pending={activateProductionMutation.isPending || promoteNetworkMutation.isPending || draftSavePending} onClose={() => setNetworkManager(null)} onStage={() => { setNetworkManager(null); void openReleaseAction('stage') }} onPublish={() => { setNetworkManager(null); setReleaseAction('publish') }} onViewVersion={viewVersionOnCanvas} onActivate={activateProduction} /> : null}
       {pendingRemoval ? <NetworkRemoveDialog title={pendingRemoval.type === 'remove-node' ? 'Remove Agent from Network?' : 'Remove delegation?'} description={pendingRemoval.type === 'remove-node' ? 'The Agent remains available in the Project. Only this Network node will be removed.' : 'The source Agent will no longer be able to delegate work through this connection.'} impact={pendingRemoval.type === 'remove-node' ? `${editorDefinition.edges.filter((edge) => edge.source_node_id === pendingRemoval.nodeId || edge.target_node_id === pendingRemoval.nodeId).length} connected delegation(s) will also be removed. The graph must remain reachable before it can be saved.` : 'The target Agent may become unreachable from the entry point.'} onClose={() => setPendingRemoval(null)} onConfirm={() => { applyEditorChange(pendingRemoval); setPendingRemoval(null) }} /> : null}

@@ -13,6 +13,14 @@ Agent and Network own their lifecycle. Read-only ASaC projections export native
 publication and activation identities without modifying Draft, Staging or
 Production. Package export remains the closed artifact codec.
 
+Development exports capture an existing Agent/Network ASaC resource UID inside
+the owner's authorized SQL snapshot. A fresh local registry reuses that UID,
+allowing independent isolated Drafts without inventing a second logical root.
+The UID is capture/binding evidence, not destination identity embedded in
+portable executable descriptors. Frozen Network constituents keep distinct
+local snapshot artifacts. A conflicting established local UID must be resolved
+from its original history rather than silently rewritten.
+
 Owner entrypoints expose administrative reads:
 
 ```text
@@ -470,3 +478,96 @@ create an exact deployment plan instead.
 This owner selection protocol is separate from Project-wide managed lifecycle
 policy, Web editor integration, signed offline receipts and Git verification.
 Those features must not be inferred from an accepted deployment receipt.
+
+## Project lifecycle authority
+
+Core owns `GET/PUT /core/projects/{project_id}/lifecycle-policy` and read-only
+`GET /core/projects/{project_id}/lifecycle-policy/operations/{operation_id}`.
+An absent policy is explicit legacy mode, generation zero. Updating policy
+requires `project:access:write`, a stable operation UUID, expected policy
+generation, `managed`, optional `production_actors` and a meaningful audit
+reason. Core records the resulting policy, before/after generations, principal,
+server database time and immutable original-operation/outbox receipt together.
+A distinct accepted policy operation increments generation even if settings are
+unchanged; replay of the original operation returns its original receipt.
+
+`production_actors` optionally restricts Production planning/application to
+stable `user:UUID` / `control:credential-UUID` identities. It never grants
+resource permission and does not authorize a CLI key secret or a rotated key
+row. Empty restrictions retain ordinary environment/target grants. Policy
+changes invalidate plans captured under a different policy digest. A Project
+row lock also fences first policy insertion; the Core public reader holds policy
+through final owner deployment commit.
+
+Managed mode rejects legacy Agent/Network Staging/Production promotion at the
+persistence boundary, including legacy Web and materialization paths. New
+immutable native Releases require exact ASaC publication evidence (Network
+constituents retain their original Agent-owner receipts). Draft authoring,
+history reads and already admitted executions remain separate from selection.
+The gate returns bounded domain conflicts; local `force`/`--yes` cannot disable
+it. Administrative policy changes are explicit, audited CAS operations.
+
+CLI 0.30+ exposes `project lifecycle show`, YAML/JSON `update` and read-only
+`operation UUID`. These commands do not require a development registry. The
+CLI verifies route advertisement and keeps a stable original operation for
+recovery rather than repeating an uncertain write under a new identity.
+Project policy does not replace signed offline receipts, Git attestations,
+Web isolated-Draft UX or runtime continuity work.
+
+For optional instance-signed owner receipts, configure an online signing key
+and an offline-root-signed public manifest as described in
+[signed ASaC receipts](ASAC_SIGNED_RECEIPTS.md). The API never holds the offline root seed.
+Existing authenticated history reads do not automatically establish offline
+trust; clients pin an independently confirmed root fingerprint.
+
+## Web isolated-Draft workbench
+
+Agent details and the Network workspace expose **History & lifecycle**. The
+workbench opens a named isolated Draft from an authorized Draft, Staging,
+Production or fixed Release capture. Opening a line, saving author files,
+checkpointing, preparing a Candidate and publishing a Release do not select
+Production. Native resource identity is reused; an isolated line is not a new
+Agent or Network.
+
+The editor exposes bounded UTF-8 files from the retained closed Package. The
+Package manifest and binary/oversized files remain read-only. A save rebuilds the
+canonical graph, checks schemas/references and retains a new immutable object.
+It uses the selected Draft's exact generation. Semantic preparation remains a
+separate Stage operation; a valid YAML document alone does not qualify runtime.
+
+A checkpoint computes definition/component identities on the server and records
+explicit parents. Stage prepares that exact checkpoint using authorized captured
+native bindings. Candidate readiness and worker evaluation are observed by ID.
+Publishing requires evidence for this Candidate, leaves Production unchanged and
+does not invent Git provenance. Production/Staging activation requires a reviewed
+plan with expected environment generation and a private environment lease. The
+Project policy and owner permissions apply to these paths as they do to CLI.
+
+Metadata refresh never replaces editor files. A remote generation conflict keeps
+local edits and blocks saving; compare remote files or download local author files
+before explicitly discarding/reloading. Local editor text is not written to
+browser storage. Private lease proof is held in browser memory only. Do not close
+the editor with unsaved files without saving or downloading them.
+
+Before each owner mutation the browser stores only original operation UUID,
+action and generation in session storage. A lost/uncertain response blocks new
+writes. **Reconcile original operation** performs a read-only lookup; unobserved
+results never authorize another POST. Source capture/current-selection preflight
+failures occur before this checkpoint. Refresh/reload can recover an original
+accepted operation; lost volatile deployment context must be inspected/planned
+again, and any abandoned lease expires according to the server clock.
+
+Editor requests are `GET/PUT .../asac/drafts/{draft_id}/editor`, checkpoint is
+`POST .../checkpoint`, and Web Stage is `POST .../stage`, for both owner kinds.
+They delegate to the canonical Package and lifecycle owners rather than a second
+Web publication engine. `origin.authoring_channel` is derived from authenticated
+principal type (`web` human session or `api` Control Key); it is not an attestation
+that a particular UI or Git workflow was used.
+
+Trusted Git origin has an independent append-only authority path; see
+[Git pipeline provenance](ASAC_GIT_PROVENANCE.md). Declared publication metadata
+is never silently upgraded or rewritten.
+
+## Acceptance and Run continuity
+
+The [acceptance matrix](../testing/ASAC_ACCEPTANCE.md) maps H01–H35 to regression coverage and separates live integration from unit checks. [Accepted Run identity](ASAC_RUNTIME_IDENTITY.md) documents native Session continuity and the exact admission/binding digest scopes.

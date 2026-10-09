@@ -58,3 +58,15 @@ See [UPGRADING.md](UPGRADING.md).
 Provider credentials, Tool credentials, Runtime Keys, ChatSurface Access Keys, session tokens, authentication secrets, encryption material and database/broker credentials must be treated as secrets.
 
 Never publish a generated `.env`. Review [SECURITY.md](../SECURITY.md) before exposing a Core instance to the internet.
+
+For optional instance-signed owner receipts, configure an online signing key
+and an offline-root-signed public manifest as described in
+[signed ASaC receipts](runtime/ASAC_SIGNED_RECEIPTS.md). The API never holds the offline root seed.
+Existing authenticated history reads do not automatically establish offline
+trust; clients pin an independently confirmed root fingerprint.
+
+## Optional trusted ASaC Git builders
+
+`WOOBE_ASAC_GIT_TRUSTED_BUILDERS=[]` trusts no pipeline by default. Configure only
+public builder keys with explicit Project, repository, instance and Control Key
+principal scope; see [Git provenance](runtime/ASAC_GIT_PROVENANCE.md).

@@ -240,3 +240,13 @@ def test_category_revision_selectors_reject_values_above_database_range(model_na
     assert getattr(model.model_validate({**required, field: 2_147_483_647}), field) == 2_147_483_647
     with pytest.raises(ValidationError):
         model.model_validate({**required, field: 2_147_483_648})
+
+
+@pytest.mark.parametrize('kind', ['agent','network'])
+@pytest.mark.parametrize('method,suffix,permission', [
+    ('GET','editor','read'),('PUT','editor','write'),
+    ('POST','checkpoint','write'),('POST','stage','version'),
+])
+def test_workbench_routes_have_explicit_owner_authority(kind,method,suffix,permission):
+    path=f'/projects/{uuid4()}/{kind}s/{uuid4()}/asac/drafts/{uuid4()}/{suffix}'
+    assert resolve_operation(method,path,{'environment':'production'})[0]==f'{kind}:{permission}'

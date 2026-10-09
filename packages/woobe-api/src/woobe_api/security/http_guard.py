@@ -293,6 +293,20 @@ class HttpSecurityGuard:
             # query parameters cannot turn Draft writes into Production grants.
             for plural, identifier in (("agents", "agent_id"), ("networks", "network_id")):
                 base = f"/projects/{path_params['project_id']}/{plural}/{path_params['resource_id']}/asac/"
+                category = path_params.get("category")
+                receipt_id = path_params.get("receipt_id")
+                if request.method == "GET" and category in {"revision", "evaluation", "publication", "deployment"} and receipt_id and request.url.path == base + f"signed-receipts/{category}/{receipt_id}":
+                    normalized = dict(path_params)
+                    normalized[identifier] = normalized.pop("resource_id")
+                    normalized["environment"] = ((request.query_params.get("environment") or "production")
+                        if category == "deployment" else "draft" if category == "revision" else "staging")
+                    return normalized
+                git_route=(request.method=='POST' and request.url.path==base+'git-attestations') or (request.method=='GET' and 'attestation_id' in path_params and request.url.path==base+'git-attestations/'+str(path_params['attestation_id']))
+                if git_route:
+                    normalized=dict(path_params)
+                    normalized[identifier]=normalized.pop('resource_id')
+                    normalized['environment']='staging'
+                    return normalized
                 deployment_route=(request.method=="POST" and request.url.path in {base+"deployment-plans",base+"deployments"}) or (request.method=="GET" and (("plan_id" in path_params and request.url.path==base+"deployment-plans/"+str(path_params["plan_id"])) or ("deployment_id" in path_params and request.url.path==base+"deployments/"+str(path_params["deployment_id"]))))
                 if deployment_route:
                     data=body if isinstance(body,dict) else {}
@@ -326,7 +340,15 @@ class HttpSecurityGuard:
                     normalized[identifier] = normalized.pop("resource_id")
                     normalized["environment"] = "staging"
                     return normalized
+                if request.method=='POST' and 'draft_id' in path_params and request.url.path==base+'drafts/'+str(path_params['draft_id'])+'/stage':
+                    normalized=dict(path_params)
+                    normalized[identifier]=normalized.pop('resource_id')
+                    normalized['environment']='staging'
+                    return normalized
                 allowed = {("GET", "drafts"), ("POST", "drafts"), ("POST", "revisions")}
+                if 'draft_id' in path_params:
+                    draft='drafts/'+str(path_params['draft_id'])
+                    allowed.update({('GET',draft+'/editor'),('PUT',draft+'/editor'),('POST',draft+'/checkpoint')})
                 for parameter, route, methods in (("draft_id", "drafts", ("GET", "PUT")),
                         ("revision_id", "revisions", ("GET",)), ("operation_id", "operations", ("GET",))):
                     if parameter in path_params:

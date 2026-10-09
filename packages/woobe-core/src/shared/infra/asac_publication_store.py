@@ -25,6 +25,10 @@ class ASaCPublicationStore:
         self.evaluations, self.publications, self.publisher = evaluations, publications, publisher
         self.drafts = evaluations.drafts
 
+    def git_attestations(self, verifier):
+        from shared.infra.asac_git_store import ASaCGitStore
+        return ASaCGitStore(self,verifier)
+
     async def _authorize(self, session, project_id, resource_id, principal, *, write=False):
         await self.drafts.owner.inspect(session, project_id=project_id, resource_id=resource_id,
             principal=principal, kind=self.drafts.kind, environment="staging", lock=write,

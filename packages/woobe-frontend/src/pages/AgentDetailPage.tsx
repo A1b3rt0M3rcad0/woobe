@@ -1,3 +1,4 @@
+import { AsacWorkbench } from '@/features/asac/AsacWorkbench'
 import type { ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ExternalLink, Key, Pencil, Play } from 'lucide-react'
@@ -24,6 +25,7 @@ export default function AgentDetailPage() {
   const p = (projId: string, ...segments: string[]) => workspaceProjectPath(workspaceId, projId, ...segments)
 
   const tabs = [
+    { id: 'history', label: 'History & lifecycle', content: agent && projectId ? <AsacWorkbench key={agent.id} projectId={projectId} resourceId={agent.id} kind="Agent" /> : null },
     { id: 'general', label: 'General', content: agent ? <SectionBlock title="Agent Details" density="compact"><DetailRow label="Name" value={agent.name} /><DetailRow label="Description" value={agent.description || '—'} /><DetailRow label="Status" value={<StatusBadge status={agent.status} />} /><DetailRow label="Session mode" value={agent.session_mode || 'stateful'} /></SectionBlock> : null },
     { id: 'behavior', label: 'Behavior', content: agent ? <AgentBehaviorDetails behavior={agent.behavior_spec} legacyPrompt={agent.system_prompt} /> : null },
     { id: 'model', label: 'Model', content: agent ? <SectionBlock title="Model Configuration" density="compact"><DetailRow label="Provider" value={<code className="font-mono text-[10px]">{agent.provider}</code>} /><DetailRow label="Model" value={<code className="font-mono text-[10px]">{agent.model}</code>} /><DetailRow label="Temperature" value={agent.temperature ?? '—'} /><DetailRow label="Max output tokens" value={agent.max_output_tokens ?? '—'} /></SectionBlock> : null },

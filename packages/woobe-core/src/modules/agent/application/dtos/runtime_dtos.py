@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import model_validator, BaseModel, Field
 
 from modules.agent.domain.enums import MessageRole, RuntimeSessionMode as SessionMode, SessionStatus
 
@@ -156,6 +156,7 @@ class ToolCallInfo(BaseModel):
 
 
 class AskOutput(BaseModel):
+    runtime_identity: dict | None = None
     run_id: UUID | None = None
     status: str = "completed"
     answer: str
@@ -179,6 +180,8 @@ class AskOutput(BaseModel):
     output_parse_error: str | None = None
     execution_events: list[dict] = Field(default_factory=list)
     diagnostics: dict | None = None
+
+
 
 
 class CreateAskJobInput(BaseModel):

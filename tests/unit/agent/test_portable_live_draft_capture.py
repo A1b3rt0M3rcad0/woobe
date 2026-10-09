@@ -12,7 +12,8 @@ async def test_draft_export_uses_live_definition_even_with_incomplete_saved_draf
     project_id, agent_id, credential_id = uuid4(), uuid4(), uuid4()
     agent = SimpleNamespace(id=agent_id, project_id=project_id, revision=3)
     stale = SimpleNamespace(id=uuid4(), model_spec_snapshot=None, model_spec_hash=None)
-    session = SimpleNamespace(get=AsyncMock(return_value=agent), scalar=AsyncMock(return_value=stale))
+    resource_uid=uuid4()
+    session = SimpleNamespace(get=AsyncMock(return_value=agent), scalar=AsyncMock(side_effect=[stale,resource_uid]))
     compiler = SimpleNamespace(
         definition=lambda _: pytest.fail("Draft export selected a stale saved snapshot"),
         validate_skills=lambda *_: None,
@@ -29,7 +30,8 @@ async def test_draft_export_uses_live_definition_even_with_incomplete_saved_draf
     assert captured["source"]["version"] is None
     assert captured["source"]["draft_revision"] == 3
     reader._live_draft_definition.assert_awaited_once()
-    session.scalar.assert_awaited_once()
+    assert session.scalar.await_count==2
+    assert captured['source']['resource_uid']==str(resource_uid)
     assert stale.model_spec_snapshot is None and stale.model_spec_hash is None
 
 

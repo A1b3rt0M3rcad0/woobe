@@ -304,6 +304,7 @@ class AskAgentUseCase:
             )
 
         return AskOutput(
+            runtime_identity=context.runtime_identity if context is not None else None,
             run_id=context.run_id if context is not None else None,
             status="waiting",
             answer="",

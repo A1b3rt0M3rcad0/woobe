@@ -451,6 +451,7 @@ class TransactionBoundedStructuredOutputRuntime(StructuredOutputAskAgentUseCase)
                 result=result_payload,
             )
             return AskOutput(
+            runtime_identity=getattr(context, "runtime_identity", None),
                 run_id=context.run_id,
                 answer=answer,
                 session_id=session.id,

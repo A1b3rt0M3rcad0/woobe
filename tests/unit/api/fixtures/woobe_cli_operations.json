@@ -1,5 +1,5 @@
 {
-  "cli_commit": "b4034475e49aead88cf59f1cdbe7e97dae3ed302",
+  "cli_commit": "7361be14cb24685a3324ef6efddfe46bbdce1d1e",
   "operations": [
     {
       "command": "auth invite accept",
@@ -146,6 +146,18 @@
       "body_required": false
     },
     {
+      "command": "project agent git-attestation create",
+      "method": "POST",
+      "path": "/projects/{project_id}/agents/{resource_id}/asac/git-attestations",
+      "body_required": true
+    },
+    {
+      "command": "project agent git-attestation get",
+      "method": "GET",
+      "path": "/projects/{project_id}/agents/{resource_id}/asac/git-attestations/{attestation_id}",
+      "body_required": false
+    },
+    {
       "command": "project agent knowledge bind",
       "method": "POST",
       "path": "/knowledge/agent-collections",
@@ -275,6 +287,12 @@
       "command": "project agent release tests",
       "method": "GET",
       "path": "/ai/agents/{agent_id}/releases/{release_id}/tests",
+      "body_required": false
+    },
+    {
+      "command": "project agent signed-receipt get",
+      "method": "GET",
+      "path": "/projects/{project_id}/agents/{resource_id}/asac/signed-receipts/{category}/{receipt_id}",
       "body_required": false
     },
     {
@@ -464,6 +482,24 @@
       "body_required": false
     },
     {
+      "command": "project lifecycle operation",
+      "method": "GET",
+      "path": "/core/projects/{project_id}/lifecycle-policy/operations/{operation_id}",
+      "body_required": false
+    },
+    {
+      "command": "project lifecycle show",
+      "method": "GET",
+      "path": "/core/projects/{project_id}/lifecycle-policy",
+      "body_required": false
+    },
+    {
+      "command": "project lifecycle update",
+      "method": "PUT",
+      "path": "/core/projects/{project_id}/lifecycle-policy",
+      "body_required": true
+    },
+    {
       "command": "project list",
       "method": "GET",
       "path": "/core/projects",
@@ -554,6 +590,18 @@
       "body_required": false
     },
     {
+      "command": "project network git-attestation create",
+      "method": "POST",
+      "path": "/projects/{project_id}/networks/{resource_id}/asac/git-attestations",
+      "body_required": true
+    },
+    {
+      "command": "project network git-attestation get",
+      "method": "GET",
+      "path": "/projects/{project_id}/networks/{resource_id}/asac/git-attestations/{attestation_id}",
+      "body_required": false
+    },
+    {
       "command": "project network list",
       "method": "GET",
       "path": "/network/projects/{project_id}/networks",
@@ -612,6 +660,12 @@
       "method": "POST",
       "path": "/network/{network_id}/sessions/{session_id}/reset-context",
       "body_required": true
+    },
+    {
+      "command": "project network signed-receipt get",
+      "method": "GET",
+      "path": "/projects/{project_id}/networks/{resource_id}/asac/signed-receipts/{category}/{receipt_id}",
+      "body_required": false
     },
     {
       "command": "project network update",

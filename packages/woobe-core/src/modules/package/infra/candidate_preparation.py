@@ -81,6 +81,14 @@ class PackageCandidatePreparation:
             project_id=project_id, principal=principal, key=proposal["key"], payload=proposal["payload"])
         return {"operation_id": str(operation.id)}
 
+    async def acceptance_ready(self, *, project_id,candidate_id,preparation_operation_id):
+        async with self.sessions() as session:
+            operation=await session.get(PackageOperationModel,preparation_operation_id)
+            plan=await session.get(PackagePlanModel,operation.plan_id) if operation else None
+            return bool(operation and plan and operation.project_id==project_id and plan.project_id==project_id
+                and operation.state=='succeeded' and plan.document.get('mode')=='candidate'
+                and plan.document.get('candidate',{}).get('candidate_id')==str(candidate_id))
+
     async def verify_runtime_bindings(self, *, project_id, candidate_id,
                                       preparation_operation_id, principal,
                                       expected_fingerprints):

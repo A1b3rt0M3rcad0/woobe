@@ -137,7 +137,26 @@ async def _submit(
 
 
 def _execution_payload(execution, network_session) -> dict:
+    from shared.contracts.asac import asac_digest
+    captured_bindings = getattr(execution, 'resolved_bindings_snapshot', None)
+    closure = {
+        'definition': getattr(execution, 'definition_snapshot', None),
+        'bindings': ({key: value for key, value in captured_bindings.items()
+                      if key != 'asac_run_identity'} if isinstance(captured_bindings, dict) else None),
+    }
+    identity={'schema_version':'1.0','target_type':'network','project_id':str(execution.project_id),
+        'target_id':str(execution.network_id),'session_id':str(network_session.id),
+        'environment':network_session.environment,'snapshot_id':str(execution.network_version_id) if execution.network_version_id else None,
+        'admission_digest':asac_digest('network-run-admission',closure),
+        'admission_digest_scope':'network-run-admission@1','continuity_policy':'pinned_session_version',
+        'external_dependencies':'versioned_references_not_reproducible_responses'}
+    if not closure['definition'] or closure['bindings'] is None:
+        identity.update(admission_digest=None, admission_digest_scope=None, provenance_status='admission_snapshot_unavailable')
+    elif isinstance(captured_bindings.get('asac_run_identity'),dict):
+        from copy import deepcopy
+        identity['asac'] = deepcopy(captured_bindings['asac_run_identity'])
     return {
+        "runtime_identity":identity,
         "execution_id": str(execution.id),
         "job_id": str(execution.id),
         "session_id": str(network_session.id),

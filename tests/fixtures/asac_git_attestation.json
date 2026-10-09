@@ -1,0 +1,23 @@
+{
+  "payload": {
+    "format": "woobe-git-attestation",
+    "schema_version": "1.0",
+    "issuer": "test-pipeline",
+    "instance_id": "10000000-0000-4000-8000-000000000001",
+    "project_id": "10000000-0000-4000-8000-000000000002",
+    "resource_id": "10000000-0000-4000-8000-000000000003",
+    "publication_id": "10000000-0000-4000-8000-000000000004",
+    "kind": "Agent",
+    "revision_id": "rv_10000000-0000-4000-8000-000000000005",
+    "record_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "definition_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "author_artifact_digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "repository": "owner/repo",
+    "commit": "dddddddddddddddddddddddddddddddddddddddd",
+    "workflow_run": "github-actions:123",
+    "issued_at": 1000,
+    "expires_at": 2000
+  },
+  "payload_digest": "sha256:6a52f27dec41170cc2b2e32048374c2c06ce361887697a47b9c50eb7936d48e8",
+  "signature": "43NQfplUN9SPbbORDv-ZZdHO5_5OsIfjRfg4hOq_FiNC3l2oFTu3BBSt3-X8__wt8AHz26dFfLAT6FLlAnl5BA"
+}

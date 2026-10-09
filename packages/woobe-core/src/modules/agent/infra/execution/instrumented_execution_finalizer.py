@@ -351,6 +351,7 @@ async def finalize_instrumented_execution(owner, **kw):
         )
         execution_events = sequence_events(execution_events)
         payload = {
+            "runtime_identity": context.runtime_identity if context else None,
             "run_id": str(run_id) if run_id else None,
             "trace_id": trace_id_text,
             "project_id": project_id_text,
@@ -401,6 +402,7 @@ async def finalize_instrumented_execution(owner, **kw):
                 await repositories.runs.save(run)
 
         output = AskOutput(
+            runtime_identity=getattr(context, "runtime_identity", None),
             run_id=run_id,
             answer=kw["answer"],
             session_id=session.id,

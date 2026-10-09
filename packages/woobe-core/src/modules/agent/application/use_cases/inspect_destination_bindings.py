@@ -13,7 +13,8 @@ from modules.agent.application.interfaces.project_environment import (
 from modules.agent.application.interfaces.vector_snapshot_repository import (
     VectorSnapshotRepository,
 )
-from modules.agent.domain.enums import CredentialStatus
+from modules.agent.domain.enums import CredentialStatus, ProviderModelStatus
+from modules.agent.application.interfaces.provider_model_repository import ProviderModelRepository
 from modules.agent.domain.vector_snapshot_entities import VECTOR_SNAPSHOT_READY
 from shared.contracts.errors import NotFoundError, ValidationError
 
@@ -32,9 +33,11 @@ class InspectDestinationBindingsUseCase:
         secrets: SecretRepository,
         vectors: VectorSnapshotRepository,
         environment: ProjectEnvironmentKeyReader,
+        models: ProviderModelRepository | None = None,
     ):
         self._credentials, self._secrets = credentials, secrets
         self._vectors, self._environment = vectors, environment
+        self._models = models
 
     async def execute(self, definition: InspectDestinationBindingsInput) -> dict:
         project = definition.project_id
@@ -143,7 +146,19 @@ class InspectDestinationBindingsUseCase:
                 raise ValidationError(
                     "Destination VectorSnapshot must be READY with immutable evidence"
                 )
+            embedding_evidence = {}
+            if self._models is not None:
+                model = await self._models.get_by_id(snapshot.embedding_provider_model_id)
+                if model is None or model.project_id != project or model.status != ProviderModelStatus.active:
+                    raise ValidationError("Destination embedding Model must be active in this Project")
+                credential = await self._credentials.get_by_id(model.provider_credential_id)
+                if credential is None or credential.project_id != project or credential.status != CredentialStatus.active:
+                    raise ValidationError("Destination embedding Provider credential must be active")
+                embedding_evidence = {"embedding_model": {"model_id": str(model.id),
+                    "revision": revision(model), "spec_hash": model.spec_hash,
+                    "credential_id": str(credential.id), "credential_revision": revision(credential)}}
             result["knowledge"][alias] = {
+                **embedding_evidence,
                 "vector_snapshot_id": str(snapshot.id),
                 "collection_id": str(snapshot.collection_id),
                 "snapshot_hash": snapshot.snapshot_hash,

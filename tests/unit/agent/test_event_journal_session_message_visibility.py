@@ -91,6 +91,7 @@ async def _complete_turn(
     session,
     recorder,
     answer="Olá. Sou o agente de Faturamento e Contas.",
+    runtime_identity=None,
 ):
     call_id = str(uuid4())
     execution = InstrumentedExecution(
@@ -132,6 +133,7 @@ async def _complete_turn(
     context.prepare_ended_at = "2026-09-21T12:00:00+00:00"
     context.prepare_latency_ms = 10
     context.run_id = uuid4()
+    context.runtime_identity = runtime_identity
     context.execution_context = "draft"
     context.execution = execution
     context.run_event_recorder = recorder
@@ -315,3 +317,15 @@ async def test_next_turn_history_contains_completed_assistant_turn_without_waiti
     assert history[0].content == "Olá"
     assert isinstance(history[1], AIMessage)
     assert history[1].content == "Olá. Como posso ajudar?"
+
+
+@pytest.mark.asyncio
+async def test_terminal_journal_and_returned_output_preserve_exact_admitted_identity():
+    project_id, agent, session = _fixtures()
+    messages, sessions, outbox = _Messages(), _Sessions(), _Outbox()
+    recorder = _Recorder()
+    identity = {"snapshot_id": str(uuid4()), "continuity_policy": "pinned_first_accepted_run"}
+    result = await _complete_turn(owner=_owner(messages, sessions, outbox), project_id=project_id,
+        agent=agent, session=session, recorder=recorder, runtime_identity=identity)
+    terminal = next(payload for event, payload, durable in recorder.events if event == "run.completed")
+    assert terminal["runtime_identity"] == result.runtime_identity == identity

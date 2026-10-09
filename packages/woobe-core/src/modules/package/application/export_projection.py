@@ -425,6 +425,8 @@ class ExportProjection:
             "frozen": captured.get("frozen", False),
             "snapshot_digest": captured["source"].get("snapshot_digest"),
         }
+        if not captured.get("frozen") and captured["source"].get("resource_uid"):
+            self.native_bindings[key]["resource_uid"] = captured["source"]["resource_uid"]
         return self.add_document(
             "Agent",
             definition["name"],
@@ -457,6 +459,8 @@ class ExportProjection:
                     "draft_revision", captured["source"].get("revision")
                 ),
             }
+            if captured["source"].get("resource_uid"):
+                self.native_bindings[entry]["resource_uid"] = captured["source"]["resource_uid"]
         version = version or captured["source"].get("version")
         if version is None:
             # Portable author data only: destination identities/secrets do not define a version.

@@ -29,6 +29,7 @@ from modules.agent.infra.database.vector_snapshot_models import (
     VectorSnapshotModel,
     VectorSnapshotDocumentModel,
 )
+from modules.agent.infra.database.asac_models import ASaCResourceModel
 from shared.contracts.errors import (
     AuthorizationError,
     ConflictError,
@@ -535,9 +536,14 @@ class PortableAgentExportReader:
                     ),
                 ),
             }
+        resource_uid = await session.scalar(select(ASaCResourceModel.resource_uid).where(
+            ASaCResourceModel.project_id == project_id,
+            ASaCResourceModel.resource_id == agent_id,
+        ))
         return {
             "source": {
                 "agent_id": str(agent_id),
+                "resource_uid": str(resource_uid) if resource_uid is not None else None,
                 "draft_revision": agent.revision,
                 "snapshot_id": str(release.id) if release else None,
                 "snapshot_digest": release_snapshot_hash(release) if release else None,

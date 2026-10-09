@@ -68,6 +68,36 @@ class ASaCCandidateStore:
             raise ConflictError("ASAC_REVISION_MAPPING_UNAVAILABLE: create a new verified checkpoint with retained component identities")
         return line, row, record
 
+    async def stage_editor(self, *, project_id,resource_id,draft_id,principal,request,api_origin):
+        from shared.contracts.asac_requests import StageASaCRevision
+        args=dict(project_id=project_id,resource_id=resource_id,principal=principal)
+        original=await self.drafts.operation(**args,operation_id=request.operation_id)
+        committed=original.get('state')=='committed'
+        if committed:
+            accepted=original['result']
+            if (accepted.get('draft_id')!=str(draft_id) or accepted.get('draft_generation')!=request.expected_generation
+                or accepted.get('revision_id')!=request.revision_id):
+                raise ConflictError('ASAC_OPERATION_CONFLICT: Stage operation has another source')
+        async with self.drafts.transactions.begin() as session:
+            await self._authorize(session,**args,write=True)
+            line=await self.drafts._line(session,project_id,resource_id,draft_id)
+            if not committed and (line.generation!=request.expected_generation or line.working_revision_id!=request.revision_id):
+                raise ConflictError('ASAC_DRAFT_CHANGED: Web Stage requires this exact saved checkpoint')
+            revision=await session.scalar(select(self.drafts.revisions).where(
+                self.drafts.revisions.project_id==project_id,self.drafts.revisions.resource_id==resource_id,
+                self.drafts.revisions.revision_id==request.revision_id))
+            if revision is None or revision.resource_uid!=line.resource_uid or (not committed and revision.artifact_id!=line.artifact_id):
+                raise ConflictError('ASAC_REVISION_MISMATCH: Web checkpoint is not the saved closure')
+            artifact_id=revision.artifact_id;uids=dict(revision.component_uids or {})
+            uid=str(line.resource_uid);export_id=(line.origin or {}).get('source_export_id')
+        if not export_id:
+            raise ConflictError('ASAC_EDITOR_ORIGIN_UNAVAILABLE: Open a new line from an authorized owner snapshot')
+        context=await self.drafts.artifacts.editor_bindings(project_id=project_id,principal=principal,
+            export_id=export_id,artifact_id=artifact_id,resource_uid=uid,component_uids=uids)
+        return await self.stage(**args,api_origin=api_origin,request=StageASaCRevision(
+            operation_id=request.operation_id,draft_id=draft_id,expected_generation=request.expected_generation,
+            revision_id=request.revision_id,registry_id=context['registry_id'],bindings=context['bindings']))
+
     async def stage(self, *, project_id, resource_id, principal, request, api_origin):
         async with self.drafts.transactions.begin() as session:
             await self._authorize(session, project_id, resource_id, principal, write=True)
@@ -113,7 +143,14 @@ class ASaCCandidateStore:
             row = await session.get(self.candidates, candidate_id)
             if row is None or row.project_id != project_id or row.resource_id != resource_id:
                 raise NotFoundError("ASAC_CANDIDATE_UNAVAILABLE")
-            return candidate_output(row)
+            result=candidate_output(row)
+            preparation_id=row.preparation_operation_id
+        if result['state']=='ready':
+            ready=await self.preparation.acceptance_ready(project_id=project_id,candidate_id=candidate_id,
+                preparation_operation_id=preparation_id)
+            if not ready:
+                result.update(state='preparing',complete=False,native_closure_state='sealed_waiting_preparation_receipt')
+        return result
 
 
 async def seal_candidate(session, model, *, project_id, resource_id, candidate_id,

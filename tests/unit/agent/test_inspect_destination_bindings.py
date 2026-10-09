@@ -86,3 +86,34 @@ async def test_destination_inspection_never_decrypts_or_returns_protected_materi
     credential.project_id = uuid4()
     with pytest.raises(NotFoundError):
         await use_case.execute(request)
+
+
+@pytest.mark.asyncio
+async def test_knowledge_inspection_captures_embedding_model_and_provider_versions():
+    from datetime import UTC, datetime, timedelta
+    from modules.agent.domain.enums import CredentialStatus, ProviderModelStatus
+    project=uuid4();now=datetime.now(UTC)
+    credential=SimpleNamespace(id=uuid4(),project_id=project,status=CredentialStatus.active,
+        updated_at=now,created_at=now,encrypted_secret="never-return-this")
+    model=SimpleNamespace(id=uuid4(),project_id=project,status=ProviderModelStatus.active,
+        provider_credential_id=credential.id,updated_at=now,created_at=now,spec_hash="model-spec")
+    snapshot=SimpleNamespace(id=uuid4(),project_id=project,status=VECTOR_SNAPSHOT_READY,
+        snapshot_hash="vector-hash",collection_id=uuid4(),embedding_provider_model_id=model.id,
+        updated_at=now,created_at=now)
+    use_case=InspectDestinationBindingsUseCase(SimpleNamespace(get_by_id=AsyncMock(return_value=credential)),
+        SimpleNamespace(),SimpleNamespace(get_by_id=AsyncMock(return_value=snapshot)),
+        SimpleNamespace(require_keys=AsyncMock(),inspect_keys=AsyncMock(return_value={})),
+        models=SimpleNamespace(get_by_id=AsyncMock(return_value=model)))
+    request=InspectDestinationBindingsInput(project_id=project,knowledge={"docs":{"vector_snapshot_id":snapshot.id}})
+    initial=await use_case.execute(request)
+    assert initial["knowledge"]["docs"]["embedding_model"]["spec_hash"]=="model-spec"
+    assert "never-return-this" not in json.dumps(initial)
+    credential.updated_at=now+timedelta(seconds=1)
+    changed=await use_case.execute(request)
+    assert changed["knowledge"]["docs"]["embedding_model"]!=initial["knowledge"]["docs"]["embedding_model"]
+    credential.status="revoked"
+    with pytest.raises(ValidationError,match="credential must be active"):
+        await use_case.execute(request)
+    credential.status=CredentialStatus.active;model.project_id=uuid4()
+    with pytest.raises(ValidationError,match="Model must be active"):
+        await use_case.execute(request)
