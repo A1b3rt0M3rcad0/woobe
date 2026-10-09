@@ -36,3 +36,14 @@ class PublishASaCCandidate(StrictASaCRequest):
         if len(value.strip()) < 3:
             raise ValueError("Publication reason must contain at least three nonblank characters")
         return value
+
+
+class CancelASaCPublication(StrictASaCRequest):
+    reason: StrictStr = Field(min_length=3, max_length=2048)
+
+    @field_validator("reason")
+    @classmethod
+    def meaningful_reason(cls, value):
+        if len(value.strip()) < 3:
+            raise ValueError("Cancellation reason must contain at least three nonblank characters")
+        return value

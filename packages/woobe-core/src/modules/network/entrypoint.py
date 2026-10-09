@@ -40,3 +40,4 @@ from modules.network.composition.asac_history import build_network_history_reade
 __all__.append("build_network_history_reader")
 from modules.network.composition.asac_drafts import build_network_asac_drafts, build_network_asac_candidates, build_network_asac_evaluations, build_network_candidate_admission_reader
 from modules.network.composition.candidate_lifecycle import network_candidate_lifecycle_composer
+from modules.network.composition.asac_drafts import build_network_asac_publications

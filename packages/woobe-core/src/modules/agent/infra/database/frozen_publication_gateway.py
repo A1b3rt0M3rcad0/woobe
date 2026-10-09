@@ -10,11 +10,11 @@ class AgentFrozenPublicationGateway:
             raise ValueError("Frozen Agent publication requires the Agent transaction owner")
         self.drafts, self.publisher, self.snapshots = drafts, publisher, snapshots
 
-    async def inspect(self, *, project_id, resource_id, principal, snapshot_id):
+    async def inspect(self, *, project_id, resource_id, principal, snapshot_id, require_version=False):
         async with self.drafts._read() as session:
             await self.drafts.owner.inspect(session, project_id=project_id,
                 resource_id=resource_id, principal=principal, kind="Agent",
-                environment="staging", required_permission="agent:read")
+                environment="staging", required_permission="agent:version" if require_version else "agent:read")
             return await self.snapshots.read(session, project_id=project_id,
                 resource_id=resource_id, snapshot_id=snapshot_id, expected_kind="candidate")
 

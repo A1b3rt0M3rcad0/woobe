@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse, Response
 
 from shared.contracts.asac_requests import OpenASaCDraft, SaveASaCDraft, RegisterASaCRevision, StageASaCRevision
 from shared.contracts.asac_evaluation import EvaluateASaCCandidate
-from shared.contracts.asac_publication import PublishASaCCandidate
+from shared.contracts.asac_publication import PublishASaCCandidate, CancelASaCPublication
 from shared.contracts.errors import AuthorizationError, ConflictError, NotFoundError, ValidationError
 from modules.package.entrypoint import PackageError, build_snapshot_artifacts, build_candidate_preparation
 
@@ -103,6 +103,18 @@ def draft_router(prefix, builder, kind, candidate_builder=None, evaluation_build
         async def publication(project_id: UUID, resource_id: UUID, publication_id: UUID, request: Request):
             return response(await invoke(publications().get(project_id=project_id,resource_id=resource_id,
                 publication_id=publication_id,principal=actor(request))))
+
+    if publication_builder is not None and kind == "Network":
+        @router.post("/publications/{publication_id}/reconcile")
+        async def reconcile_publication(project_id: UUID, resource_id: UUID, publication_id: UUID, request: Request):
+            return response(await invoke(publications().reconcile(project_id=project_id, resource_id=resource_id,
+                publication_id=publication_id, principal=actor(request))))
+
+    if publication_builder is not None and kind == "Network":
+        @router.post("/publications/{publication_id}/cancel")
+        async def cancel_publication(project_id: UUID, resource_id: UUID, publication_id: UUID, body: CancelASaCPublication, request: Request):
+            return response(await invoke(publications().cancel(project_id=project_id, resource_id=resource_id,
+                publication_id=publication_id, principal=actor(request), request=body)))
 
     @router.get("/drafts")
     async def drafts(project_id: UUID, resource_id: UUID, request: Request):

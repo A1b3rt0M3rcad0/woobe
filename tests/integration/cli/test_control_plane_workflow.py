@@ -33,7 +33,7 @@ from shared.security.control_plane import (
 )
 
 CLI_COMMIT = os.environ.get(
-    "WOOBE_TEST_CLI_SHA", "de84558ba15a20134e0f0c4c5d4c4e590bf06c7a"
+    "WOOBE_TEST_CLI_SHA", "12277d3c086be91805831ca329d402cdd90cc86e"
 )
 
 
@@ -1428,6 +1428,88 @@ async def exercise_asac_isolated_drafts(cli, kind, resource_id):
                 with pytest.raises(DBAPIError,match="cannot be modified or deleted"):
                     async with publication_sessions.begin() as publication_session:
                         await publication_session.execute(text(statement),{"id":UUID(publication["publication_id"]),"changed":"tamper"})
+        finally:
+            await publication_engine.dispose()
+    else:
+        from modules.network.infra.database.models import NetworkVersionModel
+        from modules.agent.infra.database.models import AgentReleaseModel
+        from modules.network.domain.execution_identity import network_runtime_digest
+        publication_engine = create_engine(Settings())
+        publication_sessions = create_session_factory(publication_engine)
+        async with publication_sessions() as publication_session:
+            frozen_network = await publication_session.get(NetworkVersionModel, UUID(candidate["snapshot_id"]))
+            constituents = {binding["agent_id"] for binding in frozen_network.resolved_bindings.values()}
+        standalone_before = {}
+        for agent_id in sorted(constituents):
+            for environment in ("draft", "staging", "production"):
+                standalone_before[agent_id, environment] = (await cli.run("agent", agent_id, "current", "--env", environment))["data"]
+        publication_body = {"operation_id": str(uuid4()), "candidate_id": candidate["candidate_id"],
+            "evaluation_id": evaluation["evaluation_id"], "reason": "Publish the exact qualified Network"}
+        publication = (await cli.run("network", "@captured", "publish", "--candidate", candidate["candidate_id"],
+            "--evaluation", evaluation["evaluation_id"], "--notes", publication_body["reason"], "--yes", cwd=registry))["data"]
+        publication_body["operation_id"] = publication["operation_id"]
+        inspected = (await cli.run("network", resource_id, "publication", publication["publication_id"], "--no-project-config"))["data"]
+        assert (await cli.run("network", "@captured", "history", "verify", cwd=registry))["data"]["publication_receipts"] == 1
+        assert len(list(registry.glob(".woobe/**/publications/*.yaml"))) == 1
+        assert inspected["state"] == "published", inspected
+        assert publication == inspected and publication["published"] and not publication["production_changed"]
+        assert publication["runtime_digest"] == candidate["runtime_digest"]
+        original_acceptance = (await cli.data("request", "GET", base + "/operations/" + publication_body["operation_id"]))["result"]
+        assert original_acceptance["state"] == "preparing" and not original_acceptance["complete"]
+        assert await cli.data("request", "POST", base + "/publications", body=publication_body) == original_acceptance
+        assert await cli.data("request", "POST", base + "/publications/" + publication["publication_id"] + "/reconcile") == publication
+        try:
+            async with publication_sessions() as publication_session:
+                published_network = await publication_session.get(NetworkVersionModel, UUID(publication["release_id"]))
+                assert published_network.kind == "release" and published_network.id != frozen_network.id
+                assert published_network.composition_hash != frozen_network.composition_hash
+                assert network_runtime_digest(published_network.definition, published_network.resolved_bindings,
+                    published_network.effective_external_context_contract) == candidate["runtime_digest"]
+                for binding in published_network.resolved_bindings.values():
+                    published_agent = await publication_session.get(AgentReleaseModel, UUID(binding["release_id"]))
+                    assert published_agent.snapshot_kind == "release" and binding["binding_source"] == "release"
+            for statement, identifier in (
+                ("UPDATE network.asac_publications SET reason = :changed WHERE id = :id", publication["publication_id"]),
+                ("DELETE FROM network.asac_publications WHERE id = :id", publication["publication_id"]),
+                ("UPDATE network.network_versions SET version = :changed WHERE id = :id", publication["release_id"]),
+                ("UPDATE agent.agent_releases SET model = :changed WHERE id = :id", publication["constituent_releases"][0]["release_id"]),
+            ):
+                with pytest.raises(DBAPIError, match="(?i)immutable"):
+                    async with publication_sessions.begin() as publication_session:
+                        await publication_session.execute(text(statement), {"id": UUID(identifier), "changed": "tamper"})
+            # Reject only this deliberate final owner commit. Child copies already
+            # have durable original receipts in their own owner transactions.
+            for cancel in (False, True):
+                interrupted_body = {**publication_body, "operation_id": str(uuid4()), "reason": "Exercise recoverable publication phases"}
+                fault_name = "asac_test_fail_" + uuid4().hex
+                async with publication_sessions.begin() as publication_session:
+                    await publication_session.execute(text(f"CREATE FUNCTION network.{fault_name}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'controlled publication fault'; END $$"))
+                    await publication_session.execute(text(f"CREATE TRIGGER {fault_name} BEFORE INSERT ON network.asac_publications FOR EACH ROW WHEN (NEW.operation_id = '{interrupted_body['operation_id']}'::uuid) EXECUTE FUNCTION network.{fault_name}()"))
+                try:
+                    interrupted = await cli.data("request", "POST", base + "/publications", body=interrupted_body)
+                    assert interrupted["state"] == "preparing" and not interrupted["published"]
+                    pending = await cli.data("request", "GET", base + "/publications/" + interrupted["publication_id"])
+                    assert pending["prepared_constituents"] == pending["required_constituents"]
+                    assert pending["error_code"] == "ASAC_PUBLICATION_PREPARATION_PENDING"
+                finally:
+                    async with publication_sessions.begin() as publication_session:
+                        await publication_session.execute(text(f"DROP TRIGGER {fault_name} ON network.asac_publications"))
+                        await publication_session.execute(text(f"DROP FUNCTION network.{fault_name}()"))
+                if cancel:
+                    closed = (await cli.run("network", resource_id, "publication", interrupted["publication_id"], "cancel", "--notes", "Discard the blocked publication", "--yes", "--no-project-config"))["data"]
+                    assert closed["state"] == "cancelled" and closed["complete"] and not closed["published"]
+                    await cli.run("request", "POST", base + "/publications/" + interrupted["publication_id"] + "/reconcile", expected=6)
+                else:
+                    resumed = (await cli.run("network", resource_id, "publication", interrupted["publication_id"], "reconcile", "--yes", "--no-project-config"))["data"]
+                    assert resumed["published"] and resumed["release_id"] == publication["release_id"] and resumed["reused"]
+                    assert await cli.data("request", "POST", base + "/publications/" + interrupted["publication_id"] + "/reconcile") == resumed
+                async with publication_sessions() as publication_session:
+                    count = await publication_session.scalar(text("SELECT count(*) FROM network.asac_publications WHERE project_id = :project AND operation_id = :operation"),
+                        {"project": UUID(cli.project_id), "operation": UUID(interrupted_body["operation_id"])})
+                    assert count == (0 if cancel else 1)
+            for (agent_id, environment), before in standalone_before.items():
+                after = (await cli.run("agent", agent_id, "current", "--env", environment))["data"]
+                assert {key: value for key, value in after.items() if key != "observed_at"} == {key: value for key, value in before.items() if key != "observed_at"}
         finally:
             await publication_engine.dispose()
     # observed_at is a fresh read timestamp, not lifecycle state or generation.
