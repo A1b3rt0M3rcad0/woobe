@@ -1407,6 +1407,7 @@ async def exercise_asac_isolated_drafts(cli, kind, resource_id):
     object_path = registry / config["root"] / "objects" / "sha256" / (comment_revision["artifact_digest"].removeprefix("sha256:") + ".tar.gz")
     with receive_archive(io.BytesIO(object_path.read_bytes()), locked=True) as sealed:
         requirements = sealed.graph.manifest["spec"].get("requires", {})
+        descriptor_paths = set(sealed.graph.paths.values())
     binding_spec = {"credentials": {}, "knowledge": {}, "secrets": {}, "project_environment": {}}
     for item in requirements.get("credentials", []):
         binding_spec["credentials"][item["ref"]] = {"credential_id": state_before_stage["credentials"][item["ref"]]}
@@ -1418,6 +1419,13 @@ async def exercise_asac_isolated_drafts(cli, kind, resource_id):
         "expected_generation": cli_saved["generation"], "revision_id": comment_revision["revision_id"],
         "registry_id": config["registry_id"], "bindings": {"format": "woobe-package", "schema_version": "1.0",
             "kind": "ImportBindings", "metadata": {"name": "Candidate"}, "spec": binding_spec}}
+    # An unestablished registry must identify the exact missing component at
+    # the real HTTP boundary, not drop its file/path in an envelope adapter.
+    rejected_binding = await cli.run("request","POST",base + "/candidates",
+        body={**stage_body,"operation_id":str(uuid4()),"registry_id":str(uuid4())},expected=2)
+    assert rejected_binding["error"]["domain_code"] == "ASAC_CANDIDATE_BINDING_UNAVAILABLE"
+    assert rejected_binding["error"]["diagnostics"][0]["file"] in descriptor_paths
+    assert rejected_binding["error"]["diagnostics"][0]["path"] == "/metadata/key"
     preview = (await cli.run(kind.lower(), "@captured", "stage", "--revision", comment_revision["revision_id"], "--dry-run", cwd=registry))["data"]
     assert not preview["executed"] and not preview["candidate_prepared"]
     candidate_acceptance = (await cli.run(kind.lower(), "@captured", "stage", "--revision", comment_revision["revision_id"], "--yes", cwd=registry))["data"]

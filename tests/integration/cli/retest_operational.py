@@ -440,6 +440,25 @@ async def exercise_managed_rollback(
                 "leases": [proof(lease)],
             }
             if action == "rollback":
+                competing_plan = (
+                    await cli.run(
+                        kind.lower(),
+                        resource_id,
+                        "deployment",
+                        "plan",
+                        "--no-project-config",
+                        "--operation",
+                        str(uuid4()),
+                        "--action",
+                        action,
+                        "--release",
+                        publication["release_id"],
+                        "--expected-generation",
+                        str(start["environment_generation"]),
+                        "--notes",
+                        "Race an independently planned qualified rollback",
+                    )
+                )["data"]
                 # Qualify response loss for an effective pointer/generation
                 # transition as well as the audited no-op above.
                 async with lose_committed_response(
@@ -460,7 +479,11 @@ async def exercise_managed_rollback(
                         cli.project_id,
                         cli.secret_values,
                     )
-                    competing = {**apply, "operation_id": str(uuid4())}
+                    competing = {
+                        **apply,
+                        "operation_id": str(uuid4()),
+                        "plan_id": competing_plan["plan_id"],
+                    }
                     raced = await asyncio.gather(
                         *[
                             client.run(
