@@ -52,7 +52,11 @@ checkpoint; the official example blocks retries when it is absent.
 
 The existing owners retain immutable Revision/Candidate/Evaluation/Publication,
 deployment and operation evidence. No new ledger or permission category is
-needed for this delivery. A failed apply preserves the published Release. A
+needed for this delivery. Operation recovery accepts an explicit environment
+filter (`asac.operation_environment_reads`); the owner checks the persisted
+receipt environment again before returning it. Deployment/lease recovery therefore
+needs no Draft grant. A forged filter cannot reveal a receipt from another
+environment or actor. A failed apply preserves the published Release. A
 committed apply with incomplete observation reports that uncertainty rather than
 claiming rollback or failure erased its effect. Leases are acquired close to
 apply; stale/expired evidence remains rejected under owner CAS.

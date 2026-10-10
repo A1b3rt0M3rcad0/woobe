@@ -128,6 +128,11 @@ async def exercise_unified_deployment(cli, kind, resource_id, previous):
         'expires_at':(datetime.now(UTC)+timedelta(hours=1)).isoformat(),
         'project_grants':[{'project_id':cli.project_id,'permissions':reads+[lower+':production'],
                            'conditions':{'environments':['staging','production'],'target_types':[lower],'target_ids':[resource_id]}}]})
+    # Authorization preflight consumes the same verified target and environment.
+    access = await cli.data('request','POST','/identity/access/check',body={
+        'method':'GET','path':base+'/operations/'+str(uuid4()),
+        'query':{'environment':'production'},'body':{}},key=deploy_key)
+    assert access['allowed']
     # Production grants do not bypass the managed actor restriction.
     await cli.run(lower, resource_id, 'deploy', '--from', 'release', '--release', release,
                   '--notes', 'Denied unlisted actor', cwd=clean, key=deploy_key, expected=4)
@@ -187,5 +192,30 @@ async def exercise_unified_deployment(cli, kind, resource_id, previous):
     assert failed['data']['local']['smoke_status']=='failed'
     unchanged=(await cli.run(lower,resource_id,'deploy','inspect'))['data']
     assert unchanged['snapshot_id']==via['release_id'] and unchanged['environment_generation']==via['generation_after']
+    from sqlalchemy import text
+    from shared.infra.config import Settings
+    from shared.infra.database.session import create_engine, create_session_factory
+    from uuid import UUID
+    engine=create_engine(Settings())
+    try:
+        async def publication_count():
+            async with create_session_factory(engine)() as session:
+                return await session.scalar(text(f'SELECT count(*) FROM {lower}.asac_publications WHERE resource_id=:target'),{'target':UUID(resource_id)})
+        count=await publication_count()
+        change_author(' Reject a failed Candidate evaluation.', 56)
+        bad_suite=yaml.safe_load(suite.read_text())
+        bad_suite['cases'][0]['expected_output']={'answer':'An intentionally impossible evaluation assertion'}
+        suite.write_text(yaml.safe_dump(bad_suite))
+        failed_evaluation=await cli.run(lower,'@delivery','deploy','--from','local','--suite',str(suite),
+                                       '--notes','Reject negative evaluation',cwd=registry,expected=6)
+        assert 'publication' not in failed_evaluation['data']['operations']
+        assert await publication_count()==count
+        await cli.run(lower,'@delivery','deploy','resume','--intent',failed_evaluation['data']['intent_id'],
+                      cwd=registry,expected=6)
+        assert await publication_count()==count
+        still=(await cli.run(lower,resource_id,'deploy','inspect'))['data']
+        assert still['snapshot_id']==via['release_id'] and still['environment_generation']==via['generation_after']
+    finally:
+        await engine.dispose()
     cli.evidence.append({'unified_deploy':kind, 'local_release':delivered['release_id'],
                          'runtime_snapshot':identity['snapshot_id'], 'response_loss_recovered':True})

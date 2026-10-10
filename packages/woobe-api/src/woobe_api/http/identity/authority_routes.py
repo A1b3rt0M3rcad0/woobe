@@ -322,7 +322,14 @@ async def check_authority(payload: AccessCheckRequest, request: Request):
         verified_query_context,
     )
 
+    from urllib.parse import urlencode
+    from starlette.requests import Request as AuthorizationRequest
+    from woobe_api.security.http_guard import HttpSecurityGuard
+
     permission, params = resolve_operation(payload.method, payload.path, payload.body)
+    reviewed = AuthorizationRequest({"type":"http", "method":payload.method,
+        "path":payload.path, "query_string":urlencode(payload.query).encode(), "headers":[]})
+    params = HttpSecurityGuard._authorization_path_params(reviewed, params, payload.body)
     decision = await build_authority_service().check_access(
         actor=_actor(request),
         permission=permission,
