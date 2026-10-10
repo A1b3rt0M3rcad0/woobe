@@ -272,3 +272,66 @@ async def test_web_checkpoint_original_replay_and_unauthorized_editor(drafts):
     store.artifacts.editor_source.assert_not_awaited()
     with pytest.raises(AuthorizationError):
         await store.checkpoint_editor(**args,draft_id=draft_id,request=request)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("result,environment", [
+    ({"plan_id":"plan", "environment":"production"}, "production"),
+    ({"plan_id":"plan", "deployment_id":"deployment", "environment":"staging"}, "staging"),
+    ({"lease_id":"lease", "scope":"production"}, "production"),
+    ({"lease_id":"lease", "scope":"draft:123"}, "draft"),
+    ({"candidate_id":"candidate"}, "staging"),
+    ({"candidate_id":"candidate", "evaluation_id":"evaluation"}, "staging"),
+    ({"candidate_id":"candidate", "publication_id":"publication"}, "staging"),
+    ({"draft_id":"draft", "origin":{"environment":"production"}}, "draft"),
+    ({"record":{"environment":"production"}}, "draft"),
+])
+async def test_operation_reads_verify_persisted_environment_and_keep_actor_scope(drafts, result, environment):
+    from shared.infra.admin_idempotency import principal_identity
+    store, sessions, args, _, _ = drafts
+    operation = uuid4()
+    async with sessions.begin() as session:
+        session.add(ASaCOperationModel(project_id=args["project_id"], resource_id=args["resource_id"],
+            actor=principal_identity(args["principal"]), operation_id=operation,
+            request_digest="sha256:" + "a" * 64, result=result))
+    observed = await store.operation(**args, operation_id=operation, environment=environment)
+    assert observed["result"] == result
+    actual_call = store.owner.inspect.await_args.kwargs
+    assert actual_call["environment"] == environment and actual_call["resource_id"] == args["resource_id"]
+    if result.get("evaluation_id") and not result.get("publication_id"):
+        assert actual_call["required_permission"] == "run:read"
+    with pytest.raises(AuthorizationError, match="another environment"):
+        await store.operation(**args, operation_id=operation, environment="draft" if environment != "draft" else "production")
+    other_actor = args["principal"].model_copy(update={"user_id":uuid4()})
+    hidden = await store.operation(**{**args,"principal":other_actor}, operation_id=operation, environment=environment)
+    assert hidden["state"] == "not_observed" and "result" not in hidden
+    assert not hidden["retry_authorized"]
+
+
+@pytest.mark.asyncio
+async def test_operation_default_scope_cannot_read_production_receipt_with_draft_only_grant(drafts):
+    from shared.infra.admin_idempotency import principal_identity
+    from shared.security.tenancy import TenantAuthorizer
+    store, sessions, args, _, _ = drafts
+    operation = uuid4()
+    async with sessions.begin() as session:
+        session.add(ASaCOperationModel(project_id=args["project_id"], resource_id=args["resource_id"],
+            actor=principal_identity(args["principal"]), operation_id=operation,
+            request_digest="sha256:" + "a" * 64, result={"plan_id":"plan", "environment":"production"}))
+    async def constrained_owner(session, **request):
+        TenantAuthorizer._require_conditions({"environments":["draft"], "target_ids":[str(args["resource_id"])]},
+            permission="agent:read", path_context={"agent_id":str(request["resource_id"]),"environment":request["environment"]})
+    store.owner.inspect.side_effect = constrained_owner
+    with pytest.raises(AuthorizationError, match="conditions"):
+        await store.operation(**args, operation_id=operation)
+    with pytest.raises(AuthorizationError, match="conditions"):
+        await store.operation(**args, operation_id=operation, environment="production")
+
+
+@pytest.mark.asyncio
+async def test_operation_read_requires_valid_environment_before_database_lookup(drafts):
+    from shared.contracts.errors import ValidationError
+    store, _, args, _, _ = drafts
+    with pytest.raises(ValidationError, match="environment"):
+        await store.operation(**args, operation_id=uuid4(), environment="other")
+    store.owner.inspect.assert_not_awaited()

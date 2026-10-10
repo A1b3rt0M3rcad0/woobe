@@ -140,6 +140,7 @@ See [`packages/README.md`](packages/README.md), [`tooling/README.md`](tooling/RE
 - [Architecture](docs/ARCHITECTURE.md)
 - [Self-hosting](docs/SELF_HOSTING.md)
 - [CLI installation and usage](docs/CLI.md)
+- [Qualified CLI deployment and recovery](docs/CLI_DEPLOYMENT.md)
 - [Portable Agent/Network Package import and export](docs/CLI_PACKAGES.md)
 - [Published container packages](docs/runbooks/container-packages.md)
 - [Upgrading](docs/UPGRADING.md)

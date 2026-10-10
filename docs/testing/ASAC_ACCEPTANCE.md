@@ -80,3 +80,35 @@ does not certify the operator's real Production deployment, four legacy Network
 snapshots, real-provider latency/cost, physical multi-host failures, disk exhaustion
 or load stability. The external retest's 182 recorded commands and seven smokes
 are separate evidence and are not converted to independent test counts here.
+
+## Unified deployment acceptance (2026-10-10)
+
+The paired compiled CLI adds `tests/integration/cli/unified_deployment.py` to the
+primary Agent/Network live contract. Coverage is cumulative with the owner tests
+above; these rows do not represent ninety independent new tests or customer
+Production certification.
+
+| Unified criteria | Evidence | Checked boundary |
+| --- | --- | --- |
+| UDEP-001–024 | Existing deployment owner/store/live helper; CLI `deployment_unified_test.go` | Exact qualified selection, no-op generations, policy/binding CAS, original receipts and no legacy fallback |
+| UDEP-025–032 | Unified live helper and CLI Staging drift tests | Exact selected UUID, clean native mode, no republish and Production-only grant |
+| UDEP-033–048 | Unified live helper; existing immutable Candidate/Network and author custody regressions | Existing registered author → isolated Draft → Revision → passed Evaluation → Publication; same Release Staging/Production, negative smoke blocks Production |
+| UDEP-049–064 | Unified dedicated-key cases; existing scoped HTTP/policy/security tests | Grant plus managed actor authority; no Draft/publication privilege; Runtime/control separation and revocation remains server-enforced |
+| UDEP-065–080 | Unified truncated-response proxy, SQL row count; CLI step recovery/private-store tests; existing independent-process CAS/lease tests | No repeat after response loss or not_observed; scoped original intent, missing state blocks; independent processes share owner fences |
+| UDEP-081–089 | Unified Runtime/rollback plus existing admission/managed rollback helper | Selected immutable Production identity, exact Network constituents and admitted Session continuity |
+| UDEP-090 | Existing Runtime failure evidence; unified negative Staging smoke | A verification failure preserves actual prior commits; no implicit compensation |
+
+
+Operation recovery is scoped by the consumed environment filter, then checked
+against the persisted receipt and principal. Production-only delivery does not
+need Draft authority. `test_asac_draft_store.py` and
+`test_asac_http_security.py` exercise forged environment filters, other actors,
+read-only Evaluation authority and access-check/actual-request agreement. The
+capability `asac.operation_environment_reads` is required by the unified CLI.
+
+Multi-host/load and customer-provider qualification remain operator acceptance;
+the independent-client fixture uses separate processes/directories against one
+disposable server. The official GitHub example is syntax/recovery-tested and uses
+a separate protected deploy-only identity, pinned archive checksum and encrypted
+checkpoint. Environment approval rules and credentials must be configured by the
+operator; CI examples do not grant account access themselves.

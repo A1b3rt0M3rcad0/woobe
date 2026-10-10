@@ -33,7 +33,7 @@ from shared.security.control_plane import (
 )
 
 CLI_COMMIT = os.environ.get(
-    "WOOBE_TEST_CLI_SHA", "e043cd9b31efb6749372127864eea08a7e6c1841"
+    "WOOBE_TEST_CLI_SHA", "a57a15f03ee0f47d0b4af0b83c4734d7abbd9c67"
 )
 
 
@@ -1274,6 +1274,9 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
     await exercise_asac_deployments(cli, "Network", network_id, network_publication)
     cli.policy_denied_key=builder_key
     await exercise_asac_project_policy(cli, agent_id, agent_publication, agent_body, definition, network_id, network_publication)
+    from tests.integration.cli.unified_deployment import exercise_unified_deployment
+    await exercise_unified_deployment(cli, 'Agent', agent_id, agent_publication)
+    await exercise_unified_deployment(cli, 'Network', network_id, network_publication)
     await exercise_web_workbench(cli, 'Agent', agent_id)
     await exercise_web_workbench(cli, 'Network', network_id)
     # CAS applies before mutation; retrying a completed rotation recovers the same key.

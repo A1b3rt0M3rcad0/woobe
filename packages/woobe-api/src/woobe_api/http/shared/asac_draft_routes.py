@@ -341,8 +341,8 @@ def draft_router(prefix, builder, kind, candidate_builder=None, evaluation_build
             "X-Woobe-Record-Digest": receipt["record_digest"]})
 
     @router.get("/operations/{operation_id}")
-    async def operation(project_id: UUID, resource_id: UUID, operation_id: UUID, request: Request):
-        return response(await invoke(store().operation(project_id=project_id, resource_id=resource_id, operation_id=operation_id, principal=actor(request))))
+    async def operation(project_id: UUID, resource_id: UUID, operation_id: UUID, request: Request, environment: str | None = None):
+        return response(await invoke(store().operation(project_id=project_id, resource_id=resource_id, operation_id=operation_id, principal=actor(request), environment=environment)))
 
     return router
 

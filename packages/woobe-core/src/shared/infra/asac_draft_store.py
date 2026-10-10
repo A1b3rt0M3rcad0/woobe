@@ -9,10 +9,21 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from shared.contracts.asac import asac_digest
-from shared.contracts.errors import ConflictError, NotFoundError, ValidationError
+from shared.contracts.errors import AuthorizationError, ConflictError, NotFoundError, ValidationError
 from shared.infra.admin_idempotency import principal_identity
 from shared.infra.asac_lease_errors import asac_lease_database_errors
 from shared.infra.asac_workbench import ASaCWorkbench
+
+
+def operation_read_environment(result):
+    """Scope comes from owner-produced receipt shapes, not submitted author data."""
+    if result.get("plan_id") and result.get("environment") in {"staging", "production"}:
+        return result["environment"]
+    if result.get("lease_id") and result.get("scope") in {"staging", "production"}:
+        return result["scope"]
+    if result.get("candidate_id"):
+        return "staging"
+    return "draft"
 
 
 def draft_output(row):
@@ -331,12 +342,22 @@ class ASaCDraftStore(ASaCWorkbench):
             "resource_id": str(resource_id), "revision_id": revision_id, "record_digest": record["record_digest"],
             **evidence, "complete": True}, content
 
-    async def operation(self, *, project_id, resource_id, operation_id, principal):
+    async def operation(self, *, project_id, resource_id, operation_id, principal, environment=None):
+        if environment is not None and environment not in {"draft", "staging", "production"}:
+            raise ValidationError("Operation environment must be draft, staging or production")
         async with self._read() as session:
-            await self._authorize(session, project_id, resource_id, principal)
+            args = dict(project_id=project_id, resource_id=resource_id, principal=principal, kind=self.kind)
+            # The query is a consumed scope filter, never authority to substitute
+            # another environment for an existing immutable operation receipt.
+            await self.owner.inspect(session, **args, environment=environment or "draft")
             row = await session.scalar(select(self.operations).where(self.operations.project_id == project_id,
                 self.operations.resource_id == resource_id, self.operations.actor == principal_identity(principal),
                 self.operations.operation_id == operation_id))
             if row is None:
                 return {"operation_id": str(operation_id), "state": "not_observed", "write_outcome": "unknown", "retry_authorized": False, "complete": False}
+            actual = operation_read_environment(row.result)
+            if environment is not None and environment != actual:
+                raise AuthorizationError("Operation receipt belongs to another environment")
+            await self.owner.inspect(session, **args, environment=actual,
+                required_permission="run:read" if row.result.get("evaluation_id") and not row.result.get("publication_id") and not row.result.get("plan_id") else self.kind.lower() + ":read")
             return {"operation_id": str(operation_id), "state": "committed", "result": row.result, "complete": True}

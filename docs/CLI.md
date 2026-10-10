@@ -252,3 +252,9 @@ See [ASaC history](runtime/ASAC_HISTORY.md#web-isolated-draft-workbench). Web-cr
 revisions can be inspected/exported by their durable IDs; Git provenance remains
 unavailable until separately declared or verified, rather than inferred from a
 browser edit.
+
+## Unified qualified delivery
+
+See [CLI deployment](CLI_DEPLOYMENT.md) for Agent/Network delivery from exact
+Releases, captured Staging or validated local ASaC, deploy-only CI grants,
+private intent recovery and explicit qualified rollback.

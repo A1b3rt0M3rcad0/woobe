@@ -75,6 +75,13 @@ dimension broadens authority and is rejected. Arbitrary body IDs cannot turn an
 unfiltered collection operation into an authorized target-specific request.
 Equivalent UUID representations are compared using their canonical identity.
 
+ASaC operation recovery consumes an explicit `environment` filter (legacy calls
+default to Draft), then reauthorizes the environment of the retained owner receipt.
+A forged scope cannot disclose another environment or actor. Deployment-only
+keys can recover their original Production plan, lease and apply without authoring
+permissions. Access-check preflight uses the same reviewed target/environment
+normalization as actual requests.
+
 Conditional reads of stored Agent Runs, Runs resolved by trace, Network executions
 and Network session history use the persisted target and runtime environment.
 A supplied body or query environment cannot replace that stored environment, and

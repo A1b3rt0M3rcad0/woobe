@@ -22,7 +22,7 @@ def test_asac_reads_have_reviewed_target_and_verified_environment(plural, identi
 
 
 @pytest.mark.parametrize("plural,identifier", [("agents", "agent_id"), ("networks", "network_id")])
-@pytest.mark.parametrize("method,suffix,permission", [("POST", "drafts", "write"), ("PUT", "drafts/{draft_id}", "write"), ("POST", "revisions", "write"), ("GET", "operations/{operation_id}", "read")])
+@pytest.mark.parametrize("method,suffix,permission", [("POST", "drafts", "write"), ("PUT", "drafts/{draft_id}", "write"), ("POST", "revisions", "write")])
 def test_asac_draft_routes_are_explicitly_scoped(plural, identifier, method, suffix, permission):
     project, resource = str(uuid4()), str(uuid4())
     suffix = suffix.format(draft_id=uuid4(), operation_id=uuid4())
@@ -186,3 +186,41 @@ def test_signed_receipts_preserve_exact_owner_and_lifecycle_read_authority(plura
     normalized=HttpSecurityGuard._authorization_path_params(request,params)
     assert normalized[identifier]==resource and normalized['environment']==environment
     assert resolve_operation('POST',path)[0] is None
+
+
+@pytest.mark.parametrize("plural,identifier", [("agents","agent_id"),("networks","network_id")])
+@pytest.mark.parametrize("environment", ["draft","staging","production"])
+def test_operation_receipt_scope_filter_is_consumed_by_owner(plural,identifier,environment):
+    project, resource, operation = str(uuid4()),str(uuid4()),str(uuid4())
+    path=f"/projects/{project}/{plural}/{resource}/asac/operations/{operation}"
+    request=Request({"type":"http","method":"GET","path":path,"query_string":("environment="+environment).encode(),"headers":[]})
+    permission,params=resolve_operation("GET",path)
+    normalized=HttpSecurityGuard._authorization_path_params(request,params)
+    assert permission == f"{plural[:-1]}:read"
+    assert normalized[identifier]==resource and normalized["environment"]==environment
+    # An unrelated query never changes Draft authoring authority.
+    draft_path=f"/projects/{project}/{plural}/{resource}/asac/drafts"
+    request=Request({"type":"http","method":"GET","path":draft_path,"query_string":("environment="+environment).encode(),"headers":[]})
+    _, params=resolve_operation("GET",draft_path)
+    assert HttpSecurityGuard._authorization_path_params(request,params)["environment"]=="draft"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("plural,identifier", [("agents","agent_id"),("networks","network_id")])
+@pytest.mark.parametrize("suffix", ["current","operations/{operation_id}"])
+async def test_access_check_uses_actual_reviewed_owner_scope(monkeypatch,plural,identifier,suffix):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+    from woobe_api.http.identity import authority_routes
+    project,resource=str(uuid4()),str(uuid4())
+    path=f"/projects/{project}/{plural}/{resource}/asac/"+suffix.format(operation_id=uuid4())
+    service=SimpleNamespace(check_access=AsyncMock(return_value={"allowed":True}))
+    monkeypatch.setattr(authority_routes,"build_authority_service",lambda:service)
+    request=Request({"type":"http","method":"POST","path":"/identity/access/check","query_string":b"","headers":[],"state":{"principal":object()}})
+    payload=SimpleNamespace(method="GET",path=path,query={"environment":"production"},body={})
+    await authority_routes.check_authority(payload,request)
+    actual=service.check_access.await_args.kwargs
+    assert actual["permission"]==f"{plural[:-1]}:read"
+    assert actual["path_params"][identifier]==resource
+    assert actual["path_params"]["environment"]=="production"
+    assert "resource_id" not in actual["path_params"]

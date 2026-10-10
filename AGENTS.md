@@ -23,6 +23,8 @@ Keep this file small. It is an index and routing guide, not a duplicate of produ
 
 ## Topic-specific documentation
 
+- Unified CLI delivery: [docs/CLI_DEPLOYMENT.md](docs/CLI_DEPLOYMENT.md)
+
 - Control Plane authority: [docs/security/CONTROL_PLANE.md](docs/security/CONTROL_PLANE.md)
 
 - Accepted Run identity and Session continuity: [docs/runtime/ASAC_RUNTIME_IDENTITY.md](docs/runtime/ASAC_RUNTIME_IDENTITY.md)
