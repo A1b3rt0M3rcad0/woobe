@@ -22,21 +22,21 @@ def as_list(value):
 
 
 @pytest.mark.parametrize("workflow", ["prepare-release.yml", "release-candidate.yml", "release.yml"])
-def test_release_jobs_share_ci_runners_and_serialize_docker(workflow: str) -> None:
+def test_release_jobs_use_isolated_github_hosted_runners_and_cleanup_docker(workflow: str) -> None:
     for name, job in load_workflow(workflow)["jobs"].items():
         if "uses" in job:
             continue
-        assert job["runs-on"] == ["self-hosted", "Linux", "X64"], name
+        assert job["runs-on"] == "ubuntu-24.04", name
         steps = job["steps"]
         docker_actions = [i for i, step in enumerate(steps) if step.get("uses", "").startswith("docker/")]
         if not docker_actions:
-            # In particular, the job waiting for required CI must not hold its
-            # Docker lock: those CI jobs need the same daemon to finish.
+            # In particular, a job waiting for required CI should not need
+            # Docker access, even on an isolated VM.
             assert not any("prepare_docker_access" in step.get("run", "") for step in steps)
             continue
         names = [step.get("name") for step in steps]
         assert names.index("Prepare private release Docker configuration") < names.index("Prepare Docker access") < min(docker_actions)
-        assert int(job["timeout-minutes"]) >= 75  # Includes the shared lock's 40-minute queue budget.
+        assert int(job["timeout-minutes"]) >= 75  # Retain the full release build and smoke budget.
         assert steps[-1]["name"] == "Clean up release Docker resources"
         assert steps[-1]["if"] == "always()"
         assert any(step.get("uses", "").startswith("actions/checkout@") for step in steps)
@@ -48,7 +48,29 @@ def test_release_jobs_share_ci_runners_and_serialize_docker(workflow: str) -> No
             if step.get("uses", "").startswith("docker/login-action@"):
                 assert step["with"]["logout"] == "false"
     if workflow == "release-candidate.yml":
-        assert load_workflow(workflow)["jobs"]["build"]["strategy"]["max-parallel"] == "1"
+        assert load_workflow(workflow)["jobs"]["build"]["strategy"]["max-parallel"] == "4"
+
+
+def test_github_hosted_docker_prepare_checks_daemon_without_shared_lock(tmp_path: Path) -> None:
+    docker = tmp_path / "docker"
+    docker.write_text("#!/bin/sh\nexit 0\n")
+    docker.chmod(0o700)
+    env = {
+        **os.environ,
+        "RUNNER_ENVIRONMENT": "github-hosted",
+        "RUNNER_TEMP": str(tmp_path),
+        "PATH": f"{tmp_path}:{os.environ['PATH']}",
+    }
+    command = ["bash", "scripts/ci/prepare_docker_access.sh"]
+    result = subprocess.run(command, cwd=ROOT, env=env, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    assert "no shared host lock required" in result.stdout
+    assert not list(tmp_path.glob("woobe-docker-lock-*"))
+
+    docker.write_text("#!/bin/sh\nexit 1\n")
+    failed = subprocess.run(command, cwd=ROOT, env=env, capture_output=True, text=True)
+    assert failed.returncode != 0
+    assert "Docker is unavailable" in failed.stdout
 
 
 @pytest.mark.parametrize("docker_exit", [0, 1])
@@ -59,7 +81,7 @@ def test_release_docker_credentials_are_private_and_cleanup_survives_failure(tmp
     (original / "config.json").write_text('{"auths":{"existing":"private"}}')
     (plugins / "docker-compose").write_text("plugin")
     environment_file = tmp_path / "environment"
-    env = {**os.environ, "RUNNER_TEMP": str(tmp_path), "GITHUB_ENV": str(environment_file), "DOCKER_CONFIG": str(original)}
+    env = {**os.environ, "RUNNER_ENVIRONMENT": "self-hosted", "RUNNER_TEMP": str(tmp_path), "GITHUB_ENV": str(environment_file), "DOCKER_CONFIG": str(original)}
     subprocess.run(["bash", "scripts/release/prepare_docker_config.sh"], cwd=ROOT, env=env, check=True)
     env.update(dict(line.split("=", 1) for line in environment_file.read_text().splitlines()))
     private = Path(env["DOCKER_CONFIG"])
@@ -69,7 +91,7 @@ def test_release_docker_credentials_are_private_and_cleanup_survives_failure(tmp
     assert not (private / "config.json").exists()
     (private / "config.json").write_text("issued registry credential")
     # Even a failed builder removal must remove the job's credentials and
-    # release its shared lock, preserving the runner's unrelated credentials.
+    # clean up any legacy lock state, preserving unrelated credentials.
     docker = tmp_path / "docker"
     docker.write_text(f"#!/bin/sh\nexit {docker_exit}\n")
     docker.chmod(0o700)

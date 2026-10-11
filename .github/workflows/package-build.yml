@@ -16,7 +16,7 @@ concurrency:
 jobs:
   ci:
     name: packages
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-24.04
     timeout-minutes: 75
     env:
       VITE_API_URL: http://127.0.0.1:8000

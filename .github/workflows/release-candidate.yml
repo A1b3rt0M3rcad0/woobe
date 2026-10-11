@@ -50,7 +50,7 @@ concurrency:
 
 jobs:
   metadata:
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     outputs:
       version: ${{ steps.meta.outputs.version }}
@@ -99,11 +99,11 @@ jobs:
 
   build:
     needs: metadata
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-24.04
     timeout-minutes: 75
     strategy:
       fail-fast: false
-      max-parallel: 1
+      max-parallel: 4
       matrix:
         include:
           - unit: api
@@ -225,7 +225,7 @@ jobs:
 
   verify-platforms:
     needs: [metadata, build]
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-24.04
     timeout-minutes: 75
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -289,7 +289,7 @@ jobs:
 
   smoke:
     needs: [metadata, build, verify-platforms]
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-24.04
     timeout-minutes: 75
     env:
       COMPOSE_PROJECT_NAME: woobe-candidate-${{ github.run_id }}-${{ github.run_attempt }}
@@ -375,7 +375,7 @@ jobs:
 
   manifest:
     needs: [metadata, smoke]
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-24.04
     timeout-minutes: 75
     outputs:
       validation_id: ${{ steps.identity.outputs.validation_id }}
