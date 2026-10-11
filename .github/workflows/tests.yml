@@ -16,9 +16,8 @@ concurrency:
 jobs:
   tests:
     name: tests
-    runs-on: [self-hosted, Linux, X64]
-    # Shared Docker acquisition can wait up to 40 minutes; leave the full
-    # test contract its execution budget after acquisition.
+    runs-on: ubuntu-24.04
+    # Each GitHub-hosted job owns an isolated Docker daemon.
     timeout-minutes: 90
     steps:
 
@@ -88,7 +87,7 @@ jobs:
         continue-on-error: true
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
-          name: woobe-backend-test-evidence-self-hosted
+          name: woobe-backend-test-evidence-github-hosted
           path: .test-artifacts
           if-no-files-found: warn
           include-hidden-files: true

@@ -41,7 +41,7 @@ concurrency:
 
 jobs:
   publish:
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-24.04
     timeout-minutes: 75
     outputs:
       owner: ${{ steps.meta.outputs.owner }}
@@ -356,7 +356,7 @@ jobs:
 
   post-publish-smoke:
     needs: publish
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-24.04
     timeout-minutes: 75
     env:
       COMPOSE_PROJECT_NAME: woobe-release-${{ github.run_id }}-${{ github.run_attempt }}
@@ -446,7 +446,7 @@ jobs:
   tag:
     name: Create immutable release tag
     needs: [publish, post-publish-smoke]
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -481,7 +481,7 @@ jobs:
 
   github-release:
     needs: [publish, post-publish-smoke, tag]
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
       contents: write
