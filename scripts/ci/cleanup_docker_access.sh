@@ -1,6 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# The hosted VM is ephemeral but provides limited SSD space. Discard unused
+# images and build cache between CI phases; never clean running containers.
+if [[ "${RUNNER_ENVIRONMENT:-}" == "github-hosted" ]]; then
+  docker builder prune --all --force >/dev/null 2>&1 || true
+  docker image prune --all --force >/dev/null 2>&1 || true
+  exit 0
+fi
+
 if [[ -n "${WOOBE_DOCKER_PROXY_PID_FILE:-}" && -f "$WOOBE_DOCKER_PROXY_PID_FILE" ]]; then
   pid="$(cat "$WOOBE_DOCKER_PROXY_PID_FILE")"
   if [[ -n "$pid" ]]; then
@@ -15,7 +23,7 @@ if [[ -n "${WOOBE_DOCKER_PROXY_PID_FILE:-}" ]]; then
   rm -f "$WOOBE_DOCKER_PROXY_PID_FILE"
 fi
 
-# Signal the host-level validation lock holder to release the Docker daemon for the
+# Legacy shared-host fallback: signal the lock holder to release Docker for the
 # next heavy CI job. Killing the holder is a final safety net for cancelled jobs.
 if [[ -n "${WOOBE_DOCKER_LOCK_RELEASE_FILE:-}" ]]; then
   : > "$WOOBE_DOCKER_LOCK_RELEASE_FILE"

@@ -71,7 +71,7 @@ def run(
 
 def gh_json(args: list[str]) -> Any:
     if "--paginate" in args:
-        # Older GitHub CLI versions commonly installed on self-hosted runners
+        # Some GitHub CLI versions (including manually installed ones)
         # do not support --slurp. Emit one compact JSON document per page.
         result = run(["gh", *args, "--jq", "@json"])
         return [json.loads(line) for line in result.stdout.splitlines() if line.strip()]

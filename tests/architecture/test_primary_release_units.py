@@ -97,7 +97,7 @@ def test_release_candidate_builds_exactly_four_process_images() -> None:
     assert "provenance: mode=max" in candidate
     assert "sbom: true" in candidate
     assert "sha-$revision" in candidate
-    assert "runs-on: [self-hosted, Linux, X64]" in candidate
+    assert "runs-on: ubuntu-24.04" in candidate
 
 
 def test_release_promotes_candidate_without_rebuilding() -> None:
@@ -212,7 +212,7 @@ def test_validated_release_candidate_is_bound_to_one_orchestrated_publication() 
     assert 'GITHUB_REF" != "refs/heads/master' in prepare
 
 
-def test_release_workflows_use_self_hosted_runners_and_pin_action_commits() -> None:
+def test_release_workflows_use_github_hosted_runners_and_pin_action_commits() -> None:
     for relative in (
         ".github/workflows/prepare-release.yml",
         ".github/workflows/release-candidate.yml",
@@ -220,8 +220,8 @@ def test_release_workflows_use_self_hosted_runners_and_pin_action_commits() -> N
     ):
         workflow = (ROOT / relative).read_text(encoding="utf-8")
         assert "ubuntu-latest" not in workflow
-        assert "ubuntu-24.04" not in workflow
-        assert "runs-on: [self-hosted, Linux, X64]" in workflow
+        assert "runs-on: [self-hosted, Linux, X64]" not in workflow
+        assert "runs-on: ubuntu-24.04" in workflow
         for action in re.findall(r"uses:\s+([^\s#]+)", workflow):
             if action.startswith("./"):
                 continue
@@ -302,8 +302,8 @@ def test_container_ci_reproduces_release_candidate_multiarch_contract() -> None:
     )
 
     assert "Phase · release-multiarch-build" in containers
-    assert "runs-on: [self-hosted, Linux, X64]" in containers
-    assert "runs-on: ubuntu-24.04" not in containers
+    assert "runs-on: ubuntu-24.04" in containers
+    assert "runs-on: [self-hosted, Linux, X64]" not in containers
     assert containers.count("runs-on:") == 1
     assert containers.count("platforms: linux/amd64,linux/arm64") == 4
     assert containers.count("push: false") == 4
@@ -350,9 +350,8 @@ def test_release_ci_pins_required_actions_and_runs_release_contract_tests() -> N
     )
     for filename in required:
         workflow = (ROOT / ".github/workflows" / filename).read_text(encoding="utf-8")
-        assert "runs-on: [self-hosted, Linux, X64]" in workflow
+        assert "runs-on: ubuntu-24.04" in workflow
         assert "runs-on: ubuntu-24.04" not in workflow
-        assert "GitHub-hosted" not in workflow
         assert "outcome: ${{ job.status }}" not in workflow
         assert workflow.count("runs-on:") == 1
         for action in re.findall(r"uses:\s+([^\s#]+)", workflow):

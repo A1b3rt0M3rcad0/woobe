@@ -1,6 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# GitHub-hosted jobs own an isolated disposable Docker daemon. Do not start
+# a shared-host lock holder or a Docker socket proxy on those runners.
+if [[ "${RUNNER_ENVIRONMENT:-}" == "github-hosted" ]]; then
+  if ! docker info >/dev/null 2>&1; then
+    echo "::error::Docker is unavailable on the GitHub-hosted runner."
+    exit 1
+  fi
+  echo "GitHub-hosted Docker daemon ready; no shared host lock required."
+  exit 0
+fi
+
 runner_temp="${RUNNER_TEMP:-/tmp}"
 workspace="${GITHUB_WORKSPACE:-$(pwd)}"
 run_id="${GITHUB_RUN_ID:-local}"
@@ -50,7 +61,7 @@ finish_prepare() {
 }
 
 reclaim_docker_ci_space() {
-  # The self-hosted runners share one Docker host. Once this job owns the
+  # Legacy shared self-hosted runners may share one Docker host. Once the job owns the
   # global lock, it is safe to reclaim only disposable build cache and
   # dangling images left by previous CI runs. Tagged images, running
   # containers, named volumes, and persistent data are not removed.
@@ -63,9 +74,9 @@ trap cleanup_incomplete_prepare EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-# All self-hosted runners currently share the same physical Docker host. Serialize
-# Docker-heavy validation on the host itself instead of using GitHub concurrency
-# groups, which keep only one pending job and can cancel unrelated required checks.
+# Legacy shared-host fallback: serialize Docker validation locally. This
+# path is not used by GitHub-hosted repository workflows; it remains for
+# explicitly managed machines that share a Docker daemon.
 nohup bash -c '
   set -eu
   lock_file="$1"
