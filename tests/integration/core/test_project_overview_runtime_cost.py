@@ -227,6 +227,31 @@ async def test_overview_uses_recorded_cost_and_causality_without_duplicate_trace
 
 
 @pytest.mark.asyncio
+async def test_uncertain_run_is_terminal_with_unknown_cost_and_explicit_coverage(
+    recorded_runs,
+):
+    session, reader, params, add_run, _ = recorded_runs
+    run = add_run(cost=None, status="uncertain", cost_status="unknown_tokens")
+    await session.flush()
+    summary = await reader._agent_run_summary(session, params)
+    assert summary["agent_runs"] == summary["terminal_agent_runs"] == 1
+    assert summary["uncertain_agent_runs"] == 1
+    assert summary["unknown_agent_run_cost_count"] == 1
+    assert summary["agent_run_cost_usd"] is None
+    assert summary["agent_run_success_rate"] == 0
+    assert summary["agent_run_error_rate"] == 100
+    recent = (await reader._recent_direct_agent_runs(session, params))[0]
+    assert recent["id"] == run.trace_id
+    assert recent["status"] == "uncertain"
+    assert recent["cost_status"] == "unknown_tokens"
+    series = await reader._run_timeseries(session, params)
+    point = next(row for row in series if row["agent_runs"])
+    assert point["agent_run_uncertain"] == 1
+    assert point["unknown_cost_count"] == 1
+    assert point["cost_usd"] is None
+
+
+@pytest.mark.asyncio
 async def test_network_cost_stays_partial_until_all_constituent_runs_are_terminal(
     recorded_runs,
 ):

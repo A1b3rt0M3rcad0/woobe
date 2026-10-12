@@ -81,6 +81,7 @@ class ProjectOverviewSummary(BaseModel):
     completed_with_issues_agent_runs: int = 0
     failed_agent_runs: int = 0
     timed_out_agent_runs: int = 0
+    uncertain_agent_runs: int = 0
     cancelled_agent_runs: int = 0
     running_agent_runs: int = 0
     agent_run_change_percent: float | None = None
@@ -128,6 +129,7 @@ class ProjectOverviewTimeseriesPoint(BaseModel):
     agent_run_completed_with_issues: int = 0
     agent_run_failed: int = 0
     agent_run_timed_out: int = 0
+    agent_run_uncertain: int = 0
     agent_run_cancelled: int = 0
     agent_run_running: int = 0
     agent_run_success_rate: float | None = None

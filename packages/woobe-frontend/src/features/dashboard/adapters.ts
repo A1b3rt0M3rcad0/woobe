@@ -306,6 +306,7 @@ function buildNarrative(overview: ProjectOverview): string {
   if (summary.network_run_success_rate !== null) reliability.push(`Network success ${formatPercent(summary.network_run_success_rate)}`)
   const totalErrors = summary.failed_agent_runs
     + summary.timed_out_agent_runs
+    + (summary.uncertain_agent_runs ?? 0)
     + summary.failed_network_runs
     + summary.timed_out_network_runs
     + summary.uncertain_network_runs
@@ -383,7 +384,7 @@ function actionLabel(action: OverviewChangeAction): string {
 export function adaptProjectOverview(overview: ProjectOverview): DashboardViewModel {
   const summary = overview.summary
   const runChange = changeDetail(summary.agent_run_change_percent)
-  const totalAgentErrors = summary.failed_agent_runs + summary.timed_out_agent_runs
+  const totalAgentErrors = summary.failed_agent_runs + summary.timed_out_agent_runs + (summary.uncertain_agent_runs ?? 0)
   const totalNetworkErrors = summary.failed_network_runs + summary.timed_out_network_runs + summary.uncertain_network_runs
   const pricedPercent = summary.terminal_agent_runs > 0
     ? (summary.priced_agent_runs / summary.terminal_agent_runs) * 100
@@ -475,7 +476,7 @@ export function adaptProjectOverview(overview: ProjectOverview): DashboardViewMo
     bucketStart: point.bucket_start,
     agentRuns: point.agent_runs,
     agentSuccess: point.agent_run_success,
-    agentErrors: point.agent_run_failed + point.agent_run_timed_out,
+    agentErrors: point.agent_run_failed + point.agent_run_timed_out + (point.agent_run_uncertain ?? 0),
     agentRunning: point.agent_run_running,
     agentSuccessRate: point.agent_run_success_rate,
     networkRuns: point.network_runs,
@@ -548,6 +549,7 @@ export function adaptProjectOverview(overview: ProjectOverview): DashboardViewMo
   const issueSummary = [
     summary.failed_agent_runs > 0 ? `${formatInteger(summary.failed_agent_runs)} Agent Runs failed` : null,
     summary.timed_out_agent_runs > 0 ? `${formatInteger(summary.timed_out_agent_runs)} Agent Runs timed out` : null,
+    (summary.uncertain_agent_runs ?? 0) > 0 ? `${formatInteger(summary.uncertain_agent_runs ?? 0)} Agent Runs uncertain` : null,
     summary.failed_network_runs > 0 ? `${formatInteger(summary.failed_network_runs)} Network Runs failed` : null,
     summary.timed_out_network_runs > 0 ? `${formatInteger(summary.timed_out_network_runs)} Network Runs timed out` : null,
     summary.uncertain_network_runs > 0 ? `${formatInteger(summary.uncertain_network_runs)} Network Runs remain uncertain` : null,
@@ -555,7 +557,7 @@ export function adaptProjectOverview(overview: ProjectOverview): DashboardViewMo
 
   return {
     pricingWarning: pricingMissing > 0
-      ? 'Some Runs have no frozen Model pricing. Set both USD prices in Models → Pricing, then capture and deploy a new Candidate/Release. Historical Runs without prices remain unknown.'
+      ? 'Some Runs have no frozen Model pricing. Set both USD prices in Models → Pricing, save the Agent Draft to adopt the Model changes, then capture and deploy a new Candidate/Release. Historical Runs without prices remain unknown.'
       : null,
     narrative: buildNarrative(overview),
     metrics,
@@ -571,7 +573,7 @@ export function adaptProjectOverview(overview: ProjectOverview): DashboardViewMo
         completedWithIssues: summary.completed_with_issues_agent_runs,
         failed: summary.failed_agent_runs,
         timedOut: summary.timed_out_agent_runs,
-        uncertain: 0,
+        uncertain: summary.uncertain_agent_runs ?? 0,
         cancelled: summary.cancelled_agent_runs,
         running: summary.running_agent_runs,
         averageDurationLabel: formatLatency(summary.avg_agent_run_duration_ms),

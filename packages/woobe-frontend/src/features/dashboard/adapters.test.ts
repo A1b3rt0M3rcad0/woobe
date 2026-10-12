@@ -7,6 +7,19 @@ function cloneFixture() {
 }
 
 describe('adaptProjectOverview', () => {
+  it('includes terminal uncertain Runs in errors without inventing their cost', () => {
+    const fixture = cloneFixture()
+    Object.assign(fixture.summary, { agent_runs: 1, terminal_agent_runs: 1, successful_agent_runs: 0,
+      failed_agent_runs: 0, timed_out_agent_runs: 0, uncertain_agent_runs: 1,
+      agent_run_cost_usd: null, priced_agent_runs: 0, unknown_agent_run_cost_count: 1,
+      unknown_token_usage_agent_runs: 1 })
+    Object.assign(fixture.timeseries[0]!, { agent_run_failed: 0, agent_run_timed_out: 0, agent_run_uncertain: 1 })
+    const model = adaptProjectOverview(fixture)
+    expect(model.issues.totalAgentErrors).toBe(1)
+    expect(model.reliability.agent.uncertain).toBe(1)
+    expect(model.series[0]?.agentErrors).toBe(1)
+    expect(model.metrics.find((metric) => metric.label === 'Runtime Cost')?.value).toBe('Unknown')
+  })
   it('explains missing pricing separately from incomplete token usage', () => {
     const fixture = cloneFixture()
     fixture.summary.agent_run_cost_usd = null

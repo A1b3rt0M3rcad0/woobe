@@ -20,6 +20,7 @@ export interface ProjectOverviewSummary {
   completed_with_issues_agent_runs: number
   failed_agent_runs: number
   timed_out_agent_runs: number
+  uncertain_agent_runs?: number
   cancelled_agent_runs: number
   running_agent_runs: number
   agent_run_change_percent: number | null
@@ -65,6 +66,7 @@ export interface ProjectOverviewTimeseriesPoint {
   agent_run_completed_with_issues: number
   agent_run_failed: number
   agent_run_timed_out: number
+  agent_run_uncertain?: number
   agent_run_cancelled: number
   agent_run_running: number
   agent_run_success_rate: number | null

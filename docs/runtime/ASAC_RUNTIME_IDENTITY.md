@@ -43,13 +43,17 @@ coverage remains partial when any constituent is unpriced. Reads do not reprice
 or rewrite Runs or traces.
 An unfinished Network exposes only a current subtotal; running constituents are
 included in coverage and do not contribute a final price until terminal.
+Terminal `uncertain` Agent Runs are included in cost coverage and have their own
+reliability count. Missing usage in an uncertain outcome stays unknown; it is not
+reported as an empty period with zero runtime cost.
 
 `unknown_pricing_agent_runs` and `unknown_token_usage_agent_runs` distinguish
 missing frozen prices from incomplete provider usage in the Overview summary.
 Recent direct Runs expose `cost_status` and `cost_reason`. To resolve missing
 pricing for future Runs, open **Models → Model → Pricing**, configure both input
-and output USD rates per million tokens (zero is allowed), save, then capture,
-evaluate, publish and deploy a new Candidate/Release. Changing the Model alone
+and output USD rates per million tokens (zero is allowed), save the Model, then
+save/update the Agent Draft to adopt the changed ModelSpec before capturing,
+evaluating, publishing and deploying a new Candidate/Release. Changing the Model alone
 does not alter a previously published Release. Non-USD prices require explicit
 conversion outside runtime metering; Woobe does not assume an exchange rate.
 
