@@ -2550,11 +2550,23 @@ async def exercise_asac_deployments(cli, kind, resource_id, publication):
                     assert selected_spec["pricing"]["input_cost_per_1m_tokens"] == 1.0
                     overview = await cli.data("request", "GET", "/core/projects/" + cli.project_id + "/overview")
                     assert overview["summary"]["production_agents"] >= 1
+                    assert overview["summary"]["priced_agent_runs"] >= 1
+                    assert overview["summary"]["agent_run_cost_usd"] >= run.usage["cost_usd"]
+                    recent_run = next(row for row in overview["recent_traces"] if row["id"] == str(run.trace_id))
+                    assert recent_run["cost_known"] is True
+                    assert recent_run["cost_usd"] == pytest.approx(run.usage["cost_usd"], abs=1e-8)
                     assert any(row["id"] == publication["release_id"] and row["environment"] == environment for row in overview["recent_releases"])
                 else:
                     from modules.network.infra.database.models import NetworkExecutionModel
                     run=await session.get(NetworkExecutionModel,UUID(result["data"]["data"]["execution_id"]))
                     assert run and str(run.network_version_id)==publication["release_id"]
+                    overview = await cli.data("request", "GET", "/core/projects/" + cli.project_id + "/overview")
+                    network_cost = next(row for row in overview["recent_network_runs"] if row["id"] == str(run.id))
+                    assert network_cost["total_agent_runs"] >= 1
+                    assert overview["summary"]["network_agent_runs"] >= 1
+                    assert network_cost["priced_agent_runs"] == network_cost["total_agent_runs"]
+                    assert network_cost["cost_known"] is True
+                    assert network_cost["cost_usd"] > 0
         finally:
             await run_engine.dispose()
         exported=await cli.data("request","POST",f"/projects/{cli.project_id}/packages/export",

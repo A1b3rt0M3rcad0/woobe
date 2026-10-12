@@ -145,6 +145,7 @@ export interface DashboardOperationalIssues {
 }
 
 export interface DashboardViewModel {
+  pricingWarning: string | null
   narrative: string
   metrics: DashboardMetric[]
   series: DashboardSeriesPoint[]
@@ -221,7 +222,9 @@ export function formatLatency(value: number | null): string {
 }
 
 export function formatCost(value: number | null, known = true): string {
-  return value === null || !known ? 'Unknown' : currencyFormatter.format(value)
+  if (value === null || !known) return 'Unknown'
+  if (value > 0 && value < 0.0001) return '< $0.0001'
+  return currencyFormatter.format(value)
 }
 
 export function formatStorage(bytes: number): string {
@@ -305,6 +308,7 @@ function buildNarrative(overview: ProjectOverview): string {
   if (summary.network_run_success_rate !== null) reliability.push(`Network success ${formatPercent(summary.network_run_success_rate)}`)
   const totalErrors = summary.failed_agent_runs
     + summary.timed_out_agent_runs
+    + (summary.uncertain_agent_runs ?? 0)
     + summary.failed_network_runs
     + summary.timed_out_network_runs
     + summary.uncertain_network_runs
@@ -328,7 +332,9 @@ function agentRunRow(trace: ProjectOverviewTrace): DashboardRunRow {
     timeLabel: safeDateLabel(trace.started_at),
     durationLabel: formatLatency(trace.latency_ms),
     costLabel: formatCost(trace.cost_usd, trace.cost_known),
-    costDetail: null,
+    costDetail: trace.cost_known ? null : trace.cost_reason
+      ?? (trace.cost_status === 'unknown_pricing' ? 'Model pricing unavailable'
+        : trace.cost_status === 'unknown_tokens' ? 'Provider token usage incomplete' : null),
     startedAt: trace.started_at,
   }
 }
@@ -341,6 +347,8 @@ function networkRunRow(run: ProjectOverviewNetworkRun): DashboardRunRow {
       : 'Cost unavailable'
     : run.total_agent_runs === 0
       ? 'No Agent Runs recorded'
+      : hasKnownSubtotal && !run.cost_known
+        ? 'Current subtotal · Network Run not finalized'
       : null
   return {
     id: run.id,
@@ -378,11 +386,19 @@ function actionLabel(action: OverviewChangeAction): string {
 export function adaptProjectOverview(overview: ProjectOverview): DashboardViewModel {
   const summary = overview.summary
   const runChange = changeDetail(summary.agent_run_change_percent)
-  const totalAgentErrors = summary.failed_agent_runs + summary.timed_out_agent_runs
+  const totalAgentErrors = summary.failed_agent_runs + summary.timed_out_agent_runs + (summary.uncertain_agent_runs ?? 0)
   const totalNetworkErrors = summary.failed_network_runs + summary.timed_out_network_runs + summary.uncertain_network_runs
   const pricedPercent = summary.terminal_agent_runs > 0
     ? (summary.priced_agent_runs / summary.terminal_agent_runs) * 100
     : null
+  const pricingMissing = summary.unknown_pricing_agent_runs ?? 0
+  const tokensMissing = summary.unknown_token_usage_agent_runs ?? 0
+  const missingDetails = [
+    pricingMissing > 0 ? `${formatInteger(pricingMissing)} missing Model prices` : null,
+    tokensMissing > 0 ? `${formatInteger(tokensMissing)} incomplete token usage` : null,
+    summary.unknown_agent_run_cost_count > pricingMissing + tokensMissing
+      ? `${formatInteger(summary.unknown_agent_run_cost_count - pricingMissing - tokensMissing)} without cost evidence` : null,
+  ].filter(Boolean).join(' · ')
 
   const metrics: DashboardMetric[] = [
     {
@@ -407,7 +423,7 @@ export function adaptProjectOverview(overview: ProjectOverview): DashboardViewMo
       detail: pricedPercent === null
         ? 'No terminal Agent Runs'
         : summary.unknown_agent_run_cost_count > 0
-          ? `${formatPercent(pricedPercent)} priced · ${formatInteger(summary.unknown_agent_run_cost_count)} without cost data`
+          ? `${formatPercent(pricedPercent)} priced · ${missingDetails}`
           : 'All terminal Agent Runs priced',
       direction: 'neutral',
       icon: CircleDollarSign,
@@ -462,7 +478,7 @@ export function adaptProjectOverview(overview: ProjectOverview): DashboardViewMo
     bucketStart: point.bucket_start,
     agentRuns: point.agent_runs,
     agentSuccess: point.agent_run_success,
-    agentErrors: point.agent_run_failed + point.agent_run_timed_out,
+    agentErrors: point.agent_run_failed + point.agent_run_timed_out + (point.agent_run_uncertain ?? 0),
     agentRunning: point.agent_run_running,
     agentSuccessRate: point.agent_run_success_rate,
     networkRuns: point.network_runs,
@@ -535,12 +551,16 @@ export function adaptProjectOverview(overview: ProjectOverview): DashboardViewMo
   const issueSummary = [
     summary.failed_agent_runs > 0 ? `${formatInteger(summary.failed_agent_runs)} Agent Runs failed` : null,
     summary.timed_out_agent_runs > 0 ? `${formatInteger(summary.timed_out_agent_runs)} Agent Runs timed out` : null,
+    (summary.uncertain_agent_runs ?? 0) > 0 ? `${formatInteger(summary.uncertain_agent_runs ?? 0)} Agent Runs uncertain` : null,
     summary.failed_network_runs > 0 ? `${formatInteger(summary.failed_network_runs)} Network Runs failed` : null,
     summary.timed_out_network_runs > 0 ? `${formatInteger(summary.timed_out_network_runs)} Network Runs timed out` : null,
     summary.uncertain_network_runs > 0 ? `${formatInteger(summary.uncertain_network_runs)} Network Runs remain uncertain` : null,
   ].filter((value): value is string => Boolean(value))
 
   return {
+    pricingWarning: pricingMissing > 0
+      ? 'Some Runs have no frozen Model pricing. Set both USD prices in Models → Pricing, save the Agent Draft to adopt the Model changes, then capture and deploy a new Candidate/Release. Historical Runs without prices remain unknown.'
+      : null,
     narrative: buildNarrative(overview),
     metrics,
     series,
@@ -555,7 +575,7 @@ export function adaptProjectOverview(overview: ProjectOverview): DashboardViewMo
         completedWithIssues: summary.completed_with_issues_agent_runs,
         failed: summary.failed_agent_runs,
         timedOut: summary.timed_out_agent_runs,
-        uncertain: 0,
+        uncertain: summary.uncertain_agent_runs ?? 0,
         cancelled: summary.cancelled_agent_runs,
         running: summary.running_agent_runs,
         averageDurationLabel: formatLatency(summary.avg_agent_run_duration_ms),

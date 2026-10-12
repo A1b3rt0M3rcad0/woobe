@@ -56,6 +56,12 @@ def _compat_payload(run: AgentRun, event: DurableRunEvent) -> dict[str, Any]:
         "session_id": str(run.session_id) if run.session_id else None,
         **dict(event.metadata),
         **dict(event.payload),
+        # Durable causality is authoritative even when a journal payload omitted
+        # the compatibility dimensions used by observability and Overview.
+        "network_execution_id": str(run.network_execution_id) if run.network_execution_id else None,
+        "network_invocation_id": str(run.network_invocation_id) if run.network_invocation_id else None,
+        "execution_context": run.environment,
+        "run_source": run.origin,
         "journal_sequence": event.sequence,
         "storage_version": event.storage_version,
     }

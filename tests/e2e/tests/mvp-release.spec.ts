@@ -1,5 +1,6 @@
 import { expect, test, type Page, type Route } from '@playwright/test'
 import authorityFixture from '../fixtures/authority-categories.json'
+import { projectOverviewFixture } from '../../../packages/woobe-frontend/src/features/dashboard/fixtures'
 
 test.use({ timezoneId: 'America/Sao_Paulo', locale: 'en-US' })
 
@@ -156,6 +157,32 @@ async function login(page: Page) {
   await page.getByRole('button', { name: 'Sign in' }).click()
   await expect(page).toHaveURL(/\/workspaces\/workspace-a\/projects\/project-a|\/dashboard/)
 }
+
+test('Overview explains unpriced Runs and opens Model pricing configuration', async ({ page }) => {
+  await installApi(page)
+  const fixture = structuredClone(projectOverviewFixture)
+  Object.assign(fixture.summary, { terminal_agent_runs: 58, agent_run_cost_usd: null,
+    priced_agent_runs: 0, unknown_agent_run_cost_count: 58, unknown_pricing_agent_runs: 58 })
+  await page.route(`**/core/projects/${project.id}/overview*`, route => respond(route, fixture))
+  await login(page)
+  await page.goto(`/workspaces/${workspace.id}/projects/${project.id}`)
+  await expect(page.getByText('0% priced · 58 missing Model prices')).toBeVisible()
+  await expect(page.getByText(/Historical Runs without prices remain unknown/)).toBeVisible()
+  await page.getByRole('button', { name: 'Review Model pricing' }).click()
+  await expect(page).toHaveURL(/\/projects\/project-a\/models$/)
+})
+
+test('Overview preserves a genuinely priced zero cost', async ({ page }) => {
+  await installApi(page)
+  const fixture = structuredClone(projectOverviewFixture)
+  Object.assign(fixture.summary, { agent_run_cost_usd: 0, unknown_agent_run_cost_count: 0 })
+  await page.route(`**/core/projects/${project.id}/overview*`, route => respond(route, fixture))
+  await login(page)
+  await page.goto(`/workspaces/${workspace.id}/projects/${project.id}`)
+  await expect(page.getByText('All terminal Agent Runs priced')).toBeVisible()
+  await expect(page.getByText('$0.00', { exact: true }).first()).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Review Model pricing' })).toHaveCount(0)
+})
 
 test('bootstraps the first Woobe Core owner', async ({ page }) => {
   await installApi(page, { freshCore: true })

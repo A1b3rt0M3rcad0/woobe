@@ -982,7 +982,7 @@ export function ModelSettingsModal({
   const pricingContent = (
     <SectionBlock
       title="Pricing metadata"
-      description="Optional costs used for estimation and trace analysis. Pricing metadata does not control provider billing."
+      description="Set both USD prices to calculate runtime cost. Missing prices produce Unknown, not zero. Candidate/Release captures freeze these rates; deploy a new capture after changing them. These estimates do not control provider billing."
       density="compact"
     >
       <div className="grid gap-ui-md sm:grid-cols-2">

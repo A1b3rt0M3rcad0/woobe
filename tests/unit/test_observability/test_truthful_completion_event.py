@@ -55,8 +55,10 @@ def test_completion_event_payload_excludes_nested_execution_details() -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("event_type", ["agent.execution.completed.v1", "agent.execution.failed.v1"])
 async def test_journal_completion_projects_known_cost_from_nested_diagnostics(
     monkeypatch: pytest.MonkeyPatch,
+    event_type: str,
 ) -> None:
     trace_id = uuid4()
     project_id = uuid4()
@@ -94,12 +96,11 @@ async def test_journal_completion_projects_known_cost_from_nested_diagnostics(
     monkeypatch.setattr(projector, "_save_event", fake_save_event)
 
     await projector.project_agent_event(
-        event_type="agent.execution.completed.v1",
+        event_type=event_type,
         payload={
             "trace_id": str(trace_id),
             "project_id": str(project_id),
             "agent_id": str(agent_id),
-            "cost_usd": 0.001178,
             "usage": {"cost_usd": 0.001178},
             "diagnostics": {
                 "schema_version": 5,

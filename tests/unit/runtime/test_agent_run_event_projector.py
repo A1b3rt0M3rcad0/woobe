@@ -210,6 +210,23 @@ async def test_agent_projector_materializes_terminal_read_model_and_message_once
 
 
 @pytest.mark.anyio
+async def test_journal_outbox_retains_durable_network_and_environment_dimensions():
+    run, session = _run_fixture()
+    run.environment = "production"
+    run.network_execution_id = uuid4()
+    run.network_invocation_id = uuid4()
+    outbox = FakeOutbox()
+    projector = AgentRunEventProjector(FakeTransactions(
+        SimpleNamespace(runs=FakeRuns(run), messages=FakeMessages(), sessions=FakeSessions(session)), outbox))
+    await projector.project([completed_event(run, uuid4())])
+    completed = next(event for event in outbox.events if event.event_type == "agent.execution.completed.v1")
+    assert completed.payload["network_execution_id"] == str(run.network_execution_id)
+    assert completed.payload["network_invocation_id"] == str(run.network_invocation_id)
+    assert completed.payload["execution_context"] == "production"
+    assert completed.payload["run_source"] == run.origin
+
+
+@pytest.mark.anyio
 async def test_agent_projector_reuses_synchronously_materialized_assistant_message() -> None:
     run, session = _run_fixture()
     messages = FakeMessages()

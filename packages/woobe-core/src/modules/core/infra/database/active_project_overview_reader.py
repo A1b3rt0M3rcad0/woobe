@@ -75,6 +75,62 @@ class ActiveDocumentProjectOverviewReader(UnitOfWorkProjectOverviewReader):
     @staticmethod
     def _agent_run_context_cte() -> str:
         return """
+        recorded_agent_runs AS (
+            SELECT
+                run.trace_id AS id,
+                run.project_id,
+                run.agent_id,
+                run.network_execution_id,
+                run.status,
+                COALESCE(run.started_at, run.created_at) AS started_at,
+                run.created_at,
+                run.failure_detail AS error,
+                CASE
+                    WHEN jsonb_typeof(run.result -> 'diagnostics' -> 'agent_runtime_latency_ms') = 'number'
+                    THEN (run.result -> 'diagnostics' ->> 'agent_runtime_latency_ms')::double precision
+                    WHEN jsonb_typeof(run.result -> 'latency_ms') = 'number'
+                    THEN (run.result ->> 'latency_ms')::double precision
+                    ELSE EXTRACT(EPOCH FROM (run.completed_at - run.started_at)) * 1000
+                END AS total_latency_ms,
+                CASE
+                    WHEN jsonb_typeof(run.usage -> 'cost_usd') = 'number'
+                    THEN CASE
+                        WHEN (run.usage ->> 'cost_usd')::numeric >= 0
+                         AND COALESCE(
+                            run.result ->> 'cost_status',
+                            run.result -> 'diagnostics' ->> 'cost_status', 'known'
+                         ) = 'known'
+                        THEN (run.usage ->> 'cost_usd')::double precision
+                        ELSE NULL
+                    END
+                    ELSE NULL
+                END AS total_cost_usd,
+                COALESCE(run.result, '{}'::jsonb)
+                    || COALESCE(run.usage, '{}'::jsonb)
+                    || jsonb_build_object(
+                        'execution_context', run.environment,
+                        'run_source', run.origin,
+                        'failure_code', run.failure_code
+                    ) AS data,
+                run.environment AS recorded_environment
+            FROM agent.agent_runs AS run
+            WHERE run.project_id = :project_id
+
+            UNION ALL
+
+            SELECT
+                trace.id, trace.project_id, trace.agent_id,
+                trace.network_execution_id, trace.status, trace.started_at,
+                trace.created_at, trace.error, trace.total_latency_ms,
+                trace.total_cost_usd, trace.data, NULL::text AS recorded_environment
+            FROM observability.traces AS trace
+            WHERE trace.project_id = :project_id
+              AND NOT EXISTS (
+                SELECT 1 FROM agent.agent_runs AS run
+                WHERE run.project_id = trace.project_id
+                  AND run.trace_id = trace.id
+              )
+        ),
         current_agent_release AS (
             SELECT DISTINCT ON (release.agent_id)
                 release.agent_id,
@@ -97,6 +153,8 @@ class ActiveDocumentProjectOverviewReader(UnitOfWorkProjectOverviewReader):
                 trace.*,
                 agent.name AS agent_name,
                 CASE
+                    WHEN trace.recorded_environment IN ('draft', 'staging', 'production')
+                    THEN trace.recorded_environment
                     WHEN network_session.environment IN ('draft', 'staging', 'production')
                     THEN network_session.environment
                     WHEN COALESCE(
@@ -142,7 +200,7 @@ class ActiveDocumentProjectOverviewReader(UnitOfWorkProjectOverviewReader):
                             LIKE '%timeout%'
                     )
                 ) AS is_timeout
-            FROM observability.traces AS trace
+            FROM recorded_agent_runs AS trace
             LEFT JOIN agent.agents AS agent
               ON agent.id = trace.agent_id
              AND agent.project_id = trace.project_id
@@ -150,6 +208,7 @@ class ActiveDocumentProjectOverviewReader(UnitOfWorkProjectOverviewReader):
               ON current_agent_release.agent_id = trace.agent_id
             LEFT JOIN network.network_executions AS network_execution
               ON network_execution.id = trace.network_execution_id
+             AND network_execution.project_id = trace.project_id
             LEFT JOIN network.network_sessions AS network_session
               ON network_session.id = network_execution.network_session_id
             WHERE trace.project_id = :project_id
@@ -193,27 +252,38 @@ class ActiveDocumentProjectOverviewReader(UnitOfWorkProjectOverviewReader):
                 COUNT(*) FILTER (WHERE status = 'failed' AND NOT is_timeout) AS failed_agent_runs,
                 COUNT(*) FILTER (WHERE status = 'failed' AND is_timeout) AS timed_out_agent_runs,
                 COUNT(*) FILTER (WHERE status = 'cancelled') AS cancelled_agent_runs,
-                COUNT(*) FILTER (WHERE status IN ('completed', 'failed', 'cancelled')) AS terminal_agent_runs,
+                COUNT(*) FILTER (WHERE status = 'uncertain') AS uncertain_agent_runs,
+                COUNT(*) FILTER (WHERE status IN ('completed', 'failed', 'cancelled', 'uncertain')) AS terminal_agent_runs,
                 AVG(total_latency_ms) FILTER (
-                    WHERE status IN ('completed', 'failed', 'cancelled')
+                    WHERE status IN ('completed', 'failed', 'cancelled', 'uncertain')
                       AND total_latency_ms IS NOT NULL
                 ) AS avg_agent_run_duration_ms,
                 percentile_cont(0.95) WITHIN GROUP (ORDER BY total_latency_ms) FILTER (
-                    WHERE status IN ('completed', 'failed', 'cancelled')
+                    WHERE status IN ('completed', 'failed', 'cancelled', 'uncertain')
                       AND total_latency_ms IS NOT NULL
                 ) AS p95_agent_run_duration_ms,
                 SUM(total_cost_usd) FILTER (
-                    WHERE status IN ('completed', 'failed', 'cancelled')
+                    WHERE status IN ('completed', 'failed', 'cancelled', 'uncertain')
                       AND total_cost_usd IS NOT NULL
                 ) AS known_cost_usd,
                 COUNT(*) FILTER (
-                    WHERE status IN ('completed', 'failed', 'cancelled')
+                    WHERE status IN ('completed', 'failed', 'cancelled', 'uncertain')
                       AND total_cost_usd IS NOT NULL
                 ) AS priced_agent_runs,
                 COUNT(*) FILTER (
-                    WHERE status IN ('completed', 'failed', 'cancelled')
+                    WHERE status IN ('completed', 'failed', 'cancelled', 'uncertain')
                       AND total_cost_usd IS NULL
                 ) AS unknown_cost_count,
+                COUNT(*) FILTER (
+                    WHERE status IN ('completed', 'failed', 'cancelled', 'uncertain')
+                      AND total_cost_usd IS NULL
+                      AND COALESCE(data ->> 'cost_status', data -> 'diagnostics' ->> 'cost_status') = 'unknown_pricing'
+                ) AS unknown_pricing_agent_runs,
+                COUNT(*) FILTER (
+                    WHERE status IN ('completed', 'failed', 'cancelled', 'uncertain')
+                      AND total_cost_usd IS NULL
+                      AND COALESCE(data ->> 'cost_status', data -> 'diagnostics' ->> 'cost_status') = 'unknown_tokens'
+                ) AS unknown_token_usage_agent_runs,
                 (SELECT COUNT(*) FROM previous_runs) AS previous_agent_runs
             FROM current_runs
             """
@@ -225,6 +295,7 @@ class ActiveDocumentProjectOverviewReader(UnitOfWorkProjectOverviewReader):
         successful = int(row["successful_agent_runs"] or 0)
         failed = int(row["failed_agent_runs"] or 0)
         timed_out = int(row["timed_out_agent_runs"] or 0)
+        uncertain = int(row["uncertain_agent_runs"] or 0)
         priced = int(row["priced_agent_runs"] or 0)
         unknown = int(row["unknown_cost_count"] or 0)
 
@@ -244,7 +315,7 @@ class ActiveDocumentProjectOverviewReader(UnitOfWorkProjectOverviewReader):
 
         success_rate = round((successful / terminal) * 100, 2) if terminal else None
         error_rate = (
-            round(((failed + timed_out) / terminal) * 100, 2)
+            round(((failed + timed_out + uncertain) / terminal) * 100, 2)
             if terminal
             else None
         )
@@ -258,6 +329,7 @@ class ActiveDocumentProjectOverviewReader(UnitOfWorkProjectOverviewReader):
             "completed_with_issues_agent_runs": 0,
             "failed_agent_runs": failed,
             "timed_out_agent_runs": timed_out,
+            "uncertain_agent_runs": uncertain,
             "cancelled_agent_runs": int(row["cancelled_agent_runs"] or 0),
             "running_agent_runs": int(row["running_agent_runs"] or 0),
             "agent_run_change_percent": change,
@@ -272,13 +344,15 @@ class ActiveDocumentProjectOverviewReader(UnitOfWorkProjectOverviewReader):
             "agent_run_cost_usd": cost,
             "priced_agent_runs": priced,
             "unknown_agent_run_cost_count": unknown,
+            "unknown_pricing_agent_runs": int(row["unknown_pricing_agent_runs"] or 0),
+            "unknown_token_usage_agent_runs": int(row["unknown_token_usage_agent_runs"] or 0),
             # Transitional compatibility.
             "requests": total,
             "request_change_percent": change,
             "avg_latency_ms": self._rounded(row["avg_agent_run_duration_ms"]),
             "p95_latency_ms": self._rounded(row["p95_agent_run_duration_ms"]),
             "success_rate": success_rate,
-            "failed_requests": failed + timed_out,
+            "failed_requests": failed + timed_out + uncertain,
             "cost_usd": cost,
             "unknown_cost_count": unknown,
         }
@@ -416,14 +490,15 @@ class ActiveDocumentProjectOverviewReader(UnitOfWorkProjectOverviewReader):
                     COUNT(*) FILTER (WHERE status = 'failed' AND NOT is_timeout) AS agent_run_failed,
                     COUNT(*) FILTER (WHERE status = 'failed' AND is_timeout) AS agent_run_timed_out,
                     COUNT(*) FILTER (WHERE status = 'cancelled') AS agent_run_cancelled,
+                    COUNT(*) FILTER (WHERE status = 'uncertain') AS agent_run_uncertain,
                     COUNT(*) FILTER (WHERE status IN ('pending', 'queued', 'running', 'processing')) AS agent_run_running,
-                    COUNT(*) FILTER (WHERE status IN ('completed', 'failed', 'cancelled')) AS terminal_agent_runs,
+                    COUNT(*) FILTER (WHERE status IN ('completed', 'failed', 'cancelled', 'uncertain')) AS terminal_agent_runs,
                     AVG(total_latency_ms) FILTER (
-                        WHERE status IN ('completed', 'failed', 'cancelled')
+                        WHERE status IN ('completed', 'failed', 'cancelled', 'uncertain')
                           AND total_latency_ms IS NOT NULL
                     ) AS avg_agent_run_duration_ms,
                     percentile_cont(0.95) WITHIN GROUP (ORDER BY total_latency_ms) FILTER (
-                        WHERE status IN ('completed', 'failed', 'cancelled')
+                        WHERE status IN ('completed', 'failed', 'cancelled', 'uncertain')
                           AND total_latency_ms IS NOT NULL
                     ) AS p95_agent_run_duration_ms,
                     SUM(
@@ -441,15 +516,15 @@ class ActiveDocumentProjectOverviewReader(UnitOfWorkProjectOverviewReader):
                         END
                     ) AS output_tokens,
                     SUM(total_cost_usd) FILTER (
-                        WHERE status IN ('completed', 'failed', 'cancelled')
+                        WHERE status IN ('completed', 'failed', 'cancelled', 'uncertain')
                           AND total_cost_usd IS NOT NULL
                     ) AS known_cost_usd,
                     COUNT(*) FILTER (
-                        WHERE status IN ('completed', 'failed', 'cancelled')
+                        WHERE status IN ('completed', 'failed', 'cancelled', 'uncertain')
                           AND total_cost_usd IS NOT NULL
                     ) AS known_cost_count,
                     COUNT(*) FILTER (
-                        WHERE status IN ('completed', 'failed', 'cancelled')
+                        WHERE status IN ('completed', 'failed', 'cancelled', 'uncertain')
                           AND total_cost_usd IS NULL
                     ) AS unknown_cost_count
                 FROM agent_run_context
@@ -512,6 +587,7 @@ class ActiveDocumentProjectOverviewReader(UnitOfWorkProjectOverviewReader):
                 COALESCE(agent_buckets.agent_run_failed, 0) AS agent_run_failed,
                 COALESCE(agent_buckets.agent_run_timed_out, 0) AS agent_run_timed_out,
                 COALESCE(agent_buckets.agent_run_cancelled, 0) AS agent_run_cancelled,
+                COALESCE(agent_buckets.agent_run_uncertain, 0) AS agent_run_uncertain,
                 COALESCE(agent_buckets.agent_run_running, 0) AS agent_run_running,
                 COALESCE(agent_buckets.terminal_agent_runs, 0) AS terminal_agent_runs,
                 agent_buckets.avg_agent_run_duration_ms,
@@ -565,6 +641,7 @@ class ActiveDocumentProjectOverviewReader(UnitOfWorkProjectOverviewReader):
                     "agent_run_failed": agent_failed,
                     "agent_run_timed_out": agent_timed_out,
                     "agent_run_cancelled": int(row["agent_run_cancelled"] or 0),
+                    "agent_run_uncertain": int(row["agent_run_uncertain"] or 0),
                     "agent_run_running": int(row["agent_run_running"] or 0),
                     "agent_run_success_rate": (
                         round((agent_success / agent_terminal) * 100, 2)
@@ -606,7 +683,7 @@ class ActiveDocumentProjectOverviewReader(UnitOfWorkProjectOverviewReader):
                     # Transitional compatibility.
                     "requests": agent_runs,
                     "success": agent_success,
-                    "failed": agent_failed + agent_timed_out,
+                    "failed": agent_failed + agent_timed_out + int(row["agent_run_uncertain"] or 0),
                     "avg_latency_ms": self._rounded(
                         row["avg_agent_run_duration_ms"]
                     ),
@@ -715,12 +792,18 @@ class ActiveDocumentProjectOverviewReader(UnitOfWorkProjectOverviewReader):
                 END AS total_tokens,
                 total_cost_usd AS cost_usd,
                 total_cost_usd IS NOT NULL AS cost_known,
+                CASE WHEN total_cost_usd IS NOT NULL THEN 'known'
+                    ELSE COALESCE(NULLIF(COALESCE(data ->> 'cost_status', data -> 'diagnostics' ->> 'cost_status'), 'known'), 'unknown')
+                END AS cost_status,
+                CASE WHEN total_cost_usd IS NULL
+                    THEN COALESCE(data ->> 'cost_reason', data -> 'diagnostics' ->> 'cost_reason')
+                END AS cost_reason,
                 started_at
             FROM agent_run_context
             WHERE network_execution_id IS NULL
               AND started_at >= :start
               AND started_at < :end
-              AND status IN ('completed', 'failed', 'cancelled')
+              AND status IN ('completed', 'failed', 'cancelled', 'uncertain')
               AND (
                 :environment = 'all'
                 OR run_environment = :environment
@@ -740,8 +823,8 @@ class ActiveDocumentProjectOverviewReader(UnitOfWorkProjectOverviewReader):
         params: dict[str, Any],
     ) -> list[dict[str, Any]]:
         statement = text(
-            """
-            WITH selected_runs AS (
+            f"""
+            WITH {self._agent_run_context_cte()}, selected_runs AS (
                 SELECT
                     execution.id,
                     execution.network_id,
@@ -772,14 +855,17 @@ class ActiveDocumentProjectOverviewReader(UnitOfWorkProjectOverviewReader):
                     selected_runs.id AS network_execution_id,
                     COUNT(trace.id) AS total_agent_runs,
                     COUNT(trace.id) FILTER (
-                        WHERE trace.total_cost_usd IS NOT NULL
+                        WHERE trace.status IN ('completed', 'failed', 'cancelled', 'uncertain')
+                          AND trace.total_cost_usd IS NOT NULL
                     ) AS priced_agent_runs,
                     SUM(trace.total_cost_usd) FILTER (
-                        WHERE trace.total_cost_usd IS NOT NULL
+                        WHERE trace.status IN ('completed', 'failed', 'cancelled', 'uncertain')
+                          AND trace.total_cost_usd IS NOT NULL
                     ) AS known_cost_usd
                 FROM selected_runs
-                LEFT JOIN observability.traces AS trace
+                LEFT JOIN agent_run_context AS trace
                   ON trace.network_execution_id = selected_runs.id
+                 AND trace.project_id = :project_id
                 GROUP BY selected_runs.id
             )
             SELECT
@@ -805,6 +891,7 @@ class ActiveDocumentProjectOverviewReader(UnitOfWorkProjectOverviewReader):
                 (
                     execution_costs.total_agent_runs > 0
                     AND execution_costs.total_agent_runs = execution_costs.priced_agent_runs
+                    AND selected_runs.status IN ('completed', 'failed', 'timed_out', 'uncertain', 'cancelled')
                 ) AS cost_known,
                 COALESCE(execution_costs.priced_agent_runs, 0) AS priced_agent_runs,
                 COALESCE(execution_costs.total_agent_runs, 0) AS total_agent_runs,
@@ -850,6 +937,10 @@ class ActiveDocumentProjectOverviewReader(UnitOfWorkProjectOverviewReader):
                     COALESCE(agent_name, 'Unknown Agent') AS name,
                     CASE
                         WHEN is_timeout THEN 'timeout'
+                        WHEN status = 'uncertain' THEN COALESCE(
+                            NULLIF(data ->> 'failure_code', ''),
+                            'agent_execution_uncertain'
+                        )
                         ELSE COALESCE(
                             NULLIF(data ->> 'failure_code', ''),
                             NULLIF(data ->> 'error_code', ''),
@@ -858,7 +949,7 @@ class ActiveDocumentProjectOverviewReader(UnitOfWorkProjectOverviewReader):
                     END AS failure_code,
                     date_trunc(:bucket, started_at, 'UTC') AS bucket_start
                 FROM agent_run_context
-                WHERE status = 'failed'
+                WHERE status IN ('failed', 'uncertain')
                   AND started_at >= :start
                   AND started_at < :end
                   AND (

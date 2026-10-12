@@ -20,6 +20,7 @@ export interface ProjectOverviewSummary {
   completed_with_issues_agent_runs: number
   failed_agent_runs: number
   timed_out_agent_runs: number
+  uncertain_agent_runs?: number
   cancelled_agent_runs: number
   running_agent_runs: number
   agent_run_change_percent: number | null
@@ -30,6 +31,8 @@ export interface ProjectOverviewSummary {
   agent_run_cost_usd: number | null
   priced_agent_runs: number
   unknown_agent_run_cost_count: number
+  unknown_pricing_agent_runs?: number
+  unknown_token_usage_agent_runs?: number
 
   network_runs: number
   terminal_network_runs: number
@@ -63,6 +66,7 @@ export interface ProjectOverviewTimeseriesPoint {
   agent_run_completed_with_issues: number
   agent_run_failed: number
   agent_run_timed_out: number
+  agent_run_uncertain?: number
   agent_run_cancelled: number
   agent_run_running: number
   agent_run_success_rate: number | null
@@ -144,6 +148,8 @@ export interface ProjectOverviewTrace {
   total_tokens: number | null
   cost_usd: number | null
   cost_known: boolean
+  cost_status?: string
+  cost_reason?: string | null
   started_at: string | null
 }
 
