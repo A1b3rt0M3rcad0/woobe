@@ -27,8 +27,8 @@ This is the publication gate for changing `A1b3rt0M3rcad0/woobe` from **private*
 2. De-register the personal runners and stop their services. Verify no job still selects a self-hosted label.
 3. Complete historic-secrets/Actions-log and license reviews; set repository security, Actions policy and release permissions.
 4. Change visibility to public only after the gate is satisfied. Making a repository private again does not erase copies or forks.
-5. Check pending PR runs, GHCR package visibility and anonymous pulls. Confirm automatic releases remain reproducible.
+5. Check pending PR runs, GHCR package visibility and anonymous pulls. Confirm manually dispatched releases calculate SemVer and publish reproducibly.
 
-**Do not merge this migration directly into `master` without reviewing its hosted CI results.** Woobe intentionally starts an automatic version/release transaction when an ordinary PR is merged into `master`, and the release orchestrator must not publish if required CI is missing or failing.
+**Do not merge this migration directly into `master` without reviewing its hosted CI results.** Woobe only starts a platform release when a maintainer manually dispatches **Release Woobe** from `master`; the orchestrator must not publish if required CI is missing or failing.
 
 Official references: [GitHub-hosted runners](https://docs.github.com/en/actions/reference/runners/github-hosted-runners), [Actions security](https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions), [visibility changes](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/managing-repository-settings/setting-repository-visibility).

@@ -4,13 +4,13 @@ This document is the canonical release procedure for Woobe. It applies to the fi
 
 A release is an immutable, reviewed state of the Woobe repository identified by a Semantic Version and a Git tag. Development continues on `master` after a release is published; published tags are never moved to follow `master`.
 
-## Automatic publication
+## Manual publication with automatic versioning
 
-Merging a normal development PR into `master` starts **Release Woobe** (`prepare-release.yml`). The workflow calculates the next version, opens or resumes a narrow version-synchronization PR, waits for all eight required CI workflows on its exact HEAD, merges it and publishes the validated artifacts. Developers do not edit package versions or create release tags by hand.
+Merging a normal development PR into `master` **does not publish a release**. An authorized maintainer starts **Actions → Release Woobe → Run workflow** (`prepare-release.yml`) on `master`. With the `version` field empty, the workflow calculates the next Semantic Version from all reviewed commits since the latest published tag. It opens or resumes a narrow version-synchronization PR, waits for all eight required CI workflows on the exact HEAD, merges that release PR and publishes the validated artifacts. Developers do not edit package versions or create release tags by hand.
 
 The published packages are the existing GHCR images `woobe-api`, `woobe-workers`, `woobe-frontend` and `woobe-embed`, each for `linux/amd64` and `linux/arm64`. The immutable `v<VERSION>` Git tag and GitHub Release identify the same release revision; `release-manifest.json` records all four image digests. This workflow does not add npm or PyPI publication.
 
-To retry or publish intentionally, open **Actions → Release Woobe → Run workflow**, select `master` and leave `version` empty for automatic selection/recovery. An explicit version remains available for recovery, prereleases and reviewed overrides. Publication succeeds only after the entire validation and promotion transaction succeeds.
+To publish or retry an interrupted release, open **Actions → Release Woobe → Run workflow**, select `master` and **leave `version` empty**. An explicit version is optional and reserved for recovery, prereleases or a reviewed override. The workflow does not run on push or merge; publication succeeds only after the entire validation and promotion transaction succeeds.
 
 ## Publication runners
 
@@ -107,7 +107,7 @@ After the release is complete, delete the release branch. The Git tag is the per
 
 ## 1. Select the release version
 
-Normally the identity job selects the version automatically from reviewed `master` history and published release metadata. It prioritizes an unfinished release over reserving a new version, resumes a single existing release PR, and skips superseded push events or source revisions already included in the latest publication. A skip is reported as a skip, never as a new publication.
+Normally the identity job selects the version automatically from reviewed `master` history and published release metadata. It prioritizes an unfinished release over reserving a new version, resumes a single existing release PR, and skips dispatches whose source revision is already included in the latest publication. A skip is reported as a skip, never as a new publication.
 
 The identity job fails on GitHub authentication/metadata errors, ambiguous open release PRs, inconsistent tag/VERSION identity or a canonical version older than the latest publication. It never treats an API failure as an absent release.
 
@@ -121,10 +121,10 @@ Never perform a repository-wide replacement of the old platform version.
 
 `VERSION` at the repository root is the canonical Woobe platform version. The automatic identity job chooses the target; the release PR synchronizes this file and all release-bearing manifests, lockfile version metadata and runtime version mirrors together.
 
-The normal release path is the **Release Woobe** GitHub Action started by a `master` push after a reviewed development merge. A manual dispatch from `master` follows the same gates.
+The only publication trigger is a **manual dispatch** of **Release Woobe** from `master`. Merges and pushes to `master` never start a platform release. The version is inferred automatically unless a maintainer explicitly specifies an override.
 
-1. Merge a reviewed development PR into `master`, or open **Actions → Release Woobe → Run workflow**.
-2. Automatic selection is the default. For an override/recovery, enter the Semantic Version without `v`.
+1. After the desired development PRs are merged into `master`, open **Actions → Release Woobe → Run workflow** and select `master`.
+2. Leave `version` blank for the automatic next version (recommended). For an exceptional override/recovery, enter the exact Semantic Version without `v`.
 3. The workflow validates strict Semantic Version syntax, recovers existing publications idempotently, and requires new releases to advance beyond published versions and canonical `VERSION`. The optional `allow_initial_version_rebase` input exists only for an explicit first-ever published release whose chosen public version is lower than a pre-release development version.
 4. If `VERSION` already equals the requested version on `master` and no GitHub Release exists, the workflow enters post-merge recovery mode instead of trying to recreate the release PR. It resolves the exact historical merge commit of the merged `release/<VERSION>` PR (or, as a fallback, the existing immutable `v<VERSION>` tag) so later `master` commits cannot silently change the release revision. Any existing `v<VERSION>` tag must point to that recovered revision.
 5. Otherwise, if `release/<VERSION>` already has an open PR targeting `master`, the workflow resumes that PR without rewriting the branch or creating another PR. An unrelated/orphan branch remains blocking.
@@ -144,13 +144,13 @@ The normal release path is the **Release Woobe** GitHub Action started by a `mas
 19. Only after post-publish smoke succeeds does the publisher create or verify the immutable Git tag `v<VERSION>` on the exact release revision. It then creates/repairs the GitHub Release, attaches the permanent `release-manifest.json`, and removes the release branch.
 20. **Release Woobe reports success only after all upstream CI, candidate validation, all-target registry preflight, digest promotion, post-publish smoke, immutable Git tagging and GitHub Release creation have succeeded.** Reusable-workflow failure/cancellation propagates to the parent.
 
-The candidate workflow keeps an optional manual `workflow_dispatch` entrypoint for diagnostics/revalidation. Publication is callable only by the parent through `workflow_call`; it cannot be started directly or by a tag push. These child workflows are not triggered by `master` or `v*` pushes; only the parent has the `master` push trigger. This removes the former race and prevents bypassing the successful candidate gate.
+The candidate workflow keeps an optional manual `workflow_dispatch` entrypoint for diagnostics/revalidation. Publication is callable only by the parent through `workflow_call`; it cannot be started directly or by a tag push. Neither the parent nor the child publication workflows run on `master` or `v*` pushes. The parent is manually dispatched; children run only within that gated orchestration (except the candidate's diagnostic dispatch). This prevents accidental publication on development merges or bypassing the successful candidate gate.
 
 Release-child concurrency is serialized without cancellation. A second invocation for the same release SHA/version must wait; it must never cancel an in-progress candidate smoke or partial publication. External registry reads use bounded retries with explicit image/ref diagnostics.
 
 For automatic PR creation and merge, enable **Settings -> Actions -> General -> Workflow permissions -> Allow GitHub Actions to create and approve pull requests**. With the default `GITHUB_TOKEN`, GitHub can place pull-request workflow runs in an approval-required state; the orchestrator waits for approval rather than treating `action_required` as test success or failure.
 
-The default `GITHUB_TOKEN` has Actions write permission so the orchestrator can dispatch required workflows when bot-created PRs do not trigger them. Normal Actions approval rules still apply. An additional token is optional, not a prerequisite when repository permissions allow PR creation. For normal push/PR event propagation, configure the repository secret `WOOBE_RELEASE_TOKEN` with a GitHub App installation token or personal access token with Contents, Pull requests and Actions write access. The workflow uses it consistently for Git checkout/push and GitHub CLI operations.
+The default `GITHUB_TOKEN` has Actions write permission so the orchestrator can dispatch required workflows when bot-created PRs do not trigger them. Normal Actions approval rules still apply. An additional token is optional, not a prerequisite when repository permissions allow PR creation. For bot-created release PR events to propagate automatically, configure the repository secret `WOOBE_RELEASE_TOKEN` with a GitHub App installation token or personal access token with Contents, Pull requests and Actions write access. The workflow uses it consistently for Git checkout/push and GitHub CLI operations.
 
 `master` should also be protected at the GitHub repository level so direct pushes cannot bypass the PR/check contract. The release workflow performs a repository-policy preflight and emits a warning when GitHub reports `master` as unprotected. Repository protection is an account/repository setting, not something the source-controlled workflow can enable for itself.
 
@@ -632,7 +632,7 @@ Recovery rules:
 - **After merge but before GitHub Release:** run **Release Woobe** again with an empty version or the same explicit version. It resolves the historical merge commit of `release/<VERSION>`, reuses only candidates whose identity is valid, and resumes finalization.
 - **After GitHub Release exists:** if `release-manifest.json` is present, a retry verifies the immutable tag, manifest, all four versioned registry digests, architectures and OCI labels, and completes pending release-branch cleanup. If the GitHub Release exists but the permanent manifest is missing, the release is treated as incomplete and normal candidate/publication finalization resumes to repair the release record.
 - **Concurrent higher-impact work:** automatic coverage validation blocks an insufficient release target before merge. Inspect the open release PR, close the obsolete PR and remove its unmerged release branch before retrying automatic calculation, or select a reviewed higher explicit target after resolving the obsolete branch. Do not bypass the CI gate or move existing tags.
-- **New work during post-merge recovery:** finish the original immutable revision first. After recovery succeeds, dispatch with an empty version to publish remaining `master` changes. A queued newest push can also start that next transaction. The workflow serializes releases without cancellation and may batch multiple development merges into one release.
+- **New work during post-merge recovery:** finish the original immutable revision first. After recovery succeeds, dispatch with an empty version to publish remaining `master` changes. No newer release is started until another manual dispatch. The workflow serializes releases without cancellation and may batch multiple development merges into one release.
 - Manual `release-candidate.yml` remains available for candidate diagnostics/revalidation.
 - `release.yml` has no manual dispatch entrypoint; publication authority comes only from the successful parent/candidate reusable-workflow chain.
 - Never move/reuse a published Git tag or overwrite a versioned GHCR image with different bytes.

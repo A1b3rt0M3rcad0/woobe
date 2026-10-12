@@ -233,6 +233,45 @@ class ReleaseGateTests(unittest.TestCase):
                 capture=False,
             )
 
+    def test_release_branch_refresh_uses_scoped_git_bot_identity(self):
+        commands = []
+
+        def execute(args, **kwargs):
+            commands.append(args)
+            return SimpleNamespace(
+                returncode=1 if args[:3] == ["git", "merge-base", "--is-ancestor"] else 0,
+                stdout="",
+            )
+
+        with (
+            patch.object(gate, "run", side_effect=execute),
+            patch.object(
+                gate, "git_output", side_effect=["new-master", "old-release", "merged-head"]
+            ),
+            patch.object(gate.Path, "read_text", return_value="0.12.0"),
+        ):
+            refreshed_head, changed = gate.refresh_from_master_if_needed(
+                REPO, 166, BRANCH, "0.12.0"
+            )
+
+        self.assertTrue(changed)
+        self.assertEqual(refreshed_head, "merged-head")
+        self.assertIn(
+            [
+                "git",
+                "-c",
+                "user.name=github-actions[bot]",
+                "-c",
+                "user.email=41898282+github-actions[bot]@users.noreply.github.com",
+                "merge",
+                "--no-edit",
+                "origin/master",
+            ],
+            commands,
+        )
+        self.assertNotIn(["git", "merge", "--no-edit", "origin/master"], commands)
+        self.assertIn(["git", "push", "origin", BRANCH], commands)
+
     def test_head_changed_during_final_fetch_is_validated_before_merge(self):
         new_head = "concurrent-head"
         args = SimpleNamespace(

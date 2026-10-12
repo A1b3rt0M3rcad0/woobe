@@ -187,8 +187,21 @@ def refresh_from_master_if_needed(
         f"master advanced to {master_sha}; refreshing {branch} and requiring a new CI pass."
     )
     run(["git", "checkout", "-B", branch, f"origin/{branch}"], capture=False)
+    # GitHub-hosted runners have no persisted committer identity. Scope the
+    # release bot identity to this merge, without mutating global Git config.
     merge = run(
-        ["git", "merge", "--no-edit", "origin/master"], check=False, capture=False
+        [
+            "git",
+            "-c",
+            "user.name=github-actions[bot]",
+            "-c",
+            "user.email=41898282+github-actions[bot]@users.noreply.github.com",
+            "merge",
+            "--no-edit",
+            "origin/master",
+        ],
+        check=False,
+        capture=False,
     )
     if merge.returncode != 0:
         run(["git", "merge", "--abort"], check=False, capture=False)

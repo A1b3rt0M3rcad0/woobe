@@ -85,7 +85,7 @@ For public exposure, TLS, secrets, backup, restore and upgrade requirements, see
 
 ## Platform releases
 
-Merging a reviewed PR into `master` starts **Release Woobe** automatically on isolated GitHub-hosted Ubuntu 24.04 runners, the same platform used by CI. It calculates the Semantic Version from Conventional Commits, synchronizes platform versions through a CI-validated release PR, then publishes an immutable Git tag, [GitHub Release](https://github.com/A1b3rt0M3rcad0/woobe/releases) and the four GHCR packages: `woobe-api`, `woobe-workers`, `woobe-frontend` and `woobe-embed` for amd64 and arm64.
+Merging a reviewed PR into `master` does **not** publish a platform release. To release, start **Actions → Release Woobe → Run workflow** on `master` and leave `version` blank. The workflow calculates SemVer from commits since the last publication, synchronizes versions through a CI-validated release PR, then publishes an immutable Git tag, [GitHub Release](https://github.com/A1b3rt0M3rcad0/woobe/releases) and the four GHCR packages: `woobe-api`, `woobe-workers`, `woobe-frontend` and `woobe-embed` for amd64 and arm64.
 
 Developers do not bump manifests or create tags manually. See [the release procedure](RELEASING.md) for version rules, repository permissions and recovery.
 
