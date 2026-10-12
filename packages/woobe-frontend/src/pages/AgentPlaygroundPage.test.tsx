@@ -16,6 +16,7 @@ const fixture = vi.hoisted(() => ({
 }))
 vi.mock('react-router-dom', () => ({ useParams: () => ({ projectId: 'project-1', agentId: 'agent-1' }), useNavigate: () => vi.fn() }))
 vi.mock('@tanstack/react-query', () => ({ useQueryClient: () => fixture.queryClient }))
+vi.mock('@/features/asac/environmentSelection', () => ({ useSelectedAgentEnvironment: () => ({ state: 'empty', snapshot: null, snapshotId: null, detailState: 'loading' }), selectionMessage: () => 'No deployment' }))
 vi.mock('sonner', () => ({ toast: fixture.toast }))
 vi.mock('@/features/agents/hooks', () => ({
   useAgent: () => ({ data: fixture.agent }),

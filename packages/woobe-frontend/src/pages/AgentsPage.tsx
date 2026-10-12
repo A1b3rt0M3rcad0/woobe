@@ -1,3 +1,4 @@
+import { useEnvironmentSelection } from '@/features/asac/environmentSelection'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Bot, Plus } from 'lucide-react'
@@ -17,7 +18,7 @@ import {
 } from '@/components/common/ResourcePage'
 import { StatusBadge } from '@/components/common/StatusBadge'
 import { CreateAgentFlowModal } from '@/features/agents/components/CreateAgentFlowModal'
-import { useAgentRuntimeEnvironments, useAgents, useReleases } from '@/features/agents/hooks'
+import { useAgentRuntimeEnvironments, useAgents } from '@/features/agents/hooks'
 import type { Agent } from '@/features/agents/types'
 import { workspaceProjectPath } from '@/lib/constants/routes'
 
@@ -45,13 +46,10 @@ function AgentOperationalCard({
   onOpen: () => void
 }) {
   const runtimeQuery = useAgentRuntimeEnvironments(agent.id, projectId)
-  const releasesQuery = useReleases(agent.id)
-  const runtimeStates = runtimeQuery.data ?? agent.runtime_environments
-  const releases = releasesQuery.data ?? []
-  const hasStaging = releases.some((release) => release.status === 'staging')
-  const hasProduction = releases.some((release) => release.status === 'production')
-  const runtimeUnknown = runtimeQuery.isError && !runtimeStates
-  const releasesUnknown = releasesQuery.isError
+  const staging = useEnvironmentSelection(projectId, 'Agent', agent.id, 'staging')
+  const production = useEnvironmentSelection(projectId, 'Agent', agent.id, 'production')
+  const runtimeStates = runtimeQuery.isError ? undefined : runtimeQuery.data
+  const runtimeUnknown = runtimeQuery.isError || (!runtimeQuery.isLoading && !runtimeStates)
   const status = agent.status?.toLowerCase()
 
   return (
@@ -73,16 +71,16 @@ function AgentOperationalCard({
           <RuntimeEnvironmentPill
             environment="staging"
             enabled={runtimeStates?.staging.enabled}
-            available={hasStaging}
-            loading={releasesQuery.isLoading || (runtimeQuery.isLoading && !runtimeStates)}
-            unknown={releasesUnknown || runtimeUnknown}
+            available={staging.state === 'selected'}
+            loading={staging.state === 'loading' || runtimeQuery.isLoading}
+            unknown={staging.state === 'unknown' || (staging.state === 'selected' && runtimeUnknown)}
           />
           <RuntimeEnvironmentPill
             environment="production"
             enabled={runtimeStates?.production.enabled}
-            available={hasProduction}
-            loading={releasesQuery.isLoading || (runtimeQuery.isLoading && !runtimeStates)}
-            unknown={releasesUnknown || runtimeUnknown}
+            available={production.state === 'selected'}
+            loading={production.state === 'loading' || runtimeQuery.isLoading}
+            unknown={production.state === 'unknown' || (production.state === 'selected' && runtimeUnknown)}
           />
         </>
       )}

@@ -39,3 +39,7 @@ Thumbs.db
 # Deployment environment files
 .env*
 !.env.example
+
+# Local browser qualification evidence
+tests/e2e/test-results/
+tests/e2e/playwright-report/

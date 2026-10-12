@@ -344,5 +344,17 @@ class FrozenSnapshotStructuredOutputRuntime(TransactionBoundedStructuredOutputRu
                 settings["knowledge_version_id"] = str(knowledge_version_id)
             else:
                 settings.pop("knowledge_version_id", None)
+        for prefix in ("", "fallback_"):
+            field = prefix + "model_spec_snapshot"
+            if field not in snapshot:
+                continue
+            settings.pop(prefix + "model_pricing", None)
+            settings.pop(prefix + "model_pricing_frozen", None)
+            if isinstance(snapshot[field], dict):
+                settings[prefix + "model_spec"] = deepcopy(snapshot[field])
+                settings[prefix + "model_spec_frozen"] = True
+            else:
+                settings.pop(prefix + "model_spec", None)
+                settings.pop(prefix + "model_spec_frozen", None)
         agent.settings = settings
         return agent

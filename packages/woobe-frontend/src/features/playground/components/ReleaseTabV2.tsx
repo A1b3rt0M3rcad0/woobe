@@ -1,3 +1,5 @@
+import { useSelectedAgentEnvironment } from '@/features/asac/environmentSelection'
+import { EnvironmentSelectionNotice } from '@/features/asac/EnvironmentSelectionNotice'
 import { useMemo, useState } from 'react'
 import { ArrowRight, Eye, FileText, History, Package } from 'lucide-react'
 import { toast } from 'sonner'
@@ -40,7 +42,7 @@ function activationVariant(action: AgentReleaseActivation['action']) {
   return 'secondary' as const
 }
 
-export function ReleaseTab({ agentId, projectId: _projectId }: { agentId: string; projectId: string }) {
+export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId: string }) {
   const { data: releases = [], isLoading } = useReleases(agentId)
   const { data: activations = [], isLoading: activationsLoading } = useReleaseActivations(agentId)
   const { state } = useAgentEditor()
@@ -50,9 +52,11 @@ export function ReleaseTab({ agentId, projectId: _projectId }: { agentId: string
   const [productionChangesOpen, setProductionChangesOpen] = useState(false)
   const [initialProductionChange, setInitialProductionChange] = useState<AgentReleaseActivation | null>(null)
 
-  const staging = useMemo(() => releases.find((item) => item.status === 'staging') ?? null, [releases])
-  const production = useMemo(() => releases.find((item) => item.status === 'production') ?? null, [releases])
-  const availableReleases = useMemo(() => promotableReleases(releases), [releases])
+  const stagingSelection = useSelectedAgentEnvironment(projectId, agentId, 'staging')
+  const staging = stagingSelection.snapshot
+  const productionSelection = useSelectedAgentEnvironment(projectId, agentId, 'production')
+  const production = productionSelection.snapshot
+  const availableReleases = useMemo(() => promotableReleases(releases, productionSelection.snapshotId), [releases, productionSelection.snapshotId])
   const latestProductionChanges = useMemo(() => newestProductionChanges(activations), [activations])
   const visibleAvailableReleases = availableReleases.slice(0, 3)
   const visibleProductionChanges = latestProductionChanges.slice(0, 3)
@@ -103,7 +107,7 @@ export function ReleaseTab({ agentId, projectId: _projectId }: { agentId: string
             meta={<SnapshotMeta release={staging} />}
             trailing={<Eye className={loadingId === staging.id ? 'h-3.5 w-3.5 animate-pulse text-primary-light' : 'h-3.5 w-3.5 text-muted-foreground'} />}
           />
-        ) : <EmptyStatePanel compact title="No Staging snapshot" description="Stage the current Draft to create an immutable validation snapshot." />}
+        ) : <EnvironmentSelectionNotice selection={stagingSelection} environment="Staging" />}
 
         {production ? (
           <TechnicalListItem
@@ -114,7 +118,7 @@ export function ReleaseTab({ agentId, projectId: _projectId }: { agentId: string
             meta={<SnapshotMeta release={production} />}
             trailing={<Eye className={loadingId === production.id ? 'h-3.5 w-3.5 animate-pulse text-primary-light' : 'h-3.5 w-3.5 text-muted-foreground'} />}
           />
-        ) : <EmptyStatePanel compact title="No Production release" description="Publish an immutable Release to activate standalone Production." />}
+        ) : <EnvironmentSelectionNotice selection={productionSelection} environment="Production" />}
       </section>
 
       <section aria-label="Agent Releases" className="mt-ui-lg border-t border-border/80 pt-ui-lg">
@@ -163,7 +167,7 @@ export function ReleaseTab({ agentId, projectId: _projectId }: { agentId: string
                   key={activation.id}
                   onClick={() => openProductionChange(activation)}
                   leading={<History className="h-3.5 w-3.5 text-muted-foreground" />}
-                  label={<span className="flex items-center gap-ui-xs"><Badge variant={activationVariant(activation.action)}>{activationLabel(activation.action)}</Badge><span>{previous?.version ?? 'No Production'}</span><ArrowRight className="h-3 w-3 text-muted-foreground" /><span>{release?.version ?? activation.release_id.slice(0, 8)}</span></span>}
+                  label={<span className="flex items-center gap-ui-xs"><Badge variant={activationVariant(activation.action)}>{activationLabel(activation.action, activation.previous_release_id)}</Badge><span>{previous?.version ?? 'No Production'}</span><ArrowRight className="h-3 w-3 text-muted-foreground" /><span>{release?.version ?? activation.release_id.slice(0, 8)}</span></span>}
                   description={summary}
                   meta={formatReleaseDate(activation.created_at)}
                 />

@@ -8,6 +8,7 @@ on:
       - "packages/woobe-frontend/**"
       - "packages/woobe-embed/**"
       - "packages/woobe-runtime-client/**"
+      - "tests/e2e/**"
       - ".github/workflows/frontend.yml"
   workflow_dispatch:
 
@@ -47,6 +48,18 @@ jobs:
 
       - name: Build frontend production bundle
         run: npm run build
+
+      - name: Install browser fixture dependencies
+        working-directory: tests/e2e
+        run: npm ci
+
+      - name: Prepare pinned Chromium
+        working-directory: tests/e2e
+        run: npx playwright install --with-deps chromium
+
+      - name: Qualify built frontend with browser API fixtures
+        working-directory: tests/e2e
+        run: npx playwright test --config playwright.config.ts
 
       - name: Install Chat Embed dependencies
         working-directory: packages/woobe-embed

@@ -10,7 +10,7 @@ const fixture = vi.hoisted(() => ({
   draft: {draft_id:'draft-1',resource_uid:'uid-1',name:'hotfix',generation:1,working_revision_id:null,origin:{environment:'production',snapshot_id:'release-1'},definition_digest:'sha256:a'},
 }))
 vi.mock('@/lib/api/client', () => ({get:fixture.get,post:fixture.post,put:fixture.put}))
-vi.mock('@tanstack/react-query', () => ({useQuery: ({queryKey}: {queryKey:string[]}) => ({
+vi.mock('@tanstack/react-query', () => ({useQueryClient: () => ({invalidateQueries: fixture.refetch}), useQuery: ({queryKey}: {queryKey:string[]}) => ({
   data: queryKey[0] === 'asac-drafts' ? {drafts:[fixture.draft]} : queryKey[0] === 'asac-draft' ? {...fixture.draft,generation:fixture.generation} : {snapshot_id:'release-1',environment_generation:7},
   isError:false,refetch:fixture.refetch,
 })}))

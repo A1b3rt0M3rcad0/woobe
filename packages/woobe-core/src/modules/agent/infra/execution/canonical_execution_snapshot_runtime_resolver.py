@@ -60,6 +60,7 @@ class CanonicalExecutionSnapshotRuntimeResolver(ReleaseRuntimeResolver):
                 input_dto.loaded_release_id = resolved.release_id
                 self._bind_release_context(resolved.release)
             agent = apply_snapshot(agent, resolved.snapshot)
+            self._freeze_immutable_pricing(agent, environment)
             return await self._resolve_provider_model_refs(uow, agent)
 
         if environment == "draft" and input_dto.snapshot_override:
@@ -88,7 +89,16 @@ class CanonicalExecutionSnapshotRuntimeResolver(ReleaseRuntimeResolver):
             if environment != "draft":
                 input_dto.loaded_release_id = resolved.release_id
         agent = apply_snapshot(agent, resolved.snapshot)
+        self._freeze_immutable_pricing(agent, environment)
         return await self._resolve_provider_model_refs(uow, agent)
+
+    @staticmethod
+    def _freeze_immutable_pricing(agent: Any, environment: str) -> None:
+        if environment != "draft":
+            settings = dict(agent.settings or {})
+            settings["model_pricing_frozen"] = True
+            settings["fallback_model_pricing_frozen"] = True
+            agent.settings = settings
 
 
 __all__ = [

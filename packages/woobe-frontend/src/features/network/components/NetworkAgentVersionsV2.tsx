@@ -1,3 +1,5 @@
+import { useSelectedAgentEnvironment } from '@/features/asac/environmentSelection'
+import { EnvironmentSelectionNotice } from '@/features/asac/EnvironmentSelectionNotice'
 import { useMemo, useState } from 'react'
 import { ExternalLink, Eye, GitBranch, Package } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
@@ -66,9 +68,11 @@ export function NetworkAgentVersions({ agent, projectId, networkBinding, onOpenC
   const { data: releases = [], isLoading } = useReleases(agent.id)
   const [snapshot, setSnapshot] = useState<AgentRelease | null>(null)
   const [loadingId, setLoadingId] = useState<string | null>(null)
-  const staging = useMemo(() => releases.find((release) => release.status === 'staging') ?? null, [releases])
-  const production = useMemo(() => releases.find((release) => release.status === 'production') ?? null, [releases])
-  const available = useMemo(() => releases.filter((release) => release.snapshot_kind === 'release' && release.status !== 'production'), [releases])
+  const stagingSelection = useSelectedAgentEnvironment(projectId, agent.id, 'staging')
+  const staging = stagingSelection.snapshot
+  const productionSelection = useSelectedAgentEnvironment(projectId, agent.id, 'production')
+  const production = productionSelection.snapshot
+  const available = useMemo(() => releases.filter((release) => release.snapshot_kind === 'release' && release.id !== productionSelection.snapshotId), [releases, productionSelection.snapshotId])
 
   const view = async (release: AgentRelease) => {
     setLoadingId(release.id)
@@ -107,7 +111,7 @@ export function NetworkAgentVersions({ agent, projectId, networkBinding, onOpenC
       </SectionBlock>
 
       <SectionBlock density="compact" title="Agent Staging">
-        {staging ? <ReleaseRow release={staging} label="Staging" loading={loadingId === staging.id} onView={() => void view(staging)} /> : <ReleaseEmpty>No Agent Staging snapshot.</ReleaseEmpty>}
+        {staging ? <ReleaseRow release={staging} label="Staging" loading={loadingId === staging.id} onView={() => void view(staging)} /> : <EnvironmentSelectionNotice selection={stagingSelection} environment="Agent Staging" />}
       </SectionBlock>
 
       <SectionBlock density="compact" title="Available Agent Releases" actions={<Badge size="compact" variant="outline">{available.length}</Badge>}>
@@ -119,7 +123,7 @@ export function NetworkAgentVersions({ agent, projectId, networkBinding, onOpenC
       </SectionBlock>
 
       <SectionBlock density="compact" title="Agent Playground Production" description="Network publish and rollback never change this standalone activation.">
-        {production ? <ReleaseRow release={production} label="Standalone active" loading={loadingId === production.id} onView={() => void view(production)} /> : <ReleaseEmpty>No standalone Agent Production is active.</ReleaseEmpty>}
+        {production ? <ReleaseRow release={production} label="Standalone active" loading={loadingId === production.id} onView={() => void view(production)} /> : <EnvironmentSelectionNotice selection={productionSelection} environment="Standalone Agent Production" />}
       </SectionBlock>
 
       <SnapshotModal release={snapshot} onClose={() => setSnapshot(null)} />

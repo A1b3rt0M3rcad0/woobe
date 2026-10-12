@@ -1,3 +1,4 @@
+import { useSelectedAgentEnvironment, selectionMessage } from '@/features/asac/environmentSelection'
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAgent, useAgentRuntimeEnvironments, useReleases } from '@/features/agents/hooks'
@@ -139,7 +140,7 @@ function PlaygroundContent() {
   const { workspaceId, projectId, agentId } = useParams<{ workspaceId?: string; projectId: string; agentId: string }>()
   const navigate = useNavigate()
   const { data: agent, isLoading: agentLoading, isError: agentError } = useAgent(agentId)
-  const { data: releases = [], isLoading: releasesLoading } = useReleases(agentId)
+  const { data: releases = [] } = useReleases(agentId)
   const runtimeStatesQuery = useAgentRuntimeEnvironments(agentId, projectId)
   const { state, isDirty } = useAgentEditor()
   const [, setEditorSection] = useAgentEditorSection()
@@ -149,9 +150,9 @@ function PlaygroundContent() {
   const [environment, setEnvironment] = useState<RuntimeEnvironment>('draft')
 
   const p = (projId: string, ...segments: string[]) => workspaceProjectPath(workspaceId, projId, ...segments)
-  const stagingRelease = useMemo(() => releases.find((release) => release.status === 'staging') ?? null, [releases])
-  const productionRelease = useMemo(() => releases.find((release) => release.status === 'production') ?? null, [releases])
-  const currentEnvironmentRelease = environment === 'staging' ? stagingRelease : environment === 'production' ? productionRelease : null
+  const selectedEnvironment = useSelectedAgentEnvironment(projectId, agentId,
+    environment === 'staging' ? 'staging' : 'production', environment !== 'draft')
+  const currentEnvironmentRelease = environment === 'draft' ? null : selectedEnvironment.snapshot
   const activeExternalContextContract = environment === 'draft'
     ? state.externalContextContract
     : currentEnvironmentRelease?.external_context_contract ?? null
@@ -220,10 +221,13 @@ function PlaygroundContent() {
   const sessionIdState = activeSessionIdByEnvironment[environment]
   const environmentRelease = environment === 'draft' ? null : currentEnvironmentRelease
   const environmentReady = environment === 'draft' || Boolean(currentEnvironmentRelease)
-  const runtimeEnabled = runtimeStatesQuery.data?.[environment]?.enabled ?? true
+  const environmentReadReason = selectionMessage(selectedEnvironment, titleCaseEnvironment(environment))
+  const runtimeStateReason = runtimeStatesQuery.isError ? `${titleCaseEnvironment(environment)} runtime state unavailable. Retry to verify it.`
+    : runtimeStatesQuery.isLoading ? `Checking ${titleCaseEnvironment(environment)} runtime state…` : `${titleCaseEnvironment(environment)} runtime is off.`
+  const runtimeEnabled = !runtimeStatesQuery.isError && runtimeStatesQuery.data?.[environment]?.enabled === true
   const agentSessionMode: 'stateful' | 'stateless' = environment === 'draft'
     ? state.sessionMode === 'stateless' ? 'stateless' : 'stateful'
-    : agent?.session_mode === 'stateless' ? 'stateless' : 'stateful'
+    : currentEnvironmentRelease?.session_mode === 'stateless' ? 'stateless' : 'stateful'
   const sessionIdForRun = sessionIdState
   const selectedSessionId = sessionIdState
   const lockedExternalContextValues = useMemo(
@@ -373,11 +377,11 @@ function PlaygroundContent() {
   const handleNewSession = useCallback(async () => {
     if (!projectId || !agentId || creatingSession) return
     if (!environmentReady) {
-      toast.info(`Create the ${environment} version before starting its Chat`)
+      toast.info(environmentReadReason)
       return
     }
     if (!runtimeEnabled) {
-      toast.error(`${titleCaseEnvironment(environment)} runtime is off`)
+      toast.error(runtimeStateReason)
       return
     }
     disconnectStream()
@@ -432,7 +436,7 @@ function PlaygroundContent() {
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not create Session')
     }
-  }, [agentId, createRuntimeSession, creatingSession, disconnectStream, environment, environmentReady, projectId, queryClient, releaseVersionById, runtimeEnabled, setCurrentSessionId])
+  }, [agentId, createRuntimeSession, creatingSession, disconnectStream, environment, environmentReady, environmentReadReason, runtimeStateReason, projectId, queryClient, releaseVersionById, runtimeEnabled, setCurrentSessionId])
 
   const updateLastAssistantMessage = useCallback((updater: (message: ChatMessage) => ChatMessage) => {
     setMessages((prev) => {
@@ -589,11 +593,11 @@ function PlaygroundContent() {
   const handleSend = async (content: string) => {
     if (isSending || !agent) return
     if (!environmentReady) {
-      toast.info(`Create the ${environment} version before starting its Chat`)
+      toast.info(environmentReadReason)
       return
     }
     if (!runtimeEnabled) {
-      toast.error(`${titleCaseEnvironment(environment)} runtime is off`)
+      toast.error(runtimeStateReason)
       return
     }
 
@@ -757,20 +761,10 @@ function PlaygroundContent() {
   const environmentLabel = titleCaseEnvironment(environment)
   const versionLabel = environment === 'draft'
     ? isDirty ? 'Draft (unsaved)' : 'Current Draft'
-    : currentEnvironmentRelease?.version ?? 'not created'
+    : currentEnvironmentRelease?.version ?? (selectedEnvironment.state === 'empty' ? 'not deployed' : selectedEnvironment.state === 'selected' ? 'selected · details pending' : selectedEnvironment.state)
   const statusLabel = `Using: ${environment === 'draft' ? versionLabel : `${environmentLabel} · ${versionLabel}`}`
-  const runtimeBlockReason = !environmentReady
-    ? environment === 'staging'
-      ? 'Staging has not been created. Create an immutable Staging snapshot before testing it.'
-      : 'Production has not been deployed. Activate an Agent Release before testing Production.'
-    : runtimeEnabled
-      ? undefined
-      : `${environmentLabel} runtime is off. Configuration and release management remain available.`
-  const sessionCreationDisabledReason = !environmentReady
-    ? `${environmentLabel} has not been created yet.`
-    : !runtimeEnabled
-      ? `${environmentLabel} runtime is off.`
-      : undefined
+  const runtimeBlockReason = !environmentReady ? environmentReadReason : runtimeEnabled ? undefined : runtimeStateReason
+  const sessionCreationDisabledReason = runtimeBlockReason
   const visibleProvider = environment === 'draft' ? state.provider : currentEnvironmentRelease?.provider
   const visibleModel = environment === 'draft' ? state.model : currentEnvironmentRelease?.model
 
@@ -789,14 +783,15 @@ function PlaygroundContent() {
           onToggleRightPanel={() => setShowRightPanel(!showRightPanel)}
           onApiClick={() => setShowApiModal(true)}
           onSettingsClick={() => navigate(p(projectId!, 'agents', agentId!, 'edit'))}
-          releaseVersion={productionRelease?.version}
-          releaseStatus={productionRelease?.status}
+          releaseVersion={currentEnvironmentRelease?.version}
+          visibleProvider={visibleProvider}
+          visibleModel={visibleModel}
         />
         <div className="h-6 shrink-0 flex items-center px-4 border-b border-border text-[10px] bg-surface/30">
           <span className="text-muted font-medium">{statusLabel}</span>
           {environment === 'draft' && isDirty && <span className="ml-2 text-yellow-400 font-medium">· unsaved changes</span>}
-          {!runtimeEnabled && <span className="ml-2 text-red-400 font-medium">· {environmentLabel} runtime off</span>}
-          {!environmentReady && <span className="ml-2 text-amber-300 font-medium">· environment not created</span>}
+          {!runtimeEnabled && <span className="ml-2 text-red-400 font-medium">· {runtimeStateReason}</span>}
+          {!environmentReady && <span className="ml-2 text-amber-300 font-medium">· {environmentReadReason}</span>}
           <span className="ml-auto text-muted">{visibleProvider || '—'}/{visibleModel || '—'}</span>
         </div>
         <div className="flex flex-1 min-h-0 overflow-hidden">
@@ -855,7 +850,7 @@ function PlaygroundContent() {
               onClearExternalContextValues={handleClearExternalContextValues}
             />
           </div>
-          {showRightPanel && <AgentInspector agent={agent} projectId={projectId!} agentId={agentId!} activeTab={rightPanelTab} environment={environment} environmentRelease={environmentRelease} environmentReleaseLoading={releasesLoading} onTabChange={setRightPanelTab} onCollapse={() => setShowRightPanel(false)} />}
+          {showRightPanel && <AgentInspector agent={agent} projectId={projectId!} agentId={agentId!} activeTab={rightPanelTab} environment={environment} environmentRelease={environmentRelease} environmentReleaseLoading={environment !== 'draft' && selectedEnvironment.state !== 'empty' && selectedEnvironment.detailState === 'loading'} onTabChange={setRightPanelTab} onCollapse={() => setShowRightPanel(false)} />}
         </div>
       </div>
       <ApiModal open={showApiModal} onClose={() => setShowApiModal(false)} agent={agent} projectId={projectId!} workspaceProjectPathFn={(projId, ...segments) => p(projId, ...segments)} />
@@ -868,5 +863,5 @@ export default function AgentPlaygroundPage() {
   const { data: agent, isLoading } = useAgent(agentId)
   if (isLoading) return <AgentPlaygroundSkeleton />
   if (!agent) return <ErrorState message="Agent not found" />
-  return <AgentEditorProvider agent={agent} projectId={projectId}><PlaygroundContent /></AgentEditorProvider>
+  return <AgentEditorProvider key={`${projectId}:${agent.id}`} agent={agent} projectId={projectId}><PlaygroundContent /></AgentEditorProvider>
 }

@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -13,7 +14,7 @@ describe('Agent inspector layout', () => {
 
   it('uses the responsive workspace inspector width without an expand control', () => {
     const markup = renderToStaticMarkup(
-      <AgentInspector
+      <QueryClientProvider client={new QueryClient()}><AgentInspector
         agent={agent}
         projectId="project-1"
         agentId="agent-1"
@@ -22,7 +23,7 @@ describe('Agent inspector layout', () => {
         environmentRelease={null}
         onTabChange={vi.fn()}
         onCollapse={vi.fn()}
-      />,
+      /></QueryClientProvider>,
     )
 
     expect(markup).toContain('lg:w-inspector-workspace')

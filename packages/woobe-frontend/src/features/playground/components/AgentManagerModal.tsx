@@ -1,3 +1,5 @@
+import { useSelectedAgentEnvironment, invalidateEnvironmentSelection } from '@/features/asac/environmentSelection'
+import { EnvironmentSelectionNotice } from '@/features/asac/EnvironmentSelectionNotice'
 import { useEffect, useMemo, useState } from 'react'
 import { Activity, ArrowRight, FilePenLine, History, Layers3, Rocket, ShieldCheck } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
@@ -110,7 +112,7 @@ function ActivityList({
             key={activation.id}
             selected={selectedId === activation.id}
             onClick={() => onSelect(activation)}
-            label={activationLabel(activation.action)}
+            label={activationLabel(activation.action, activation.previous_release_id)}
             description={formatReleaseDate(activation.created_at)}
             meta={(
               <span className="inline-flex items-center gap-ui-xs">
@@ -121,7 +123,7 @@ function ActivityList({
             )}
             trailing={(
               <Badge variant={activation.action === 'rollback' ? 'warning' : activation.action === 'deploy' ? 'success' : 'secondary'} size="compact">
-                {activationLabel(activation.action)}
+                {activationLabel(activation.action, activation.previous_release_id)}
               </Badge>
             )}
           />
@@ -151,15 +153,17 @@ export function AgentManagerModal({
   const { state, baseRevision, updateBaseline, toSnapshot, isDirty } = useAgentEditor()
 
   const draft = useMemo(() => releases.find((release) => release.status === 'draft') ?? null, [releases])
-  const staging = useMemo(() => releases.find((release) => release.status === 'staging') ?? null, [releases])
-  const production = useMemo(() => releases.find((release) => release.status === 'production') ?? null, [releases])
+  const stagingSelection = useSelectedAgentEnvironment(projectId, agentId, 'staging')
+  const staging = stagingSelection.snapshot
+  const productionSelection = useSelectedAgentEnvironment(projectId, agentId, 'production')
+  const production = productionSelection.snapshot
   const immutableReleases = useMemo(
     () => releases.filter((release) => release.snapshot_kind === 'release').sort((a, b) => releaseTime(b) - releaseTime(a)),
     [releases],
   )
   const rollbackCandidates = useMemo(
-    () => immutableReleases.filter((release) => release.id !== production?.id),
-    [immutableReleases, production?.id],
+    () => immutableReleases.filter((release) => release.id !== productionSelection.snapshotId),
+    [immutableReleases, productionSelection.snapshotId],
   )
   const releasesById = useMemo(() => new Map(releases.map((release) => [release.id, release])), [releases])
 
@@ -223,7 +227,7 @@ export function AgentManagerModal({
   }
 
   const publishRelease = async () => {
-    if (!staging || releaseDescription.trim().length < 3) return
+    if (stagingSelection.state !== 'selected' || !staging || releaseDescription.trim().length < 3) return
     try {
       const description = releaseDescription.trim()
       const result = await promoteRelease.mutateAsync({ releaseId: staging.id, targetStatus: 'production', copySnapshot: true, releaseNotes: description, changeDescription: description })
@@ -238,7 +242,7 @@ export function AgentManagerModal({
   }
 
   const reactivateRelease = async () => {
-    if (!selectedRelease || actionReason.trim().length < 3) return
+    if (!['selected', 'empty'].includes(productionSelection.state) || !selectedRelease || selectedRelease.id === productionSelection.snapshotId || actionReason.trim().length < 3) return
     try {
       await promoteRelease.mutateAsync({ releaseId: selectedRelease.id, targetStatus: 'production', copySnapshot: false, restoreExistingVersion: true, changeDescription: actionReason.trim() })
       setActionReason('')
@@ -252,7 +256,7 @@ export function AgentManagerModal({
   }
 
   const rollbackProduction = async () => {
-    if (!selectedRelease || actionReason.trim().length < 3) return
+    if (productionSelection.state !== 'selected' || !selectedRelease || selectedRelease.id === productionSelection.snapshotId || actionReason.trim().length < 3) return
     setRollbackPending(true)
     try {
       await rollbackRelease(agentId, selectedRelease.id, { changeDescription: actionReason.trim() })
@@ -260,6 +264,7 @@ export function AgentManagerModal({
         queryClient.invalidateQueries({ queryKey: ['releases', agentId] }),
         queryClient.invalidateQueries({ queryKey: ['release-activations', agentId] }),
         queryClient.invalidateQueries({ queryKey: ['agent', agentId] }),
+        invalidateEnvironmentSelection(queryClient),
       ])
       setActionReason('')
       setSection('production')
@@ -291,8 +296,8 @@ export function AgentManagerModal({
 
   const navigation = [
     { id: 'draft' as const, icon: FilePenLine, label: 'Draft', detail: isDirty ? 'Unsaved changes' : draft ? 'Saved · editable' : 'Editable' },
-    { id: 'staging' as const, icon: ShieldCheck, label: 'Staging', detail: staging?.version ?? 'Not created' },
-    { id: 'production' as const, icon: Rocket, label: 'Production', detail: production?.version ?? 'Not published' },
+    { id: 'staging' as const, icon: ShieldCheck, label: 'Staging', detail: staging?.version ?? (stagingSelection.state === 'empty' ? 'Not deployed' : stagingSelection.state) },
+    { id: 'production' as const, icon: Rocket, label: 'Production', detail: production?.version ?? (productionSelection.state === 'empty' ? 'Not deployed' : productionSelection.state) },
     { id: 'releases' as const, icon: Layers3, label: 'Releases', detail: `${immutableReleases.length} immutable` },
     { id: 'activity' as const, icon: Activity, label: 'Activity', detail: `${activations.length} events` },
   ]
@@ -315,7 +320,7 @@ export function AgentManagerModal({
             <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">Draft → Staging → immutable Release → Production.</p>
           </div>
           <Badge variant={production ? 'success' : 'secondary'} size="compact" className="ml-auto">
-            {production ? `Production · ${production.version}` : 'No Production'}
+            {production ? `Production · ${production.version}` : productionSelection.state === 'empty' ? 'No Production' : `Production · ${productionSelection.state}`}
           </Badge>
         </header>
 
@@ -343,7 +348,7 @@ export function AgentManagerModal({
               <ReleaseList
                 releases={mode === 'rollback' ? rollbackCandidates : immutableReleases}
                 selectedId={selectedReleaseId}
-                productionId={production?.id}
+                productionId={productionSelection.snapshotId ?? undefined}
                 onSelect={(release) => {
                   setSelectedReleaseId(release.id)
                   if (mode === 'rollback') openActivation(release, 'rollback')
@@ -362,11 +367,8 @@ export function AgentManagerModal({
               </div>
             ) : (
               <div className="p-ui-sm">
-                <EmptyStatePanel
-                  compact
-                  title={section === 'draft' ? 'Draft snapshot not materialized' : `No ${section} snapshot`}
-                  description={section === 'draft' ? 'Save the Draft to materialize its lifecycle snapshot.' : undefined}
-                />
+                {section === 'draft' ? <EmptyStatePanel compact title="Draft snapshot not materialized" description="Save the Draft to materialize its lifecycle snapshot." />
+                  : <EnvironmentSelectionNotice selection={section === 'staging' ? stagingSelection : productionSelection} environment={section === 'staging' ? 'Staging' : 'Production'} />}
               </div>
             )}
           </ScrollArea>
@@ -412,7 +414,7 @@ export function AgentManagerModal({
                         description={formatReleaseDate(selectedActivation.created_at)}
                         actions={(
                           <Badge variant={selectedActivation.action === 'rollback' ? 'warning' : selectedActivation.action === 'deploy' ? 'success' : 'secondary'} size="compact">
-                            {activationLabel(selectedActivation.action)}
+                            {activationLabel(selectedActivation.action, selectedActivation.previous_release_id)}
                           </Badge>
                         )}
                       >
@@ -442,7 +444,7 @@ export function AgentManagerModal({
               ) : selectedEnvironmentRelease ? (
                 <ReleaseDetailsView release={selectedEnvironmentRelease} />
               ) : (
-                <EmptyStatePanel compact title="No snapshot available" />
+                <EnvironmentSelectionNotice selection={section === 'staging' ? stagingSelection : productionSelection} environment={section === 'staging' ? 'Staging' : 'Production'} />
               )}
             </div>
           </ScrollArea>
@@ -464,19 +466,19 @@ export function AgentManagerModal({
           {mode === 'publish' ? (
             <>
               <Button variant="outline" onClick={() => { setMode('browse'); setReleaseDescription('') }}>Cancel</Button>
-              <Button disabled={pending || releaseDescription.trim().length < 3} onClick={() => void publishRelease()}>{pending ? 'Publishing…' : 'Publish Release'}</Button>
+              <Button disabled={pending || !staging || stagingSelection.state !== 'selected' || releaseDescription.trim().length < 3} onClick={() => void publishRelease()}>{pending ? 'Publishing…' : 'Publish Release'}</Button>
             </>
           ) : null}
           {mode === 'activate' ? (
             <>
               <Button variant="outline" onClick={() => { setMode('browse'); setActionReason('') }}>Cancel</Button>
-              <Button disabled={pending || actionReason.trim().length < 3} onClick={() => void reactivateRelease()}>{pending ? 'Activating…' : `Set ${selectedRelease?.version ?? 'Release'} as Production`}</Button>
+              <Button disabled={pending || !['selected', 'empty'].includes(productionSelection.state) || !selectedRelease || selectedRelease.id === productionSelection.snapshotId || actionReason.trim().length < 3} onClick={() => void reactivateRelease()}>{pending ? 'Activating…' : `Set ${selectedRelease?.version ?? 'Release'} as Production`}</Button>
             </>
           ) : null}
           {mode === 'rollback' ? (
             <>
               <Button variant="outline" onClick={() => { setMode('browse'); setActionReason('') }}>Cancel</Button>
-              <Button variant="destructive" disabled={pending || !selectedRelease || actionReason.trim().length < 3} onClick={() => void rollbackProduction()}>{pending ? 'Applying…' : `Rollback to ${selectedRelease?.version ?? 'Release'}`}</Button>
+              <Button variant="destructive" disabled={pending || productionSelection.state !== 'selected' || !selectedRelease || selectedRelease.id === productionSelection.snapshotId || actionReason.trim().length < 3} onClick={() => void rollbackProduction()}>{pending ? 'Applying…' : `Rollback to ${selectedRelease?.version ?? 'Release'}`}</Button>
             </>
           ) : null}
           {mode === 'browse' ? (
@@ -484,8 +486,8 @@ export function AgentManagerModal({
               <Button variant="outline" onClick={onClose}>Close</Button>
               {section === 'draft' ? <Button disabled={pending || isDirty} onClick={() => setMode('stage')}>Stage Agent</Button> : null}
               {section === 'staging' && staging ? <Button disabled={pending} onClick={() => setMode('publish')}>Publish Release</Button> : null}
-              {section === 'production' && rollbackCandidates.length ? <Button disabled={pending} onClick={() => { setSection('releases'); setMode('rollback'); setSelectedReleaseId(null) }}>Rollback</Button> : null}
-              {section === 'releases' && selectedRelease && selectedRelease.id !== production?.id ? <Button disabled={pending} onClick={() => openActivation(selectedRelease, 'activate')}>Set as Production</Button> : null}
+              {section === 'production' && productionSelection.state === 'selected' && rollbackCandidates.length ? <Button disabled={pending} onClick={() => { setSection('releases'); setMode('rollback'); setSelectedReleaseId(null) }}>Rollback</Button> : null}
+              {section === 'releases' && selectedRelease && selectedRelease.id !== productionSelection.snapshotId && ['selected', 'empty'].includes(productionSelection.state) ? <Button disabled={pending} onClick={() => openActivation(selectedRelease, 'activate')}>Set as Production</Button> : null}
             </>
           ) : null}
         </footer>

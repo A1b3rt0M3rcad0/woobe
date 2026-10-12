@@ -479,6 +479,48 @@ This owner selection protocol is separate from Project-wide managed lifecycle
 policy, Web editor integration, signed offline receipts and Git verification.
 Those features must not be inferred from an accepted deployment receipt.
 
+## Web environment selection
+
+Cards, Playground, lifecycle views, API references and Runtime Key dialogs read
+`/asac/current?environment=staging|production`. A snapshot's persisted `status`
+is not an environment assignment. This read works for both legacy and ASaC
+selection authorities; no frontend fallback selects the newest Release.
+
+The Web shares a Project/kind/resource/environment query with a 15-second stale
+window, 30-second polling while visible, and refresh on mount/window focus.
+Lifecycle writes invalidate selections, immutable details and runtime settings.
+Authentication changes clear the query cache. Late responses for another Project
+or resource cannot replace the active query. This observation is for presentation;
+deployment planning still obtains a fresh owner read and the backend enforces CAS,
+leases, authorization and managed lifecycle policy.
+
+A complete verified null selection means **not deployed**. Loading, authorization
+failure, timeout, incomplete responses and server errors remain checking/unknown.
+A verified snapshot ID remains selected if its detail GET is forbidden; the UI
+shows that ID and a retry action rather than claiming absence. Playground needs
+the exact selected snapshot's details before constructing a Run or Session:
+provider/model, session mode, strategy and external context come from that
+immutable snapshot. Runtime enabled/disabled is read independently and unknown
+runtime settings do not enable the composer. Publishing a Release and deploying
+it are distinct actions; immutable Release status is never rewritten to repair UI.
+Runtime Key creation retains the chosen environment instead of switching to
+Staging when Production is empty or unreadable. Existing server authorization
+and key issuance rules are unchanged.
+
+The Agent list makes one Agent list request and **three small requests per card**:
+two current-selection reads and one runtime-environments read. It no longer
+fetches complete Release catalogs or immutable details for cards. The old card
+made two requests (runtime plus full Release catalog); this change reduces
+snapshot payload exposure, not request count. Shared queries deduplicate reads
+across mounted consumers. This is not a load/capacity benchmark or a bulk endpoint.
+Overview's current Agent counts and recent selected Releases also read the owner
+selection, including a single immutable Release selected in both environments.
+ASaC display timing uses the selection's update timestamp; legacy selections retain
+native promotion timestamps. Publication dates remain the immutable creation date.
+Network-pinned constituent bindings remain distinct from standalone Agent
+selection. Initial deployment labels use the absent previous selection; retained
+activation records are not modified.
+
 ## Project lifecycle authority
 
 Core owns `GET/PUT /core/projects/{project_id}/lifecycle-policy` and read-only

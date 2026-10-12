@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils'
 import { AgentControlsPopover } from './AgentControlsPopover'
 import { AgentLifecycleAction } from './AgentLifecycleAction'
 import { AgentManagerModal, type AgentManagerMode, type AgentManagerSection } from './AgentManagerModal'
-import type { Agent, ReleaseStatus, RuntimeEnvironment } from '@/features/agents/types'
+import type { Agent, RuntimeEnvironment } from '@/features/agents/types'
 
 interface PlaygroundHeaderProps {
   agent: Agent
@@ -23,7 +23,8 @@ interface PlaygroundHeaderProps {
   onApiClick: () => void
   onSettingsClick?: () => void
   releaseVersion?: string
-  releaseStatus?: ReleaseStatus
+  visibleProvider?: string
+  visibleModel?: string
 }
 
 const environments: RuntimeEnvironment[] = ['draft', 'staging', 'production']
@@ -44,7 +45,8 @@ export function PlaygroundHeader({
   onToggleRightPanel,
   onApiClick,
   releaseVersion,
-  releaseStatus,
+  visibleProvider,
+  visibleModel,
 }: PlaygroundHeaderProps) {
   const navigate = useNavigate()
   const { workspaceId } = useParams<{ workspaceId?: string; projectId: string }>()
@@ -92,14 +94,14 @@ export function PlaygroundHeader({
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-ui-sm">
               <span className="min-w-0 truncate font-sans text-entity-title font-semibold text-slate-50" title={agent.name}>{agent.name}</span>
-              {releaseVersion && releaseStatus ? (
-                <Badge variant={releaseStatus === 'production' ? 'success' : releaseStatus === 'staging' ? 'warning' : 'outline'} className="shrink-0">
+              {releaseVersion ? (
+                <Badge variant={environment === 'production' ? 'success' : environment === 'staging' ? 'warning' : 'outline'} className="shrink-0">
                   {releaseVersion}
                 </Badge>
               ) : null}
             </div>
-            <p className="mt-ui-hairline hidden truncate font-mono text-chrome-nano text-muted-foreground md:block" title={`${agent.provider || 'provider not set'} / ${agent.model || 'model not set'}`}>
-              {agent.provider || 'provider not set'} / {agent.model || 'model not set'}
+            <p className="mt-ui-hairline hidden truncate font-mono text-chrome-nano text-muted-foreground md:block" title={`${visibleProvider || 'provider unavailable'} / ${visibleModel || 'model unavailable'}`}>
+              {visibleProvider || 'provider unavailable'} / {visibleModel || 'model unavailable'}
             </p>
           </div>
         </div>
@@ -136,7 +138,7 @@ export function PlaygroundHeader({
           </Button>
 
           <AgentControlsPopover agent={agent} projectId={projectId} />
-          <AgentLifecycleAction agentId={agent.id} environment={environment} disabled={environmentChangeDisabled} onManageAgent={openManager} />
+          <AgentLifecycleAction projectId={projectId} agentId={agent.id} environment={environment} disabled={environmentChangeDisabled} onManageAgent={openManager} />
 
           <button
             onClick={onToggleRightPanel}

@@ -155,9 +155,9 @@ def test_uow_environment_cte_matches_live_release_resolution() -> None:
 def test_recent_releases_filter_tab_and_dedupe_current_slots() -> None:
     source = inspect.getsource(SQLAlchemyProjectOverviewReader._recent_releases)
 
-    assert "release.status IN ('draft', 'staging', 'production')" in source
-    assert "release.status = :environment" in source
-    assert "PARTITION BY release.agent_id, release.status" in source
+    assert "environment_releases AS selected" in source
+    assert "selected.environment = :environment" in source
+    assert "PARTITION BY release.agent_id, selected.environment" in source
     assert "WHERE status_rank = 1" in source
     assert "ELSE 'draft'" not in source
 

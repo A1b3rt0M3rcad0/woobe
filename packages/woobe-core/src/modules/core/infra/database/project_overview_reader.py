@@ -14,28 +14,43 @@ from modules.core.application.dtos.project_overview import (
 from shared.infra.errors import NotFoundError
 
 _AGENT_ENVIRONMENT_CTE = """
-current_release AS (
-    SELECT DISTINCT ON (release.agent_id)
-        release.agent_id,
-        release.status AS environment
+environment_releases AS (
+    SELECT release.id, release.agent_id, selection.environment,
+        CASE WHEN selection.selection_authority = 'asac' THEN selection.updated_at
+            ELSE COALESCE(release.promoted_at, release.updated_at, release.created_at)
+        END AS selected_at
+    FROM agent.asac_environment_selections AS selection
+    JOIN agent.agent_releases AS release
+      ON release.id = selection.snapshot_id
+     AND release.agent_id = selection.resource_id
+     AND release.project_id = selection.project_id
+    WHERE selection.project_id = :project_id
+    UNION ALL
+    SELECT release.id, release.agent_id, release.status AS environment,
+        COALESCE(release.promoted_at, release.updated_at, release.created_at) AS selected_at
     FROM agent.agent_releases AS release
     WHERE release.project_id = :project_id
       AND release.status IN ('production', 'staging', 'draft')
-    ORDER BY
-        release.agent_id,
-        CASE release.status
+      AND NOT EXISTS (
+          SELECT 1 FROM agent.asac_environment_selections AS selection
+          WHERE selection.project_id = release.project_id
+            AND selection.resource_id = release.agent_id
+            AND selection.environment = release.status
+      )
+),
+current_release AS (
+    SELECT DISTINCT ON (release.agent_id) release.agent_id, release.environment
+    FROM environment_releases AS release
+    ORDER BY release.agent_id,
+        CASE release.environment
             WHEN 'production' THEN 3
             WHEN 'staging' THEN 2
             ELSE 1
         END DESC,
-        COALESCE(release.promoted_at, release.updated_at, release.created_at) DESC,
-        release.created_at DESC,
-        release.id DESC
+        release.selected_at DESC, release.id DESC
 ),
 agent_environment AS (
-    SELECT
-        agent.id AS agent_id,
-        agent.name AS agent_name,
+    SELECT agent.id AS agent_id, agent.name AS agent_name,
         agent.status AS agent_status,
         COALESCE(current_release.environment, 'draft') AS environment
     FROM agent.agents AS agent
@@ -374,48 +389,24 @@ class SQLAlchemyProjectOverviewReader:
         params: dict[str, Any],
     ) -> list[dict[str, Any]]:
         statement = text(
-            """
-            WITH ranked_releases AS (
-                SELECT
-                    release.id,
-                    release.agent_id,
-                    agent.name AS agent_name,
-                    release.version,
-                    release.status AS environment,
-                    release.created_at,
-                    release.promoted_at,
+            f"""
+            WITH {_AGENT_ENVIRONMENT_CTE}, ranked_releases AS (
+                SELECT release.id, release.agent_id, agent.name AS agent_name,
+                    release.version, selected.environment, release.created_at,
+                    selected.selected_at AS promoted_at,
                     ROW_NUMBER() OVER (
-                        PARTITION BY release.agent_id, release.status
-                        ORDER BY
-                            COALESCE(release.promoted_at, release.updated_at, release.created_at) DESC,
-                            release.created_at DESC,
-                            release.id DESC
+                        PARTITION BY release.agent_id, selected.environment
+                        ORDER BY selected.selected_at DESC, release.id DESC
                     ) AS status_rank
-                FROM agent.agent_releases AS release
-                JOIN agent.agents AS agent
-                    ON agent.id = release.agent_id
-                   AND agent.project_id = :project_id
-                WHERE release.project_id = :project_id
-                  AND release.status IN ('draft', 'staging', 'production')
-                  AND (
-                    :environment = 'all'
-                    OR release.status = :environment
-                  )
+                FROM environment_releases AS selected
+                JOIN agent.agent_releases AS release ON release.id = selected.id
+                JOIN agent.agents AS agent ON agent.id = selected.agent_id
+                  AND agent.project_id = :project_id
+                WHERE :environment = 'all' OR selected.environment = :environment
             )
-            SELECT
-                id,
-                agent_id,
-                agent_name,
-                version,
-                environment,
-                created_at,
-                promoted_at
-            FROM ranked_releases
-            WHERE status_rank = 1
-            ORDER BY
-                COALESCE(promoted_at, created_at) DESC,
-                created_at DESC,
-                id DESC
+            SELECT id, agent_id, agent_name, version, environment, created_at, promoted_at
+            FROM ranked_releases WHERE status_rank = 1
+            ORDER BY promoted_at DESC, id DESC, environment
             LIMIT :recent_limit
             """
         )

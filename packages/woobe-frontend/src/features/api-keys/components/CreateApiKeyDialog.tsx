@@ -1,3 +1,4 @@
+import { useEnvironmentSelection, selectionMessage } from '@/features/asac/environmentSelection'
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Activity, Bot, Check, KeyRound, Network, Search, ShieldCheck, Zap } from 'lucide-react'
@@ -21,7 +22,7 @@ import {
   Textarea,
 } from '@woobe/ui'
 
-import { useAgents, useReleases } from '@/features/agents/hooks'
+import { useAgents } from '@/features/agents/hooks'
 import type { Agent } from '@/features/agents/types'
 import { useCreateApiKey, useCreateRuntimeApiKey } from '@/features/api-keys/hooks'
 import type {
@@ -202,7 +203,6 @@ export function CreateApiKeyDialog({
   const [nameTouched, setNameTouched] = useState(false)
   const [description, setDescription] = useState('')
   const [environment, setEnvironment] = useState<RuntimeEnvironment>(initialEnvironment ?? 'production')
-  const [environmentTouched, setEnvironmentTouched] = useState(false)
   const [interfaces, setInterfaces] = useState<RuntimeInterface[]>(['http', 'stream'])
   const [permissions, setPermissions] = useState<ApiKeyScope[]>(['traces:read', 'usage:read'])
   const [expiration, setExpiration] = useState<ApiKeyExpirationValue>(DEFAULT_API_KEY_EXPIRATION)
@@ -213,10 +213,11 @@ export function CreateApiKeyDialog({
   const selectedAgent = targetType === 'agent' ? agents.find((agent) => agent.id === targetId) ?? null : null
   const selectedNetwork = targetType === 'network' ? networks.find((network) => network.id === targetId) ?? null : null
   const selectedTargetName = selectedAgent?.name ?? selectedNetwork?.name ?? null
-  const { data: releases = [], isLoading: releasesLoading } = useReleases(kind === 'runtime' && targetType === 'agent' && targetId ? targetId : undefined)
-  const agentRelease = releases.find((release) => release.status === environment) ?? null
-  const networkVersionId = selectedNetwork ? environment === 'production' ? selectedNetwork.production_version_id : selectedNetwork.staging_version_id : null
-  const deploymentAvailable = targetType === 'agent' ? Boolean(agentRelease) : Boolean(networkVersionId)
+  const deployment = useEnvironmentSelection(projectId, targetType === 'agent' ? 'Agent' : 'Network', targetId || undefined,
+    environment, open && kind === 'runtime')
+  const deploymentAvailable = deployment.state === 'selected'
+  const deploymentLabel = deploymentAvailable ? 'Deployment available' : deployment.state === 'empty' ? 'Not deployed'
+    : deployment.state === 'unknown' ? 'Deployment unknown' : 'Checking deployment'
   const targetsLoading = targetType === 'agent' ? agentsLoading : networksQuery.isLoading
   const kindLocked = initialKind !== undefined
   const targetLocked = Boolean(effectiveLockedType && effectiveLockedId)
@@ -234,7 +235,6 @@ export function CreateApiKeyDialog({
     setNameTouched(false)
     setDescription('')
     setEnvironment(initialEnvironment ?? 'production')
-    setEnvironmentTouched(false)
     setInterfaces(['http', 'stream'])
     setPermissions(['traces:read', 'usage:read'])
     setExpiration(DEFAULT_API_KEY_EXPIRATION)
@@ -247,19 +247,6 @@ export function CreateApiKeyDialog({
     if (!open || !contextualRuntime || nameTouched || !selectedTargetName) return
     setName(`${selectedTargetName} · ${environmentLabel(environment)}`)
   }, [contextualRuntime, environment, nameTouched, open, selectedTargetName])
-
-  useEffect(() => {
-    if (!open || contextualRuntime || kind !== 'runtime' || !targetId || environmentTouched) return
-    if (targetType === 'agent') {
-      if (releasesLoading || releases.some((release) => release.status === environment)) return
-      if (releases.some((release) => release.status === 'staging')) setEnvironment('staging')
-      else if (releases.some((release) => release.status === 'production')) setEnvironment('production')
-      return
-    }
-    if (!selectedNetwork || deploymentAvailable) return
-    if (selectedNetwork.staging_version_id) setEnvironment('staging')
-    else if (selectedNetwork.production_version_id) setEnvironment('production')
-  }, [contextualRuntime, deploymentAvailable, environment, environmentTouched, kind, open, releases, releasesLoading, selectedNetwork, targetId, targetType])
 
   const close = () => {
     setCreatedKey(null)
@@ -355,7 +342,7 @@ export function CreateApiKeyDialog({
                   description={`${targetTypeLabel(targetType)} · ${environmentLabel(environment)} · Runtime Key`}
                   density="compact"
                   leading={<span className="flex h-control-nav w-control-nav items-center justify-center rounded-control border border-border bg-control text-primary-light"><TargetIcon className="h-icon w-icon" /></span>}
-                  trailing={<Badge variant={deploymentAvailable ? 'success' : 'outline'} size="compact">{targetsLoading || (targetType === 'agent' && releasesLoading) ? 'Checking deployment' : deploymentAvailable ? 'Deployment available' : 'Not deployed'}</Badge>}
+                  trailing={<Badge variant={deploymentAvailable ? 'success' : 'outline'} size="compact">{targetsLoading ? 'Checking target' : deploymentLabel}</Badge>}
                 />
               ) : null}
 
@@ -381,7 +368,7 @@ export function CreateApiKeyDialog({
                       <SegmentedControl
                         items={[{ value: 'agent', label: 'Agent', icon: <Bot className="h-icon-sm w-icon-sm" />, disabled: Boolean(effectiveLockedType) }, { value: 'network', label: 'Network', icon: <Network className="h-icon-sm w-icon-sm" />, disabled: Boolean(effectiveLockedType) }]}
                         value={targetType}
-                        onValueChange={(value) => { setTargetType(value as RuntimeTargetType); setTargetId(''); setEnvironmentTouched(false); setError(null) }}
+                        onValueChange={(value) => { setTargetType(value as RuntimeTargetType); setTargetId('');  setError(null) }}
                         ariaLabel="Runtime target type"
                         stretch
                         size="segment"
@@ -392,7 +379,7 @@ export function CreateApiKeyDialog({
 
                   {kind === 'runtime' && !contextualRuntime ? (
                     <SectionBlock title={targetTypeLabel(targetType)} description={`Choose which ${targetTypeLabel(targetType)} deployment this credential can execute.`} density="compact">
-                      <TargetList targetType={targetType} agents={agents} networks={networks} selectedTargetId={targetId} loading={targetsLoading} locked={targetLocked} onSelect={(nextTargetId) => { setTargetId(nextTargetId); setEnvironmentTouched(false); setError(null) }} />
+                      <TargetList targetType={targetType} agents={agents} networks={networks} selectedTargetId={targetId} loading={targetsLoading} locked={targetLocked} onSelect={(nextTargetId) => { setTargetId(nextTargetId);  setError(null) }} />
                     </SectionBlock>
                   ) : null}
 
@@ -414,7 +401,7 @@ export function CreateApiKeyDialog({
                       <SegmentedControl
                         items={[{ value: 'staging', label: 'Staging' }, { value: 'production', label: 'Production' }]}
                         value={environment}
-                        onValueChange={(value) => { setEnvironment(value as RuntimeEnvironment); setEnvironmentTouched(true); setError(null) }}
+                        onValueChange={(value) => { setEnvironment(value as RuntimeEnvironment);  setError(null) }}
                         ariaLabel="Runtime environment"
                         stretch
                         size="segment"
@@ -423,8 +410,8 @@ export function CreateApiKeyDialog({
                         className="mt-ui-md"
                         label="Current deployment"
                         density="compact"
-                        description={!targetId ? 'Select a target to inspect this environment.' : releasesLoading && targetType === 'agent' ? 'Checking current deployment…' : deploymentAvailable ? `${environmentLabel(environment)} · Available` : `${environmentLabel(environment)} · Not deployed. Deploy a release to enable Runtime requests.`}
-                        trailing={targetId && !(releasesLoading && targetType === 'agent') ? <Badge variant={deploymentAvailable ? 'success' : 'warning'} size="compact">{deploymentAvailable ? 'Available' : 'Unavailable'}</Badge> : undefined}
+                        description={!targetId ? 'Select a target to inspect this environment.' : deploymentAvailable ? `${environmentLabel(environment)} · Selected snapshot ${deployment.snapshotId}` : selectionMessage(deployment, environmentLabel(environment))}
+                        trailing={targetId ? <Badge variant={deploymentAvailable ? 'success' : 'warning'} size="compact">{deploymentLabel}</Badge> : undefined}
                       />
                     </SectionBlock>
                   ) : null}

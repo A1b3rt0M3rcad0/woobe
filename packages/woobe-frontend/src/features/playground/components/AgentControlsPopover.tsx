@@ -24,8 +24,9 @@ export function AgentControlsPopover({
   const statesQuery = useAgentRuntimeEnvironments(agent.id, projectId)
   const updateRuntime = useUpdateAgentRuntimeEnvironment(agent.id, projectId)
 
+  const statesKnown = !statesQuery.isError && environments.every(environment => typeof statesQuery.data?.[environment]?.enabled === 'boolean')
   const enabledCount = environments.filter(
-    (environment) => statesQuery.data?.[environment]?.enabled ?? true,
+    (environment) => !statesQuery.isError && statesQuery.data?.[environment]?.enabled === true,
   ).length
 
   useEffect(() => {
@@ -49,7 +50,7 @@ export function AgentControlsPopover({
   }, [open])
 
   async function updateEnabled(environment: RuntimeEnvironment, enabled: boolean) {
-    if (updateRuntime.isPending) return
+    if (updateRuntime.isPending || !statesKnown) return
 
     try {
       await updateRuntime.mutateAsync({ environment, enabled })
@@ -72,9 +73,9 @@ export function AgentControlsPopover({
         )}
         title="Agent runtime environments"
       >
-        <span className={cn('h-1.5 w-1.5 rounded-full', enabledCount === environments.length ? 'bg-emerald-400' : enabledCount === 0 ? 'bg-slate-500' : 'bg-amber-400')} />
+        <span className={cn('h-1.5 w-1.5 rounded-full', !statesKnown ? 'bg-slate-500' : enabledCount === environments.length ? 'bg-emerald-400' : enabledCount === 0 ? 'bg-slate-500' : 'bg-amber-400')} />
         <span>Runtime</span>
-        <span className="text-muted-foreground">{enabledCount}/{environments.length}</span>
+        <span className="text-muted-foreground">{statesKnown ? `${enabledCount}/${environments.length}` : statesQuery.isLoading ? '…' : 'Unknown'}</span>
         <ChevronDown className={cn('h-3 w-3 text-muted-foreground transition-transform', open && 'rotate-180')} />
       </button>
 
@@ -92,24 +93,24 @@ export function AgentControlsPopover({
 
           <div className="divide-y divide-border/70">
             {environments.map((environment) => {
-              const enabled = statesQuery.data?.[environment]?.enabled ?? true
+              const enabled = !statesQuery.isError && statesQuery.data?.[environment]?.enabled === true
               return (
                 <div key={environment} className="flex min-h-panel-header items-center justify-between gap-ui-md px-ui-md py-ui-sm">
                   <div className="flex min-w-0 items-center gap-ui-sm">
                     <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', enabled ? 'bg-emerald-400' : 'bg-slate-500')} />
                     <div className="min-w-0">
                       <p className="font-mono text-system-label font-semibold text-slate-100">{titleCase(environment)}</p>
-                      <p className="mt-ui-hairline font-sans text-product-caption text-muted-foreground">{enabled ? 'Runs allowed' : 'Runs blocked'}</p>
+                      <p className="mt-ui-hairline font-sans text-product-caption text-muted-foreground">{!statesKnown && !statesQuery.isLoading ? 'Runtime state unavailable' : statesQuery.isLoading ? 'Checking runtime…' : enabled ? 'Runs allowed' : 'Runs blocked'}</p>
                     </div>
                   </div>
 
                   <button
                     type="button"
                     aria-pressed={enabled}
-                    disabled={updateRuntime.isPending || statesQuery.isLoading}
+                    disabled={updateRuntime.isPending || !statesKnown}
                     onClick={() => void updateEnabled(environment, !enabled)}
                     className={cn('relative h-4 w-8 shrink-0 rounded-full border transition-colors disabled:cursor-not-allowed disabled:opacity-60', enabled ? 'border-emerald-400/35 bg-emerald-500/[0.16]' : 'border-border bg-control')}
-                    title={enabled ? `Disable ${environment} runtime` : `Enable ${environment} runtime`}
+                    title={!statesKnown ? 'Verify runtime state before changing it' : enabled ? `Disable ${environment} runtime` : `Enable ${environment} runtime`}
                   >
                     <span className={cn('absolute left-0.5 top-0.5 h-3 w-3 rounded-full bg-slate-100 transition-transform', enabled ? 'translate-x-4' : 'translate-x-0')} />
                   </button>
@@ -118,6 +119,7 @@ export function AgentControlsPopover({
             })}
           </div>
 
+          {!statesKnown && !statesQuery.isLoading ? <button type="button" onClick={() => void statesQuery.refetch()} className="px-ui-md py-ui-sm font-mono text-system-meta text-primary-light hover:underline">Retry runtime state</button> : null}
           <p className="border-t border-border px-ui-md py-ui-sm font-sans text-system-micro leading-4 text-muted-foreground">
             Existing Runs continue. Network executions use the Network runtime.
           </p>

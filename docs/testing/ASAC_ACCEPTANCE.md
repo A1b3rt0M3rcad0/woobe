@@ -112,3 +112,45 @@ disposable server. The official GitHub example is syntax/recovery-tested and use
 a separate protected deploy-only identity, pinned archive checksum and encrypted
 checkpoint. Environment approval rules and credentials must be configured by the
 operator; CI examples do not grant account access themselves.
+
+
+## Web selection and immutable pricing qualification
+
+`features/asac/environmentSelection.test.tsx` (frontend) exercises real React Query
+state/caching for released-but-selected snapshots, explicit empty/loading/unknown,
+authorization/transport failure, forbidden exact details, stale refresh rejection,
+legacy authority, foreign details, A→B→A, late cross-Project responses, shared
+snapshot deduplication and independent Network/Agent queries. Presentation tests
+exclude active immutable Releases by selected ID and distinguish initial deployment.
+
+`tests/e2e/tests/mvp-release.spec.ts` serves the built frontend in Chromium with
+controlled API fixtures: released + ASaC Production selected, composer gates,
+frozen metadata/session mode, history, API reference and Runtime Key dialog;
+selection errors, disabled runtime and forbidden details stay distinct from empty.
+The card fixture asserts no full Release catalog requests. This is browser/UI
+qualification with fixtures, not a Production provider or multi-host qualification.
+
+`tests/unit/agent/test_frozen_runtime_pricing.py` checks complete/missing/zero/invalid
+rates and usage, unit normalization, currency rejection, primary/fallback frozen
+prices against catalog changes, imported/native ModelSpecs, legacy frozen metadata
+and rejection of inherited mutable Draft pricing. Existing Run diagnostics,
+metering, aggregate coverage and Network cost regression suites remain required.
+
+The PostgreSQL read-side fixture in
+`tests/integration/core/test_project_overview_selection.py` checks released-but-selected
+Agents, both environments sharing one Release, selection timing and Project isolation.
+It rolls back its representations without committing deployments or bypassing owner
+acceptance. Existing Overview aggregate/filter/query-budget integrations also pass.
+Canonical runtime and rerun pricing tests exercise the actual snapshot applier, not
+only the legacy Release resolver.
+
+The live CLI/API contract configures explicit Model prices and verifies selected
+Staging/Production Agent Run costs and frozen prices after provider execution and
+PostgreSQL terminal projection. It also checks Overview exposes the selected
+Release independently of its stored status. This uses the deterministic provider,
+not a paid external provider.
+
+The frontend workflow now installs the locked browser fixture dependencies and
+pinned Chromium, builds/serves the frontend and executes the ten fixture regressions.
+Changes under `tests/e2e/` trigger this check. See the E2E README for local commands;
+fixture evidence remains distinct from the real-service acceptance suite.

@@ -13,6 +13,7 @@ from modules.core.application.dtos.project_overview import (
 )
 from modules.core.infra.database.project_overview_reader import (
     SQLAlchemyProjectOverviewReader,
+    _AGENT_ENVIRONMENT_CTE,
 )
 from shared.infra.errors import NotFoundError
 
@@ -194,33 +195,4 @@ class UnitOfWorkProjectOverviewReader(SQLAlchemyProjectOverviewReader):
 
     @staticmethod
     def _agent_environment_cte() -> str:
-        return """
-        current_release AS (
-            SELECT DISTINCT ON (release.agent_id)
-                release.agent_id,
-                release.status AS environment
-            FROM agent.agent_releases AS release
-            WHERE release.project_id = :project_id
-              AND release.status IN ('production', 'staging', 'draft')
-            ORDER BY
-                release.agent_id,
-                CASE release.status
-                    WHEN 'production' THEN 3
-                    WHEN 'staging' THEN 2
-                    ELSE 1
-                END DESC,
-                COALESCE(release.promoted_at, release.updated_at, release.created_at) DESC,
-                release.created_at DESC,
-                release.id DESC
-        ),
-        agent_environment AS (
-            SELECT
-                agent.id AS agent_id,
-                agent.name AS agent_name,
-                agent.status AS agent_status,
-                COALESCE(current_release.environment, 'draft') AS environment
-            FROM agent.agents AS agent
-            LEFT JOIN current_release ON current_release.agent_id = agent.id
-            WHERE agent.project_id = :project_id
-        )
-        """
+        return _AGENT_ENVIRONMENT_CTE

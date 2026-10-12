@@ -34,6 +34,7 @@ export function RuntimeEnvironmentPill({
   loading?: boolean
   unknown?: boolean
 }) {
+  unknown = unknown || (available && enabled === undefined && !loading)
   const label = environmentLabels[environment]
   const live = available && enabled === true && !unknown
   const off = available && enabled === false && !unknown
