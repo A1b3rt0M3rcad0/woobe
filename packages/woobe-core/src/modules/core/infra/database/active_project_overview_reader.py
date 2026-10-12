@@ -11,6 +11,7 @@ from modules.core.application.dtos.project_overview import (
     OverviewBucket,
     OverviewEnvironment,
 )
+from modules.core.infra.database.project_overview_reader import _AGENT_ENVIRONMENT_CTE
 from modules.core.infra.database.uow_project_overview_reader import (
     UnitOfWorkProjectOverviewReader,
 )
@@ -622,31 +623,20 @@ class ActiveDocumentProjectOverviewReader(UnitOfWorkProjectOverviewReader):
         params: dict[str, Any],
     ) -> list[dict[str, Any]]:
         statement = text(
-            """
-            SELECT
-                release.id,
-                release.agent_id,
-                agent.name AS agent_name,
-                release.version,
-                release.status AS environment,
-                release.release_notes,
-                release.created_at,
-                release.promoted_at
-            FROM agent.agent_releases AS release
-            JOIN agent.agents AS agent
-              ON agent.id = release.agent_id
-             AND agent.project_id = :project_id
-            WHERE release.project_id = :project_id
-              AND release.status IN ('staging', 'production')
-              AND COALESCE(release.promoted_at, release.created_at) >= :start
-              AND COALESCE(release.promoted_at, release.created_at) < :end
-              AND (
-                :environment = 'all'
-                OR release.status = :environment
-              )
-            ORDER BY
-                COALESCE(release.promoted_at, release.created_at) DESC,
-                release.id DESC
+            f"""
+            WITH {_AGENT_ENVIRONMENT_CTE}
+            SELECT release.id, release.agent_id, agent.name AS agent_name,
+                release.version, selected.environment, release.release_notes,
+                release.created_at, selected.selected_at AS promoted_at
+            FROM environment_releases AS selected
+            JOIN agent.agent_releases AS release ON release.id = selected.id
+            JOIN agent.agents AS agent ON agent.id = selected.agent_id
+              AND agent.project_id = :project_id
+            WHERE selected.environment IN ('staging', 'production')
+              AND selected.selected_at >= :start
+              AND selected.selected_at < :end
+              AND (:environment = 'all' OR selected.environment = :environment)
+            ORDER BY selected.selected_at DESC, release.id DESC, selected.environment
             LIMIT :recent_limit
             """
         )

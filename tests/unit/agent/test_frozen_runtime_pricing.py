@@ -103,3 +103,50 @@ def test_legacy_release_without_frozen_model_does_not_reuse_draft_cost():
     agent = Agent(project_id=uuid4(), name='test', provider=Provider.custom, model='test', settings={'model_pricing': pricing(), 'model_pricing_frozen': True})
     ReleaseRuntimeResolver.__new__(ReleaseRuntimeResolver)._restore_frozen_pricing(agent)
     assert cost(agent.settings['model_pricing'])['cost_status'] == 'unknown_pricing'
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('environment', ['draft', 'staging', 'production'])
+@pytest.mark.parametrize('has_frozen_price', [False, True])
+async def test_canonical_runtime_applier_keeps_exact_snapshot_pricing(monkeypatch, environment, has_frozen_price):
+    from modules.agent.application.execution_snapshot import apply_agent_execution_snapshot, build_agent_execution_snapshot
+    from modules.agent.application.dtos.runtime_dtos import AskInput
+    from modules.agent.domain.entities import AgentRelease
+    from modules.agent.infra.execution import canonical_execution_snapshot_runtime_resolver as canonical
+
+    project = uuid4()
+    credential = ProviderCredential(project_id=project, provider=Provider.custom, name='provider', encrypted_secret='test')
+    model = ProviderModel(project_id=project, provider_credential_id=credential.id, name='model', model='test', metadata={
+        'pricing': {'input': 1, 'output': 2}} if has_frozen_price else {})
+    spec = LegacyModelSpecResolver().resolve(model, provider='custom').as_dict()
+    agent = Agent(project_id=project, name='test', provider=Provider.custom, model='draft-model', settings={'model_pricing': pricing()})
+    selected = AgentRelease(project_id=project, agent_id=agent.id, version='1.0.0', provider='custom', model='test',
+        provider_model_id=model.id, provider_credential_id=credential.id, model_spec_snapshot=spec, session_mode='stateless')
+    snapshot = build_agent_execution_snapshot(selected)
+    resolved = SimpleNamespace(snapshot=snapshot, release=selected, release_id=selected.id)
+    monkeypatch.setattr(canonical, '_execution_snapshot_resolver_factory', lambda *args: SimpleNamespace(resolve=AsyncMock(return_value=resolved)))
+    monkeypatch.setattr(canonical, '_execution_snapshot_applier', apply_agent_execution_snapshot)
+    model.metadata = {'pricing': {'input': 999, 'output': 999}}
+    uow = SimpleNamespace(agents=SimpleNamespace(get_by_id=AsyncMock(return_value=agent)), releases=object(), sessions=None,
+        provider_models=SimpleNamespace(get_by_id=AsyncMock(return_value=model)), provider_credentials=SimpleNamespace(get_by_id=AsyncMock(return_value=credential)))
+    runtime = canonical.CanonicalExecutionSnapshotRuntimeResolver.__new__(canonical.CanonicalExecutionSnapshotRuntimeResolver)
+    executed = await runtime._load_agent(uow, AskInput(project_id=project, agent_id=agent.id, message='test', execution_context=environment))
+    evidence = cost(executed.settings['model_pricing'])
+    assert evidence['cost_status'] == ('known' if has_frozen_price else 'unknown_pricing')
+    if has_frozen_price:
+        assert evidence['cost_usd'] == .002
+    assert executed.settings['model_spec'] == spec
+
+
+def test_rerun_snapshot_override_preserves_and_replaces_model_spec():
+    from modules.agent.infra.execution.frozen_snapshot_runtime import FrozenSnapshotStructuredOutputRuntime
+    model = ProviderModel(project_id=uuid4(), name='model', model='test', metadata={'pricing': {'input': 1, 'output': 2}})
+    spec = LegacyModelSpecResolver().resolve(model, provider='custom').as_dict()
+    agent = Agent(project_id=model.project_id, name='test', provider=Provider.custom, model='test')
+    runtime = FrozenSnapshotStructuredOutputRuntime.__new__(FrozenSnapshotStructuredOutputRuntime)
+    runtime._apply_snapshot_override(agent, {'model_spec_snapshot': spec, 'fallback_model_spec_snapshot': spec})
+    runtime._restore_frozen_pricing(agent)
+    assert cost(agent.settings['model_pricing'])['cost_usd'] == .002
+    assert cost(agent.settings['fallback_model_pricing'])['cost_usd'] == .002
+    runtime._apply_snapshot_override(agent, {'model_spec_snapshot': None, 'fallback_model_spec_snapshot': None})
+    assert 'model_spec' not in agent.settings and 'model_pricing' not in agent.settings

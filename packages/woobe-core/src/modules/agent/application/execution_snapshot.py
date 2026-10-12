@@ -233,10 +233,14 @@ def apply_agent_execution_snapshot(agent: Any, snapshot: dict[str, Any]) -> Any:
     settings["runtime_config"] = runtime_config
     for prefix in ("", "fallback_"):
         model_spec = snapshot.get(f"{prefix}model_spec_snapshot")
+        settings.pop(f"{prefix}model_pricing", None)
+        settings.pop(f"{prefix}model_pricing_frozen", None)
         if model_spec is None:
             settings.pop(f"{prefix}model_spec", None)
+            settings.pop(f"{prefix}model_spec_frozen", None)
         else:
             settings[f"{prefix}model_spec"] = deepcopy(model_spec)
+            settings[f"{prefix}model_spec_frozen"] = True
     agent.settings = settings
     return agent
 

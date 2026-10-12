@@ -135,3 +135,11 @@ rates and usage, unit normalization, currency rejection, primary/fallback frozen
 prices against catalog changes, imported/native ModelSpecs, legacy frozen metadata
 and rejection of inherited mutable Draft pricing. Existing Run diagnostics,
 metering, aggregate coverage and Network cost regression suites remain required.
+
+The PostgreSQL read-side fixture in
+`tests/integration/core/test_project_overview_selection.py` checks released-but-selected
+Agents, both environments sharing one Release, selection timing and Project isolation.
+It rolls back its representations without committing deployments or bypassing owner
+acceptance. Existing Overview aggregate/filter/query-budget integrations also pass.
+Canonical runtime and rerun pricing tests exercise the actual snapshot applier, not
+only the legacy Release resolver.

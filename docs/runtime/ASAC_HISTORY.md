@@ -513,6 +513,10 @@ fetches complete Release catalogs or immutable details for cards. The old card
 made two requests (runtime plus full Release catalog); this change reduces
 snapshot payload exposure, not request count. Shared queries deduplicate reads
 across mounted consumers. This is not a load/capacity benchmark or a bulk endpoint.
+Overview's current Agent counts and recent selected Releases also read the owner
+selection, including a single immutable Release selected in both environments.
+ASaC display timing uses the selection's update timestamp; legacy selections retain
+native promotion timestamps. Publication dates remain the immutable creation date.
 Network-pinned constituent bindings remain distinct from standalone Agent
 selection. Initial deployment labels use the absent previous selection; retained
 activation records are not modified.
