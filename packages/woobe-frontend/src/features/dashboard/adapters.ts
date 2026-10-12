@@ -222,7 +222,9 @@ export function formatLatency(value: number | null): string {
 }
 
 export function formatCost(value: number | null, known = true): string {
-  return value === null || !known ? 'Unknown' : currencyFormatter.format(value)
+  if (value === null || !known) return 'Unknown'
+  if (value > 0 && value < 0.0001) return '< $0.0001'
+  return currencyFormatter.format(value)
 }
 
 export function formatStorage(bytes: number): string {

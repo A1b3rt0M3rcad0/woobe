@@ -7,6 +7,12 @@ function cloneFixture() {
 }
 
 describe('adaptProjectOverview', () => {
+  it('does not round a positive microcost into a displayed zero', () => {
+    expect(formatCost(0.00002898)).toBe('< $0.0001')
+    expect(formatCost(0.0000000001)).toBe('< $0.0001')
+    expect(formatCost(0)).toBe('$0.00')
+    expect(formatCost(0.00002898, false)).toBe('Unknown')
+  })
   it('includes terminal uncertain Runs in errors without inventing their cost', () => {
     const fixture = cloneFixture()
     Object.assign(fixture.summary, { agent_runs: 1, terminal_agent_runs: 1, successful_agent_runs: 0,
