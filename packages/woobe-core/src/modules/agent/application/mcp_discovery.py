@@ -141,7 +141,7 @@ class DiscoverMcpToolsUseCase:
             "params": {
                 "protocolVersion": MCP_PROTOCOL_VERSION,
                 "capabilities": {},
-                "clientInfo": {"name": "Woobe", "version": "0.13.0"},
+                "clientInfo": {"name": "Woobe", "version": "0.13.1"},
             },
         }
         init_result = await self._executor.execute(
