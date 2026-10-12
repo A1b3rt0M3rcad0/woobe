@@ -389,48 +389,24 @@ class SQLAlchemyProjectOverviewReader:
         params: dict[str, Any],
     ) -> list[dict[str, Any]]:
         statement = text(
-            """
-            WITH ranked_releases AS (
-                SELECT
-                    release.id,
-                    release.agent_id,
-                    agent.name AS agent_name,
-                    release.version,
-                    release.status AS environment,
-                    release.created_at,
-                    release.promoted_at,
+            f"""
+            WITH {_AGENT_ENVIRONMENT_CTE}, ranked_releases AS (
+                SELECT release.id, release.agent_id, agent.name AS agent_name,
+                    release.version, selected.environment, release.created_at,
+                    selected.selected_at AS promoted_at,
                     ROW_NUMBER() OVER (
-                        PARTITION BY release.agent_id, release.status
-                        ORDER BY
-                            COALESCE(release.promoted_at, release.updated_at, release.created_at) DESC,
-                            release.created_at DESC,
-                            release.id DESC
+                        PARTITION BY release.agent_id, selected.environment
+                        ORDER BY selected.selected_at DESC, release.id DESC
                     ) AS status_rank
-                FROM agent.agent_releases AS release
-                JOIN agent.agents AS agent
-                    ON agent.id = release.agent_id
-                   AND agent.project_id = :project_id
-                WHERE release.project_id = :project_id
-                  AND release.status IN ('draft', 'staging', 'production')
-                  AND (
-                    :environment = 'all'
-                    OR release.status = :environment
-                  )
+                FROM environment_releases AS selected
+                JOIN agent.agent_releases AS release ON release.id = selected.id
+                JOIN agent.agents AS agent ON agent.id = selected.agent_id
+                  AND agent.project_id = :project_id
+                WHERE :environment = 'all' OR selected.environment = :environment
             )
-            SELECT
-                id,
-                agent_id,
-                agent_name,
-                version,
-                environment,
-                created_at,
-                promoted_at
-            FROM ranked_releases
-            WHERE status_rank = 1
-            ORDER BY
-                COALESCE(promoted_at, created_at) DESC,
-                created_at DESC,
-                id DESC
+            SELECT id, agent_id, agent_name, version, environment, created_at, promoted_at
+            FROM ranked_releases WHERE status_rank = 1
+            ORDER BY promoted_at DESC, id DESC, environment
             LIMIT :recent_limit
             """
         )

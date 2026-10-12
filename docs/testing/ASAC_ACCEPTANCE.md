@@ -143,3 +143,9 @@ It rolls back its representations without committing deployments or bypassing ow
 acceptance. Existing Overview aggregate/filter/query-budget integrations also pass.
 Canonical runtime and rerun pricing tests exercise the actual snapshot applier, not
 only the legacy Release resolver.
+
+The live CLI/API contract configures explicit Model prices and verifies selected
+Staging/Production Agent Run costs and frozen prices after provider execution and
+PostgreSQL terminal projection. It also checks Overview exposes the selected
+Release independently of its stored status. This uses the deterministic provider,
+not a paid external provider.

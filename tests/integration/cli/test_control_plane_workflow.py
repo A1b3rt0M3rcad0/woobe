@@ -661,6 +661,7 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
             "provider_credential_id": credential["id"],
             "name": "Deterministic",
             "model": "fake-success",
+            "metadata": {"pricing": {"input_cost_per_1m_tokens": 1.0, "output_cost_per_1m_tokens": 2.0, "currency": "USD"}},
         },
     )
     agent_body = {
@@ -2540,6 +2541,16 @@ async def exercise_asac_deployments(cli, kind, resource_id, publication):
                     ).order_by(AgentRunModel.created_at.desc()).limit(1))
                     assert run and str(run.agent_release_id)==publication["release_id"]
                     assert run.status == "completed"
+                    # Cost evidence survives actual admission, provider invocation,
+                    # terminal projection and PostgreSQL persistence.
+                    assert run.usage and run.usage["cost_usd"] is not None
+                    expected_cost = (run.usage["input_tokens"] + 2 * run.usage["output_tokens"]) / 1_000_000
+                    assert run.usage["cost_usd"] == pytest.approx(expected_cost, abs=1e-10)
+                    selected_spec = run.execution_snapshot["model_spec_snapshot"]
+                    assert selected_spec["pricing"]["input_cost_per_1m_tokens"] == 1.0
+                    overview = await cli.data("request", "GET", "/core/projects/" + cli.project_id + "/overview")
+                    assert overview["summary"]["production_agents"] >= 1
+                    assert any(row["id"] == publication["release_id"] and row["environment"] == environment for row in overview["recent_releases"])
                 else:
                     from modules.network.infra.database.models import NetworkExecutionModel
                     run=await session.get(NetworkExecutionModel,UUID(result["data"]["data"]["execution_id"]))

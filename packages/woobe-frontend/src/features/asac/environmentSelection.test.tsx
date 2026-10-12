@@ -50,12 +50,18 @@ describe('authoritative environment selection', () => {
   })
   it('does not claim absence during the initial read', async () => { fixture.get.mockReturnValue(new Promise(() => {})); await render(); expect(container.textContent).toContain('Production…'); expect(container.textContent).not.toContain('No Production') })
   it('keeps verified selection visible when details are forbidden', async () => {
-    fixture.get.mockImplementation(async (path: string) => { if (path.endsWith('/current')) return current(); throw new Error('403') })
+    let forbidden = true
+    fixture.get.mockImplementation(async (path: string) => { if (path.endsWith('/current')) return current(); if (forbidden) throw new Error('403'); return release() })
     await render(); expect(container.textContent).toContain('Production Live'); expect(container.textContent).toContain('details unavailable'); expect(observed.snapshot).toBeNull(); expect(observed.state).toBe('selected')
+    forbidden = false; await act(async () => container.querySelector('button')!.click()); await settle()
+    expect(observed.snapshot?.model).toBe('immutable-model'); expect(observed.detailState).toBe('ready')
   })
   it('does not use cached evidence after a failed refresh', async () => {
     await render(); fixture.get.mockRejectedValue(new Error('offline')); await act(async () => { await observed.refetch() }); await settle()
     expect(observed.state).toBe('unknown'); expect(observed.snapshot).toBeNull(); expect(container.textContent).toContain('Unknown')
+    fixture.get.mockImplementation(async (path: string) => path.endsWith('/current') ? current() : release())
+    await act(async () => container.querySelector('button')!.click()); await settle()
+    expect(observed.state).toBe('selected'); expect(observed.snapshot?.id).toBe('selected')
   })
   it.each(['asac', 'legacy'])('supports %s authority without status inference', async (authority) => {
     fixture.get.mockImplementation(async (path: string) => path.endsWith('/current') ? { ...current(), selection_authority: authority } : release()); await render(); expect(observed.state).toBe('selected'); expect(observed.data?.selection_authority).toBe(authority)
