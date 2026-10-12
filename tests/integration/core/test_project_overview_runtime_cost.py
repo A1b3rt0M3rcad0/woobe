@@ -227,6 +227,37 @@ async def test_overview_uses_recorded_cost_and_causality_without_duplicate_trace
 
 
 @pytest.mark.asyncio
+async def test_network_cost_stays_partial_until_all_constituent_runs_are_terminal(
+    recorded_runs,
+):
+    session, reader, params, add_run, _ = recorded_runs
+    add_run(cost=0, environment="draft", network_run=True)
+    add_run(cost=0.9, environment="draft", network_run=True, status="running")
+    await session.flush()
+    network = (await reader._recent_network_runs(session, params))[0]
+    assert network["total_agent_runs"] == 2
+    assert network["priced_agent_runs"] == 1
+    assert network["unknown_cost_count"] == 1
+    assert network["cost_usd"] == 0
+    assert network["cost_known"] is False
+
+
+@pytest.mark.asyncio
+async def test_running_network_exposes_subtotal_without_claiming_final_cost(
+    recorded_runs,
+):
+    session, reader, params, add_run, execution = recorded_runs
+    execution.status = "running"
+    execution.completed_at = None
+    add_run(cost=0.1, environment="draft", network_run=True)
+    await session.flush()
+    network = (await reader._recent_network_runs(session, params))[0]
+    assert network["cost_usd"] == pytest.approx(0.1)
+    assert network["priced_agent_runs"] == 1
+    assert network["cost_known"] is False
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "cost,cost_status",
     [

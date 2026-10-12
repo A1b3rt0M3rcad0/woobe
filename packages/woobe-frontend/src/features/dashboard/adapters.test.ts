@@ -140,6 +140,15 @@ describe('adaptProjectOverview', () => {
     expect(networkRun?.costDetail).toContain('1/2')
   })
 
+  it('marks an unfinished Network cost as a current subtotal', () => {
+    const fixture = cloneFixture()
+    Object.assign(fixture.recent_network_runs[0]!, { cost_usd: 0.1, cost_known: false,
+      status: 'running', total_agent_runs: 1, priced_agent_runs: 1, unknown_cost_count: 0 })
+    const row = adaptProjectOverview(fixture).runs.find((run) => run.kind === 'network')
+    expect(row?.costDetail).toBe('Current subtotal · Network Run not finalized')
+    expect(row?.costLabel).not.toBe('Unknown')
+  })
+
   it('distinguishes mutable Draft changes from immutable releases', () => {
     const fixture = cloneFixture()
     fixture.recent_changes = [

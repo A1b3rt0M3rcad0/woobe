@@ -849,16 +849,17 @@ class ActiveDocumentProjectOverviewReader(UnitOfWorkProjectOverviewReader):
                     selected_runs.id AS network_execution_id,
                     COUNT(trace.id) AS total_agent_runs,
                     COUNT(trace.id) FILTER (
-                        WHERE trace.total_cost_usd IS NOT NULL
+                        WHERE trace.status IN ('completed', 'failed', 'cancelled')
+                          AND trace.total_cost_usd IS NOT NULL
                     ) AS priced_agent_runs,
                     SUM(trace.total_cost_usd) FILTER (
-                        WHERE trace.total_cost_usd IS NOT NULL
+                        WHERE trace.status IN ('completed', 'failed', 'cancelled')
+                          AND trace.total_cost_usd IS NOT NULL
                     ) AS known_cost_usd
                 FROM selected_runs
                 LEFT JOIN agent_run_context AS trace
                   ON trace.network_execution_id = selected_runs.id
                  AND trace.project_id = :project_id
-                 AND trace.status IN ('completed', 'failed', 'cancelled')
                 GROUP BY selected_runs.id
             )
             SELECT
@@ -884,6 +885,7 @@ class ActiveDocumentProjectOverviewReader(UnitOfWorkProjectOverviewReader):
                 (
                     execution_costs.total_agent_runs > 0
                     AND execution_costs.total_agent_runs = execution_costs.priced_agent_runs
+                    AND selected_runs.status IN ('completed', 'failed', 'timed_out', 'uncertain', 'cancelled')
                 ) AS cost_known,
                 COALESCE(execution_costs.priced_agent_runs, 0) AS priced_agent_runs,
                 COALESCE(execution_costs.total_agent_runs, 0) AS total_agent_runs,

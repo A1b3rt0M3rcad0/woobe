@@ -41,6 +41,8 @@ Historical traces without an Agent Run remain readable for compatibility.
 Network cost is the known subtotal of its terminal constituent Agent Runs;
 coverage remains partial when any constituent is unpriced. Reads do not reprice
 or rewrite Runs or traces.
+An unfinished Network exposes only a current subtotal; running constituents are
+included in coverage and do not contribute a final price until terminal.
 
 `unknown_pricing_agent_runs` and `unknown_token_usage_agent_runs` distinguish
 missing frozen prices from incomplete provider usage in the Overview summary.

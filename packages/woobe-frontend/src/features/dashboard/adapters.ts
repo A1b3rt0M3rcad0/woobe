@@ -344,6 +344,8 @@ function networkRunRow(run: ProjectOverviewNetworkRun): DashboardRunRow {
       : 'Cost unavailable'
     : run.total_agent_runs === 0
       ? 'No Agent Runs recorded'
+      : hasKnownSubtotal && !run.cost_known
+        ? 'Current subtotal · Network Run not finalized'
       : null
   return {
     id: run.id,
