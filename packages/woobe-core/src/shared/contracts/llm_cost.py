@@ -191,15 +191,19 @@ def calculate_llm_cost(
             "cost_reason": "LLM provider did not return complete token usage",
         }
 
-    if not pricing_snapshot or not pricing_snapshot.get("configured"):
+    if not pricing_snapshot:
         return {
             "cost_usd": None,
             "cost_status": "unknown_pricing",
             "cost_reason": "Provider model has no active pricing configured",
         }
 
-    if (_first_text(pricing_snapshot.get("currency")) or "USD").upper() != "USD" or pricing_snapshot.get("billing_unit", "per_1m_tokens") != "per_1m_tokens":
+    if ((_first_text(pricing_snapshot.get("currency")) or "USD").upper() != "USD"
+            or pricing_snapshot.get("billing_unit", "per_1m_tokens") != "per_1m_tokens"):
         return {"cost_usd": None, "cost_status": "unknown_pricing", "cost_reason": "Pricing currency or billing unit is unsupported for USD metering"}
+
+    if not pricing_snapshot.get("configured"):
+        return {"cost_usd": None, "cost_status": "unknown_pricing", "cost_reason": "Provider model has no complete valid pricing configured"}
 
     input_rate = _decimal(pricing_snapshot.get("input_cost_per_token"))
     output_rate = _decimal(pricing_snapshot.get("output_cost_per_token"))

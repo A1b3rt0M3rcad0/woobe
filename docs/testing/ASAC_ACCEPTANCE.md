@@ -149,3 +149,8 @@ Staging/Production Agent Run costs and frozen prices after provider execution an
 PostgreSQL terminal projection. It also checks Overview exposes the selected
 Release independently of its stored status. This uses the deterministic provider,
 not a paid external provider.
+
+The frontend workflow now installs the locked browser fixture dependencies and
+pinned Chromium, builds/serves the frontend and executes the ten fixture regressions.
+Changes under `tests/e2e/` trigger this check. See the E2E README for local commands;
+fixture evidence remains distinct from the real-service acceptance suite.

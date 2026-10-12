@@ -150,3 +150,8 @@ def test_rerun_snapshot_override_preserves_and_replaces_model_spec():
     assert cost(agent.settings['fallback_model_pricing'])['cost_usd'] == .002
     runtime._apply_snapshot_override(agent, {'model_spec_snapshot': None, 'fallback_model_spec_snapshot': None})
     assert 'model_spec' not in agent.settings and 'model_pricing' not in agent.settings
+
+
+@pytest.mark.parametrize('unsupported', [{'currency': 'BRL'}, {'billing_unit': 'per_request'}])
+def test_pricing_diagnostics_explain_currency_and_unit_rejection(unsupported):
+    assert 'unsupported for USD metering' in cost(pricing(**unsupported))['cost_reason']
