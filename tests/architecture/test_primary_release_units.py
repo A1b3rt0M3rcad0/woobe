@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import re
 import tomllib
+
+import yaml
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -151,6 +153,14 @@ def test_release_identity_uses_canonical_version_not_commit_subject() -> None:
     assert "git log -1 --format=%s" not in release
 
     assert "name: Release Woobe" in prepare
+    # Platform publication is explicitly dispatched by a maintainer,
+    # never started by merging a normal PR or pushing to master.
+    triggers = yaml.load(prepare, Loader=yaml.BaseLoader)["on"]
+    assert set(triggers) == {"workflow_dispatch"}
+    version_input = triggers["workflow_dispatch"]["inputs"]["version"]
+    assert version_input["required"] == "false"
+    assert version_input["default"] == ""
+    assert "scripts/release/resolve_auto_release.py" in prepare
     assert "scripts/release/set_platform_version.py" in prepare
     assert "gh pr create" in prepare
     assert "--draft" not in prepare
@@ -208,7 +218,7 @@ def test_validated_release_candidate_is_bound_to_one_orchestrated_publication() 
     assert "Verify completed release recovery" in prepare
     assert "Complete pending release branch cleanup" in prepare
     assert "${{ github.run_id }}-${{ github.run_attempt }}" in prepare
-    assert "Release Woobe ${{ inputs.version || github.sha }}" in prepare
+    assert "Release Woobe ${{ inputs.version || 'auto' }}" in prepare
     assert 'GITHUB_REF" != "refs/heads/master' in prepare
 
 

@@ -1,14 +1,13 @@
 name: Release Woobe
-run-name: Release Woobe ${{ inputs.version || github.sha }}
+run-name: Release Woobe ${{ inputs.version || 'auto' }}
 
 on:
-  push:
-    branches: [master]
   workflow_dispatch:
     inputs:
       version:
-        description: Optional exact Semantic Version for recovery or an intentional override; empty calculates automatically.
+        description: Leave blank for automatic SemVer. Optional exact version for reviewed overrides or recovery.
         required: false
+        default: ""
         type: string
       allow_initial_version_rebase:
         description: Allow the first-ever published release to be lower than the current development VERSION.

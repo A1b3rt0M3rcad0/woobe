@@ -95,7 +95,7 @@ def test_reviewed_commits_calculate_next_version(repo, message, expected):
     source = commit(message)
     before = Path("VERSION").read_bytes()
     with metadata():
-        result = auto.resolve(REPO, source=source, event="push")
+        result = auto.resolve(REPO, source=source, event="workflow_dispatch")
     assert result["version"] == expected and result["skip"] == "false"
     assert Path("VERSION").read_bytes() == before
     assert command("git", "status", "--porcelain") == ""
@@ -123,12 +123,12 @@ def test_first_release_opens_a_version_sync_instead_of_fabricating_recovery(repo
     assert result["release_exists"] == "false"
 
 
-def test_release_merge_push_does_not_create_another_release(repo):
+def test_manual_dispatch_of_already_published_revision_is_noop(repo):
     commit("fix(agent): recover original receipt")
     source = commit("chore(release): prepare Woobe v0.12.2", "0.12.2")
     command("git", "tag", "v0.12.2")
     with metadata(releases=[record("0.12.1"), record("0.12.2")]):
-        result = auto.resolve(REPO, source=source, event="push")
+        result = auto.resolve(REPO, source=source, event="workflow_dispatch")
     assert result["skip"] == "true"
     assert result["version"] == "0.12.2"
 
