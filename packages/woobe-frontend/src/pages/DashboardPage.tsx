@@ -611,6 +611,7 @@ export function DashboardDataState({ model, environment = 'all', onNavigate, onO
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">{model.metrics.map((metric) => <MetricCard key={metric.label} metric={metric} />)}</div>
+      {model.pricingWarning && <div role="status" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-xs text-amber-200"><p className="min-w-0 flex-1">{model.pricingWarning}</p><MiniLink label="Review Model pricing" onClick={() => onNavigate('models')} /></div>}
 
       <StorySectionHeader title="What happened" description="Volume, reliability, performance, and cost in the selected period." />
       {model.isExecutionEmpty ? <EmptyExecutionState /> : <div className="grid grid-cols-1 gap-4 xl:grid-cols-12"><div className="xl:col-span-8"><RunActivityChart model={model} /></div><div className="xl:col-span-4"><ReliabilityPanel model={model} /></div></div>}

@@ -141,6 +141,7 @@ def build(payload: dict[str, Any]) -> dict[str, Any]:
         "usage_complete": bool(payload.get("usage_complete")),
         "cost_usd": payload.get("cost_usd"),
         "cost_status": payload.get("cost_status") or "unknown",
+        "cost_reason": payload.get("cost_reason"),
         "source_count": len(payload.get("sources") or []),
         "answer_length": payload.get("answer_length"),
         "fallback_used": bool(payload.get("fallback_used")),

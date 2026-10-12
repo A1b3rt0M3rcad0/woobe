@@ -30,6 +30,8 @@ export interface ProjectOverviewSummary {
   agent_run_cost_usd: number | null
   priced_agent_runs: number
   unknown_agent_run_cost_count: number
+  unknown_pricing_agent_runs?: number
+  unknown_token_usage_agent_runs?: number
 
   network_runs: number
   terminal_network_runs: number
@@ -144,6 +146,8 @@ export interface ProjectOverviewTrace {
   total_tokens: number | null
   cost_usd: number | null
   cost_known: boolean
+  cost_status?: string
+  cost_reason?: string | null
   started_at: string | null
 }
 

@@ -91,6 +91,8 @@ class ProjectOverviewSummary(BaseModel):
     agent_run_cost_usd: float | None = 0.0
     priced_agent_runs: int = 0
     unknown_agent_run_cost_count: int = 0
+    unknown_pricing_agent_runs: int = 0
+    unknown_token_usage_agent_runs: int = 0
 
     network_runs: int = 0
     terminal_network_runs: int = 0
@@ -215,6 +217,8 @@ class ProjectOverviewTrace(BaseModel):
     total_tokens: int | None = None
     cost_usd: float | None = None
     cost_known: bool
+    cost_status: str = "unknown"
+    cost_reason: str | None = None
     started_at: datetime | None = None
 
 

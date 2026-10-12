@@ -7,6 +7,33 @@ function cloneFixture() {
 }
 
 describe('adaptProjectOverview', () => {
+  it('explains missing pricing separately from incomplete token usage', () => {
+    const fixture = cloneFixture()
+    fixture.summary.agent_run_cost_usd = null
+    fixture.summary.terminal_agent_runs = 58
+    fixture.summary.priced_agent_runs = 0
+    fixture.summary.unknown_agent_run_cost_count = 58
+    fixture.summary.unknown_pricing_agent_runs = 57
+    fixture.summary.unknown_token_usage_agent_runs = 1
+    fixture.recent_traces[0]!.cost_known = false
+    fixture.recent_traces[0]!.cost_reason = 'Provider model has no active pricing configured'
+    const model = adaptProjectOverview(fixture)
+    const cost = model.metrics.find((metric) => metric.label === 'Runtime Cost')
+    expect(cost?.value).toBe('Unknown')
+    expect(cost?.detail).toContain('57 missing Model prices')
+    expect(cost?.detail).toContain('1 incomplete token usage')
+    expect(model.pricingWarning).toContain('capture and deploy a new Candidate/Release')
+    expect(model.runs.find((run) => run.kind === 'agent')?.costDetail).toContain('no active pricing')
+  })
+
+  it('labels the recorded subtotal when only part of the Runs have prices', () => {
+    const fixture = cloneFixture()
+    fixture.summary.agent_run_cost_usd = 0.1
+    fixture.summary.unknown_agent_run_cost_count = 1
+    const model = adaptProjectOverview(fixture)
+    expect(model.metrics.find((metric) => metric.label === 'Runtime Cost')?.detail).toContain('1 without cost evidence')
+    expect(model.pricingWarning).toBeNull()
+  })
   it('maps the operational story to the Overview view model', () => {
     const model = adaptProjectOverview(cloneFixture())
     const averageRunTimeMetric = model.metrics[model.metrics.length - 1]

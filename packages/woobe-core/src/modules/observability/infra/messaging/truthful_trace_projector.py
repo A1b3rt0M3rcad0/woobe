@@ -192,6 +192,8 @@ async def _project_cancelled(
 async def project_agent_event(
     *, event_type: str, payload: dict[str, Any], session: AsyncSession
 ) -> None:
+    if event_type in {"agent.execution.completed.v1", "agent.execution.failed.v1"}:
+        payload = _completion_projection_payload(payload)
     if event_type == "agent.execution.cancelled.v1":
         await _project_cancelled(payload=payload, session=session)
         return
@@ -228,7 +230,7 @@ async def project_agent_event(
         )
         return
 
-    if event_type != "agent.execution.completed.v1":
+    if event_type not in {"agent.execution.completed.v1", "agent.execution.failed.v1"}:
         await trace_repo.save(trace)
         return
 
@@ -262,6 +264,19 @@ async def project_agent_event(
     )
     trace.total_latency_ms = projection_payload.get("total_latency_ms") or projection_payload.get("latency_ms")
     await trace_repo.save(trace)
+
+    if event_type == "agent.execution.failed.v1":
+        await _save_event(
+            event_repo,
+            trace_id=trace_id,
+            project_id=trace.project_id,
+            discriminator="failed",
+            kind=TraceEventType.error,
+            latency_ms=trace.total_latency_ms,
+            cost_usd=trace.total_cost_usd,
+            payload={"event": event_type, **projection_payload, "diagnostics": diagnostics},
+        )
+        return
 
     await _save_event(
         event_repo,

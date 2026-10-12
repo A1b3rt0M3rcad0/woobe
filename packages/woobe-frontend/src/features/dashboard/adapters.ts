@@ -145,6 +145,7 @@ export interface DashboardOperationalIssues {
 }
 
 export interface DashboardViewModel {
+  pricingWarning: string | null
   narrative: string
   metrics: DashboardMetric[]
   series: DashboardSeriesPoint[]
@@ -328,7 +329,9 @@ function agentRunRow(trace: ProjectOverviewTrace): DashboardRunRow {
     timeLabel: safeDateLabel(trace.started_at),
     durationLabel: formatLatency(trace.latency_ms),
     costLabel: formatCost(trace.cost_usd, trace.cost_known),
-    costDetail: null,
+    costDetail: trace.cost_known ? null : trace.cost_reason
+      ?? (trace.cost_status === 'unknown_pricing' ? 'Model pricing unavailable'
+        : trace.cost_status === 'unknown_tokens' ? 'Provider token usage incomplete' : null),
     startedAt: trace.started_at,
   }
 }
@@ -383,6 +386,14 @@ export function adaptProjectOverview(overview: ProjectOverview): DashboardViewMo
   const pricedPercent = summary.terminal_agent_runs > 0
     ? (summary.priced_agent_runs / summary.terminal_agent_runs) * 100
     : null
+  const pricingMissing = summary.unknown_pricing_agent_runs ?? 0
+  const tokensMissing = summary.unknown_token_usage_agent_runs ?? 0
+  const missingDetails = [
+    pricingMissing > 0 ? `${formatInteger(pricingMissing)} missing Model prices` : null,
+    tokensMissing > 0 ? `${formatInteger(tokensMissing)} incomplete token usage` : null,
+    summary.unknown_agent_run_cost_count > pricingMissing + tokensMissing
+      ? `${formatInteger(summary.unknown_agent_run_cost_count - pricingMissing - tokensMissing)} without cost evidence` : null,
+  ].filter(Boolean).join(' · ')
 
   const metrics: DashboardMetric[] = [
     {
@@ -407,7 +418,7 @@ export function adaptProjectOverview(overview: ProjectOverview): DashboardViewMo
       detail: pricedPercent === null
         ? 'No terminal Agent Runs'
         : summary.unknown_agent_run_cost_count > 0
-          ? `${formatPercent(pricedPercent)} priced · ${formatInteger(summary.unknown_agent_run_cost_count)} without cost data`
+          ? `${formatPercent(pricedPercent)} priced · ${missingDetails}`
           : 'All terminal Agent Runs priced',
       direction: 'neutral',
       icon: CircleDollarSign,
@@ -541,6 +552,9 @@ export function adaptProjectOverview(overview: ProjectOverview): DashboardViewMo
   ].filter((value): value is string => Boolean(value))
 
   return {
+    pricingWarning: pricingMissing > 0
+      ? 'Some Runs have no frozen Model pricing. Set both USD prices in Models → Pricing, then capture and deploy a new Candidate/Release. Historical Runs without prices remain unknown.'
+      : null,
     narrative: buildNarrative(overview),
     metrics,
     series,

@@ -75,6 +75,62 @@ class ActiveDocumentProjectOverviewReader(UnitOfWorkProjectOverviewReader):
     @staticmethod
     def _agent_run_context_cte() -> str:
         return """
+        recorded_agent_runs AS (
+            SELECT
+                run.trace_id AS id,
+                run.project_id,
+                run.agent_id,
+                run.network_execution_id,
+                run.status,
+                COALESCE(run.started_at, run.created_at) AS started_at,
+                run.created_at,
+                run.failure_detail AS error,
+                CASE
+                    WHEN jsonb_typeof(run.result -> 'diagnostics' -> 'agent_runtime_latency_ms') = 'number'
+                    THEN (run.result -> 'diagnostics' ->> 'agent_runtime_latency_ms')::double precision
+                    WHEN jsonb_typeof(run.result -> 'latency_ms') = 'number'
+                    THEN (run.result ->> 'latency_ms')::double precision
+                    ELSE EXTRACT(EPOCH FROM (run.completed_at - run.started_at)) * 1000
+                END AS total_latency_ms,
+                CASE
+                    WHEN jsonb_typeof(run.usage -> 'cost_usd') = 'number'
+                    THEN CASE
+                        WHEN (run.usage ->> 'cost_usd')::numeric >= 0
+                         AND COALESCE(
+                            run.result ->> 'cost_status',
+                            run.result -> 'diagnostics' ->> 'cost_status', 'known'
+                         ) = 'known'
+                        THEN (run.usage ->> 'cost_usd')::double precision
+                        ELSE NULL
+                    END
+                    ELSE NULL
+                END AS total_cost_usd,
+                COALESCE(run.result, '{}'::jsonb)
+                    || COALESCE(run.usage, '{}'::jsonb)
+                    || jsonb_build_object(
+                        'execution_context', run.environment,
+                        'run_source', run.origin,
+                        'failure_code', run.failure_code
+                    ) AS data,
+                run.environment AS recorded_environment
+            FROM agent.agent_runs AS run
+            WHERE run.project_id = :project_id
+
+            UNION ALL
+
+            SELECT
+                trace.id, trace.project_id, trace.agent_id,
+                trace.network_execution_id, trace.status, trace.started_at,
+                trace.created_at, trace.error, trace.total_latency_ms,
+                trace.total_cost_usd, trace.data, NULL::text AS recorded_environment
+            FROM observability.traces AS trace
+            WHERE trace.project_id = :project_id
+              AND NOT EXISTS (
+                SELECT 1 FROM agent.agent_runs AS run
+                WHERE run.project_id = trace.project_id
+                  AND run.trace_id = trace.id
+              )
+        ),
         current_agent_release AS (
             SELECT DISTINCT ON (release.agent_id)
                 release.agent_id,
@@ -97,6 +153,8 @@ class ActiveDocumentProjectOverviewReader(UnitOfWorkProjectOverviewReader):
                 trace.*,
                 agent.name AS agent_name,
                 CASE
+                    WHEN trace.recorded_environment IN ('draft', 'staging', 'production')
+                    THEN trace.recorded_environment
                     WHEN network_session.environment IN ('draft', 'staging', 'production')
                     THEN network_session.environment
                     WHEN COALESCE(
@@ -142,7 +200,7 @@ class ActiveDocumentProjectOverviewReader(UnitOfWorkProjectOverviewReader):
                             LIKE '%timeout%'
                     )
                 ) AS is_timeout
-            FROM observability.traces AS trace
+            FROM recorded_agent_runs AS trace
             LEFT JOIN agent.agents AS agent
               ON agent.id = trace.agent_id
              AND agent.project_id = trace.project_id
@@ -150,6 +208,7 @@ class ActiveDocumentProjectOverviewReader(UnitOfWorkProjectOverviewReader):
               ON current_agent_release.agent_id = trace.agent_id
             LEFT JOIN network.network_executions AS network_execution
               ON network_execution.id = trace.network_execution_id
+             AND network_execution.project_id = trace.project_id
             LEFT JOIN network.network_sessions AS network_session
               ON network_session.id = network_execution.network_session_id
             WHERE trace.project_id = :project_id
@@ -214,6 +273,16 @@ class ActiveDocumentProjectOverviewReader(UnitOfWorkProjectOverviewReader):
                     WHERE status IN ('completed', 'failed', 'cancelled')
                       AND total_cost_usd IS NULL
                 ) AS unknown_cost_count,
+                COUNT(*) FILTER (
+                    WHERE status IN ('completed', 'failed', 'cancelled')
+                      AND total_cost_usd IS NULL
+                      AND COALESCE(data ->> 'cost_status', data -> 'diagnostics' ->> 'cost_status') = 'unknown_pricing'
+                ) AS unknown_pricing_agent_runs,
+                COUNT(*) FILTER (
+                    WHERE status IN ('completed', 'failed', 'cancelled')
+                      AND total_cost_usd IS NULL
+                      AND COALESCE(data ->> 'cost_status', data -> 'diagnostics' ->> 'cost_status') = 'unknown_tokens'
+                ) AS unknown_token_usage_agent_runs,
                 (SELECT COUNT(*) FROM previous_runs) AS previous_agent_runs
             FROM current_runs
             """
@@ -272,6 +341,8 @@ class ActiveDocumentProjectOverviewReader(UnitOfWorkProjectOverviewReader):
             "agent_run_cost_usd": cost,
             "priced_agent_runs": priced,
             "unknown_agent_run_cost_count": unknown,
+            "unknown_pricing_agent_runs": int(row["unknown_pricing_agent_runs"] or 0),
+            "unknown_token_usage_agent_runs": int(row["unknown_token_usage_agent_runs"] or 0),
             # Transitional compatibility.
             "requests": total,
             "request_change_percent": change,
@@ -715,6 +786,12 @@ class ActiveDocumentProjectOverviewReader(UnitOfWorkProjectOverviewReader):
                 END AS total_tokens,
                 total_cost_usd AS cost_usd,
                 total_cost_usd IS NOT NULL AS cost_known,
+                CASE WHEN total_cost_usd IS NOT NULL THEN 'known'
+                    ELSE COALESCE(NULLIF(COALESCE(data ->> 'cost_status', data -> 'diagnostics' ->> 'cost_status'), 'known'), 'unknown')
+                END AS cost_status,
+                CASE WHEN total_cost_usd IS NULL
+                    THEN COALESCE(data ->> 'cost_reason', data -> 'diagnostics' ->> 'cost_reason')
+                END AS cost_reason,
                 started_at
             FROM agent_run_context
             WHERE network_execution_id IS NULL
@@ -740,8 +817,8 @@ class ActiveDocumentProjectOverviewReader(UnitOfWorkProjectOverviewReader):
         params: dict[str, Any],
     ) -> list[dict[str, Any]]:
         statement = text(
-            """
-            WITH selected_runs AS (
+            f"""
+            WITH {self._agent_run_context_cte()}, selected_runs AS (
                 SELECT
                     execution.id,
                     execution.network_id,
@@ -778,8 +855,10 @@ class ActiveDocumentProjectOverviewReader(UnitOfWorkProjectOverviewReader):
                         WHERE trace.total_cost_usd IS NOT NULL
                     ) AS known_cost_usd
                 FROM selected_runs
-                LEFT JOIN observability.traces AS trace
+                LEFT JOIN agent_run_context AS trace
                   ON trace.network_execution_id = selected_runs.id
+                 AND trace.project_id = :project_id
+                 AND trace.status IN ('completed', 'failed', 'cancelled')
                 GROUP BY selected_runs.id
             )
             SELECT

@@ -13,6 +13,16 @@ function cloneFixture() {
 }
 
 describe('DashboardPage states', () => {
+  it('shows actionable pricing guidance only when pricing is missing', () => {
+    const fixture = cloneFixture()
+    fixture.summary.unknown_pricing_agent_runs = 58
+    fixture.summary.unknown_agent_run_cost_count = 58
+    const markup = renderToStaticMarkup(<DashboardDataState model={adaptProjectOverview(fixture)} onNavigate={vi.fn()} onOpenRun={vi.fn()} />)
+    expect(markup).toContain('Review Model pricing')
+    expect(markup).toContain('Historical Runs without prices remain unknown')
+    const priced = renderToStaticMarkup(<DashboardDataState model={adaptProjectOverview(cloneFixture())} onNavigate={vi.fn()} onOpenRun={vi.fn()} />)
+    expect(priced).not.toContain('Review Model pricing')
+  })
   it('renders loading and retryable error states', () => {
     expect(renderToStaticMarkup(<DashboardLoadingState />)).toContain('Loading project overview')
     const retry = vi.fn()
