@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+from copy import deepcopy
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
@@ -12,7 +13,205 @@ from modules.agent.domain.enums import AgentStatus, Provider, SessionMode
 
 
 @pytest.mark.asyncio
-async def test_save_draft_synchronizes_server_canonical_runtime_config_to_agent() -> None:
+@pytest.mark.parametrize("fallback", [False, True])
+async def test_saving_draft_adopts_updated_native_model_prices(fallback) -> None:
+    from modules.agent.application.dtos.ai_dtos import UpdateProviderModelInput
+    from modules.agent.application.use_cases.ai_provider_model_cases import (
+        UpdateProviderModelUseCase,
+    )
+    from modules.agent.application.model_spec_compatibility import (
+        LegacyModelSpecResolver,
+    )
+    from modules.agent.domain.entities import Agent, ProviderCredential, ProviderModel
+    from modules.agent.domain.model_spec import ModelSpec, model_spec_hash
+    from modules.agent.infra.execution.release_runtime_resolver import (
+        ReleaseRuntimeResolver,
+    )
+    from shared.contracts.llm_cost import calculate_llm_cost
+
+    credential = ProviderCredential(project_id=uuid4(), provider=Provider.custom)
+    model = ProviderModel(
+        project_id=credential.project_id,
+        provider_credential_id=credential.id,
+        name="generation",
+        model="test",
+    )
+    old_spec = LegacyModelSpecResolver().resolve(model, provider="custom").as_dict()
+    agent = Agent(
+        project_id=credential.project_id,
+        name="Support",
+        provider=Provider.custom,
+        model="test",
+        provider_model_id=model.id,
+        provider_credential_id=credential.id,
+        settings={"model_spec": old_spec},
+    )
+    if fallback:
+        agent.fallback_provider_model_id = model.id
+        agent.fallback_credential_id = credential.id
+        agent.fallback_provider = Provider.custom
+        agent.fallback_model = "test"
+        agent.settings["fallback_model_spec"] = deepcopy(old_spec)
+    models = SimpleNamespace(
+        get_by_id=AsyncMock(return_value=model),
+        update=AsyncMock(side_effect=lambda item: item),
+    )
+    credentials = SimpleNamespace(get_by_id=AsyncMock(return_value=credential))
+    updated = await UpdateProviderModelUseCase(models, credentials).execute(
+        model.id,
+        UpdateProviderModelInput(
+            metadata={
+                "pricing": {
+                    "input_cost_per_1m_tokens": 1,
+                    "output_cost_per_1m_tokens": 2,
+                    "currency": "USD",
+                }
+            }
+        ),
+    )
+    assert updated.spec["pricing"]["input_cost_per_1m_tokens"] == 1
+    assert agent.settings["model_spec"]["pricing"]["input_cost_per_1m_tokens"] is None
+    agents = SimpleNamespace(
+        get_by_id=AsyncMock(return_value=agent),
+        update=AsyncMock(side_effect=lambda item: item),
+    )
+    delegate = SimpleNamespace(
+        execute=AsyncMock(side_effect=lambda item, **kwargs: item)
+    )
+    saver = SessionModeCompatibleCreateReleaseUseCase(
+        delegate, agents, provider_model_repo=models, credential_repo=credentials
+    )
+    saved = await saver.execute(
+        CreateReleaseInput(
+            project_id=agent.project_id, agent_id=agent.id, version="draft"
+        )
+    )
+    assert saved.model_spec_snapshot == updated.spec
+    assert saved.model_spec_hash == model_spec_hash(ModelSpec.from_dict(updated.spec))
+    assert agent.settings["model_spec"] == updated.spec
+    if fallback:
+        assert saved.fallback_model_spec_snapshot == updated.spec
+        assert agent.settings["fallback_model_spec"] == updated.spec
+    # Pricing is consumed from the newly saved exact snapshot, not today's catalog.
+    execution = deepcopy(agent)
+    execution.settings["model_spec_frozen"] = True
+    ReleaseRuntimeResolver.__new__(ReleaseRuntimeResolver)._restore_frozen_pricing(
+        execution
+    )
+    result = calculate_llm_cost(
+        input_tokens=1000,
+        output_tokens=500,
+        pricing_snapshot=execution.settings["model_pricing"],
+    )
+    assert result["cost_usd"] == 0.002 and result["cost_status"] == "known"
+    assert (
+        old_spec["pricing"]["input_cost_per_1m_tokens"] is None
+    )  # Existing captures are unchanged.
+
+
+@pytest.mark.asyncio
+async def test_explicit_imported_snapshot_is_not_replaced_by_current_native_model() -> (
+    None
+):
+    from modules.agent.domain.entities import Agent
+    from modules.agent.application.model_spec_compatibility import (
+        LegacyModelSpecResolver,
+    )
+    from modules.agent.domain.model_spec import ModelSpec, model_spec_hash
+
+    agent = Agent(
+        project_id=uuid4(),
+        name="Imported",
+        provider=Provider.custom,
+        model="test",
+        provider_model_id=uuid4(),
+    )
+    spec = (
+        LegacyModelSpecResolver()
+        .resolve(
+            SimpleNamespace(
+                id=None,
+                model="test",
+                name="test",
+                metadata={
+                    "pricing": {
+                        "input_cost_per_1m_tokens": 1,
+                        "output_cost_per_1m_tokens": 2,
+                    }
+                },
+            ),
+            provider="custom",
+        )
+        .as_dict()
+    )
+    models = SimpleNamespace(get_by_id=AsyncMock())
+    credentials = SimpleNamespace(get_by_id=AsyncMock())
+    agents = SimpleNamespace(
+        get_by_id=AsyncMock(return_value=agent), update=AsyncMock(return_value=agent)
+    )
+    delegate = SimpleNamespace(
+        execute=AsyncMock(side_effect=lambda item, **kwargs: item)
+    )
+    saver = SessionModeCompatibleCreateReleaseUseCase(
+        delegate, agents, provider_model_repo=models, credential_repo=credentials
+    )
+    digest = model_spec_hash(ModelSpec.from_dict(spec))
+    saved = await saver.execute(
+        CreateReleaseInput(
+            project_id=agent.project_id,
+            agent_id=agent.id,
+            version="draft",
+            model_spec_snapshot=spec,
+            model_spec_hash=digest,
+        )
+    )
+    assert saved.model_spec_snapshot == spec and saved.model_spec_hash == digest
+    models.get_by_id.assert_not_awaited()
+    credentials.get_by_id.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_draft_refresh_rejects_a_model_from_another_project_before_writing() -> (
+    None
+):
+    from modules.agent.domain.entities import Agent, ProviderModel
+    from modules.agent.domain.errors import ModelConfigNotFoundError
+
+    agent = Agent(
+        project_id=uuid4(),
+        name="Support",
+        provider=Provider.custom,
+        model="test",
+        provider_model_id=uuid4(),
+    )
+    models = SimpleNamespace(
+        get_by_id=AsyncMock(return_value=ProviderModel(project_id=uuid4()))
+    )
+    agents = SimpleNamespace(
+        get_by_id=AsyncMock(return_value=agent), update=AsyncMock()
+    )
+    delegate = SimpleNamespace(execute=AsyncMock())
+    saver = SessionModeCompatibleCreateReleaseUseCase(
+        delegate,
+        agents,
+        provider_model_repo=models,
+        credential_repo=SimpleNamespace(get_by_id=AsyncMock()),
+    )
+    with pytest.raises(ModelConfigNotFoundError):
+        await saver.execute(
+            CreateReleaseInput(
+                project_id=agent.project_id, agent_id=agent.id, version="draft"
+            )
+        )
+    delegate.execute.assert_not_awaited()
+    agents.update.assert_not_awaited()
+    assert agent.settings == {}
+
+
+@pytest.mark.asyncio
+async def test_save_draft_synchronizes_server_canonical_runtime_config_to_agent() -> (
+    None
+):
     project_id = uuid4()
     agent_id = uuid4()
     skill_id = uuid4()

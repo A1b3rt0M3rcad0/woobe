@@ -40,6 +40,7 @@ export interface DashboardMetric {
     agent: DashboardMetricComparisonItem
     network: DashboardMetricComparisonItem
   }
+  costHelp?: { description: string; reviewPricing: boolean }
 }
 
 export interface DashboardSeriesPoint {
@@ -145,7 +146,6 @@ export interface DashboardOperationalIssues {
 }
 
 export interface DashboardViewModel {
-  pricingWarning: string | null
   narrative: string
   metrics: DashboardMetric[]
   series: DashboardSeriesPoint[]
@@ -394,7 +394,7 @@ export function adaptProjectOverview(overview: ProjectOverview): DashboardViewMo
   const pricingMissing = summary.unknown_pricing_agent_runs ?? 0
   const tokensMissing = summary.unknown_token_usage_agent_runs ?? 0
   const missingDetails = [
-    pricingMissing > 0 ? `${formatInteger(pricingMissing)} missing Model prices` : null,
+    pricingMissing > 0 ? `${formatInteger(pricingMissing)} Runs without frozen prices` : null,
     tokensMissing > 0 ? `${formatInteger(tokensMissing)} incomplete token usage` : null,
     summary.unknown_agent_run_cost_count > pricingMissing + tokensMissing
       ? `${formatInteger(summary.unknown_agent_run_cost_count - pricingMissing - tokensMissing)} without cost evidence` : null,
@@ -423,8 +423,12 @@ export function adaptProjectOverview(overview: ProjectOverview): DashboardViewMo
       detail: pricedPercent === null
         ? 'No terminal Agent Runs'
         : summary.unknown_agent_run_cost_count > 0
-          ? `${formatPercent(pricedPercent)} priced · ${missingDetails}`
+          ? `${formatInteger(summary.priced_agent_runs)}/${formatInteger(summary.terminal_agent_runs)} Runs priced · Partial`
           : 'All terminal Agent Runs priced',
+      costHelp: summary.unknown_agent_run_cost_count > 0 ? {
+        description: `${missingDetails}. ${summary.priced_agent_runs > 0 ? 'The amount shown includes priced Runs only.' : 'No cost is available for these Runs.'} Historical Runs without prices remain unknown; changing Model prices does not recalculate them.`,
+        reviewPricing: pricingMissing > 0,
+      } : undefined,
       direction: 'neutral',
       icon: CircleDollarSign,
       tone: summary.unknown_agent_run_cost_count > 0 ? 'bg-amber-500/10 text-amber-300' : 'bg-blue-500/10 text-blue-400',
@@ -558,9 +562,6 @@ export function adaptProjectOverview(overview: ProjectOverview): DashboardViewMo
   ].filter((value): value is string => Boolean(value))
 
   return {
-    pricingWarning: pricingMissing > 0
-      ? 'Some Runs have no frozen Model pricing. Set both USD prices in Models → Pricing, save the Agent Draft to adopt the Model changes, then capture and deploy a new Candidate/Release. Historical Runs without prices remain unknown.'
-      : null,
     narrative: buildNarrative(overview),
     metrics,
     series,

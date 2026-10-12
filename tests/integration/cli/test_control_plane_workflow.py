@@ -711,6 +711,12 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
         "--validate-parameters",
         body={"name": "Configured through CLI"},
     )
+    # Editing an already-bound Model must be adopted by a native Draft save,
+    # without requiring an unrelated Agent edit or consulting mutable prices at run time.
+    await cli.data("project", "provider-model", "update", model["id"], body={
+        "metadata": {"pricing": {"input_cost_per_1m_tokens": 3.0,
+                                   "output_cost_per_1m_tokens": 4.0, "currency": "USD"}},
+    })
     draft = await cli.data(
         "project",
         "agent",
@@ -719,6 +725,10 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
         agent_id,
         body={"project_id": cli.project_id, "agent_id": agent_id, "version": "auto"},
     )
+    assert draft["model_spec_snapshot"]["pricing"]["input_cost_per_1m_tokens"] == 3.0
+    assert draft["model_spec_snapshot"]["pricing"]["output_cost_per_1m_tokens"] == 4.0
+    projected = await cli.data("project", "agent", "get", agent_id)
+    assert projected["settings"]["model_spec"] == draft["model_spec_snapshot"]
     builder_body = {
         "name": "Staging builder",
         "expires_at": expiry,
@@ -813,6 +823,21 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
         runtime_key=staging_key,
     )
     assert result["data"]["success"] is True
+    from modules.agent.infra.database.run_models import AgentRunModel
+    price_engine = create_engine(Settings())
+    try:
+        async with create_session_factory(price_engine)() as session:
+            priced_run = await session.scalar(select(AgentRunModel).where(
+                AgentRunModel.agent_id == UUID(agent_id), AgentRunModel.environment == "staging",
+            ).order_by(AgentRunModel.created_at.desc()).limit(1))
+            assert priced_run and priced_run.status == "completed"
+            assert priced_run.execution_snapshot["agent"]["settings"]["model_spec"]["pricing"]["input_cost_per_1m_tokens"] == 3.0
+            assert priced_run.result["cost_status"] == "known"
+            assert priced_run.usage["cost_usd"] == pytest.approx(
+                (3 * priced_run.usage["input_tokens"] + 4 * priced_run.usage["output_tokens"]) / 1_000_000,
+                abs=1e-10)
+    finally:
+        await price_engine.dispose()
     second_run = await cli.run(
         "runtime",
         "target",
@@ -920,6 +945,10 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
         },
     )
     assert production["id"] != staging["id"]
+    await cli.data("project", "provider-model", "update", model["id"], body={
+        "metadata": {"pricing": {"input_cost_per_1m_tokens": 1.0,
+                                   "output_cost_per_1m_tokens": 2.0, "currency": "USD"}},
+    })
     second_draft = await cli.data(
         "project",
         "agent",
@@ -946,6 +975,9 @@ async def test_cli_agent_network_publish_execute_and_authority_boundaries(cli):
         second_draft["id"],
         body={"target_status": "staging"},
     )
+    assert second_draft["model_spec_snapshot"]["pricing"]["input_cost_per_1m_tokens"] == 1.0
+    frozen_production = await cli.data("project", "agent", "release", "get", agent_id, production["id"])
+    assert frozen_production["model_spec_snapshot"]["pricing"]["input_cost_per_1m_tokens"] == 3.0
     first_agent_selection = (await cli.run("agent", agent_id, "current", "--env", "production"))["data"]
     second_release = await cli.data(
         "project",
@@ -2544,10 +2576,13 @@ async def exercise_asac_deployments(cli, kind, resource_id, publication):
                     # Cost evidence survives actual admission, provider invocation,
                     # terminal projection and PostgreSQL persistence.
                     assert run.usage and run.usage["cost_usd"] is not None
-                    expected_cost = (run.usage["input_tokens"] + 2 * run.usage["output_tokens"]) / 1_000_000
+                    # This Publication was captured from the first Production,
+                    # whose 3/4 rates must survive the subsequent native Model update to 1/2.
+                    expected_cost = (3 * run.usage["input_tokens"] + 4 * run.usage["output_tokens"]) / 1_000_000
                     assert run.usage["cost_usd"] == pytest.approx(expected_cost, abs=1e-10)
                     selected_spec = run.execution_snapshot["agent"]["settings"]["model_spec"]
-                    assert selected_spec["pricing"]["input_cost_per_1m_tokens"] == 1.0
+                    assert selected_spec["pricing"]["input_cost_per_1m_tokens"] == 3.0
+                    assert selected_spec["pricing"]["output_cost_per_1m_tokens"] == 4.0
                     overview = await cli.data("request", "GET", "/core/projects/" + cli.project_id + "/overview")
                     assert overview["summary"]["production_agents"] >= 1
                     assert overview["summary"]["priced_agent_runs"] >= 1

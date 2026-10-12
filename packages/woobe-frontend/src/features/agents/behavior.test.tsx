@@ -98,6 +98,28 @@ beforeEach(() => {
 afterEach(async () => { await act(async () => root.unmount()); client.clear(); container.remove(); vi.unstubAllGlobals() })
 
 describe('Behavior editor contracts', () => {
+  it.each(['standalone', 'network'])('allows %s Draft to adopt a Model update without an unrelated edit', async surface => {
+    fixture.models = [{ id: 'model', project_id: 'project', provider_credential_id: 'credential',
+      model: 'test', name: 'Updated model', spec_hash: 'new-model-spec', status: 'active' }]
+    fixture.releases = [release({ status: 'draft', version: 'draft', model_spec_hash: 'old-model-spec', provider_model_id: 'model' })]
+    await renderEditor(surface, { ...agent, provider_model_id: 'model' })
+    expect(editor.isDirty).toBe(false)
+    expect(container.textContent).toContain('Model changes available')
+    expect(button('Save').disabled).toBe(false)
+    await click(button('Save'))
+    expect(fixture.save).toHaveBeenCalledWith(expect.objectContaining({ provider_model_id: 'model', version: 'draft' }))
+    expect(fixture.save.mock.calls[0][0]).not.toHaveProperty('model_spec_snapshot')
+  })
+
+  it('keeps Save disabled when the bound Model matches the saved Draft', async () => {
+    fixture.models = [{ id: 'model', project_id: 'project', provider_credential_id: 'credential',
+      model: 'test', name: 'Model', spec_hash: 'saved-model-spec', status: 'active' }]
+    fixture.releases = [release({ status: 'draft', version: 'draft', model_spec_hash: 'saved-model-spec', provider_model_id: 'model' })]
+    await renderEditor('standalone', { ...agent, provider_model_id: 'model' })
+    expect(button('Save').disabled).toBe(true)
+    expect(container.textContent).not.toContain('Model changes available')
+  })
+
   it('hydrates a legacy prompt verbatim and writes only the structured Behavior', () => {
     const state = agentToEditorState(agent)
     expect(state.behavior.additionalInstructions).toBe('  original legacy instructions\n')

@@ -39,9 +39,10 @@ describe('adaptProjectOverview', () => {
     const model = adaptProjectOverview(fixture)
     const cost = model.metrics.find((metric) => metric.label === 'Runtime Cost')
     expect(cost?.value).toBe('Unknown')
-    expect(cost?.detail).toContain('57 missing Model prices')
-    expect(cost?.detail).toContain('1 incomplete token usage')
-    expect(model.pricingWarning).toContain('capture and deploy a new Candidate/Release')
+    expect(cost?.detail).toBe('0/58 Runs priced · Partial')
+    expect(cost?.costHelp?.description).toContain('57 Runs without frozen prices')
+    expect(cost?.costHelp?.description).toContain('1 incomplete token usage')
+    expect(cost?.costHelp?.reviewPricing).toBe(true)
     expect(model.runs.find((run) => run.kind === 'agent')?.costDetail).toContain('no active pricing')
   })
 
@@ -50,8 +51,10 @@ describe('adaptProjectOverview', () => {
     fixture.summary.agent_run_cost_usd = 0.1
     fixture.summary.unknown_agent_run_cost_count = 1
     const model = adaptProjectOverview(fixture)
-    expect(model.metrics.find((metric) => metric.label === 'Runtime Cost')?.detail).toContain('1 without cost evidence')
-    expect(model.pricingWarning).toBeNull()
+    const cost = model.metrics.find((metric) => metric.label === 'Runtime Cost')
+    expect(cost?.detail).toContain('Partial')
+    expect(cost?.costHelp?.description).toContain('1 without cost evidence')
+    expect(cost?.costHelp?.reviewPricing).toBe(false)
   })
   it('maps the operational story to the Overview view model', () => {
     const model = adaptProjectOverview(cloneFixture())

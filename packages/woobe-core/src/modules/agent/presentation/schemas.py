@@ -280,6 +280,10 @@ class ReleaseResponse(BaseModel):
     provider: str | None = None
     model: str | None = None
     provider_credential_id: UUID | None = None
+    model_spec_snapshot: dict[str, Any] | None = None
+    model_spec_hash: str | None = None
+    fallback_model_spec_snapshot: dict[str, Any] | None = None
+    fallback_model_spec_hash: str | None = None
     fallback_provider: str | None = None
     fallback_model: str | None = None
     fallback_credential_id: UUID | None = None
@@ -306,6 +310,8 @@ class ListReleasesResponse(BaseModel):
     name: str | None = None
     provider: str | None = None
     model: str | None = None
+    model_spec_hash: str | None = None
+    fallback_model_spec_hash: str | None = None
     behavior_spec: dict[str, Any] | None = None
     system_prompt: str | None = None
     output_schema: dict[str, Any] | None = None

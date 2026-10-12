@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { ChangeEvent, KeyboardEvent, ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import type { LucideIcon } from 'lucide-react'
+import { Dialog } from '@woobe/ui'
 import {
   Activity,
   AlertCircle,
@@ -85,7 +86,8 @@ function MiniLink({ label, onClick }: { label: string; onClick?: () => void }) {
   )
 }
 
-function MetricCard({ metric }: { metric: DashboardMetric }) {
+function MetricCard({ metric, onReviewPricing }: { metric: DashboardMetric; onReviewPricing: () => void }) {
+  const [helpOpen, setHelpOpen] = useState(false)
   const Icon = metric.icon
   const detailTone = metric.direction === 'up' ? 'text-emerald-300' : metric.direction === 'down' ? 'text-red-300' : 'text-muted'
   return (
@@ -93,7 +95,10 @@ function MetricCard({ metric }: { metric: DashboardMetric }) {
       <div className="flex h-full flex-col justify-between gap-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <p className="truncate text-xs font-medium uppercase tracking-[0.14em] text-muted">{metric.label}</p>
+            <div className="flex items-center gap-2">
+              <p className="truncate text-xs font-medium uppercase tracking-[0.14em] text-muted">{metric.label}</p>
+              {metric.costHelp && <button type="button" aria-label="Runtime cost details" title="Runtime cost details" onClick={() => setHelpOpen(true)} className="shrink-0 text-muted transition-colors hover:text-white focus-visible:outline focus-visible:outline-primary-light"><AlertCircle className="h-3.5 w-3.5" /></button>}
+            </div>
             {metric.comparison ? (
               <div className="mt-3 grid grid-cols-2 gap-3">
                 {[metric.comparison.agent, metric.comparison.network].map((item) => (
@@ -110,6 +115,13 @@ function MetricCard({ metric }: { metric: DashboardMetric }) {
         </div>
         <p className={`min-h-4 text-[11px] leading-4 ${detailTone}`} title={metric.comparison ? metric.detail ?? undefined : undefined}>{metric.detail ?? 'No terminal Runs in this interval'}</p>
       </div>
+      {metric.costHelp && <Dialog open={helpOpen} onClose={() => setHelpOpen(false)} title="Runtime cost coverage" className="max-w-md">
+        <p className="text-sm leading-6 text-muted-foreground">{metric.costHelp.description}</p>
+        {metric.costHelp.reviewPricing && <div className="mt-4 space-y-3">
+          <p className="text-xs leading-5 text-muted-foreground">For future Runs, configure both USD rates in Models, save the Agent Draft, then capture and deploy a new Candidate/Release for Staging or Production.</p>
+          <MiniLink label="Review Model pricing" onClick={() => { setHelpOpen(false); onReviewPricing() }} />
+        </div>}
+      </Dialog>}
     </Panel>
   )
 }
@@ -610,8 +622,7 @@ function RecentRuns({ model, onOpen, onViewAll }: { model: DashboardViewModel; o
 export function DashboardDataState({ model, environment = 'all', onNavigate, onOpenRun }: { model: DashboardViewModel; environment?: DashboardEnvironment; onNavigate: (segment: string) => void; onOpenRun: (run: DashboardRunRow) => void }) {
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">{model.metrics.map((metric) => <MetricCard key={metric.label} metric={metric} />)}</div>
-      {model.pricingWarning && <div role="status" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-xs text-amber-200"><p className="min-w-0 flex-1">{model.pricingWarning}</p><MiniLink label="Review Model pricing" onClick={() => onNavigate('models')} /></div>}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">{model.metrics.map((metric) => <MetricCard key={metric.label} metric={metric} onReviewPricing={() => onNavigate('models')} />)}</div>
 
       <StorySectionHeader title="What happened" description="Volume, reliability, performance, and cost in the selected period." />
       {model.isExecutionEmpty ? <EmptyExecutionState /> : <div className="grid grid-cols-1 gap-4 xl:grid-cols-12"><div className="xl:col-span-8"><RunActivityChart model={model} /></div><div className="xl:col-span-4"><ReliabilityPanel model={model} /></div></div>}

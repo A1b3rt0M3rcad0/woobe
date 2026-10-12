@@ -166,7 +166,9 @@ test('Overview explains unpriced Runs and opens Model pricing configuration', as
   await page.route(`**/core/projects/${project.id}/overview*`, route => respond(route, fixture))
   await login(page)
   await page.goto(`/workspaces/${workspace.id}/projects/${project.id}`)
-  await expect(page.getByText('0% priced · 58 missing Model prices')).toBeVisible()
+  await expect(page.getByText('0/58 Runs priced · Partial')).toBeVisible()
+  await expect(page.getByText(/Historical Runs without prices remain unknown/)).toBeHidden()
+  await page.getByRole('button', { name: 'Runtime cost details' }).click()
   await expect(page.getByText(/Historical Runs without prices remain unknown/)).toBeVisible()
   await page.getByRole('button', { name: 'Review Model pricing' }).click()
   await expect(page).toHaveURL(/\/projects\/project-a\/models$/)
@@ -182,6 +184,26 @@ test('Overview preserves a genuinely priced zero cost', async ({ page }) => {
   await expect(page.getByText('All terminal Agent Runs priced')).toBeVisible()
   await expect(page.getByText('$0.00', { exact: true }).first()).toBeVisible()
   await expect(page.getByRole('button', { name: 'Review Model pricing' })).toHaveCount(0)
+})
+
+test('Overview keeps a new priced Run visible without a persistent historical warning', async ({ page }, testInfo) => {
+  await installApi(page)
+  const fixture = structuredClone(projectOverviewFixture)
+  Object.assign(fixture.summary, { terminal_agent_runs: 65, agent_run_cost_usd: 0.0005,
+    priced_agent_runs: 1, unknown_agent_run_cost_count: 64, unknown_pricing_agent_runs: 64 })
+  await page.route(`**/core/projects/${project.id}/overview*`, route => respond(route, fixture))
+  await login(page)
+  await page.goto(`/workspaces/${workspace.id}/projects/${project.id}`)
+  await expect(page.getByText('1/65 Runs priced · Partial')).toBeVisible()
+  await expect(page.getByText('$0.0005', { exact: true }).first()).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Review Model pricing' })).toBeHidden()
+  await page.screenshot({ path: testInfo.outputPath('runtime-cost-compact.png') })
+  await page.getByRole('button', { name: 'Runtime cost details' }).click()
+  await expect(page.getByRole('dialog', { name: 'Runtime cost coverage' })).toBeVisible()
+  await expect(page.getByText(/64 Runs without frozen prices/)).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog', { name: 'Runtime cost coverage' })).toBeHidden()
+  await expect(page.getByRole('button', { name: 'Runtime cost details' })).toBeFocused()
 })
 
 test('bootstraps the first Woobe Core owner', async ({ page }) => {
