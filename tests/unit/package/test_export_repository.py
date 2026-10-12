@@ -147,4 +147,18 @@ async def test_exports_have_independent_ids_and_scope_rechecks_every_dependency(
             principal=actor,
             export_id=__import__("uuid").UUID(first["export_id"]),
         )
+    metadata = await repo.inspect_export(project_id=project, principal=actor,
+                                         export_id=__import__("uuid").UUID(first["export_id"]))
+    assert metadata["kind"] == "Agent" and metadata["resource_id"] == str(target)
+    assert metadata["source"] == first["source"]
+    for other_project, other_actor in [(uuid4(), actor), (project, actor.model_copy(update={"user_id": uuid4()}))]:
+        with pytest.raises(PackageError, match="unavailable"):
+            await repo.inspect_export(project_id=other_project, principal=other_actor,
+                                      export_id=__import__("uuid").UUID(first["export_id"]))
+    async with sessions.begin() as session:
+        row = await session.get(PackageExportModel, __import__("uuid").UUID(first["export_id"]))
+        row.expires_at = datetime.now(UTC) - timedelta(seconds=1)
+    with pytest.raises(PackageError, match="expired"):
+        await repo.inspect_export(project_id=project, principal=actor,
+                                  export_id=__import__("uuid").UUID(first["export_id"]))
     await engine.dispose()

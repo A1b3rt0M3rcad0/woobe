@@ -66,6 +66,25 @@ class RuntimeStreamReader:
         self._block_ms = max(50, block_ms)
         self._maxlen = max(100, maxlen)
 
+    @staticmethod
+    def _durable_projection(run_id: UUID, run_kind: str, durable: dict[str, Any]) -> dict[str, Any]:
+        state = initial_projection(run_id, run_kind, durable)
+        state.update(deepcopy(durable))
+        state.update(run_id=str(run_id), kind=run_kind.upper(), sequence=None, realtime_available=False)
+        return state
+
+    async def _terminal_state(self, run_id: UUID, run_kind: str, fallback: DurableFallback) -> dict[str, Any] | None:
+        # A hot projection is a cache, not evidence that a finalized Run is active.
+        # Durable/journal sequence belongs to another domain: never invent a hot cursor.
+        try:
+            durable = await fallback()
+        except Exception:
+            logger.warning("Durable terminal probe unavailable run_id=%s", run_id)
+            return None
+        if durable is not None and str(durable.get("status") or "").lower() in TERMINAL_RUNTIME_STATUSES:
+            return self._durable_projection(run_id, run_kind, durable)
+        return None
+
     async def current_state(
         self,
         run_id: UUID,
@@ -84,12 +103,7 @@ class RuntimeStreamReader:
             durable = await durable_fallback()
             if durable is None:
                 raise KeyError(str(run_id))
-            state = initial_projection(run_id, run_kind, durable)
-            state.update(deepcopy(durable))
-            state["run_id"] = str(run_id)
-            state["kind"] = run_kind.upper()
-            state["sequence"] = None
-            state["realtime_available"] = False
+            state = self._durable_projection(run_id, run_kind, durable)
             logger.info(
                 "Runtime reattach state resolved",
                 extra={
@@ -107,6 +121,10 @@ class RuntimeStreamReader:
                 },
             )
             return state, None
+
+        terminal = await self._terminal_state(run_id, run_kind, durable_fallback)
+        if terminal is not None:
+            return terminal, None
 
         try:
             reconnect_count = await self._store.increment(run_id, "reattach_count")
@@ -240,6 +258,7 @@ class RuntimeStreamReader:
                 return
 
             last_heartbeat = time.monotonic()
+            last_durable_probe = last_heartbeat
             while True:
                 try:
                     events = await self._store.read_events_after_cursor(
@@ -254,6 +273,14 @@ class RuntimeStreamReader:
                         run_id,
                         exc,
                     )
+                    terminal = await self._terminal_state(run_id, run_kind, durable_fallback)
+                    if terminal is not None:
+                        frame = runtime_state_frame(terminal)
+                        frame_count += 1
+                        approx_stream_bytes += _frame_size(frame)
+                        final_status = str(terminal["status"]).lower()
+                        yield frame
+                        return
                     unavailable_frame = RuntimeControlFrame(
                         "run.realtime_unavailable",
                         {"run_id": str(run_id)},
@@ -263,6 +290,18 @@ class RuntimeStreamReader:
                     yield unavailable_frame
                     final_status = "realtime_unavailable"
                     return
+
+                now = time.monotonic()
+                if now - last_durable_probe >= self._block_ms / 1000:
+                    last_durable_probe = now
+                    terminal = await self._terminal_state(run_id, run_kind, durable_fallback)
+                    if terminal is not None:
+                        frame = runtime_state_frame(terminal)
+                        frame_count += 1
+                        approx_stream_bytes += _frame_size(frame)
+                        final_status = str(terminal["status"]).lower()
+                        yield frame
+                        return
 
                 if not events:
                     now = time.monotonic()

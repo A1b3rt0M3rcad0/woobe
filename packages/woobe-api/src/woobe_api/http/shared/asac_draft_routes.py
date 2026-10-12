@@ -269,6 +269,11 @@ def draft_router(prefix, builder, kind, candidate_builder=None, evaluation_build
     async def drafts(project_id: UUID, resource_id: UUID, request: Request):
         return response(await invoke(store().list_drafts(project_id=project_id, resource_id=resource_id, principal=actor(request))))
 
+    @router.get("/drafts/preflight")
+    async def preflight_draft(project_id: UUID, resource_id: UUID, source_export_id: UUID, resource_uid: UUID, request: Request):
+        return response(await invoke(store().preflight_draft(project_id=project_id, resource_id=resource_id,
+            principal=actor(request), source_export_id=source_export_id, resource_uid=resource_uid)))
+
     @router.post("/drafts")
     async def open_draft(project_id: UUID, resource_id: UUID, body: OpenASaCDraft, request: Request):
         return response(await invoke(store().open_draft(project_id=project_id, resource_id=resource_id, principal=actor(request), request=body)))

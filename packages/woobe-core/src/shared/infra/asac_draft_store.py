@@ -77,6 +77,27 @@ class ASaCDraftStore(ASaCWorkbench):
             request_digest=digest, result=result))
         return result
 
+    async def preflight_draft(self, *, project_id, resource_id, principal, source_export_id, resource_uid):
+        async with self._read() as session:
+            await self._authorize(session, project_id, resource_id, principal, write=True)
+        artifact = await self.artifacts.inspect_export(project_id=project_id, principal=principal, export_id=source_export_id)
+        if artifact["kind"] != self.kind or artifact["resource_id"] != str(resource_id):
+            raise ConflictError("ASAC_ORIGIN_MISMATCH: capture belongs to another native resource; explicitly capture the target before local delivery")
+        source = artifact["source"]
+        async with self._read() as session:
+            native = await self._authorize(session, project_id, resource_id, principal, write=True)
+            if source.get("kind") == "draft" and source.get("draft_revision") != native["revision"]:
+                raise ConflictError("ASAC_SOURCE_CHANGED: native Draft changed after capture; preserve local edits and explicitly refresh the source before a new delivery")
+            identity = await session.scalar(select(self.identities).where(
+                self.identities.project_id == project_id,
+                (self.identities.resource_id == resource_id) | (self.identities.resource_uid == resource_uid)))
+            if identity is not None and (identity.resource_id != resource_id or identity.resource_uid != resource_uid):
+                raise ConflictError("ASAC_IDENTITY_CONFLICT: logical UID has another native binding")
+        return {"schema_version": "1.0", "kind": self.kind, "project_id": str(project_id),
+                "resource_id": str(resource_id), "resource_uid": str(resource_uid),
+                "source_export_id": str(source_export_id), "source": source,
+                "native_generation": native["revision"], "valid": True, "executed": False}
+
     @asac_lease_database_errors
     async def open_draft(self, *, project_id, resource_id, principal, request):
         # Replaying a committed opening needs neither a new export nor its expired

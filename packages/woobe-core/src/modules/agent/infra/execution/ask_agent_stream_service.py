@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
+from modules.agent.infra.execution.durable_run_result import durable_run_result
 from modules.agent.application.dtos.runtime_dtos import AskInput, AskOutput
 from modules.agent.application.interfaces.outbox import OutboxEventWriter
 from modules.agent.domain.entities import Message
@@ -629,7 +630,7 @@ class AskAgentStreamService:
             if run is None:
                 return None
             status = run.status.value if hasattr(run.status, "value") else str(run.status)
-            result = run.result if isinstance(run.result, dict) else None
+            result = await durable_run_result(repositories, run)
             output = result.get("answer") if result else None
             return {
                 "status": status,

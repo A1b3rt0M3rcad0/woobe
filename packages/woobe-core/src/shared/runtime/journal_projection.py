@@ -6,7 +6,7 @@ from typing import Any
 from uuid import UUID
 
 from shared.contracts.run_event_journal import DurableRunEvent, RunEventJournalPort
-from shared.runtime.projection import initial_projection, reduce_projection
+from shared.runtime.projection import TERMINAL_RUNTIME_STATUSES, initial_projection, reduce_projection
 
 logger = logging.getLogger(__name__)
 
@@ -220,9 +220,9 @@ async def journal_runtime_state(
 ) -> dict[str, Any] | None:
     """Rebuild the public Run projection from Mongo's contiguous durable prefix.
 
-    PostgreSQL is accepted as a metadata/read-model seed only. Once a journal exists,
-    output/status are reconstructed from the journal so a lagging SQL projector cannot
-    duplicate output or mask a durable terminal fact.
+    PostgreSQL seeds the metadata/read model. Journal terminal facts override a
+    lagging SQL projector; conversely, an incomplete journal prefix cannot
+    downgrade a SQL terminal Run to running. Neither path invents Redis cursors.
 
     ``journal_durable_sequence`` identifies the durable Mongo prefix. It deliberately
     does not become the public realtime ``sequence`` because Redis/SSE uses a separate
@@ -307,6 +307,10 @@ async def journal_runtime_state(
     terminal_status = journal_state.terminal_status
     if terminal_status is not None:
         projection["status"] = terminal_status
+    # A journal's contiguous prefix may lag SQL finalization. Never downgrade a
+    # durable terminal Run merely because its terminal event has not flushed yet.
+    if base is not None and str(base.get("status") or "").lower() in TERMINAL_RUNTIME_STATUSES and str(projection.get("status") or "").lower() not in TERMINAL_RUNTIME_STATUSES:
+        return base
     projection.update(
         {
             "run_id": str(run_id),

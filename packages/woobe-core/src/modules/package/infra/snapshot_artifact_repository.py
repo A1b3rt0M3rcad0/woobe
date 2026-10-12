@@ -87,6 +87,11 @@ class PackageSnapshotArtifactRepository:
                 )
             return snapshot_evidence(row)
 
+    async def inspect_export(self, *, project_id, principal, export_id):
+        # Read-only origin metadata, with the same actor, expiry and source grants
+        # as capture. Opening a Draft still verifies and retains the actual bytes.
+        return await self.exports.inspect_export(project_id=project_id, principal=principal, export_id=UUID(str(export_id)))
+
     async def retain_export(self, *, project_id, principal, export_id):
         import io
         from modules.package.infra.bundles import receive_archive

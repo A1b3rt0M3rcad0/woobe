@@ -199,3 +199,29 @@ async def test_journal_observer_does_not_expose_internal_event_payloads() -> Non
     assert "private-tool-input" not in encoded
     assert "private-provider-error" not in encoded
     await stream.aclose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("sql_terminal", [False, True])
+async def test_hot_running_does_not_mask_journal_or_sql_terminal(sql_terminal):
+    run_id = uuid4()
+    store = InMemoryExecutionStateStore()
+    journal = InMemoryRunEventJournal()
+    await store.create(run_id, {"session_id": str(_SESSION_ID), "status": "running"}, ttl_seconds=3600)
+    await store.append_event(run_id, "token", {"content": "old"})
+    events = [_event(run_id=run_id, run_kind="agent", sequence=1, event_type="run.attempt.started")]
+    if not sql_terminal:
+        events.append(_event(run_id=run_id, run_kind="agent", sequence=2, event_type="run.completed", payload={"answer": "final"}))
+    await journal.write_batch(events)
+
+    async def sql():
+        return {"session_id": str(_SESSION_ID), "status": "completed" if sql_terminal else "running", "output": "final" if sql_terminal else "", "result": {"answer": "final"} if sql_terminal else None}
+
+    stream = RuntimeObserver(store, journal=journal).observe(RunReference.agent(run_id), durable_fallback=sql)
+    frame = await anext(stream)
+    assert frame.data["status"] == "completed"
+    assert frame.data["output"] == "final"
+    assert frame.data["sequence"] is None
+    assert frame.data["realtime_available"] is False
+    with pytest.raises(StopAsyncIteration):
+        await anext(stream)
