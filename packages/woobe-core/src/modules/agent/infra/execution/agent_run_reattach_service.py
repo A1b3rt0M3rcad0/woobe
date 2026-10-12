@@ -4,6 +4,7 @@ from collections.abc import AsyncIterator
 from datetime import datetime
 from uuid import UUID
 
+from modules.agent.infra.execution.durable_run_result import durable_run_result
 from modules.agent.domain.run import AgentRun
 from modules.agent.infra.database.runtime_repositories import AgentRuntimeRepositories
 from modules.agent.infra.database.runtime_transaction_runner import (
@@ -120,6 +121,13 @@ class AgentRunReattachService:
 
     async def _durable_runtime_state(self, run: AgentRun) -> dict:
         base = self._durable_state(run)
+        if run.output_message_id is not None and not isinstance((base["result"] or {}).get("answer"), str):
+            async def read_result(repositories, _outbox):
+                return await durable_run_result(repositories, run)
+            result = await self._transactions.read(read_result)
+            base["result"] = result
+            base["output"] = (result or {}).get("answer") or ""
+
         replayed = await journal_runtime_state(
             self._journal,
             run.id,

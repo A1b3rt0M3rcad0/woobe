@@ -76,7 +76,7 @@ async def test_reattach_folds_125_to_131_into_initial_state_then_tails_132() -> 
     stream = reader.stream(
         run_id,
         "agent",
-        durable_fallback=lambda: _completed_fallback(run_id),
+        durable_fallback=lambda: _running_fallback(run_id),
     )
 
     state = await anext(stream)
@@ -106,7 +106,7 @@ async def test_hot_run_without_events_waits_for_first_live_event() -> None:
     stream = reader.stream(
         run_id,
         "agent",
-        durable_fallback=lambda: _completed_fallback(run_id),
+        durable_fallback=lambda: _running_fallback(run_id),
     )
 
     state = await anext(stream)
@@ -141,7 +141,7 @@ async def test_events_published_after_high_watermark_are_not_lost() -> None:
     stream = reader.stream(
         run_id,
         "network",
-        durable_fallback=lambda: _completed_fallback(run_id),
+        durable_fallback=lambda: _running_fallback(run_id),
     )
     state = await anext(stream)
     assert state.sequence == 131
@@ -185,7 +185,7 @@ async def test_trim_gap_is_detected_instead_of_inventing_continuity() -> None:
         await reader.current_state(
             run_id,
             "agent",
-            durable_fallback=lambda: _completed_fallback(run_id),
+            durable_fallback=lambda: _running_fallback(run_id),
         )
 
 
@@ -234,7 +234,7 @@ async def test_live_tail_gap_is_detected_after_initial_state() -> None:
     stream = reader.stream(
         run_id,
         "agent",
-        durable_fallback=lambda: _completed_fallback(run_id),
+        durable_fallback=lambda: _running_fallback(run_id),
     )
     state = await anext(stream)
     assert state.sequence == 1
@@ -263,7 +263,7 @@ async def test_usage_projection_accepts_nested_runtime_usage_payload() -> None:
     state, _ = await reader.current_state(
         run_id,
         "agent",
-        durable_fallback=lambda: _completed_fallback(run_id),
+        durable_fallback=lambda: _running_fallback(run_id),
     )
     assert state["usage"] == {
         "input_tokens": 10,
@@ -325,3 +325,7 @@ async def test_cancelled_durable_fallback_has_no_fabricated_hot_sequence() -> No
 
     with pytest.raises(StopAsyncIteration):
         await anext(stream)
+
+
+async def _running_fallback(run_id):
+    return {"session_id": str(_SESSION_ID), "run_id": str(run_id), "status": "running"}

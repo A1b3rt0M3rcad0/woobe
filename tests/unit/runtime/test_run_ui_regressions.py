@@ -216,7 +216,7 @@ async def test_hot_network_projection_preserves_agent_run_identity() -> None:
     projection, _ = await RuntimeStreamReader(store).current_state(
         execution_id,
         "network",
-        durable_fallback=lambda: None,
+        durable_fallback=_no_durable_state,
     )
 
     assert projection is not None
@@ -318,3 +318,7 @@ async def test_active_agent_does_not_hide_terminal_outside_durable_prefix() -> N
     )
     active = await service.active(session_id=run.session_id, principal=_principal(run))
     assert active['run_id'] == str(run.id)
+
+
+async def _no_durable_state():
+    return None

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import os
 from uuid import uuid4
 
@@ -25,8 +26,13 @@ async def test_real_redis_reattach_folds_projection_to_high_watermark_then_tails
     events_key = f"{state_key}:events"
     lease_key = f"{state_key}:lease"
 
+    # This test first exercises a genuinely active Run's hot watermark. The
+    # durable authority must agree until finalization below; a completed durable
+    # Run intentionally supersedes Redis instead of replaying its stale tail.
+    durable = {"session_id": str(_SESSION_ID), "status": "running", "output": ""}
+
     async def durable_fallback():
-        return {"session_id": str(_SESSION_ID), "status": "completed", "output": "durable fallback", "result": {"answer": "durable fallback"}}
+        return dict(durable)
 
     try:
         assert await client.ping() is True
@@ -75,7 +81,18 @@ async def test_real_redis_reattach_folds_projection_to_high_watermark_then_tails
         assert live.event_type == "token"
         assert live.sequence == 132
         assert live.data["content"] == "132,"
-        await stream.aclose()
+
+        durable.update(status="completed", output="durable final", result={"answer": "durable final"})
+        terminal = await asyncio.wait_for(anext(stream), 2)
+        assert terminal.event_type == "run.state"
+        assert terminal.sequence == 0 and terminal.data["sequence"] is None
+        assert terminal.data["status"] == "completed"
+        assert terminal.data["output"] == "durable final"
+        assert terminal.data["realtime_available"] is False
+        with pytest.raises(StopAsyncIteration):
+            await anext(stream)
+        hot = await store.get(run_id)
+        assert hot["status"] == "running" and hot["event_sequence"] == 132
     finally:
         await client.delete(state_key, events_key, lease_key)
         await client.aclose()

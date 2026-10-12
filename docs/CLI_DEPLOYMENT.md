@@ -26,6 +26,26 @@ qualified Release with `--action rollback`, creating a new audited transition.
 No inference of latest, automatic rollback, cross-instance transfer or implicit
 native resource creation is included.
 
+## Read-only local source preflight
+
+The capability `asac.draft_source_preflight` advertises
+`GET /projects/{project_id}/{agents|networks}/{resource_id}/asac/drafts/preflight`
+with `source_export_id` and `resource_uid` query parameters. It requires the same
+Draft write authority as opening the line, plus the retained export's actor and
+dependency read grants. It verifies expiry, target/kind, UID binding and captured
+Draft generation without retaining an artifact or allocating a Draft, Revision,
+identity or operation. Success includes `valid: true`, `executed: false` and the
+exact scoped source. Opening still rechecks under locks; preflight is not a lease.
+
+The coordinated CLI also verifies exact remote acceptance of local parent
+Revisions before creating a new local checkpoint. A clone's original source export
+is not the clone's target capture; managed push can stale an earlier Draft capture.
+Conflicts require explicit source/history recovery while preserving local edits.
+Do not erase parents or silently substitute today's Draft for pinned snapshots.
+Older CLI clients retain the existing open/checkpoint concurrency guards; newer
+local deploy clients require this capability. Deploying an existing qualified
+Release or promoting Staging does not require this local-authoring preflight.
+
 ## Production-only CI identity
 
 Create a dedicated Control Key with target-scoped `agent:production` or
@@ -66,7 +86,7 @@ apply; stale/expired evidence remains rejected under owner CAS.
 `tests/integration/cli/unified_deployment.py` is invoked from the existing compiled
 CLI/API/PostgreSQL contract for both resource kinds. It exercises clean UUID
 preflight/delivery, local qualification, exact Staging promotion, rollback,
-Production Runtime identity, deployment row uniqueness after truncated committed
+Production Runtime identity and completed synchronous Run observation, deployment row uniqueness after truncated committed
 response, managed actor denial/allowance, deploy-only grants and negative Staging
 smoke. Existing owner tests retain the concurrency, revoked binding, policy drift,
 fencing, signed receipt and admitted-Session boundaries.

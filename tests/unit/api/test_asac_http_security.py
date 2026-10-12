@@ -22,7 +22,7 @@ def test_asac_reads_have_reviewed_target_and_verified_environment(plural, identi
 
 
 @pytest.mark.parametrize("plural,identifier", [("agents", "agent_id"), ("networks", "network_id")])
-@pytest.mark.parametrize("method,suffix,permission", [("POST", "drafts", "write"), ("PUT", "drafts/{draft_id}", "write"), ("POST", "revisions", "write")])
+@pytest.mark.parametrize("method,suffix,permission", [("GET", "drafts/preflight", "write"), ("POST", "drafts", "write"), ("PUT", "drafts/{draft_id}", "write"), ("POST", "revisions", "write")])
 def test_asac_draft_routes_are_explicitly_scoped(plural, identifier, method, suffix, permission):
     project, resource = str(uuid4()), str(uuid4())
     suffix = suffix.format(draft_id=uuid4(), operation_id=uuid4())

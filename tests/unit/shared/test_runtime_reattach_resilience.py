@@ -19,8 +19,8 @@ async def test_multiple_observers_receive_same_live_event_independently() -> Non
 
     reader_a = RuntimeStreamReader(store, block_ms=20)
     reader_b = RuntimeStreamReader(store, block_ms=20)
-    stream_a = reader_a.stream(run_id, "agent", durable_fallback=lambda: None)
-    stream_b = reader_b.stream(run_id, "agent", durable_fallback=lambda: None)
+    stream_a = reader_a.stream(run_id, "agent", durable_fallback=_no_durable_state)
+    stream_b = reader_b.stream(run_id, "agent", durable_fallback=_no_durable_state)
 
     state_a = await anext(stream_a)
     state_b = await anext(stream_b)
@@ -56,7 +56,7 @@ async def test_reattach_snapshot_and_live_tail_do_not_duplicate_materialized_out
     )
 
     reader = RuntimeStreamReader(store, block_ms=20)
-    stream = reader.stream(run_id, "agent", durable_fallback=lambda: None)
+    stream = reader.stream(run_id, "agent", durable_fallback=_no_durable_state)
 
     snapshot = await anext(stream)
     assert snapshot.event_type == "run.state"
@@ -139,3 +139,7 @@ async def test_realtime_event_publication_failure_is_best_effort() -> None:
     )
 
     assert result is None
+
+
+async def _no_durable_state():
+    return None

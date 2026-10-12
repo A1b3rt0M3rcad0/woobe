@@ -65,6 +65,28 @@ During this window the observer remains attached until one of the following beco
 - durable state becomes terminal;
 - the consumer disconnects, which closes only that observer.
 
+### Durable terminal reconciliation
+
+On reattach, durable terminal state wins over a stale nonterminal hot projection.
+The observer probes the durable fallback again while tailing (at the configured
+blocking interval), so finalization after attach can close an idle or still-active
+hot stream. Completed, failed, cancelled, timed-out and uncertain Runs return a
+terminal `run.state` and close; observing never repeats execution or mutates Redis.
+A fallback transport/database outage does not discard a healthy hot stream.
+Explicit domain refusals, including authorization and identity errors, propagate
+and close observation instead of falling back to cached output. Legacy synchronous Agent
+Runs may retain only an output-message ID and summary in SQL; the authorized
+fallback resolves that exact assistant message and verifies Project, Agent and
+Session identity. It never selects the Session's latest answer or copies message
+content into outbox summaries.
+
+A terminal Mongo journal can complete a lagging SQL projection. Conversely, a
+contiguous but unfinished journal prefix must not turn a SQL terminal Run back
+into running. Durable replacement states use `sequence: null` and
+`realtime_available: false`; `journal_durable_sequence`, when present, belongs to
+Mongo and is never reused as a Redis/SSE cursor. Active hot reconstruction retains
+its existing watermark, sequence-gap and replay rules.
+
 ### Canonical reattach
 
 Agent, Network and ChatSurface reattach use the shared hot-state reader behind `RuntimeObserver`:

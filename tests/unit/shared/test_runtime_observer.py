@@ -47,7 +47,7 @@ async def test_observer_uses_canonical_run_reference_for_hot_reattach() -> None:
     observer = RuntimeObserver(store, block_ms=20)
 
     async def durable_fallback():
-        return {"session_id": str(_SESSION_ID), "status": "completed", "output": "durable"}
+        return {"session_id": str(_SESSION_ID), "status": "running", "output": ""}
 
     stream = observer.observe(
         RunReference.agent(run_id),

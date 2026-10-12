@@ -97,13 +97,24 @@ async def exercise_unified_deployment(cli, kind, resource_id, previous):
 
     _, runtime_key = await cli.issue('project', 'runtime-key', 'create', body={
         'project_id':cli.project_id, 'name':'Unified Production proof', 'target_type':lower,
-        'target_id':resource_id, 'environment':'production', 'interfaces':['http'],
+        'target_id':resource_id, 'environment':'production', 'interfaces':['http', 'stream'],
         'expires_at':(datetime.now(UTC)+timedelta(hours=1)).isoformat()})
     result = await cli.run('runtime', 'target', 'run', 'unified-qualified', '--target-kind', lower,
                            body={'input':'Hello unified Release'}, runtime_key=runtime_key)
     identity = result['data']['data']['runtime_identity']
     assert identity['snapshot_id'] == promoted['release_id']
     assert identity['asac']['publication_id'] == delivered['publication_id']
+    # A synchronous completion must reattach as one terminal frame, not a
+    # stale Redis running projection followed by a client deadline.
+    run_data = result['data']['data']
+    run_id = run_data.get('run_id') or run_data.get('execution_id')
+    assert run_id
+    observed = await cli.run('runtime', 'target', 'observe', 'unified-qualified', run_id,
+                             '--target-kind', lower, '--output', 'jsonl', '--timeout', '5s',
+                             runtime_key=runtime_key)
+    assert observed['payload']['status'] == 'completed'
+    assert observed['payload']['output'] == run_data['answer']
+    assert observed['payload']['sequence'] is None
 
     # Keep API namespace stable during response loss and reconciliation. The
     # checkpoint and deterministic operation must survive an independent process.

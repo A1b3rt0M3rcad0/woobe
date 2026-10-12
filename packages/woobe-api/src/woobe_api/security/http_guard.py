@@ -350,7 +350,7 @@ class HttpSecurityGuard:
                     normalized[identifier] = normalized.pop("resource_id")
                     normalized["environment"] = request.query_params.get("environment") or "draft"
                     return normalized
-                allowed = {("GET", "drafts"), ("POST", "drafts"), ("POST", "revisions")}
+                allowed = {("GET", "drafts"), ("GET", "drafts/preflight"), ("POST", "drafts"), ("POST", "revisions")}
                 if 'draft_id' in path_params:
                     draft='drafts/'+str(path_params['draft_id'])
                     allowed.update({('GET',draft+'/editor'),('PUT',draft+'/editor'),('POST',draft+'/checkpoint')})

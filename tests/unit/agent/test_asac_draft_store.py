@@ -335,3 +335,35 @@ async def test_operation_read_requires_valid_environment_before_database_lookup(
     with pytest.raises(ValidationError, match="environment"):
         await store.operation(**args, operation_id=uuid4(), environment="other")
     store.owner.inspect.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("kind", ["Agent", "Network"])
+@pytest.mark.parametrize("mode", ["valid", "wrong-resource", "stale", "wrong-kind", "denied"])
+async def test_source_preflight_is_read_only_and_reuses_owner_guards(drafts, kind, mode):
+    store, sessions, args, uid, artifact = drafts
+    store.kind = kind
+    artifact["kind"] = kind
+    artifact["source"] = {"kind": "draft", "draft_revision": 4}
+    store.artifacts.inspect_export = AsyncMock(return_value=artifact)
+    if mode == "wrong-resource":
+        artifact["resource_id"] = str(uuid4())
+    if mode == "wrong-kind":
+        artifact["kind"] = "Network" if kind == "Agent" else "Agent"
+    if mode == "stale":
+        artifact["source"]["draft_revision"] = 3
+    if mode == "denied":
+        store.owner.inspect.side_effect = AuthorizationError("Denied")
+    kwargs = dict(**args, source_export_id=uuid4(), resource_uid=uid)
+    if mode == "valid":
+        result = await store.preflight_draft(**kwargs)
+        assert result["valid"] and not result["executed"]
+        assert result["kind"] == kind and result["resource_id"] == str(args["resource_id"])
+        assert result["source_export_id"] == str(kwargs["source_export_id"])
+    else:
+        with pytest.raises(AuthorizationError if mode == "denied" else ConflictError):
+            await store.preflight_draft(**kwargs)
+    assert store.artifacts.retain_export.await_count == 0
+    async with sessions() as session:
+        for model in [ASaCResourceModel, ASaCDraftModel, ASaCOperationModel, ASaCRevisionModel]:
+            assert await session.scalar(select(func.count()).select_from(model)) == 0

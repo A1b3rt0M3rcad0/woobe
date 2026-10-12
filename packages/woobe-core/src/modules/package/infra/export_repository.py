@@ -295,7 +295,7 @@ class PackageExportRepository:
             "version": record.source.get("package_version"),
         }
 
-    async def capture_artifact(self, *, project_id, principal, export_id):
+    async def _authorized_export(self, *, project_id, principal, export_id):
         async with self.sessions.begin() as session:
             await authorize_phase(session, principal, project_id, "project:read")
             record = await session.get(PackageExportModel, export_id)
@@ -309,6 +309,15 @@ class PackageExportRepository:
                 raise PackageError("PACKAGE_EXPORT_EXPIRED", "Export has expired")
         await self.authorize(project_id, principal, record.source)
 
+        return record
+
+    async def inspect_export(self, *, project_id, principal, export_id):
+        record = await self._authorized_export(project_id=project_id, principal=principal, export_id=export_id)
+        return {"kind": record.source["kind"], "resource_id": record.source["target_id"],
+                "source": self.receipt(record)["source"]}
+
+    async def capture_artifact(self, *, project_id, principal, export_id):
+        record = await self._authorized_export(project_id=project_id, principal=principal, export_id=export_id)
         # Capture and authenticate the complete compressed stream before sending headers.
         def read():
             with self.storage.open(record.storage_key) as stream:
