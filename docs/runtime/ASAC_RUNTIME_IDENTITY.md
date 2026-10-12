@@ -57,5 +57,19 @@ evaluating, publishing and deploying a new Candidate/Release. Changing the Model
 does not alter a previously published Release. Non-USD prices require explicit
 conversion outside runtime metering; Woobe does not assume an exchange rate.
 
+Saving a native Agent Draft resolves the current primary and fallback Models
+when their ModelSpecs are omitted from the request. The editor enables Save when
+a bound Model has changed, even if no Agent field was edited. Explicit supplied
+ModelSpecs (including exact package/import captures) remain exact and are not
+replaced with the current catalog. Updating a Model alone does not rewrite a
+saved Draft, Candidate, Release or accepted Run. ASaC packages carry their own
+Model definitions: update the package Model and push a new closed revision to
+adopt different prices there.
+
+The Runtime Cost card shows the known subtotal and `priced/terminal Runs` coverage
+when historical Runs remain unpriced. Explanations and the Models shortcut are
+available through the card's details icon; missing historical prices are not a
+persistent page-wide configuration warning.
+
 See [Web selection](ASAC_HISTORY.md#web-environment-selection) and the
 [acceptance matrix](../testing/ASAC_ACCEPTANCE.md).

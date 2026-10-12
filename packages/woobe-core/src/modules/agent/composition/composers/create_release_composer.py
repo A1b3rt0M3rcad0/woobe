@@ -7,10 +7,12 @@ from modules.agent.infra.database.project_environment_reader import SQLAlchemyPr
 from modules.agent.infra.database.provider_model_repositories import (
     SQLAlchemyAgentReleaseRepositoryWithProviderModels,
     SQLAlchemyAgentRepositoryWithProviderModels,
+    SQLAlchemyProviderModelRepository,
 )
 from modules.agent.infra.database.repositories import (
     SQLAlchemyAgentToolRepository,
     SQLAlchemyKnowledgeVersionRepository,
+    SQLAlchemyProviderCredentialRepository,
 )
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 from modules.agent.infra.database.vector_snapshot_repositories import SQLAlchemyVectorSnapshotRepository
@@ -32,7 +34,11 @@ def build_complete_agent_draft(uow):
         SQLAlchemySkillRepository(uow),
         project_environment_reader=SQLAlchemyProjectEnvironmentReader(uow),
     )
-    use_case = SessionModeCompatibleCreateReleaseUseCase(release_use_case, agent_repo)
+    use_case = SessionModeCompatibleCreateReleaseUseCase(
+        release_use_case, agent_repo,
+        provider_model_repo=SQLAlchemyProviderModelRepository(uow),
+        credential_repo=SQLAlchemyProviderCredentialRepository(uow),
+    )
     return use_case
 
 

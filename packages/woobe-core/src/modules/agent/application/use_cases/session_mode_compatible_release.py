@@ -6,6 +6,15 @@ from typing import Any
 from uuid import UUID
 
 from modules.agent.application.model_spec_compatibility import LegacyModelSpecResolver
+from modules.agent.application.interfaces.provider_model_repository import (
+    ProviderModelRepository,
+)
+from modules.agent.application.interfaces.repositories import (
+    ProviderCredentialRepository,
+)
+from modules.agent.application.use_cases.ai_agent_cases import (
+    _resolve_provider_model_bindings,
+)
 from modules.agent.domain.enums import Provider, SessionMode
 from modules.agent.domain.model_spec import ModelSpec, model_spec_hash
 from modules.agent.domain.errors import AgentNotFoundError
@@ -93,9 +102,7 @@ def _draft_defaults_from_agent(agent: Any) -> dict[str, Any]:
             model_spec_hash(model_spec) if model_spec is not None else None
         ),
         "fallback_model_spec_snapshot": (
-            fallback_model_spec.as_dict()
-            if fallback_model_spec is not None
-            else None
+            fallback_model_spec.as_dict() if fallback_model_spec is not None else None
         ),
         "fallback_model_spec_hash": (
             model_spec_hash(fallback_model_spec)
@@ -125,13 +132,17 @@ def _complete_draft_input(input_dto: Any, agent: Any) -> Any:
         and "system_prompt" in fields_set
         and "behavior_spec" not in fields_set
     ):
-        raise ConflictError("Update behavior_spec for an Agent with structured Behavior")
+        raise ConflictError(
+            "Update behavior_spec for an Agent with structured Behavior"
+        )
     if (
         "behavior_spec" in fields_set
         and input_dto.behavior_spec is None
         and "system_prompt" not in fields_set
     ):
-        raise ConflictError("Clearing behavior_spec requires explicit legacy system_prompt")
+        raise ConflictError(
+            "Clearing behavior_spec requires explicit legacy system_prompt"
+        )
     defaults = _draft_defaults_from_agent(agent)
     updates = {
         field_name: value
@@ -149,7 +160,9 @@ def _sync_agent_projection(agent: Any, draft: Any) -> None:
     agent.system_prompt = draft.system_prompt if draft.system_prompt is not None else ""
 
     if draft.provider is None or draft.model is None:
-        raise ValidationError("Agent Draft must contain an executable model configuration")
+        raise ValidationError(
+            "Agent Draft must contain an executable model configuration"
+        )
     agent.provider = Provider(str(draft.provider))
     agent.model = str(draft.model)
     agent.provider_credential_id = draft.provider_credential_id
@@ -168,7 +181,9 @@ def _sync_agent_projection(agent: Any, draft: Any) -> None:
     agent.max_output_tokens = draft.max_output_tokens
 
     if draft.session_mode not in {"stateful", "stateless"}:
-        raise ValidationError("Agent snapshot session_mode must be stateful or stateless")
+        raise ValidationError(
+            "Agent snapshot session_mode must be stateful or stateless"
+        )
     agent.session_mode = SessionMode(str(draft.session_mode))
 
     settings = dict(agent.settings or {})
@@ -185,9 +200,7 @@ def _sync_agent_projection(agent: Any, draft: Any) -> None:
     if fallback_model_spec_snapshot is None:
         settings.pop("fallback_model_spec", None)
     else:
-        settings["fallback_model_spec"] = deepcopy(
-            fallback_model_spec_snapshot
-        )
+        settings["fallback_model_spec"] = deepcopy(fallback_model_spec_snapshot)
     if draft.response_format is None:
         settings.pop("response_format", None)
     else:
@@ -207,9 +220,16 @@ def _sync_agent_projection(agent: Any, draft: Any) -> None:
         settings["knowledge_version_id"] = str(draft.knowledge_version_id)
     settings["runtime_config"] = deepcopy(draft.runtime_config or {})
     for field in (
-        "prompt_version_id", "contract_version_id", "model_config_version_id",
-        "output_schema", "model_spec_snapshot", "model_spec_hash",
-        "fallback_model_spec_snapshot", "fallback_model_spec_hash", "collection_ids", "risk_score",
+        "prompt_version_id",
+        "contract_version_id",
+        "model_config_version_id",
+        "output_schema",
+        "model_spec_snapshot",
+        "model_spec_hash",
+        "fallback_model_spec_snapshot",
+        "fallback_model_spec_hash",
+        "collection_ids",
+        "risk_score",
     ):
         value = getattr(draft, field, None)
         if value is None:
@@ -232,19 +252,70 @@ class SessionModeCompatibleCreateReleaseUseCase:
     different Skill/runtime configuration than the saved Draft.
     """
 
-    def __init__(self, delegate: Any, agent_repo: Any) -> None:
+    def __init__(
+        self,
+        delegate: Any,
+        agent_repo: Any,
+        *,
+        provider_model_repo: ProviderModelRepository | None = None,
+        credential_repo: ProviderCredentialRepository | None = None,
+    ) -> None:
         self._delegate = delegate
         self._agent_repo = agent_repo
+        self._provider_model_repo = provider_model_repo
+        self._credential_repo = credential_repo
+
+    async def _adopt_native_models(
+        self, input_dto: Any, requested_fields: set[str], agent: Any
+    ) -> Any:
+        """Refresh omitted specs on an explicit Draft save; exact supplied specs stay exact."""
+        if self._provider_model_repo is None or self._credential_repo is None:
+            return input_dto
+        binding = deepcopy(agent)
+        for prefix in ("", "fallback_"):
+            binding_id = getattr(input_dto, prefix + "provider_model_id", None)
+            setattr(
+                binding,
+                prefix + "provider_model_id",
+                None
+                if prefix + "model_spec_snapshot" in requested_fields
+                else binding_id,
+            )
+        if not binding.provider_model_id and not binding.fallback_provider_model_id:
+            return input_dto
+        await _resolve_provider_model_bindings(
+            binding, self._provider_model_repo, self._credential_repo
+        )
+        updates = {}
+        for prefix in ("", "fallback_"):
+            if not getattr(binding, prefix + "provider_model_id", None):
+                continue
+            spec = ModelSpec.from_dict(binding.settings[prefix + "model_spec"])
+            updates[prefix + "model_spec_snapshot"] = spec.as_dict()
+            updates[prefix + "model_spec_hash"] = model_spec_hash(spec)
+            updates[prefix + "provider"] = _enum_value(
+                getattr(binding, prefix + "provider")
+            )
+            updates[prefix + "model"] = getattr(binding, prefix + "model")
+            credential_field = (
+                "fallback_credential_id" if prefix else "provider_credential_id"
+            )
+            updates[credential_field] = getattr(binding, credential_field)
+        return input_dto.model_copy(update=updates)
 
     async def execute(self, input_dto: Any, change_kind: str = "change") -> Any:
         agent = await self._agent_repo.get_by_id(input_dto.agent_id)
         if agent is None or agent.project_id != input_dto.project_id:
             raise AgentNotFoundError(input_dto.agent_id)
 
+        requested_fields = set(getattr(input_dto, "model_fields_set", set()))
         input_dto = _complete_draft_input(input_dto, agent)
+        input_dto = await self._adopt_native_models(input_dto, requested_fields, agent)
         session_mode = getattr(input_dto, "session_mode", None)
         if session_mode not in {"stateful", "stateless"}:
-            raise ValidationError("Agent snapshot session_mode must be stateful or stateless")
+            raise ValidationError(
+                "Agent snapshot session_mode must be stateful or stateless"
+            )
 
         draft = await self._delegate.execute(input_dto, change_kind=change_kind)
         _sync_agent_projection(agent, draft)

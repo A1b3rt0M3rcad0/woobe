@@ -7,7 +7,8 @@ import { useAgentEditor } from '@/features/playground/AgentEditorContext'
 import { AgentSkillsSection } from '@/features/skills/AgentSkillsSection'
 import { cn } from '@/lib/utils'
 import { externalContextContractError, outputContractError, validateAgentEditorState } from '../editorValidation'
-import { useCreateRelease } from '../hooks'
+import { useCreateRelease, useReleases } from '../hooks'
+import { useProviderModels } from '@/features/provider-models/hooks'
 import type { Agent } from '../types'
 import { AgentEditorNavigation, useAgentEditorSection } from './AgentEditorNavigation'
 import { AgentOverviewSettings } from './AgentOverviewSettings'
@@ -32,6 +33,16 @@ export function AgentConfigurationEditor({ agent, projectId, agentId, onDirtyCha
   const [saveFailed, setSaveFailed] = useState(false)
   const { state, baseRevision, loadedReleaseVersion, setLoadedRelease, isDirty, updateBaseline, resetToBaseline } = useAgentEditor()
   const createRelease = useCreateRelease(agent.id)
+  const { data: models = [] } = useProviderModels(projectId)
+  const { data: releases = [] } = useReleases(agent.id)
+  const draft = releases.find(release => release.status === 'draft')
+  const modelUpdatesAvailable = [
+    { id: state.providerModelId, hash: draft?.model_spec_hash ?? agent.settings?.model_spec_hash },
+    { id: state.fallbackProviderModelId, hash: draft?.fallback_model_spec_hash ?? agent.settings?.fallback_model_spec_hash },
+  ].some(binding => {
+    const model = models.find(model => model.id === binding.id)
+    return Boolean(model?.spec_hash && model.spec_hash !== binding.hash)
+  })
   const hasValidationIssue = Boolean(outputContractError(state) || externalContextContractError(state))
 
   const saveDraft = useCallback(async () => {
@@ -70,7 +81,7 @@ export function AgentConfigurationEditor({ agent, projectId, agentId, onDirtyCha
     : saveFailed ? 'Save failed'
       : hasValidationIssue ? 'Fix Contracts'
         : isDirty ? 'Unsaved changes'
-          : loadedReleaseVersion ? 'Ready to save as Draft' : 'Saved'
+          : loadedReleaseVersion ? 'Ready to save as Draft' : modelUpdatesAvailable ? 'Model changes available' : 'Saved'
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-background">
@@ -80,7 +91,7 @@ export function AgentConfigurationEditor({ agent, projectId, agentId, onDirtyCha
           <p role="status" className={cn('mt-ui-hairline font-mono text-chrome-meta', saveFailed || hasValidationIssue ? 'text-red-300' : isDirty ? 'text-amber-300/90' : 'text-muted-foreground')}>{status}</p>
         </div>
         <Button size="sm" variant="ghost" className="w-control-sm p-0 text-muted-foreground" onClick={() => { setSaveFailed(false); resetToBaseline() }} disabled={!isDirty || createRelease.isPending} title="Reset to saved Draft" aria-label="Reset Draft"><RotateCcw className="h-icon w-icon" /></Button>
-        <Button size="sm" onClick={() => void saveDraft()} loading={createRelease.isPending} disabled={!isDirty && !loadedReleaseVersion} aria-invalid={hasValidationIssue || undefined}><Save className="h-icon-sm w-icon-sm" />Save</Button>
+        <Button size="sm" onClick={() => void saveDraft()} loading={createRelease.isPending} disabled={!isDirty && !loadedReleaseVersion && !modelUpdatesAvailable} title={modelUpdatesAvailable ? 'Save to adopt current Model configuration and prices in this Draft' : undefined} aria-invalid={hasValidationIssue || undefined}><Save className="h-icon-sm w-icon-sm" />Save</Button>
       </div>
       <AgentEditorNavigation value={section} onChange={setSection} />
       <div className="scrollbar-thin min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain">

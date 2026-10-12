@@ -284,6 +284,10 @@ export interface AgentRelease {
   model_config_version_id?: string
   provider_model_id?: string
   fallback_provider_model_id?: string
+  model_spec_snapshot?: Record<string, unknown> | null
+  model_spec_hash?: string | null
+  fallback_model_spec_snapshot?: Record<string, unknown> | null
+  fallback_model_spec_hash?: string | null
   // Snapshot fields — complete agent config
   name?: string
   description?: string
