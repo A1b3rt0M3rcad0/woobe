@@ -1,5 +1,6 @@
+import { useEnvironmentSelection, invalidateEnvironmentSelection, selectionMessage } from './environmentSelection'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
@@ -46,7 +47,8 @@ export function AsacWorkbench({ projectId, resourceId, kind }: { projectId: stri
   const [observed, setObserved] = useState(0)
   const [now, setNow] = useState(Date.now())
   const drafts = useQuery({ queryKey: ['asac-drafts', base], queryFn: () => get<{ drafts: Draft[] }>(base + '/drafts'), refetchInterval: 15000 })
-  const production = useQuery({ queryKey: ['asac-production', base], queryFn: () => get<Current>(base + '/current', { params: { environment: 'production' } }), refetchInterval: 15000 })
+  const queryClient = useQueryClient()
+  const production = useEnvironmentSelection(projectId, kind, resourceId, 'production')
   const remoteDraft = useQuery({ queryKey: ['asac-draft', base, draftId], queryFn: () => get<Draft>(`${base}/drafts/${draftId}`), enabled: Boolean(draftId), refetchInterval: 15000 })
   const dirty = Boolean(editor?.files.some(item => item.editable && values[item.path] !== item.content))
   const stale = Boolean(editor && remoteDraft.data && editor.draft.generation !== remoteDraft.data.generation)
@@ -71,7 +73,7 @@ export function AsacWorkbench({ projectId, resourceId, kind }: { projectId: stri
     if (action === 'plan') { setPlan(result); setProof(null) }
     if (action === 'lease') setProof(leaseProof(result))
     if (action === 'release') setProof(null)
-    if (action === 'apply') { setNotice('Deployment committed. Refresh history to inspect the owner receipt.'); void production.refetch() }
+    if (action === 'apply') { setNotice('Deployment committed. Refresh history to inspect the owner receipt.'); void invalidateEnvironmentSelection(queryClient) }
     if (action === 'checkpoint' && editor) {
       const record = result.record as RecordData
       setEditor({ ...editor, draft: { ...editor.draft, working_revision_id: String(record.revision_id) } })
@@ -171,7 +173,7 @@ export function AsacWorkbench({ projectId, resourceId, kind }: { projectId: stri
   const draftControls = <div className="space-y-ui-md">
     <div className={`${box} grid items-end gap-ui-md md:grid-cols-[1fr_1fr_auto]`}>
       {field('Isolated Draft', <Select aria-label="Isolated Draft" value={draftId} onChange={event => { if (dirty) { setError('Save your local edits before selecting another Draft.'); return }; setDraftId(event.target.value); setEditor(null) }} options={(drafts.data?.drafts ?? []).map(item => ({ value: item.draft_id, label: `${item.name} · generation ${item.generation}` }))} placeholder="Select a Draft" disabled={blocked} />)}
-      <p className={label}>Production: {production.data?.snapshot_id ?? 'not observed'} · generation {production.data?.environment_generation ?? '—'}</p>
+      <p className={label}>Production: {production.snapshotId ?? selectionMessage(production, 'Production')} · generation {production.data?.environment_generation ?? '—'}</p>
       <Button onClick={() => void loadEditor()} disabled={!draftId || blocked || dirty}>Load saved files</Button>
     </div>
     <div className={`${box} grid items-end gap-ui-md md:grid-cols-4`}>

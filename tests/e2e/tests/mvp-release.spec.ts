@@ -67,20 +67,43 @@ async function respond(route: Route, data: unknown, status = 200) {
   })
 }
 
-async function installApi(page: Page, options?: { freshCore?: boolean }) {
+async function installApi(page: Page, options?: { freshCore?: boolean; asacAgent?: boolean; productionError?: boolean; runtimeEnabled?: boolean; detailsError?: boolean }) {
   const freshCore = options?.freshCore ?? false
 
   await page.route('**/*', async (route) => {
     const request = route.request()
     const path = new URL(request.url()).pathname
     const method = request.method()
-    const prefixes = ['/identity', '/core', '/ai', '/runtime', '/observability', '/knowledge', '/tools', '/network', '/metering']
+    const prefixes = ['/identity', '/core', '/ai', '/runtime', '/observability', '/knowledge', '/tools', '/network', '/metering', '/projects']
     if (!prefixes.some((prefix) => path.startsWith(prefix))) {
       await route.continue()
       return
     }
 
-    if (path === '/identity/instance/status') {
+    if (options?.asacAgent && path === '/ai/agents') {
+      await respond(route, [productionAgent])
+    } else if (options?.asacAgent && path === `/ai/agents/${productionAgent.id}`) {
+      await respond(route, productionAgent)
+    } else if (options?.asacAgent && path === `/ai/agents/${productionAgent.id}/runtime-environments`) {
+      await respond(route, { draft: { enabled: true }, staging: { enabled: true }, production: { enabled: options.runtimeEnabled ?? true } })
+    } else if (options?.asacAgent && path.endsWith('/asac/current')) {
+      const environment = new URL(request.url()).searchParams.get('environment')
+      await respond(route, { schema_version: '1.0', resource_id: productionAgent.id, kind: 'Agent', environment,
+        snapshot_id: environment === 'production' ? selectedRelease.id : 'staging-snapshot', environment_generation: 1,
+        selection_authority: environment === 'production' ? 'asac' : 'legacy', remote_status: 'verified', complete: true },
+        options.productionError && environment === 'production' ? 500 : 200)
+    } else if (options?.asacAgent && path === `/ai/agents/${productionAgent.id}/releases`) {
+      await respond(route, [selectedRelease]) // No catalog row has status=production.
+    } else if (options?.asacAgent && path.startsWith(`/ai/agents/${productionAgent.id}/releases/`)) {
+      await respond(route, path.endsWith(selectedRelease.id) ? selectedRelease : { ...selectedRelease, id: 'staging-snapshot', version: 'staging', status: 'staging', snapshot_kind: 'staging' }, options.detailsError ? 403 : 200)
+    } else if (options?.asacAgent && path === `/ai/agents/${productionAgent.id}/release-activations`) {
+      await respond(route, [{ id: 'first', project_id: project.id, agent_id: productionAgent.id, release_id: selectedRelease.id,
+        previous_release_id: null, action: 'reactivate', created_at: now }])
+    } else if (options?.asacAgent && path === '/ai/context-managers') {
+      await respond(route, [{ name: 'stdcm', display_name: 'Standard', config_schema: { type: 'object', properties: {} } }])
+    } else if (options?.asacAgent && path === '/identity/access/me') {
+      await respond(route, { permissions: [...authorityFixture.permissions.workspace, ...authorityFixture.permissions.project], conditions: {} })
+    } else if (path === '/identity/instance/status') {
       await respond(route, {
         initialized: !freshCore,
         edition: 'core',
@@ -262,4 +285,78 @@ test('owner creates, copies, rotates and revokes a CLI key in Workspace settings
   expect(headers[1]['if-match']).toBe(metadata.etag)
   expect(headers[1]['idempotency-key']).toBeTruthy()
   expect(headers[2]['if-match']).toBe('"control-key:key-b:2"')
+})
+
+
+const productionAgent = {
+  id: 'agent-asac', project_id: project.id, name: 'ASaC Production Agent', description: 'Selection UI acceptance',
+  status: 'active', provider: 'custom', model: 'mutable-draft-model', session_mode: 'stateful', revision: 1,
+  created_at: now, updated_at: now,
+}
+const selectedRelease = {
+  id: 'selected-release', project_id: project.id, agent_id: productionAgent.id, name: productionAgent.name,
+  version: '1.2.0', status: 'released', snapshot_kind: 'release', provider: 'custom', model: 'frozen-release-model',
+  session_mode: 'stateless', runtime_config: {}, created_at: now,
+}
+
+test('ASaC selection drives cards, playground, history, API and Runtime Key creation', async ({ page }) => {
+  await installApi(page, { asacAgent: true })
+  const catalogReads: string[] = []
+  page.on('request', request => { if (new URL(request.url()).pathname.endsWith('/releases')) catalogReads.push(request.url()) })
+  await login(page)
+  await page.goto(`/workspaces/${workspace.id}/projects/${project.id}/agents`)
+  await expect(page.getByLabel('Production Live', { exact: true })).toBeVisible()
+  expect(catalogReads).toHaveLength(0) // Cards don't fetch full snapshot catalogs.
+  await page.getByRole('button', { name: `Open Agent playground for ${productionAgent.name}` }).click()
+  await page.getByRole('group', { name: 'Agent environment' }).getByRole('button', { name: 'PRODUCTION', exact: true }).click()
+  await expect(page.getByText('Using: Production · 1.2.0', { exact: true })).toBeVisible()
+  await expect(page.locator('header').getByText('custom / frozen-release-model', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Send message', exact: true })).toBeDisabled() // Empty composer only.
+  await page.locator('textarea').first().fill('ping')
+  await expect(page.getByRole('button', { name: 'Send message', exact: true })).toBeEnabled()
+  await page.getByRole('button', { name: 'Manage Agent', exact: true }).click()
+  const manager = page.getByRole('dialog')
+  await expect(manager.getByText('Production · 1.2.0', { exact: true })).toBeVisible()
+  await manager.getByRole('button', { name: /Activity/ }).click()
+  await expect(manager.getByText('Initial deployment', { exact: true }).first()).toBeVisible()
+  await manager.getByRole('button', { name: 'Close', exact: true }).last().click()
+  await page.getByRole('button', { name: 'API', exact: true }).click()
+  const reference = page.getByRole('dialog')
+  await expect(reference.getByText('frozen-release-model', { exact: true })).toBeVisible()
+  await expect(reference.getByText('stateless', { exact: true })).toBeVisible()
+  await reference.getByRole('button', { name: 'Create Runtime Key' }).click()
+  const issuance = page.getByRole('dialog').last()
+  await expect(issuance.getByText('Deployment available', { exact: true })).toBeVisible()
+  await expect(issuance).toContainText('Agent · Production · Runtime Key')
+  await expect(issuance.getByText('Not deployed', { exact: true })).toHaveCount(0)
+  await page.screenshot({ path: test.info().outputPath('asac-production-key.png'), fullPage: true })
+})
+
+for (const scenario of [
+  { title: 'failed selection', options: { productionError: true }, pill: 'Production Unknown', message: 'selection unavailable' },
+  { title: 'disabled runtime', options: { runtimeEnabled: false }, pill: 'Production Off', message: 'runtime is off' },
+  { title: 'forbidden details', options: { detailsError: true }, pill: 'Production Live', message: 'details unavailable' },
+]) {
+  test(`ASaC ${scenario.title} never becomes No Production`, async ({ page }) => {
+    await installApi(page, { asacAgent: true, ...scenario.options }); await login(page)
+    await page.goto(`/workspaces/${workspace.id}/projects/${project.id}/agents`)
+    await expect(page.getByLabel(scenario.pill, { exact: true })).toBeVisible()
+    await expect(page.getByLabel('No Production', { exact: true })).toHaveCount(0)
+    await page.getByRole('button', { name: `Open Agent playground for ${productionAgent.name}` }).click()
+    await page.getByRole('group', { name: 'Agent environment' }).getByRole('button', { name: 'PRODUCTION', exact: true }).click()
+    await expect(page.getByText(scenario.message, { exact: false }).first()).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Send message', exact: true })).toBeDisabled()
+  })
+}
+
+
+test('general Runtime Key dialog keeps Production when it cannot observe deployment', async ({ page }) => {
+  await installApi(page, { asacAgent: true, productionError: true }); await login(page)
+  await page.goto(`/workspaces/${workspace.id}/projects/${project.id}/api-keys?type=runtime&targetType=agent`)
+  await page.getByRole('button', { name: 'Create Agent Runtime Key', exact: true }).first().click()
+  const dialog = page.getByRole('dialog')
+  await dialog.getByRole('button', { name: /ASaC Production Agent/ }).click()
+  await expect(dialog.getByText('Deployment unknown', { exact: true })).toBeVisible()
+  await expect(dialog.getByRole('button', { name: 'Production', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await expect(dialog.getByRole('button', { name: 'Staging', exact: true })).toHaveAttribute('aria-pressed', 'false')
 })

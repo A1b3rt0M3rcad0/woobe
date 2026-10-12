@@ -656,6 +656,43 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
         settings[key] = spec.as_dict()
         agent.settings = settings
 
+    def _restore_frozen_pricing(self, agent: Agent) -> None:
+        settings = dict(agent.settings or {})
+        for prefix in ("", "fallback_"):
+            key = prefix + "model_spec"
+            if settings.get(key + "_frozen") is not True:
+                if settings.get(prefix + "model_pricing_frozen") is True:
+                    settings[prefix + "model_pricing"] = provider_model_pricing_snapshot(
+                        provider_model_id=getattr(agent, prefix + "provider_model_id", None),
+                        provider_credential_id=getattr(agent, "fallback_credential_id" if prefix else "provider_credential_id", None),
+                        provider=getattr(agent, "fallback_provider" if prefix else "provider", None),
+                        model=getattr(agent, "fallback_model" if prefix else "model", None), metadata={},
+                    )
+                continue
+            raw_spec = settings.get(key)
+            if not isinstance(raw_spec, dict):
+                continue
+            try:
+                spec = ModelSpec.from_dict(raw_spec)
+            except (TypeError, ValueError) as exc:
+                raise ValidationError(f"Frozen ModelSpec is invalid: {exc}") from exc
+            # Legacy snapshots may store prices in their frozen source metadata.
+            # Never consult the mutable ProviderModel to fill missing frozen prices.
+            frozen_metadata = spec.metadata.get("provider_model_metadata")
+            metadata = dict(frozen_metadata) if isinstance(frozen_metadata, dict) else {}
+            if spec.pricing:
+                metadata["pricing"] = dict(spec.pricing)
+            metadata["context_window"] = spec.limits.context_window
+            metadata["max_output_tokens"] = spec.limits.max_output_tokens
+            settings[prefix + "model_pricing"] = provider_model_pricing_snapshot(
+                provider_model_id=getattr(agent, prefix + "provider_model_id", None),
+                provider_credential_id=getattr(agent, "fallback_credential_id" if prefix else "provider_credential_id", None),
+                provider=spec.provider,
+                model=spec.model_id,
+                metadata=metadata,
+            )
+        agent.settings = settings
+
     def _set_pricing_snapshot(
         self,
         agent: Agent,
@@ -665,12 +702,22 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
         provider,
     ) -> None:
         settings = dict(agent.settings or {})
+        spec_key = "fallback_model_spec" if key == "fallback_model_pricing" else "model_spec"
+        if settings.get(spec_key + "_frozen") is True or settings.get(key + "_frozen") is True:
+            return
+        metadata = dict(provider_model.metadata or {})
+        if isinstance(provider_model.spec, dict):
+            try:
+                spec = ModelSpec.from_dict(provider_model.spec)
+            except (TypeError, ValueError) as exc:
+                raise ValidationError(f"Provider model contains an invalid ModelSpec: {exc}") from exc
+            metadata["pricing"] = dict(spec.pricing)
         settings[key] = provider_model_pricing_snapshot(
             provider_model_id=provider_model.id,
             provider_credential_id=provider_model.provider_credential_id,
             provider=provider,
             model=provider_model.model,
-            metadata=provider_model.metadata,
+            metadata=metadata,
         )
         agent.settings = settings
 
@@ -688,6 +735,7 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
             raise ValidationError("Provider credential has expired")
 
     async def _resolve_provider_model_refs(self, uow: Any, agent: Agent) -> Agent:
+        self._restore_frozen_pricing(agent)
         provider_model_repo = getattr(uow, "provider_models", None)
         if provider_model_repo is None:
             if getattr(agent, "model", None):

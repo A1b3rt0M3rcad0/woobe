@@ -114,7 +114,7 @@ export function ProductionChangesModal({
             <div className="grid gap-ui-md">
               <SectionBlock title="Production transition" density="compact">
                 <div className="flex flex-wrap items-center gap-ui-sm">
-                  <Badge variant={badgeVariant(selected.action)} size="compact">{activationLabel(selected.action)}</Badge>
+                  <Badge variant={badgeVariant(selected.action)} size="compact">{activationLabel(selected.action, selected.previous_release_id)}</Badge>
                   <span className="font-mono text-system-control text-muted-foreground">{previousRelease?.version ?? 'No Production'}</span>
                   <ArrowRight className="h-icon w-icon text-muted-foreground" />
                   <span className="font-mono text-system-control font-semibold text-accent-foreground">{currentRelease.version}</span>
@@ -167,7 +167,7 @@ export function ProductionChangesModal({
                     leading={<History className="h-icon w-icon text-muted-foreground" />}
                     meta={(
                       <>
-                        <Badge variant={badgeVariant(activation.action)} size="compact">{activationLabel(activation.action)}</Badge>
+                        <Badge variant={badgeVariant(activation.action)} size="compact">{activationLabel(activation.action, activation.previous_release_id)}</Badge>
                         <span>{previous?.version ?? 'No Production'}</span>
                         <ArrowRight className="h-icon-sm w-icon-sm" />
                         <span className="text-accent-foreground">{release?.version ?? activation.release_id.slice(0, 8)}</span>

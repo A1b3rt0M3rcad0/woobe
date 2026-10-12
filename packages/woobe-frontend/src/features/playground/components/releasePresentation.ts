@@ -50,9 +50,9 @@ export function sessionModeLabel(mode?: string) {
   return 'Unknown'
 }
 
-export function promotableReleases(releases: AgentRelease[]) {
+export function promotableReleases(releases: AgentRelease[], selectedId?: string | null) {
   return releases
-    .filter((release) => release.snapshot_kind === 'release' && release.status !== 'production')
+    .filter((release) => release.snapshot_kind === 'release' && release.id !== selectedId)
     .sort((left, right) => timestamp(right.created_at) - timestamp(left.created_at))
 }
 
@@ -62,8 +62,9 @@ export function newestProductionChanges(activations: AgentReleaseActivation[]) {
   )
 }
 
-export function activationLabel(action: AgentReleaseActivation['action']) {
+export function activationLabel(action: AgentReleaseActivation['action'], previousReleaseId?: string | null) {
   if (action === 'rollback') return 'Rollback'
+  if (previousReleaseId === null) return 'Initial deployment'
   if (action === 'reactivate') return 'Reactivated'
   return 'Deployed'
 }
@@ -74,6 +75,7 @@ export function activationSummary(
 ) {
   if (release?.release_notes) return release.release_notes
   if (activation.action === 'rollback') return 'A previous stable Release was restored to Production.'
+  if (!activation.previous_release_id) return 'The first Release was activated in Production.'
   if (activation.action === 'reactivate') return 'An existing Release was returned to Production.'
   if (!activation.previous_release_id) return 'The first Release was activated in Production.'
   return 'A new Release was activated in Production.'

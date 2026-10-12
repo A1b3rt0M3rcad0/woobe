@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 
-import { useReleases } from '@/features/agents/hooks'
+import { useSelectedAgentEnvironment, selectionMessage } from '@/features/asac/environmentSelection'
 import type { Agent } from '@/features/agents/types'
 import type { RuntimeEnvironment } from '@/features/api-keys/types'
 import {
@@ -21,19 +21,23 @@ interface ApiModalProps {
 }
 
 export function ApiModal({ open, onClose, agent, workspaceProjectPathFn, projectId }: ApiModalProps) {
-  const { data: releases = [] } = useReleases(agent.id)
+  const production = useSelectedAgentEnvironment(projectId, agent.id, 'production', open)
+  const staging = useSelectedAgentEnvironment(projectId, agent.id, 'staging', open)
 
   const environments = useMemo(() => {
     return Object.fromEntries((['production', 'staging'] as RuntimeSlot[]).map((slot) => {
-      const release = releases.find((item) => item.status === slot) ?? null
+      const selection = slot === 'production' ? production : staging
+      const release = selection.snapshot
       const reference = buildApiReferenceForSlot({ slot, release })
-      const sessionMode = agent.session_mode ?? 'stateful'
+      const sessionMode = release?.session_mode ?? 'unknown'
       const value: RuntimeEnvironmentReference = {
-        available: reference.available,
-        version: reference.release?.version ?? null,
+        available: selection.state === 'selected',
+        selectionState: selection.state,
+        observationLabel: release ? null : selectionMessage(selection, slot === 'production' ? 'Production' : 'Staging'),
+        version: reference.release?.version ?? selection.snapshotId,
         summary: [
-          { label: 'Provider', value: reference.release?.provider ?? 'not deployed' },
-          { label: 'Model', value: reference.release?.model ?? 'not deployed' },
+          { label: 'Provider', value: reference.release?.provider ?? 'unavailable' },
+          { label: 'Model', value: reference.release?.model ?? 'unavailable' },
           { label: 'Session', value: sessionMode },
         ],
         request: reference.request,
@@ -41,12 +45,12 @@ export function ApiModal({ open, onClose, agent, workspaceProjectPathFn, project
         response: reference.sync_response_example,
         streamEvents: reference.stream_events,
         outputContract: reference.structured_output.enabled ? reference.structured_output : null,
-        warning: null,
+        warning: release ? null : selectionMessage(selection, slot === 'production' ? 'Production' : 'Staging'),
         note: `This Runtime Key always resolves the current ${slot === 'production' ? 'Production' : 'Staging'} Agent Release. Existing Sessions keep their conversation context and follow the current environment Release on the next Run.`,
       }
       return [slot, value]
     })) as Record<RuntimeEnvironment, RuntimeEnvironmentReference>
-  }, [agent.session_mode, releases])
+  }, [production.state, production.snapshotId, production.snapshot, production.detailState, staging.state, staging.snapshotId, staging.snapshot, staging.detailState])
 
   return (
     <RuntimeApiReferenceModal

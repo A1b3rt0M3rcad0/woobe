@@ -43,6 +43,8 @@ export interface RuntimeReferenceManifestItem {
 
 export interface RuntimeEnvironmentReference {
   available: boolean
+  selectionState?: 'loading' | 'unknown' | 'empty' | 'selected'
+  observationLabel?: string | null
   version: string | null
   summary: Array<{ label: string; value: string }>
   request: Record<string, unknown>
@@ -164,11 +166,11 @@ export function RuntimeApiReferenceModal({
 
   useEffect(() => {
     if (!open) return
-    setEnvironment(environments.production.available ? 'production' : environments.staging.available ? 'staging' : 'production')
+    setEnvironment('production')
     setSection('http')
     setRequestMode('minimal')
     setLanguage('python')
-  }, [environments.production.available, environments.staging.available, open])
+  }, [targetType, targetId, projectId, open])
 
   const compatibleKeys = useMemo(() => apiKeys.filter((key) => (
     key.kind === 'runtime'
@@ -261,12 +263,19 @@ export function RuntimeApiReferenceModal({
                     size="compact"
                   />
                   <div className="flex items-center justify-between gap-ui-sm">
-                    <FieldDescription>{reference.version ?? (reference.available ? 'Deployment active' : 'Not deployed')}</FieldDescription>
+                    <FieldDescription>{reference.version ?? reference.observationLabel ?? (reference.available ? 'Deployment active' : 'Not deployed')}</FieldDescription>
                     <Badge variant={reference.available ? 'success' : 'warning'} size="compact">
-                      {reference.available ? 'Available' : 'Unavailable'}
+                      {reference.selectionState === 'loading' ? 'Checking deployment' : reference.selectionState === 'unknown' ? 'Deployment unknown' : reference.available ? 'Available' : 'Not deployed'}
                     </Badge>
                   </div>
                 </Field>
+
+                <dl aria-label="Selected snapshot configuration" className="grid gap-ui-xs">
+                  {reference.summary.map(item => <div key={item.label} className="flex items-start justify-between gap-ui-sm font-mono text-system-meta">
+                    <dt className="text-muted-foreground">{item.label}</dt>
+                    <dd className="min-w-0 break-words text-right text-accent-foreground">{item.value}</dd>
+                  </div>)}
+                </dl>
 
                 {reference.warning ? (
                   <Alert variant="warning">

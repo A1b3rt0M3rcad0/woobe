@@ -1,3 +1,4 @@
+import { useEnvironmentSelection } from '@/features/asac/environmentSelection'
 import { Package, Sparkles } from 'lucide-react'
 import { Badge, EmptyStatePanel, SectionBlock, TechnicalListItem } from '@woobe/ui'
 
@@ -46,6 +47,10 @@ function DetailRow({ label, value }: { label: string; value: unknown }) {
 }
 
 export function ReleaseDetailsView({ release }: ReleaseDetailsViewProps) {
+  const production = useEnvironmentSelection(release.project_id, 'Agent', release.agent_id, 'production')
+  const staging = useEnvironmentSelection(release.project_id, 'Agent', release.agent_id, 'staging')
+  const isProduction = production.snapshotId === release.id
+  const isStaging = staging.snapshotId === release.id
   const { data: knowledgeVersions = [] } = useKnowledgeVersions(release.agent_id)
   const knowledgeVersion = knowledgeVersions.find((item) => item.id === release.knowledge_version_id) ?? null
   const runtimeConfig = recordValue(release.runtime_config)
@@ -71,9 +76,10 @@ export function ReleaseDetailsView({ release }: ReleaseDetailsViewProps) {
         meta={(
           <>
             <Badge variant="outline" size="compact">{sessionModeLabel(release.session_mode)}</Badge>
-            <Badge variant={release.status === 'production' ? 'success' : 'secondary'} size="compact">
-              {release.status === 'production' ? 'Production' : 'Available Release'}
+            <Badge variant={isProduction ? 'success' : 'secondary'} size="compact">
+              {isProduction ? 'Production' : production.state === 'loading' || production.state === 'unknown' ? 'Production unverified' : 'Immutable snapshot'}
             </Badge>
+            {isStaging ? <Badge variant="default" size="compact">Staging</Badge> : null}
           </>
         )}
       />

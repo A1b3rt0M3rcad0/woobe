@@ -181,6 +181,9 @@ class LegacyModelSpecResolver:
                 max_output_tokens=snapshot.get("max_output_tokens"),
             ),
             default_model_strategy=ModelOperations.LANGUAGE_GENERATE,
+            pricing={key: snapshot.get(key) for key in (
+                "input_cost_per_1m_tokens", "output_cost_per_1m_tokens", "currency", "billing_unit", "pricing_id", "source"
+            )},
             source="legacy",
             metadata={
                 "compatibility_mode": "legacy",
@@ -216,6 +219,9 @@ class LegacyModelSpecResolver:
                 max_input_tokens=snapshot.get("context_window"),
             ),
             default_model_strategy=ModelOperations.EMBEDDING_CREATE,
+            pricing={key: snapshot.get(key) for key in (
+                "input_cost_per_1m_tokens", "output_cost_per_1m_tokens", "currency", "billing_unit", "pricing_id", "source"
+            )},
             source="legacy",
             metadata={
                 "compatibility_mode": "legacy",

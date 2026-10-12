@@ -87,13 +87,13 @@ describe('Agent execution strategy config', () => {
   it('uses unsaved Draft strategy but immutable Release strategy in staging and production', () => {
     const draftRuntime = { execution_strategy: 'react' }
 
-    expect(executionStrategyForEnvironment('draft', draftRuntime, releases)).toBe('react')
-    expect(executionStrategyForEnvironment('staging', draftRuntime, releases)).toBe('standard')
-    expect(executionStrategyForEnvironment('production', draftRuntime, releases)).toBe('plan_execute')
+    expect(executionStrategyForEnvironment('draft', draftRuntime, null)).toBe('react')
+    expect(executionStrategyForEnvironment('staging', draftRuntime, releases[0])).toBe('standard')
+    expect(executionStrategyForEnvironment('production', draftRuntime, releases[1])).toBe('plan_execute')
   })
 
-  it('falls back to Standard when an immutable environment has no Release snapshot', () => {
-    expect(executionStrategyForEnvironment('staging', { execution_strategy: 'react' }, [])).toBe('standard')
+  it('keeps unknown strategy unknown when selected details are unavailable', () => {
+    expect(executionStrategyForEnvironment('staging', { execution_strategy: 'react' }, null)).toBeUndefined()
   })
 
   it('builds selectable options from backend-owned catalog metadata', () => {

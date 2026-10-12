@@ -42,6 +42,8 @@ class VectorSnapshotRAGMixin:
         agent = parent._apply_release_to_agent(agent, release)
         settings = dict(agent.settings or {})
 
+        settings["model_pricing_frozen"] = True
+        settings["fallback_model_pricing_frozen"] = True
         model_spec_snapshot = getattr(release, "model_spec_snapshot", None)
         if isinstance(model_spec_snapshot, dict):
             settings["model_spec"] = deepcopy(model_spec_snapshot)
@@ -85,6 +87,7 @@ class VectorSnapshotRAGMixin:
         settings = dict(agent.settings or {})
 
         if "model_spec_snapshot" in snapshot:
+            settings["model_pricing_frozen"] = True
             model_spec_snapshot = snapshot.get("model_spec_snapshot")
             if isinstance(model_spec_snapshot, dict):
                 settings["model_spec"] = deepcopy(model_spec_snapshot)
@@ -93,6 +96,7 @@ class VectorSnapshotRAGMixin:
                 settings.pop("model_spec_frozen", None)
 
         if "fallback_model_spec_snapshot" in snapshot:
+            settings["fallback_model_pricing_frozen"] = True
             fallback_model_spec_snapshot = snapshot.get(
                 "fallback_model_spec_snapshot"
             )

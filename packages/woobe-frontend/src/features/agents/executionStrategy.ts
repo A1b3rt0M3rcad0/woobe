@@ -17,14 +17,13 @@ export function executionStrategyFromRuntimeConfig(
 export function executionStrategyForEnvironment(
   environment: RuntimeEnvironment,
   draftRuntimeConfig: Record<string, unknown>,
-  releases: AgentRelease[],
-): AgentExecutionStrategy {
+  selectedSnapshot: AgentRelease | null,
+): AgentExecutionStrategy | undefined {
   if (environment === 'draft') {
     return executionStrategyFromRuntimeConfig(draftRuntimeConfig)
   }
 
-  const release = releases.find((item) => item.status === environment)
-  return executionStrategyFromRuntimeConfig(release?.runtime_config ?? {})
+  return selectedSnapshot ? executionStrategyFromRuntimeConfig(selectedSnapshot.runtime_config ?? {}) : undefined
 }
 
 export function executionStrategyDescriptor(

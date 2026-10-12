@@ -112,3 +112,26 @@ disposable server. The official GitHub example is syntax/recovery-tested and use
 a separate protected deploy-only identity, pinned archive checksum and encrypted
 checkpoint. Environment approval rules and credentials must be configured by the
 operator; CI examples do not grant account access themselves.
+
+
+## Web selection and immutable pricing qualification
+
+`features/asac/environmentSelection.test.tsx` (frontend) exercises real React Query
+state/caching for released-but-selected snapshots, explicit empty/loading/unknown,
+authorization/transport failure, forbidden exact details, stale refresh rejection,
+legacy authority, foreign details, A→B→A, late cross-Project responses, shared
+snapshot deduplication and independent Network/Agent queries. Presentation tests
+exclude active immutable Releases by selected ID and distinguish initial deployment.
+
+`tests/e2e/tests/mvp-release.spec.ts` serves the built frontend in Chromium with
+controlled API fixtures: released + ASaC Production selected, composer gates,
+frozen metadata/session mode, history, API reference and Runtime Key dialog;
+selection errors, disabled runtime and forbidden details stay distinct from empty.
+The card fixture asserts no full Release catalog requests. This is browser/UI
+qualification with fixtures, not a Production provider or multi-host qualification.
+
+`tests/unit/agent/test_frozen_runtime_pricing.py` checks complete/missing/zero/invalid
+rates and usage, unit normalization, currency rejection, primary/fallback frozen
+prices against catalog changes, imported/native ModelSpecs, legacy frozen metadata
+and rejection of inherited mutable Draft pricing. Existing Run diagnostics,
+metering, aggregate coverage and Network cost regression suites remain required.

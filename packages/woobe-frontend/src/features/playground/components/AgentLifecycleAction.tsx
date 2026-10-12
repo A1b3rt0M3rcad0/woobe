@@ -1,3 +1,4 @@
+import { useEnvironmentSelection } from '@/features/asac/environmentSelection'
 import { useMemo } from 'react'
 import { RotateCcw, Rocket, Upload } from 'lucide-react'
 
@@ -10,11 +11,13 @@ import { promotableReleases } from './releasePresentation'
 
 export function AgentLifecycleAction({
   agentId,
+  projectId,
   environment,
   disabled = false,
   onManageAgent,
 }: {
   agentId: string
+  projectId: string
   environment: RuntimeEnvironment
   disabled?: boolean
   onManageAgent: (section: AgentManagerSection, mode: AgentManagerMode) => void
@@ -22,17 +25,11 @@ export function AgentLifecycleAction({
   const { data: releases = [] } = useReleases(agentId)
   const { isDirty } = useAgentEditor()
 
-  const staging = useMemo(
-    () => releases.find((release) => release.status === 'staging') ?? null,
-    [releases],
-  )
-  const production = useMemo(
-    () => releases.find((release) => release.status === 'production') ?? null,
-    [releases],
-  )
+  const staging = useEnvironmentSelection(projectId, 'Agent', agentId, 'staging')
+  const production = useEnvironmentSelection(projectId, 'Agent', agentId, 'production')
   const rollbackCandidates = useMemo(
-    () => promotableReleases(releases).filter((release) => release.id !== production?.id),
-    [production?.id, releases],
+    () => promotableReleases(releases, production.snapshotId),
+    [production.snapshotId, releases],
   )
 
   if (environment === 'draft') {
@@ -54,9 +51,9 @@ export function AgentLifecycleAction({
     return (
       <Button
         size="sm"
-        disabled={disabled || !staging}
+        disabled={disabled || staging.state !== 'selected'}
         onClick={() => onManageAgent('staging', 'publish')}
-        title={staging ? 'Review current Staging and publish an immutable Release' : 'Create Staging before publishing'}
+        title={staging.state === 'selected' ? 'Review current Staging and publish an immutable Release' : 'Create Staging before publishing'}
         className="bg-primary text-white hover:bg-primary/90"
       >
         <Rocket className="mr-1 h-3.5 w-3.5" />
@@ -68,7 +65,7 @@ export function AgentLifecycleAction({
   return (
     <Button
       size="sm"
-      disabled={disabled || rollbackCandidates.length === 0}
+      disabled={disabled || production.state !== 'selected' || rollbackCandidates.length === 0}
       onClick={() => onManageAgent('releases', 'rollback')}
       title={rollbackCandidates.length ? 'Choose a historical immutable Release to rollback to' : 'No previous Agent Release is available'}
       className="bg-primary text-white hover:bg-primary/90"

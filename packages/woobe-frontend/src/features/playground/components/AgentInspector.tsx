@@ -1,5 +1,7 @@
+import { useSelectedAgentEnvironment } from '@/features/asac/environmentSelection'
+import { EnvironmentSelectionNotice } from '@/features/asac/EnvironmentSelectionNotice'
 import { ChevronRight, Edit3, Lock, Rocket } from 'lucide-react'
-import { EmptyStatePanel, SegmentedControl } from '@woobe/ui'
+import { SegmentedControl } from '@woobe/ui'
 import { AgentConfigurationEditor } from '@/features/agents/components/AgentConfigurationEditor'
 import { ReleaseTab } from './ReleaseTab'
 import { ReleaseDetailsView } from './ReleaseDetailsView'
@@ -25,13 +27,18 @@ function titleCaseEnvironment(environment: RuntimeEnvironment) {
 
 function EnvironmentSnapshotContent({
   environment,
+  projectId,
+  agentId,
   release,
   loading,
 }: {
+  projectId: string
+  agentId: string
   environment: Exclude<RuntimeEnvironment, 'draft'>
   release: AgentRelease | null
   loading: boolean
 }) {
+  const selection = useSelectedAgentEnvironment(projectId, agentId, environment)
   const label = titleCaseEnvironment(environment)
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -49,11 +56,7 @@ function EnvironmentSnapshotContent({
           <div className="p-ui-md"><ReleaseDetailsView release={release} /></div>
         ) : (
           <div className="p-ui-md">
-            <EmptyStatePanel
-              compact
-              title={environment === 'staging' ? 'No Staging snapshot' : 'No Production release'}
-              description={environment === 'staging' ? 'Create Staging from the current Agent Draft to inspect its immutable snapshot.' : 'Publish an Agent Release to make Production configuration available.'}
-            />
+            <EnvironmentSelectionNotice selection={selection} environment={label} />
           </div>
         )}
       </ScrollArea>
@@ -76,7 +79,7 @@ export function AgentInspector({
   const editorLabel = environment === 'draft' ? 'Editor' : 'Snapshot'
   const editorContent = environment === 'draft'
     ? <AgentConfigurationEditor agent={agent} projectId={projectId} agentId={agentId} />
-    : <EnvironmentSnapshotContent environment={environment} release={environmentRelease} loading={environmentReleaseLoading} />
+    : <EnvironmentSnapshotContent projectId={projectId} agentId={agentId} environment={environment} release={environmentRelease} loading={environmentReleaseLoading} />
 
   return (
     <aside

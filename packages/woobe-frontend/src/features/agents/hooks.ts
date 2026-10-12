@@ -1,3 +1,4 @@
+import { invalidateEnvironmentSelection } from '@/features/asac/environmentSelection'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   createAgent,
@@ -76,6 +77,8 @@ export function useAgentRuntimeEnvironments(agentId?: string, projectId?: string
     queryFn: () => getAgentRuntimeEnvironments(agentId!, projectId!),
     enabled: Boolean(agentId && projectId),
     staleTime: 15_000,
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: 'always',
   })
 }
 export function useUpdateAgentRuntimeEnvironment(agentId?: string, projectId?: string) {
@@ -190,7 +193,7 @@ export function useCreateRelease(agentId?: string) {
   return useMutation({
     mutationFn: (data: CreateReleaseRequest) => createRelease(agentId!, data),
     onSuccess: (_release, input) => {
-      queryClient.invalidateQueries({ queryKey: ['releases', agentId] })
+      queryClient.invalidateQueries({ queryKey: ['releases', agentId] }); void invalidateEnvironmentSelection(queryClient)
       queryClient.invalidateQueries({ queryKey: ['agent', agentId] })
       queryClient.invalidateQueries({ queryKey: ['agents'] })
       queryClient.invalidateQueries({ queryKey: ['network-promotion-preview'] })
@@ -203,7 +206,7 @@ export function usePromoteRelease(agentId?: string) {
   return useMutation({
     mutationFn: ({ releaseId, ...options }: { releaseId: string } & PromoteReleaseOptions) => promoteRelease(agentId!, releaseId, options),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['releases', agentId] })
+      queryClient.invalidateQueries({ queryKey: ['releases', agentId] }); void invalidateEnvironmentSelection(queryClient)
       queryClient.invalidateQueries({ queryKey: ['release-activations', agentId] })
       queryClient.invalidateQueries({ queryKey: ['agent', agentId] })
       queryClient.invalidateQueries({ queryKey: ['network-promotion-preview'] })
@@ -212,7 +215,7 @@ export function usePromoteRelease(agentId?: string) {
 }
 export function useRollbackRelease(agentId?: string) {
   const queryClient = useQueryClient()
-  return useMutation({ mutationFn: ({ releaseId, userId }: { releaseId: string; userId?: string }) => rollbackRelease(agentId!, releaseId, userId), onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['releases', agentId] }); queryClient.invalidateQueries({ queryKey: ['release-activations', agentId] }); queryClient.invalidateQueries({ queryKey: ['agent', agentId] }) } })
+  return useMutation({ mutationFn: ({ releaseId, userId }: { releaseId: string; userId?: string }) => rollbackRelease(agentId!, releaseId, userId), onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['releases', agentId] }); void invalidateEnvironmentSelection(queryClient); queryClient.invalidateQueries({ queryKey: ['release-activations', agentId] }); queryClient.invalidateQueries({ queryKey: ['agent', agentId] }) } })
 }
 export function useReleaseTests(agentId: string | undefined, releaseId: string | undefined) {
   return useQuery({ queryKey: ['release-tests', agentId, releaseId], queryFn: () => getReleaseTests(agentId!, releaseId!), enabled: Boolean(agentId) && Boolean(releaseId) })
@@ -222,7 +225,7 @@ export function useDeleteRelease(agentId?: string) {
   return useMutation({
     mutationFn: ({ releaseId }: { releaseId: string }) => deleteRelease(agentId!, releaseId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['releases', agentId] })
+      queryClient.invalidateQueries({ queryKey: ['releases', agentId] }); void invalidateEnvironmentSelection(queryClient)
       queryClient.invalidateQueries({ queryKey: ['network-promotion-preview'] })
     },
   })
