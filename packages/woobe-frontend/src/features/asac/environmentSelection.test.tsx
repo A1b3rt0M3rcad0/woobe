@@ -3,7 +3,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { useEnvironmentSelection, useSelectedAgentEnvironment, environmentSelectionKey } from './environmentSelection'
+import { useEnvironmentSelection, useSelectedAgentEnvironment, environmentSelectionKey, selectionMessage } from './environmentSelection'
 import { RuntimeEnvironmentPill } from '@/components/common/RuntimeEnvironmentPill'
 import { EnvironmentSelectionNotice } from './EnvironmentSelectionNotice'
 
@@ -96,4 +96,9 @@ describe('authoritative environment selection', () => {
     expect(client.getQueryData(environmentSelectionKey('project', 'Agent', 'agent', 'production'))).toMatchObject({ snapshot_id: 'standalone' })
   })
   it('does not read disabled selections', async () => { await render({ enabled: false }); expect(fixture.get).not.toHaveBeenCalled() })
+})
+
+
+it('explains creating legacy Staging without requiring publication first', () => {
+  expect(selectionMessage({ state: 'empty', snapshotId: null }, 'Staging')).toContain('Stage the Draft')
 })

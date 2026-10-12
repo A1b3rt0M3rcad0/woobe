@@ -68,7 +68,9 @@ export function useSelectedAgentEnvironment(projectId: string | undefined, agent
 export function selectionMessage(selection: { state: string; snapshotId: string | null; detailState?: string }, environment: string): string {
   if (selection.state === 'loading') return `Checking ${environment} selection…`
   if (selection.state === 'unknown') return `${environment} selection unavailable. Retry to verify the current deployment.`
-  if (selection.state === 'empty') return `No ${environment} deployment. Publish an immutable Release, then deploy it to this environment.`
+  if (selection.state === 'empty') return /staging$/i.test(environment)
+    ? `No ${environment} deployment. Stage the Draft or deploy an immutable Release to Staging.`
+    : `No ${environment} deployment. Publish an immutable Release, then deploy it to Production.`
   if (selection.detailState === 'unknown') return `${environment} selected snapshot ${selection.snapshotId}; details unavailable. Retry to load its configuration.`
   return `${environment} selected snapshot ${selection.snapshotId}; loading configuration…`
 }

@@ -2546,7 +2546,7 @@ async def exercise_asac_deployments(cli, kind, resource_id, publication):
                     assert run.usage and run.usage["cost_usd"] is not None
                     expected_cost = (run.usage["input_tokens"] + 2 * run.usage["output_tokens"]) / 1_000_000
                     assert run.usage["cost_usd"] == pytest.approx(expected_cost, abs=1e-10)
-                    selected_spec = run.execution_snapshot["model_spec_snapshot"]
+                    selected_spec = run.execution_snapshot["agent"]["settings"]["model_spec"]
                     assert selected_spec["pricing"]["input_cost_per_1m_tokens"] == 1.0
                     overview = await cli.data("request", "GET", "/core/projects/" + cli.project_id + "/overview")
                     assert overview["summary"]["production_agents"] >= 1
