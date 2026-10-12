@@ -80,3 +80,29 @@ async def test_unavailable_durable_probe_preserves_healthy_hot_terminal():
     assert frame.data["sequence"] == 1 and frame.data["realtime_available"]
     with pytest.raises(StopAsyncIteration):
         await anext(stream)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("after_attach", [False, True])
+@pytest.mark.parametrize("refusal", ["AuthenticationError", "AuthorizationError", "NotFoundError", "ConflictError"])
+async def test_owner_refusal_never_falls_back_to_cached_output(after_attach, refusal):
+    from shared.contracts import errors
+    run_id = uuid4()
+    store = InMemoryExecutionStateStore()
+    await store.create(run_id, {"status": "running", "session_id": str(uuid4())}, ttl_seconds=3600)
+    await store.append_event(run_id, "token", {"content": "cached"})
+    denied = not after_attach
+    error = getattr(errors, refusal)
+
+    async def durable():
+        if denied:
+            raise error("Owner refused")
+        return {"status": "running"}
+
+    stream = RuntimeObserver(store, block_ms=50).observe(RunReference.agent(run_id), durable_fallback=durable)
+    if after_attach:
+        initial = await anext(stream)
+        assert initial.data["status"] == "running"
+        denied = True
+    with pytest.raises(error, match="Owner refused"):
+        await asyncio.wait_for(anext(stream), 2)

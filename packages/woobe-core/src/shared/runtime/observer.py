@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
+from shared.contracts.errors import DomainError
 from shared.contracts.execution_state import ExecutionStateStore
 from shared.runtime.contracts import (
     RunKind,
@@ -78,6 +79,10 @@ class RuntimeStreamReader:
         # Durable/journal sequence belongs to another domain: never invent a hot cursor.
         try:
             durable = await fallback()
+        except DomainError:
+            # A deliberate owner refusal is not a transport outage. Never keep
+            # serving the hot projection after authority or identity is denied.
+            raise
         except Exception:
             logger.warning("Durable terminal probe unavailable run_id=%s", run_id)
             return None

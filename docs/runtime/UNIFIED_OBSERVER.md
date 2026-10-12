@@ -72,7 +72,9 @@ The observer probes the durable fallback again while tailing (at the configured
 blocking interval), so finalization after attach can close an idle or still-active
 hot stream. Completed, failed, cancelled, timed-out and uncertain Runs return a
 terminal `run.state` and close; observing never repeats execution or mutates Redis.
-A fallback outage does not discard a healthy hot stream. Legacy synchronous Agent
+A fallback transport/database outage does not discard a healthy hot stream.
+Explicit domain refusals, including authorization and identity errors, propagate
+and close observation instead of falling back to cached output. Legacy synchronous Agent
 Runs may retain only an output-message ID and summary in SQL; the authorized
 fallback resolves that exact assistant message and verifies Project, Agent and
 Session identity. It never selects the Session's latest answer or copies message
