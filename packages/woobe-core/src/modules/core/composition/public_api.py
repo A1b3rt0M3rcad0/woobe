@@ -126,15 +126,8 @@ __all__ += ["build_project_configuration_service", "build_project_configuration_
 
 
 def build_configuration_acceptor(dependency_reader):
-    async def accept(session, *, project_id, run_id, environment, bindings):
-        store = build_project_configuration_runtime(session)
-        await store.lock_project(project_id)
-        dependencies = await dependency_reader(session, project_id=project_id, bindings=bindings)
-        if not dependencies:
-            return []
-        return await store.acquire(project_id=project_id,
-            run_id=run_id, environment=environment, dependencies=dependencies)
-    return accept
+    from modules.core.infra.services.configuration_acceptance import ConfigurationAcceptance
+    return ConfigurationAcceptance(build_project_configuration_runtime, dependency_reader)
 
 
 __all__.append("build_configuration_acceptor")

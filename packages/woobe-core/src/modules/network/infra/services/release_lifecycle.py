@@ -395,6 +395,8 @@ async def _promote_with_release_semantics(
     )
 
     async with self._session_factory() as session, session.begin():
+        from modules.network.application.configuration_acceptance import lock_configuration
+        await lock_configuration(session, project_id=project_id)
         network = await session.get(NetworkModel, network_id, with_for_update=True)
         version = await session.get(NetworkVersionModel, created.id, with_for_update=True)
         if network is None or version is None:
@@ -461,6 +463,9 @@ async def _promote_with_release_semantics(
         )
         version.change_kind = change_kind.value
         if equivalent is not None:
+            from modules.network.application.configuration_acceptance import prepare_configuration
+            await prepare_configuration(session, project_id=project_id, environment="production",
+                bindings=equivalent.resolved_bindings or {})
             network.production_version_id = equivalent.id
             session.add(
                 NetworkProductionActivationModel(

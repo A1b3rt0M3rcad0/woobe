@@ -176,7 +176,7 @@ class Cli:
 
 
 @pytest_asyncio.fixture
-async def cli(tmp_path):
+async def cli(tmp_path, monkeypatch):
     binary = os.environ.get("WOOBE_CLI_BINARY", "/artifacts/woobe")
     if not Path(binary).is_file():
         if os.environ.get("WOOBE_REQUIRE_CLI_E2E", "false").lower() == "true":
@@ -187,6 +187,16 @@ async def cli(tmp_path):
             "Compile the pinned CLI and set WOOBE_CLI_BINARY to run this contract"
         )
     settings = Settings()
+    # Some contract cases execute an owner worker in this test process. Install
+    # the same configuration ports as the API/Worker subprocesses, scoped to the
+    # fixture, so those paths cannot bypass readiness through missing composition.
+    from modules.agent.application.interfaces import project_configuration
+    from modules.network.application import configuration_acceptance
+    from modules.core.entrypoint import build_project_configuration_runtime, build_configuration_acceptor, build_configuration_runtime_resolver
+    from modules.agent.entrypoint import collect_configuration_dependencies, verify_configuration_consumer
+    monkeypatch.setattr(project_configuration, "_factory", build_project_configuration_runtime)
+    monkeypatch.setattr(project_configuration, "_runtime_resolver", build_configuration_runtime_resolver(consumer_verifier=verify_configuration_consumer))
+    monkeypatch.setattr(configuration_acceptance, "_accept", build_configuration_acceptor(collect_configuration_dependencies))
     engine = create_engine(settings)
     factory = create_session_factory(engine)
     workspace_id = uuid4()

@@ -17,5 +17,8 @@ async def read_configuration_bindings(session, *, project_id, target_id, environ
     version = await session.get(NetworkVersionModel, identifier) if identifier else None
     if version is None or version.project_id != project_id or version.network_id != target_id:
         raise NotFoundError("Selected Network version not found")
+    if version.kind == "candidate" and environment != "staging":
+        from shared.contracts.project_configuration import ConfigurationError
+        raise ConfigurationError("CONFIG_BINDING_INVALID")
     return {"bindings": version.resolved_bindings or {},
-            "selection": {"environment": environment, "version_id": str(version.id), "source": "version"}}
+            "selection": {"environment": environment, "version_id": str(version.id), "source": "candidate" if version.kind == "candidate" else "version"}}

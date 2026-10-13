@@ -975,6 +975,18 @@ async def test_legacy_provider_create_is_central_from_first_commit(configuration
     assert rotated.binding_revision == revision and rotated.encrypted_secret == ''
     await store.session.refresh(material)
     assert material.revision == 2
+    incomplete = await repository.save(ProviderCredential(project_id=project, provider=Provider.custom,
+        name='Destination not selected', encrypted_secret=cipher))
+    assert incomplete.encrypted_secret == '' and incomplete.authentication
+    with pytest.raises(ConfigurationError) as failure:
+        provider_dependencies(incomplete)
+    assert failure.value.code == 'CONFIG_BINDING_INVALID'
+    # A Model-supplied destination cannot implicitly authorize this material.
+    dependencies = provider_dependencies(incomplete, base_url='https://unapproved.example/v1')
+    status, _ = await store.inspect(project_id=project, environment='draft', dependencies=dependencies)
+    assert status['state'] == 'blocked'
+    assert status['dependencies'][0]['code'] == 'CONFIG_USAGE_NOT_AUTHORIZED'
+
     monkeypatch.setattr(port, '_factory', None)
     with pytest.raises(ConfigurationError) as failure:
         await repository.save(ProviderCredential(project_id=project, provider=Provider.openai,
@@ -1112,3 +1124,33 @@ async def test_corrupt_secret_replay_preserves_incomplete_material_status(config
     assert first['material'] == second['material'] == 'unavailable'
     assert first['state'] == second['state'] == 'cutover'
     assert not first['unchanged'] and second['unchanged']
+
+
+@pytest.mark.asyncio
+async def test_activation_evidence_is_metadata_only_and_fences_material_versions(configuration):
+    store, project, engine = configuration
+    key, dep = await prepared(store, project)
+    with pytest.raises(ConfigurationError) as error:
+        await store.activation_evidence(project_id=project, environment="draft", dependencies=[dep])
+    assert error.value.code == "CONFIG_VALUE_MISSING"
+    await store.write_value(project_id=project, key_id=key, environment="draft", expected_revision=0, value=CANARY)
+    statements = []
+    def record(_conn, _cursor, statement, *_):
+        statements.append(statement)
+    event.listen(engine.sync_engine, "before_cursor_execute", record)
+    try:
+        first = await store.activation_evidence(project_id=project, environment="draft", dependencies=[dep])
+    finally:
+        event.remove(engine.sync_engine, "before_cursor_execute", record)
+    assert all("stored_value" not in statement for statement in statements)
+    assert CANARY not in str(first)
+    assert len(first["pins"]) == 1
+    assert first["definitions"][0]["revision"] == 1
+    assert first == await store.activation_evidence(project_id=project, environment="draft", dependencies=[dep, dep])
+    await store.write_value(project_id=project, key_id=key, environment="draft", expected_revision=1, value="rotated-only")
+    current = await store.activation_evidence(project_id=project, environment="draft", dependencies=[dep])
+    assert current["pins"] != first["pins"]
+    assert current["dependency_digest"] == first["dependency_digest"]
+    # Draft values never satisfy Staging/Production, even with an existing policy.
+    with pytest.raises(ConfigurationError):
+        await store.activation_evidence(project_id=project, environment="production", dependencies=[dep])

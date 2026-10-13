@@ -9,6 +9,20 @@ from shared.contracts.errors import ConflictError
 
 
 class AgentASaCEnvironmentSelector:
+    def __init__(self, configuration_gate=None):
+        self.configuration_gate = configuration_gate
+
+    async def configuration_lock(self, session, *, project_id):
+        if self.configuration_gate is not None:
+            await self.configuration_gate.lock(session, project_id=project_id)
+
+    async def configuration(self, session, *, project_id, resource_id, principal, release_id, environment):
+        from shared.contracts.project_configuration import ConfigurationError
+        if self.configuration_gate is None:
+            raise ConfigurationError("CONFIG_STORE_UNAVAILABLE")
+        return await self.configuration_gate.prepare(session, project_id=project_id,
+            resource_id=resource_id, release_id=release_id, environment=environment)
+
     async def inspect(self,session,*,project_id,resource_id,principal,release_id):
         row=await session.get(AgentReleaseModel,release_id)
         if row is None or row.project_id!=project_id or row.agent_id!=resource_id or row.snapshot_kind!='release':

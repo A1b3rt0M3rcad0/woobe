@@ -235,7 +235,7 @@ class SQLAlchemyProviderCredentialRepository(
         if credential.encrypted_secret:
             raise ConfigurationError("CONFIG_BINDING_INVALID")
         from modules.agent.infra.adapters.configuration_bindings import provider_dependencies
-        references = provider_dependencies(credential)
+        references = provider_dependencies(credential, require_destination=False)
         configuration = configuration_for_session(self._session)
         if configuration is None:
             raise ConfigurationError("CONFIG_STORE_UNAVAILABLE")

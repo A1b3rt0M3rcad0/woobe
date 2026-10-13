@@ -85,3 +85,24 @@ async def test_rollback_records_audit_description_and_action() -> None:
     assert activations.items[0].action == "rollback"
     assert activations.items[0].change_description == "Rollback after validation regression"
     assert activations.items[0].previous_release_id == production.id
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("action", ["reactivate", "rollback"])
+async def test_configuration_block_preserves_current_production_and_audit(action):
+    from unittest.mock import AsyncMock
+    from modules.agent.application.use_cases.knowledge_safe_release_lifecycle import KnowledgeSafeReleaseLifecycleUseCase
+    from shared.contracts.project_configuration import ConfigurationError
+    project, agent = uuid4(), uuid4()
+    production = _release(project_id=project, agent_id=agent, version="2.0.0", status=ReleaseStatus.production)
+    target = _release(project_id=project, agent_id=agent, version="1.0.0", status=ReleaseStatus.released)
+    repo, activations = FakeReleaseRepository([production, target]), FakeActivationRepository()
+    gate = SimpleNamespace(validate=AsyncMock(side_effect=ConfigurationError("CONFIG_VALUE_MISSING")))
+    use_case = KnowledgeSafeReleaseLifecycleUseCase(repo, FakeValidator(), activations,
+        activation_action=action, configuration_validator=gate)
+    with pytest.raises(ConfigurationError):
+        await use_case.execute(agent, target.id, SimpleNamespace(user_id=None, change_description="Qualified activation"))
+    gate.validate.assert_awaited_once_with(target, "production")
+    assert production.status == ReleaseStatus.production
+    assert target.status == ReleaseStatus.released
+    assert activations.items == []

@@ -158,6 +158,8 @@ class NetworkApplicationService(SessionModeNetworkApplicationService):
             raise ValidationError("Network message cannot be blank")
 
         async with self._session_factory() as session, session.begin():
+            from modules.network.application.configuration_acceptance import lock_configuration
+            await lock_configuration(session, project_id=project_id)
             network_session = await session.get(
                 NetworkSessionModel,
                 network_session_id,

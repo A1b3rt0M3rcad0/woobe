@@ -47,6 +47,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 COPY packages/woobe-core/alembic.ini packages/woobe-core/alembic.ini
 COPY packages/woobe-core/migrations/ packages/woobe-core/migrations/
 COPY specs/package/v1/ specs/package/v1/
+COPY specs/package/v2/ specs/package/v2/
 COPY tests/ tests/
 COPY scripts/ scripts/
 COPY pytest.ini ./

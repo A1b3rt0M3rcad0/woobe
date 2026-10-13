@@ -160,10 +160,8 @@ async def test_network_runtime_executes_real_agent_against_fake_custom_provider_
             await session.flush()
             factory = lambda session: LegacyConfigurationStore(session, encryption_key=settings.encryption_key)
             monkeypatch.setattr(project_configuration, "_factory", factory)
-            async def accept(session, *, project_id, run_id, environment, bindings):
-                dependencies = await collect_configuration_dependencies(session, project_id=project_id, bindings=bindings)
-                return await factory(session).acquire(project_id=project_id, run_id=run_id, environment=environment, dependencies=dependencies)
-            monkeypatch.setattr(configuration_acceptance, "_accept", accept)
+            from modules.core.infra.services.configuration_acceptance import ConfigurationAcceptance
+            monkeypatch.setattr(configuration_acceptance, "_accept", ConfigurationAcceptance(factory, collect_configuration_dependencies))
             store = factory(session)
             key = await store.declare(project_id=project_id, key="FAKE_PROVIDER_KEY")
             if configuration_mode == "remote":

@@ -144,3 +144,30 @@ Network configuration admission reads the exact pinned Agent release, including
 when a Network carries only a compatibility override with provider/model names.
 Fallback model preparation preserves the protected resolver until HTTP send;
 revocation and destination checks apply to fallback requests as well.
+
+## Activation evidence
+
+Candidate preparation seals an immutable artifact independently from Environment
+configuration. Its package operation reports `lifecycle_state: candidate` and
+may succeed with `configuration_ready: false` and `execution_ready: false`.
+Inspect readiness for the exact Candidate snapshot in Staging; inspection does
+not authorize a Candidate Run. Running its evaluation still requires every
+mandatory configuration dependency.
+
+Native Production activation and rollback qualify the exact Agent/Network
+closure inside the committing transaction. ASaC deployment plans additionally
+retain metadata evidence for the selected Environment: declaration revisions,
+consumer definitions, use-policy revisions and opaque material versions. Apply
+rechecks that evidence under the same configuration locks. Rotation after plan
+creation requires an explicit new plan, even if the new value is usable and the
+immutable Release has not changed. A blocked or stale activation leaves the
+current selection and activation outbox unchanged.
+
+Configuration errors use `configuration_schema_version: project_configuration.v1`
+and bounded code/key/Environment diagnostics across canonical API operations.
+Provider error bodies and submitted values are never part of that contract.
+
+A legacy custom Provider can still be created before its endpoint is selected.
+Its secret moves immediately to central storage, but no destination is implicitly
+authorized. An operator must set the destination and approve its usage policy
+before execution. A Model overriding the endpoint does not grant that approval.

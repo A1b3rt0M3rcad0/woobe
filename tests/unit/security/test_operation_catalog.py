@@ -250,3 +250,20 @@ def test_category_revision_selectors_reject_values_above_database_range(model_na
 def test_workbench_routes_have_explicit_owner_authority(kind,method,suffix,permission):
     path=f'/projects/{uuid4()}/{kind}s/{uuid4()}/asac/drafts/{uuid4()}/{suffix}'
     assert resolve_operation(method,path,{'environment':'production'})[0]==f'{kind}:{permission}'
+
+
+@pytest.mark.parametrize("kind,expected", [("agent", "release_id"), ("network", "network_version_id")])
+def test_configuration_snapshot_query_uses_its_owner_scope(kind, expected):
+    from woobe_api.security.operation_catalog import configuration_query_scope
+    from shared.contracts.errors import AuthorizationError
+    project, target, version = (str(uuid4()) for _ in range(3))
+    parameters = {"project_id":project, "target_kind":kind, "target_id":target}
+    path = f"/core/projects/{project}/configuration/readiness/{kind}/{target}"
+    query = {"version_id":version, "environment":"staging"}
+    result = configuration_query_scope("GET", path, parameters, query)
+    assert result == {expected:version, "environment":"staging"}
+    assert query == {"version_id":version, "environment":"staging"}
+    with pytest.raises(AuthorizationError):
+        configuration_query_scope("GET", path, parameters, {**query, expected:str(uuid4())})
+    for method, other in [("POST",path),("GET",path+"/unreviewed"),("GET","/ai/prompts/p/versions/v")]:
+        assert configuration_query_scope(method, other, parameters, query) == query

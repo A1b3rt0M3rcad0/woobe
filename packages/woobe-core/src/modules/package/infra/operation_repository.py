@@ -329,8 +329,12 @@ class PackageOperationRepository:
             record.state = transition(record.state, target).value
             for field, value in changes.items():
                 setattr(record, field, value)
+            candidate_prepared = False
+            if record.state == "succeeded" and record.lifecycle_state == "candidate":
+                plan = await session.get(PackagePlanModel, record.plan_id)
+                candidate_prepared = plan is not None and plan.document.get("mode") == "candidate"
             if record.state == "succeeded" and (
-                (not record.configuration_ready and record.installation_mode != "structural")
+                (not record.configuration_ready and record.installation_mode != "structural" and not candidate_prepared)
                 or record.phases_completed != record.phases_total
             ):
                 raise PackageError(

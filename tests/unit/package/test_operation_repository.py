@@ -211,3 +211,40 @@ async def test_acceptance_pins_protected_payload_and_reconciles_after_plan_expir
     with pytest.raises(PackageError):
         await repo.lookup(project_id=project, principal=principal, key="lost-response")
     await engine.dispose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("mode,lifecycle,completed,allowed", [
+    ("candidate", "candidate", 2, True),
+    ("candidate", "candidate", 1, False),
+    ("import", "candidate", 2, False),
+    ("candidate", "draft", 2, False),
+])
+async def test_only_verified_candidate_artifacts_can_finish_without_execution_configuration(mode, lifecycle, completed, allowed):
+    engine = create_async_engine("sqlite+aiosqlite://", execution_options={"schema_translate_map": {"package": None}})
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with engine.begin() as connection:
+        await connection.run_sync(lambda sync: Base.metadata.create_all(sync, tables=[PackagePlanModel.__table__, PackageOperationModel.__table__]))
+    now = datetime.now(UTC)
+    project, plan_id, operation_id, token = (uuid4() for _ in range(4))
+    async with factory.begin() as session:
+        session.add(PackagePlanModel(id=plan_id, project_id=project, actor="test", upload_id=uuid4(),
+            artifact_digest="a"*64, plan_digest="b"*64, document={"mode":mode}, expires_at=now+timedelta(hours=1)))
+        session.add(PackageOperationModel(id=operation_id, project_id=project, actor="test", key_digest=b"key",
+            payload_fingerprint=b"payload", payload_ciphertext="private", principal_ciphertext="private",
+            artifact_digest="a"*64, upload_id=uuid4(), plan_id=plan_id, lifecycle="staging", lifecycle_state=lifecycle,
+            state="verifying", phases_completed=completed, phases_total=2, lease_token=token,
+            lease_until=now+timedelta(minutes=1), configuration_ready=False, execution_ready=False))
+    repository = PackageOperationRepository(factory, encryption_key="private-test-key", plan_validator=AsyncMock())
+    try:
+        if allowed:
+            result = await repository.advance(operation_id, token, "succeeded")
+            assert result.state == "succeeded" and result.configuration_ready is False and result.execution_ready is False
+        else:
+            with pytest.raises(PackageError) as error:
+                await repository.advance(operation_id, token, "succeeded")
+            assert error.value.code == "PACKAGE_OPERATION_INCOMPLETE"
+            async with factory() as session:
+                assert (await session.get(PackageOperationModel, operation_id)).state == "verifying"
+    finally:
+        await engine.dispose()

@@ -184,6 +184,28 @@ class ConfigurationResolution(ConfigurationStore):
         await self.session.flush()
         return {"state": state, "environment": lease.environment}
 
+    async def activation_evidence(self, *, project_id, environment, dependencies):
+        """Qualify one exact closure without decrypting or creating a Run lease.
+
+        The caller owns the activation transaction. Project/key locks fence
+        rotation, policy edits and declaration changes until its commit.
+        """
+        environment = normalize_runtime_environment(environment)
+        dependencies = normalize_dependencies(dependencies)
+        await self.lock_project(project_id)
+        result, pins = await self.inspect(project_id=project_id, environment=environment,
+            dependencies=dependencies, lock=True)
+        for item in result["dependencies"]:
+            if item["required"] and item["code"]:
+                raise ConfigurationError(item["code"], key=item["key"], environment=environment)
+        names = {dependency.key for dependency in dependencies}
+        definitions = (await self.session.execute(select(Key.id, Key.definition_revision).where(
+            Key.project_id == project_id, Key.key.in_(names)).order_by(Key.id))).all() if names else []
+        return {"schema_version": "1", "environment": environment,
+            "dependency_digest": dependency_digest(dependencies),
+            "definitions": [{"key_id": str(row.id), "revision": row.definition_revision} for row in definitions],
+            "pins": [pin.document() for pin in pins]}
+
     async def acquire(self, *, project_id, run_id, environment, dependencies):
         # Project lock serializes lease retries; key locks serialize acceptance
         # against value rotation/deletion. Caller commits with Run acceptance.

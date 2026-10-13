@@ -42,6 +42,8 @@ class NetworkRerunService:
         idempotency_key: str | None = None,
     ) -> NetworkExecutionModel:
         async with self._session_factory() as session, session.begin():
+            from modules.network.application.configuration_acceptance import lock_configuration
+            await lock_configuration(session, project_id=project_id)
             source = await session.get(
                 NetworkExecutionModel,
                 execution_id,

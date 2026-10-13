@@ -6,14 +6,14 @@ import { ApiError } from '@/lib/api/errors'
 import { AsacWorkbench } from './AsacWorkbench'
 
 const fixture = vi.hoisted(() => ({
-  get: vi.fn(), post: vi.fn(), put: vi.fn(), refetch: vi.fn(), generation: 1,
+  get: vi.fn(), post: vi.fn(), put: vi.fn(), refetch: vi.fn(), queries: vi.fn(), generation: 1,
   draft: {draft_id:'draft-1',resource_uid:'uid-1',name:'hotfix',generation:1,working_revision_id:null,origin:{environment:'production',snapshot_id:'release-1'},definition_digest:'sha256:a'},
 }))
 vi.mock('@/lib/api/client', () => ({get:fixture.get,post:fixture.post,put:fixture.put}))
-vi.mock('@tanstack/react-query', () => ({useQueryClient: () => ({invalidateQueries: fixture.refetch}), useQuery: ({queryKey}: {queryKey:string[]}) => ({
-  data: queryKey[0] === 'asac-drafts' ? {drafts:[fixture.draft]} : queryKey[0] === 'asac-draft' ? {...fixture.draft,generation:fixture.generation} : {snapshot_id:'release-1',environment_generation:7},
+vi.mock('@tanstack/react-query', () => ({useQueryClient: () => ({invalidateQueries: fixture.refetch}), useQuery: ({queryKey}: {queryKey:string[]}) => { fixture.queries(queryKey); return ({
+  data: queryKey[0] === 'configuration-readiness' ? {state:'blocked',missing_key_count:1,affected_consumer_count:1,dependencies:[]} : queryKey[0] === 'asac-drafts' ? {drafts:[fixture.draft]} : queryKey[0] === 'asac-draft' ? {...fixture.draft,generation:fixture.generation} : {snapshot_id:'release-1',environment_generation:7},
   isError:false,refetch:fixture.refetch,
-})}))
+})}}))
 vi.mock('@/components/ui/Select', () => ({Select: ({options,placeholder,...props}: {options:{value:string,label:string}[],placeholder?:string}) => <select {...props}>{placeholder && <option value="">{placeholder}</option>}{options.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}</select>}))
 let root: Root, container: HTMLDivElement
 const editor = () => ({draft:{...fixture.draft},entrypoint_path:'agent.yaml',files:[{path:'agent.yaml',editable:true,content:'objective: original\n'}]})
@@ -25,13 +25,35 @@ async function load() {
   await click('Load saved files')
 }
 beforeEach(async()=>{
-  Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true}); sessionStorage.clear(); vi.clearAllMocks();fixture.generation=1
+  Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true}); sessionStorage.clear(); vi.clearAllMocks();fixture.generation=1; fixture.draft.working_revision_id=null
   fixture.get.mockImplementation(async(path:string)=>path.endsWith('/editor') ? editor() : {})
   container=document.createElement('div');document.body.append(container);root=createRoot(container)
   await act(async()=>render())
 })
 afterEach(async()=>{await act(async()=>root.unmount());container.remove()})
 describe('Owner lifecycle workbench',()=>{
+  it('checks exact Candidate and deployment snapshots without automatically evaluating or activating', async()=>{
+    Object.assign(fixture.draft, {working_revision_id:'revision-1'})
+    await load()
+    fixture.post.mockResolvedValue({candidate_id:'candidate-1',state:'ready',snapshot_id:'candidate-snapshot'})
+    await click('Prepare exact checkpoint')
+    expect(fixture.queries).toHaveBeenCalledWith(['configuration-readiness','p','agent','a','staging','candidate-snapshot'])
+    expect(container.textContent).toContain('1 missing keys')
+    const calls = fixture.post.mock.calls.length
+    await click('Refresh status')
+    expect(fixture.post).toHaveBeenCalledTimes(calls)
+    fixture.post.mockResolvedValue({evaluation_id:'evaluation-1',state:'passed'})
+    await click('Evaluate this Candidate')
+    await act(async()=>{
+      const input=container.querySelector('[aria-label="Checkpoint reason"]') as HTMLInputElement
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')!.set!.call(input,'Reviewed')
+      input.dispatchEvent(new Event('input',{bubbles:true}))
+    })
+    fixture.post.mockResolvedValue({release_id:'release-exact',release_version:'1.0.0'})
+    await click('Publish tested Candidate · Production unchanged')
+    expect(fixture.queries).toHaveBeenCalledWith(['configuration-readiness','p','agent','a','production','release-exact'])
+    expect(fixture.post.mock.calls.some(([path])=>path.endsWith('/deployments'))).toBe(false)
+  })
   it('keeps local edits when a remote generation changes and blocks the stale write',async()=>{
     await load()
     const textarea=container.querySelector('[aria-label="Author YAML"]') as HTMLTextAreaElement

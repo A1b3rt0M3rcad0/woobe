@@ -29,7 +29,7 @@ from shared.security.rate_limit import (
     ApiKeyConcurrencyLimiter,
     LoginRateLimiter,
 )
-from woobe_api.security.operation_catalog import resolve_operation, verified_query_context
+from woobe_api.security.operation_catalog import resolve_operation, verified_query_context, configuration_query_scope
 
 PUBLIC_PATHS = {
     "/identity/auth/login",
@@ -253,6 +253,7 @@ class HttpSecurityGuard:
             body,
         )
 
+        query_params = configuration_query_scope(request.method, path, path_params, query_params)
         authorization_path_params = verified_query_context(
             request.method, path, authorization_path_params, query_params
         )

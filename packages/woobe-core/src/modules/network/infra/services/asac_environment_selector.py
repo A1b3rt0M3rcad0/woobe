@@ -9,6 +9,18 @@ from sqlalchemy import text
 
 
 class NetworkASaCEnvironmentSelector:
+    async def configuration_lock(self, session, *, project_id):
+        from modules.network.application.configuration_acceptance import lock_configuration
+        await lock_configuration(session, project_id=project_id)
+
+    async def configuration(self, session, *, project_id, resource_id, principal, release_id, environment):
+        from modules.network.application.configuration_acceptance import prepare_configuration
+        row = await session.get(NetworkVersionModel, release_id)
+        if row is None or row.project_id != project_id or row.network_id != resource_id or row.kind != "release":
+            raise ConflictError("ASAC_DEPLOYMENT_RELEASE_UNAVAILABLE")
+        return await prepare_configuration(session, project_id=project_id,
+            environment=environment, bindings=row.resolved_bindings or {})
+
     async def inspect(self,session,*,project_id,resource_id,principal,release_id):
         row=await session.get(NetworkVersionModel,release_id)
         if row is None or row.project_id!=project_id or row.network_id!=resource_id or row.kind!='release':

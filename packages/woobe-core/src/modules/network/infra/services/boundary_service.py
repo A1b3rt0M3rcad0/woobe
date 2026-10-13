@@ -502,6 +502,8 @@ class NetworkBoundaryService(NetworkApplicationService):
         created_by: UUID | None,
     ) -> tuple[NetworkVersionModel, NetworkProductionActivationModel]:
         async with self._session_factory() as session, session.begin():
+            from modules.network.application.configuration_acceptance import lock_configuration
+            await lock_configuration(session, project_id=project_id)
             network = await session.get(NetworkModel, network_id, with_for_update=True)
             if network is None or network.project_id != project_id:
                 raise NotFoundError("Network not found")
@@ -540,6 +542,9 @@ class NetworkBoundaryService(NetworkApplicationService):
                 created_by=created_by,
             )
             session.add(activation)
+            from modules.network.application.configuration_acceptance import prepare_configuration
+            await prepare_configuration(session, project_id=project_id, environment="production",
+                bindings=source.resolved_bindings or {})
             network.production_version_id = source.id
             await session.flush()
             return source, activation

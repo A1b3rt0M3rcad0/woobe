@@ -651,3 +651,25 @@ def verified_query_context(
         return {**path_params, **{name: query_params[name] for name in
             ("network_id", "network_session_id", "environment") if query_params.get(name) is not None}}
     return path_params
+
+
+def configuration_query_scope(method, path, path_params, query_params):
+    """Disambiguate only the exact configuration snapshot selector.
+
+    The generic historical `version_id` alias belongs to Prompt versions.
+    Keep that convention elsewhere; this route explicitly selects an Agent or
+    Network snapshot and its owner still checks the exact target relationship.
+    """
+    project, kind, target = (path_params.get(name) for name in ("project_id", "target_kind", "target_id"))
+    if (method.upper() != "GET" or kind not in {"agent", "network"} or not project or not target
+            or path != f"/core/projects/{project}/configuration/readiness/{kind}/{target}"
+            or "version_id" not in query_params):
+        return query_params
+    scoped = dict(query_params)
+    version = scoped.pop("version_id")
+    key = "release_id" if kind == "agent" else "network_version_id"
+    if key in scoped and scoped[key] != version:
+        from shared.contracts.errors import AuthorizationError
+        raise AuthorizationError("Conflicting configuration snapshot scope")
+    scoped[key] = version
+    return scoped

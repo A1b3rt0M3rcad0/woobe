@@ -189,11 +189,22 @@ async def read_configuration_target(session, *, project_id, target_kind, target_
         bindings = {str(target_id): {"snapshot_override": {"runtime_config": {"tools": {"tool_ids": [str(target_id)]}}}}}
         selection["source"] = "tool"
     elif target_kind == "agent":
-        resolver = target_resolver(session)
-        resolved = await resolver.resolve(project_id=project_id, agent_id=target_id, environment=environment,
-            release_id=version_id, allow_legacy_draft=True)
-        bindings = {str(target_id): {"snapshot_override": resolved.snapshot, "agent_id": str(target_id)}}
-        selection = {"environment": environment, "version_id": str(resolved.release_id) if resolved.release_id else None, "source": resolved.source}
+        candidate = await session.scalar(select(AgentReleaseModel.id).where(
+            AgentReleaseModel.id == version_id, AgentReleaseModel.project_id == project_id,
+            AgentReleaseModel.agent_id == target_id, AgentReleaseModel.snapshot_kind == "candidate")) if version_id else None
+        if candidate is not None:
+            # Metadata inspection is authorized independently of Candidate Run
+            # admission. It neither opens a Session nor grants runtime execution.
+            if environment != "staging":
+                raise ConfigurationError("CONFIG_BINDING_INVALID")
+            bindings = {str(target_id): {"release_id": str(candidate), "agent_id": str(target_id)}}
+            selection = {"environment": environment, "version_id": str(candidate), "source": "candidate"}
+        else:
+            resolver = target_resolver(session)
+            resolved = await resolver.resolve(project_id=project_id, agent_id=target_id, environment=environment,
+                release_id=version_id, allow_legacy_draft=True)
+            bindings = {str(target_id): {"snapshot_override": resolved.snapshot, "agent_id": str(target_id)}}
+            selection = {"environment": environment, "version_id": str(resolved.release_id) if resolved.release_id else None, "source": resolved.source}
     else:
         raise ConfigurationError("CONFIG_BINDING_INVALID")
     result = await collect_configuration_dependencies(session, project_id=project_id, bindings=bindings, include_notices=True, snapshot_builder=snapshot_builder)

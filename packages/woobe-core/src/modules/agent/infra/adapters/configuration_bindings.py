@@ -21,12 +21,19 @@ def provider_destination(credential, base_url=None):
     return str(destination)
 
 
-def provider_dependencies(credential, *, base_url=None, impact=()):
+def provider_dependencies(credential, *, base_url=None, impact=(), require_destination=True):
     authentication = getattr(credential, "authentication", None)
     if authentication is None:
         return []
     compiled = compile_authentication(authentication, allow_legacy=True)
-    destination = provider_destination(credential, base_url)
+    try:
+        destination = provider_destination(credential, base_url)
+    except ConfigurationError:
+        if require_destination:
+            raise
+        # An incomplete authoring connection still retains its key references.
+        # This empty destination is never used for admission or a usage grant.
+        destination = ""
     return [ConfigurationDependency(credential.project_id, "provider_credential", credential.id,
         str(credential.binding_revision), "/authentication/fields/" + field,
         reference["key"], destination, impact=impact,

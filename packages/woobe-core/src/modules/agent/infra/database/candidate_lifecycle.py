@@ -9,8 +9,9 @@ from shared.presentation.contracts import OperationResult
 
 
 class AgentCandidateLifecycleHandler:
-    def __init__(self, uow, owner, releases):
+    def __init__(self, uow, owner, releases, configuration):
         self.uow, self.owner, self.releases = uow, owner, releases
+        self.configuration = configuration
 
     async def handle(self, request):
         body = request.body
@@ -34,5 +35,9 @@ class AgentCandidateLifecycleHandler:
                 preparation_operation_id=UUID(body["preparation_operation_id"]), snapshot_id=snapshot_id,
                 runtime_digest=runtime_digest, native_bindings={"agent_id": str(agent_id), "snapshot_id": str(snapshot_id)},
                 runtime_fingerprints=body["runtime_fingerprints"], runtime_digest_scope="agent-execution-snapshot@2")
-            result.update(configuration_ready=True, execution_ready=True)
+            status = await self.configuration.status(self.uow.session, project_id=project,
+                resource_id=agent_id, release_id=snapshot_id, environment="staging")
+            ready = status["state"] in {"ready", "ready_with_notices"}
+            result.update(candidate_prepared=True, structural_complete=True, lifecycle_state="candidate",
+                configuration_ready=ready, execution_ready=ready)
         return OperationResult(body={"success": True, "data": result})

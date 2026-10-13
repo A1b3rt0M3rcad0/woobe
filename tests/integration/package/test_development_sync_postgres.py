@@ -35,7 +35,7 @@ async def test_managed_agent_pull_edit_push_keeps_native_identity_and_rejects_st
             "provider": "custom",
             "name": "Development provider",
             "secret": "ephemeral-development-provider-key",
-            "metadata": {"provider_family": "openai", "compatibility": "compatible"},
+            "metadata": {"provider_family": "openai", "compatibility": "compatible", "base_url": os.environ["WOOBE_TEST_FAKE_PROVIDER_URL"]},
         },
     )
     cli.secret_values.add("ephemeral-development-provider-key")

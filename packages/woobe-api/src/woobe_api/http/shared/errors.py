@@ -79,7 +79,8 @@ async def domain_error_handler(request: Request, exc: DomainError) -> JSONRespon
         if exc.environment is not None:
             diagnostic["environment"] = exc.environment
         return JSONResponse(status_code=exc.status_code, content={"success": False,
-            "message": str(exc), "data": {"diagnostics": [diagnostic]}, "meta": {"complete": False}})
+            "message": str(exc), "data": {"configuration_schema_version": "project_configuration.v1",
+                "diagnostics": [diagnostic]}, "meta": {"complete": False}})
     return JSONResponse(
         status_code=400,
         content={"success": False, "message": str(exc), "data": None},

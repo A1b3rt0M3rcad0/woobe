@@ -19,11 +19,14 @@ async def centralize_new_provider(session, credential):
     if configuration is None:
         raise ConfigurationError("CONFIG_STORE_UNAVAILABLE")
     await configuration.lock_project(credential.project_id)
-    destination = provider_destination(credential)
+    try:
+        destination = provider_destination(credential)
+    except ConfigurationError:
+        destination = None
     field = "/authentication/fields/api_key"
     revision = "legacy-create:" + str(credential.id)
     dependencies = [ConfigurationDependency(credential.project_id, "provider_credential", credential.id,
-        revision, field, "pending", destination)]
+        revision, field, "pending", destination)] if destination else []
     result = await configuration.adopt(project_id=credential.project_id, source_kind="provider_credential",
         source_id=credential.id, field_path=field, source_revision=revision,
         encrypted_value=credential.encrypted_secret, dependencies=dependencies, actor="legacy-provider-create")
