@@ -4,7 +4,7 @@ Progress is durable. Chunks, document projections and READY commit together only
 while this worker still owns the build and frozen documents remain unchanged.
 """
 from copy import deepcopy
-from modules.agent.application.vector_configuration import verify_vector_configuration
+from modules.agent.domain.vector_configuration import verify_vector_configuration
 
 from sqlalchemy import select
 

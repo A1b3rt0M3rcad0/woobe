@@ -113,7 +113,7 @@ async def test_vector_credential_pins_once_and_resolves_only_at_transport_withou
 
 
 def test_vector_definition_pins_model_and_connection_revisions_without_values():
-    from modules.agent.application.vector_configuration import vector_configuration_identity, verify_vector_configuration
+    from modules.agent.domain.vector_configuration import vector_configuration_identity, verify_vector_configuration
     model = SimpleNamespace(provider_credential_id=uuid4(), model="embedding", updated_at=datetime.now(UTC))
     credential = SimpleNamespace(provider="openai", binding_revision=1)
     evidence = vector_configuration_identity(model, credential)

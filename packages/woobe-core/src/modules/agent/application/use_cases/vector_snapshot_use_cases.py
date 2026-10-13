@@ -52,7 +52,7 @@ from modules.agent.domain.vector_snapshot_entities import (
     VectorSnapshotChunk,
     VectorSnapshotDocument,
 )
-from modules.agent.application.vector_configuration import vector_configuration_identity
+from modules.agent.domain.vector_configuration import vector_configuration_identity
 from shared.security.crypto import decrypt_secret
 from shared.contracts.errors import ConflictError, NotFoundError, ValidationError
 from shared.contracts.time import utc_now

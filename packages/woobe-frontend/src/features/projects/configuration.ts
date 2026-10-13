@@ -110,10 +110,18 @@ export interface ConfigurationReadiness {
   dependencies: { key: string; code: string | null; material: ConfigurationMaterial; required: boolean; external_validation: string; source: string }[]
   unresolved: { code: string; consumer_kind: string; consumer_id: string }[]
 }
-export function getConfigurationReadiness(project: string, kind: 'agent' | 'network', target: string, environment: ProjectEnvironment, versionId?: string) {
-  return get<ConfigurationReadiness>(`${configurationPath(project)}/readiness/${kind}/${target}`, {
+export async function getConfigurationReadiness(project: string, kind: 'agent' | 'network', target: string, environment: ProjectEnvironment, versionId?: string) {
+  const result = await get<ConfigurationReadiness>(`${configurationPath(project)}/readiness/${kind}/${target}`, {
     params: { environment, ...(versionId ? { version_id: versionId } : {}) },
   })
+  if (!result || result.environment !== environment || !['ready', 'ready_with_notices', 'blocked', 'unknown'].includes(result.state)
+    || ![result.required_key_count, result.missing_key_count, result.affected_consumer_count].every(value => Number.isInteger(value) && value >= 0)
+    || !Array.isArray(result.dependencies) || !Array.isArray(result.unresolved)
+    || result.dependencies.some(item => !item || typeof item.key !== 'string' || typeof item.material !== 'string'
+      || (item.code !== null && typeof item.code !== 'string'))) {
+    throw new Error('Configuration readiness response is incomplete.')
+  }
+  return result
 }
 
 export function configurationReturnPath(value: string | null, projectId: string, origin: string): string | null {

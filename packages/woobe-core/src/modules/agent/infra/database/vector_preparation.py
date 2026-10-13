@@ -1,5 +1,5 @@
 """Authorize and queue a structural vector intent without external I/O."""
-from modules.agent.application.vector_configuration import verify_vector_configuration
+from modules.agent.domain.vector_configuration import verify_vector_configuration
 from sqlalchemy import select
 from modules.agent.application.dtos.vector_preparation_dtos import PrepareVectorSnapshotInput
 from modules.agent.application.interfaces.project_configuration import configuration_for_session
