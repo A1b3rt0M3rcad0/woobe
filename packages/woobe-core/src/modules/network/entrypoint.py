@@ -51,3 +51,6 @@ __all__.append("configure_configuration_acceptance")
 
 from modules.network.composition.public_api import read_configuration_bindings
 __all__.append("read_configuration_bindings")
+
+from modules.network.composition.public_api import assert_network_configuration_quiescent
+__all__.append("assert_network_configuration_quiescent")

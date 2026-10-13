@@ -140,6 +140,8 @@ async def run_workers(
     from modules.agent.background_boundary import configure_project_configuration
     from modules.core.background_boundary import build_project_configuration_runtime
     configure_project_configuration(build_project_configuration_runtime)
+    from modules.package.background_boundary import configure_package_configuration_barrier
+    configure_package_configuration_barrier(build_project_configuration_runtime)
     from modules.agent.background_boundary import configure_runtime_configuration_resolver
     from modules.core.background_boundary import build_configuration_runtime_resolver
     from modules.agent.background_boundary import verify_configuration_consumer

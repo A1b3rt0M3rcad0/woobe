@@ -316,6 +316,9 @@ class AgentRunRecoveryRuntime(FrozenSnapshotStructuredOutputRuntime):
         ) = self._require_recovery_tool_runtime()
 
         async def read_prepare(repositories, _outbox):
+            configuration = getattr(repositories, "configuration", None)
+            if configuration is not None:
+                await configuration.lock_project(input_dto.project_id)
             run = await repositories.runs.get_by_id(accepted.run_id)
             if run is None:
                 raise ConflictError("Agent Run no longer exists")

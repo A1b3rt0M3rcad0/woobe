@@ -126,6 +126,9 @@ class TransactionBoundedStructuredOutputRuntime(StructuredOutputAskAgentUseCase)
 
     async def _prepare_deferred_network(self, input_dto):
         async def read_prepare(repositories, _outbox):
+            configuration = getattr(repositories, "configuration", None)
+            if configuration is not None:
+                await configuration.lock_project(input_dto.project_id)
             agent = await self._load_agent(repositories, input_dto)
             # Network Acceptance already froze this Run input; child Session
             # continuity must not affect External Context.

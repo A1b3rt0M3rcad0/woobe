@@ -19,6 +19,9 @@ class PrepareVectorSnapshot:
     async def __call__(self, request):
         definition = PrepareVectorSnapshotInput.model_validate({**request.body, "snapshot_id": request.path_params["snapshot_id"]})
         session = self.uow.session
+        port = configuration_for_session(session)
+        if port is not None:
+            await port.lock_project(definition.project_id)
         snapshot = await session.scalar(select(VectorSnapshotModel).where(
             VectorSnapshotModel.id == definition.snapshot_id, VectorSnapshotModel.project_id == definition.project_id).with_for_update())
         if snapshot is None:

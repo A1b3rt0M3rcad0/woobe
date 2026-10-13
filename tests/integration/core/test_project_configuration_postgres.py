@@ -676,3 +676,118 @@ async def test_unknown_legacy_alias_never_falls_back_to_environment_material(con
     with pytest.raises(ConfigurationError) as error:
         await legacy.acquire(project_id=project, run_id=uuid4(), environment="draft", dependencies=[replace(dep, legacy_alias_id=uuid4())])
     assert error.value.code == "CONFIG_REFERENCE_NOT_FOUND"
+
+
+@pytest.mark.asyncio
+async def test_cutover_guard_includes_agent_network_and_package_work_without_material(configuration):
+    from datetime import UTC, datetime, timedelta
+    from modules.agent.infra.database.models import AgentModel, SessionModel
+    from modules.agent.infra.database.run_models import AgentRunModel
+    from modules.network.infra.database.models import NetworkModel, NetworkSessionModel, NetworkExecutionModel
+    from modules.package.infra.models import PackagePlanModel, PackageOperationModel
+    from woobe_api.configuration_composition import assert_configuration_quiescent
+    store, project, _ = configuration
+    session = store.session
+    await assert_configuration_quiescent(session, project_id=project)
+    agent = AgentModel(project_id=project, name='Guard fixture', type='chat', provider='openai', model='fixture')
+    network = NetworkModel(project_id=project, name='Guard network')
+    session.add_all([agent, network])
+    await session.flush()
+    agent_session = SessionModel(project_id=project, agent_id=agent.id)
+    network_session = NetworkSessionModel(project_id=project, network_id=network.id, environment='draft')
+    session.add_all([agent_session, network_session])
+    await session.flush()
+    run = AgentRunModel(project_id=project, agent_id=agent.id, session_id=agent_session.id,
+        trace_id=uuid4(), environment='draft', input_message='fixture', status='running')
+    session.add(run)
+    for status in ('running', 'uncertain'):
+        run.status = status
+        await session.flush()
+        with pytest.raises(ConfigurationError, match='Finish active Runs'):
+            await assert_configuration_quiescent(session, project_id=project)
+    run.status = 'completed'
+    await session.flush()
+    await assert_configuration_quiescent(session, project_id=project)
+    network_run = NetworkExecutionModel(project_id=project, network_id=network.id,
+        network_session_id=network_session.id, input_message='fixture', draft_revision=1, definition_snapshot={}, resolved_bindings_snapshot={})
+    session.add(network_run)
+    for status in ('queued', 'running', 'cancel_requested', 'uncertain'):
+        network_run.status = status
+        await session.flush()
+        with pytest.raises(ConfigurationError, match='Finish active Runs'):
+            await assert_configuration_quiescent(session, project_id=project)
+    network_run.status = 'completed'
+    await session.flush()
+    await assert_configuration_quiescent(session, project_id=project)
+    plan = PackagePlanModel(project_id=project, actor='owner', upload_id=uuid4(),
+        artifact_digest='a'*64, plan_digest='b'*64, document={}, expires_at=datetime.now(UTC)+timedelta(hours=1))
+    session.add(plan)
+    await session.flush()
+    with pytest.raises(ConfigurationError, match='pending package plans'):
+        await assert_configuration_quiescent(session, project_id=project)
+    operation = PackageOperationModel(project_id=project, actor='owner', key_digest=b'fixture',
+        payload_fingerprint=b'fixture', payload_ciphertext='protected', principal_ciphertext='protected',
+        artifact_digest='a'*64, upload_id=plan.upload_id, plan_id=plan.id, lifecycle='draft', phases_total=1)
+    session.add(operation)
+    for state in ('accepted', 'resolving', 'materializing', 'waiting_dependency', 'verifying', 'cancelling'):
+        operation.state = state
+        await session.flush()
+        with pytest.raises(ConfigurationError, match='Finish active Runs'):
+            await assert_configuration_quiescent(session, project_id=project)
+    operation.state = 'succeeded'
+    await session.flush()
+    # An already-consumed plan does not force waiting for expiry.
+    await assert_configuration_quiescent(session, project_id=project)
+    # Other Projects never inherit these temporary barriers.
+    operation.state = 'accepted'
+    await session.flush()
+    await assert_configuration_quiescent(session, project_id=uuid4())
+
+
+@pytest.mark.asyncio
+async def test_legacy_only_acceptance_waits_for_cutover_before_reading_sources(configuration, monkeypatch):
+    import asyncio
+    from sqlalchemy import delete
+    from modules.core.composition import public_api
+    from modules.agent.infra.database.models import ProviderCredentialModel
+    _, _, engine = configuration
+    factory = create_session_factory(engine)
+    project, workspace, credential = uuid4(), uuid4(), uuid4()
+    async with factory() as session, session.begin():
+        session.add(WorkspaceModel(id=workspace, name='Barrier', slug=str(workspace), status='active'))
+        await session.flush()
+        session.add(ProjectModel(id=project, workspace_id=workspace, name='Barrier', slug=str(project), status='active', data={}))
+        session.add(ProviderCredentialModel(id=credential, project_id=project, provider='openai', name='Before', encrypted_secret='protected'))
+    monkeypatch.setattr(public_api, 'build_project_configuration_runtime', lambda session: ConfigurationResolution(session, encryption_key='fixture'))
+    started, read = asyncio.Event(), asyncio.Event()
+    observed = []
+    async def dependency_reader(session, **kwargs):
+        observed.append(await session.scalar(select(ProviderCredentialModel.name).where(ProviderCredentialModel.id == credential)))
+        read.set()
+        return []  # Legacy-only Acceptance must participate in the barrier too.
+    accept = public_api.build_configuration_acceptor(dependency_reader)
+    async def acceptance():
+        async with factory() as session, session.begin():
+            started.set()
+            return await accept(session, project_id=project, run_id=uuid4(), environment='draft', bindings={})
+    task = None
+    try:
+        async with factory() as session, session.begin():
+            await ConfigurationResolution(session, encryption_key='fixture').lock_project(project)
+            source = await session.get(ProviderCredentialModel, credential)
+            source.name = 'After'
+            await session.flush()
+            task = asyncio.create_task(acceptance())
+            await asyncio.wait_for(started.wait(), 2)
+            with pytest.raises(TimeoutError):
+                await asyncio.wait_for(read.wait(), 0.1)
+        assert await asyncio.wait_for(task, 3) == []
+        assert observed == ['After']
+    finally:
+        if task is not None and not task.done():
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+        async with factory() as session, session.begin():
+            await session.execute(delete(ProviderCredentialModel).where(ProviderCredentialModel.id == credential))
+            await session.execute(delete(ProjectModel).where(ProjectModel.id == project))
+            await session.execute(delete(WorkspaceModel).where(WorkspaceModel.id == workspace))

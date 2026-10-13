@@ -13,10 +13,11 @@ from shared.contracts.project_configuration import ConfigurationError
 
 
 class ConfigurationMigrationService:
-    def __init__(self, session, *, encryption_key, inventory, cutover):
+    def __init__(self, session, *, encryption_key, inventory, cutover, assert_quiescent=None):
         self.session = session
         self.inventory = inventory
         self.cutover = cutover
+        self.assert_quiescent = assert_quiescent
         self.store = ConfigurationStore(session, encryption_key=encryption_key)
 
     async def fleet(self, *, project_id, limit=100, offset=0):
@@ -85,6 +86,8 @@ class ConfigurationMigrationService:
                       old_processes_drained, limit=10, pause=False):
         if not 1 <= limit <= 20 or type(pause) is not bool or type(old_processes_drained) is not bool:
             raise ConfigurationError("CONFIG_DEFINITION_INVALID")
+        # Same order as acceptance and job creation: Project before source/job.
+        await self.store.lock_project(project_id)
         row = await self.load(project_id=project_id, migration_id=migration_id)
         request = {"revision": expected_revision, "processes": sorted(required_processes),
             "drained": old_processes_drained, "limit": limit, "pause": pause, "actor": actor}
@@ -100,6 +103,8 @@ class ConfigurationMigrationService:
             if not old_processes_drained:
                 raise ConfigurationError("CONFIG_BRIDGE_REQUIRED")
             await assert_configuration_bridge(self.session, required_processes=required_processes)
+            if self.assert_quiescent is not None:
+                await self.assert_quiescent(self.session, project_id=project_id)
             pending = [item for item in progress["items"] if item["state"] == "eligible"][:limit]
             for item in pending:
                 try:

@@ -141,6 +141,13 @@ class SQLAlchemyProviderCredentialRepository(
         return provider_credential_model_to_entity(model) if model else None
 
     async def lock_by_id(self, credential_id: UUID) -> ProviderCredential | None:
+        from modules.agent.application.interfaces.project_configuration import configuration_for_session
+        configuration = configuration_for_session(self._session)
+        if configuration is not None:
+            project_id = await self._session.scalar(select(ProviderCredentialModel.project_id).where(
+                ProviderCredentialModel.id == credential_id))
+            if project_id is not None:
+                await configuration.lock_project(project_id)
         result = await self._session.execute(
             select(ProviderCredentialModel)
             .where(ProviderCredentialModel.id == credential_id)
@@ -182,7 +189,12 @@ class SQLAlchemyProviderCredentialRepository(
         )
 
     async def update(self, credential: ProviderCredential) -> ProviderCredential:
-        model = await self._get_model_by_id(credential.id)
+        from modules.agent.application.interfaces.project_configuration import configuration_for_session
+        configuration = configuration_for_session(self._session)
+        if configuration is not None:
+            await configuration.lock_project(credential.project_id)
+        model = await self._session.scalar(select(ProviderCredentialModel).where(
+            ProviderCredentialModel.id == credential.id).with_for_update().execution_options(populate_existing=True))
         if not model:
             from modules.agent.domain.errors import CredentialNotFoundError
             raise CredentialNotFoundError(credential.id)

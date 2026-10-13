@@ -120,6 +120,8 @@ class PackageOperationRepository:
         and native preparation operation together. Normal Package callers use
         accept above. All existing pins, authority checks and replay guards apply.
         """
+        from modules.package.application.configuration_barrier import lock_configuration_project
+        await lock_configuration_project(session, project_id)
         identity, key_digest = principal_identity(principal), self.key_digest(key)
         fingerprint = self.protected_fingerprint(project_id, payload)
         encoded = canonical_bytes(payload).decode()

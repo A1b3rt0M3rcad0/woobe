@@ -298,6 +298,11 @@ class ExplicitRuntimePersistenceMixin:
             source = str(metadata.get("source") or "runtime_api")
             environment = normalize_runtime_environment(input_dto.execution_context)
 
+            # Serialize source reads with cutover, even for legacy-only Runs.
+            configuration = getattr(repositories, "configuration", None)
+            if configuration is not None:
+                await configuration.lock_project(input_dto.project_id)
+
             if source != "network_runtime":
                 await repositories.environment.assert_enabled(
                     agent_id=input_dto.agent_id,

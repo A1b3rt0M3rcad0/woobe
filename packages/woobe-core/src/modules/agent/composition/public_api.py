@@ -599,3 +599,6 @@ __all__.append("prepare_vector_snapshot_composer")
 
 from modules.agent.application.dtos.vector_preparation_dtos import PrepareVectorSnapshotInput
 __all__.append("PrepareVectorSnapshotInput")
+
+from modules.agent.infra.database.configuration_quiescence import assert_configuration_quiescent as assert_agent_configuration_quiescent
+__all__.append("assert_agent_configuration_quiescent")

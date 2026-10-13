@@ -36,6 +36,7 @@ class ConfigurationError(DomainError):
             "CONFIG_DEFINITION_INVALID": "Configuration declaration is invalid",
             "LEGACY_ENVIRONMENT_REQUIRED": "Select an Environment after converting legacy configuration",
             "LEGACY_FORMAT_UNSUPPORTED": "Legacy configuration requires explicit review",
+            "CONFIG_MIGRATION_WORK_PENDING": "Finish active Runs, vector builds and package operations; apply or expire pending package plans before cutover",
             "CONFIG_BRIDGE_REQUIRED": "Drain incompatible processes before configuration cutover",
         }
         if code not in messages:

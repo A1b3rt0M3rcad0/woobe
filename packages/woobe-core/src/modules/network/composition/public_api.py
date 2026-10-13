@@ -46,3 +46,6 @@ __all__.append("configure_configuration_acceptance")
 
 from modules.network.infra.database.configuration_target_reader import read_configuration_bindings
 __all__.append("read_configuration_bindings")
+
+from modules.network.infra.database.configuration_quiescence import assert_configuration_quiescent as assert_network_configuration_quiescent
+__all__.append("assert_network_configuration_quiescent")

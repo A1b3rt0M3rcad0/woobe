@@ -35,7 +35,10 @@ async def migrate_provider_configuration(session, *, project_id, credential_id, 
     configuration = configuration_for_session(session)
     if configuration is None:
         raise ConfigurationError('CONFIG_STORE_UNAVAILABLE')
+    await configuration.lock_project(project_id)
     await configuration.require_bridge(required_processes=required_processes)
+    from modules.agent.infra.database.configuration_quiescence import assert_configuration_quiescent
+    await assert_configuration_quiescent(session, project_id=project_id)
     row = await session.scalar(select(ProviderCredentialModel).where(ProviderCredentialModel.id == credential_id,
         ProviderCredentialModel.project_id == project_id).with_for_update())
     if row is None:

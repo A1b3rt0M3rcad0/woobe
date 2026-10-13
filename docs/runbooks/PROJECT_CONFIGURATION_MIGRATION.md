@@ -78,3 +78,16 @@ are outside the live-source migration and need their own retention policy.
 The central alias store can retain an explicit set of Tool/field consumers for one legacy Secret. Only owner migration adapters populate that set. Public use-policy grants do not add consumers to it, and knowing a Secret name or alias ID does not create that authority. Destination and Environment policy checks still apply at acceptance and send time. An unknown alias is an error; it never falls back to an Environment value.
 
 This primitive does not enable Secret/Tool/OAuth cutover in the current administrative migration job, which remains Provider-only until its owner adapters and runtime bridges are qualified. The new header compiler preserves author snapshots and rejects route-specific or mixed authentication that it cannot safely project; it is not yet wired as the general migration path.
+
+Cutover acquires the Project barrier before source and migration rows. Agent
+Acceptance (including legacy-only Runs), Network dependency reads, Package
+Acceptance and vector preparation participate in this barrier. Provider updates
+re-read the current source under that ordering so a concurrent legacy writer
+cannot restore inline material after cutover.
+
+`CONFIG_MIGRATION_WORK_PENDING` means that active or uncertain Runs, queued Network
+work, vector builds, nonterminal Package operations or unconsumed, unexpired plans
+must be resolved before retrying. The operator's fleet attestation does not bypass
+these checks. A consumed terminal Package plan does not require waiting for its
+expiry. The administrative job checks each owner's metadata through host-composed
+ports; it does not query another domain's private persistence from Core.

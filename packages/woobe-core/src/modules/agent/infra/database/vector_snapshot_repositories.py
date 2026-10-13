@@ -193,6 +193,10 @@ class SQLAlchemyVectorSnapshotRepository(VectorSnapshotRepository):
         return self._uow.session
 
     async def create(self, snapshot: VectorSnapshot) -> VectorSnapshot:
+        from modules.agent.application.interfaces.project_configuration import configuration_for_session
+        port = configuration_for_session(self._session)
+        if port is not None:
+            await port.lock_project(snapshot.project_id)
         model = _snapshot_entity_to_model(snapshot)
         self._session.add(model)
         await self._session.flush()

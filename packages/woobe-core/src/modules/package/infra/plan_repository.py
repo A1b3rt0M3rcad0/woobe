@@ -118,6 +118,8 @@ class PackagePlanRepository:
             expires_at=approved.expires_at,
         )
         async with self._sessions.begin() as session:
+            from modules.package.application.configuration_barrier import lock_configuration_project
+            await lock_configuration_project(session, project_id)
             current = await session.get(PackageUploadModel, upload_id)
             if current is None or as_utc(current.expires_at) <= datetime.now(UTC):
                 raise PackageError(

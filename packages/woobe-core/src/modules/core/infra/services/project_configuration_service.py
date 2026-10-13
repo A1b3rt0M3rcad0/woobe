@@ -28,11 +28,12 @@ _target_reader = None
 _binding_adapter = None
 _migration_inventory = None
 _migration_cutover = None
+_migration_quiescence = None
 
 
-def configure_configuration_migration_adapter(*, inventory, cutover):
-    global _migration_inventory, _migration_cutover
-    _migration_inventory, _migration_cutover = inventory, cutover
+def configure_configuration_migration_adapter(*, inventory, cutover, assert_quiescent):
+    global _migration_inventory, _migration_cutover, _migration_quiescence
+    _migration_inventory, _migration_cutover, _migration_quiescence = inventory, cutover, assert_quiescent
 
 def configure_configuration_binding_adapter(adapter):
     global _binding_adapter
@@ -116,10 +117,10 @@ class ProjectConfigurationService:
             if action.startswith("migration_"):
                 from shared.contracts.project_configuration import ConfigurationError
                 from modules.core.infra.services.configuration_migration import ConfigurationMigrationService
-                if _migration_inventory is None or _migration_cutover is None:
+                if _migration_inventory is None or _migration_cutover is None or _migration_quiescence is None:
                     raise ConfigurationError("CONFIG_STORE_UNAVAILABLE")
                 migration = ConfigurationMigrationService(session, encryption_key=self.encryption_key,
-                    inventory=_migration_inventory, cutover=_migration_cutover)
+                    inventory=_migration_inventory, cutover=_migration_cutover, assert_quiescent=_migration_quiescence)
                 operation = action.removeprefix("migration_")
                 if operation in {"create", "advance"}:
                     arguments["actor"] = actor
