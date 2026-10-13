@@ -57,6 +57,8 @@ def bind_legacy_tool_headers(tool, references):
             match = _REFERENCE.fullmatch(value) if isinstance(value, str) else None
             if match and match[1].strip() in references:
                 raise ConfigurationError("LEGACY_FORMAT_UNSUPPORTED")
+    if legacy_tool_secret_names(config) & references.keys():
+        raise ConfigurationError("LEGACY_FORMAT_UNSUPPORTED")
     if not migrated:
         return tool
     if authentication is not None and authentication["type"] not in {"none", "headers"}:
@@ -65,3 +67,14 @@ def bind_legacy_tool_headers(tool, references):
         config["authentication"] = compile_authentication({"type": "headers", "fields": fields}, allow_legacy=True)
     result.config = config
     return result
+
+
+def legacy_tool_secret_names(value):
+    """Inventory recognized templates; never resolve or interpolate material."""
+    if isinstance(value, str):
+        return {match[1].strip() for match in _REFERENCE.finditer(value) if match[1].strip()}
+    if isinstance(value, dict):
+        return set().union(*(legacy_tool_secret_names(item) for item in value.values())) if value else set()
+    if isinstance(value, (list, tuple)):
+        return set().union(*(legacy_tool_secret_names(item) for item in value)) if value else set()
+    return set()

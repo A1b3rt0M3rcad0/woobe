@@ -1587,6 +1587,12 @@ class SQLAlchemyAgentInboxRepository(AgentInboxRepository):
 class SQLAlchemyAgentToolRepository(ToolRepository):
 
     async def lock_by_id(self, tool_id: UUID) -> Tool:
+        from modules.agent.application.interfaces.project_configuration import configuration_for_session
+        configuration = configuration_for_session(self._session)
+        if configuration is not None:
+            project_id = await self._session.scalar(select(AgentToolModel.project_id).where(AgentToolModel.id == tool_id))
+            if project_id is not None:
+                await configuration.lock_project(project_id)
         result = await self._session.execute(select(AgentToolModel).where(AgentToolModel.id == tool_id)
             .with_for_update().execution_options(populate_existing=True))
         model = result.scalar_one_or_none()
@@ -1691,6 +1697,9 @@ class SQLAlchemyAgentToolRepository(ToolRepository):
         from modules.agent.domain.tool_configuration import tool_dependencies, validate_tool_authentication
         from modules.agent.application.interfaces.project_configuration import configuration_for_session
         from shared.contracts.project_configuration import ConfigurationError
+        configuration = configuration_for_session(self._session)
+        if configuration is not None:
+            await configuration.lock_project(tool.project_id)
         validate_tool_authentication(tool.config or {})
         dependencies = tool_dependencies(tool)
         if dependencies:
@@ -1769,17 +1778,43 @@ class SQLAlchemyAgentToolSecretRepository(SecretRepository):
         )
 
     async def update(self, secret: Secret) -> Secret:
-        model = await self._base._get_model_by_id(secret.id)
+        from modules.agent.application.interfaces.project_configuration import configuration_for_session
+        from shared.contracts.project_configuration import ConfigurationError
+        configuration = configuration_for_session(self._session)
+        if configuration is not None:
+            await configuration.lock_project(secret.project_id)
+        model = await self._session.scalar(select(AgentToolSecretModel).where(
+            AgentToolSecretModel.id == secret.id, AgentToolSecretModel.project_id == secret.project_id)
+            .with_for_update().execution_options(populate_existing=True))
         if model is None:
             raise SecretNotFoundError(secret.id)
+        if model.configuration_reference is not None:
+            if secret.configuration_reference != model.configuration_reference or secret.name != model.name:
+                raise ConfigurationError("CONFIG_REVISION_CONFLICT")
+            if secret.encrypted_value:
+                if configuration is None:
+                    raise ConfigurationError("CONFIG_STORE_UNAVAILABLE")
+                await configuration.rotate_legacy(project_id=secret.project_id,
+                    alias_id=UUID(model.configuration_reference["alias_id"]), encrypted_value=secret.encrypted_value,
+                    source_revision=str(uuid4()), actor="legacy-secret-writer")
+            secret.encrypted_value = ""
         model.name = secret.name
         model.type = secret.type.value if hasattr(secret.type, 'value') else secret.type
-        model.encrypted_value = secret.encrypted_value
+        model.encrypted_value = secret.encrypted_value or None
         model.data = secret.data
         return model_to_secret(model)
 
     async def delete(self, secret_id: UUID) -> None:
-        model = await self._base._get_model_by_id(secret_id)
+        from modules.agent.application.interfaces.project_configuration import configuration_for_session
+        from shared.contracts.project_configuration import ConfigurationError
+        project_id = await self._session.scalar(select(AgentToolSecretModel.project_id).where(AgentToolSecretModel.id == secret_id))
+        configuration = configuration_for_session(self._session)
+        if configuration is not None and project_id is not None:
+            await configuration.lock_project(project_id)
+        model = await self._session.scalar(select(AgentToolSecretModel).where(AgentToolSecretModel.id == secret_id)
+            .with_for_update().execution_options(populate_existing=True))
         if model is None:
             raise SecretNotFoundError(secret_id)
+        if model.configuration_reference is not None:
+            raise ConfigurationError("CONFIG_REFERENCE_IN_USE")
         await self._base._delete_model(model)

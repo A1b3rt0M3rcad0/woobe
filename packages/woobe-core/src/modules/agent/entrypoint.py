@@ -487,3 +487,6 @@ __all__.append("PrepareVectorSnapshotInput")
 
 from modules.agent.composition.public_api import assert_agent_configuration_quiescent
 __all__.append("assert_agent_configuration_quiescent")
+
+from modules.agent.composition.public_api import inventory_configuration_sources, migrate_configuration_source
+__all__ += ["inventory_configuration_sources", "migrate_configuration_source"]

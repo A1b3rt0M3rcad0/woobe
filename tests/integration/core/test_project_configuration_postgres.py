@@ -681,7 +681,7 @@ async def test_unknown_legacy_alias_never_falls_back_to_environment_material(con
 @pytest.mark.asyncio
 async def test_cutover_guard_includes_agent_network_and_package_work_without_material(configuration):
     from datetime import UTC, datetime, timedelta
-    from modules.agent.infra.database.models import AgentModel, SessionModel
+    from modules.agent.infra.database.models import AgentModel, SessionModel, AskJobModel
     from modules.agent.infra.database.run_models import AgentRunModel
     from modules.network.infra.database.models import NetworkModel, NetworkSessionModel, NetworkExecutionModel
     from modules.package.infra.models import PackagePlanModel, PackageOperationModel
@@ -738,6 +738,16 @@ async def test_cutover_guard_includes_agent_network_and_package_work_without_mat
     await session.flush()
     # An already-consumed plan does not force waiting for expiry.
     await assert_configuration_quiescent(session, project_id=project)
+    job = AskJobModel(project_id=project, agent_id=agent.id, params={}, status='pending')
+    session.add(job)
+    for status in ('pending', 'running'):
+        job.status = status
+        await session.flush()
+        with pytest.raises(ConfigurationError, match='Finish active Runs'):
+            await assert_configuration_quiescent(session, project_id=project)
+    job.status = 'completed'
+    await session.flush()
+    await assert_configuration_quiescent(session, project_id=project)
     # Other Projects never inherit these temporary barriers.
     operation.state = 'accepted'
     await session.flush()
@@ -791,3 +801,274 @@ async def test_legacy_only_acceptance_waits_for_cutover_before_reading_sources(c
             await session.execute(delete(ProviderCredentialModel).where(ProviderCredentialModel.id == credential))
             await session.execute(delete(ProjectModel).where(ProjectModel.id == project))
             await session.execute(delete(WorkspaceModel).where(WorkspaceModel.id == workspace))
+
+
+@pytest.mark.asyncio
+async def test_secret_header_cutover_preserves_author_bytes_and_pins_central_rotation(configuration, monkeypatch):
+    import json
+    from copy import deepcopy
+    from types import SimpleNamespace
+    from modules.agent.application.interfaces import project_configuration as port
+    from modules.agent.domain.tool_configuration import tool_dependencies, validate_tool_authentication
+    from modules.agent.infra.database.configuration_secret_migration import inventory_secret_configuration, migrate_secret_configuration
+    from modules.agent.infra.database.configuration_secret_projection import project_secret_headers
+    from modules.agent.infra.database.configuration_dependency_reader import collect_configuration_dependencies
+    from modules.agent.infra.database.models import AgentToolModel, AgentToolSecretModel
+    from modules.agent.infra.database.repositories import SQLAlchemyAgentToolSecretRepository
+    from modules.agent.infra.execution.runtime_preparation import prepare_tool_state
+    from modules.core.infra.database.configuration_fleet import register_configuration_process, BRIDGE_CAPABILITY
+    from modules.core.infra.database.configuration_legacy import LegacyConfigurationStore
+    from shared.infra.crypto import encrypt_secret
+    original, project, engine = configuration
+    store = LegacyConfigurationStore(original.session, encryption_key=original.encryption_key)
+    session = store.session
+    monkeypatch.setattr(port, '_factory', lambda session: store)
+    source = AgentToolSecretModel(project_id=project, name='shared', type='api_key', encrypted_value=encrypt_secret(CANARY, store.encryption_key))
+    author = {'url':'https://approved.example/api', 'method':'GET', 'headers':[{'key':'Authorization', 'value':'{{secret:shared}}'}]}
+    target = AgentToolModel(project_id=project, name='Captured', type='http', config=deepcopy(author))
+    session.add_all([source, target])
+    await session.flush()
+    before = source.updated_at
+    statements = []
+    def capture(conn, cursor, statement, parameters, context, executemany):
+        if statement.startswith('SELECT'):
+            statements.append(statement)
+    event.listen(engine.sync_engine, 'before_cursor_execute', capture)
+    try:
+        preview = await inventory_secret_configuration(session, project_id=project)
+    finally:
+        event.remove(engine.sync_engine, 'before_cursor_execute', capture)
+    assert all('encrypted_value' not in statement for statement in statements)
+    assert CANARY not in json.dumps(preview)
+    item = preview['items'][0]
+    assert item['state'] == 'eligible' and item['consumers'] == 1
+    process = 'secret-bridge-' + str(uuid4())
+    await register_configuration_process(session, identity=process, capabilities=[BRIDGE_CAPABILITY])
+    kwargs = dict(project_id=project, secret_id=source.id, expected_revision=item['revision'],
+        expected_closure=item['closure'], required_processes=[process], actor='owner')
+    result = await migrate_secret_configuration(session, **kwargs)
+    assert result['state'] == 'cutover'
+    await session.refresh(source)
+    await session.refresh(target)
+    assert source.encrypted_value is None and source.updated_at == before and source.name == 'shared'
+    assert target.config == author
+    assert (await migrate_secret_configuration(session, **kwargs))['unchanged']
+    tools = await project_secret_headers(session, project_id=project, tools=[target])
+    assert tools[0].config['headers'] == [] and target.config == author
+    portable = (await project_secret_headers(session, project_id=project, tools=[target], portable=True))[0]
+    assert portable.config['authentication']['fields']['Authorization'] == {
+        'source':'project_environment', 'key':source.configuration_reference['key']}
+    assert 'alias_id' not in json.dumps(portable.config) and CANARY not in json.dumps(portable.config)
+    with pytest.raises(ConfigurationError):
+        validate_tool_authentication(tools[0].config)  # An API caller cannot forge this projection.
+    dependencies = tool_dependencies(tools[0])
+    bindings = {'node': {'snapshot_override': {'runtime_config': {'tools': {'tool_ids': [str(target.id)]}}}}}
+    metadata = await collect_configuration_dependencies(session, project_id=project, bindings=bindings,
+        snapshot_builder=lambda row: None)
+    assert [replace(dep, impact=()) for dep in metadata] == dependencies
+    repositories = SimpleNamespace(tools=SimpleNamespace(list_by_agent=None),
+        tool_secrets=SQLAlchemyAgentToolSecretRepository(session))
+    repositories.tools.get_by_id = __import__('unittest.mock', fromlist=['AsyncMock']).AsyncMock(return_value=target)
+    runtime_tools, material = await prepare_tool_state(repositories,
+        agent=SimpleNamespace(id=uuid4(), project_id=project, settings={'runtime_config': {'tools': {'tool_ids': [str(target.id)]}}}),
+        tool_from_snapshot=lambda raw: None, tool_with_permissions=lambda tool, _: tool)
+    assert material == {} and runtime_tools[0].config == tools[0].config
+    run = uuid4()
+    await store.acquire(project_id=project, run_id=run, environment='production', dependencies=dependencies)
+    assert await resolve(store, project, run, dependencies[0]) == CANARY
+    repository = repositories.tool_secrets
+    changed = await repository.get_by_id(source.id)
+    changed.encrypted_value = encrypt_secret('rotated-secret-canary', store.encryption_key)
+    await repository.update(changed)
+    await session.flush()
+    await session.refresh(source)
+    assert source.encrypted_value is None
+    assert await resolve(store, project, run, dependencies[0]) == CANARY
+    next_run = uuid4()
+    await store.acquire(project_id=project, run_id=next_run, environment='production', dependencies=dependencies)
+    assert await resolve(store, project, next_run, dependencies[0]) == 'rotated-secret-canary'
+    new_consumer = replace(dependencies[0], consumer_id=uuid4())
+    with pytest.raises(ConfigurationError) as denied:
+        await store.acquire(project_id=project, run_id=uuid4(), environment='production', dependencies=[new_consumer])
+    assert denied.value.code == 'CONFIG_USAGE_NOT_AUTHORIZED'
+    await store.convert(project_id=project, alias_id=UUID(source.configuration_reference['alias_id']),
+        environments=['draft'], expected_revision=2, expected_values={'draft':0}, actor='owner')
+    changed = await repository.get_by_id(source.id)
+    changed.encrypted_value = encrypt_secret('ambiguous-write', store.encryption_key)
+    with pytest.raises(ConfigurationError) as ambiguous:
+        await repository.update(changed)
+    assert ambiguous.value.code == 'LEGACY_ENVIRONMENT_REQUIRED'
+
+
+@pytest.mark.asyncio
+async def test_secret_migration_job_rejects_changed_consumer_closure_and_reports_unsupported_sources(configuration, monkeypatch):
+    from modules.agent.application.interfaces import project_configuration as port
+    from modules.agent.infra.database.configuration_secret_migration import inventory_configuration_sources, migrate_configuration_source
+    from modules.agent.infra.database.models import AgentToolModel, AgentToolSecretModel
+    from modules.core.infra.database.configuration_fleet import register_configuration_process, BRIDGE_CAPABILITY
+    from modules.core.infra.database.configuration_legacy import LegacyConfigurationStore
+    from modules.core.infra.services.configuration_migration import ConfigurationMigrationService
+    from shared.infra.crypto import encrypt_secret
+    original, project, _ = configuration
+    store = LegacyConfigurationStore(original.session, encryption_key=original.encryption_key)
+    monkeypatch.setattr(port, '_factory', lambda session: store)
+    secret = AgentToolSecretModel(project_id=project, name='before', type='api_key', encrypted_value=encrypt_secret(CANARY, store.encryption_key))
+    unsupported = AgentToolSecretModel(project_id=project, name='old-oauth', type='oauth2', encrypted_value='protected')
+    target = AgentToolModel(project_id=project, name='Captured', type='http', config={
+        'url':'https://before.example', 'headers':[{'key':'Authorization', 'value':'{{secret:before}}'}]})
+    store.session.add_all([secret, unsupported, target])
+    await store.session.flush()
+    service = ConfigurationMigrationService(store.session, encryption_key=store.encryption_key,
+        inventory=inventory_configuration_sources, cutover=migrate_configuration_source)
+    preview = await service.preview(project_id=project, source_kind='secret')
+    assert preview['scope'] == 'secrets'
+    assert {item['state'] for item in preview['items']} == {'eligible','blocked'}
+    job = await service.create(project_id=project, migration_id=uuid4(), actor='owner', source_kind='secret')
+    target.config = {**target.config, 'url':'https://changed.example'}
+    await store.session.flush()
+    process = 'closure-bridge-' + str(uuid4())
+    await register_configuration_process(store.session, identity=process, capabilities=[BRIDGE_CAPABILITY])
+    args = dict(project_id=project, migration_id=UUID(job['id']), actor='owner', expected_revision=1,
+        required_processes=[process], old_processes_drained=True)
+    rejected = await service.advance(**args)
+    assert rejected['state'] == 'blocked'
+    assert next(item for item in rejected['items'] if item['id'] == str(secret.id))['code'] == 'CONFIG_REVISION_CONFLICT'
+    assert await service.advance(**args) == rejected
+    await store.session.refresh(secret)
+    assert secret.encrypted_value and secret.configuration_reference is None
+
+
+@pytest.mark.asyncio
+async def test_legacy_provider_created_through_repository_is_present_in_inventory(configuration, monkeypatch):
+    from modules.agent.application.interfaces import project_configuration as port
+    from modules.agent.domain.entities import ProviderCredential
+    from modules.agent.domain.enums import Provider
+    from modules.agent.infra.database.configuration_provider_migration import inventory_provider_configuration
+    from modules.agent.infra.database.repositories import SQLAlchemyProviderCredentialRepository
+    store, project, _ = configuration
+    monkeypatch.setattr(port, '_factory', None)
+    created = await SQLAlchemyProviderCredentialRepository(store.session).save(ProviderCredential(
+        project_id=project, provider=Provider.openai, name='Legacy writer', encrypted_secret='protected'))
+    inventory = await inventory_provider_configuration(store.session, project_id=project)
+    assert any(item['id'] == str(created.id) and item['state'] == 'eligible' for item in inventory['items'])
+
+
+@pytest.mark.asyncio
+async def test_migrated_secret_resolves_at_http_send_without_transaction_and_rechecks_revocation(configuration, monkeypatch):
+    import httpx
+    from sqlalchemy import delete, update
+    from modules.agent.application.interfaces import project_configuration as port
+    from modules.agent.application.interfaces.execution_context import current_execution, new_execution_context
+    from modules.agent.domain.tool_configuration import tool_dependencies
+    from modules.agent.infra.adapters.tool_configuration_transport import configuration_bound_tool
+    from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
+    from modules.agent.infra.database.configuration_consumer_guard import verify_configuration_consumer
+    from modules.agent.infra.database.configuration_secret_migration import inventory_secret_configuration, migrate_secret_configuration
+    from modules.agent.infra.database.configuration_secret_projection import project_secret_headers
+    from modules.agent.infra.database.models import AgentToolModel, AgentToolSecretModel
+    from modules.core.infra.database.configuration_fleet import register_configuration_process, BRIDGE_CAPABILITY
+    from modules.core.infra.database.configuration_legacy import LegacyConfigurationStore
+    from modules.core.infra.database.configuration_models import ConfigurationProcessModel
+    from modules.core.infra.services.configuration_runtime_resolver import ConfigurationRuntimeResolver
+    from shared.infra.database.base import BaseModel
+    from shared.infra.crypto import encrypt_secret
+    _, _, engine = configuration
+    factory = create_session_factory(engine)
+    active_connections = set()
+    def checkout(dbapi_connection, record, proxy):
+        active_connections.add(id(record))
+    def checkin(dbapi_connection, record):
+        active_connections.discard(id(record))
+    event.listen(engine.sync_engine, 'checkout', checkout)
+    event.listen(engine.sync_engine, 'checkin', checkin)
+    project, workspace, run = uuid4(), uuid4(), uuid4()
+    process = 'transport-bridge-' + str(uuid4())
+    encryption_key = 'transport-fixture-only'
+    monkeypatch.setattr(port, '_factory', lambda session: LegacyConfigurationStore(session, encryption_key=encryption_key))
+    monkeypatch.setattr(port, '_runtime_resolver', ConfigurationRuntimeResolver(factory, encryption_key=encryption_key,
+        consumer_verifier=verify_configuration_consumer))
+    monkeypatch.setattr('modules.agent.infra.adapters.tool_executor._validated_local_addresses', lambda url: frozenset({'8.8.8.8'}))
+    execution = new_execution_context()
+    execution.project_id, execution.run_id = project, run
+    token = current_execution.set(execution)
+    sent = []
+    try:
+        async with factory() as session, session.begin():
+            session.add(WorkspaceModel(id=workspace, name='Secret HTTP fixture', slug=str(workspace), status='active'))
+            await session.flush()
+            session.add(ProjectModel(id=project, workspace_id=workspace, name='Secret HTTP fixture', slug=str(project), status='active', data={}))
+            await session.flush()
+            secret = AgentToolSecretModel(project_id=project, name='header', type='api_key', encrypted_value=encrypt_secret(CANARY, encryption_key))
+            original = AgentToolModel(project_id=project, name='Transport fixture', type='http', config={
+                'url':'https://approved.example/api', 'headers':[{'key':'Authorization', 'value':'{{secret:header}}'}]})
+            session.add_all([secret, original])
+            await session.flush()
+            item = (await inventory_secret_configuration(session, project_id=project))['items'][0]
+            await register_configuration_process(session, identity=process, capabilities=[BRIDGE_CAPABILITY])
+            await migrate_secret_configuration(session, project_id=project, secret_id=secret.id,
+                expected_revision=item['revision'], expected_closure=item['closure'], required_processes=[process], actor='test')
+            target = (await project_secret_headers(session, project_id=project, tools=[original]))[0]
+            await port._factory(session).acquire(project_id=project, run_id=run, environment='draft', dependencies=tool_dependencies(target))
+        def send(request):
+            assert not active_connections
+            assert request.headers['authorization'] == CANARY
+            sent.append(request)
+            return httpx.Response(200, json={'echo':CANARY}, request=request)
+        async with httpx.AsyncClient(transport=httpx.MockTransport(send)) as client:
+            executor = HttpToolExecutor(client=client)
+            class Runtime:
+                @configuration_bound_tool
+                async def execute(self, tool):
+                    return await executor.execute('GET', tool.config['url'])
+            result = await Runtime().execute(target)
+            assert result.success and CANARY not in str(result.output)
+            assert 'authorization' not in sent[0].headers
+            async with factory() as session, session.begin():
+                await session.execute(update(AgentToolModel).where(AgentToolModel.id == target.id).values(status='inactive'))
+            with pytest.raises(ConfigurationError) as error:
+                await Runtime().execute(target)
+            assert error.value.code == 'CONFIG_VALUE_REVOKED' and len(sent) == 1
+    finally:
+        current_execution.reset(token)
+        async with factory() as session, session.begin():
+            # Only this test's committed synthetic Project; dependency order is
+            # required because retained keys deliberately use restrictive FKs.
+            from sqlalchemy.sql.ddl import sort_tables
+            tables = [table for table in BaseModel.metadata.tables.values()
+                if 'project_id' in table.c and table.schema == 'core'
+                and (table.name.startswith('project_configuration_') or table.name in {'project_environment_keys', 'project_environment_values'})]
+            for table in reversed(sort_tables(tables)):
+                await session.execute(delete(table).where(table.c.project_id == project))
+            await session.execute(delete(AgentToolModel).where(AgentToolModel.project_id == project))
+            await session.execute(delete(AgentToolSecretModel).where(AgentToolSecretModel.project_id == project))
+            await session.execute(delete(ConfigurationProcessModel).where(ConfigurationProcessModel.process_identity == process))
+            await session.execute(delete(ProjectModel).where(ProjectModel.id == project))
+            await session.execute(delete(WorkspaceModel).where(WorkspaceModel.id == workspace))
+
+        event.remove(engine.sync_engine, "checkout", checkout)
+        event.remove(engine.sync_engine, "checkin", checkin)
+
+
+@pytest.mark.asyncio
+async def test_corrupt_secret_replay_preserves_incomplete_material_status(configuration, monkeypatch):
+    from modules.agent.application.interfaces import project_configuration as port
+    from modules.agent.infra.database.configuration_secret_migration import inventory_secret_configuration, migrate_secret_configuration
+    from modules.agent.infra.database.models import AgentToolSecretModel
+    from modules.core.infra.database.configuration_fleet import register_configuration_process, BRIDGE_CAPABILITY
+    from modules.core.infra.database.configuration_legacy import LegacyConfigurationStore
+    original, project, _ = configuration
+    store = LegacyConfigurationStore(original.session, encryption_key=original.encryption_key)
+    monkeypatch.setattr(port, '_factory', lambda session: store)
+    source = AgentToolSecretModel(project_id=project, name='orphan-corrupt', type='custom', encrypted_value='unreadable-fixture')
+    store.session.add(source)
+    await store.session.flush()
+    item = (await inventory_secret_configuration(store.session, project_id=project))['items'][0]
+    process = 'corrupt-replay-' + str(uuid4())
+    await register_configuration_process(store.session, identity=process, capabilities=[BRIDGE_CAPABILITY])
+    args = dict(project_id=project, secret_id=source.id, expected_revision=item['revision'], expected_closure=item['closure'],
+        required_processes=[process], actor='owner')
+    first = await migrate_secret_configuration(store.session, **args)
+    second = await migrate_secret_configuration(store.session, **args)
+    assert first['material'] == second['material'] == 'unavailable'
+    assert first['state'] == second['state'] == 'cutover'
+    assert not first['unchanged'] and second['unchanged']

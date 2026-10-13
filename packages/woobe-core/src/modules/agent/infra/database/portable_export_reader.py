@@ -335,8 +335,15 @@ class PortableAgentExportReader:
             map(str, tool_config.get("tool_ids") or [])
         ):
             raise ConflictError("Snapshot has incomplete frozen Tool definitions")
-        for snapshot in snapshots:
-            tool = self._compiler.tool(snapshot)
+        configurations = None
+        if structural and snapshots:
+            from modules.agent.infra.database.configuration_secret_projection import project_secret_headers
+            source_tools = [self._compiler.decode_tool(snapshot) for snapshot in snapshots]
+            projected = await project_secret_headers(session, project_id=project_id, tools=source_tools, portable=True)
+            configurations = [item.config for item in projected]
+        for index, snapshot in enumerate(snapshots):
+            tool = (self._compiler.tool(snapshot, configuration_projection=configurations[index])
+                if configurations is not None else self._compiler.tool(snapshot))
             if UUID(str(snapshot["project_id"])) != project_id:
                 raise ConflictError("Frozen Tool belongs to another Project")
             await authorize_export_read(

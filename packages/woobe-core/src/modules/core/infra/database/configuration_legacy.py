@@ -38,6 +38,15 @@ class LegacyConfigurationStore(ConfigurationResolution):
             "material": "revoked" if row.revoked else row.material_state or "missing"} for row in rows],
             "environment": environment, "total": count, "offset": offset, "limit": limit}
 
+    async def legacy_source_state(self, *, project_id, source_kind, source_id, field_path):
+        row = (await self.session.execute(select(Alias.state, Material.material_state, Material.revoked)
+            .outerjoin(Material, Material.alias_id == Alias.id).where(Alias.project_id == project_id,
+                Alias.source_kind == source_kind, Alias.source_id == source_id, Alias.field_path == field_path))).one_or_none()
+        if row is None:
+            raise ConfigurationError("CONFIG_REFERENCE_NOT_FOUND")
+        return {"id": str(source_id), "state": row.state, "unchanged": True,
+            "material": "revoked" if row.revoked else row.material_state or "missing"}
+
     async def legacy_reference(self, *, project_id, source_kind, source_id, field_path):
         """Internal owner lookup of a migrated source identity, without material."""
         row = (await self.session.execute(select(Alias.id, Key.key).join(Key, Key.id == Alias.key_id).where(

@@ -602,3 +602,6 @@ __all__.append("PrepareVectorSnapshotInput")
 
 from modules.agent.infra.database.configuration_quiescence import assert_configuration_quiescent as assert_agent_configuration_quiescent
 __all__.append("assert_agent_configuration_quiescent")
+
+from modules.agent.infra.database.configuration_secret_migration import inventory_configuration_sources, migrate_configuration_source
+__all__ += ["inventory_configuration_sources", "migrate_configuration_source"]

@@ -16,8 +16,8 @@ cli = _live_cli
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("with_mcp,with_knowledge,network_source", [(False, False, None), (True, False, None), (True, True, None), (True, True, "release"), (False, False, "staging")])
-async def test_structural_package_installs_before_remote_values_exist(cli, tmp_path, with_mcp, with_knowledge, network_source):
+@pytest.mark.parametrize("with_mcp,with_knowledge,network_source,legacy_secret", [(False, False, None, False), (True, False, None, False), (True, True, None, False), (True, True, "release", False), (False, False, "staging", False), (False, False, None, True)])
+async def test_structural_package_installs_before_remote_values_exist(cli, tmp_path, with_mcp, with_knowledge, network_source, legacy_secret):
     project = await cli.data("project", "create", body={"workspace_id": cli.workspace_id,
         "name": "Structural configuration", "slug": str(uuid4())})
     cli.project_id = project["id"]
@@ -95,12 +95,55 @@ async def test_structural_package_installs_before_remote_values_exist(cli, tmp_p
         if network_source:
             assert approved["constituent_binding_policy"] == "imported_draft"
         target = next(item["resource_id"] for item in operation["inventory"] if item["action"] == ("prepare_network" if network_source else "prepare_inactive_agent"))
+        if legacy_secret:
+            from copy import deepcopy
+            canary = "legacy-export-synthetic-canary"
+            response = await client.post("/tools/secrets", json={"project_id":cli.project_id,
+                "name":"legacy-header", "type":"api_key", "value":canary})
+            assert response.is_success, response.status_code
+            response = await client.post("/tools/tools", json={"project_id":cli.project_id,
+                "agent_id":target, "name":"Legacy HTTP", "type":"http", "config":{
+                    "url":"https://approved.example/api", "method":"GET", "headers":[
+                        {"key":"Authorization", "value":"{{secret:legacy-header}}"}]},
+                "input_schema":{"type":"object", "properties":{}}})
+            assert response.is_success, response.status_code
+            tool_id = response.json()["data"]["id"]
+            agent = await cli.data("agent", "get", target)
+            settings = deepcopy(agent["settings"])
+            settings.setdefault("runtime_config", {})["tools"] = {"tool_ids":[tool_id], "snapshots":[]}
+            await cli.data("agent", "update", target, body={"settings":settings})
+            prefix = f"/core/projects/{cli.project_id}/configuration"
+            response = await client.get(prefix + "/migration-processes")
+            assert response.is_success, response.text
+            fleet = [item["identity"] for item in response.json()["data"]["items"]]
+            job_id = str(uuid4())
+            response = await client.put(prefix + "/migrations/" + job_id, json={"source_kind":"secret"})
+            assert response.is_success, response.text
+            assert response.json()["data"]["counts"] == {"eligible":1}
+            response = await client.post(prefix + "/migrations/" + job_id + "/advance", json={
+                "expected_revision":1, "required_processes":fleet, "old_processes_drained":True})
+            assert response.is_success, response.text
+            assert response.json()["data"]["state"] == "completed"
         response = await client.post(base + "/export", json={"kind": "Network" if network_source else "Agent", "target_id": target, "source": "draft", "package_schema_version": "2.0", "knowledge": "portable"})
         assert response.is_success, response.text
         exported = response.json()["data"]
         assert exported["package_schema_version"] == "2.0"
         assert exported["closure_complete"] is True
         assert exported["self_contained"] is True
+        if legacy_secret:
+            import tarfile
+            import yaml
+            response = await client.get(base + "/exports/" + exported["export_id"] + "/artifact")
+            assert response.is_success, response.status_code
+            with tarfile.open(fileobj=io.BytesIO(response.content), mode="r:gz") as archive:
+                documents = [yaml.safe_load(archive.extractfile(member).read()) for member in archive.getmembers()
+                    if member.isfile() and member.name.endswith((".yaml", ".yml"))]
+            assert canary not in str(documents) and "alias_id" not in str(documents)
+            tool = next(doc for doc in documents if doc.get("kind") == "Tool")
+            reference = tool["spec"]["config"]["authentication"]["fields"]["Authorization"]
+            assert reference["source"] == "project_environment"
+            manifest = next(doc for doc in documents if doc.get("kind") == "Package")
+            assert any(key["key"] == reference["key"] for key in manifest["spec"]["configuration"]["keys"])
 
         if with_knowledge:
             vector_id = next(item["resource_id"] for item in operation["inventory"] if item["action"] == "declare_vector_snapshot")

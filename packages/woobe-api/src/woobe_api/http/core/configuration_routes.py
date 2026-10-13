@@ -65,6 +65,7 @@ class ConvertLegacy(StrictBody):
 
 
 class MigrationPlan(StrictBody):
+    source_kind: Literal["provider_credential", "secret"] = "provider_credential"
     after_id: UUID | None = None
     limit: StrictInt = Field(default=100, ge=1, le=200)
 

@@ -12,7 +12,7 @@ from shared.contracts.project_configuration import ConfigurationError
 def configuration_bound_tool(function):
     @wraps(function)
     async def execute(self, tool, *args, **kwargs):
-        auth = tool_authentication(getattr(tool, "config", None) or {})
+        auth = tool_authentication(getattr(tool, "config", None) or {}, allow_legacy=True)
         if auth is None or not auth["fields"]:
             return await function(self, tool, *args, **kwargs)
         context = current_execution.get()

@@ -31,29 +31,32 @@ class ConfigurationMigrationService:
             "offset": offset, "limit": limit, "has_more": len(rows) > limit,
             "requires_operator_inventory": True}
 
-    async def preview(self, *, project_id, after_id=None, limit=100):
-        if not 1 <= limit <= 200:
+    async def preview(self, *, project_id, source_kind="provider_credential", after_id=None, limit=100):
+        if source_kind not in {"provider_credential", "secret"} or not 1 <= limit <= 200:
             raise ConfigurationError("CONFIG_DEFINITION_INVALID")
-        result = await self.inventory(self.session, project_id=project_id, after_id=after_id, limit=limit)
+        result = await self.inventory(self.session, project_id=project_id, after_id=after_id, limit=limit,
+            **({"source_kind": source_kind} if source_kind != "provider_credential" else {}))
         for item in result["items"]:
             try:
                 for value in item["destinations"]:
                     canonical_destination(value)
             except ConfigurationError as error:
                 item.update(state="blocked", code=error.code, destinations=[])
-        result["scope"] = "provider_credentials"
+                item.pop("closure", None)
+        result["scope"] = "secrets" if source_kind == "secret" else "provider_credentials"
         result["counts"] = dict(Counter(item["state"] for item in result["items"]))
         return result
 
-    async def create(self, *, project_id, migration_id, actor, after_id=None, limit=100):
+    async def create(self, *, project_id, migration_id, actor, source_kind="provider_credential", after_id=None, limit=100):
         await self.store.lock_project(project_id)
         existing = await self.session.scalar(select(ConfigurationMigrationModel).where(ConfigurationMigrationModel.id == migration_id))
-        request = {"after_id": str(after_id) if after_id else None, "limit": limit}
+        request = {"after_id": str(after_id) if after_id else None, "limit": limit,
+            **({"source_kind": source_kind} if source_kind != "provider_credential" else {})}
         if existing is not None:
             if existing.project_id != project_id or existing.plan["request"] != request or existing.actor != actor:
                 raise ConfigurationError("CONFIG_REVISION_CONFLICT")
             return self.report(existing)
-        preview = await self.preview(project_id=project_id, after_id=after_id, limit=limit)
+        preview = await self.preview(project_id=project_id, source_kind=source_kind, after_id=after_id, limit=limit)
         row = ConfigurationMigrationModel(id=migration_id, project_id=project_id, actor=actor,
             state="eligible" if preview["items"] else "completed", revision=1,
             plan={"request": request, **preview}, progress={"items": deepcopy(preview["items"])})
@@ -109,11 +112,12 @@ class ConfigurationMigrationService:
             for item in pending:
                 try:
                     async with self.session.begin_nested():
-                        result = await self.cutover(self.session, project_id=project_id, credential_id=UUID(item["id"]),
-                            expected_revision=item["revision"], destinations=item["destinations"],
-                            required_processes=required_processes, actor=actor)
+                        source = ({"secret_id": UUID(item["id"]), "expected_closure": item["closure"]}
+                            if item["kind"] == "secret" else {"credential_id": UUID(item["id"]), "destinations": item["destinations"]})
+                        result = await self.cutover(self.session, project_id=project_id, **source,
+                            expected_revision=item["revision"], required_processes=required_processes, actor=actor)
                     material = result.get("material", "unchanged")
-                    item.update(state="completed" if material in {"present", "unchanged"} else "cutover", material=material)
+                    item.update(state="completed" if result.get("state") == "completed" or material in {"present", "unchanged"} else "cutover", material=material)
                 except ConfigurationError as error:
                     item.update(state="blocked", code=error.code)
             states = {item["state"] for item in progress["items"]}

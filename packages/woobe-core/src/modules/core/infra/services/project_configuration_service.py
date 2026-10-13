@@ -93,7 +93,16 @@ class ProjectConfigurationService:
                     else:
                         raise AuthorizationError("Administrative authentication is required")
                 if action.startswith("migration_"):
-                    required = "provider:write" if action == "migration_advance" else "provider:read"
+                    source_kind = arguments.get("source_kind", "provider_credential")
+                    if arguments.get("migration_id"):
+                        from modules.core.infra.database.configuration_models import ConfigurationMigrationModel
+                        plan = await session.scalar(select(ConfigurationMigrationModel.plan).where(
+                            ConfigurationMigrationModel.project_id == project_id,
+                            ConfigurationMigrationModel.id == arguments["migration_id"]))
+                        if plan:
+                            source_kind = plan.get("request", {}).get("source_kind", "provider_credential")
+                    source_permission = "secret" if source_kind == "secret" else "provider"
+                    required = source_permission + (":write" if action == "migration_advance" else ":read")
                     if isinstance(principal, ControlPlanePrincipal):
                         await authorizer.authorize_control_key(api_key_id=principal.api_key_id,
                             workspace_id=principal.workspace_id, workspace_permissions=principal.permissions,
@@ -129,6 +138,7 @@ class ProjectConfigurationService:
                 return {"schema_version": "project_configuration.v1", "declaration_without_value": True,
                         "typed_remote_bindings": True, "binding_updates": _binding_adapter is not None, "external_validation": True, "metadata_only_reads": True,
                         "target_readiness": _target_reader is not None,
+                        "migration_source_kinds": ["provider_credential", "secret"] if _migration_inventory is not None else [],
                         "secret_reveal": False, "environment_fallback": False}
             if action in {"binding", "bind"}:
                 from shared.contracts.project_configuration import ConfigurationError

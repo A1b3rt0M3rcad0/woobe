@@ -46,7 +46,8 @@ async def migrate_provider_configuration(session, *, project_id, credential_id, 
     if row.authentication is not None:
         reference = (row.authentication.get('fields') or {}).get('api_key') or {}
         if reference.get('source') == 'legacy_configuration':
-            return {'id': str(row.id), 'state': 'cutover', 'unchanged': True}
+            return await configuration.legacy_source_state(project_id=project_id, source_kind='provider_credential',
+                source_id=row.id, field_path='/authentication/fields/api_key')
         return {'id': str(row.id), 'state': 'native_reference', 'unchanged': True}
     if row.updated_at.isoformat() != expected_revision:
         raise ConfigurationError('CONFIG_REVISION_CONFLICT')

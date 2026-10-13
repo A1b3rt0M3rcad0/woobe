@@ -662,7 +662,8 @@ def secret_to_model(entity: Secret) -> AgentToolSecretModel:
         project_id=entity.project_id,
         name=entity.name,
         type=entity.type.value if isinstance(entity.type, SecretType) else entity.type,
-        encrypted_value=entity.encrypted_value,
+        encrypted_value=entity.encrypted_value or None,
+        configuration_reference=entity.configuration_reference,
         data=entity.data,
     )
 
@@ -673,7 +674,8 @@ def model_to_secret(model: AgentToolSecretModel) -> Secret:
         project_id=model.project_id,
         name=model.name,
         type=SecretType(model.type),
-        encrypted_value=model.encrypted_value,
+        encrypted_value=model.encrypted_value or "",
+        configuration_reference=model.configuration_reference,
         data=model.data,
         created_at=model.created_at,
         updated_at=model.updated_at,

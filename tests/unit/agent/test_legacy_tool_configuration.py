@@ -1,7 +1,7 @@
 from types import SimpleNamespace
 from uuid import uuid4
 import pytest
-from modules.agent.application.legacy_tool_configuration import bind_legacy_tool_headers
+from modules.agent.domain.legacy_tool_configuration import bind_legacy_tool_headers
 from shared.contracts.project_configuration import ConfigurationError
 
 

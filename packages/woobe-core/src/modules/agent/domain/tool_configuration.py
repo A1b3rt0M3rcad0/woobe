@@ -1,18 +1,19 @@
 """Typed Tool authentication references, separate from model-visible inputs."""
 import hashlib
 import json
+from uuid import UUID
 from shared.contracts.project_configuration import ConfigurationDependency, ConfigurationError, compile_authentication
 
 
-def tool_authentication(config):
+def tool_authentication(config, *, allow_legacy=False):
     if not isinstance(config, dict) or "authentication" not in config:
         return None
-    return compile_authentication(config["authentication"], allow_none=True)
+    return compile_authentication(config["authentication"], allow_none=True, allow_legacy=allow_legacy)
 
 
 def tool_dependencies(tool, *, impact=()):
     config = tool.config or {}
-    auth = tool_authentication(config)
+    auth = tool_authentication(config, allow_legacy=True)
     if auth is None or not auth["fields"]:
         return []
     destination = (config.get("server") or {}).get("url") or config.get("base_url") or config.get("url")
@@ -20,7 +21,8 @@ def tool_dependencies(tool, *, impact=()):
         raise ConfigurationError("CONFIG_BINDING_INVALID")
     revision = hashlib.sha256(json.dumps({"authentication": auth, "destination": destination}, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
     return [ConfigurationDependency(tool.project_id, "tool", tool.id, revision,
-        "/config/authentication/fields/" + field, ref["key"], destination, impact=impact)
+        "/config/authentication/fields/" + field, ref["key"], destination, impact=impact,
+        legacy_alias_id=UUID(ref["alias_id"]) if ref["source"] == "legacy_configuration" else None)
         for field, ref in auth["fields"].items()]
 
 

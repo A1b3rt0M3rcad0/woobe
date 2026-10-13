@@ -306,6 +306,7 @@ class Secret:
     name: str = ""
     type: SecretType = SecretType.CUSTOM
     encrypted_value: str = ""
+    configuration_reference: dict | None = None
     data: dict | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None

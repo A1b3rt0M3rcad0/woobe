@@ -17,12 +17,22 @@ from shared.security.principal import ControlPlanePrincipal
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize('legacy', [False, True])
 @pytest.mark.parametrize('failure', [None, 'missing', 'concurrent', 'revoked'])
-async def test_mcp_preparation_authorizes_each_send_and_saves_only_matching_revision(monkeypatch, failure):
+async def test_mcp_preparation_authorizes_each_send_and_saves_only_matching_revision(monkeypatch, failure, legacy):
     project, identifier = uuid4(), uuid4()
     auth = {'type': 'bearer', 'fields': {'token': {'source': 'project_environment', 'key': 'MCP_TOKEN'}}}
     original = SimpleNamespace(id=identifier, project_id=project, type='mcp', timeout_ms=1000,
         updated_at=datetime.now(UTC), config={'server': {'url': 'https://approved.example/mcp'}, 'authentication': auth})
+    if legacy:
+        from modules.agent.domain.legacy_tool_configuration import bind_legacy_tool_headers
+        from modules.agent.infra.database import configuration_secret_projection
+        original.config.pop('authentication')
+        original.config['server']['headers'] = [{'key':'Authorization', 'value':'{{secret:stored}}'}]
+        reference = {'source':'legacy_configuration', 'key':'LEGACY_KEY', 'alias_id':str(uuid4())}
+        async def project_headers(session, *, project_id, tools):
+            return [bind_legacy_tool_headers(tool, {'stored':reference}) for tool in tools]
+        monkeypatch.setattr(configuration_secret_projection, 'project_secret_headers', project_headers)
     persisted = deepcopy(original)
     active, outbound = [], []
     class Scope:
@@ -33,7 +43,7 @@ async def test_mcp_preparation_authorizes_each_send_and_saves_only_matching_revi
     monkeypatch.setattr(module, 'SQLAlchemyAgentToolRepository', lambda session: repository)
     authorizer = SimpleNamespace(require_active_control=AsyncMock(), authorize_control_key=AsyncMock())
     monkeypatch.setattr(module, 'TenantAuthorizer', lambda session: authorizer)
-    store = SimpleNamespace(acquire=AsyncMock(), record_validation=AsyncMock())
+    store = SimpleNamespace(lock_project=AsyncMock(), acquire=AsyncMock(), record_validation=AsyncMock())
     if failure == 'missing': store.acquire.side_effect = ConfigurationError('CONFIG_VALUE_MISSING')
     monkeypatch.setattr(port, '_factory', lambda session: store)
     async def resolve(**identity):
@@ -46,7 +56,7 @@ async def test_mcp_preparation_authorizes_each_send_and_saves_only_matching_revi
     def send(request):
         import json
         assert not active, 'SQL must be closed before external I/O'
-        assert request.headers['authorization'] == 'Bearer mcp-private-canary'
+        assert request.headers['authorization'] == ('mcp-private-canary' if legacy else 'Bearer mcp-private-canary')
         payload = json.loads(request.content)
         outbound.append(payload['method'])
         if failure == 'concurrent': persisted.config = {**persisted.config, 'concurrent': True}
@@ -72,5 +82,8 @@ async def test_mcp_preparation_authorizes_each_send_and_saves_only_matching_revi
             assert store.record_validation.await_args.kwargs['state'] == 'valid'
             assert store.acquire.await_args.kwargs['environment'] == 'staging'
             assert outbound == ['initialize', 'notifications/initialized', 'tools/list']
+            if legacy:
+                assert 'authentication' not in persisted.config
+                assert persisted.config['server']['headers'] == original.config['server']['headers']
             assert authorizer.require_active_control.await_count == 4
     assert not active and port.current_tool_configuration.get() is None

@@ -207,7 +207,7 @@ async def discover_mcp_tool_definition(
         from modules.agent.application.interfaces.project_configuration import current_tool_configuration
         from modules.agent.domain.tool_configuration import tool_authentication
         from shared.contracts.project_configuration import ConfigurationError
-        if tool_authentication(config)["fields"] and current_tool_configuration.get() is None:
+        if tool_authentication(config, allow_legacy=True)["fields"] and current_tool_configuration.get() is None:
             raise ConfigurationError("CONFIG_USAGE_NOT_AUTHORIZED")
     connection_config = await materialize_mcp_connection_config(
         config,

@@ -37,7 +37,7 @@ class ProviderCredentialModel(BaseModel):
     provider: Mapped[str] = mapped_column(String(64))
     name: Mapped[str] = mapped_column(String(255))
     encrypted_secret: Mapped[str | None] = mapped_column(Text, nullable=True)
-    authentication: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    authentication: Mapped[dict[str, Any] | None] = mapped_column(JSONB(none_as_null=True), nullable=True)
     binding_revision: Mapped[int] = mapped_column(Integer, default=1, server_default=text("1"))
     status: Mapped[str] = mapped_column(String(32), default="active")
     last_validated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -462,6 +462,7 @@ class AgentToolSecretModel(BaseModel):
     __tablename__ = "tool_secrets"
     __table_args__ = (
         UniqueConstraint("project_id", "name"),
+        CheckConstraint("configuration_reference IS NULL OR encrypted_value IS NULL", name="ck_secret_configuration_authority"),
         Index("ix_agent_tool_secrets_project_id", "project_id"),
         {"schema": "agent"},
     )
@@ -469,7 +470,8 @@ class AgentToolSecretModel(BaseModel):
     project_id: Mapped[UUID]
     name: Mapped[str] = mapped_column(String(255))
     type: Mapped[str] = mapped_column(String(64))
-    encrypted_value: Mapped[str] = mapped_column(Text)
+    encrypted_value: Mapped[str | None] = mapped_column(Text, nullable=True)
+    configuration_reference: Mapped[dict | None] = mapped_column(JSONB(none_as_null=True), nullable=True)
     data: Mapped[dict | None] = mapped_column(JSONB)
 
 

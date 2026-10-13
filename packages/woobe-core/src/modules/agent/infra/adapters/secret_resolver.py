@@ -40,6 +40,10 @@ class ToolSecretResolverAdapter(ToolSecretResolverPort):
                     secret = await self._secret_repo.get_by_name(project_id, secret_name)
                     if secret is None or secret.project_id != project_id:
                         raise ConfigurationError("CONFIG_REFERENCE_NOT_FOUND")
+                    if getattr(secret, "configuration_reference", None) is not None:
+                        # A legacy helper has no environment/consumer identity.
+                        # It must not resolve central material by name alone.
+                        raise ConfigurationError("LEGACY_ENVIRONMENT_REQUIRED")
                     value = await self._cipher.decrypt(secret.encrypted_value)
                     if not isinstance(value, str) or not value or any(character in value for character in "\r\n\x00"):
                         raise ConfigurationError("CONFIG_VALUE_INVALID")

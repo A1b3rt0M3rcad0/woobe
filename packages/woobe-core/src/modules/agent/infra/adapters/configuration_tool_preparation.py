@@ -24,10 +24,18 @@ class ConfigurationToolPreparation:
         principal = request.principal
         async with self.uow_factory() as uow:
             await self._authorize(uow.session, principal, project_id, target_id, environment)
+            configuration = configuration_for_session(uow.session)
+            if configuration is None:
+                raise ConfigurationError("CONFIG_STORE_UNAVAILABLE")
+            await configuration.lock_project(project_id)
             tool = await SQLAlchemyAgentToolRepository(uow.session).get_by_id(target_id)
             if tool.project_id != project_id or not is_mcp_tool_type(tool.type):
                 raise ConfigurationError("CONFIG_BINDING_INVALID")
-            auth = tool_authentication(tool.config)
+            original = deepcopy(tool.config)
+            original_updated_at = tool.updated_at
+            from modules.agent.infra.database.configuration_secret_projection import project_secret_headers
+            tool = (await project_secret_headers(uow.session, project_id=project_id, tools=[tool]))[0]
+            auth = tool_authentication(tool.config, allow_legacy=True)
             if auth is None:
                 raise ConfigurationError("LEGACY_FORMAT_UNSUPPORTED")
             configuration = configuration_for_session(uow.session)
@@ -35,8 +43,6 @@ class ConfigurationToolPreparation:
                 raise ConfigurationError("CONFIG_STORE_UNAVAILABLE")
             await configuration.acquire(project_id=project_id, run_id=operation_id, environment=environment,
                 dependencies=tool_dependencies(tool))
-            original = deepcopy(tool.config)
-            original_updated_at = tool.updated_at
         token = current_tool_configuration.set((project_id, operation_id, target_id, auth))
         try:
             result = await self.preparer.bootstrap(tool)
@@ -50,7 +56,20 @@ class ConfigurationToolPreparation:
             current = await repository.lock_by_id(target_id)
             if current.config != original or current.updated_at != original_updated_at:
                 raise ConfigurationError("CONFIG_REVISION_CONFLICT")
-            current.config = tool.config
+            # Compilation is transport-local. Keep author templates and their
+            # immutable hashes; persist only the discovery result's other fields.
+            prepared = deepcopy(tool.config)
+            for field in ("authentication", "headers", "server_headers"):
+                if field in original:
+                    prepared[field] = deepcopy(original[field])
+                else:
+                    prepared.pop(field, None)
+            if isinstance(prepared.get("server"), dict):
+                if "headers" in (original.get("server") or {}):
+                    prepared["server"]["headers"] = deepcopy(original["server"]["headers"])
+                else:
+                    prepared["server"].pop("headers", None)
+            current.config = prepared
             await repository.update(current)
             if auth["fields"]:
                 configuration = configuration_for_session(uow.session)

@@ -1,8 +1,9 @@
 # Project configuration migration
 
-The current administrative job covers Provider credential sources. Other source
-families still require their own migration adapters; completing this job is not
-evidence that an entire Project is ready for storage contraction.
+The administrative job covers Provider credentials and recognized API-key/custom
+Secrets referenced by global HTTP/MCP headers. Inline Tool and OAuth sources still
+require their own adapters; completing this job is not evidence that an entire
+Project is ready for storage contraction.
 
 Apply schema migrations before starting the bridge API and Workers. Keep a
 consistent backup and an inventory of every API replica and Worker. Drain and
@@ -18,13 +19,13 @@ Compare every page against the deployment inventory, including Workers. A restar
 changes the identity: review the new inventory before resuming a batch.
 
 The following routes require `project:environment:migrate` in all three
-Environments. Reading/planning also requires `provider:read`; advancing requires
-`provider:write`. These checks run again in the database transaction. Reports
+Environments. Reading/planning also requires `provider:read` or `secret:read` for the selected
+source family; advancing requires the corresponding `:write` permission. These checks run again in the database transaction. Reports
 contain identifiers, revisions, destinations and bounded diagnostics, never
 credential material or its hash.
 
 1. Preview with `POST /core/projects/{project_id}/configuration/migrations/preview`
-   and `{"limit":100}`. Follow `next_after` using `after_id` for another page.
+   and `{"limit":100}` (Providers) or `{"source_kind":"secret","limit":100}`. Follow `next_after` using `after_id` for another page.
    Preview reads metadata only and changes nothing.
 2. Choose a request UUID and persist that page with
    `PUT /core/projects/{project_id}/configuration/migrations/{migration_id}` and
@@ -77,7 +78,19 @@ are outside the live-source migration and need their own retention policy.
 
 The central alias store can retain an explicit set of Tool/field consumers for one legacy Secret. Only owner migration adapters populate that set. Public use-policy grants do not add consumers to it, and knowing a Secret name or alias ID does not create that authority. Destination and Environment policy checks still apply at acceptance and send time. An unknown alias is an error; it never falls back to an Environment value.
 
-This primitive does not enable Secret/Tool/OAuth cutover in the current administrative migration job, which remains Provider-only until its owner adapters and runtime bridges are qualified. The new header compiler preserves author snapshots and rejects route-specific or mixed authentication that it cannot safely project; it is not yet wired as the general migration path.
+Secret cutover captures the current and retained Agent Tool header closure and
+compares it again before moving material. Recognized header templates are compiled
+only in runtime/readiness/discovery projections; author snapshots are not edited.
+Rotation uses the central alias and preserves accepted Run versions. Ambiguous
+rotation after an Environment split is rejected. Direct legacy resolution without
+consumer/Environment identity is rejected. Deleting a migrated Secret identity
+with retained references is rejected; manage material centrally.
+
+Route-specific or mixed authentication, unsupported Secret types, and malformed
+templates require explicit review. They stay blocked with their source untouched;
+no route is broadened to make migration succeed. Package 2.0 structural exports
+project migrated headers as destination configuration declarations, omitting local
+alias authority and material. Package 1.0 retains its existing author projection.
 
 Cutover acquires the Project barrier before source and migration rows. Agent
 Acceptance (including legacy-only Runs), Network dependency reads, Package

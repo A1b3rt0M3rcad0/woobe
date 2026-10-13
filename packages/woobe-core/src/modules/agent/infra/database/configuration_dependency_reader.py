@@ -2,7 +2,8 @@
 from types import SimpleNamespace
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, func, cast
+from sqlalchemy.dialects.postgresql import JSONPATH
 
 from modules.agent.infra.adapters.configuration_bindings import provider_dependencies
 from modules.agent.infra.database.models import AgentReleaseModel, ProviderCredentialModel, AgentToolModel, KnowledgeVersionModel
@@ -92,12 +93,29 @@ async def collect_configuration_dependencies(session, *, project_id, bindings, i
             AgentToolModel.config["authentication"].label("authentication"),
             AgentToolModel.config["url"].astext.label("url"),
             AgentToolModel.config["base_url"].astext.label("base_url"),
-            AgentToolModel.config["server"]["url"].astext.label("server_url")
+            AgentToolModel.config["server"]["url"].astext.label("server_url"),
+            func.jsonb_path_query_array(AgentToolModel.config, cast('$.headers[*] ? (@.value starts with "{{secret:")', JSONPATH)).label("secret_headers"),
+            func.jsonb_path_query_array(AgentToolModel.config, cast('$.server_headers[*] ? (@.value starts with "{{secret:")', JSONPATH)).label("secret_server_headers"),
+            func.jsonb_path_query_array(AgentToolModel.config, cast('$.server.headers[*] ? (@.value starts with "{{secret:")', JSONPATH)).label("secret_nested_headers")
         ).where(AgentToolModel.project_id == project_id, or_(AgentToolModel.id.in_(tool_ids),
             AgentToolModel.agent_id.in_(live_agents))))).all()
     available_tools = {str(row.id): SimpleNamespace(id=row.id, project_id=project_id, agent_id=row.agent_id,
         status=row.status, config={"authentication": row.authentication, "url": row.url,
-        "base_url": row.base_url, "server": {"url": row.server_url}}) for row in tool_rows}
+        "base_url": row.base_url, "headers": row.secret_headers, "server_headers": row.secret_server_headers,
+        "server": {"url": row.server_url, "headers": row.secret_nested_headers}}) for row in tool_rows}
+
+    from modules.agent.infra.database.configuration_secret_projection import project_secret_headers
+    projected = await project_secret_headers(session, project_id=project_id, tools=list(available_tools.values()))
+    available_tools = {str(tool.id): tool for tool in projected}
+    frozen_inputs, frozen_keys = [], []
+    for node_id, snapshot in snapshots:
+        for raw in ((snapshot.get("runtime_config") or {}).get("tools") or {}).get("snapshots", []):
+            if isinstance(raw, dict) and raw.get("id"):
+                frozen_inputs.append(SimpleNamespace(id=UUID(str(raw["id"])), project_id=project_id,
+                    config=raw.get("config") or {}, status=raw.get("status", "active")))
+                frozen_keys.append((node_id, str(raw["id"])))
+    projected = await project_secret_headers(session, project_id=project_id, tools=frozen_inputs)
+    frozen_tools = dict(zip(frozen_keys, projected, strict=True))
 
     for node_id, snapshot in snapshots:
         for field in ("provider_credential_id", "fallback_credential_id"):
@@ -121,9 +139,7 @@ async def collect_configuration_dependencies(session, *, project_id, bindings, i
                 if str(item.agent_id) == str(agent_id) and item.status == "active"]
         for identifier in selected:
             if str(identifier) in frozen:
-                raw = frozen[str(identifier)]
-                tool = SimpleNamespace(id=UUID(str(identifier)), project_id=project_id,
-                    config=raw.get("config") or {}, status=raw.get("status", "active"))
+                tool = frozen_tools[(node_id, str(identifier))]
             else:
                 tool = available_tools.get(str(identifier))
             if tool is None or tool.status != "active":
