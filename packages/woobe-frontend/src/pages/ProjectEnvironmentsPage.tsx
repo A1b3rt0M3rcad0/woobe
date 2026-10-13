@@ -7,7 +7,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button, Field, FieldLabel, Input, Select } from '@woobe/ui'
 import { ResourcePage } from '@/components/common/ResourcePage'
 import { ApiError } from '@/lib/api/errors'
-import { listConfiguration, type ConfigurationKey } from '@/features/projects/configuration'
+import { configurationReturnPath, listConfiguration, type ConfigurationKey } from '@/features/projects/configuration'
 import { ConfigurationKeyDeclarationDialog } from '@/features/projects/components/ConfigurationKeyDeclarationDialog'
 import { ConfigurationUsageDialog } from '@/features/projects/components/ConfigurationUsageDialog'
 import { ConfigurationValueEditor } from '@/features/projects/components/ConfigurationValueEditor'
@@ -20,6 +20,7 @@ export default function ProjectEnvironmentsPage() {
 
 function EnvironmentWorkspace({ projectId }: { projectId: string }) {
   const [params, setParams] = useSearchParams()
+  const returnTo = configurationReturnPath(params.get('returnTo'), projectId, window.location.origin)
   const selected = params.get('environment')
   const environment: ProjectEnvironment = selected === 'staging' || selected === 'production' ? selected : 'draft'
   const [search, setSearch] = useState('')
@@ -34,10 +35,14 @@ function EnvironmentWorkspace({ projectId }: { projectId: string }) {
   const client = useQueryClient()
   const query = useQuery({ queryKey: ['project-configuration', projectId, environment, search, status, offset],
     queryFn: () => listConfiguration(projectId, environment, search, status, offset), retry: false })
-  const refresh = () => { void client.invalidateQueries({ queryKey: ['project-configuration', projectId] }) }
+  const refresh = () => {
+    void client.invalidateQueries({ queryKey: ['project-configuration', projectId] })
+    void client.invalidateQueries({ queryKey: ['configuration-readiness', projectId] })
+  }
   const permissions = query.data?.permissions ?? {}
-  const selectEnvironment = (value: ProjectEnvironment) => { setOffset(0); setEditing(null); setParams({ environment: value }) }
+  const selectEnvironment = (value: ProjectEnvironment) => { setOffset(0); setEditing(null); setParams({ environment: value, ...(returnTo ? { returnTo } : {}) }) }
   return <ResourcePage title="Environments" description="Declare shared configuration, then set values for each environment.">
+    {returnTo && <a href={returnTo} className="text-product-small text-primary underline underline-offset-2">Return to execution · no automatic Run</a>}
     <div className="flex flex-wrap items-end justify-between gap-ui-md rounded-technical border border-border bg-card p-ui-md">
       <div className="flex flex-wrap items-end gap-ui-sm">
         <Field><FieldLabel>Environment</FieldLabel><Select value={environment} onChange={event => selectEnvironment(event.target.value as ProjectEnvironment)} options={['draft', 'staging', 'production'].map(value => ({ value, label: value[0].toUpperCase() + value.slice(1) }))} /></Field>

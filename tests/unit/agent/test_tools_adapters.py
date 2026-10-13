@@ -2,6 +2,7 @@ import uuid
 from uuid import UUID
 
 import pytest
+from shared.contracts.project_configuration import ConfigurationError
 
 from modules.agent.application.interfaces.ports import SecretCipherPort
 from modules.agent.infra.adapters.secret_cipher import SecretCipherAdapter
@@ -166,7 +167,7 @@ class TestToolSecretResolverAdapter:
         assert resolved["X-Static"] == "hello"
 
     @pytest.mark.asyncio
-    async def test_missing_secret_returns_empty(self):
+    async def test_missing_secret_fails_without_sending_an_empty_header(self):
         repo = FakeSecretRepo()
         cipher = FakeCipher()
         adapter = ToolSecretResolverAdapter(repo, cipher)
@@ -175,9 +176,8 @@ class TestToolSecretResolverAdapter:
         headers = [
             {"key": "Authorization", "value": "{{secret:nonexistent}}"},
         ]
-        resolved = await adapter.resolve_headers(headers, pid)
-
-        assert resolved["Authorization"] == ""
+        with pytest.raises(ConfigurationError):
+            await adapter.resolve_headers(headers, pid)
 
     @pytest.mark.asyncio
     async def test_non_secret_headers_pass_through(self):
@@ -219,3 +219,25 @@ class TestToolSecretResolverAdapter:
 
         assert "Real" in resolved
         assert resolved["Real"] == "value"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("value", ["", "token\r\nInjected: header", "token\x00"])
+async def test_legacy_secret_header_rejects_invalid_material(value):
+    project = uuid.uuid4()
+    repo = FakeSecretRepo()
+    await repo.create(Secret(project_id=project, name="key", encrypted_value="enc:"+value))
+    adapter = ToolSecretResolverAdapter(repo, FakeCipher())
+    with pytest.raises(ConfigurationError) as error:
+        await adapter.resolve_headers([{"key":"Authorization", "value":"{{secret:key}}"}], project)
+    assert error.value.code == "CONFIG_VALUE_INVALID"
+    assert "Injected" not in str(error.value)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("value", ["{{secret:}}", "{{secret:key", "{{secret:key}}suffix", "Bearer {{secret:key}}"])
+async def test_legacy_secret_header_rejects_ambiguous_templates(value):
+    adapter = ToolSecretResolverAdapter(FakeSecretRepo(), FakeCipher())
+    with pytest.raises(ConfigurationError) as error:
+        await adapter.resolve_headers([{"key":"Authorization", "value":value}], uuid.uuid4())
+    assert error.value.code == "CONFIG_BINDING_INVALID"

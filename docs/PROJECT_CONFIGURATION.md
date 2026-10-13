@@ -107,3 +107,9 @@ commit together under the Worker ownership and frozen-document guards. A stale
 Worker cannot commit results or overwrite its successor's terminal state.
 
 Structural Network installation imports captured Agent definitions into Draft and binds destination nodes to those Drafts. The approved plan records `constituent_binding_policy: imported_draft`; it never creates constituent Staging or Release snapshots as an incidental installation effect. The original source selectors remain in the approved source evidence. Preparation authorization is stored separately from the immutable vector build configuration and does not change its hash.
+
+### Contextual runtime status
+
+Agent and Network Playgrounds read configuration metadata for the selected environment and exact saved snapshot. The compact notice separates missing material, unreadable status, denied access and outstanding external checks. Details expand on demand. Unsaved Draft edits are explicitly outside that saved-definition result; Acceptance remains responsible for authorizing the actual submitted closure. Refreshing or returning from Environments never executes a Run. After a value is saved, cached readiness is invalidated.
+
+Legacy header references accept a whole `{{secret:name}}` value. Missing/unreadable material, empty values, header control characters and ambiguous partial templates fail before sending a request. They no longer silently become an empty header. These guards do not replace the remaining source migration and destination-policy cutover.

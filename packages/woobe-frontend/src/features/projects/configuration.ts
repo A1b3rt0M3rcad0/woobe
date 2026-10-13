@@ -100,3 +100,28 @@ export async function convertLegacyConfiguration(project: string, environment: P
 export function testConfigurationConnection(project: string, kind: 'provider_credential' | 'tool', identifier: string, environment: ProjectEnvironment) {
   return post<{ state: string; initialized?: boolean; discovered_count?: number }>(`${configurationPath(project)}/tests/${kind}/${identifier}`, { environment })
 }
+
+export interface ConfigurationReadiness {
+  environment: ProjectEnvironment
+  state: 'ready' | 'ready_with_notices' | 'blocked' | 'unknown'
+  required_key_count: number
+  missing_key_count: number
+  affected_consumer_count: number
+  dependencies: { key: string; code: string | null; material: ConfigurationMaterial; required: boolean; external_validation: string; source: string }[]
+  unresolved: { code: string; consumer_kind: string; consumer_id: string }[]
+}
+export function getConfigurationReadiness(project: string, kind: 'agent' | 'network', target: string, environment: ProjectEnvironment, versionId?: string) {
+  return get<ConfigurationReadiness>(`${configurationPath(project)}/readiness/${kind}/${target}`, {
+    params: { environment, ...(versionId ? { version_id: versionId } : {}) },
+  })
+}
+
+export function configurationReturnPath(value: string | null, projectId: string, origin: string): string | null {
+  if (!value?.startsWith('/') || value.startsWith('//') || value.includes('\\')) return null
+  try {
+    const url = new URL(value, origin)
+    const match = url.pathname.match(/^\/(?:workspaces\/[^/]+\/)?projects\/([^/]+)\/(.+)$/)
+    if (url.origin !== origin || !match || match[1] !== projectId || match[2].startsWith('environments')) return null
+    return url.pathname + url.search
+  } catch { return null }
+}
