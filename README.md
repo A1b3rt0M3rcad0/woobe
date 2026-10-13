@@ -1,6 +1,6 @@
 # Woobe — Control Plane for Production AI Agents
 
-![Woobe: version Agent and Network definitions, validate changes, publish immutable releases, execute in Production and trace every Run.](docs/assets/woobe-overview.svg)
+![Woobe — Product Overview](docs/assets/Woobe%20%E2%80%94%20Product%20Overview.png)
 
 **Define, version, test, deploy and operate AI agents like production software.**
 
