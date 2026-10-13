@@ -969,6 +969,20 @@ async def test_legacy_provider_create_is_central_from_first_commit(configuration
     resolved = await store.resolve(project_id=project, run_id=run, consumer_kind='provider_credential',
         consumer_id=created.id, field_path='/authentication/fields/api_key', destination='https://api.openai.com/v1')
     assert resolved == CANARY
+    from modules.agent.infra.database.configuration_package import inspect_configuration_provider_reuse
+    portable = {'provider':'openai','authentication': {'type':'api_key','fields': {'api_key': {
+        'source':'project_environment','key':'portable-key'}}}}
+    evidence = await inspect_configuration_provider_reuse(store.session, project_id=project,
+        connections={'primary':portable}, bindings={'primary':{'credential_id':str(created.id)}},
+        configuration={'portable-key':{'key':reference['key']}})
+    assert evidence['primary']['binding_source'] == 'legacy_configuration'
+    assert row.authentication['fields']['api_key'] == reference
+    with pytest.raises(ConfigurationError) as incompatible:
+        await inspect_configuration_provider_reuse(store.session, project_id=project,
+            connections={'primary':portable}, bindings={'primary':{'credential_id':str(created.id)}},
+            configuration={'portable-key':{'key':'ANOTHER_KEY'}})
+    assert incompatible.value.code == 'CONFIG_BINDING_INVALID'
+
     revision = created.binding_revision
     created.encrypted_secret = encrypt_secret(CANARY + '-rotated', store.encryption_key)
     rotated = await repository.update(created)

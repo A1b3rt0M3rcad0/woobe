@@ -171,3 +171,17 @@ A legacy custom Provider can still be created before its endpoint is selected.
 Its secret moves immediately to central storage, but no destination is implicitly
 authorized. An operator must set the destination and approve its usage policy
 before execution. A Model overriding the endpoint does not grant that approval.
+
+Retained Web author objects use their original package schema. For schema2,
+server-generated Web bindings reuse the captured Provider identities and declared
+keys; editing a file does not create a credential or import a value. Explicitly
+reusing a central legacy Provider preserves that connection's compatibility route
+and reports `binding_source: legacy_configuration` in planning evidence. It does
+not authorize another consumer or make a plain Environment reference resolve a
+legacy value. Readiness still identifies the actual selected material source.
+
+Typed HTTP Tool authentication accepts parameterized query/path values under a
+static scheme, host, port and path prefix. Approve that prefix explicitly in the
+use policy. Host/scheme templates remain invalid; every rendered outbound URL is
+rechecked for destination changes and encoded path traversal before credentials
+are attached. URL template edits also change the binding revision.

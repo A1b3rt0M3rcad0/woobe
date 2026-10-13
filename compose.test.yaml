@@ -136,6 +136,8 @@ services:
       WOOBE_TEST_FAKE_MCP_URL: http://fake-provider:8000/mcp-peer/mcp
       WOOBE_HTTP_TOOL_ALLOW_LOCAL_NETWORKS: "true"
       WOOBE_CLI_BINARY: /artifacts/woobe
+      WOOBE_CONFIGURATION_CLI_BINARY: /artifacts/woobe-configuration
+      WOOBE_CONFIGURATION_CLI_SHA: e6535386c10b4f4fbff58bf8beb6312dec30f2b0
       WOOBE_REQUIRE_CLI_E2E: ${WOOBE_REQUIRE_CLI_E2E:-false}
       WOOBE_TEST_SERVER_SHA: ${WOOBE_TEST_SERVER_SHA:-local}
     depends_on:

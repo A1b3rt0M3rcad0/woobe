@@ -197,6 +197,7 @@ class PackageSnapshotArtifactRepository:
 
     async def editor_bindings(self, *, project_id,principal,export_id,artifact_id,resource_uid,component_uids):
         from uuid import uuid5
+        from modules.package.infra.editor_artifacts import editor_binding_document
         from modules.package.infra.models import PackageExportModel, PackageResourceBindingModel
         evidence=await self.get(project_id=project_id,principal=principal,artifact_id=artifact_id)
         async with self.sessions.begin() as session:
@@ -224,22 +225,7 @@ class PackageSnapshotArtifactRepository:
                 if row is not None and (row.resource_id!=identifier or row.kind!=binding['kind']):
                     raise PackageError('ASAC_EDITOR_IDENTITY_CONFLICT','Web registry has another native binding')
             credentials={alias:identifier for identifier,alias in source.source.get('credential_bindings',{}).items()}
-        spec={};requirements=evidence['manifest']['spec'].get('requires',{})
-        for group in ('credentials','project_environment','secrets','knowledge'):
-            values={}
-            for item in requirements.get(group,[]):
-                alias=item.get('key') if group=='project_environment' else item.get('ref')
-                if group=='credentials':
-                    if alias not in credentials:
-                        raise PackageError('ASAC_EDITOR_BINDING_UNAVAILABLE','An explicit Provider binding is required')
-                    values[alias]={'credential_id':credentials[alias]}
-                elif group=='knowledge':
-                    raise PackageError('ASAC_EDITOR_BINDING_UNAVAILABLE','Open a portable Knowledge closure before Web Stage')
-                else:
-                    values[alias]={'existing_key':alias}
-            spec[group]=values
-        return {'registry_id':str(registry),'bindings':{'format':'woobe-package','schema_version':'1.0',
-            'kind':'ImportBindings','metadata':{'name':'Web Candidate'},'spec':spec}}
+        return {'registry_id':str(registry), 'bindings': editor_binding_document(evidence['manifest'], credentials)}
 
     async def transfer(self, *, project_id, principal, artifact_id):
         """Revalidate a retained closure and produce a bounded deterministic transfer."""

@@ -2,6 +2,7 @@
 import hashlib
 import json
 from uuid import UUID
+from urllib.parse import urlsplit, urlunsplit
 from shared.contracts.project_configuration import ConfigurationDependency, ConfigurationError, compile_authentication
 
 
@@ -11,15 +12,43 @@ def tool_authentication(config, *, allow_legacy=False):
     return compile_authentication(config["authentication"], allow_none=True, allow_legacy=allow_legacy)
 
 
+def tool_destination(value):
+    """Static scheme/authority/path boundary; rendered sends are checked again.
+
+    Parameterized paths require approval of their containing static path. URL
+    query parameters do not define credential authority. Scheme/host templates
+    are never credentials destinations.
+    """
+    import re
+    if not isinstance(value, str) or not value or any(c in value for c in '\r\n\x00\\'):
+        raise ConfigurationError('CONFIG_BINDING_INVALID')
+    try:
+        parsed = urlsplit(value)
+        if (parsed.scheme not in {'http', 'https'} or not parsed.hostname or parsed.username is not None
+                or parsed.password is not None or parsed.fragment or any(c in parsed.netloc for c in '{}%')):
+            raise ValueError
+        path = parsed.path
+        templates = list(re.finditer(r'\{\{[A-Za-z_][A-Za-z0-9_.]*\}\}', path))
+        if any(c in re.sub(r'\{\{[A-Za-z_][A-Za-z0-9_.]*\}\}', '', path) for c in '{}'):
+            raise ValueError
+        if templates:
+            prefix = path[:templates[0].start()]
+            path = prefix[:prefix.rfind('/') + 1]
+        # The central owner canonicalizes this boundary and rejects traversal,
+        # encoded separators and malformed ports before storing a reference.
+        return urlunsplit((parsed.scheme, parsed.netloc, path or '/', '', ''))
+    except (ValueError, TypeError):
+        raise ConfigurationError('CONFIG_BINDING_INVALID') from None
+
+
 def tool_dependencies(tool, *, impact=()):
     config = tool.config or {}
     auth = tool_authentication(config, allow_legacy=True)
     if auth is None or not auth["fields"]:
         return []
     destination = (config.get("server") or {}).get("url") or config.get("base_url") or config.get("url")
-    if not isinstance(destination, str) or not destination or any(c in destination for c in "{}"):
-        raise ConfigurationError("CONFIG_BINDING_INVALID")
     revision = hashlib.sha256(json.dumps({"authentication": auth, "destination": destination}, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    destination = tool_destination(destination)
     return [ConfigurationDependency(tool.project_id, "tool", tool.id, revision,
         "/config/authentication/fields/" + field, ref["key"], destination, impact=impact,
         legacy_alias_id=UUID(ref["alias_id"]) if ref["source"] == "legacy_configuration" else None)

@@ -5,6 +5,7 @@ from uuid import UUID
 from sqlalchemy import select
 
 from modules.agent.infra.database.models import ProviderCredentialModel
+from modules.agent.application.interfaces.project_configuration import configuration_for_session
 from shared.contracts.project_configuration import ConfigurationError, compile_authentication
 
 
@@ -27,9 +28,27 @@ async def inspect_configuration_provider_reuse(session, *, project_id, connectio
         authentication = deepcopy(connection["authentication"])
         for reference in authentication["fields"].values():
             reference["key"] = configuration[reference["key"]]["key"]
-        if (row.provider != connection["provider"] or compile_authentication(row.authentication or {}) != compile_authentication(authentication)
+        actual = compile_authentication(row.authentication or {}, allow_legacy=True)
+        legacy = False
+        for field, reference in actual['fields'].items():
+            if reference['source'] != 'legacy_configuration':
+                continue
+            # An explicit native credential binding preserves that connection's
+            # compatibility route. It never converts a generic key lookup into
+            # an alias lookup, grants a new consumer or changes stored auth.
+            store = configuration_for_session(session)
+            if store is None:
+                raise ConfigurationError('CONFIG_STORE_UNAVAILABLE')
+            owned = await store.legacy_reference(project_id=project_id, source_kind='provider_credential',
+                source_id=row.id, field_path='/authentication/fields/' + field)
+            if owned != reference:
+                raise ConfigurationError('CONFIG_USAGE_NOT_AUTHORIZED')
+            actual['fields'][field] = {'source': 'project_environment', 'key': reference['key']}
+            legacy = True
+        if (row.provider != connection["provider"] or actual != compile_authentication(authentication)
                 or any((row.meta or {}).get(key) != value for key, value in (connection.get("metadata") or {}).items())):
             raise ConfigurationError("CONFIG_BINDING_INVALID")
         result[alias] = {"credential_id": str(row.id), "provider": row.provider, "existing": True,
-            "binding_revision": row.binding_revision}
+            "binding_revision": row.binding_revision,
+            "binding_source": "legacy_configuration" if legacy else "project_environment"}
     return result

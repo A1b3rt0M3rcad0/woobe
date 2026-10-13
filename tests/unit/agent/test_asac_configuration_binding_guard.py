@@ -42,3 +42,25 @@ async def test_configuration_provider_revision_is_fenced(monkeypatch):
     row.binding_revision=5; row.status="revoked"
     with pytest.raises(ConflictError, match="credential version"):
         await guard.verify(session, **arguments)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("legacy", [False, True])
+async def test_provider_binding_route_remains_exact_at_activation(monkeypatch, legacy):
+    import modules.agent.infra.database.asac_binding_guard as module
+    monkeypatch.setattr(module, "authorize_export_read", AsyncMock())
+    reference = {"source": "project_environment", "key": "PRIMARY_KEY"}
+    if legacy:
+        reference = {"source": "legacy_configuration", "key": "PRIMARY_KEY", "alias_id": str(uuid4())}
+    row = N(id=uuid4(), provider="openai", status="active", updated_at=datetime.now(UTC), binding_revision=5,
+        authentication={"type": "api_key", "fields": {"api_key": reference}})
+    evidence = {"credential_id": str(row.id), "provider": row.provider, "binding_revision":5, "existing":True,
+        "binding_source": "legacy_configuration" if legacy else "project_environment"}
+    environment = N(verify=AsyncMock())
+    guard = AgentASaCBindingGuard(environment)
+    arguments = dict(project_id=uuid4(), resource_id=uuid4(), principal=object(), environment="production",
+        expected={"credentials":{"primary":evidence}})
+    await guard.verify(N(scalar=AsyncMock(return_value=row)), **arguments)
+    evidence['binding_source'] = 'project_environment' if legacy else 'legacy_configuration'
+    with pytest.raises(ConflictError, match='credential version'):
+        await guard.verify(N(scalar=AsyncMock(return_value=row)), **arguments)

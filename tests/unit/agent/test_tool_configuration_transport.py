@@ -117,3 +117,37 @@ async def test_anonymous_configuration_does_not_grant_private_network_access(mon
             assert not result.success and 'SSRF blocked' in result.error
     finally:
         current_execution.reset(token)
+
+
+@pytest.mark.parametrize('url,expected', [
+    ('https://approved.example/api/search?q={{query}}', 'https://approved.example/api/search'),
+    ('https://approved.example/api/items/{{id}}', 'https://approved.example/api/items/'),
+    ('https://approved.example/api/items/{{id}}/events/{{event}}', 'https://approved.example/api/items/'),
+])
+def test_parameterized_tool_urls_retain_a_static_credential_boundary(url, expected):
+    from modules.core.infra.database.configuration_resolution import destination_matches
+    target = tool(binding('bearer', token='TOKEN'))
+    target.config['url'] = url
+    dependency = tool_dependencies(target)[0]
+    assert dependency.destination == expected
+    assert destination_matches(dependency.destination, expected.rstrip('/') + '/123?public=true')
+    assert not destination_matches(dependency.destination, 'https://unapproved.example/api/items/123')
+    assert not destination_matches(dependency.destination, 'https://approved.example/outside')
+    for path in ('../outside', '%2e%2e/outside', '%252e%252e/outside'):
+        with pytest.raises(ConfigurationError):
+            destination_matches(dependency.destination, expected.rstrip('/') + '/' + path)
+    revision = dependency.definition_revision
+    target.config['url'] = url + '&changed=true'
+    assert tool_dependencies(target)[0].definition_revision != revision
+
+
+@pytest.mark.parametrize('url', [
+    'https://{{host}}/api', '{{scheme}}://approved.example/api',
+    'https://user:password@approved.example/api', 'https://approved.example/{{invalid',
+    'https://approved.example/api#fragment', 'https://approved.example\\unapproved.example/api',
+])
+def test_dynamic_or_ambiguous_authority_never_qualifies_a_tool_binding(url):
+    target = tool(binding('bearer', token='TOKEN'))
+    target.config['url'] = url
+    with pytest.raises(ConfigurationError):
+        tool_dependencies(target)

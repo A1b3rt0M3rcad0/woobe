@@ -11,7 +11,16 @@ from tests.unit.package.test_configuration_package_v2 import package, network_pa
 import json
 import os
 
-pytestmark = pytest.mark.skipif(os.environ.get("WOOBE_TEST_CONFIGURATION_CLI") != "true", reason="Requires the configuration-capable CLI; pinned legacy CLI is covered separately")
+pytestmark = pytest.mark.skipif(not (os.environ.get("WOOBE_CONFIGURATION_CLI_BINARY") or os.environ.get("WOOBE_TEST_CONFIGURATION_CLI") == "true"), reason="Requires the configuration-capable CLI; pinned legacy CLI is covered separately")
+
+
+@pytest.fixture(autouse=True)
+def configuration_binary(monkeypatch):
+    # Keep the legacy binary for the rest of the suite; only these feature
+    # contracts select the separately reviewed, exact paired executable.
+    if os.environ.get("WOOBE_CONFIGURATION_CLI_BINARY"):
+        monkeypatch.setenv("WOOBE_CLI_BINARY", os.environ["WOOBE_CONFIGURATION_CLI_BINARY"])
+        monkeypatch.setenv("WOOBE_TEST_CLI_SHA", os.environ["WOOBE_CONFIGURATION_CLI_SHA"])
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("kind", ["agent", "network"])
@@ -115,3 +124,60 @@ async def test_remote_configuration_development_and_activation(cli, tmp_path, ki
     deployed = (await cli.run(kind, "@support", "deployment", "apply", replanned["plan_id"], "--yes", cwd=registry))["data"]
     assert deployed["state"] == "committed" and deployed["selection_changed"]
     assert deployed["release_id"] == publication["release_id"]
+
+
+@pytest.mark.asyncio
+async def test_legacy_provider_can_be_edited_by_new_cli_and_web(cli, tmp_path):
+    import asyncio
+    import yaml
+    project = await cli.data('project', 'create', body={'workspace_id':cli.workspace_id,
+        'name':'Central legacy Provider authoring', 'slug':str(uuid4())})
+    cli.project_id = project['id']
+    credential = await cli.data('project','provider-credential','create',body={
+        'project_id':cli.project_id,'provider':'custom','name':'Deterministic', 'secret':'fake-api-key',
+        'metadata':{'base_url':os.environ['WOOBE_TEST_FAKE_PROVIDER_URL'],'model':'fake-success'}})
+    cli.secret_values.add('fake-api-key')
+    model = await cli.data('project','provider-model','create',body={'project_id':cli.project_id,
+        'provider_credential_id':credential['id'],'name':'Deterministic','model':'fake-success'})
+    agent = await cli.data('project','agent','create',body={'project_id':cli.project_id,'name':'Legacy authoring',
+        'provider':'custom','provider_model_id':model['id'],'provider_credential_id':credential['id'],
+        'model':'fake-success','system_prompt':'Original objective','session_mode':'stateless','max_output_tokens':64})
+    target = agent['id']
+    await cli.data('project','agent','release','create',target,body={'project_id':cli.project_id,'agent_id':target,'version':'draft'})
+    registry = tmp_path / 'development'; registry.mkdir()
+    await cli.run('init','--root','.woobe',cwd=registry)
+    await cli.run('agent',target,'pull','--alias','support',cwd=registry)
+    await cli.run('agent','@support','push',cwd=registry)
+    await cli.run('agent','@support','draft','open','configuration',cwd=registry)
+    await cli.run('agent','@support','draft','push',cwd=registry)
+    record = (await cli.run('agent','@support','revision','create','--message','Explicit reused connection',cwd=registry))['data']
+    assert record['definition_digest_scope'] == 'woobe-portable-definition@2.0'
+    await cli.run('agent','@support','draft','checkpoint',record['revision_id'],cwd=registry)
+    await cli.run('agent','@support','stage','--revision',record['revision_id'],cwd=registry)
+    # Exercise the public Web authoring endpoints against a separate retained
+    # capture, including bindings derived from that capture (not CLI input).
+    exported = await cli.data('request','POST',f'/projects/{cli.project_id}/packages/export',body={
+        'kind':'Agent','target_id':target,'source':'draft','knowledge':'portable','development':True,
+        'package_schema_version':'2.0'})
+    base = f'/projects/{cli.project_id}/agents/{target}/asac'
+    draft = await cli.data('request','POST',base+'/drafts',body={'operation_id':str(uuid4()),
+        'name':'web-configuration','resource_uid':exported['source']['resource_uid'],'source_export_id':exported['export_id']})
+    route = base + '/drafts/' + draft['draft_id']
+    editor = await cli.data('request','GET',route+'/editor')
+    entry = next(item for item in editor['files'] if item['path']==editor['entrypoint_path'])
+    document = yaml.safe_load(entry['content'])
+    document['metadata']['description'] = 'Edited through the Web source API'
+    edited = await cli.data('request','PUT',route+'/editor',body={'operation_id':str(uuid4()),
+        'expected_generation':draft['generation'],'files':[{'path':entry['path'],'content':yaml.safe_dump(document)}]})
+    checkpoint = await cli.data('request','POST',route+'/checkpoint',body={'operation_id':str(uuid4()),
+        'expected_generation':edited['generation'],'revision_id':'rv_'+str(uuid4()),'message':'Web schema2 checkpoint','parents':[]})
+    assert checkpoint['record']['definition_digest_scope']=='woobe-portable-definition@2.0'
+    staged = await cli.data('request','POST',route+'/stage',body={'operation_id':str(uuid4()),
+        'expected_generation':edited['generation'],'revision_id':checkpoint['record']['revision_id']})
+    for _ in range(240):
+        operation = await cli.data('request','GET',f"/projects/{cli.project_id}/packages/operations/{staged['preparation_operation_id']}")
+        if operation['terminal']:
+            break
+        await asyncio.sleep(.25)
+    assert operation['state']=='succeeded', operation
+    assert operation['configuration_ready'] is True, operation
