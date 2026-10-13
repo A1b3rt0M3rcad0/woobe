@@ -76,12 +76,12 @@ def _draft_defaults_from_agent(agent: Any) -> dict[str, Any]:
         provider=agent.fallback_provider,
         model=agent.fallback_model,
     )
-    output_schema = (
-        deepcopy(response_format.get("schema"))
-        if isinstance(response_format, dict)
-        else None
-    )
+    output_schema = deepcopy(settings.get("output_schema"))
+    if output_schema is None and isinstance(response_format, dict):
+        output_schema = deepcopy(response_format.get("schema"))
     return {
+        "prompt_version_id": _uuid_or_none(settings.get("prompt_version_id")),
+        "contract_version_id": _uuid_or_none(settings.get("contract_version_id")),
         "name": agent.name,
         "description": agent.description,
         "behavior_spec": deepcopy(getattr(agent, "behavior_spec", None)),
@@ -259,11 +259,14 @@ class SessionModeCompatibleCreateReleaseUseCase:
         *,
         provider_model_repo: ProviderModelRepository | None = None,
         credential_repo: ProviderCredentialRepository | None = None,
+        prompt_repo: Any = None,
+        contract_repo: Any = None,
     ) -> None:
         self._delegate = delegate
         self._agent_repo = agent_repo
         self._provider_model_repo = provider_model_repo
         self._credential_repo = credential_repo
+        self._prompt_repo, self._contract_repo = prompt_repo, contract_repo
 
     async def _adopt_native_models(
         self, input_dto: Any, requested_fields: set[str], agent: Any
@@ -303,6 +306,52 @@ class SessionModeCompatibleCreateReleaseUseCase:
             updates[credential_field] = getattr(binding, credential_field)
         return input_dto.model_copy(update=updates)
 
+    async def _materialize_references(self, dto: Any, requested: set[str]) -> Any:
+        updates = {}
+        if "output_schema" in requested and dto.output_schema is not None:
+            response = deepcopy(dto.response_format or {})
+            if "response_format" in requested and response.get("schema") is not None and response["schema"] != dto.output_schema:
+                raise ConflictError("Embedded output_schema differs from response_format")
+            response.update(enabled=True, type="json", schema=deepcopy(dto.output_schema))
+            dto = dto.model_copy(update={"response_format": response})
+        for field, repository in (("prompt_version_id", self._prompt_repo),
+                                  ("contract_version_id", self._contract_repo)):
+            identity = getattr(dto, field, None)
+            if identity is None or repository is None:
+                continue
+            version = await repository.get_by_id(identity)
+            if version is None or version.project_id != dto.project_id or version.agent_id != dto.agent_id:
+                raise ValidationError(f"Referenced {field} is unavailable for this Agent")
+            if field == "prompt_version_id":
+                content = version.content
+                if dto.behavior_spec is not None:
+                    from modules.agent.application.system_instruction_assembler import assemble_system_instructions
+                    if assemble_system_instructions(dto.name, dto.description, dto.behavior_spec) != content:
+                        raise ConflictError("Referenced Prompt differs from structured Behavior; choose one coherent definition")
+                if "system_prompt" in requested and dto.system_prompt != content:
+                    raise ConflictError("Embedded system_prompt differs from the referenced Prompt version")
+                updates["system_prompt"] = content
+            else:
+                schema = deepcopy(version.output_schema)
+                if schema is None:
+                    raise ValidationError("CONTRACT_MISSING: referenced Contract has no output schema; update it before saving Draft")
+                if "output_schema" in requested and dto.output_schema != schema:
+                    raise ConflictError("Embedded output_schema differs from the referenced Contract version")
+                response = deepcopy(dto.response_format or {})
+                if "response_format" in requested and response.get("schema") is not None and response["schema"] != schema:
+                    raise ConflictError("Embedded response_format differs from the referenced Contract version")
+                response.update(enabled=True, type="json", schema=schema,
+                                strict=_enum_value(version.validation_mode) == "strict")
+                runtime = deepcopy(dto.runtime_config or {})
+                runtime["contract_version_snapshot"] = {
+                    "id": str(version.id), "project_id": str(version.project_id), "agent_id": str(version.agent_id),
+                    **{key: deepcopy(_enum_value(getattr(version, key))) for key in (
+                        "version", "name", "input_schema", "output_schema", "validation_mode",
+                        "repair_attempts", "additional_instructions", "schema_hash")},
+                }
+                updates.update(output_schema=schema, response_format=response, runtime_config=runtime)
+        return dto.model_copy(update=updates) if updates else dto
+
     async def execute(self, input_dto: Any, change_kind: str = "change") -> Any:
         agent = await self._agent_repo.get_by_id(input_dto.agent_id)
         if agent is None or agent.project_id != input_dto.project_id:
@@ -311,6 +360,7 @@ class SessionModeCompatibleCreateReleaseUseCase:
         requested_fields = set(getattr(input_dto, "model_fields_set", set()))
         input_dto = _complete_draft_input(input_dto, agent)
         input_dto = await self._adopt_native_models(input_dto, requested_fields, agent)
+        input_dto = await self._materialize_references(input_dto, requested_fields)
         session_mode = getattr(input_dto, "session_mode", None)
         if session_mode not in {"stateful", "stateless"}:
             raise ValidationError(

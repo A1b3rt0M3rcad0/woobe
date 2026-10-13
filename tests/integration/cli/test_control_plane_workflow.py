@@ -33,7 +33,7 @@ from shared.security.control_plane import (
 )
 
 CLI_COMMIT = os.environ.get(
-    "WOOBE_TEST_CLI_SHA", "b7f8071720b07d30304be2023e82fb831dc6bf78"
+    "WOOBE_TEST_CLI_SHA", "420e9d69641952f24d90e3f04ae5215a02a1826e"
 )
 
 
@@ -2963,3 +2963,81 @@ async def exercise_trusted_git_pipeline(cli,kind,resource_id,qualified):
         body={'operation_id':str(uuid4()),'attestation':proof},expected=2)
     assert refused['error']['http_status']==422
     assert (await cli.data('request','GET',base+'/publications/'+publication['publication_id']))==publication
+
+@pytest.mark.asyncio
+async def test_report_contract_prompt_capture_patch_validation_and_timeout_identity(cli):
+    project=await cli.data('project','create',body={'workspace_id':cli.workspace_id,'name':'Contract regressions','slug':str(uuid4())})
+    cli.project_id=project['id']
+    credential=await cli.data('project','provider-credential','create',body={'project_id':cli.project_id,'provider':'custom','name':'Deterministic','secret':'fake-key','metadata':{'base_url':os.environ['WOOBE_TEST_FAKE_PROVIDER_URL'],'model':'fake-success'}})
+    model=await cli.data('project','provider-model','create',body={'project_id':cli.project_id,'provider_credential_id':credential['id'],'name':'Deterministic','model':'fake-success'})
+    agent=await cli.data('project','agent','create',body={'project_id':cli.project_id,'name':'Contract Agent','provider':'custom','provider_model_id':model['id'],'provider_credential_id':credential['id'],'model':'fake-success','system_prompt':'Old prompt','session_mode':'stateless','max_output_tokens':64})
+    aid=agent['id']
+    prompt=await cli.data('project','agent','prompt','create',aid,body={'project_id':cli.project_id,'agent_id':aid,'version':'2','content':'Exact selected prompt\n'+'A'*1690})
+    schema={'type':'object','properties':{'answer':{'type':'string'}},'required':['answer'],'additionalProperties':False}
+    contract=await cli.data('project','agent','contract','create',aid,body={'project_id':cli.project_id,'agent_id':aid,'version':'1','name':'','input_schema':None,'additional_instructions':None,'output_schema':schema})
+    assert contract['name']=='Contract 1' and contract['input_schema']=={} and contract['additional_instructions']==''
+    original=contract['updated_at']
+    patched=await cli.data('project','agent','contract','update',aid,contract['id'],body={'name':'Output','expected_updated_at':original})
+    assert patched['id']==contract['id'] and patched['name']=='Output'
+    conflict=await cli.run('project','agent','contract','update',aid,contract['id'],body={'name':'Stale','expected_updated_at':original},expected=6)
+    assert conflict['error']['http_status']==409
+    draft=await cli.data('project','agent','release','create',aid,body={'project_id':cli.project_id,'agent_id':aid,'version':'draft','prompt_version_id':prompt['id'],'contract_version_id':contract['id']})
+    assert draft['system_prompt']==prompt['content'] and draft['output_schema']==schema
+    assert draft['runtime_config']['contract_version_snapshot']['output_schema']==schema
+    testcase={'project_id':cli.project_id,'agent_id':aid,'release_id':draft['id'],'message':'Answer','environment':'draft','test_id':str(uuid4())}
+    passed=await cli.data('project','agent','release','run-test',aid,body=testcase)
+    assert passed['status']=='passed' and passed['actual_output']['provider_completed'] and passed['actual_output']['output_valid']
+    replay=await cli.data('project','agent','release','run-test',aid,body=testcase)
+    assert replay['id']==passed['id'] and replay['actual_output']['run_id']==passed['actual_output']['run_id']
+    changed=await cli.run('project','agent','release','run-test',aid,body={**testcase,'message':'Different'},expected=9)
+    assert changed['error']['message'].startswith('Test identity belongs')
+    async with httpx.AsyncClient(base_url=cli.origin,headers={'Authorization':'Bearer '+cli.credential},trust_env=False) as http:
+        response=await http.post('/ai/agents/'+aid+'/release-tests/run',json={**testcase,'message':'Different'})
+        assert response.status_code==409
+    # Editing the native Contract cannot reinterpret an already saved snapshot.
+    invalid={'type':'object','properties':{'message':{'type':'string'}},'required':['message'],'additionalProperties':False}
+    await cli.data('project','agent','contract','update',aid,contract['id'],body={'output_schema':invalid,'expected_updated_at':patched['updated_at']})
+    still_passed=await cli.data('project','agent','release','run-test',aid,body={**testcase,'test_id':str(uuid4())})
+    assert still_passed['status']=='passed'
+    destination=cli.directory/'contract-export'
+    await cli.run('package','export','agent',aid,'--destination',str(destination))
+    import yaml
+    manifests=[yaml.safe_load(file.read_text()) for file in destination.rglob('*.yaml')]
+    portable=next(item for item in manifests if isinstance(item,dict) and item.get('kind')=='Contract')
+    assert portable['spec']['output_schema']==schema
+    await cli.run('package','validate',str(destination))
+    newer=await cli.data('project','agent','release','create',aid,body={'project_id':cli.project_id,'agent_id':aid,'version':'draft'})
+    assert newer['output_schema']==invalid and newer['system_prompt']==prompt['content']
+    failed=await cli.run('project','agent','release','run-test',aid,body={**testcase,'release_id':newer['id'],'test_id':str(uuid4())},expected=6)
+    assert failed['data']['status']=='failed' and failed['data']['actual_output']['output_valid'] is False
+    assert failed['data']['validation_errors'][0]['code']=='OUTPUT_VALIDATION_FAILED'
+
+    # A client deadline loses only observation; a single accepted test continues.
+    await cli.data('project','agent','contract','update',aid,contract['id'],body={'output_schema':schema})
+    slow=await cli.data('project','provider-model','create',body={'project_id':cli.project_id,'provider_credential_id':credential['id'],'name':'Delayed deterministic','model':'fake-timeout'})
+    await cli.data('project','agent','update',aid,body={'provider_model_id':slow['id']})
+    delayed=await cli.data('project','agent','release','create',aid,body={'project_id':cli.project_id,'agent_id':aid,'version':'draft'})
+    uncertainty=await cli.run('project','agent','release','run-test',aid,'--timeout','150ms',body={**testcase,'release_id':delayed['id'],'test_id':str(uuid4())},expected=8)
+    observed_id=uncertainty['error']['test_id']
+    assert uncertainty['error']['write_outcome']=='unknown'
+    for _ in range(60):
+        tests=await cli.data('project','agent','release','tests',aid,delayed['id'])
+        observed=next((item for item in tests if item['id']==observed_id),None)
+        if observed and observed['status']!='pending': break
+        await asyncio.sleep(0.1)
+    assert observed and observed['status']=='passed'
+    assert observed['run_id']
+    assert len([item for item in tests if item['id']==observed_id])==1
+
+    # Managed creation shares the already registered Model without a duplicate.
+    registry=cli.directory/'shared-model-authoring'
+    registry.mkdir()
+    await cli.run('init','--root','.woobe',cwd=registry)
+    await cli.run('agent',aid,'pull','--alias','original',cwd=registry)
+    before_models={item['id'] for item in await cli.data('project','provider-model','list')}
+    before_agents={item['id'] for item in await cli.data('project','agent','list')}
+    await cli.run('resources','clone','agent','@original','--alias','second',cwd=registry)
+    await cli.run('agent','@second','create',cwd=registry)
+    after_models={item['id'] for item in await cli.data('project','provider-model','list')}
+    after_agents={item['id'] for item in await cli.data('project','agent','list')}
+    assert after_models==before_models and len(after_agents-before_agents)==1

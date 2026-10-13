@@ -234,6 +234,11 @@ def release_test_to_response(test: Any) -> ReleaseTestResponse:
 
 def list_release_tests_to_response(test: Any) -> ListReleaseTestsResponse:
     return ListReleaseTestsResponse(
+        run_id=getattr(test, "run_id", None),
+        provider_completed=getattr(test, "provider_completed", None),
+        output_valid=getattr(test, "output_valid", None),
+        contract_missing=getattr(test, "contract_missing", None),
+        validation_errors=test.validation_errors,
         id=test.id,
         release_id=test.release_id,
         contract_version_id=test.contract_version_id,

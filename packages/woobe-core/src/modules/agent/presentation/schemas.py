@@ -356,6 +356,11 @@ class ReleaseTestResponse(BaseModel):
 
 
 class ListReleaseTestsResponse(BaseModel):
+    run_id: str | None = None
+    provider_completed: bool | None = None
+    output_valid: bool | None = None
+    contract_missing: bool | None = None
+    validation_errors: list[dict[str, Any]] | None = None
     id: UUID
     release_id: UUID | None = None
     contract_version_id: UUID | None = None

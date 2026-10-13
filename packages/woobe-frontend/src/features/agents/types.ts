@@ -195,6 +195,7 @@ export interface CreateContractRequest {
 }
 
 export interface UpdateContractRequest {
+  expected_updated_at?: string
   name?: string
   input_schema?: Record<string, unknown>
   output_schema?: Record<string, unknown>

@@ -154,3 +154,15 @@ The frontend workflow now installs the locked browser fixture dependencies and
 pinned Chromium, builds/serves the frontend and executes the ten fixture regressions.
 Changes under `tests/e2e/` trigger this check. See the E2E README for local commands;
 fixture evidence remains distinct from the real-service acceptance suite.
+
+## Saved native contracts and runtime report — 2026-10-12
+
+The pinned CLI/API suite includes a sixth contract for native Prompt selection,
+Contract UPDATE/CAS, output validation without expected-output assertions,
+unchanged old capture export after Contract edit, timeout completion with one test
+UUID, and managed Agent creation sharing its registered Model. Unit regressions
+also exercise incomplete references, schema constraints/remote-reference refusal,
+canonical artifact retry, strict rejection evidence and dependency generation
+conflicts. The container gate verifies polluted nested Windows build inputs.
+These deterministic checks do not certify the report's customer Production or
+client business rules. See [the reference/test contract](../runtime/AGENT_REFERENCES_TESTS.md).

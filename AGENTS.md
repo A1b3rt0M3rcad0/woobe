@@ -32,6 +32,7 @@ Keep this file small. It is an index and routing guide, not a duplicate of produ
 - Trusted Git pipeline provenance: [docs/runtime/ASAC_GIT_PROVENANCE.md](docs/runtime/ASAC_GIT_PROVENANCE.md)
 - Signed ASaC receipts and instance trust: [docs/runtime/ASAC_SIGNED_RECEIPTS.md](docs/runtime/ASAC_SIGNED_RECEIPTS.md)
 - ASaC history and portable digests: [docs/runtime/ASAC_HISTORY.md](docs/runtime/ASAC_HISTORY.md)
+- Exact Prompt/Contract captures and saved tests: [docs/runtime/AGENT_REFERENCES_TESTS.md](docs/runtime/AGENT_REFERENCES_TESTS.md)
 - Unified runtime observer: [docs/runtime/UNIFIED_OBSERVER.md](docs/runtime/UNIFIED_OBSERVER.md)
 - ChatSurface: [docs/runtime/CHAT_SURFACE.md](docs/runtime/CHAT_SURFACE.md)
 - MCP Tools: [docs/runtime/MCP_TOOLS.md](docs/runtime/MCP_TOOLS.md)

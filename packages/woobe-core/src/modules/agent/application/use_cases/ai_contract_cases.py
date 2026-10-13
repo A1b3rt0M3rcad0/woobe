@@ -1,9 +1,27 @@
 from uuid import UUID
+from modules.agent.domain.contract_definition import contract_schema_hash
+
+from shared.contracts.errors import ConflictError, ValidationError
 
 from modules.agent.application.dtos.ai_dtos import CreateContractInput, CreateContractOutput, ListContractsOutput, UpdateContractInput, UpdateContractOutput
 from modules.agent.domain.entities import AgentContract
 from modules.agent.domain.enums import ContractStatus
 from modules.agent.application.interfaces.repositories import AgentContractRepository
+
+
+def _normalize_contract(item):
+    item.name = (item.name or "").strip() or f"Contract {item.version}"
+    if len(item.name) > 255:
+        raise ValidationError("Contract name must contain at most 255 characters")
+    if item.repair_attempts is None or item.repair_attempts < 0:
+        raise ValidationError("Contract repair_attempts must be nonnegative")
+    if item.validation_mode is None or item.status is None:
+        raise ValidationError("Contract validation_mode and status cannot be null")
+    item.input_schema = item.input_schema or {}
+    item.output_schema = item.output_schema or {}
+    item.additional_instructions = item.additional_instructions or ""
+    item.schema_hash = contract_schema_hash(item.input_schema, item.output_schema)
+    return item
 
 
 def _to_output(saved: AgentContract):
@@ -30,7 +48,7 @@ class CreateContractUseCase:
         self._contract_repo = contract_repo
 
     async def execute(self, input_dto: CreateContractInput) -> CreateContractOutput:
-        saved = await self._contract_repo.save(AgentContract(
+        saved = await self._contract_repo.save(_normalize_contract(AgentContract(
             project_id=input_dto.project_id,
             agent_id=input_dto.agent_id,
             version=input_dto.version,
@@ -42,7 +60,7 @@ class CreateContractUseCase:
             additional_instructions=input_dto.additional_instructions,
             schema_hash=input_dto.schema_hash,
             status=ContractStatus.draft,
-        ))
+        )))
         return _to_output(saved)
 
 
@@ -55,9 +73,12 @@ class UpdateContractUseCase:
         if item is None:
             from modules.agent.domain.errors import ContractNotFoundError
             raise ContractNotFoundError
-        for field, value in input_dto.model_dump(exclude_unset=True).items():
+        observed = item.updated_at
+        if input_dto.expected_updated_at is not None and input_dto.expected_updated_at != observed:
+            raise ConflictError("Contract changed; read its updated_at before retrying")
+        for field, value in input_dto.model_dump(exclude_unset=True, exclude={"expected_updated_at"}).items():
             setattr(item, field, value)
-        saved = await self._contract_repo.save(item)
+        saved = await self._contract_repo.update(_normalize_contract(item), expected_updated_at=observed)
         return UpdateContractOutput(**_to_output(saved).model_dump())
 
 

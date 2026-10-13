@@ -72,7 +72,10 @@ class CanonicalExecutionSnapshotRuntimeResolver(ReleaseRuntimeResolver):
             )
             if "runtime_config" in snapshot_override:
                 snapshot_override["runtime_config"] = merged_runtime_config
-            agent = self._apply_snapshot_override(agent, snapshot_override)
+            if {"contract_version_id", "output_schema", "provider", "model", "session_mode"} <= snapshot_override.keys():
+                agent = apply_snapshot(agent, snapshot_override)
+            else:
+                agent = self._apply_snapshot_override(agent, snapshot_override)
             agent = self._apply_runtime_config_snapshot(agent, merged_runtime_config)
             self._apply_snapshot_provider_model_ids(agent, snapshot_override)
             return await self._resolve_provider_model_refs(uow, agent)

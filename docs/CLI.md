@@ -258,3 +258,7 @@ browser edit.
 See [CLI deployment](CLI_DEPLOYMENT.md) for Agent/Network delivery from exact
 Releases, captured Staging or validated local ASaC, deploy-only CI grants,
 private intent recovery and explicit qualified rollback.
+
+## Exact references and test recovery
+
+See [Agent references and saved-snapshot tests](runtime/AGENT_REFERENCES_TESTS.md) for schema validation, native Contract PATCH/CAS, frozen reference export and caller-selected test identity. The CLI must verify advertised identity support before executing a recoverable native test.

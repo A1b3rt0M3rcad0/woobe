@@ -281,13 +281,19 @@ class DevelopmentRegistry:
                     raise PackageError(
                         "PACKAGE_REVISION_CONFLICT",
                         "Prepared resource was changed by another client; pull it before resuming",
+                        kind=kind, resource_id=resource_id, path=f"/resource_bindings/{key}",
+                        expected_revision=str(row.preparation["root_revision"]),
+                        observed_revision=str(evidence["revision"]),
                     )
                 if target.get("release_id") is None and (
                     expected is None or str(expected) != str(evidence["revision"])
                 ):
                     raise PackageError(
                         "PACKAGE_REVISION_CONFLICT",
-                        "Resource changed after the local base was observed",
+                        "Resource changed after the local base was observed; pull the owning Agent/Network and review the diff before pushing again",
+                        kind=kind, resource_id=resource_id, path=f"/resource_bindings/{key}",
+                        expected_revision=str(expected) if expected is not None else "missing",
+                        observed_revision=str(evidence["revision"]),
                     )
             if (
                 kind == "Knowledge"
@@ -517,7 +523,10 @@ class DevelopmentRegistry:
                 ):
                     raise PackageError(
                         "PACKAGE_REVISION_CONFLICT",
-                        "Resource changed after synchronization planning",
+                        "Resource changed after synchronization planning; pull and review a new plan",
+                        kind=target["kind"], resource_id=target["resource_id"],
+                        expected_revision=str(target["evidence"]["revision"]),
+                        observed_revision=str(observed["revision"]),
                     )
 
     async def reserve(self, session, plan, operation):

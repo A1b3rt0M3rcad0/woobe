@@ -372,6 +372,11 @@ class StructuredOutputAskAgentUseCase(
                     + format_contract_errors(validation_errors)
                 )
         if context and context.strict_json and output_parse_error:
+            from modules.agent.application.interfaces.release_test_execution import release_test_output_capture
+            capture = release_test_output_capture.get()
+            if capture is not None:
+                capture.update(answer=answer, parsed_output=parsed_output,
+                               run_id=context.run_id, output_parse_error="OUTPUT_VALIDATION_FAILED")
             raise ValueError(f"Strict JSON output failed: {output_parse_error}")
         if not context or not context.execution:
             return await super()._finalize(

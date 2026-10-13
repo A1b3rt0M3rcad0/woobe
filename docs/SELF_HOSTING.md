@@ -70,3 +70,7 @@ trust; clients pin an independently confirmed root fingerprint.
 `WOOBE_ASAC_GIT_TRUSTED_BUILDERS=[]` trusts no pipeline by default. Configure only
 public builder keys with explicit Project, repository, instance and Control Key
 principal scope; see [Git provenance](runtime/ASAC_GIT_PROVENANCE.md).
+
+### Building from a Windows checkout
+
+Keep the root `.dockerignore` active for the repository build context. Nested `node_modules/` and `*.tsbuildinfo` are excluded so Windows host dependencies and compiler caches cannot overwrite the Linux dependencies installed in image stages. `python scripts/verify_docker_host_exclusions.py` verifies the actual ignore rules against a poisoned multi-package context.

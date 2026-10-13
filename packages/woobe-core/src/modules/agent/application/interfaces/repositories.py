@@ -110,6 +110,10 @@ class AgentContractRepository(ABC):
     @abstractmethod
     async def save(self, contract: AgentContract) -> AgentContract: ...
 
+    async def update(self, contract: AgentContract, *, expected_updated_at=None) -> AgentContract:
+        """Update an existing version atomically against its observed timestamp."""
+        raise NotImplementedError
+
     @abstractmethod
     async def get_by_id(self, contract_id: UUID) -> AgentContract | None: ...
 

@@ -1,3 +1,5 @@
+from sqlalchemy import text
+
 from modules.agent.infra.database.models import AgentReleaseModel, AgentReleaseTestModel
 from modules.agent.infra.database.mappers import agent_release_test_model_to_entity
 from modules.agent.infra.database.repositories import (
@@ -28,6 +30,22 @@ class SQLReleaseTestExecutionStore:
                     "release_id": str(request.release_id),
                 },
             )
+            identity = getattr(request, "test_id", None)
+            if identity is not None:
+                # Serialize only admission of the same request identity, never hold
+                # a database transaction across provider execution.
+                await uow.session.execute(text("SELECT pg_advisory_xact_lock(:key)"),
+                                          {"key": identity.int & ((1 << 63) - 1)})
+                existing = await uow.session.get(AgentReleaseTestModel, identity)
+                if existing is not None:
+                    if existing.project_id != request.project_id or existing.agent_id != request.agent_id:
+                        raise NotFoundError("Release test is unavailable")
+                    if (existing.release_id != request.release_id or existing.expected_output != request.expected_output
+                        or existing.input_payload != {"message": request.message, "external_context": request.external_context, "environment": request.environment}):
+                        raise ConflictError("Release test identity already belongs to another request")
+                    test = agent_release_test_model_to_entity(existing)
+                    test.replayed = True
+                    return test
             release = await uow.session.get(AgentReleaseModel, request.release_id)
             selected = None
             if request.environment in {"staging", "production"}:
@@ -56,19 +74,30 @@ class SQLReleaseTestExecutionStore:
             if request.environment == "draft" and release.snapshot_kind != "draft":
                 raise ValidationError("Draft testing requires a Draft snapshot")
             repository = SQLAlchemyAgentReleaseTestRepository(uow)
-            return await repository.save(
+            test = await repository.save(
                 AgentReleaseTest(
+                    **({"id": identity} if identity is not None else {}),
                     project_id=request.project_id,
                     agent_id=request.agent_id,
                     release_id=request.release_id,
                     contract_version_id=release.contract_version_id,
                     input_payload={
+                        "environment": request.environment,
                         "message": request.message,
                         "external_context": request.external_context,
                     },
                     expected_output=request.expected_output,
                 )
             )
+            if hasattr(release, "provider"):
+                from modules.agent.application.execution_snapshot import build_agent_execution_snapshot
+                test.execution_snapshot = build_agent_execution_snapshot(release)
+            test.validation_schema = getattr(release, "output_schema", None)
+            response = getattr(release, "response_format", None) or {}
+            if test.validation_schema is None and not release.contract_version_id:
+                test.validation_schema = response.get("schema") if response.get("enabled") else None
+            test.contract_missing = bool(release.contract_version_id and test.validation_schema is None)
+            return test
 
     async def finish(self, test_id, *, actual_output, errors, latency_ms):
         async with self._build_uow() as uow:
