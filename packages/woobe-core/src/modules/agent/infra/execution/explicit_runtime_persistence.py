@@ -871,7 +871,7 @@ class ExplicitRuntimePersistenceMixin:
         fallback_chat_model = self._llm_factory.create_chat_model(
             provider=fallback_provider,
             model=agent.fallback_model,
-            api_key=str((prepared or {}).get("api_key") or ""),
+            api_key=(prepared or {}).get("api_key") or "",
             base_url=(prepared or {}).get("base_url"),
             temperature=agent.temperature or 0.2,
             max_tokens=agent.max_output_tokens or 1000,

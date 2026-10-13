@@ -26,6 +26,7 @@ class AgentASaCBindingGuard:
             actual = None if row is None else {'credential_id':str(row.id),'provider':row.provider,
                 'revision':row.updated_at.isoformat(),'existing':True}
             if actual is not None and 'binding_revision' in evidence:
+                actual.pop('revision')
                 actual['binding_revision'] = row.binding_revision
             if row is None or row.status!='active' or actual!=evidence:
                 raise ConflictError('ASAC_DEPLOYMENT_BINDINGS_CHANGED: credential version unavailable')

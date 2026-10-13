@@ -939,18 +939,58 @@ async def test_secret_migration_job_rejects_changed_consumer_closure_and_reports
 
 
 @pytest.mark.asyncio
-async def test_legacy_provider_created_through_repository_is_present_in_inventory(configuration, monkeypatch):
+async def test_legacy_provider_create_is_central_from_first_commit(configuration, monkeypatch):
     from modules.agent.application.interfaces import project_configuration as port
     from modules.agent.domain.entities import ProviderCredential
     from modules.agent.domain.enums import Provider
     from modules.agent.infra.database.configuration_provider_migration import inventory_provider_configuration
     from modules.agent.infra.database.repositories import SQLAlchemyProviderCredentialRepository
-    store, project, _ = configuration
+    from modules.agent.infra.database.models import ProviderCredentialModel
+    from modules.core.infra.database.configuration_legacy import LegacyConfigurationStore
+    from modules.core.infra.database.configuration_models import LegacyConfigurationValueModel
+    from shared.infra.crypto import encrypt_secret
+    original, project, _ = configuration
+    store = LegacyConfigurationStore(original.session, encryption_key=original.encryption_key)
+    monkeypatch.setattr(port, '_factory', lambda session: store)
+    repository = SQLAlchemyProviderCredentialRepository(store.session)
+    cipher = encrypt_secret(CANARY, store.encryption_key)
+    created = await repository.save(ProviderCredential(project_id=project, provider=Provider.openai,
+        name='Compatible writer', encrypted_secret=cipher))
+    row = await store.session.get(ProviderCredentialModel, created.id)
+    assert row.encrypted_secret is None and created.encrypted_secret == ''
+    reference = created.authentication['fields']['api_key']
+    assert reference['source'] == 'legacy_configuration'
+    material = await store.session.scalar(select(LegacyConfigurationValueModel).where(LegacyConfigurationValueModel.alias_id == UUID(reference['alias_id'])))
+    assert material.stored_value == cipher
+    assert not (await inventory_provider_configuration(store.session, project_id=project))['items']
+    from modules.agent.infra.adapters.configuration_bindings import provider_dependencies
+    run = uuid4()
+    await store.acquire(project_id=project, run_id=run, environment='staging', dependencies=provider_dependencies(created))
+    resolved = await store.resolve(project_id=project, run_id=run, consumer_kind='provider_credential',
+        consumer_id=created.id, field_path='/authentication/fields/api_key', destination='https://api.openai.com/v1')
+    assert resolved == CANARY
+    revision = created.binding_revision
+    created.encrypted_secret = encrypt_secret(CANARY + '-rotated', store.encryption_key)
+    rotated = await repository.update(created)
+    assert rotated.binding_revision == revision and rotated.encrypted_secret == ''
+    await store.session.refresh(material)
+    assert material.revision == 2
     monkeypatch.setattr(port, '_factory', None)
-    created = await SQLAlchemyProviderCredentialRepository(store.session).save(ProviderCredential(
-        project_id=project, provider=Provider.openai, name='Legacy writer', encrypted_secret='protected'))
-    inventory = await inventory_provider_configuration(store.session, project_id=project)
-    assert any(item['id'] == str(created.id) and item['state'] == 'eligible' for item in inventory['items'])
+    with pytest.raises(ConfigurationError) as failure:
+        await repository.save(ProviderCredential(project_id=project, provider=Provider.openai,
+            name='Unavailable store', encrypted_secret=cipher))
+    assert failure.value.code == 'CONFIG_STORE_UNAVAILABLE'
+
+
+@pytest.mark.asyncio
+async def test_old_provider_database_rows_remain_in_inventory(configuration):
+    from modules.agent.infra.database.configuration_provider_migration import inventory_provider_configuration
+    from modules.agent.infra.database.models import ProviderCredentialModel
+    store, project, _ = configuration
+    row = ProviderCredentialModel(project_id=project, provider='openai', name='Pre-upgrade row', encrypted_secret='protected')
+    store.session.add(row)
+    await store.session.flush()
+    assert any(item['id'] == str(row.id) for item in (await inventory_provider_configuration(store.session, project_id=project))['items'])
 
 
 @pytest.mark.asyncio

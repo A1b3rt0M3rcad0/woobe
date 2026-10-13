@@ -19,11 +19,19 @@ async def collect_configuration_dependencies(session, *, project_id, bindings, i
         if not isinstance(binding, dict):
             raise ConfigurationError("CONFIG_BINDING_INVALID")
         snapshot = binding.get("snapshot_override")
-        if isinstance(snapshot, dict):
+        # Runtime gives the immutable release precedence. Networks also carry
+        # a small compatibility override (provider/model/pinned_release_id); it
+        # is not the executable closure and must not hide its dependencies.
+        release_id = binding.get("release_id")
+        if isinstance(snapshot, dict) and not release_id:
+            if snapshot.get("pinned_release_id"):
+                raise ConfigurationError("CONFIG_BINDING_INVALID")
             snapshots.append((node_id, snapshot))
         else:
             try:
-                missing[node_id] = UUID(str(binding.get("release_id") or binding.get("draft_release_id")))
+                missing[node_id] = UUID(str(release_id or binding.get("draft_release_id")))
+                if isinstance(snapshot, dict) and snapshot.get("pinned_release_id") not in (None, str(missing[node_id])):
+                    raise ConfigurationError("CONFIG_BINDING_INVALID")
             except ValueError:
                 raise ConfigurationError("CONFIG_BINDING_INVALID") from None
     if missing:
@@ -31,7 +39,8 @@ async def collect_configuration_dependencies(session, *, project_id, bindings, i
             AgentReleaseModel.project_id == project_id, AgentReleaseModel.id.in_(set(missing.values()))))).all()
         releases = {r.id: r for r in rows}
         for node_id, identifier in missing.items():
-            if identifier not in releases:
+            if identifier not in releases or (bindings[node_id].get("agent_id")
+                    and str(releases[identifier].agent_id) != str(bindings[node_id]["agent_id"])):
                 raise ConfigurationError("CONFIG_REFERENCE_NOT_FOUND")
             snapshots.append((node_id, snapshot_builder(releases[identifier])))
     identifiers = set()

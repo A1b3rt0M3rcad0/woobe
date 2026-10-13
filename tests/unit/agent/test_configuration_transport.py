@@ -69,3 +69,27 @@ async def test_revocation_between_requests_blocks_reused_client():
             await client.post("https://provider.example/v1/chat")
     assert error.value.code == "CONFIG_VALUE_REVOKED"
     assert len(sent) == 1
+
+
+@pytest.mark.asyncio
+async def test_compatibility_fallback_keeps_resolver_until_transport():
+    from types import SimpleNamespace as N
+    from unittest.mock import AsyncMock, Mock
+    from modules.agent.application.interfaces.execution_context import current_execution, new_execution_context
+    from modules.agent.infra.execution.explicit_runtime_persistence import ExplicitRuntimePersistenceMixin
+    resolve = AsyncMock()
+    credential = BoundConfigurationCredential(resolve)
+    factory = N(create_chat_model=Mock(return_value=N(ainvoke=AsyncMock(return_value="answer"))))
+    context = new_execution_context()
+    context.prepared_fallback = {"api_key": credential, "base_url": "https://fallback.test/v1"}
+    token = current_execution.set(context)
+    try:
+        result = await ExplicitRuntimePersistenceMixin._try_fallback(N(_llm_factory=factory),
+            N(provider="openai", model="main", fallback_provider="openai", fallback_model="fallback",
+                fallback_credential_id="credential", temperature=0.2, max_output_tokens=50),
+            [], False, "unavailable")
+    finally:
+        current_execution.reset(token)
+    assert result[0] == "answer"
+    assert factory.create_chat_model.call_args.kwargs["api_key"] is credential
+    resolve.assert_not_awaited()

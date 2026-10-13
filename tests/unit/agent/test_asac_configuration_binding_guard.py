@@ -30,7 +30,7 @@ async def test_configuration_provider_revision_is_fenced(monkeypatch):
     import modules.agent.infra.database.asac_binding_guard as module
     monkeypatch.setattr(module, "authorize_export_read", AsyncMock())
     row = N(id=uuid4(), provider="openai", status="active", updated_at=datetime.now(UTC), binding_revision=5)
-    evidence = {"credential_id":str(row.id), "provider":row.provider, "revision":row.updated_at.isoformat(), "binding_revision":5, "existing":True}
+    evidence = {"credential_id":str(row.id), "provider":row.provider, "binding_revision":5, "existing":True}
     session = N(scalar=AsyncMock(return_value=row))
     environment = N(verify=AsyncMock())
     guard = AgentASaCBindingGuard(environment)

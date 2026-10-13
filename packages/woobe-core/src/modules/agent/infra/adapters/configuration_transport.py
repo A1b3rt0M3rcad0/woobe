@@ -1,6 +1,7 @@
 """Resolve pinned credentials only at the actual outbound HTTP boundary."""
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
+import logging
 
 import httpx
 
@@ -21,7 +22,11 @@ class ConfigurationTransport(httpx.AsyncBaseTransport):
     async def handle_async_request(self, request):
         # This runs for each SDK retry and each redirect hop, never per token.
         # Revalidation happens before a pooled connection sends any bytes.
-        value = await self.credential.resolve(str(request.url))
+        try:
+            value = await self.credential.resolve(str(request.url))
+        except ConfigurationError as error:
+            logging.getLogger(__name__).warning("Configuration outbound denied: %s", error.code)
+            raise
         if not isinstance(value, str) or not value or any(c in value for c in "\r\n\x00"):
             raise ConfigurationError("CONFIG_VALUE_INVALID")
         request.headers[self.header] = self.prefix + value

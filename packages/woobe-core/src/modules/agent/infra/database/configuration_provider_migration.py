@@ -7,6 +7,33 @@ from modules.agent.infra.adapters.configuration_bindings import provider_destina
 from shared.contracts.project_configuration import ConfigurationDependency, ConfigurationError
 
 
+async def centralize_new_provider(session, credential):
+    """Legacy create has no retained source to drain; its first commit is central.
+
+    Compatibility authority is restricted to this identity and its declared
+    destination. It is not a reusable secret-name grant for future consumers.
+    """
+    if credential.authentication is not None:
+        return
+    configuration = configuration_for_session(session)
+    if configuration is None:
+        raise ConfigurationError("CONFIG_STORE_UNAVAILABLE")
+    await configuration.lock_project(credential.project_id)
+    destination = provider_destination(credential)
+    field = "/authentication/fields/api_key"
+    revision = "legacy-create:" + str(credential.id)
+    dependencies = [ConfigurationDependency(credential.project_id, "provider_credential", credential.id,
+        revision, field, "pending", destination)]
+    result = await configuration.adopt(project_id=credential.project_id, source_kind="provider_credential",
+        source_id=credential.id, field_path=field, source_revision=revision,
+        encrypted_value=credential.encrypted_secret, dependencies=dependencies, actor="legacy-provider-create")
+    if result["phase"] not in {"cutover", "completed"}:
+        raise ConfigurationError("CONFIG_STORE_UNAVAILABLE")
+    credential.authentication = {"type":"api_key", "fields":{"api_key":{
+        "source":"legacy_configuration", "key":result["key"], "alias_id":result["alias_id"]}}}
+    credential.encrypted_secret = ""
+
+
 async def inventory_provider_configuration(session, *, project_id, after_id=None, limit=100):
     """Keyset inventory reads metadata only; no ciphertext enters the report."""
     from types import SimpleNamespace

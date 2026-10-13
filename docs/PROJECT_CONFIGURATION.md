@@ -129,3 +129,18 @@ Schema2 history uses a separate digest contract documented in
 Capturing or preparing a revision is not permission to execute it or populate
 missing remote values. Full lifecycle and legacy-source qualification remains
 part of the rollout gate.
+
+
+Legacy Provider creation now places material in the central store in its first
+transaction. The existing Provider ID remains stable and receives an explicit
+compatibility alias restricted to that consumer and its declared destination.
+It does not copy the value to all Environments or authorize generic references.
+Existing database rows still require the inventory/cutover workflow. Unsupported
+or ambiguous destinations fail without retaining an active inline credential.
+Material rotation preserves the semantic binding revision; configuration-aware
+ASaC guards compare that revision separately from value versions.
+
+Network configuration admission reads the exact pinned Agent release, including
+when a Network carries only a compatibility override with provider/model names.
+Fallback model preparation preserves the protected resolver until HTTP send;
+revocation and destination checks apply to fallback requests as well.

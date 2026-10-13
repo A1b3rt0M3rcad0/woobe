@@ -31,5 +31,5 @@ async def inspect_configuration_provider_reuse(session, *, project_id, connectio
                 or any((row.meta or {}).get(key) != value for key, value in (connection.get("metadata") or {}).items())):
             raise ConfigurationError("CONFIG_BINDING_INVALID")
         result[alias] = {"credential_id": str(row.id), "provider": row.provider, "existing": True,
-            "revision": row.updated_at.isoformat(), "binding_revision": row.binding_revision}
+            "binding_revision": row.binding_revision}
     return result

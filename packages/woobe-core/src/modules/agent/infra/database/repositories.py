@@ -129,6 +129,8 @@ class SQLAlchemyProviderCredentialRepository(
         super().__init__(session, ProviderCredentialModel)
 
     async def save(self, credential: ProviderCredential) -> ProviderCredential:
+        from modules.agent.infra.database.configuration_provider_migration import centralize_new_provider
+        await centralize_new_provider(self._session, credential)
         await self._configuration_references(credential)
         model = provider_credential_entity_to_model(credential)
         await self._add_model(model)

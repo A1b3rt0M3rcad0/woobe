@@ -47,7 +47,8 @@ class _Runtime(InstrumentedFallbackMixin):
 
 
 @pytest.mark.asyncio
-async def test_fallback_uses_streaming_model_public_final_phase_and_effective_output(monkeypatch) -> None:
+@pytest.mark.parametrize("central", [False, True])
+async def test_fallback_uses_streaming_model_public_final_phase_and_effective_output(monkeypatch, central) -> None:
     factory = _Factory()
     context_assembler = _UnusedContextAssembler()
     runtime = _Runtime(factory, context_assembler)
@@ -88,6 +89,14 @@ async def test_fallback_uses_streaming_model_public_final_phase_and_effective_ou
         max_output_tokens=256,
         settings={"fallback_model_pricing": {"max_output_tokens": 64}},
     )
+    from modules.agent.application.interfaces.execution_context import current_execution, new_execution_context
+    from modules.agent.infra.adapters.configuration_transport import BoundConfigurationCredential
+    async def resolve(_destination):
+        raise AssertionError("Preparation must not reveal material")
+    credential = BoundConfigurationCredential(resolve) if central else "legacy-test-key"
+    context = new_execution_context()
+    context.prepared_fallback = {"api_key": credential, "base_url": "https://example.test/v1"}
+    execution_token = current_execution.set(context)
     channel = RuntimeStreamChannel()
     stream_token = current_runtime_stream.set(channel)
     try:
@@ -99,6 +108,7 @@ async def test_fallback_uses_streaming_model_public_final_phase_and_effective_ou
         )
     finally:
         current_runtime_stream.reset(stream_token)
+        current_execution.reset(execution_token)
 
     assert result.content == "fallback answer"
     assert provider == "custom"
@@ -110,3 +120,5 @@ async def test_fallback_uses_streaming_model_public_final_phase_and_effective_ou
     assert captured["model"] is factory.model
     assert captured["context_prepared"] is True
     assert "context_assembler" not in captured
+
+    assert factory.kwargs["api_key"] is credential
