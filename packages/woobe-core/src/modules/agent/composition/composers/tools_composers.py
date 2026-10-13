@@ -1,3 +1,4 @@
+from modules.agent.application.interfaces.configuration_authority import tool_binding_permissions
 from modules.agent.application import mcp_oauth
 from modules.agent.application import mcp_oauth_flow_safety as mcp_oauth_flows
 from modules.agent.application.mcp_discovery import DiscoverMcpToolsUseCase
@@ -116,7 +117,7 @@ def create_tool_composer() -> TransactionalHandler:
         project_environment_key_validator=_project_environment(uow).require_keys,
     )
     controller = CreateToolController(use_case)
-    return TransactionalHandler(uow, controller.handle)
+    return TransactionalHandler(uow, controller.handle, additional_permissions=tool_binding_permissions)
 
 
 
@@ -140,7 +141,7 @@ def update_tool_composer() -> TransactionalHandler:
         project_environment_key_validator=_project_environment(uow).require_keys,
     )
     controller = UpdateToolController(use_case)
-    return TransactionalHandler(uow, controller.handle)
+    return TransactionalHandler(uow, controller.handle, additional_permissions=tool_binding_permissions)
 
 
 def delete_tool_composer() -> TransactionalHandler:

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { AlertTriangle, Cable, Cpu, Database, Pencil, RotateCcw, ShieldOff, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Alert, AlertDescription, AlertTitle, DialogFooter, SectionBlock, TechnicalListItem } from '@woobe/ui'
@@ -167,7 +167,7 @@ function CredentialCard({ credential, generationCount, embeddingCount, onClick }
           <ResourcePill><Database className="mr-1 inline h-3 w-3" />{embeddingCount} embedding</ResourcePill>
         </>
       )}
-      footer={`Last validated · ${formatDate(credential.last_validated_at || credential.updated_at || credential.created_at)}`}
+      footer={credential.last_validated_at ? `Last validated · ${formatDate(credential.last_validated_at)}` : 'Connection not externally validated'}
     />
   )
 }
@@ -235,7 +235,7 @@ function CredentialDetailsDialog({
           actions={(
             <>
               <Button type="button" variant="outline" onClick={onEdit}><Pencil className="h-icon w-icon" />Edit</Button>
-              <Button type="button" variant="outline" onClick={onRotate} disabled={credential.status !== 'active'}><RotateCcw className="h-icon w-icon" />Rotate</Button>
+              <Button type="button" variant="outline" onClick={onRotate} disabled={credential.status !== 'active'}><RotateCcw className="h-icon w-icon" />{credential.authentication ? 'Configure environments' : 'Rotate'}</Button>
               <Button type="button" variant="outline" onClick={onRevoke} disabled={credential.status === 'revoked'} className="text-amber-200 hover:text-amber-100"><ShieldOff className="h-icon w-icon" />Revoke</Button>
               <Button type="button" variant="outline" onClick={onArchive} className="text-red-200 hover:text-red-100"><Trash2 className="h-icon w-icon" />Archive</Button>
             </>
@@ -298,7 +298,8 @@ function ImpactDialog({ state, loading, onClose, onConfirm }: { state: ConfirmSt
 }
 
 export default function CredentialsPage() {
-  const { projectId } = useParams<{ projectId: string }>()
+  const { projectId, workspaceId } = useParams<{ projectId: string; workspaceId: string }>()
+  const navigate = useNavigate()
   const credentialsQuery = useCredentials(projectId)
   const modelsQuery = useProviderModels(projectId)
   const updateCredential = useUpdateCredential()
@@ -348,7 +349,14 @@ export default function CredentialsPage() {
   const closeCredentialForm = () => { setShowCredentialForm(false); setCredentialToEdit(null) }
   const openCreateCredential = () => { setCredentialToEdit(null); setShowCredentialForm(true) }
   const openEditCredential = () => { if (!selectedCredential) return; setCredentialToEdit(selectedCredential); setSelectedCredential(null); setShowCredentialForm(true) }
-  const openRotateCredential = () => { if (!selectedCredential || selectedCredential.status !== 'active') return; setCredentialToRotate(selectedCredential); setSelectedCredential(null) }
+  const openRotateCredential = () => {
+    if (!selectedCredential || selectedCredential.status !== 'active') return
+    if (selectedCredential.authentication) {
+      navigate(workspaceId ? `/workspaces/${workspaceId}/projects/${projectId}/environments` : `/projects/${projectId}/environments`)
+      return
+    }
+    setCredentialToRotate(selectedCredential); setSelectedCredential(null)
+  }
   const closeRotateCredential = () => { if (credentialToRotate) setSelectedCredential(credentialToRotate); setCredentialToRotate(null) }
 
   const prepareAction = async (kind: 'archive' | 'revoke') => {

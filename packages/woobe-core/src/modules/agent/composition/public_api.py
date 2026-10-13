@@ -553,3 +553,24 @@ from modules.agent.composition.composers.finalize_imported_agent_composer import
 from modules.agent.composition.composers.verify_imported_agent_composer import verify_development_agent_composer
 
 __all__.extend(['build_development_resource_reader', 'prepare_existing_agent_composer', 'reuse_development_resource_composer', 'reuse_frozen_agent_composer', 'materialize_development_prompt_composer', 'materialize_development_contract_composer', 'materialize_development_collection_composer', 'materialize_development_document_composer', 'create_development_vector_composer', 'find_development_document_composer', 'finalize_existing_agent_composer', 'verify_development_agent_composer'])
+
+from modules.agent.application.interfaces.project_configuration import configure_project_configuration
+__all__.append("configure_project_configuration")
+
+from modules.agent.composition.factories.configuration_readers import collect_configuration_dependencies
+__all__.append("collect_configuration_dependencies")
+
+from modules.agent.composition.factories.configuration_readers import read_configuration_target
+__all__.append("read_configuration_target")
+
+from modules.agent.composition.composers.list_available_provider_models_composer import list_available_provider_models_composer
+__all__.append("list_available_provider_models_composer")
+
+from modules.agent.application.interfaces.project_configuration import configure_runtime_configuration_resolver
+__all__.append("configure_runtime_configuration_resolver")
+
+from modules.agent.infra.database.configuration_binding_writer import configuration_binding
+__all__.append("configuration_binding")
+
+from modules.agent.composition.factories.configuration_tool_preparation import build_configuration_tool_preparation
+__all__.append("build_configuration_tool_preparation")

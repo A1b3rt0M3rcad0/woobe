@@ -32,8 +32,9 @@ from shared.security.crypto import encrypt_secret
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("configuration_mode", ["legacy", "remote", "missing"])
 async def test_network_runtime_executes_real_agent_against_fake_custom_provider_with_two_commits(
-    monkeypatch,
+    monkeypatch, configuration_mode,
 ) -> None:
     settings = Settings()
     fake_provider_url = os.environ.get("WOOBE_TEST_FAKE_PROVIDER_URL")
@@ -144,6 +145,34 @@ async def test_network_runtime_executes_real_agent_against_fake_custom_provider_
         # These fixtures intentionally use scalar FK ids instead of ORM relationships.
         # Flush each dependency before its consumer so the test setup is deterministic
         # on PostgreSQL. This setup commit is outside the lifecycle commit counter below.
+        if configuration_mode != "legacy":
+            from modules.core.infra.database.models import ProjectModel
+            from modules.identity.infra.database.models import WorkspaceModel
+            from modules.core.infra.database.configuration_resolution import ConfigurationResolution
+            from modules.agent.application.interfaces import project_configuration
+            from modules.network.application import configuration_acceptance
+            from modules.agent.entrypoint import collect_configuration_dependencies
+            from uuid import UUID
+            workspace = uuid4()
+            session.add(WorkspaceModel(id=workspace, name="Configuration", slug=str(workspace), status="active"))
+            await session.flush()
+            session.add(ProjectModel(id=project_id, workspace_id=workspace, name="Configuration", slug=str(project_id), status="active", data={}))
+            await session.flush()
+            factory = lambda session: ConfigurationResolution(session, encryption_key=settings.encryption_key)
+            monkeypatch.setattr(project_configuration, "_factory", factory)
+            async def accept(session, *, project_id, run_id, environment, bindings):
+                dependencies = await collect_configuration_dependencies(session, project_id=project_id, bindings=bindings)
+                return await factory(session).acquire(project_id=project_id, run_id=run_id, environment=environment, dependencies=dependencies)
+            monkeypatch.setattr(configuration_acceptance, "_accept", accept)
+            store = factory(session)
+            key = await store.declare(project_id=project_id, key="FAKE_PROVIDER_KEY")
+            if configuration_mode == "remote":
+                await store.write_value(project_id=project_id, key_id=UUID(key["id"]), environment="draft", expected_revision=0, value="configuration-network-canary")
+            await store.grant_use(project_id=project_id, key_id=UUID(key["id"]), consumer_kind="provider_credential",
+                consumer_scope=str(credential_id), destination=fake_provider_url, environments=["draft"],
+                field_paths=["/authentication/fields/api_key"], expected_revision=0, actor="test-owner")
+            credential.encrypted_secret = None
+            credential.authentication = {"type": "api_key", "fields": {"api_key": {"source": "project_environment", "key": "FAKE_PROVIDER_KEY"}}}
         session.add(credential)
         await session.flush()
 
@@ -206,6 +235,22 @@ async def test_network_runtime_executes_real_agent_against_fake_custom_provider_
         worker_id=f"network-integration-{uuid4()}",
     )
 
+    if configuration_mode == "missing":
+        from shared.contracts.project_configuration import ConfigurationError
+        with pytest.raises(ConfigurationError) as failure:
+            await service.submit_execution(network_id=network_id, project_id=project_id,
+                network_session_id=network_session_id, message="must not run",
+                external_context={"name": "Alberto", "customer_id": "cus-network-1"},
+                idempotency_key=f"missing-config-{uuid4()}", expected_draft_revision=1)
+        assert failure.value.code == "CONFIG_VALUE_MISSING"
+        async with session_factory() as session:
+            executions = (await session.scalars(select(NetworkExecutionModel).where(NetworkExecutionModel.project_id == project_id))).all()
+            assert executions == []
+        assert provider_requests == []
+        await http_executor.aclose()
+        await engine.dispose()
+        return
+
     commits = 0
 
     def after_commit(_session) -> None:
@@ -227,6 +272,11 @@ async def test_network_runtime_executes_real_agent_against_fake_custom_provider_
     finally:
         event.remove(SyncSession, "after_commit", after_commit)
         await http_executor.aclose()
+        # Each parametrized case owns its asyncio loop; do not reuse a Redis
+        # socket attached to the previous closed loop.
+        from shared.composition_resources import REDIS_CLIENT
+        if REDIS_CLIENT is not None:
+            await REDIS_CLIENT.aclose()
 
     assert commits == 2, (
         "Network lifecycle must remain one Acceptance commit plus one Finalization commit"
@@ -265,6 +315,7 @@ async def test_network_runtime_executes_real_agent_against_fake_custom_provider_
     assert execution.failure_code is None
 
     assert len(provider_requests) == 1
+    assert "configuration-network-canary" not in json.dumps(provider_requests)
     model_messages = json.dumps(provider_requests[0]["messages"], ensure_ascii=False)
     assert "External Context supplied by the runtime" in model_messages
     assert "Alberto" in model_messages

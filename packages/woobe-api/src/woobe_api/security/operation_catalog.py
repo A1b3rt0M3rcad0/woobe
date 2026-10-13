@@ -11,6 +11,24 @@ from shared.security.control_plane import (
 
 # Explicitly reviewed method/template pairs. Never derive authority from a prefix.
 _REVIEWED = [
+    ("GET", "/core/projects/{project_id}/configuration/bindings/{target_kind}/{target_id}", "project:environment:read"),
+    ("PUT", "/core/projects/{project_id}/configuration/bindings/{target_kind}/{target_id}", "project:environment:bind"),
+    ("POST", "/core/projects/{project_id}/configuration/tests/{target_kind}/{target_id}", "project:environment:validate"),
+    ("GET", "/core/projects/{project_id}/configuration/capabilities", "project:environment:read"),
+    ("GET", "/core/projects/{project_id}/configuration/legacy-bindings", "project:environment:read"),
+    ("POST", "/core/projects/{project_id}/configuration/legacy-bindings/{alias_id}/convert", "project:environment:migrate"),
+    ("GET", "/core/projects/{project_id}/configuration/readiness/{target_kind}/{target_id}", "project:environment:read"),
+    ("GET", "/core/projects/{project_id}/configuration/keys", "project:environment:read"),
+    ("POST", "/core/projects/{project_id}/configuration/keys", "project:environment:declare"),
+    ("PATCH", "/core/projects/{project_id}/configuration/keys/{key_id}", "project:environment:declare"),
+    ("DELETE", "/core/projects/{project_id}/configuration/keys/{key_id}", "project:environment:declare"),
+    ("PUT", "/core/projects/{project_id}/configuration/keys/{key_id}/values/{environment}", "project:environment:value:write"),
+    ("DELETE", "/core/projects/{project_id}/configuration/keys/{key_id}/values/{environment}", "project:environment:value:clear"),
+    ("POST", "/core/projects/{project_id}/configuration/value-batches", "project:environment:value:write"),
+    ("GET", "/core/projects/{project_id}/configuration/keys/{key_id}/usage", "project:environment:read"),
+    ("POST", "/core/projects/{project_id}/configuration/use-policies", "project:environment:use-policy:write"),
+    ("GET", "/core/projects/{project_id}/configuration/keys/{key_id}/use-policies", "project:environment:read"),
+    ("DELETE", "/core/projects/{project_id}/configuration/use-policies/{policy_id}", "project:environment:use-policy:write"),
     ("POST", "/projects/{project_id}/agents/{resource_id}/asac/git-attestations", "agent:version"),
     ("GET", "/projects/{project_id}/agents/{resource_id}/asac/git-attestations/{attestation_id}", "agent:read"),
     ("POST", "/projects/{project_id}/networks/{resource_id}/asac/git-attestations", "network:version"),
@@ -610,6 +628,13 @@ def verified_query_context(
     method: str, path: str, path_params: dict[str, Any], query_params: dict[str, Any]
 ) -> dict[str, Any]:
     """Expose only filters that the exact reviewed collection handler consumes."""
+    if method.upper() == "GET" and path == "/ai/provider-models" and query_params.get("available_for_credential_id"):
+        return {**path_params, "credential_id": query_params["available_for_credential_id"],
+                "environment": query_params.get("environment") or "draft"}
+    if (method.upper() == "GET" and path_params.get("project_id") is not None
+            and (path in {f"/core/projects/{path_params['project_id']}/configuration/keys", f"/core/projects/{path_params['project_id']}/configuration/capabilities", f"/core/projects/{path_params['project_id']}/configuration/legacy-bindings"}
+                 or path.startswith(f"/core/projects/{path_params['project_id']}/configuration/readiness/"))):
+        return {**path_params, "environment": query_params.get("environment") or "draft"}
     if (method.upper() == "GET" and path_params.get("agent_id") is not None
         and path == f"/runtime/agents/{path_params['agent_id']}/sessions"):
         return {**path_params, "environment": query_params.get("environment") or "draft"}

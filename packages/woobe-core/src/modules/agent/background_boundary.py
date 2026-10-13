@@ -5,6 +5,7 @@ may consume agent background capabilities. It contains no worker
 lifecycle, worker registry, polling, slot or process-bootstrap behavior.
 """
 
+from modules.agent.application.interfaces.project_configuration import configure_project_configuration
 from modules.agent.application.context_manager_registry import (
     build_runtime_context_manager,
 )
@@ -107,3 +108,10 @@ from modules.agent.infra.messaging.publishers import (
 from modules.agent.infra.storage.factory import (
     create_file_storage,
 )
+
+from functools import partial
+from modules.agent.application.execution_snapshot import build_agent_execution_snapshot
+from modules.agent.infra.database.configuration_dependency_reader import collect_configuration_dependencies as _collect_configuration_dependencies
+collect_configuration_dependencies = partial(_collect_configuration_dependencies, snapshot_builder=build_agent_execution_snapshot)
+
+from modules.agent.application.interfaces.project_configuration import configure_runtime_configuration_resolver

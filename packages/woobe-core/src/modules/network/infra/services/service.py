@@ -317,6 +317,9 @@ class NetworkApplicationService(SessionModeNetworkApplicationService):
             )
             session.add(execution)
             await session.flush()
+            from modules.network.application.configuration_acceptance import accept_configuration
+            await accept_configuration(session, project_id=project_id, run_id=execution.id,
+                environment=network_session.environment, bindings=bindings_snapshot or {})
 
             chat_surface_id = (
                 str(network_session.chat_surface_id)

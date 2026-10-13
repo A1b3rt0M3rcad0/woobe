@@ -13,6 +13,7 @@ from modules.network.infra.database.models import (
     NetworkMessageModel,
     NetworkOutboxEventModel,
     NetworkSessionModel,
+    NetworkVersionModel,
 )
 from shared.infra.errors import ConflictError, NotFoundError
 from shared.runtime.event_schema import LEGACY_STORAGE_VERSION
@@ -99,6 +100,15 @@ class NetworkRerunService:
             )
             session.add(rerun)
             await session.flush()
+            from modules.network.application.configuration_acceptance import accept_configuration
+            bindings = source.resolved_bindings_snapshot
+            if source.network_version_id:
+                version = await session.get(NetworkVersionModel, source.network_version_id)
+                if version is None or version.project_id != project_id:
+                    raise NotFoundError("Network version not found")
+                bindings = version.resolved_bindings
+            await accept_configuration(session, project_id=project_id, run_id=rerun.id,
+                environment=network_session.environment, bindings=bindings or {})
 
             lineage = {
                 "rerun_of_execution_id": str(source.id),

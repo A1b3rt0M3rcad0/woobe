@@ -1,0 +1,14 @@
+"""Wire canonical snapshot semantics into metadata-only persistence readers."""
+from functools import partial
+from modules.agent.application.execution_snapshot import AgentExecutionSnapshotResolver, build_agent_execution_snapshot
+from modules.agent.infra.database.asac_runtime_release_repository import SQLAlchemySelectedAgentReleaseRepository
+from modules.agent.infra.database.provider_model_repositories import SQLAlchemyAgentRepositoryWithProviderModels
+from modules.agent.infra.database.configuration_dependency_reader import collect_configuration_dependencies as collect, read_configuration_target as read_target
+
+
+def build_target_resolver(session):
+    return AgentExecutionSnapshotResolver(SQLAlchemyAgentRepositoryWithProviderModels(session), SQLAlchemySelectedAgentReleaseRepository(session))
+
+
+collect_configuration_dependencies = partial(collect, snapshot_builder=build_agent_execution_snapshot)
+read_configuration_target = partial(read_target, snapshot_builder=build_agent_execution_snapshot, target_resolver=build_target_resolver)

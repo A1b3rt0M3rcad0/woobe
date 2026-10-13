@@ -45,3 +45,9 @@ from modules.network.composition.asac_drafts import build_network_asac_publicati
 from modules.network.composition.asac_drafts import build_network_asac_leases
 
 from modules.network.composition.asac_drafts import build_network_asac_deployments
+
+from modules.network.composition.public_api import configure_configuration_acceptance
+__all__.append("configure_configuration_acceptance")
+
+from modules.network.composition.public_api import read_configuration_bindings
+__all__.append("read_configuration_bindings")

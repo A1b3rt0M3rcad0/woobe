@@ -1,4 +1,6 @@
 export interface ProviderCredential {
+  authentication?: { type: 'api_key'; fields: { api_key: { source: 'project_environment'; key: string } } } | null
+  binding_revision?: number
   id: string
   project_id: string
   provider: string
@@ -14,11 +16,13 @@ export interface CreateProviderCredentialRequest {
   project_id: string
   provider: string
   name: string
-  secret: string
+  secret?: string
+  authentication?: ProviderCredential['authentication']
   metadata?: Record<string, string>
 }
 
 export interface UpdateProviderCredentialRequest {
+  authentication?: ProviderCredential['authentication']
   name?: string
   provider?: string
   secret?: string

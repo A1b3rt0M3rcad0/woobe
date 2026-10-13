@@ -10,6 +10,7 @@ from modules.agent.domain.enums import CredentialStatus
 from modules.agent.domain.model_spec import ModelOperations, ModelTypes
 from modules.agent.application.interfaces.repositories import ProviderCredentialRepository
 from shared.contracts.errors import ValidationError
+from shared.contracts.project_configuration import ConfigurationError
 
 ModelDiscoveryCallable = Callable[[str, str, dict], Awaitable[list[AvailableProviderModelOutput]]]
 SecretResolverCallable = Callable[[str], str]
@@ -78,8 +79,10 @@ class ListAvailableProviderModelsUseCase:
             if capability == "embedding" and provider == "openrouter":
                 return await self._embedding_discovery(provider, api_key, metadata)
             models = await self._discovery(provider, api_key, metadata)
-        except Exception as exc:
-            raise ValidationError(str(exc)) from exc
+        except ConfigurationError:
+            raise
+        except Exception:
+            raise ValidationError("Provider model discovery failed") from None
 
         if capability == "embedding":
             return [model for model in models if _is_embedding_model(model)]

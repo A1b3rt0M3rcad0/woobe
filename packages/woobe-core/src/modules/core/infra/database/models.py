@@ -6,6 +6,7 @@ from uuid import UUID
 
 from sqlalchemy import (
     BigInteger,
+    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -100,6 +101,7 @@ class ProjectEnvironmentKeyModel(BaseModel):
             "key",
             name="uq_core_project_environment_keys_project_key",
         ),
+        UniqueConstraint("id", "project_id", name="uq_configuration_key_project_identity"),
         CheckConstraint(
             "kind IN ('value', 'secret')",
             name="ck_core_project_environment_keys_kind",
@@ -117,6 +119,11 @@ class ProjectEnvironmentKeyModel(BaseModel):
     )
     key: Mapped[str] = mapped_column(String(128))
     kind: Mapped[str] = mapped_column(String(16), default="value")
+    description: Mapped[str] = mapped_column(Text, default="", server_default="")
+    value_format: Mapped[str] = mapped_column(String(16), default="string", server_default="string")
+    validation_rules: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, server_default=text("'{}'::jsonb"))
+    definition_revision: Mapped[int] = mapped_column(BigInteger, default=1, server_default="1")
+    origin: Mapped[str] = mapped_column(String(24), default="manual", server_default="manual")
 
 
 class ProjectEnvironmentValueModel(BaseModel):
@@ -143,7 +150,13 @@ class ProjectEnvironmentValueModel(BaseModel):
         ForeignKey("core.project_environment_keys.id", ondelete="CASCADE")
     )
     environment: Mapped[str] = mapped_column(String(16))
-    stored_value: Mapped[str] = mapped_column(Text)
+    stored_value: Mapped[str | None] = mapped_column(Text, nullable=True)
+    value_version: Mapped[UUID | None] = mapped_column(nullable=True)
+    revision: Mapped[int] = mapped_column(BigInteger, default=1, server_default="1")
+    material_state: Mapped[str] = mapped_column(String(24), default="present", server_default="present")
+    crypto_key_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    writer: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    revoked: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"))
 
 
 class ProjectMemberModel(BaseModel):
@@ -320,3 +333,10 @@ class InboxEventModel(BaseInbox):
     )
 
 from modules.core.infra.database.asac_policy_models import ProjectLifecyclePolicyModel, ProjectLifecyclePolicyOperationModel  # noqa: F401
+from modules.core.infra.database.configuration_models import (  # noqa: F401
+    ConfigurationAuditModel, ConfigurationHistoricalEvidenceModel,
+    ConfigurationLeaseModel, ConfigurationMigrationModel, ConfigurationMutationModel,
+    ConfigurationProcessModel, ConfigurationReferenceModel, ConfigurationUsePolicyModel,
+    ConfigurationValidationModel, ConfigurationValueVersionModel,
+    LegacyConfigurationAliasModel, LegacyConfigurationValueModel,
+)

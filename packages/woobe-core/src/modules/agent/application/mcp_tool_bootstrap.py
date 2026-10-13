@@ -174,6 +174,16 @@ class McpToolBootstrapper:
             return None
 
         config = dict(tool.config or {})
+        if config.get("authentication") is not None:
+            from modules.agent.application.interfaces.project_configuration import current_tool_configuration
+            from modules.agent.domain.tool_configuration import tool_authentication
+            auth = tool_authentication(config)
+            if current_tool_configuration.get() is None:
+                config["mcp_status"] = "configuration_required"
+                config["mcp_discovery"] = {"status": "configuration_required", "phase": "configuration", "initialized": False}
+                tool.config = config
+                return McpToolBootstrapResult(tool_id=tool.id, discovered_count=0, initialized=False,
+                    status="configuration_required", error=None, http_status=None, phase="configuration")
         existing_tools = normalize_discovered_tools(config.get("discovered_tools"))
 
         try:

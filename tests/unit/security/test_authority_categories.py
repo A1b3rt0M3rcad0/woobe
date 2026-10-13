@@ -315,7 +315,7 @@ async def test_workspace_isolation_and_duplicate_names(authority):
             permissions=["keys:read"],
             conditions={"environments": ["production"]},
         ),
-        category_data(conditions={"environments": ["draft"]}),
+        category_data(conditions={"environments": ["development"]}),
         category_data(permissions=["agent:*"]),
     ],
 )

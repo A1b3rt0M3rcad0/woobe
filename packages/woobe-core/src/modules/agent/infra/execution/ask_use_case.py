@@ -343,7 +343,7 @@ class AskAgentUseCase:
             agent = await self._load_agent(repositories, input_dto)
 
             credential = await self._load_credential(credential_repo, agent)
-            api_key = self._decrypt_api_key(credential)
+            api_key = await self._resolve_api_key(credential, base_url=self._resolve_base_url(agent, credential))
             base_url = self._resolve_base_url(agent, credential)
 
             response_format = self._get_response_format(agent)
@@ -910,12 +910,33 @@ class AskAgentUseCase:
         try:
             return decrypt_secret(credential.encrypted_secret, self._encryption_key)
         except Exception as exc:
-            logger.error("Failed to decrypt credential %s: %s", credential.id, exc)
+            logger.error("Failed to decrypt credential %s", credential.id)
             from shared.contracts.errors import ValidationError
 
             raise ValidationError(
                 "Provider credential secret could not be decrypted. Recreate the credential."
             )
+
+    async def _resolve_api_key(self, credential: ProviderCredential, *, base_url=None) -> str:
+        if not getattr(credential, "authentication", None):
+            return self._decrypt_api_key(credential)
+        from modules.agent.infra.adapters.configuration_transport import BoundConfigurationCredential
+        from modules.agent.application.interfaces.execution_context import current_execution
+        from shared.contracts.project_configuration import ConfigurationError
+        context = current_execution.get()
+        run_id = getattr(context, "network_execution_id", None) or getattr(context, "run_id", None)
+        if run_id is None:
+            raise ConfigurationError("CONFIG_USAGE_NOT_AUTHORIZED")
+        project_id, consumer_id = credential.project_id, credential.id
+        async def resolve_destination(destination):
+            async def resolve(repositories, _outbox):
+                if repositories.configuration is None:
+                    raise ConfigurationError("CONFIG_STORE_UNAVAILABLE")
+                return await repositories.configuration.resolve(project_id=project_id,
+                    run_id=run_id, consumer_kind="provider_credential", consumer_id=consumer_id,
+                    field_path="/authentication/fields/api_key", destination=destination)
+            return await self._transactions.read(resolve)
+        return BoundConfigurationCredential(resolve_destination)
 
     def _resolve_base_url(
         self,
@@ -1234,7 +1255,8 @@ class AskAgentUseCase:
             try:
                 credential = await self._transactions.run(load_fallback)
                 if credential:
-                    fallback_api_key = self._decrypt_api_key(credential)
+                    fallback_api_key = await self._resolve_api_key(credential, base_url=self._resolve_base_url_for_provider(
+                        fallback_provider_val, credential, fallback_connection_settings(agent)))
                     fallback_base_url = self._resolve_base_url_for_provider(
                         fallback_provider_val,
                         credential,

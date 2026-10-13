@@ -5,7 +5,7 @@ from typing import Any
 from uuid import UUID
 
 MAX_AUTHORITY_REVISION = 2_147_483_647
-CATALOG_REVISION = "2026-10-05.2"
+CATALOG_REVISION = "2026-10-13.1"
 SELF_CONTROL_PERMISSIONS = frozenset({"access:self", "catalog:self"})
 
 WORKSPACE_CONTROL_PERMISSIONS = frozenset(
@@ -33,6 +33,13 @@ PROJECT_CONTROL_PERMISSIONS = frozenset(
         "project:update",
         "project:environment:read",
         "project:environment:write",
+        "project:environment:declare",
+        "project:environment:value:write",
+        "project:environment:value:clear",
+        "project:environment:bind",
+        "project:environment:use-policy:write",
+        "project:environment:validate",
+        "project:environment:migrate",
         "project:access:read",
         "project:access:write",
         "api_key:read",
@@ -127,6 +134,11 @@ def system_profiles() -> dict[str, tuple[str, list[str]]]:
             ),
         ),
         "agent-editor": ("project", ["agent:read", "agent:write"]),
+        "configuration-developer": ("project", [
+            "project:read", "project:environment:read", "project:environment:declare",
+            "project:environment:bind", "provider:read", "provider:write", "model:read", "model:write",
+            "agent:read", "agent:write", "network:read", "network:write", "tool:read", "tool:write",
+        ]),
         "network-editor": ("project", ["network:read", "network:write"]),
         "knowledge-editor": ("project", ["knowledge:read", "knowledge:write"]),
         "version-builder": (
@@ -202,7 +214,7 @@ def normalize_conditions(value: dict[str, Any] | None) -> dict[str, list[str]]:
     if not isinstance(value, dict):
         raise ValueError("Grant conditions must be an object")
     allowed = {
-        "environments": {"staging", "production"},
+        "environments": {"draft", "staging", "production"},
         "interfaces": {"http", "stream", "jobs"},
         "target_types": {"agent", "network"},
         "target_ids": None,

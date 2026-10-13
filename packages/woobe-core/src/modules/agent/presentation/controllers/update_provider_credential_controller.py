@@ -13,7 +13,8 @@ class UpdateProviderCredentialController(Controller):
 
     async def handle(self, request: OperationRequest) -> OperationResult:
         credential_id = request.path_params["credential_id"]
-        raw = {k: v for k, v in request.body.items() if v is not None}
+        # Explicit null authentication is invalid, rather than an omitted edit.
+        raw = {k: v for k, v in request.body.items() if v is not None or k in {"secret", "authentication"}}
         input_dto = UpdateProviderCredentialInput(**raw)
         result = await self._use_case.execute(credential_id, input_dto)
         return OperationResult(

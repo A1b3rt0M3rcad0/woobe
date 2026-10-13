@@ -62,12 +62,15 @@ class AgentRuntimeRepositories:
     vector_snapshots: SQLAlchemyVectorSnapshotRepository
     skills: SQLAlchemySkillRepository | None = None
     project_environment: SQLAlchemyProjectEnvironmentReader | None = None
+    configuration: object | None = None
 
 
 def build_agent_runtime_repositories(
     uow: AgentUnitOfWork,
 ) -> AgentRuntimeRepositories:
+    from modules.agent.application.interfaces.project_configuration import configuration_for_session
     return AgentRuntimeRepositories(
+        configuration=configuration_for_session(uow.session),
         agents=SQLAlchemyAgentRepositoryWithProviderModels(uow),
         provider_credentials=SQLAlchemyProviderCredentialRepository(uow),
         provider_models=SQLAlchemyProviderModelRepository(uow),

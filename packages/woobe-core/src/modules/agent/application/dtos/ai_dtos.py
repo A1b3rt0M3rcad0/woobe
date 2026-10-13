@@ -5,6 +5,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field, ConfigDict, model_validator
 
 from modules.agent.application.dtos.behavior_dtos import BehaviorSpecification
+from shared.contracts.project_configuration import compile_authentication, ConfigurationError
 from modules.agent.domain.enums import (
     AgentStatus,
     AgentType,
@@ -25,8 +26,19 @@ class CreateProviderCredentialInput(BaseModel):
     project_id: UUID
     provider: Provider
     name: str
-    secret: str
+    secret: str | None = Field(default=None, repr=False)
+    authentication: dict[str, Any] | None = None
     metadata: dict[str, Any] = {}
+
+    @model_validator(mode="after")
+    def authentication_source(self):
+        if (self.secret is None) == (self.authentication is None):
+            raise ConfigurationError("CONFIG_BINDING_INVALID")
+        if self.authentication is not None:
+            self.authentication = compile_authentication(self.authentication)
+            if self.authentication["type"] != "api_key":
+                raise ConfigurationError("CONFIG_BINDING_INVALID")
+        return self
 
 
 class CreateProviderCredentialOutput(BaseModel):
@@ -37,14 +49,27 @@ class CreateProviderCredentialOutput(BaseModel):
     status: CredentialStatus
     created_at: datetime | None = None
     metadata: dict[str, Any] = {}
+    authentication: dict[str, Any] | None = None
+    binding_revision: int = 1
 
 
 class UpdateProviderCredentialInput(BaseModel):
     name: str | None = None
     provider: Provider | None = None
-    secret: str | None = None
+    secret: str | None = Field(default=None, repr=False)
+    authentication: dict[str, Any] | None = None
     metadata: dict[str, Any] | None = None
     status: CredentialStatus | None = None
+
+    @model_validator(mode="after")
+    def authentication_source(self):
+        if "secret" in self.model_fields_set and (self.secret is None or "authentication" in self.model_fields_set):
+            raise ConfigurationError("CONFIG_BINDING_INVALID")
+        if "authentication" in self.model_fields_set:
+            self.authentication = compile_authentication(self.authentication)
+            if self.authentication["type"] != "api_key":
+                raise ConfigurationError("CONFIG_BINDING_INVALID")
+        return self
 
 
 class UpdateProviderCredentialOutput(BaseModel):
@@ -56,6 +81,8 @@ class UpdateProviderCredentialOutput(BaseModel):
     created_at: datetime | None = None
     updated_at: datetime | None = None
     metadata: dict[str, Any] = {}
+    authentication: dict[str, Any] | None = None
+    binding_revision: int = 1
 
 
 class ListProviderCredentialsInput(BaseModel):
@@ -70,6 +97,8 @@ class ListProviderCredentialsOutput(BaseModel):
     status: CredentialStatus
     created_at: datetime | None = None
     metadata: dict[str, Any] = {}
+    authentication: dict[str, Any] | None = None
+    binding_revision: int = 1
 
 
 class CreateProviderModelInput(BaseModel):

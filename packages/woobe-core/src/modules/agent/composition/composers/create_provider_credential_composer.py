@@ -1,3 +1,4 @@
+from modules.agent.application.interfaces.configuration_authority import provider_binding_permissions
 from modules.agent.application.use_cases import CreateProviderCredentialUseCase
 from modules.agent.composition.resources import DATABASE_ENGINE, SETTINGS
 from modules.agent.infra.database.repositories import (
@@ -19,4 +20,4 @@ def create_provider_credential_composer() -> TransactionalHandler:
         encryption_key=SETTINGS.encryption_key,
     )
     controller = CreateProviderCredentialController(use_case)
-    return TransactionalHandler(uow, controller.handle)
+    return TransactionalHandler(uow, controller.handle, additional_permissions=provider_binding_permissions)

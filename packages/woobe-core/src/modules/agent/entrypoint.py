@@ -438,3 +438,24 @@ from modules.agent.composition.composers.asac_draft_composer import build_agent_
 from modules.agent.composition.composers.asac_draft_composer import build_agent_asac_leases
 
 from modules.agent.composition.composers.asac_draft_composer import build_agent_asac_deployments, build_agent_asac_binding_guard
+
+from modules.agent.composition.public_api import configure_project_configuration
+__all__.append("configure_project_configuration")
+
+from modules.agent.composition.public_api import collect_configuration_dependencies
+__all__.append("collect_configuration_dependencies")
+
+from modules.agent.composition.public_api import read_configuration_target
+__all__.append("read_configuration_target")
+
+from modules.agent.composition.public_api import list_available_provider_models_composer
+__all__.append("list_available_provider_models_composer")
+
+from modules.agent.composition.public_api import configure_runtime_configuration_resolver
+__all__.append("configure_runtime_configuration_resolver")
+
+from modules.agent.composition.public_api import configuration_binding
+__all__.append("configuration_binding")
+
+from modules.agent.composition.public_api import build_configuration_tool_preparation
+__all__.append("build_configuration_tool_preparation")

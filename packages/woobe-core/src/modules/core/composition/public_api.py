@@ -108,3 +108,54 @@ def build_asac_git_verifier():
     return ASaCGitVerifier(SETTINGS.asac_git_trusted_builders)
 
 __all__.append('build_asac_git_verifier')
+
+
+def build_project_configuration_service():
+    from modules.core.infra.services.project_configuration_service import ProjectConfigurationService
+    from shared.composition_resources import SESSION_FACTORY, SETTINGS
+    return ProjectConfigurationService(SESSION_FACTORY, encryption_key=SETTINGS.encryption_key)
+
+
+def build_project_configuration_runtime(session):
+    from modules.core.infra.database.configuration_resolution import ConfigurationResolution
+    from shared.composition_resources import SETTINGS
+    return ConfigurationResolution(session, encryption_key=SETTINGS.encryption_key)
+
+
+__all__ += ["build_project_configuration_service", "build_project_configuration_runtime"]
+
+
+def build_configuration_acceptor(dependency_reader):
+    async def accept(session, *, project_id, run_id, environment, bindings):
+        dependencies = await dependency_reader(session, project_id=project_id, bindings=bindings)
+        if not dependencies:
+            return []
+        return await build_project_configuration_runtime(session).acquire(project_id=project_id,
+            run_id=run_id, environment=environment, dependencies=dependencies)
+    return accept
+
+
+__all__.append("build_configuration_acceptor")
+
+
+def build_project_environment_service():
+    from modules.core.infra.services.legacy_project_environment_service import LegacyProjectEnvironmentService
+    from shared.composition_resources import SESSION_FACTORY, SETTINGS
+    return LegacyProjectEnvironmentService(SESSION_FACTORY, encryption_key=SETTINGS.encryption_key)
+
+
+__all__.append("build_project_environment_service")
+
+from modules.core.infra.services.project_configuration_service import configure_configuration_target_reader
+__all__.append("configure_configuration_target_reader")
+
+
+def build_configuration_runtime_resolver():
+    from modules.core.infra.services.configuration_runtime_resolver import ConfigurationRuntimeResolver
+    from shared.composition_resources import SESSION_FACTORY, SETTINGS
+    return ConfigurationRuntimeResolver(SESSION_FACTORY, encryption_key=SETTINGS.encryption_key)
+
+__all__.append("build_configuration_runtime_resolver")
+
+from modules.core.infra.services.project_configuration_service import configure_configuration_binding_adapter
+__all__.append("configure_configuration_binding_adapter")

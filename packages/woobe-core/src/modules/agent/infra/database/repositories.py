@@ -129,6 +129,7 @@ class SQLAlchemyProviderCredentialRepository(
         super().__init__(session, ProviderCredentialModel)
 
     async def save(self, credential: ProviderCredential) -> ProviderCredential:
+        await self._configuration_references(credential)
         model = provider_credential_entity_to_model(credential)
         await self._add_model(model)
         await self._flush()
@@ -185,14 +186,38 @@ class SQLAlchemyProviderCredentialRepository(
         if not model:
             from modules.agent.domain.errors import CredentialNotFoundError
             raise CredentialNotFoundError(credential.id)
+        provider = credential.provider.value if hasattr(credential.provider, "value") else credential.provider
+        if credential.authentication != model.authentication or credential.metadata != (model.meta or {}) or provider != model.provider:
+            credential.binding_revision = (model.binding_revision or 1) + 1
+        await self._configuration_references(credential)
         model.provider = credential.provider.value if hasattr(credential.provider, 'value') else credential.provider
         model.name = credential.name
-        model.encrypted_secret = credential.encrypted_secret
+        model.encrypted_secret = credential.encrypted_secret or None
+        model.authentication = credential.authentication
+        model.binding_revision = credential.binding_revision
         model.status = credential.status.value if hasattr(credential.status, 'value') else credential.status
         model.last_validated_at = credential.last_validated_at
         model.meta = credential.metadata or None
         await self._flush()
         return provider_credential_model_to_entity(model)
+
+    async def _configuration_references(self, credential):
+        if credential.authentication is None:
+            return
+        from modules.agent.application.interfaces.project_configuration import configuration_for_session
+        from shared.contracts.project_configuration import ConfigurationDependency, ConfigurationError, compile_authentication
+        if credential.encrypted_secret:
+            raise ConfigurationError("CONFIG_BINDING_INVALID")
+        authentication = compile_authentication(credential.authentication)
+        from modules.agent.infra.adapters.configuration_bindings import PROVIDER_DESTINATIONS
+        provider = credential.provider.value if hasattr(credential.provider, "value") else credential.provider
+        references = [ConfigurationDependency(credential.project_id, "provider_credential", credential.id,
+            str(credential.binding_revision), "/authentication/fields/" + field, ref["key"],
+            str((credential.metadata or {}).get("base_url") or PROVIDER_DESTINATIONS.get(provider) or "")) for field, ref in authentication["fields"].items()]
+        configuration = configuration_for_session(self._session)
+        if configuration is None:
+            raise ConfigurationError("CONFIG_STORE_UNAVAILABLE")
+        await configuration.register_references(references)
 
     async def delete(self, credential_id: UUID) -> None:
         model = await self._get_model_by_id(credential_id)
@@ -1560,6 +1585,7 @@ class SQLAlchemyAgentToolRepository(ToolRepository):
         return self._session_or_uow
 
     async def create(self, tool: Tool) -> Tool:
+        await self._register_configuration(tool)
         model = tool_to_model(tool)
         await self._base._add_model(model)
         await self._base._flush()
@@ -1625,6 +1651,7 @@ class SQLAlchemyAgentToolRepository(ToolRepository):
         )
 
     async def update(self, tool: Tool) -> Tool:
+        await self._register_configuration(tool)
         model = await self._base._get_model_by_id(tool.id)
         if model is None:
             raise ToolNotFoundError(tool.id)
@@ -1639,6 +1666,18 @@ class SQLAlchemyAgentToolRepository(ToolRepository):
         model.timeout_ms = tool.timeout_ms
         model.status = tool.status.value if hasattr(tool.status, 'value') else tool.status
         return model_to_tool(model)
+
+    async def _register_configuration(self, tool):
+        from modules.agent.domain.tool_configuration import tool_dependencies, validate_tool_authentication
+        from modules.agent.application.interfaces.project_configuration import configuration_for_session
+        from shared.contracts.project_configuration import ConfigurationError
+        validate_tool_authentication(tool.config or {})
+        dependencies = tool_dependencies(tool)
+        if dependencies:
+            configuration = configuration_for_session(self._session)
+            if configuration is None:
+                raise ConfigurationError("CONFIG_STORE_UNAVAILABLE")
+            await configuration.register_references(dependencies)
 
     async def delete(self, tool_id: UUID) -> None:
         model = await self._base._get_model_by_id(tool_id)

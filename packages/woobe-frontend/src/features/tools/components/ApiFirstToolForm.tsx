@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { ConfigurationAuthenticationEditor } from './ConfigurationAuthenticationEditor'
 import type { FormEvent, ReactNode } from 'react'
 import { ArrowLeft, ChevronDown, Globe2, Plus, Route, Server, Trash2, Undo2 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -32,6 +33,7 @@ import type {
   Tool,
   ToolConfig,
   ToolProtocol,
+  RemoteAuthentication,
 } from '@/features/tools/types'
 
 export type ApiFirstToolFormSubmitValue = Omit<CreateToolRequest, 'project_id'>
@@ -416,6 +418,7 @@ export function ApiFirstToolForm({
   const initialMcp = initialTool?.type === 'mcp' ? (initialTool.config || {}) as McpToolConfig : null
   const initialProtocol: Protocol = initialMcp ? 'mcp' : 'http'
 
+  const [authentication, setAuthentication] = useState<RemoteAuthentication | undefined>((initialMcp || initialHttp)?.authentication ?? (initialTool ? undefined : { type: 'none', fields: {} }))
   const [step, setStep] = useState<FormStep>(initialTool ? 'details' : 'type')
   const [protocol, setProtocol] = useState<Protocol>(initialProtocol)
   const [name, setName] = useState(initialTool?.name || '')
@@ -601,6 +604,7 @@ export function ApiFirstToolForm({
     if (protocol === 'mcp') {
       return {
         protocol: 'mcp',
+        ...(authentication ? { authentication } : {}),
         mode: 'server',
         exposure: 'all_discovered',
         server: {
@@ -615,6 +619,7 @@ export function ApiFirstToolForm({
     }
     return {
       protocol: 'http',
+      ...(authentication ? { authentication } : {}),
       mode: 'group',
       schema_version: 2,
       base_url: baseUrl.trim().replace(/\/+$/, ''),
@@ -651,6 +656,9 @@ export function ApiFirstToolForm({
       if (!name.trim()) nextErrors.name = 'Display name is required.'
       if (!description.trim()) nextErrors.description = 'Describe what this API provides to Agents.'
       if (routes.length === 0) nextErrors.routes = 'Add at least one route.'
+    }
+    if (authentication && (Object.values(authentication.fields).some(ref => !ref.key) || (authentication.type === 'headers' && !Object.keys(authentication.fields).length))) {
+      nextErrors.authentication = 'Select a declared key for every authentication field.'
     }
     setErrors(nextErrors)
     return Object.keys(nextErrors).length === 0
@@ -707,7 +715,7 @@ export function ApiFirstToolForm({
     : initialTool
       ? 'Save changes'
       : protocol === 'mcp'
-        ? 'Create & discover'
+        ? authentication ? 'Create connection' : 'Create & discover'
         : submitLabel === 'Create' ? 'Create API' : submitLabel
 
   return (
@@ -740,6 +748,9 @@ export function ApiFirstToolForm({
 
         {step === 'details' ? (
           <div className="space-y-5">
+            {projectId && authentication && <ConfigurationAuthenticationEditor projectId={projectId} value={authentication} onChange={setAuthentication} />}
+            <FieldError message={errors.authentication} />
+            {initialTool && !authentication && <p className="text-xs text-muted">This connection uses legacy authentication. Review its mapping in Project → Environments before converting it.</p>}
             <div className="flex items-start gap-3">
               {!initialTool ? (
                 <Button type="button" size="sm" variant="ghost" className="mt-0.5 px-2" onClick={() => setStep('type')}>

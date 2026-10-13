@@ -45,14 +45,16 @@ from modules.core.entrypoint import (
     build_project_access_service,
 )
 from shared.infra.errors import AuthenticationError, ConflictError, ValidationError
-from shared.project_environment import build_project_environment_service
+from modules.core.entrypoint import build_project_environment_service
 from shared.security.principal import ControlPlanePrincipal
 from woobe_api.http.shared.adapters import request_adapter, response_adapter
 from woobe_api.http.core.control_key_routes import router as control_key_router
+from woobe_api.http.core.configuration_routes import router as configuration_router
 from woobe_api.http.shared.openapi_contracts import request_body_contract
 
 router = APIRouter(prefix="/core", tags=["core"])
 router.include_router(control_key_router)
+router.include_router(configuration_router)
 
 
 class ProjectSubjectAccessRequest(BaseModel):
@@ -65,7 +67,7 @@ class ProjectMemberAccessRequest(BaseModel):
 
 
 class ProjectEnvironmentKeyRequest(BaseModel):
-    kind: Literal["value", "secret"] = "value"
+    kind: Literal["value", "secret"] | None = None
     values: dict[str, Any] = Field(default_factory=dict)
     clear_environments: list[str] = Field(default_factory=list)
 
@@ -367,7 +369,7 @@ async def upsert_project_environment_key(
     data = await build_project_environment_service().upsert_key(
         project_id=project_id,
         key=key,
-        kind=str(payload.get("kind") or "value"),
+        kind=payload.get("kind"),
         values=values,
         clear_environments=[str(item) for item in clear_environments],
     )

@@ -33,7 +33,8 @@ class CreateProviderCredentialRequest(BaseModel):
     project_id: UUID
     provider: Provider
     name: str
-    secret: str
+    secret: str | None = Field(default=None, repr=False)
+    authentication: dict[str, Any] | None = None
     metadata: dict[str, Any] = {}
 
 
@@ -45,12 +46,15 @@ class ProviderCredentialResponse(BaseModel):
     status: CredentialStatus
     created_at: datetime | None = None
     metadata: dict[str, Any] = {}
+    authentication: dict[str, Any] | None = None
+    binding_revision: int = 1
 
 
 class UpdateProviderCredentialRequest(BaseModel):
     name: str | None = None
     provider: Provider | None = None
-    secret: str | None = None
+    secret: str | None = Field(default=None, repr=False)
+    authentication: dict[str, Any] | None = None
     metadata: dict[str, Any] | None = None
     status: CredentialStatus | None = None
 

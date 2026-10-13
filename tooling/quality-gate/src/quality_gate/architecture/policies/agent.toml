@@ -34,6 +34,8 @@ uow_types = ["AgentUnitOfWork"]
 uow_factory_functions = ["build_agent_uow"]
 long_lived_handler = "Callable"
 long_lived_functions = [
+  # Provider I/O must occur outside the short authorization/pinning transaction.
+  "list_available_provider_models_composer",
   "ask_agent_composer",
   "ask_agent_stream_composer",
   "public_run_composer",

@@ -16,11 +16,12 @@ class TransactionalHandler(Generic[RequestT, ResponseT]):
         self,
         uow: UnitOfWork,
         handler: Handler[RequestT, ResponseT],
-        *, guarded: bool = True,
+        *, guarded: bool = True, additional_permissions=None,
     ) -> None:
         self._uow = uow
         self._handler = handler
         self._guarded = guarded
+        self._additional_permissions = additional_permissions
 
     def with_receipt(
         self, receipt: TransactionReceipt[RequestT, ResponseT]
@@ -33,7 +34,7 @@ class TransactionalHandler(Generic[RequestT, ResponseT]):
             await receipt.save(self._uow, request, result)
             return result
 
-        return TransactionalHandler(self._uow, recorded, guarded=False)
+        return TransactionalHandler(self._uow, recorded, guarded=False, additional_permissions=self._additional_permissions)
 
     async def _invoke(self, request: RequestT) -> ResponseT:
         guard = getattr(self._uow, "validate_revision", None)
@@ -68,6 +69,32 @@ class TransactionalHandler(Generic[RequestT, ResponseT]):
                             query_params=request.query_params,
                             body=request.body,
                         )
+            configuration_permissions = list(request.metadata.get("configuration_permissions", [])) if isinstance(request, OperationRequest) else []
+            if self._additional_permissions is not None:
+                configuration_permissions.extend(self._additional_permissions(request))
+            if isinstance(request, OperationRequest) and configuration_permissions:
+                from shared.security.principal import AuthenticatedPrincipal
+                from shared.security.tenancy import TenantAuthorizer
+                from shared.contracts.errors import AuthorizationError
+                session = getattr(self._uow, "session", None)
+                if not isinstance(session, AsyncSession):
+                    raise AuthorizationError("Configuration requires authoritative transaction authorization")
+                authorizer = TenantAuthorizer(session)
+                for permission, legacy in dict.fromkeys(tuple(item) for item in configuration_permissions):
+                    context = dict(request.metadata.get("authorization_path_params", request.path_params))
+                    if legacy:
+                        context["_configuration_legacy_permission"] = legacy
+                    if isinstance(request.principal, ControlPlanePrincipal):
+                        await authorizer.authorize_control_key(api_key_id=request.principal.api_key_id,
+                            workspace_id=request.principal.workspace_id, workspace_permissions=request.principal.permissions,
+                            required_permission=permission, path_params=context, query_params=request.query_params,
+                            body=request.body)
+                    elif isinstance(request.principal, AuthenticatedPrincipal):
+                        await authorizer.require_active_human(request.principal)
+                        await authorizer.authorize(user_id=request.principal.user_id, path_params=context,
+                            query_params=request.query_params, body=request.body, required_permission=permission, mutation=True)
+                    else:
+                        raise AuthorizationError("Configuration requires administrative authentication")
             if isinstance(request, OperationRequest) and request.metadata.get(
                 "idempotency_key"
             ):

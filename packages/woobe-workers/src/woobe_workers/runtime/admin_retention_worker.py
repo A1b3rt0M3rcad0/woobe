@@ -18,5 +18,7 @@ class AdministrativeRetentionWorker:
             await AdministrativeIdempotency(
                 session, encryption_key=""
             ).purge_expired_secrets()
+            from modules.core.background_boundary import purge_configuration_retention
+            await purge_configuration_retention(session)
             await session.commit()
         self._next_run = monotonic() + self._interval_seconds

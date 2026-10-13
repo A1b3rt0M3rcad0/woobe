@@ -36,7 +36,9 @@ class ProviderCredentialModel(BaseModel):
     project_id: Mapped[UUID]
     provider: Mapped[str] = mapped_column(String(64))
     name: Mapped[str] = mapped_column(String(255))
-    encrypted_secret: Mapped[str] = mapped_column(Text)
+    encrypted_secret: Mapped[str | None] = mapped_column(Text, nullable=True)
+    authentication: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    binding_revision: Mapped[int] = mapped_column(Integer, default=1, server_default=text("1"))
     status: Mapped[str] = mapped_column(String(32), default="active")
     last_validated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     meta: Mapped[dict[str, Any] | None] = mapped_column(

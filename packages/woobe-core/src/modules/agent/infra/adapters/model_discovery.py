@@ -54,6 +54,9 @@ def _json_get(url: str, api_key: str, *, timeout: int = 20) -> dict[str, Any]:
 
 
 async def _async_json_get(url: str, api_key: str) -> dict[str, Any]:
+    from modules.agent.infra.adapters.configuration_transport import BoundConfigurationCredential, configuration_get_json
+    if isinstance(api_key, BoundConfigurationCredential):
+        return await configuration_get_json(url, api_key)
     return await asyncio.to_thread(_json_get, url, api_key)
 
 

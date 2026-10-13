@@ -183,9 +183,14 @@ class HttpToolExecutor(ToolExecutionPort):
         if normalized_method not in ALLOWED_HTTP_METHODS:
             return ExecutionResult(success=False, error="HTTP method is not allowed")
 
+        from modules.agent.infra.adapters.tool_configuration_transport import current_tool_configuration
+        # A remote reference still must pass its exact destination grant before
+        # bytes are sent; explicit approvals may include internal endpoints.
+        configuration_scope = current_tool_configuration.get()
+        approved_configuration_path = bool(configuration_scope and configuration_scope[3]["fields"])
         validator = (
             _validated_local_addresses
-            if self._allow_local_networks
+            if self._allow_local_networks or approved_configuration_path
             else _validated_public_addresses
         )
         first_resolution = validator(url)
@@ -209,6 +214,8 @@ class HttpToolExecutor(ToolExecutionPort):
         effective_timeout = max(1, min(requested_timeout, self._max_timeout_ms))
         started_at = time.monotonic()
         response: httpx.Response | None = None
+        request = None
+        private_headers = {}
 
         try:
             request = self._client.build_request(
@@ -218,6 +225,10 @@ class HttpToolExecutor(ToolExecutionPort):
                 content=body.encode("utf-8") if body else None,
                 timeout=httpx.Timeout(effective_timeout / 1000),
             )
+            from modules.agent.infra.adapters.tool_configuration_transport import configuration_headers
+            private_headers = await configuration_headers(str(request.url)) if current_tool_configuration.get() is not None else {}
+            if private_headers:
+                request.headers.update(private_headers)
             response = await self._client.send(
                 request,
                 stream=True,
@@ -277,6 +288,8 @@ class HttpToolExecutor(ToolExecutionPort):
                     "body": output_body,
                 }
             )
+            if private_headers:
+                output = private_headers.scrub(output)
             return ExecutionResult(
                 success=response.is_success,
                 status_code=response.status_code,
@@ -294,9 +307,13 @@ class HttpToolExecutor(ToolExecutionPort):
             return ExecutionResult(
                 success=False,
                 duration_ms=round((time.monotonic() - started_at) * 1000),
-                error=f"Request failed: {_sanitize_error(str(exc))}",
+                error="Configured Tool request failed" if private_headers else f"Request failed: {_sanitize_error(str(exc))}",
             )
         finally:
+            if request is not None:
+                for header in private_headers:
+                    request.headers.pop(header, None)
+            private_headers.clear()
             if response is not None:
                 await response.aclose()
 

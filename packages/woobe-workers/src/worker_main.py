@@ -137,6 +137,16 @@ async def run_workers(
     extra_entries: Sequence[ModuleWorkerEntry] = (),
 ) -> None:
     runtime_settings = settings or WorkerSettings()
+    from modules.agent.background_boundary import configure_project_configuration
+    from modules.core.background_boundary import build_project_configuration_runtime
+    configure_project_configuration(build_project_configuration_runtime)
+    from modules.agent.background_boundary import configure_runtime_configuration_resolver
+    from modules.core.background_boundary import build_configuration_runtime_resolver
+    configure_runtime_configuration_resolver(build_configuration_runtime_resolver())
+    from modules.agent.background_boundary import collect_configuration_dependencies
+    from modules.core.background_boundary import build_configuration_acceptor
+    from modules.network.background_boundary import configure_configuration_acceptance
+    configure_configuration_acceptance(build_configuration_acceptor(collect_configuration_dependencies))
     _configure_logging(runtime_settings)
 
     engine = create_engine(runtime_settings)

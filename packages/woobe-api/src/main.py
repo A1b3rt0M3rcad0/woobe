@@ -88,6 +88,18 @@ def _csv_values(value: str) -> list[str]:
 
 
 def create_app() -> FastAPI:
+    from modules.agent.entrypoint import configure_project_configuration
+    from modules.core.entrypoint import build_project_configuration_runtime
+    configure_project_configuration(build_project_configuration_runtime)
+    from modules.agent.entrypoint import configure_runtime_configuration_resolver
+    from modules.core.entrypoint import build_configuration_runtime_resolver
+    configure_runtime_configuration_resolver(build_configuration_runtime_resolver())
+    from modules.agent.entrypoint import collect_configuration_dependencies
+    from modules.core.entrypoint import build_configuration_acceptor
+    from modules.network.entrypoint import configure_configuration_acceptance
+    configure_configuration_acceptance(build_configuration_acceptor(collect_configuration_dependencies))
+    from woobe_api.configuration_composition import configure_target_readiness
+    configure_target_readiness()
     configure_provider_dependency_readers(
         network_consumers=build_network_dependency_impact_reader().consumers,
         surface_consumers=build_surface_dependency_impact_reader().consumers,
