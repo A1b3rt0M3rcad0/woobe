@@ -648,3 +648,28 @@ For mutable author state, repair the Agent configuration and save/rebind a new
 Network Draft explicitly. For incomplete immutable history, preserve the old
 snapshot and prepare/evaluate/publish a new complete closure. These diagnostics
 identify an inspection path; they do not repair operator data automatically.
+
+## Configuration-aware portable definitions
+
+Package 2.0 uses `woobe-portable-definition@2.0`. Component, Provider and root
+hashes use distinct versioned domains. A Model resolves its connection alias to
+public Provider metadata and typed authentication references. The root includes
+all captured connection intents and configuration declarations, sorted by key;
+connection display names, alias labels and declaration order are presentation.
+Changing an authentication key, endpoint or validation rule changes the sealed
+meaning. Values, use-policy grants and destination IDs are never portable intent.
+
+Package 1.0 retains its original digest algorithm and fixtures. Capabilities keep
+`asac.definition_digest_scope` at 1.0 for existing clients and advertise both
+entries in `asac.definition_digest_scopes`. Registration, custody, hydration and
+Candidate preparation compare the record's scope with the verified artifact;
+a valid record hash cannot relabel schema2 bytes as scope1. Author compiler
+recipes remain retained: schema1 uses the existing `@2.0` recipe, schema2 `@3.0`.
+
+Managed schema2 pushes remain structural Draft synchronization. Candidate Stage
+is a separate, explicitly authorized preparation of a sealed revision using
+existing destination bindings. It cannot declare keys, create connections or
+populate values incidentally. Configuration declaration and Provider binding
+revisions are fenced separately from runtime material versions. A prepared
+Candidate does not establish configuration readiness, successful evaluation,
+publication or deployment.

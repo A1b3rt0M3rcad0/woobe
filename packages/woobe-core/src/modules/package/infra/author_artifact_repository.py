@@ -54,7 +54,7 @@ def validate_author(content):
             raise ValueError("source shape")
         if document["format"] != "woobe-author-object" or document["schema_version"] != "1.0":
             raise ValueError("source format")
-        if document.get("compiler_recipe", "") not in {"", "woobe-development-compiler@2.0"}:
+        if document.get("compiler_recipe", "") not in {"", "woobe-development-compiler@2.0", "woobe-development-compiler@3.0"}:
             raise ValueError("compiler recipe")
         uid = str(UUID(document["resource_uid"]))
         components = document["components"]

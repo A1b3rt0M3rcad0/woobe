@@ -26,7 +26,7 @@ def isolate_candidate_plan(document, *, candidate_id, snapshot_ids, targets, sou
         "create_prompt_version", "create_contract_version", "create_agent_knowledge_version"}
     for effect in plan["effects"]:
         action, key = effect["action"], effect["component"]
-        if action in {"create_credential", "create_environment_value", "create_secret"}:
+        if action in {"create_credential", "create_environment_value", "create_secret", "declare_configuration", "create_reference_credential"}:
             raise PackageError("ASAC_CANDIDATE_BINDING_INVALID", "Bind existing protected resources before preparing a candidate")
         if action in {"prepare_inactive_agent", "prepare_network"}:
             effect.update(action="resolve_candidate_root", permission=definitions[key]["kind"].lower() + ":read")

@@ -130,6 +130,8 @@ async def test_structural_package_installs_before_remote_values_exist(cli, tmp_p
         assert exported["package_schema_version"] == "2.0"
         assert exported["closure_complete"] is True
         assert exported["self_contained"] is True
+        if not with_mcp and not network_source and not legacy_secret:
+            await verify_configuration_revision_custody(client, cli.project_id, target, exported)
         if legacy_secret:
             import tarfile
             import yaml
@@ -181,3 +183,56 @@ async def test_structural_package_installs_before_remote_values_exist(cli, tmp_p
             assert snapshot["status"] == "READY"
             assert snapshot["vector_count"] > 0 and snapshot["snapshot_hash"]
             assert snapshot["build_config"] == original_build_config
+
+
+async def verify_configuration_revision_custody(client, project_id, target, exported):
+    """Keep schema2 ASaC HTTP custody under the pinned-old-CLI CI fixture too."""
+    from hashlib import sha256
+    from uuid import uuid5
+    from modules.package.infra.bundles import receive_archive
+    from modules.package.application.asac_definition import portable_definition, provider_definition_digests
+    from shared.contracts.asac import asac_digest
+
+    package_base = f"/projects/{project_id}/packages"
+    base = f"/projects/{project_id}/agents/{target}/asac"
+    response = await client.get(package_base + "/exports/" + exported["export_id"] + "/artifact")
+    assert response.is_success, response.text
+    with receive_archive(io.BytesIO(response.content), locked=True) as bundle:
+        definition, components = portable_definition(bundle)
+        provider_digests = provider_definition_digests(bundle.graph.manifest)
+        root_key = bundle.graph.manifest["spec"]["entrypoint"]["ref"]
+        artifact_digest = "sha256:" + bundle.artifact_digest
+    uid = uuid4()
+    opening = {"operation_id":str(uuid4()), "resource_uid":str(uid), "name":"configuration-custody", "source_export_id":exported["export_id"]}
+    response = await client.post(base + "/drafts", json=opening)
+    assert response.is_success, response.text
+    opened = response.json()["data"]
+    component_uids = {key:str(uid if key == root_key else uuid5(uid, "component:"+key)) for key in components}
+    providers = {key:str(uuid5(uid, "provider:"+key)) for key in provider_digests}
+    record = {"format":"woobe-revision", "schema_version":"1.0", "revision_id":"rv_"+str(uuid4()),
+        "resource_uid":str(uid), "kind":"Agent", "parents":[], "message":"Remote configuration custody",
+        "artifact_digest":artifact_digest, "definition_digest":definition,
+        "definition_digest_scope":"woobe-portable-definition@2.0",
+        "component_digests":{**{component_uids[key]:value for key,value in components.items()},
+            **{providers[key]:value for key,value in provider_digests.items()}}}
+    record["record_digest"] = asac_digest("record", record)
+    body = {"operation_id":str(uuid4()), "draft_id":opened["draft_id"], "expected_generation":opened["generation"],
+        "record":record, "component_uids":component_uids, "provider_uids":providers}
+    response = await client.post(base + "/revisions", json=body)
+    assert response.is_success, response.text
+    assert response.json()["data"]["record"] == record
+    route = base + "/revisions/" + record["revision_id"] + "/artifact"
+    response = await client.get(route + "/receipt")
+    assert response.is_success, response.text
+    receipt = response.json()["data"]
+    assert receipt["package_schema_version"] == "2.0"
+    assert receipt["definition_digest_scope"] == record["definition_digest_scope"]
+    response = await client.get(route)
+    assert response.is_success, response.text
+    assert sha256(response.content).hexdigest() == receipt["transport_digest"]
+    # A valid record hash does not authorize relabeling definition semantics.
+    wrong = {**record, "revision_id":"rv_"+str(uuid4()), "definition_digest_scope":"woobe-portable-definition@1.0"}
+    wrong.pop("record_digest")
+    wrong["record_digest"] = asac_digest("record", wrong)
+    response = await client.post(base + "/revisions", json={**body, "operation_id":str(uuid4()), "record":wrong})
+    assert response.status_code == 409

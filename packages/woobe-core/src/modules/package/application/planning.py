@@ -115,7 +115,7 @@ class PlanPackageUseCase:
         structural = installation_mode == "structural"
         if installation_mode not in {"structural", "operational"} or (structural and lifecycle != "draft"):
             raise PackageError("PACKAGE_INSTALLATION_MODE_INVALID", "Structural installation only creates Draft resources")
-        if graph.manifest.get("schema_version", "1.0") == "2.0" and not structural:
+        if graph.manifest.get("schema_version", "1.0") == "2.0" and not structural and candidate is None:
             raise PackageError("PACKAGE_INSTALLATION_MODE_REQUIRED", "Package 2.0 requires explicit structural installation")
         if bindings.get("schema_version") != graph.manifest.get("schema_version", "1.0"):
             raise PackageError("PACKAGE_SCHEMA_UNSUPPORTED", "Bindings must match the package schema version")

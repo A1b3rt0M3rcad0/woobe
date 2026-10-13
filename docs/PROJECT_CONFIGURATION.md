@@ -88,8 +88,8 @@ woobe package plan ./support --structural --save-plan ./support-plan.json
 woobe package import --plan-file ./support-plan.json --wait
 ```
 
-Qualification remains in progress: the preparation/resume workflow and ASaC
-binding fingerprints must be completed before this feature is released.
+Qualification remains in progress: complete legacy-source migration and lifecycle
+readiness must pass before this feature is released.
 
 ### Knowledge preparation
 
@@ -113,3 +113,19 @@ Structural Network installation imports captured Agent definitions into Draft an
 Agent and Network Playgrounds read configuration metadata for the selected environment and exact saved snapshot. The compact notice separates missing material, unreadable status, denied access and outstanding external checks. Details expand on demand. Unsaved Draft edits are explicitly outside that saved-definition result; Acceptance remains responsible for authorizing the actual submitted closure. Refreshing or returning from Environments never executes a Run. After a value is saved, cached readiness is invalidated.
 
 Legacy header references accept a whole `{{secret:name}}` value. Missing/unreadable material, empty values, header control characters and ambiguous partial templates fail before sending a request. They no longer silently become an empty header. These guards do not replace the remaining source migration and destination-policy cutover.
+
+### Managed development and immutable history
+
+New CLI clients select Package 2.0 for managed `pull` only when the server
+advertises the matching ASaC definition scope and package catalog. Public Provider
+YAML retains typed remote references; native connection IDs stay in destination
+state. Local validation, structural Draft push, isolated Draft checkpoint and
+Candidate preparation preserve those references without reading local variables.
+Older servers retain the schema1 workflow; a mismatched advertised schema fails
+before writing and never causes an implicit downgrade.
+
+Schema2 history uses a separate digest contract documented in
+[ASaC history](runtime/ASAC_HISTORY.md#configuration-aware-portable-definitions).
+Capturing or preparing a revision is not permission to execute it or populate
+missing remote values. Full lifecycle and legacy-source qualification remains
+part of the rollout gate.

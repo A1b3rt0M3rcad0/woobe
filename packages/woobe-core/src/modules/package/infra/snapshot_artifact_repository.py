@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 
 from modules.package.application.asac_definition import (
-    DEFINITION_SCOPE,
+    definition_scope,
     portable_definition,
     provider_definition_digests,
 )
@@ -21,7 +21,7 @@ def snapshot_evidence(row):
         "artifact_id": str(row.id),
         "artifact_digest": "sha256:" + row.artifact_digest,
         "definition_digest": row.definition_digest,
-        "definition_digest_scope": DEFINITION_SCOPE,
+        "definition_digest_scope": definition_scope(row.manifest),
         "component_digests": row.component_digests,
         "provider_digests": provider_definition_digests(row.manifest),
         "manifest": row.manifest,
@@ -273,6 +273,8 @@ class PackageSnapshotArtifactRepository:
                 return {
                     "artifact_digest": "sha256:" + bundle.artifact_digest,
                     "definition_digest": definition,
+                    "definition_digest_scope": definition_scope(bundle.graph.manifest),
+                    "package_schema_version": bundle.graph.manifest["schema_version"],
                     "inventory": bundle.inventory,
                     "transport_digest": sha256(content).hexdigest(),
                     "size_bytes": len(content),

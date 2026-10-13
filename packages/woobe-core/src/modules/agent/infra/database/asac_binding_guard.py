@@ -23,8 +23,11 @@ class AgentASaCBindingGuard:
             row=await session.scalar(select(ProviderCredentialModel).where(
                 ProviderCredentialModel.id==UUID(evidence['credential_id']),ProviderCredentialModel.project_id==project_id)
                 .with_for_update(read=True))
-            if row is None or row.status!='active' or {'credential_id':str(row.id),'provider':row.provider,
-                'revision':row.updated_at.isoformat(),'existing':True}!=evidence:
+            actual = None if row is None else {'credential_id':str(row.id),'provider':row.provider,
+                'revision':row.updated_at.isoformat(),'existing':True}
+            if actual is not None and 'binding_revision' in evidence:
+                actual['binding_revision'] = row.binding_revision
+            if row is None or row.status!='active' or actual!=evidence:
                 raise ConflictError('ASAC_DEPLOYMENT_BINDINGS_CHANGED: credential version unavailable')
         for alias,evidence in sorted(expected.get('secrets',{}).items()):
             if evidence.get('existing') is not True or 'secret_id' not in evidence:
