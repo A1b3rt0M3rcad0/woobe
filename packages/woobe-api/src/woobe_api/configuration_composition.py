@@ -20,7 +20,7 @@ def configure_target_readiness():
     from modules.package.entrypoint import configure_package_configuration_barrier
     from modules.core.entrypoint import build_project_configuration_runtime
     configure_package_configuration_barrier(build_project_configuration_runtime)
-    configure_configuration_target_reader(target_reader)
+    configure_configuration_target_reader(target_reader, inventory=target_inventory)
     from modules.agent.entrypoint import configuration_binding
     from modules.core.entrypoint import configure_configuration_binding_adapter
     configure_configuration_binding_adapter(configuration_binding)
@@ -37,3 +37,12 @@ async def assert_configuration_quiescent(session, *, project_id):
     await assert_agent_configuration_quiescent(session, project_id=project_id)
     await assert_network_configuration_quiescent(session, project_id=project_id)
     await assert_package_configuration_quiescent(session, project_id=project_id)
+
+
+async def target_inventory(session, *, project_id, environment, limit):
+    from modules.agent.entrypoint import configuration_targets as agents
+    from modules.network.entrypoint import configuration_targets as networks
+    agent_page = await agents(session, project_id=project_id, environment=environment, limit=limit)
+    network_page = await networks(session, project_id=project_id, environment=environment, limit=limit)
+    return {'targets': agent_page['targets'] + network_page['targets'],
+            'complete': agent_page['complete'] and network_page['complete']}

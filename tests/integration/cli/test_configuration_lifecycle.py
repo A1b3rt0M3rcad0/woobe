@@ -5,6 +5,7 @@ The legacy pinned CLI exercises the unchanged compatibility suite.
 """
 import pytest
 from uuid import uuid4
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from tests.integration.cli.test_control_plane_workflow import cli
 from tests.unit.package.test_configuration_package_v2 import package, network_package
@@ -46,6 +47,16 @@ async def test_remote_configuration_development_and_activation(cli, tmp_path, ki
     assert applied["state"] == "succeeded", applied
     assert applied["installation_status"] == "installed"
     assert applied["execution_ready"] is False
+    summary = await cli.data("request", "GET", f"/core/projects/{cli.project_id}/configuration/summary")
+    assert summary["state"] == "blocked" and summary["missing_key_count"] == 1, summary
+    cli_summary = await cli.run("project", "configuration", "summary", "--env", "draft", expected=6)
+    assert cli_summary["data"]["blocked_key_count"] == 1
+    if kind == "agent":
+        _, restricted = await cli.issue("workspace", "control-key", "create", body={
+            "name": "Configuration metadata only", "expires_at": (datetime.now(UTC) + timedelta(minutes=30)).isoformat(), "on_project_create_permissions": [],
+            "project_grants": [{"project_id": cli.project_id, "permissions": ["project:read", "project:environment:read"]}]})
+        denied = await cli.run("request", "GET", f"/core/projects/{cli.project_id}/configuration/summary", key=restricted, expected=4)
+        assert "affected_target_count" not in str(denied)
     target = next(x["resource_id"] for x in applied["inventory"] if x["action"] == ("prepare_network" if kind == "network" else "prepare_inactive_agent"))
     exported = (await cli.run("package", "export", kind, target, "--package-schema", "2.0", "--destination", str(tmp_path / "exported")))["data"]
     assert exported["package_schema_version"] == "2.0"
@@ -124,6 +135,8 @@ async def test_remote_configuration_development_and_activation(cli, tmp_path, ki
     deployed = (await cli.run(kind, "@support", "deployment", "apply", replanned["plan_id"], "--yes", cwd=registry))["data"]
     assert deployed["state"] == "committed" and deployed["selection_changed"]
     assert deployed["release_id"] == publication["release_id"]
+    summary = await cli.data("request", "GET", config_base + "/summary", "--query", "environment=production")
+    assert summary["state"] in {"ready", "ready_with_notices"} and summary["blocked_key_count"] == 0, summary
 
 
 @pytest.mark.asyncio

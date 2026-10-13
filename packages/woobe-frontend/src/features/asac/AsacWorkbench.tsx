@@ -25,6 +25,7 @@ export function AsacWorkbench({ projectId, resourceId, kind }: { projectId: stri
   const [file, setFile] = useState('')
   const [name, setName] = useState('hotfix')
   const [source, setSource] = useState('production')
+  const [packageSchema, setPackageSchema] = useState('2.0')
   const [version, setVersion] = useState('')
   const [reason, setReason] = useState('')
   const [parents, setParents] = useState<string[]>([])
@@ -150,7 +151,7 @@ export function AsacWorkbench({ projectId, resourceId, kind }: { projectId: stri
     let exported: RecordData
     try {
       // Capture first: failures here have not submitted an owner mutation.
-      exported = await post<RecordData>(`/projects/${projectId}/packages/export`, { kind, target_id: resourceId, source, ...(source === 'release' ? { release_version: version } : {}), knowledge: 'portable', development: true }, { sensitive: true })
+      exported = await post<RecordData>(`/projects/${projectId}/packages/export`, { kind, target_id: resourceId, source, ...(source === 'release' ? { release_version: version } : {}), knowledge: 'portable', development: true, package_schema_version: packageSchema }, { sensitive: true })
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Snapshot capture failed.'); setBusy(false); return
     }
@@ -177,12 +178,14 @@ export function AsacWorkbench({ projectId, resourceId, kind }: { projectId: stri
       <p className={label}>Production: {production.snapshotId ?? selectionMessage(production, 'Production')} · generation {production.data?.environment_generation ?? '—'}</p>
       <Button onClick={() => void loadEditor()} disabled={!draftId || blocked || dirty}>Load saved files</Button>
     </div>
-    <div className={`${box} grid items-end gap-ui-md md:grid-cols-4`}>
+    <div className={`${box} grid items-end gap-ui-md md:grid-cols-2 xl:grid-cols-5`}>
       {field('New Draft name', <Input value={name} onChange={event => setName(event.target.value)} aria-label="New Draft name" />)}
       {field('Open from', <Select value={source} onChange={event => setSource(event.target.value)} aria-label="Open from" options={['draft', 'staging', 'release', 'production'].map(value => ({ value, label: value }))} />)}
       {field('Release version', <Input value={version} disabled={source !== 'release'} onChange={event => setVersion(event.target.value)} aria-label="Release version" placeholder="Only for a fixed Release" />)}
+      {field('Connection mode', <Select value={packageSchema} onChange={event => setPackageSchema(event.target.value)} aria-label="Connection mode" options={[{ value: '2.0', label: 'Remote references' }, { value: '1.0', label: 'Legacy compatibility' }]} />)}
       <Button onClick={() => void open()} disabled={blocked || dirty || !name || (source === 'release' && !version)}>Open isolated Draft</Button>
     </div>
+    {packageSchema === '1.0' && <p className={label}>Legacy compatibility preserves the existing connection contract. Use remote references after reviewing the Project configuration mapping.</p>}
     {editor && <div className={`${box} space-y-ui-md`}>
       <div className="grid gap-ui-sm md:grid-cols-3"><span className={label}>Origin: {text(editor.draft.origin, 'environment')} / {text(editor.draft.origin, 'snapshot_id')}</span><span className={label}>Selected Draft: {editor.draft.name} · generation {editor.draft.generation}</span><span className={label}>Writes update this Draft. Stage and Production are separate.</span></div>
       {stale && <p role="alert" className="text-amber-300">The remote generation changed. Your edits remain here; saving is blocked. Compare and resolve before refreshing.</p>}

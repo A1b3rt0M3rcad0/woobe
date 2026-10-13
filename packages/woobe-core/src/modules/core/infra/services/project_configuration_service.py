@@ -16,7 +16,7 @@ _PERMISSIONS = {
     "migration_preview": "migrate", "migration_create": "migrate", "migration_status": "migrate", "migration_advance": "migrate",
     "binding": "read", "bind": "bind",
     "legacy_bindings": "read", "convert": "migrate",
-    "readiness": "read",
+    "readiness": "read", "summary": "read",
     "list_use_policies": "read",
     "capabilities": "read",
     "list_keys": "read", "usage": "read", "declare": "declare", "patch": "declare",
@@ -25,6 +25,7 @@ _PERMISSIONS = {
 }
 
 _target_reader = None
+_target_inventory = None
 _binding_adapter = None
 _migration_inventory = None
 _migration_cutover = None
@@ -41,9 +42,9 @@ def configure_configuration_binding_adapter(adapter):
 
 
 
-def configure_configuration_target_reader(reader):
-    global _target_reader
-    _target_reader = reader
+def configure_configuration_target_reader(reader, *, inventory=None):
+    global _target_reader, _target_inventory
+    _target_reader, _target_inventory = reader, inventory
 
 
 class ProjectConfigurationService:
@@ -138,6 +139,7 @@ class ProjectConfigurationService:
                 return {"schema_version": "project_configuration.v1", "declaration_without_value": True,
                         "typed_remote_bindings": True, "binding_updates": _binding_adapter is not None, "external_validation": True, "metadata_only_reads": True,
                         "target_readiness": _target_reader is not None,
+                        "project_summary": _target_inventory is not None,
                         "migration_source_kinds": ["provider_credential", "secret"] if _migration_inventory is not None else [],
                         "secret_reveal": False, "environment_fallback": False}
             if action in {"binding", "bind"}:
@@ -145,6 +147,25 @@ class ProjectConfigurationService:
                 if _binding_adapter is None:
                     raise ConfigurationError("CONFIG_STORE_UNAVAILABLE")
                 return await _binding_adapter(session, project_id=project_id, **arguments)
+            if action == "summary":
+                from modules.core.infra.services.configuration_summary import configuration_summary
+                from shared.contracts.project_configuration import ConfigurationError
+                if _target_reader is None or _target_inventory is None:
+                    raise ConfigurationError("CONFIG_STORE_UNAVAILABLE")
+                async def authorize_target(target):
+                    required = target['kind'] + ':read'
+                    context = {'project_id': project_id, 'environment': arguments['environment'],
+                               target['kind'] + '_id': target['id']}
+                    if isinstance(principal, ControlPlanePrincipal):
+                        await authorizer.authorize_control_key(api_key_id=principal.api_key_id,
+                            workspace_id=principal.workspace_id, workspace_permissions=principal.permissions,
+                            required_permission=required, path_params=context, query_params={}, body=None)
+                    else:
+                        await authorizer.require_human_permission(user_id=principal.user_id, workspace_id=project.workspace_id,
+                            project_id=project_id, permission=required, path_context=context)
+                return await configuration_summary(session, project_id=project_id, environment=arguments['environment'],
+                    inventory=_target_inventory, reader=_target_reader, authorize=authorize_target,
+                    inspect=ConfigurationResolution(session, encryption_key=self.encryption_key).inspect)
             if action == "readiness":
                 from shared.contracts.project_configuration import ConfigurationError
                 if _target_reader is None:

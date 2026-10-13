@@ -1,3 +1,4 @@
+import { ProjectConfigurationNotice } from '@/features/projects/components/ProjectConfigurationNotice'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useProject } from '@/features/projects/hooks'
 import { PageHeader } from '@/components/common/PageHeader'
@@ -41,6 +42,7 @@ export default function ProjectDetailPage() {
         }
       />
 
+      <div className="mb-4"><ProjectConfigurationNotice key={projectId} projectId={projectId!} workspaceId={workspaceId} /></div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {quickLinks.map((link) => (
           <Link key={link.label} to={p(projectId!, link.segment)}>

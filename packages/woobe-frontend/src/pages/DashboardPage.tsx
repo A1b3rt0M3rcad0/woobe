@@ -1,3 +1,4 @@
+import { ProjectConfigurationNotice } from '@/features/projects/components/ProjectConfigurationNotice'
 import { useEffect, useMemo, useState } from 'react'
 import type { ChangeEvent, KeyboardEvent, ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
@@ -687,6 +688,8 @@ export default function DashboardPage() {
             </div>
           </div>
         </header>
+
+        {projectId && <ProjectConfigurationNotice key={projectId} projectId={projectId} workspaceId={workspaceId} environment={environment === 'all' ? undefined : environment} />}
 
         {query.isError && model && <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-4 py-2 text-xs text-amber-200">The latest refresh failed. Showing the last available Overview data.</div>}
 

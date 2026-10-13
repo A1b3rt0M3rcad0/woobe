@@ -23,6 +23,7 @@ _REVIEWED = [
     ("GET", "/core/projects/{project_id}/configuration/legacy-bindings", "project:environment:read"),
     ("POST", "/core/projects/{project_id}/configuration/legacy-bindings/{alias_id}/convert", "project:environment:migrate"),
     ("GET", "/core/projects/{project_id}/configuration/readiness/{target_kind}/{target_id}", "project:environment:read"),
+    ("GET", "/core/projects/{project_id}/configuration/summary", "project:environment:read"),
     ("GET", "/core/projects/{project_id}/configuration/keys", "project:environment:read"),
     ("POST", "/core/projects/{project_id}/configuration/keys", "project:environment:declare"),
     ("PATCH", "/core/projects/{project_id}/configuration/keys/{key_id}", "project:environment:declare"),
@@ -638,7 +639,7 @@ def verified_query_context(
         return {**path_params, "credential_id": query_params["available_for_credential_id"],
                 "environment": query_params.get("environment") or "draft"}
     if (method.upper() == "GET" and path_params.get("project_id") is not None
-            and (path in {f"/core/projects/{path_params['project_id']}/configuration/keys", f"/core/projects/{path_params['project_id']}/configuration/capabilities", f"/core/projects/{path_params['project_id']}/configuration/legacy-bindings"}
+            and (path in {f"/core/projects/{path_params['project_id']}/configuration/summary", f"/core/projects/{path_params['project_id']}/configuration/keys", f"/core/projects/{path_params['project_id']}/configuration/capabilities", f"/core/projects/{path_params['project_id']}/configuration/legacy-bindings"}
                  or path.startswith(f"/core/projects/{path_params['project_id']}/configuration/readiness/"))):
         return {**path_params, "environment": query_params.get("environment") or "draft"}
     if (method.upper() == "GET" and path_params.get("agent_id") is not None

@@ -185,3 +185,29 @@ static scheme, host, port and path prefix. Approve that prefix explicitly in the
 use policy. Host/scheme templates remain invalid; every rendered outbound URL is
 rechecked for destination changes and encoded path traversal before credentials
 are attached. URL template edits also change the binding revision.
+
+## Project summary
+
+`GET /core/projects/{project_id}/configuration/summary?environment=draft` is a
+metadata-only observation of current Agent/Network selections in one Environment.
+It checks configuration-read permission and each inspected owner's read authority
+before returning aggregate counts. It never decrypts values or starts external
+validation. Targets without a Staging/Production selection are counted separately;
+they do not create a missing-secret alarm in another Environment. Structurally
+installed inactive Agents can be diagnosed, but remain ineligible for execution.
+
+The Overview follows its chosen Environment. With Overview set to All, the compact
+configuration strip defaults to Draft and remembers an explicit per-Project choice
+for the browser session. It refreshes on focus, every 30 seconds and after central
+configuration writes. Permission loss or failed refresh hides prior counts. The
+link returns to the same Project after editing, without rerunning any operation.
+
+The summary inspects at most 50 Agents and 50 Networks per request. A larger or
+unresolved closure reports `unknown` / `complete: false`, never a partial green
+status. Use exact target readiness for execution decisions. CLI clients discover
+the optional `project_summary` capability before requesting this projection.
+
+New Web isolated Drafts default to **Remote references** (Package 2.0). Existing
+unmigrated connections can be captured by explicitly choosing **Legacy
+compatibility**; a failed remote-reference capture never silently retries under
+a different contract. Retained edits preserve their original package version.

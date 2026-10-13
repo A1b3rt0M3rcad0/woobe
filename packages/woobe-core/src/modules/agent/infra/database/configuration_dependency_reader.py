@@ -202,7 +202,7 @@ async def read_configuration_target(session, *, project_id, target_kind, target_
         else:
             resolver = target_resolver(session)
             resolved = await resolver.resolve(project_id=project_id, agent_id=target_id, environment=environment,
-                release_id=version_id, allow_legacy_draft=True)
+                release_id=version_id, allow_legacy_draft=True, metadata_only=True)
             bindings = {str(target_id): {"snapshot_override": resolved.snapshot, "agent_id": str(target_id)}}
             selection = {"environment": environment, "version_id": str(resolved.release_id) if resolved.release_id else None, "source": resolved.source}
     else:

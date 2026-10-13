@@ -49,3 +49,6 @@ __all__.append("read_configuration_bindings")
 
 from modules.network.infra.database.configuration_quiescence import assert_configuration_quiescent as assert_network_configuration_quiescent
 __all__.append("assert_network_configuration_quiescent")
+
+from modules.network.infra.database.configuration_targets import configuration_targets
+__all__.append('configuration_targets')

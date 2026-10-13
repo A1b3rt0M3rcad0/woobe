@@ -4,6 +4,7 @@ import { configurationReturnPath, getConfigurationReadiness } from './configurat
 import { get } from '@/lib/api/client'
 it('keeps execution return navigation in the same Project', () => {
   const origin = 'https://woobe.test'
+  expect(configurationReturnPath('/projects/p', 'p', origin)).toBe('/projects/p')
   expect(configurationReturnPath('/workspaces/w/projects/p/agents/a/playground?session=s', 'p', origin)).toBe('/workspaces/w/projects/p/agents/a/playground?session=s')
   for (const path of ['//evil.test', '/projects/other/agents/p', '/projects/p/../../outside', '/projects/p/environments', '/projects/p/\\evil', 'javascript:alert(1)']) {
     expect(configurationReturnPath(path, 'p', origin)).toBeNull()

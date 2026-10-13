@@ -89,6 +89,11 @@ async def capabilities(request: Request, project_id: UUID, environment: Environm
     return await execute(request, project_id, "capabilities", environment=environment)
 
 
+@router.get("/summary")
+async def summary(request: Request, project_id: UUID, environment: Environment = "draft"):
+    return await execute(request, project_id, "summary", environment=environment)
+
+
 @router.post("/migrations/preview")
 async def migration_preview(request: Request, project_id: UUID, body: MigrationPlan):
     return await execute(request, project_id, "migration_preview", **body.model_dump())

@@ -328,12 +328,13 @@ class AgentExecutionSnapshotResolver:
         release: Any | None,
         allow_legacy_draft: bool = False,
         validate_draft_projection: bool = False,
+        metadata_only: bool = False,
     ) -> ResolvedAgentExecutionSnapshot:
         environment = self.normalize_environment(environment)
         if _uuid(getattr(agent, "project_id", None)) != project_id:
             raise AgentNotFoundError(getattr(agent, "id", None))
         status = _value(getattr(agent, "status", None))
-        if status not in {None, AgentStatus.active.value}:
+        if not metadata_only and status not in {None, AgentStatus.active.value}:
             raise ValidationError("Agent is not active")
 
         if release is None:
@@ -382,6 +383,7 @@ class AgentExecutionSnapshotResolver:
         release_id: UUID | None = None,
         allow_legacy_draft: bool = False,
         validate_draft_projection: bool = False,
+        metadata_only: bool = False,
     ) -> ResolvedAgentExecutionSnapshot:
         if self._agent_repo is None:
             raise RuntimeError("Agent execution snapshot resolver has no Agent repository")
@@ -427,4 +429,5 @@ class AgentExecutionSnapshotResolver:
             release=release,
             allow_legacy_draft=allow_legacy_draft,
             validate_draft_projection=validate_draft_projection,
+            metadata_only=metadata_only,
         )

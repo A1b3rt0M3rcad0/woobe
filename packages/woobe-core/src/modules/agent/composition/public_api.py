@@ -605,3 +605,6 @@ __all__.append("assert_agent_configuration_quiescent")
 
 from modules.agent.infra.database.configuration_secret_migration import inventory_configuration_sources, migrate_configuration_source
 __all__ += ["inventory_configuration_sources", "migrate_configuration_source"]
+
+from modules.agent.infra.database.configuration_targets import configuration_targets
+__all__.append('configuration_targets')

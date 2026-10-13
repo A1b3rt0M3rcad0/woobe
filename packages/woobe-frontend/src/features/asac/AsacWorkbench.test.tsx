@@ -77,6 +77,16 @@ describe('Owner lifecycle workbench',()=>{
     expect(fixture.post).toHaveBeenCalledTimes(2)
     expect(sessionStorage.length).toBe(0)
   })
+  it('requires explicit legacy selection and never retries a failed remote-reference capture as legacy',async()=>{
+    fixture.post.mockRejectedValue(new ApiError('Configuration migration required',409))
+    await click('Open isolated Draft')
+    expect(fixture.post).toHaveBeenCalledTimes(1)
+    expect(fixture.post.mock.calls[0][1].package_schema_version).toBe('2.0')
+    await act(async()=>{const select=container.querySelector('[aria-label="Connection mode"]') as HTMLSelectElement;select.value='1.0';select.dispatchEvent(new Event('change',{bubbles:true}))})
+    await click('Open isolated Draft')
+    expect(fixture.post.mock.calls[1][1].package_schema_version).toBe('1.0')
+    expect(container.textContent).toContain('preserves the existing connection contract')
+  })
   it('does not create an unreconcilable checkpoint when source capture fails',async()=>{
     fixture.post.mockRejectedValue(new ApiError('Capture failed',503))
     await click('Open isolated Draft')
