@@ -316,12 +316,13 @@ class PackageTransactionReceipt:
             data = (
                 response.body.get("data", {}) if isinstance(response.body, dict) else {}
             )
-            if data.get("configuration_ready") is not True:
+            structural = getattr(operation, "installation_mode", "operational") == "structural"
+            if (structural and data.get("structural_complete") is not True) or (not structural and data.get("configuration_ready") is not True):
                 raise PackageError(
                     "PACKAGE_OPERATION_INCOMPLETE",
                     "Native verifier has not established configuration readiness",
                 )
-            operation.configuration_ready = True
+            operation.configuration_ready = data.get("configuration_ready") is True
             operation.execution_ready = data.get("execution_ready") is True
             operation.lifecycle_state = data.get("lifecycle_state")
         operation.revision += 1

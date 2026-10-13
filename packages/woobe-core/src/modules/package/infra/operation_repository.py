@@ -195,6 +195,8 @@ class PackageOperationRepository:
             upload_id=plan.upload_id,
             plan_id=plan.id,
             lifecycle=payload["lifecycle"],
+            package_schema_version=plan.document.get("package_schema_version", "1.0"),
+            installation_mode=plan.document.get("installation_mode", "operational"),
             phases_total=len(plan.document["effects"]),
             state="accepted",
         )
@@ -326,7 +328,7 @@ class PackageOperationRepository:
             for field, value in changes.items():
                 setattr(record, field, value)
             if record.state == "succeeded" and (
-                not record.configuration_ready
+                (not record.configuration_ready and record.installation_mode != "structural")
                 or record.phases_completed != record.phases_total
             ):
                 raise PackageError(

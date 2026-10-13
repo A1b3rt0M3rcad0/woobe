@@ -464,3 +464,17 @@ from modules.agent.composition.public_api import verify_configuration_consumer
 __all__.append("verify_configuration_consumer")
 from modules.agent.composition.public_api import inventory_provider_configuration, migrate_provider_configuration
 __all__ += ["inventory_provider_configuration", "migrate_provider_configuration"]
+from modules.agent.composition.public_api import inspect_configuration_provider_reuse
+__all__.append("inspect_configuration_provider_reuse")
+
+from modules.agent.composition.public_api import create_knowledge_version_structural_composer
+__all__.append("create_knowledge_version_structural_composer")
+
+from modules.agent.composition.public_api import create_imported_vector_structural_composer
+__all__.append("create_imported_vector_structural_composer")
+
+from modules.agent.composition.public_api import finalize_imported_agent_structural_composer
+__all__.append("finalize_imported_agent_structural_composer")
+
+from modules.agent.composition.public_api import verify_imported_agent_structural_composer
+__all__.append("verify_imported_agent_structural_composer")

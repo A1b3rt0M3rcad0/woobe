@@ -170,3 +170,17 @@ __all__.append("build_configuration_process_registration")
 
 from modules.core.infra.services.project_configuration_service import configure_configuration_migration_adapter
 __all__.append("configure_configuration_migration_adapter")
+
+
+def declare_imported_configuration_composer():
+    from modules.core.infra.services.configuration_package import DeclareImportedConfiguration
+    from modules.core.infra.database.unit_of_work import CoreUnitOfWork
+    from shared.composition_resources import DATABASE_ENGINE, SETTINGS
+    from shared.infra.transactional_handler import TransactionalHandler
+    uow = CoreUnitOfWork(DATABASE_ENGINE)
+    return TransactionalHandler(uow, DeclareImportedConfiguration(uow, encryption_key=SETTINGS.encryption_key),
+        additional_permissions=lambda _: [("project:environment:declare", None)])
+
+
+from modules.core.infra.services.configuration_package import inspect_configuration_declarations
+__all__ += ["declare_imported_configuration_composer", "inspect_configuration_declarations"]

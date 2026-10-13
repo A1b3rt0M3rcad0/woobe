@@ -8,8 +8,7 @@ from modules.agent.presentation.controllers.create_knowledge_version_controller 
 from shared.infra.transactional_handler import TransactionalHandler
 
 
-def create_knowledge_version_composer() -> TransactionalHandler:
-    uow = AgentUnitOfWork(DATABASE_ENGINE)
+def _build_knowledge_controller(uow, *, structural=False):
     knowledge_repo = SQLAlchemyKnowledgeVersionRepository(uow)
     vector_repo = SQLAlchemyVectorSnapshotRepository(uow)
     agent_repo = SQLAlchemyAgentRepositoryWithProviderModels(uow)
@@ -17,6 +16,19 @@ def create_knowledge_version_composer() -> TransactionalHandler:
         knowledge_repo,
         vector_repo,
         agent_repo,
+        allow_pending=structural,
     )
     controller = CreateKnowledgeVersionController(use_case)
+    return controller
+
+
+def create_knowledge_version_composer() -> TransactionalHandler:
+    uow = AgentUnitOfWork(DATABASE_ENGINE)
+    controller = _build_knowledge_controller(uow)
+    return TransactionalHandler(uow, controller.handle)
+
+
+def create_knowledge_version_structural_composer() -> TransactionalHandler:
+    uow = AgentUnitOfWork(DATABASE_ENGINE)
+    controller = _build_knowledge_controller(uow, structural=True)
     return TransactionalHandler(uow, controller.handle)

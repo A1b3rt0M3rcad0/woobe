@@ -79,3 +79,6 @@ __all__.append("configure_configuration_binding_adapter")
 
 from modules.core.composition.public_api import build_configuration_process_registration, configure_configuration_migration_adapter
 __all__ += ["build_configuration_process_registration", "configure_configuration_migration_adapter"]
+
+from modules.core.composition.public_api import declare_imported_configuration_composer, inspect_configuration_declarations
+__all__ += ["declare_imported_configuration_composer", "inspect_configuration_declarations"]

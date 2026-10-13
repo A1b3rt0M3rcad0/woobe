@@ -5,6 +5,8 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
 
+VECTOR_SNAPSHOT_PENDING = "PENDING_PREPARATION"
+
 VECTOR_SNAPSHOT_BUILDING = "BUILDING"
 VECTOR_SNAPSHOT_READY = "READY"
 VECTOR_SNAPSHOT_FAILED = "FAILED"

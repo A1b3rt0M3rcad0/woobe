@@ -70,6 +70,7 @@ class PackageService:
             release_notes=request.release_notes,
             reason=request.reason,
             api_origin=api_origin,
+            installation_mode=request.installation_mode,
             **development,
         )
 
@@ -82,6 +83,8 @@ class PackageService:
 
     async def apply(self, *, project_id, principal, key, request):
         payload = request.model_dump(mode="json")
+        if payload.get("installation_mode") == "operational":
+            payload.pop("installation_mode")  # Preserve existing request identities.
         payload["bindings"] = request.bindings.model_dump(mode="json", exclude_none=True)
         operation, replayed = await self.operations.accept(
             project_id=project_id, principal=principal, key=key, payload=payload

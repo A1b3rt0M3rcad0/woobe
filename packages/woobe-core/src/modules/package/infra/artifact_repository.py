@@ -17,7 +17,7 @@ def upload_status(record):
     return {
         "upload_id": str(record.id),
         "project_id": str(record.project_id),
-        "package_schema_version": "1.0",
+        "package_schema_version": record.manifest["schema_version"],
         "artifact_digest": record.artifact_digest,
         "size_bytes": record.size_bytes,
         "inventory": record.inventory,

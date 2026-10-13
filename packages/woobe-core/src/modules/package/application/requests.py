@@ -3,6 +3,7 @@ from typing import Literal
 from pydantic import Field, StrictInt, StrictStr, field_validator, model_validator
 
 from modules.package.application.dtos import StrictDTO, ImportBindingsV1
+from modules.package.application.configuration_dtos import ImportBindingsV2
 
 UUID_PATTERN = (
     r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
@@ -34,7 +35,8 @@ class PlanPackageRequest(StrictDTO):
     resource_bindings: dict[str, DevelopmentResourceTarget] = Field(default_factory=dict, max_length=1024)
     upload_id: str = Field(pattern=UUID_PATTERN)
     artifact_digest: str = Field(pattern=DIGEST_PATTERN)
-    bindings: ImportBindingsV1
+    bindings: ImportBindingsV1 | ImportBindingsV2
+    installation_mode: Literal["operational", "structural"] = "operational"
     lifecycle: Literal["draft", "staging", "release", "production"] = "draft"
     release_notes: str | None = Field(default=None, max_length=4000)
     reason: str | None = Field(default=None, max_length=1000)
@@ -53,7 +55,8 @@ class ApplyPackageRequest(StrictDTO):
     plan_digest: str = Field(pattern=DIGEST_PATTERN)
     upload_id: str = Field(pattern=UUID_PATTERN)
     artifact_digest: str = Field(pattern=DIGEST_PATTERN)
-    bindings: ImportBindingsV1
+    bindings: ImportBindingsV1 | ImportBindingsV2
+    installation_mode: Literal["operational", "structural"] = "operational"
     protected_bindings: dict[str, str] = Field(default_factory=dict, max_length=1024)
     lifecycle: Literal["draft", "staging", "release", "production"] = "draft"
     release_notes: str | None = Field(default=None, max_length=4000)
@@ -71,6 +74,7 @@ class ResumePackageOperationRequest(StrictDTO):
 
 
 class ExportPackageRequest(StrictDTO):
+    package_schema_version: Literal["1.0", "2.0"] = "1.0"
     development: bool = False
     kind: Literal["Agent", "Network"]
     target_id: str = Field(pattern=UUID_PATTERN)

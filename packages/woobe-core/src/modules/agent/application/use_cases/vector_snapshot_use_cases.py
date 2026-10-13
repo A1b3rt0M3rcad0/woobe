@@ -41,6 +41,7 @@ from modules.agent.application.interfaces.repositories import (
 )
 from modules.agent.domain.vector_snapshot_entities import (
     VECTOR_SNAPSHOT_BUILDING,
+    VECTOR_SNAPSHOT_PENDING,
     VECTOR_SNAPSHOT_FAILED,
     VECTOR_SNAPSHOT_READY,
     VECTOR_SNAPSHOT_STAGE_CHUNKING,
@@ -190,8 +191,10 @@ class CreateVectorSnapshotUseCase:
         document_repo: DocumentRepository,
         provider_model_repo: Any,
         credential_repo: ProviderCredentialRepository,
+        defer_preparation: bool = False,
     ) -> None:
         self._snapshot_repo = snapshot_repo
+        self._defer_preparation = defer_preparation
         self._collection_repo = collection_repo
         self._document_repo = document_repo
         self._provider_model_repo = provider_model_repo
@@ -295,6 +298,7 @@ class CreateVectorSnapshotUseCase:
             )
 
         snapshot = VectorSnapshot(
+            **({"status": VECTOR_SNAPSHOT_PENDING, "build_stage": VECTOR_SNAPSHOT_PENDING} if self._defer_preparation else {}),
             project_id=input_dto.project_id,
             collection_id=input_dto.collection_id,
             version=version,

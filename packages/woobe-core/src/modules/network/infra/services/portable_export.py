@@ -36,6 +36,7 @@ class PortableNetworkExportReader:
         source=None,
         snapshot_id=None,
         release_version=None,
+        structural=False,
     ):
         if (source is None) == (snapshot_id is None):
             raise ValidationError("Export requires source or snapshot identity")
@@ -192,6 +193,7 @@ class PortableNetworkExportReader:
                             project_id=project_id,
                             principal=principal,
                             agent_id=node.agent_id,
+                            **({"structural": True} if structural else {}),
                             source="draft" if live_draft else None,
                             snapshot_id=identity[1],
                             expected_snapshot=None

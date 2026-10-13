@@ -15,6 +15,11 @@ def compile_imported_tool_inputs(*, project_id, metadata, spec, environment, sec
     """Remap native references, never protected values, before native compilation."""
     source = deepcopy(spec)
     config = source["config"]
+    if isinstance(config.get("authentication"), dict):
+        for reference in config["authentication"].get("fields", {}).values():
+            if reference.get("source") != "project_environment" or reference.get("key") not in environment:
+                raise ValidationError("Tool references undeclared remote authentication")
+            reference["key"] = environment[reference["key"]]
     referenced = collect_tool_project_environment_keys(
         [config, source.get("permissions", [])]
     )

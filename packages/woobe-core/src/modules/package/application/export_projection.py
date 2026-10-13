@@ -30,6 +30,8 @@ def reference_requirements(value):
             for child in item:
                 visit(child)
         elif isinstance(item, dict):
+            if item.get("source") in {"project_environment", "legacy_configuration"} and isinstance(item.get("key"), str):
+                environment.add(item["key"])
             if item.get("kind") == "project_environment" and isinstance(
                 item.get("field"), str
             ):
@@ -46,7 +48,10 @@ def reference_requirements(value):
 
 
 class ExportProjection:
-    def __init__(self, *, knowledge_mode, environment_kinds, development=False):
+    def __init__(self, *, knowledge_mode, environment_kinds, development=False, schema_version="1.0", declarations=None):
+        self.schema_version = schema_version
+        self.declarations = deepcopy(declarations or {})
+        self.connections = {}
         self.development = development
         self.knowledge_mode, self.environment_kinds = knowledge_mode, environment_kinds
         self.files, self.documents, self.requirements = (
@@ -90,7 +95,7 @@ class ExportProjection:
         )
         document = {
             "format": "woobe-package",
-            "schema_version": "1.0",
+            "schema_version": self.schema_version,
             "kind": kind,
             "metadata": {"key": key, "name": name, "description": description},
             "spec": deepcopy(spec),
@@ -142,7 +147,22 @@ class ExportProjection:
         if credential_id not in self.credential_aliases:
             alias = f"credential-{len(self.credential_aliases) + 1}"
             self.credential_aliases[credential_id] = alias
-            self.requirements["credentials"].append({"ref": alias, **intent})
+            if self.schema_version == "1.0":
+                self.requirements["credentials"].append({"ref": alias, **{key: intent[key] for key in ("provider", "metadata") if key in intent}})
+            else:
+                authentication = deepcopy(intent.get("authentication"))
+                if authentication is None:
+                    key_name = "PROVIDER_" + str(credential_id).replace("-", "") + "_API_KEY"
+                    self.declarations[key_name] = {"key": key_name, "kind": "secret", "value_format": "string", "description": "Authentication for " + intent.get("name", alias)}
+                    authentication = {"type": "api_key", "fields": {"api_key": {"source": "project_environment", "key": key_name}}}
+                for field, reference in authentication["fields"].items():
+                    key_name = reference["key"]
+                    if key_name not in self.declarations:
+                        raise PackageError("PACKAGE_EXPORT_INCOMPLETE", "Configuration declaration is unavailable")
+                    # Portable intent grants no legacy route or use authority.
+                    authentication["fields"][field] = {"source": "project_environment", "key": key_name}
+                self.connections[alias] = {"provider": provider, "name": intent.get("name", alias),
+                    "metadata": deepcopy(intent.get("metadata")), "authentication": authentication}
         spec = {
             "provider": provider,
             "model": model,
@@ -216,6 +236,16 @@ class ExportProjection:
                     "permissions",
                 )
             }
+            authentication = spec["config"].get("authentication")
+            if self.schema_version == "1.0" and authentication is not None:
+                if authentication.get("type") != "none":
+                    raise PackageError("PACKAGE_SCHEMA_UNSUPPORTED", "Typed Tool authentication requires Package 2.0 export")
+                spec["config"].pop("authentication")
+            elif self.schema_version == "2.0" and authentication is None:
+                if secrets or spec["config"].get("auth") not in (None, {"type": "none"}):
+                    raise PackageError("PACKAGE_SCHEMA_UNSUPPORTED", "Migrate legacy Tool authentication before Package 2.0 export")
+                spec["config"].pop("auth", None)
+                spec["config"]["authentication"] = {"type": "none"}
             identity = (tool["id"], json.dumps(spec, sort_keys=True))
             tool_key = self.add_document("Tool", tool["name"], spec, identity=identity)
             self.native_bindings[tool_key] = {"resource_id": tool["id"], "kind": "Tool"}
@@ -392,7 +422,7 @@ class ExportProjection:
                     )
                 knowledge_spec = {
                     "mode": "portable",
-                    "collection": knowledge["collection"],
+                    "collection": {**knowledge["collection"], "description": knowledge["collection"].get("description") or ""},
                     "documents": documents,
                     "embedding": {"model_ref": embedding_ref},
                     "vector_snapshot": {
@@ -507,7 +537,7 @@ class ExportProjection:
             )
         manifest = {
             "format": "woobe-package",
-            "schema_version": "1.0",
+            "schema_version": self.schema_version,
             "kind": "Package",
             "metadata": {"name": name, "version": version},
             "spec": {
@@ -525,6 +555,12 @@ class ExportProjection:
                 },
             },
         }
+        if self.schema_version == "2.0":
+            if self.secrets:
+                raise PackageError("PACKAGE_SCHEMA_UNSUPPORTED", "Legacy Tool Secret bindings require migration before Package 2.0 export")
+            manifest["spec"]["requires"] = {"knowledge": self.requirements["knowledge"]}
+            manifest["spec"]["configuration"] = {"keys": [self.declarations[key] for key in sorted(self.declarations)]}
+            manifest["spec"]["connections"] = self.connections
         self.add_bytes(
             "woobe.yaml",
             portable_yaml(manifest),

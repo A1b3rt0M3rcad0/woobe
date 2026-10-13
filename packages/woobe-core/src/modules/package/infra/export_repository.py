@@ -85,10 +85,13 @@ class PackageExportRepository:
                 return bundle.artifact_digest, bundle.inventory, stored
 
     async def create(self, *, project_id, principal, request):
+        schema_version = getattr(request, "package_schema_version", "1.0")
         selector = {
             "source": request.source,
             "snapshot_id": UUID(request.snapshot_id) if request.snapshot_id else None,
         }
+        if schema_version == "2.0":
+            selector["structural"] = True
         if request.release_version is not None:
             selector["release_version"] = request.release_version
         if request.kind == "Agent":
@@ -118,18 +121,26 @@ class PackageExportRepository:
             agents = captured["agents"]
         keys = set()
         for agent in agents:
+            if schema_version == "2.0":
+                for credential in agent["credentials"].values():
+                    keys.update(reference["key"] for reference in (credential.get("authentication") or {}).get("fields", {}).values())
             for tool in agent["tools"]:
                 environment, _ = self.reference_collector(
                     [tool["config"], tool["permissions"]]
                 )
                 keys.update(environment)
-        kinds = await self.environment.capture(
-            project_id=project_id, principal=principal, keys=keys
-        )
+        configuration = {}
+        if schema_version == "2.0":
+            declarations = await self.environment.capture(project_id=project_id, principal=principal, keys=keys, declarations=True)
+            kinds = {key: value["kind"] for key, value in declarations.items()}
+            configuration = {"schema_version": schema_version, "declarations": declarations}
+        else:
+            kinds = await self.environment.capture(project_id=project_id, principal=principal, keys=keys)
         projection = self.projection_factory(
             knowledge_mode=request.knowledge,
             environment_kinds=kinds,
             development=request.development,
+            **configuration,
         ).finish(
             kind=request.kind,
             captured=captured,
@@ -173,6 +184,7 @@ class PackageExportRepository:
         identifier = uuid4()
         storage_key = f"projects/{project_id}/exports/{identifier}.tar.gz"
         source = {
+            **({"package_schema_version": schema_version} if schema_version != "1.0" else {}),
             "kind": request.kind,
             "target_id": request.target_id,
             "captured": captured["source"],
@@ -269,7 +281,7 @@ class PackageExportRepository:
     @staticmethod
     def receipt(record):
         return {
-            "package_schema_version": "1.0",
+            "package_schema_version": record.source.get("package_schema_version", "1.0"),
             "export_id": str(record.id),
             "project_id": str(record.project_id),
             "artifact_digest": record.artifact_digest,

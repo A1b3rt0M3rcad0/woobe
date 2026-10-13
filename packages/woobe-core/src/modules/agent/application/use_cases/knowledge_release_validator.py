@@ -33,7 +33,9 @@ class KnowledgeReleaseValidator:
         self,
         knowledge_version_repo: KnowledgeVersionRepository,
         vector_snapshot_repo: VectorSnapshotRepository,
+        *, allow_pending: bool = False,
     ) -> None:
+        self._allow_pending = allow_pending
         self._knowledge_version_repo = knowledge_version_repo
         self._vector_snapshot_repo = vector_snapshot_repo
 
@@ -76,6 +78,8 @@ class KnowledgeReleaseValidator:
             raise ValidationError("Release vector snapshot was not found")
         if snapshot.project_id != release.project_id:
             raise ValidationError("Release vector snapshot belongs to another Project")
+        if self._allow_pending and snapshot.status == "PENDING_PREPARATION":
+            return
         if snapshot.status != VECTOR_SNAPSHOT_READY:
             raise ValidationError("Release requires a READY vector snapshot")
         if not snapshot.snapshot_hash:

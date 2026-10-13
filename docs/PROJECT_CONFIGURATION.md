@@ -57,3 +57,36 @@ See [the architectural decision](adr/0005-project-configuration-authority.md).
 The [migration runbook](runbooks/PROJECT_CONFIGURATION_MIGRATION.md) describes
 the bounded Provider job, process inventory, revision guards and recovery. Its
 completion does not yet qualify migration of the other legacy source families.
+
+## Portable structure without values
+
+Package schema `2.0` declares `spec.configuration.keys` and `spec.connections`.
+Connection authentication contains only remote references such as
+`{source: project_environment, key: PRIMARY_API_KEY}`. The separate `1.0`
+catalog, its canonical digest and existing operational imports remain unchanged.
+
+A `2.0` import requires explicit `installation_mode: structural` and Draft.
+The plan declares keys before creating Provider connections and dependent Models,
+Tools, Agents and Networks. A destination key or Provider is reused only through
+an explicit binding; a same-name collision is rejected. No protected local values
+are accepted. Missing values do not trigger discovery or embeddings during import.
+Portable Knowledge records its frozen document selection and vector build intent
+as `PENDING_PREPARATION`; normal Workers do not claim that status. Release and
+runtime validation still require READY Knowledge.
+
+The receipt separates `installation_status`, `configuration_status`,
+`runtime_preparation_status` and `deployment_status`. Structural completion is
+not execution readiness or deployment. Draft structure can be exported as `2.0`
+before values or external preparation exist; exports include declarations and
+references, never central material or legacy alias authority.
+
+The CLI negotiates the catalog digest and structural capability before writes:
+
+```sh
+woobe package export agent AGENT_UUID --package-schema 2.0
+woobe package plan ./support --structural --save-plan ./support-plan.json
+woobe package import --plan-file ./support-plan.json --wait
+```
+
+Qualification remains in progress: the preparation/resume workflow and ASaC
+binding fingerprints must be completed before this feature is released.

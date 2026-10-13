@@ -579,3 +579,17 @@ from modules.agent.infra.database.configuration_consumer_guard import verify_con
 __all__.append("verify_configuration_consumer")
 from modules.agent.infra.database.configuration_provider_migration import inventory_provider_configuration, migrate_provider_configuration
 __all__ += ["inventory_provider_configuration", "migrate_provider_configuration"]
+from modules.agent.infra.database.configuration_package import inspect_configuration_provider_reuse
+__all__.append("inspect_configuration_provider_reuse")
+
+from modules.agent.composition.composers.create_knowledge_version_composer import create_knowledge_version_structural_composer
+__all__.append("create_knowledge_version_structural_composer")
+
+from modules.agent.composition.composers.imported_vector_composers import create_imported_vector_structural_composer
+__all__.append("create_imported_vector_structural_composer")
+
+from modules.agent.composition.composers.finalize_imported_agent_composer import finalize_imported_agent_structural_composer
+__all__.append("finalize_imported_agent_structural_composer")
+
+from modules.agent.composition.composers.verify_imported_agent_composer import verify_imported_agent_structural_composer
+__all__.append("verify_imported_agent_structural_composer")

@@ -559,7 +559,9 @@ class CreateKnowledgeVersionUseCase:
         repo: KnowledgeVersionRepository,
         vector_snapshot_repo: Any | None = None,
         agent_repo: AgentRepository | None = None,
+        *, allow_pending: bool = False,
     ) -> None:
+        self._allow_pending = allow_pending
         self._repo = repo
         self._vector_snapshot_repo = vector_snapshot_repo
         self._agent_repo = agent_repo
@@ -583,7 +585,7 @@ class CreateKnowledgeVersionUseCase:
             snapshot = await self._vector_snapshot_repo.get_by_id(snapshot_id)
             if snapshot is None or snapshot.project_id != input_dto.project_id:
                 raise NotFoundError("Vector snapshot not found")
-            if snapshot.status != VECTOR_SNAPSHOT_READY:
+            if snapshot.status != VECTOR_SNAPSHOT_READY and not (self._allow_pending and snapshot.status == "PENDING_PREPARATION"):
                 raise ConflictError(
                     "Knowledge version requires a READY vector snapshot"
                 )
