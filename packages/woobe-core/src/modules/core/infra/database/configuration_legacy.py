@@ -7,7 +7,7 @@ from sqlalchemy import select, func
 
 from modules.core.infra.database.configuration_models import (
     LegacyConfigurationAliasModel as Alias, LegacyConfigurationValueModel as Material,
-    ConfigurationValueVersionModel as Version,
+    ConfigurationValueVersionModel as Version, LegacyConfigurationConsumerModel as Consumer,
 )
 from modules.core.infra.database.configuration_resolution import ConfigurationResolution
 from modules.core.infra.database.models import ProjectEnvironmentKeyModel as Key, ProjectEnvironmentValueModel as Value
@@ -38,6 +38,15 @@ class LegacyConfigurationStore(ConfigurationResolution):
             "material": "revoked" if row.revoked else row.material_state or "missing"} for row in rows],
             "environment": environment, "total": count, "offset": offset, "limit": limit}
 
+    async def legacy_reference(self, *, project_id, source_kind, source_id, field_path):
+        """Internal owner lookup of a migrated source identity, without material."""
+        row = (await self.session.execute(select(Alias.id, Key.key).join(Key, Key.id == Alias.key_id).where(
+            Alias.project_id == project_id, Alias.source_kind == source_kind,
+            Alias.source_id == source_id, Alias.field_path == field_path))).one_or_none()
+        if row is None:
+            return None
+        return {"source": "legacy_configuration", "key": row.key, "alias_id": str(row.id)}
+
     async def adopt(self, *, project_id, source_kind, source_id, field_path, source_revision,
                     encrypted_value, dependencies, actor):
         """Called in the source writer's transaction after locking its source row.
@@ -48,6 +57,14 @@ class LegacyConfigurationStore(ConfigurationResolution):
         """
         if source_kind not in {"provider_credential", "secret", "tool", "mcp_oauth"}:
             raise ConfigurationError("LEGACY_FORMAT_UNSUPPORTED")
+        # Validate the captured relation before declaring keys or moving material.
+        for dependency in dependencies:
+            same_owner = (dependency.consumer_id == source_id and dependency.consumer_kind == source_kind
+                and dependency.field_path == field_path)
+            shared_secret_consumer = (source_kind == "secret" and dependency.consumer_kind == "tool"
+                and dependency.field_path.startswith("/config/authentication/fields/"))
+            if dependency.project_id != project_id or not (same_owner or shared_secret_consumer):
+                raise ConfigurationError("CONFIG_USAGE_NOT_AUTHORIZED")
         await self.lock_project(project_id)
         alias = await self.session.scalar(select(Alias).where(Alias.project_id == project_id,
             Alias.source_kind == source_kind, Alias.source_id == source_id, Alias.field_path == field_path).with_for_update())
@@ -87,17 +104,24 @@ class LegacyConfigurationStore(ConfigurationResolution):
                 state = "unavailable"
         self.session.add(Material(alias_id=alias.id, stored_value=encrypted_value or None,
             value_version=uuid4(), revision=1, material_state=state, revoked=False))
-        destinations = set()
+        destinations, consumers = {}, set()
         for dependency in dependencies:
-            if (dependency.project_id != project_id or dependency.consumer_id != source_id
-                    or dependency.consumer_kind != source_kind or dependency.field_path != field_path):
+            same_owner = (dependency.consumer_id == source_id and dependency.consumer_kind == source_kind
+                and dependency.field_path == field_path)
+            shared_secret_consumer = source_kind == "secret" and dependency.consumer_kind == "tool"
+            if dependency.project_id != project_id or not (same_owner or shared_secret_consumer):
                 raise ConfigurationError("CONFIG_USAGE_NOT_AUTHORIZED")
-            if dependency.destination not in destinations:
-                await self.grant_use(project_id=project_id, key_id=alias.key_id, consumer_kind=source_kind,
-                    consumer_scope=str(source_id), destination=dependency.destination,
-                    environments=["draft", "staging", "production"], field_paths=[field_path],
-                    expected_revision=0, actor=actor)
-                destinations.add(dependency.destination)
+            consumer = (dependency.consumer_kind, dependency.consumer_id, dependency.field_path)
+            if not same_owner and consumer not in consumers:
+                self.session.add(Consumer(alias_id=alias.id, consumer_kind=consumer[0], consumer_id=consumer[1], field_path=consumer[2]))
+                consumers.add(consumer)
+            destination_identity = (dependency.consumer_kind, dependency.consumer_id, dependency.destination)
+            destinations.setdefault(destination_identity, set()).add(dependency.field_path)
+        for (consumer_kind, consumer_id, destination), fields in destinations.items():
+            await self.grant_use(project_id=project_id, key_id=alias.key_id, consumer_kind=consumer_kind,
+                consumer_scope=str(consumer_id), destination=destination,
+                environments=["draft", "staging", "production"], field_paths=sorted(fields),
+                expected_revision=0, actor=actor)
         reference = ConfigurationDependency(project_id, source_kind, source_id, source_revision,
             field_path, name, "", legacy_alias_id=alias.id)
         await self.register_references([reference])

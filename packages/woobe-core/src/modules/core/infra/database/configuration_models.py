@@ -197,3 +197,13 @@ class ConfigurationProcessModel(BaseModel):
     process_identity: Mapped[str] = mapped_column(String(255))
     capabilities: Mapped[list[str]] = mapped_column(JSONB)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class LegacyConfigurationConsumerModel(Base):
+    """Closed consumer set captured by an owner migration, never a public grant."""
+    __tablename__ = "project_configuration_legacy_consumers"
+    __table_args__ = {"schema": "core"}
+    alias_id: Mapped[UUID] = mapped_column(ForeignKey("core.project_configuration_legacy_aliases.id", ondelete="CASCADE"), primary_key=True)
+    consumer_kind: Mapped[str] = mapped_column(String(32), primary_key=True)
+    consumer_id: Mapped[UUID] = mapped_column(primary_key=True)
+    field_path: Mapped[str] = mapped_column(String(512), primary_key=True)

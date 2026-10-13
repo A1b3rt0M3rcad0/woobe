@@ -15,7 +15,7 @@ from modules.core.domain.project_configuration import canonical_destination, VER
 from modules.core.infra.database.configuration_models import (
     ConfigurationLeaseModel, ConfigurationValidationModel, ConfigurationUsePolicyModel as Policy,
     ConfigurationValueVersionModel as Version, LegacyConfigurationAliasModel as Alias,
-    LegacyConfigurationValueModel as LegacyValue,
+    LegacyConfigurationValueModel as LegacyValue, LegacyConfigurationConsumerModel as LegacyConsumer,
 )
 from modules.core.infra.database.configuration_store import ConfigurationStore, now
 from modules.core.infra.database.models import ProjectEnvironmentKeyModel as Key, ProjectEnvironmentValueModel as Value
@@ -91,6 +91,9 @@ class ConfigurationResolution(ConfigurationStore):
         alias_ids = [dep.legacy_alias_id for dep in dependencies if dep.legacy_alias_id]
         aliases = {a.id: a for a in (await self.session.scalars(select(Alias).where(
             Alias.project_id == project_id, Alias.id.in_(alias_ids)))).all()} if alias_ids else {}
+        legacy_consumers = {(row.alias_id, row.consumer_kind, row.consumer_id, row.field_path)
+            for row in (await self.session.scalars(select(LegacyConsumer).where(
+                LegacyConsumer.alias_id.in_(aliases), LegacyConsumer.consumer_id.in_({dep.consumer_id for dep in dependencies})))).all()} if aliases else set()
         legacy = {v.alias_id: v for v in (await self.session.execute(select(
             LegacyValue.alias_id, LegacyValue.value_version, LegacyValue.material_state, LegacyValue.revoked,
         ).where(LegacyValue.alias_id.in_(aliases)))).all()} if aliases else {}
@@ -110,10 +113,14 @@ class ConfigurationResolution(ConfigurationStore):
                            *policy_index[(key.id, dep.consumer_kind, "*")]] if key else [])
             policy = matching_policy(candidates, dep, environment)
             alias = aliases.get(dep.legacy_alias_id)
+            if dep.legacy_alias_id is not None and alias is None:
+                raise ConfigurationError("CONFIG_REFERENCE_NOT_FOUND")
             source, slot = "none", None
             if alias is not None:
-                if (not key or alias.key_id != key.id or alias.source_kind != dep.consumer_kind
-                        or alias.source_id != dep.consumer_id or alias.field_path != dep.field_path):
+                same_owner = (alias.source_kind == dep.consumer_kind and alias.source_id == dep.consumer_id
+                    and alias.field_path == dep.field_path)
+                captured_consumer = (alias.id, dep.consumer_kind, dep.consumer_id, dep.field_path) in legacy_consumers
+                if not key or alias.key_id != key.id or not (same_owner or captured_consumer):
                     raise ConfigurationError("CONFIG_USAGE_NOT_AUTHORIZED")
                 route = alias.routes.get(environment)
                 if route == "legacy_compat":

@@ -628,3 +628,51 @@ async def test_cutover_barrier_rejects_expired_missing_and_omitted_incompatible_
     await store.session.flush()
     with pytest.raises(ConfigurationError):
         await assert_configuration_bridge(store.session, required_processes=[expected])
+
+
+@pytest.mark.asyncio
+async def test_shared_legacy_secret_authorizes_only_captured_tools_fields_and_destinations(configuration):
+    from modules.core.infra.database.configuration_legacy import LegacyConfigurationStore
+    from shared.infra.crypto import encrypt_secret
+    store, project, _ = configuration
+    legacy = LegacyConfigurationStore(store.session, encryption_key=store.encryption_key)
+    secret, tool, other_tool = uuid4(), uuid4(), uuid4()
+    dependencies = [ConfigurationDependency(project, "tool", tool, "frozen", "/config/authentication/fields/" + field,
+        "unused", "https://legacy.example/api") for field in ["Authorization", "X-Client-Key"]]
+    adopted = await legacy.adopt(project_id=project, source_kind="secret", source_id=secret,
+        field_path="/value", source_revision="frozen-inventory", encrypted_value=encrypt_secret(CANARY, store.encryption_key),
+        dependencies=dependencies, actor="migration-owner")
+    reference = await legacy.legacy_reference(project_id=project, source_kind="secret", source_id=secret, field_path="/value")
+    assert reference == {"source": "legacy_configuration", "key": adopted["key"], "alias_id": adopted["alias_id"]}
+    assert CANARY not in repr(reference)
+    assert await legacy.legacy_reference(project_id=uuid4(), source_kind="secret", source_id=secret, field_path="/value") is None
+    bindings = [replace(dep, key=adopted["key"], legacy_alias_id=UUID(adopted["alias_id"])) for dep in dependencies]
+    run = uuid4()
+    await legacy.acquire(project_id=project, run_id=run, environment="production", dependencies=bindings)
+    for binding in bindings:
+        assert await resolve(legacy, project, run, binding) == CANARY
+    for forged in [replace(bindings[0], consumer_id=other_tool), replace(bindings[0], field_path="/config/authentication/fields/X-New-Key")]:
+        with pytest.raises(ConfigurationError) as error:
+            await legacy.inspect(project_id=project, environment="production", dependencies=[forged])
+        assert error.value.code == "CONFIG_USAGE_NOT_AUTHORIZED"
+    report, _ = await legacy.inspect(project_id=project, environment="production",
+        dependencies=[replace(bindings[0], destination="https://other.example")])
+    assert report["state"] == "blocked"
+    assert report["dependencies"][0]["code"] == "CONFIG_USAGE_NOT_AUTHORIZED"
+    # Knowing the central key name does not recover legacy material without its
+    # captured alias binding, even for an otherwise allowed consumer.
+    report, _ = await legacy.inspect(project_id=project, environment="production",
+        dependencies=[replace(bindings[0], legacy_alias_id=None)])
+    assert report["state"] == "blocked"
+
+
+@pytest.mark.asyncio
+async def test_unknown_legacy_alias_never_falls_back_to_environment_material(configuration):
+    from modules.core.infra.database.configuration_legacy import LegacyConfigurationStore
+    store, project, _ = configuration
+    key, dep = await prepared(store, project)
+    await store.write_value(project_id=project, key_id=key, environment="draft", expected_revision=0, value=CANARY)
+    legacy = LegacyConfigurationStore(store.session, encryption_key=store.encryption_key)
+    with pytest.raises(ConfigurationError) as error:
+        await legacy.acquire(project_id=project, run_id=uuid4(), environment="draft", dependencies=[replace(dep, legacy_alias_id=uuid4())])
+    assert error.value.code == "CONFIG_REFERENCE_NOT_FOUND"
