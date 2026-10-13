@@ -117,6 +117,10 @@ class ListReleaseTestsUseCase:
     async def execute(self, release_id):
         return [
             ListReleaseTestsOutput(
+                run_id=(item.actual_output or {}).get("run_id"),
+                provider_completed=(item.actual_output or {}).get("provider_completed"),
+                output_valid=(item.actual_output or {}).get("output_valid"),
+                contract_missing=(item.actual_output or {}).get("contract_missing"),
                 id=item.id,
                 release_id=item.release_id,
                 contract_version_id=item.contract_version_id,

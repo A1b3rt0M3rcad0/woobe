@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from typing import cast
 from uuid import UUID
 
-from sqlalchemy import func, select, text
+from sqlalchemy import func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.infra.config.interface.unit_of_work import UnitOfWork
@@ -350,6 +350,31 @@ class SQLAlchemyAgentContractRepository(
         await self._add_model(model)
         await self._flush()
         await self._refresh_model(model)
+        return agent_contract_model_to_entity(model)
+
+    async def update(self, contract: AgentContract, *, expected_updated_at=None) -> AgentContract:
+        from shared.contracts.errors import ConflictError
+
+        values = {
+            field: getattr(contract, field)
+            for field in (
+                "name", "input_schema", "output_schema", "validation_mode",
+                "repair_attempts", "additional_instructions", "schema_hash", "status",
+            )
+        }
+        values = {key: getattr(value, "value", value) for key, value in values.items()}
+        values["updated_at"] = datetime.now(timezone.utc)
+        result = await self._session.execute(
+            update(AgentContractModel)
+            .where(AgentContractModel.id == contract.id,
+                   AgentContractModel.updated_at == expected_updated_at)
+            .values(**values)
+            .returning(AgentContractModel)
+            .execution_options(populate_existing=True)
+        )
+        model = result.scalar_one_or_none()
+        if model is None:
+            raise ConflictError("Contract changed; read its updated_at and retry the reviewed PATCH")
         return agent_contract_model_to_entity(model)
 
     async def get_by_id(self, contract_id: UUID) -> AgentContract | None:

@@ -284,7 +284,7 @@ class ExportProjection:
         if prompt := artifacts.get("prompt_version_id"):
             spec["prompt_ref"] = self.add_document(
                 "Prompt",
-                prompt["name"],
+                (prompt["name"] or "").strip() or f"Prompt {prompt['version']}",
                 {"version": prompt["version"], "content": prompt["content"]},
                 identity=(
                     captured["source"]["agent_id"],
@@ -328,11 +328,16 @@ class ExportProjection:
                     "additional_instructions",
                 )
             }
+            # Legacy native versions admitted nullable optional fields and blank names.
+            # Normalize their portable representation without rewriting the source version.
+            native["input_schema"] = native["input_schema"] or {}
+            native["output_schema"] = native["output_schema"] or {}
+            native["additional_instructions"] = native["additional_instructions"] or ""
             if native["validation_mode"] == "loose":
                 native["validation_mode"] = "lenient"
             spec["output"]["contract_ref"] = self.add_document(
                 "Contract",
-                contract["name"],
+                (contract["name"] or "").strip() or f"Contract {contract['version']}",
                 native,
                 identity=(
                     captured["source"]["agent_id"],

@@ -25,6 +25,8 @@ from modules.agent.infra.database.provider_model_repositories import (
 )
 from modules.agent.infra.database.repositories import (
     SQLAlchemyAgentOutboxEventWriter,
+    SQLAlchemyAgentPromptRepository,
+    SQLAlchemyAgentContractRepository,
     SQLAlchemyAgentToolRepository,
     SQLAlchemyKnowledgeVersionRepository,
     SQLAlchemyProviderCredentialRepository,
@@ -56,7 +58,11 @@ def _build_finalization_controller(uow, allow_existing) -> TransactionalHandler:
     save_release = KnowledgeSafeCreateReleaseUseCase(
         releases, validator, tools, skills, project_environment_reader=environment
     )
-    save_draft = SessionModeCompatibleCreateReleaseUseCase(save_release, agents)
+    save_draft = SessionModeCompatibleCreateReleaseUseCase(
+        save_release, agents,
+        prompt_repo=SQLAlchemyAgentPromptRepository(uow),
+        contract_repo=SQLAlchemyAgentContractRepository(uow),
+    )
     update = UpdateAgentUseCase(
         agents, credentials, outbox, models, usage, skill_repo=skills
     )

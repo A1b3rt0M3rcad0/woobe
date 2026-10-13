@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, model_validator
 
 from modules.agent.application.dtos.behavior_dtos import BehaviorSpecification
 from modules.agent.domain.enums import (
@@ -271,16 +271,28 @@ class ListPromptsOutput(BaseModel):
 
 
 class CreateContractInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     project_id: UUID
     agent_id: UUID
-    version: str
-    name: str = ""
+    version: str = Field(min_length=1, max_length=32)
+    name: str = Field(default="", max_length=255)
     input_schema: dict[str, Any] | None = None
     output_schema: dict[str, Any] | None = None
     validation_mode: ValidationMode = ValidationMode.loose
-    repair_attempts: int = 0
+    repair_attempts: int = Field(default=0, ge=0)
     additional_instructions: str | None = None
     schema_hash: str | None = None
+
+
+    @model_validator(mode="after")
+    def canonical_material(self):
+        from modules.agent.domain.contract_definition import contract_schema_hash
+        self.name = self.name.strip() or f"Contract {self.version}"[:255]
+        self.input_schema = self.input_schema or {}
+        self.output_schema = self.output_schema or {}
+        self.additional_instructions = self.additional_instructions or ""
+        self.schema_hash = contract_schema_hash(self.input_schema, self.output_schema)
+        return self
 
 
 class CreateContractOutput(BaseModel):
@@ -301,6 +313,8 @@ class CreateContractOutput(BaseModel):
 
 
 class UpdateContractInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    expected_updated_at: datetime | None = None
     name: str | None = None
     input_schema: dict[str, Any] | None = None
     output_schema: dict[str, Any] | None = None
@@ -489,6 +503,7 @@ class CreateReleaseTestInput(BaseModel):
 
 
 class ExecuteReleaseTestInput(BaseModel):
+    test_id: UUID | None = None
     project_id: UUID
     agent_id: UUID
     release_id: UUID
@@ -515,6 +530,10 @@ class CreateReleaseTestOutput(BaseModel):
 
 
 class ListReleaseTestsOutput(BaseModel):
+    run_id: str | None = None
+    provider_completed: bool | None = None
+    output_valid: bool | None = None
+    contract_missing: bool | None = None
     id: UUID
     release_id: UUID | None = None
     contract_version_id: UUID | None = None

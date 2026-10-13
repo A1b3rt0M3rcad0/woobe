@@ -30,3 +30,7 @@ src/editions/cloud/
 src/editions/enterprise/
 *.log
 README.md
+
+# Host dependencies and compiler caches must never overwrite Linux build inputs.
+**/node_modules/
+**/*.tsbuildinfo

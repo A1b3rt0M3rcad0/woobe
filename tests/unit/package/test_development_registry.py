@@ -218,3 +218,37 @@ def test_semantic_definition_is_independent_of_keys_paths_and_credential_aliases
         renamed, ("model-local", "agent-local"), {}, [], {"two": "native"}
     )
     assert first["a"] != changed["agent-local"]
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('expected', [7,6])
+async def test_new_agent_reuses_registered_shared_model_and_identifies_stale_generation(expected):
+    engine=create_async_engine('sqlite+aiosqlite://',execution_options={'schema_translate_map':{'package':None}})
+    sessions=async_sessionmaker(engine,expire_on_commit=False)
+    async with engine.begin() as connection:
+        await connection.run_sync(lambda sync: Base.metadata.create_all(sync,tables=[PackageResourceBindingModel.__table__]))
+    project,registry_id,model_id,model_uid,agent_uid=(uuid4() for _ in range(5))
+    reader=SimpleNamespace(inspect=AsyncMock(return_value={'resource_id':str(model_id),'revision':7}))
+    model={'kind':'Model','metadata':{'key':'model','name':'Shared'},'spec':{'model':'fake','credential':{'ref':'key'}}}
+    agent={'kind':'Agent','metadata':{'key':'agent','name':'New Agent'},'spec':{'model':{'primary':{'ref':'model'}},'legacy_system_prompt':'Answer'}}
+    digest=definition_digest({'component':model,'dependencies':{},'support':[],'bindings':{}})
+    async with sessions.begin() as session:
+        session.add(PackageResourceBindingModel(project_id=project,registry_id=registry_id,resource_uid=model_uid,kind='Model',resource_id=model_id,definition_digest=digest))
+    document={'bindings':{},'binding_resolutions':{'credentials':{'key':{'credential_id':str(uuid4())}}},'effects':[]}
+    graph=PackageGraph({}, {'model':model,'agent':agent},{'model':'model.yaml','agent':'agent.yaml'},('model','agent'))
+    targets={'model':{'resource_uid':str(model_uid),'resource_id':str(model_id),'expected_revision':expected},'agent':{'resource_uid':str(agent_uid)}}
+    try:
+        async with sessions.begin() as session:
+            if expected==7:
+                await DevelopmentRegistry(sessions,reader,reader).prepare(session,project_id=project,principal='principal',registry_id=str(registry_id),targets=targets,graph=graph,inventory=[],document=document)
+                approved=document['resource_bindings']['model']
+                assert approved['resource_id']==str(model_id) and approved['unchanged']
+                assert document['resource_bindings']['agent']['resource_id'] is None
+            else:
+                with pytest.raises(PackageError) as caught:
+                    await DevelopmentRegistry(sessions,reader,reader).prepare(session,project_id=project,principal='principal',registry_id=str(registry_id),targets=targets,graph=graph,inventory=[],document=document)
+                diagnostic=caught.value.as_dict()
+                assert diagnostic['code']=='PACKAGE_REVISION_CONFLICT'
+                assert diagnostic['kind']=='Model' and diagnostic['resource_id']==str(model_id)
+                assert diagnostic['expected_revision']=='6' and diagnostic['observed_revision']=='7'
+                assert diagnostic['path']=='/resource_bindings/model'
+    finally: await engine.dispose()

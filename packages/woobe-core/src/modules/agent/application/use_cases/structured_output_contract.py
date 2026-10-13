@@ -202,6 +202,21 @@ def validate_output_against_contract(
     if not schema:
         return []
     errors: list[OutputContractValidationError] = []
+    if isinstance(schema, dict) and any(key in schema for key in ("$schema", "type", "properties", "anyOf", "oneOf", "$ref")):
+        from jsonschema import validators
+        from jsonschema.exceptions import SchemaError
+        from referencing import Registry
+        from referencing.exceptions import Unresolvable
+        try:
+            validator = validators.validator_for(schema)
+            validator.check_schema(schema)
+            for error in validator(schema, registry=Registry()).iter_errors(parsed_output):
+                # Values and provider output may be sensitive; diagnostics expose paths only.
+                path = "$" + "".join(f".{part}" for part in error.absolute_path)
+                errors.append(OutputContractValidationError(path, str(error.validator), "invalid", f"{path} violates {error.validator}"))
+        except (SchemaError, Unresolvable):
+            errors.append(OutputContractValidationError("$", "valid schema", "invalid schema", "Output schema is invalid"))
+        return errors
     _validate_spec(parsed_output, schema, "$", errors)
     return errors
 

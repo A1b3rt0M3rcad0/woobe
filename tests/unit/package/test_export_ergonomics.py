@@ -102,3 +102,22 @@ def test_canonical_root_identity_is_private_capture_evidence_not_portable_conten
     projection.agent(captured,'agent-1')
     assert projection.native_bindings['agent-1'].get('resource_uid')==(None if frozen else uid)
     assert uid not in repr(projection.documents) and uid not in repr(projection.files)
+
+@pytest.mark.parametrize('input_schema,instructions,name', [(None,None,''), ({},'', 'Contract'), ({'type':'object'},'Validate', 'Named')])
+def test_native_legacy_contract_optional_values_export_as_valid_portable_yaml(input_schema,instructions,name):
+    from modules.package.application.export_projection import ExportProjection
+    from modules.package.application.validation import validate_document
+    captured={'source':{'agent_id':TARGET,'kind':'draft'},
+        'definition':{'name':'Support','provider':'custom','model':'fake','provider_credential_id':'credential',
+                      'model_spec_snapshot':{'model_id':'fake'},'runtime_config':{},'system_prompt':'Help',
+                      'session_mode':'stateless','output_schema':{'message':'string'}},
+        'credentials':{'credential':{'provider':'custom','metadata':{}}},
+        'tools':[],'skills':[],'artifacts':{'contract_version_id': {'id':TARGET,'name':name,'version':'1.0.0','validation_mode':'loose','repair_attempts':0,'input_schema':input_schema,'output_schema':{'message':'string'},'additional_instructions':instructions}},'knowledge':None,'frozen':False}
+    projection=ExportProjection(knowledge_mode='binding',environment_kinds={})
+    projection.agent(captured,'agent-1')
+    contract=next(document for document in projection.documents.values() if document['kind']=='Contract')
+    validate_document(contract,'contract-1.yaml')
+    assert contract['spec']['input_schema']==(input_schema or {})
+    assert contract['spec']['additional_instructions']==(instructions or '')
+    assert yaml.safe_load(portable_yaml(contract))==contract
+    assert captured['artifacts']['contract_version_id']['name']==name

@@ -25,6 +25,7 @@ class MaterializeDevelopmentArtifact:
         self._fields = tuple(fields)
 
     async def execute(self, input_dto):
+        input_dto = type(input_dto).model_validate(input_dto.model_dump())
         expected = input_dto.model_dump(mode="json")
         version = input_dto.version
         existing = await self._repository.get_by_version(input_dto.agent_id, version)

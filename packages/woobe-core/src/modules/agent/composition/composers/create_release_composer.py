@@ -11,6 +11,8 @@ from modules.agent.infra.database.provider_model_repositories import (
 )
 from modules.agent.infra.database.repositories import (
     SQLAlchemyAgentToolRepository,
+    SQLAlchemyAgentPromptRepository,
+    SQLAlchemyAgentContractRepository,
     SQLAlchemyKnowledgeVersionRepository,
     SQLAlchemyProviderCredentialRepository,
 )
@@ -38,6 +40,8 @@ def build_complete_agent_draft(uow):
         release_use_case, agent_repo,
         provider_model_repo=SQLAlchemyProviderModelRepository(uow),
         credential_repo=SQLAlchemyProviderCredentialRepository(uow),
+        prompt_repo=SQLAlchemyAgentPromptRepository(uow),
+        contract_repo=SQLAlchemyAgentContractRepository(uow),
     )
     return use_case
 

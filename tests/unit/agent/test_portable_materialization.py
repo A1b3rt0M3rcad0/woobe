@@ -1,3 +1,4 @@
+import pytest
 from uuid import uuid4
 
 from modules.agent.application.portable_materialization import (
@@ -32,7 +33,8 @@ def model(project, provider="openai_compatible"):
     }
 
 
-def test_owner_compiles_primary_fallback_prompt_contract_and_complete_inactive_preparation():
+@pytest.mark.parametrize("include_response_format", [True, False])
+def test_owner_compiles_primary_fallback_prompt_contract_and_complete_inactive_preparation(include_response_format):
     project = uuid4()
     definition = {
         "kind": "Agent",
@@ -56,6 +58,8 @@ def test_owner_compiles_primary_fallback_prompt_contract_and_complete_inactive_p
             },
         },
     }
+    if not include_response_format:
+        definition["spec"]["output"].pop("response_format")
     definitions = {
         "primary": {"spec": {"base_url": "https://provider.test/v1"}},
         "fallback": {"spec": {}},

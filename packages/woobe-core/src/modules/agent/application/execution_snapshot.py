@@ -189,6 +189,14 @@ def apply_agent_execution_snapshot(agent: Any, snapshot: dict[str, Any]) -> Any:
     if session_mode not in {SessionMode.stateful.value, SessionMode.stateless.value}:
         raise ValidationError("Agent execution snapshot has no valid Session Mode")
 
+    response = deepcopy(snapshot.get("response_format") or {})
+    schema = snapshot.get("output_schema")
+    if snapshot.get("contract_version_id") and schema is None:
+        raise ValidationError("CONTRACT_MISSING: snapshot has a Contract reference without frozen output_schema; save Draft and capture again")
+    if schema is not None:
+        if response.get("schema") is not None and response["schema"] != schema:
+            raise ValidationError("Frozen output schema differs from response_format")
+
     if snapshot.get("name") is not None:
         agent.name = snapshot["name"]
     if snapshot.get("description") is not None:

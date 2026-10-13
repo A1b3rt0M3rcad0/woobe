@@ -88,6 +88,7 @@ def test_runtime_projection_preserves_model_specs_lineage_and_risk():
     release.fallback_model_spec_snapshot = {"frozen": "fallback"}
     release.fallback_model_spec_hash = "fallback-hash"
     release.prompt_version_id, release.contract_version_id = uuid4(), uuid4()
+    release.output_schema = {"type": "object"}
     release.model_config_version_id = uuid4()
     release.risk_score = 3
     snapshot = build_agent_execution_snapshot(release)

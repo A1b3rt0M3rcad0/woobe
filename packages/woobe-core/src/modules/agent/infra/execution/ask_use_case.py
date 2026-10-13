@@ -1155,7 +1155,10 @@ class AskAgentUseCase:
 
     def _get_response_format(self, agent: Agent) -> dict:
         settings = agent.settings or {}
-        return settings.get("response_format", {})
+        response = dict(settings.get("response_format") or {})
+        if settings.get("output_schema") is not None:
+            response.update(enabled=True, type="json", schema=settings["output_schema"])
+        return response
 
     def _clean_json_answer(self, answer: str) -> str:
         cleaned = answer.strip()

@@ -413,6 +413,15 @@ class PortableAgentExportReader:
             ),
         ):
             if identifier := definition.get(field):
+                frozen_contract = (definition.get("runtime_config") or {}).get("contract_version_snapshot") if field == "contract_version_id" else None
+                if frozen_contract is not None:
+                    if (str(frozen_contract.get("id")) != str(identifier)
+                        or str(frozen_contract.get("project_id")) != str(project_id)
+                        or str(frozen_contract.get("agent_id")) != str(agent_id)
+                        or frozen_contract.get("output_schema") != definition.get("output_schema")):
+                        raise ConflictError("Frozen Contract lineage differs from its execution snapshot")
+                    artifacts[field] = deepcopy(frozen_contract)
+                    continue
                 artifact = await session.get(model, UUID(str(identifier)))
                 if (
                     artifact is None
