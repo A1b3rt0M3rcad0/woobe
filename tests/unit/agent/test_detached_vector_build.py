@@ -6,7 +6,7 @@ from uuid import uuid4
 
 import pytest
 
-from modules.agent.infra.execution import detached_vector_build as module
+from modules.agent.infra.database import detached_vector_build as module
 from shared.contracts.errors import ConflictError
 
 

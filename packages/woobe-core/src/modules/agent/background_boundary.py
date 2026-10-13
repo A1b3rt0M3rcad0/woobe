@@ -118,4 +118,4 @@ from modules.agent.application.interfaces.project_configuration import configure
 
 from modules.agent.infra.database.configuration_consumer_guard import verify_configuration_consumer
 
-from modules.agent.infra.execution.detached_vector_build import DetachedVectorBuild
+from modules.agent.infra.database.detached_vector_build import DetachedVectorBuild
