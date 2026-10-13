@@ -22,7 +22,7 @@ from shared.composition_resources import (
     RUN_EVENT_JOURNAL,
     SESSION_FACTORY,
 )
-from shared.infra.database.session import create_engine
+from shared.infra.database.session import create_engine, create_session_factory
 from shared.infra.rabbitmq import RabbitMQManager
 from shared.observability.logging_config import configure_logging
 from woobe_workers.composition.network_agent_persistence import (
@@ -142,7 +142,8 @@ async def run_workers(
     configure_project_configuration(build_project_configuration_runtime)
     from modules.agent.background_boundary import configure_runtime_configuration_resolver
     from modules.core.background_boundary import build_configuration_runtime_resolver
-    configure_runtime_configuration_resolver(build_configuration_runtime_resolver())
+    from modules.agent.background_boundary import verify_configuration_consumer
+    configure_runtime_configuration_resolver(build_configuration_runtime_resolver(consumer_verifier=verify_configuration_consumer))
     from modules.agent.background_boundary import collect_configuration_dependencies
     from modules.core.background_boundary import build_configuration_acceptor
     from modules.network.background_boundary import configure_configuration_acceptance
@@ -150,6 +151,8 @@ async def run_workers(
     _configure_logging(runtime_settings)
 
     engine = create_engine(runtime_settings)
+    from modules.core.background_boundary import build_configuration_process_registration
+    configuration_registration = build_configuration_process_registration(create_session_factory(engine), role="worker")
     rabbitmq_manager = RabbitMQManager(
         url=runtime_settings.rabbitmq_url,
         exchange_name=runtime_settings.rabbitmq_exchange,
@@ -173,6 +176,8 @@ async def run_workers(
         )
         async with engine.begin() as conn:
             await conn.run_sync(lambda _: None)
+
+        await configuration_registration.start()
 
         await rabbitmq_manager.connect()
 
@@ -226,6 +231,7 @@ async def run_workers(
             await asyncio.gather(heartbeat_task, return_exceptions=True)
         await rabbitmq_manager.close()
         await close_http_tool_executor()
+        await configuration_registration.stop()
         await engine.dispose()
         for installed_signal in installed_signals:
             loop.remove_signal_handler(installed_signal)

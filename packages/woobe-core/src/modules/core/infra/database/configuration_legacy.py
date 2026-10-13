@@ -18,6 +18,10 @@ from shared.runtime_environment import normalize_runtime_environment
 
 
 class LegacyConfigurationStore(ConfigurationResolution):
+    async def require_bridge(self, *, required_processes):
+        from modules.core.infra.database.configuration_fleet import assert_configuration_bridge
+        await assert_configuration_bridge(self.session, required_processes=required_processes)
+
     async def legacy_bindings(self, *, project_id, environment="draft", limit=50, offset=0):
         environment = normalize_runtime_environment(environment)
         if not 1 <= limit <= 200 or offset < 0:
@@ -51,7 +55,8 @@ class LegacyConfigurationStore(ConfigurationResolution):
             if alias.source_revision != source_revision:
                 raise ConfigurationError("CONFIG_REVISION_CONFLICT")
             key_name = await self.session.scalar(select(Key.key).where(Key.id == alias.key_id))
-            return {"alias_id": str(alias.id), "key_id": str(alias.key_id), "key": key_name, "state": alias.state, "unchanged": True}
+            material_state = await self.session.scalar(select(Material.material_state).where(Material.alias_id == alias.id))
+            return {"alias_id": str(alias.id), "key_id": str(alias.key_id), "key": key_name, "state": material_state or "missing", "phase": alias.state, "unchanged": True}
         # Full source UUID avoids name collisions and does not disclose material.
         base = ("PROVIDER" if source_kind == "provider_credential" else source_kind.upper()) + "_" + source_id.hex
         suffix = "_" + re.sub(r"[^A-Z0-9_]", "_", field_path.rsplit("/", 1)[-1].upper())
@@ -98,7 +103,7 @@ class LegacyConfigurationStore(ConfigurationResolution):
         await self.register_references([reference])
         await self.session.flush()
         await self.audit(project_id, "legacy.adopted", actor, alias_id=str(alias.id), key_id=str(alias.key_id), state=state)
-        return {"alias_id": str(alias.id), "key_id": str(alias.key_id), "key": name, "state": state, "unchanged": False}
+        return {"alias_id": str(alias.id), "key_id": str(alias.key_id), "key": name, "state": state, "phase": alias.state, "unchanged": False}
 
     async def convert(self, *, project_id, alias_id, environments, expected_revision, expected_values, actor):
         # Caller has independently authorized migrate + value:write for every

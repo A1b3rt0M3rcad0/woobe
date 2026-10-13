@@ -76,3 +76,6 @@ __all__.append("build_configuration_runtime_resolver")
 
 from modules.core.composition.public_api import configure_configuration_binding_adapter
 __all__.append("configure_configuration_binding_adapter")
+
+from modules.core.composition.public_api import build_configuration_process_registration, configure_configuration_migration_adapter
+__all__ += ["build_configuration_process_registration", "configure_configuration_migration_adapter"]

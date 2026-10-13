@@ -11,6 +11,11 @@ from shared.security.control_plane import (
 
 # Explicitly reviewed method/template pairs. Never derive authority from a prefix.
 _REVIEWED = [
+    ("GET", "/core/projects/{project_id}/configuration/migration-processes", "project:environment:migrate"),
+    ("POST", "/core/projects/{project_id}/configuration/migrations/preview", "project:environment:migrate"),
+    ("PUT", "/core/projects/{project_id}/configuration/migrations/{migration_id}", "project:environment:migrate"),
+    ("GET", "/core/projects/{project_id}/configuration/migrations/{migration_id}", "project:environment:migrate"),
+    ("POST", "/core/projects/{project_id}/configuration/migrations/{migration_id}/advance", "project:environment:migrate"),
     ("GET", "/core/projects/{project_id}/configuration/bindings/{target_kind}/{target_id}", "project:environment:read"),
     ("PUT", "/core/projects/{project_id}/configuration/bindings/{target_kind}/{target_id}", "project:environment:bind"),
     ("POST", "/core/projects/{project_id}/configuration/tests/{target_kind}/{target_id}", "project:environment:validate"),

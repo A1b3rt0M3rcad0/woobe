@@ -16,6 +16,101 @@ from shared.infra.database.session import create_engine, create_session_factory
 CANARY = "configuration-private-canary-7c2f"
 
 
+@pytest.mark.asyncio
+async def test_host_protocol_registration_uses_unique_boot_identity_and_retires(configuration):
+    from modules.core.infra.services.configuration_process import ConfigurationProcessRegistration
+    from modules.core.infra.database.configuration_fleet import assert_configuration_bridge
+    from modules.core.infra.database.configuration_models import ConfigurationProcessModel
+    _, _, engine = configuration
+    factory = create_session_factory(engine)
+    api = ConfigurationProcessRegistration(factory, role="api")
+    worker = ConfigurationProcessRegistration(factory, role="worker")
+    assert api.identity != ConfigurationProcessRegistration(factory, role="api").identity
+    try:
+        await api.start()
+        await worker.start()
+        async with factory() as session, session.begin():
+            await assert_configuration_bridge(session, required_processes=[api.identity, worker.identity])
+        with pytest.raises(RuntimeError, match="already registered"):
+            await api.start()
+        await api.stop()
+        async with factory() as session, session.begin():
+            with pytest.raises(ConfigurationError) as error:
+                await assert_configuration_bridge(session, required_processes=[api.identity, worker.identity])
+            assert error.value.code == "CONFIG_BRIDGE_REQUIRED"
+    finally:
+        await api.stop()
+        await worker.stop()
+    async with factory() as session:
+        assert await session.scalar(select(ConfigurationProcessModel.id).where(
+            ConfigurationProcessModel.process_identity.in_([api.identity, worker.identity]))) is None
+
+
+@pytest.mark.asyncio
+async def test_provider_migration_job_is_metadata_only_resumable_and_revision_guarded(configuration, monkeypatch):
+    import json
+    from datetime import timedelta
+    from modules.agent.application.interfaces import project_configuration as port
+    from modules.agent.infra.database.configuration_provider_migration import inventory_provider_configuration, migrate_provider_configuration
+    from modules.agent.infra.database.models import ProviderCredentialModel
+    from modules.core.infra.services.configuration_migration import ConfigurationMigrationService
+    from modules.core.infra.database.configuration_fleet import register_configuration_process, BRIDGE_CAPABILITY
+    from modules.core.infra.database.configuration_legacy import LegacyConfigurationStore
+    from shared.infra.crypto import encrypt_secret
+    original, project, engine = configuration
+    store = LegacyConfigurationStore(original.session, encryption_key=original.encryption_key)
+    monkeypatch.setattr(port, "_factory", lambda session: LegacyConfigurationStore(session, encryption_key=store.encryption_key))
+    rows = [ProviderCredentialModel(id=UUID(int=900 + index), project_id=project, provider="openai",
+        name=f"Migrating {index}", encrypted_secret=encrypt_secret(CANARY, store.encryption_key)) for index in range(3)]
+    store.session.add_all(rows)
+    await store.session.flush()
+    service = ConfigurationMigrationService(store.session, encryption_key=store.encryption_key,
+        inventory=inventory_provider_configuration, cutover=migrate_provider_configuration)
+    selects = []
+    def capture(conn, cursor, statement, parameters, context, executemany):
+        if statement.startswith("SELECT"):
+            selects.append(statement)
+    event.listen(engine.sync_engine, "before_cursor_execute", capture)
+    try:
+        preview = await service.preview(project_id=project, limit=2)
+    finally:
+        event.remove(engine.sync_engine, "before_cursor_execute", capture)
+    assert preview["next_after"] == str(rows[1].id)
+    assert len(preview["items"]) == 2
+    assert all("encrypted_secret" not in statement for statement in selects)
+    assert CANARY not in json.dumps(preview)
+    migration_id = uuid4()
+    arguments = dict(project_id=project, migration_id=migration_id, actor="owner", limit=3)
+    first = await service.create(**arguments)
+    assert await service.create(**arguments) == first
+    with pytest.raises(ConfigurationError):
+        await service.create(**{**arguments, "limit": 2})
+    rows[2].updated_at += timedelta(seconds=1)
+    await store.session.flush()
+    process = "job-api-" + str(uuid4())
+    await register_configuration_process(store.session, identity=process, capabilities=[BRIDGE_CAPABILITY])
+    batch = dict(project_id=project, migration_id=migration_id, actor="owner", expected_revision=1,
+        required_processes=[process], old_processes_drained=False, limit=1)
+    with pytest.raises(ConfigurationError) as blocked:
+        await service.advance(**batch)
+    assert blocked.value.code == "CONFIG_BRIDGE_REQUIRED"
+    batch["old_processes_drained"] = True
+    result = await service.advance(**batch)
+    assert result["counts"] == {"completed": 1, "eligible": 2}
+    assert await service.advance(**batch) == result  # Retry after lost response.
+    paused = await service.advance(**{**batch, "expected_revision": 2, "pause": True})
+    assert paused["state"] == "paused" and paused["counts"] == result["counts"]
+    final = await service.advance(**{**batch, "expected_revision": 3, "limit": 3})
+    assert final["state"] == "blocked" and final["counts"] == {"completed": 2, "blocked": 1}
+    assert final["items"][2]["code"] == "CONFIG_REVISION_CONFLICT"
+    assert CANARY not in json.dumps(final)
+    assert (await service.status(project_id=project, migration_id=migration_id, offset=2, limit=1))["items"] == final["items"][2:]
+    for row in rows[:2]:
+        await store.session.refresh(row)
+        assert row.encrypted_secret is None and row.authentication is not None
+    assert rows[2].encrypted_secret is not None  # Failed source remains authoritative.
+
+
 @pytest.fixture
 async def configuration():
     engine = create_engine(Settings.model_validate({}))
@@ -430,3 +525,106 @@ async def test_unused_rotated_key_can_be_deleted_but_live_pins_cannot(configurat
     with pytest.raises(ConfigurationError) as failure:
         await store.remove_key(project_id=project, key_id=key, expected_revision=1, actor='owner')
     assert failure.value.code == 'CONFIG_REFERENCE_IN_USE'
+
+
+
+@pytest.mark.asyncio
+async def test_provider_cutover_preserves_identity_and_revision_and_requires_explicit_bridge_fleet(configuration, monkeypatch):
+    from modules.agent.application.interfaces import project_configuration as port
+    from modules.agent.infra.database.configuration_provider_migration import migrate_provider_configuration
+    from modules.agent.infra.database.models import ProviderCredentialModel
+    from modules.agent.infra.database.mappers import provider_credential_model_to_entity
+    from modules.agent.infra.adapters.configuration_bindings import provider_dependencies
+    from modules.core.infra.database.configuration_fleet import register_configuration_process, BRIDGE_CAPABILITY
+    from modules.core.infra.database.configuration_legacy import LegacyConfigurationStore
+    from shared.infra.crypto import encrypt_secret
+    from shared.contracts.project_configuration import compile_authentication
+    original_store, project, _ = configuration
+    store = LegacyConfigurationStore(original_store.session, encryption_key=original_store.encryption_key)
+    monkeypatch.setattr(port, '_factory', lambda session: store)
+    identifier = uuid4()
+    row = ProviderCredentialModel(id=identifier, project_id=project, provider='openai', name='Preserved', status='active',
+        encrypted_secret=encrypt_secret(CANARY, store.encryption_key))
+    store.session.add(row)
+    await store.session.flush()
+    before = row.updated_at
+    args = dict(project_id=project, credential_id=identifier, expected_revision=before.isoformat(),
+        destinations=['https://api.openai.com/v1'], actor='operator')
+    with pytest.raises(ConfigurationError) as failure:
+        await migrate_provider_configuration(store.session, required_processes=[], **args)
+    assert failure.value.code == 'CONFIG_BRIDGE_REQUIRED'
+    assert row.encrypted_secret and row.authentication is None
+    process = 'synthetic-api-' + str(uuid4())
+    await register_configuration_process(store.session, identity=process, capabilities=['project_configuration.v1'])
+    with pytest.raises(ConfigurationError):
+        await migrate_provider_configuration(store.session, required_processes=[process], **args)
+    await register_configuration_process(store.session, identity=process, capabilities=[BRIDGE_CAPABILITY])
+    result = await migrate_provider_configuration(store.session, required_processes=[process], **args)
+    await store.session.refresh(row)
+    assert result['state'] == 'cutover' and not result['unchanged']
+    assert row.id == identifier and row.updated_at == before and row.encrypted_secret is None
+    assert row.name == 'Preserved'
+    with pytest.raises(ConfigurationError):
+        compile_authentication(row.authentication)  # An API caller cannot forge the internal route.
+    assert (await migrate_provider_configuration(store.session, required_processes=[process], **args))['unchanged']
+    dependencies = provider_dependencies(provider_credential_model_to_entity(row))
+    run = uuid4()
+    await store.acquire(project_id=project, run_id=run, environment='staging', dependencies=dependencies)
+    assert await resolve(store, project, run, dependencies[0]) == CANARY
+    from modules.agent.infra.database.repositories import SQLAlchemyProviderCredentialRepository
+    repository = SQLAlchemyProviderCredentialRepository(store.session)
+    rotated = await repository.get_by_id(identifier)
+    rotated.encrypted_secret = encrypt_secret('central-rotated-canary', store.encryption_key)
+    await repository.update(rotated)
+    await store.session.refresh(row)
+    assert row.encrypted_secret is None
+    assert await resolve(store, project, run, dependencies[0]) == CANARY
+    next_run = uuid4()
+    await store.acquire(project_id=project, run_id=next_run, environment='staging', dependencies=dependencies)
+    assert await resolve(store, project, next_run, dependencies[0]) == 'central-rotated-canary'
+    await store.convert(project_id=project, alias_id=UUID(result['alias_id']), environments=['draft'],
+        expected_revision=2, expected_values={'draft': 0}, actor='owner')
+    rotated = await repository.get_by_id(identifier)
+    rotated.encrypted_secret = encrypt_secret('must-not-overwrite', store.encryption_key)
+    with pytest.raises(ConfigurationError) as split:
+        await repository.update(rotated)
+    assert split.value.code == 'LEGACY_ENVIRONMENT_REQUIRED'
+    direct = replace(dependencies[0], legacy_alias_id=None)
+    readiness, _ = await store.inspect(project_id=project, environment='staging', dependencies=[direct])
+    assert readiness['state'] == 'blocked' and readiness['dependencies'][0]['material'] == 'missing'
+    from modules.agent.infra.database.configuration_consumer_guard import verify_configuration_consumer
+    await verify_configuration_consumer(store.session, project_id=project, consumer_kind='provider_credential', consumer_id=identifier)
+    row.status = 'revoked'
+    await store.session.flush()
+    with pytest.raises(ConfigurationError) as revoked:
+        await verify_configuration_consumer(store.session, project_id=project, consumer_kind='provider_credential', consumer_id=identifier)
+    assert revoked.value.code == 'CONFIG_VALUE_REVOKED'
+
+
+
+@pytest.mark.asyncio
+async def test_cutover_barrier_rejects_expired_missing_and_omitted_incompatible_processes(configuration):
+    from datetime import timedelta
+    from modules.core.infra.database.configuration_fleet import register_configuration_process, assert_configuration_bridge, BRIDGE_CAPABILITY
+    from modules.core.infra.database.configuration_models import ConfigurationProcessModel
+    from modules.core.infra.database.configuration_store import now
+    store, _, _ = configuration
+    expected, old = 'bridge-' + str(uuid4()), 'old-' + str(uuid4())
+    await register_configuration_process(store.session, identity=expected, capabilities=[BRIDGE_CAPABILITY])
+    await assert_configuration_bridge(store.session, required_processes=[expected])
+    for missing in [[expected, 'unknown-' + str(uuid4())], [expected, expected]]:
+        with pytest.raises(ConfigurationError) as failure:
+            await assert_configuration_bridge(store.session, required_processes=missing)
+        assert failure.value.code == 'CONFIG_BRIDGE_REQUIRED'
+    await register_configuration_process(store.session, identity=old, capabilities=['old'])
+    with pytest.raises(ConfigurationError):
+        await assert_configuration_bridge(store.session, required_processes=[expected])
+    row = await store.session.scalar(select(ConfigurationProcessModel).where(ConfigurationProcessModel.process_identity == old))
+    row.expires_at = now() - timedelta(seconds=1)
+    await store.session.flush()
+    await assert_configuration_bridge(store.session, required_processes=[expected])
+    row = await store.session.scalar(select(ConfigurationProcessModel).where(ConfigurationProcessModel.process_identity == expected))
+    row.expires_at = now() - timedelta(seconds=1)
+    await store.session.flush()
+    with pytest.raises(ConfigurationError):
+        await assert_configuration_bridge(store.session, required_processes=[expected])

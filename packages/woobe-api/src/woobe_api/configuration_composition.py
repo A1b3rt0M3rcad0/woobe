@@ -21,3 +21,6 @@ def configure_target_readiness():
     from modules.agent.entrypoint import configuration_binding
     from modules.core.entrypoint import configure_configuration_binding_adapter
     configure_configuration_binding_adapter(configuration_binding)
+    from modules.agent.entrypoint import inventory_provider_configuration, migrate_provider_configuration
+    from modules.core.entrypoint import configure_configuration_migration_adapter
+    configure_configuration_migration_adapter(inventory=inventory_provider_configuration, cutover=migrate_provider_configuration)

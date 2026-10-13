@@ -46,6 +46,7 @@ export function AddProviderCredentialModal({ open, onClose, projectId, onCredent
     event.preventDefault()
     if (!credential) return
     if (!name.trim()) return void toast.error('Name is required')
+    if (credential.authentication && !configurationKey) return void toast.error('Select a declared configuration key')
     if (isOpenAICompatibleProvider(provider) && !baseUrl.trim()) return void toast.error('Base URL is required for OpenAI Compatible providers')
     try {
       await updateCredential.mutateAsync({
@@ -82,7 +83,7 @@ export function AddProviderCredentialModal({ open, onClose, projectId, onCredent
           ) : null}
           {credential.authentication && <ConfigurationReferenceSelector projectId={projectId} value={configurationKey} onChange={setConfigurationKey} />}
           <Alert variant="info" className="md:col-span-2">
-            <AlertDescription>{credential.authentication ? 'Values are managed in Project → Environments. Changing the reference or connection destination requires reviewing its use approvals.' : 'This connection uses the legacy credential contract. Review its migration in Project → Environments before changing how its value is stored.'}</AlertDescription>
+            <AlertDescription>{credential.authentication?.fields.api_key.source === 'legacy_configuration' ? 'This connection uses an explicit legacy mapping in the central store. Review its per-environment routes in Project → Environments; no automatic fallback is used.' : credential.authentication ? 'Values are managed in Project → Environments. Changing the reference or connection destination requires reviewing its use approvals.' : 'This connection uses the legacy credential contract. Review its migration in Project → Environments before changing how its value is stored.'}</AlertDescription>
           </Alert>
           <div className="flex justify-end gap-ui-sm border-t border-border pt-ui-md md:col-span-2">
             <Button type="button" variant="outline" onClick={onClose} disabled={updateCredential.isPending}>Cancel</Button>

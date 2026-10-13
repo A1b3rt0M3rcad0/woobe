@@ -32,7 +32,7 @@ from shared.security.crypto import encrypt_secret
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("configuration_mode", ["legacy", "remote", "missing"])
+@pytest.mark.parametrize("configuration_mode", ["legacy", "remote", "missing", "migrated"])
 async def test_network_runtime_executes_real_agent_against_fake_custom_provider_with_two_commits(
     monkeypatch, configuration_mode,
 ) -> None:
@@ -148,7 +148,7 @@ async def test_network_runtime_executes_real_agent_against_fake_custom_provider_
         if configuration_mode != "legacy":
             from modules.core.infra.database.models import ProjectModel
             from modules.identity.infra.database.models import WorkspaceModel
-            from modules.core.infra.database.configuration_resolution import ConfigurationResolution
+            from modules.core.infra.database.configuration_legacy import LegacyConfigurationStore
             from modules.agent.application.interfaces import project_configuration
             from modules.network.application import configuration_acceptance
             from modules.agent.entrypoint import collect_configuration_dependencies
@@ -158,7 +158,7 @@ async def test_network_runtime_executes_real_agent_against_fake_custom_provider_
             await session.flush()
             session.add(ProjectModel(id=project_id, workspace_id=workspace, name="Configuration", slug=str(project_id), status="active", data={}))
             await session.flush()
-            factory = lambda session: ConfigurationResolution(session, encryption_key=settings.encryption_key)
+            factory = lambda session: LegacyConfigurationStore(session, encryption_key=settings.encryption_key)
             monkeypatch.setattr(project_configuration, "_factory", factory)
             async def accept(session, *, project_id, run_id, environment, bindings):
                 dependencies = await collect_configuration_dependencies(session, project_id=project_id, bindings=bindings)
@@ -171,11 +171,20 @@ async def test_network_runtime_executes_real_agent_against_fake_custom_provider_
             await store.grant_use(project_id=project_id, key_id=UUID(key["id"]), consumer_kind="provider_credential",
                 consumer_scope=str(credential_id), destination=fake_provider_url, environments=["draft"],
                 field_paths=["/authentication/fields/api_key"], expected_revision=0, actor="test-owner")
-            credential.encrypted_secret = None
-            credential.authentication = {"type": "api_key", "fields": {"api_key": {"source": "project_environment", "key": "FAKE_PROVIDER_KEY"}}}
+            if configuration_mode != "migrated":
+                credential.encrypted_secret = None
+                credential.authentication = {"type": "api_key", "fields": {"api_key": {"source": "project_environment", "key": "FAKE_PROVIDER_KEY"}}}
         session.add(credential)
         await session.flush()
 
+        if configuration_mode == "migrated":
+            from modules.agent.infra.database.configuration_provider_migration import migrate_provider_configuration
+            from modules.core.infra.database.configuration_fleet import register_configuration_process, BRIDGE_CAPABILITY
+            identity = "synthetic-network-bridge-" + str(uuid4())
+            await register_configuration_process(session, identity=identity, capabilities=[BRIDGE_CAPABILITY])
+            await migrate_provider_configuration(session, project_id=project_id, credential_id=credential_id,
+                expected_revision=credential.updated_at.isoformat(), destinations=[fake_provider_url],
+                required_processes=[identity], actor="test-owner")
         session.add(provider_model)
         await session.flush()
 

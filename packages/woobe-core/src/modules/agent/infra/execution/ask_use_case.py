@@ -930,6 +930,9 @@ class AskAgentUseCase:
         project_id, consumer_id = credential.project_id, credential.id
         async def resolve_destination(destination):
             async def resolve(repositories, _outbox):
+                live = await repositories.provider_credentials.get_by_id(consumer_id)
+                if live is None or live.project_id != project_id or getattr(live.status, "value", live.status) != "active":
+                    raise ConfigurationError("CONFIG_VALUE_REVOKED")
                 if repositories.configuration is None:
                     raise ConfigurationError("CONFIG_STORE_UNAVAILABLE")
                 return await repositories.configuration.resolve(project_id=project_id,

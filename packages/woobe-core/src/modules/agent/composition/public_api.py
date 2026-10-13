@@ -574,3 +574,8 @@ __all__.append("configuration_binding")
 
 from modules.agent.composition.factories.configuration_tool_preparation import build_configuration_tool_preparation
 __all__.append("build_configuration_tool_preparation")
+
+from modules.agent.infra.database.configuration_consumer_guard import verify_configuration_consumer
+__all__.append("verify_configuration_consumer")
+from modules.agent.infra.database.configuration_provider_migration import inventory_provider_configuration, migrate_provider_configuration
+__all__ += ["inventory_provider_configuration", "migrate_provider_configuration"]

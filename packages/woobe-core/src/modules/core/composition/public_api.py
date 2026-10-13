@@ -117,9 +117,9 @@ def build_project_configuration_service():
 
 
 def build_project_configuration_runtime(session):
-    from modules.core.infra.database.configuration_resolution import ConfigurationResolution
+    from modules.core.infra.database.configuration_legacy import LegacyConfigurationStore
     from shared.composition_resources import SETTINGS
-    return ConfigurationResolution(session, encryption_key=SETTINGS.encryption_key)
+    return LegacyConfigurationStore(session, encryption_key=SETTINGS.encryption_key)
 
 
 __all__ += ["build_project_configuration_service", "build_project_configuration_runtime"]
@@ -150,12 +150,23 @@ from modules.core.infra.services.project_configuration_service import configure_
 __all__.append("configure_configuration_target_reader")
 
 
-def build_configuration_runtime_resolver():
+def build_configuration_runtime_resolver(*, consumer_verifier):
     from modules.core.infra.services.configuration_runtime_resolver import ConfigurationRuntimeResolver
     from shared.composition_resources import SESSION_FACTORY, SETTINGS
-    return ConfigurationRuntimeResolver(SESSION_FACTORY, encryption_key=SETTINGS.encryption_key)
+    return ConfigurationRuntimeResolver(SESSION_FACTORY, encryption_key=SETTINGS.encryption_key, consumer_verifier=consumer_verifier)
 
 __all__.append("build_configuration_runtime_resolver")
 
 from modules.core.infra.services.project_configuration_service import configure_configuration_binding_adapter
 __all__.append("configure_configuration_binding_adapter")
+
+
+def build_configuration_process_registration(session_factory, *, role):
+    from modules.core.infra.services.configuration_process import ConfigurationProcessRegistration
+    return ConfigurationProcessRegistration(session_factory, role=role)
+
+
+__all__.append("build_configuration_process_registration")
+
+from modules.core.infra.services.project_configuration_service import configure_configuration_migration_adapter
+__all__.append("configure_configuration_migration_adapter")

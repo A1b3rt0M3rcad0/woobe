@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from typing import cast
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -186,6 +186,18 @@ class SQLAlchemyProviderCredentialRepository(
         if not model:
             from modules.agent.domain.errors import CredentialNotFoundError
             raise CredentialNotFoundError(credential.id)
+        if credential.encrypted_secret and model.authentication is not None:
+            from modules.agent.application.interfaces.project_configuration import configuration_for_session
+            from shared.contracts.project_configuration import ConfigurationError
+            reference = (model.authentication.get("fields") or {}).get("api_key") or {}
+            if reference.get("source") != "legacy_configuration" or credential.authentication != model.authentication:
+                raise ConfigurationError("LEGACY_ENVIRONMENT_REQUIRED")
+            configuration = configuration_for_session(self._session)
+            if configuration is None:
+                raise ConfigurationError("CONFIG_STORE_UNAVAILABLE")
+            await configuration.rotate_legacy(project_id=credential.project_id, alias_id=UUID(reference["alias_id"]),
+                encrypted_value=credential.encrypted_secret, source_revision=str(uuid4()), actor="legacy-provider-writer")
+            credential.encrypted_secret = ""
         provider = credential.provider.value if hasattr(credential.provider, "value") else credential.provider
         if credential.authentication != model.authentication or credential.metadata != (model.meta or {}) or provider != model.provider:
             credential.binding_revision = (model.binding_revision or 1) + 1
@@ -208,12 +220,8 @@ class SQLAlchemyProviderCredentialRepository(
         from shared.contracts.project_configuration import ConfigurationDependency, ConfigurationError, compile_authentication
         if credential.encrypted_secret:
             raise ConfigurationError("CONFIG_BINDING_INVALID")
-        authentication = compile_authentication(credential.authentication)
-        from modules.agent.infra.adapters.configuration_bindings import PROVIDER_DESTINATIONS
-        provider = credential.provider.value if hasattr(credential.provider, "value") else credential.provider
-        references = [ConfigurationDependency(credential.project_id, "provider_credential", credential.id,
-            str(credential.binding_revision), "/authentication/fields/" + field, ref["key"],
-            str((credential.metadata or {}).get("base_url") or PROVIDER_DESTINATIONS.get(provider) or "")) for field, ref in authentication["fields"].items()]
+        from modules.agent.infra.adapters.configuration_bindings import provider_dependencies
+        references = provider_dependencies(credential)
         configuration = configuration_for_session(self._session)
         if configuration is None:
             raise ConfigurationError("CONFIG_STORE_UNAVAILABLE")

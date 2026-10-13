@@ -70,6 +70,9 @@ class ProviderDiscoveryHandler:
             async def resolve_destination(destination):
                 async with self.uow_factory().mark_read_only() as uow:
                     session = uow.session
+                    live = await SQLAlchemyProviderCredentialRepository(session).get_by_id(credential_id)
+                    if live is None or live.project_id != project_id or getattr(live.status, "value", live.status) != "active":
+                        raise ConfigurationError("CONFIG_VALUE_REVOKED")
                     configuration = configuration_for_session(session)
                     if configuration is None:
                         raise ConfigurationError("CONFIG_STORE_UNAVAILABLE")

@@ -115,3 +115,5 @@ from modules.agent.infra.database.configuration_dependency_reader import collect
 collect_configuration_dependencies = partial(_collect_configuration_dependencies, snapshot_builder=build_agent_execution_snapshot)
 
 from modules.agent.application.interfaces.project_configuration import configure_runtime_configuration_resolver
+
+from modules.agent.infra.database.configuration_consumer_guard import verify_configuration_consumer

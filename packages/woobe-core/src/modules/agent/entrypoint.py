@@ -459,3 +459,8 @@ __all__.append("configuration_binding")
 
 from modules.agent.composition.public_api import build_configuration_tool_preparation
 __all__.append("build_configuration_tool_preparation")
+
+from modules.agent.composition.public_api import verify_configuration_consumer
+__all__.append("verify_configuration_consumer")
+from modules.agent.composition.public_api import inventory_provider_configuration, migrate_provider_configuration
+__all__ += ["inventory_provider_configuration", "migrate_provider_configuration"]

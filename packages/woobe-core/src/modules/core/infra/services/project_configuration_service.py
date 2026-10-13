@@ -12,6 +12,8 @@ from shared.security.tenancy import TenantAuthorizer
 
 
 _PERMISSIONS = {
+    "migration_fleet": "migrate",
+    "migration_preview": "migrate", "migration_create": "migrate", "migration_status": "migrate", "migration_advance": "migrate",
     "binding": "read", "bind": "bind",
     "legacy_bindings": "read", "convert": "migrate",
     "readiness": "read",
@@ -24,6 +26,13 @@ _PERMISSIONS = {
 
 _target_reader = None
 _binding_adapter = None
+_migration_inventory = None
+_migration_cutover = None
+
+
+def configure_configuration_migration_adapter(*, inventory, cutover):
+    global _migration_inventory, _migration_cutover
+    _migration_inventory, _migration_cutover = inventory, cutover
 
 def configure_configuration_binding_adapter(adapter):
     global _binding_adapter
@@ -51,6 +60,10 @@ class ProjectConfigurationService:
             if project is None:
                 raise NotFoundError("Project not found")
             environments = arguments.get("environments") or [arguments.get("environment")]
+            if action.startswith("migration_"):
+                # Legacy source semantics span all three routes. A permission
+                # restricted to Draft cannot authorize a cross-environment cutover.
+                environments = ["draft", "staging", "production"]
             if action == "write_batch":
                 environments = sorted({op["environment"] for op in arguments["operations"]})
             authorizer = TenantAuthorizer(session)
@@ -78,6 +91,15 @@ class ProjectConfigurationService:
                             project_id=project_id, permission=required, path_context=context)
                     else:
                         raise AuthorizationError("Administrative authentication is required")
+                if action.startswith("migration_"):
+                    required = "provider:write" if action == "migration_advance" else "provider:read"
+                    if isinstance(principal, ControlPlanePrincipal):
+                        await authorizer.authorize_control_key(api_key_id=principal.api_key_id,
+                            workspace_id=principal.workspace_id, workspace_permissions=principal.permissions,
+                            required_permission=required, path_params=context, query_params={}, body=None)
+                    else:
+                        await authorizer.require_human_permission(user_id=principal.user_id, workspace_id=project.workspace_id,
+                            project_id=project_id, permission=required, path_context=context)
                 if action in {"readiness", "binding", "bind"}:
                     required = {"agent": "agent:read", "network": "network:read", "provider_credential": "provider:read", "tool": "tool:read"}[arguments["target_kind"]]
                     if action == "bind":
@@ -91,6 +113,17 @@ class ProjectConfigurationService:
                         await authorizer.require_human_permission(user_id=principal.user_id, workspace_id=project.workspace_id,
                             project_id=project_id, permission=required, path_context=context)
             actor = "key:" + str(principal.api_key_id) if isinstance(principal, ControlPlanePrincipal) else "user:" + str(principal.user_id)
+            if action.startswith("migration_"):
+                from shared.contracts.project_configuration import ConfigurationError
+                from modules.core.infra.services.configuration_migration import ConfigurationMigrationService
+                if _migration_inventory is None or _migration_cutover is None:
+                    raise ConfigurationError("CONFIG_STORE_UNAVAILABLE")
+                migration = ConfigurationMigrationService(session, encryption_key=self.encryption_key,
+                    inventory=_migration_inventory, cutover=_migration_cutover)
+                operation = action.removeprefix("migration_")
+                if operation in {"create", "advance"}:
+                    arguments["actor"] = actor
+                return await getattr(migration, operation)(project_id=project_id, **arguments)
             if action == "capabilities":
                 return {"schema_version": "project_configuration.v1", "declaration_without_value": True,
                         "typed_remote_bindings": True, "binding_updates": _binding_adapter is not None, "external_validation": True, "metadata_only_reads": True,

@@ -100,7 +100,7 @@ class ConfigurationIssue:
     required_for: str = "execution"
 
 
-def compile_authentication(value: dict, *, allow_none: bool = False) -> dict:
+def compile_authentication(value: dict, *, allow_none: bool = False, allow_legacy: bool = False) -> dict:
     import re
     key_pattern = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,127}$")
     if not isinstance(value, dict) or set(value) - {"type", "fields"}:
@@ -120,12 +120,18 @@ def compile_authentication(value: dict, *, allow_none: bool = False) -> dict:
     result = {}
     for field, reference in fields.items():
         if (not isinstance(field, str) or not re.fullmatch(r"[A-Za-z][A-Za-z0-9_-]{0,127}", field)
-                or not isinstance(reference, dict) or set(reference) != {"source", "key"}
-                or reference["source"] != "project_environment"
+                or not isinstance(reference, dict)
+                or not ((set(reference) == {"source", "key"} and reference.get("source") == "project_environment")
+                    or (allow_legacy and set(reference) == {"source", "key", "alias_id"} and reference.get("source") == "legacy_configuration"))
                 or not isinstance(reference["key"], str) or not key_pattern.fullmatch(reference["key"])):
             raise ConfigurationError("CONFIG_BINDING_INVALID")
         if kind == "headers" and field.lower() in {"host", "content-length", "transfer-encoding", "connection",
                 "proxy-authorization", "proxy-connection", "forwarded", "x-forwarded-host", "x-forwarded-proto", "x-forwarded-for"}:
             raise ConfigurationError("CONFIG_BINDING_INVALID")
+        if reference["source"] == "legacy_configuration":
+            try:
+                UUID(str(reference["alias_id"]))
+            except (ValueError, TypeError, AttributeError):
+                raise ConfigurationError("CONFIG_BINDING_INVALID") from None
         result[field] = dict(reference)
     return {"type": kind, "fields": result}

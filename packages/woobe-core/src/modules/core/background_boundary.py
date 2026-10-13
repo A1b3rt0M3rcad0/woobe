@@ -24,3 +24,4 @@ from modules.core.composition.public_api import build_configuration_acceptor
 from modules.core.composition.public_api import build_configuration_runtime_resolver
 
 from modules.core.infra.database.configuration_retention import purge_configuration_retention
+from modules.core.composition.public_api import build_configuration_process_registration

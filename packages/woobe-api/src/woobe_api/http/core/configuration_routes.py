@@ -64,6 +64,19 @@ class ConvertLegacy(StrictBody):
     expected_values: dict[Environment, StrictInt]
 
 
+class MigrationPlan(StrictBody):
+    after_id: UUID | None = None
+    limit: StrictInt = Field(default=100, ge=1, le=200)
+
+
+class MigrationBatch(StrictBody):
+    expected_revision: StrictInt = Field(ge=1)
+    required_processes: list[StrictStr] = Field(min_length=1, max_length=1000)
+    old_processes_drained: bool
+    limit: StrictInt = Field(default=10, ge=1, le=20)
+    pause: bool = False
+
+
 async def execute(request, project_id, action, **arguments):
     data = await build_project_configuration_service().execute(action, project_id=project_id,
         principal=request.state.principal, **arguments)
@@ -73,6 +86,33 @@ async def execute(request, project_id, action, **arguments):
 @router.get("/capabilities")
 async def capabilities(request: Request, project_id: UUID, environment: Environment = "draft"):
     return await execute(request, project_id, "capabilities", environment=environment)
+
+
+@router.post("/migrations/preview")
+async def migration_preview(request: Request, project_id: UUID, body: MigrationPlan):
+    return await execute(request, project_id, "migration_preview", **body.model_dump())
+
+
+@router.get("/migration-processes")
+async def migration_fleet(request: Request, project_id: UUID,
+                          offset: int = Query(default=0, ge=0), limit: int = Query(default=100, ge=1, le=200)):
+    return await execute(request, project_id, "migration_fleet", offset=offset, limit=limit)
+
+
+@router.put("/migrations/{migration_id}")
+async def migration_create(request: Request, project_id: UUID, migration_id: UUID, body: MigrationPlan):
+    return await execute(request, project_id, "migration_create", migration_id=migration_id, **body.model_dump())
+
+
+@router.get("/migrations/{migration_id}")
+async def migration_status(request: Request, project_id: UUID, migration_id: UUID,
+                           offset: int = Query(default=0, ge=0), limit: int = Query(default=50, ge=1, le=200)):
+    return await execute(request, project_id, "migration_status", migration_id=migration_id, offset=offset, limit=limit)
+
+
+@router.post("/migrations/{migration_id}/advance")
+async def migration_advance(request: Request, project_id: UUID, migration_id: UUID, body: MigrationBatch):
+    return await execute(request, project_id, "migration_advance", migration_id=migration_id, **body.model_dump())
 
 
 @router.get("/legacy-bindings")

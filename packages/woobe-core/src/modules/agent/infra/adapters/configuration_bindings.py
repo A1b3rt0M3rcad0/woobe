@@ -1,4 +1,5 @@
 """Agent-owned interpretation of configuration dependencies."""
+from uuid import UUID
 from shared.contracts.project_configuration import ConfigurationDependency, ConfigurationError, compile_authentication
 
 
@@ -24,9 +25,10 @@ def provider_dependencies(credential, *, base_url=None, impact=()):
     authentication = getattr(credential, "authentication", None)
     if authentication is None:
         return []
-    compiled = compile_authentication(authentication)
+    compiled = compile_authentication(authentication, allow_legacy=True)
     destination = provider_destination(credential, base_url)
     return [ConfigurationDependency(credential.project_id, "provider_credential", credential.id,
         str(credential.binding_revision), "/authentication/fields/" + field,
-        reference["key"], destination, impact=impact)
+        reference["key"], destination, impact=impact,
+        legacy_alias_id=UUID(reference["alias_id"]) if reference["source"] == "legacy_configuration" else None)
         for field, reference in compiled["fields"].items()]

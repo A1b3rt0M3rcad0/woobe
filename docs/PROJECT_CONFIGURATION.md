@@ -53,3 +53,7 @@ authority. An Environment-specific permission does not authorize metadata from
 other Environments.
 
 See [the architectural decision](adr/0005-project-configuration-authority.md).
+
+The [migration runbook](runbooks/PROJECT_CONFIGURATION_MIGRATION.md) describes
+the bounded Provider job, process inventory, revision guards and recovery. Its
+completion does not yet qualify migration of the other legacy source families.
