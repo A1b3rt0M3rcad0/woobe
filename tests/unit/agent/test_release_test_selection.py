@@ -95,11 +95,11 @@ async def test_release_test_preparation_respects_authoritative_environment_and_l
         store_module, "SQLAlchemyAgentReleaseTestRepository", lambda _: repository
     )
     if accepted:
-        result = await SQLReleaseTestExecutionStore(uow).prepare(request, "principal")
+        result = await SQLReleaseTestExecutionStore(uow, build_snapshot=lambda _: {}).prepare(request, "principal")
         assert result.release_id == request.release_id
     else:
         with pytest.raises(ValidationError):
-            await SQLReleaseTestExecutionStore(uow).prepare(request, "principal")
+            await SQLReleaseTestExecutionStore(uow, build_snapshot=lambda _: {}).prepare(request, "principal")
         repository.save.assert_not_awaited()
     authority.assert_awaited_once()
     if environment in {"staging", "production"}:
@@ -135,5 +135,5 @@ async def test_changed_selection_cannot_record_test_against_another_release(
         store_module, "SQLAlchemyAgentReleaseTestRepository", lambda _: N(save=save)
     )
     with pytest.raises(ConflictError, match="ASAC_TEST_SELECTION_CHANGED"):
-        await SQLReleaseTestExecutionStore(uow).prepare(request, "principal")
+        await SQLReleaseTestExecutionStore(uow, build_snapshot=lambda _: {}).prepare(request, "principal")
     save.assert_not_awaited()

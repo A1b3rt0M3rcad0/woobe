@@ -259,8 +259,8 @@ class SessionModeCompatibleCreateReleaseUseCase:
         *,
         provider_model_repo: ProviderModelRepository | None = None,
         credential_repo: ProviderCredentialRepository | None = None,
-        prompt_repo: Any = None,
-        contract_repo: Any = None,
+        prompt_repo: Any | None = None,
+        contract_repo: Any | None = None,
     ) -> None:
         self._delegate = delegate
         self._agent_repo = agent_repo

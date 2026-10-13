@@ -1,3 +1,4 @@
+from modules.agent.application.execution_snapshot import build_agent_execution_snapshot
 from modules.agent.application.use_cases.execute_release_test import ExecuteReleaseTest
 from modules.agent.composition.factories.agent_uow_factory import build_agent_uow
 from modules.agent.composition.factories.ask_agent_runtime_factory import (
@@ -16,6 +17,6 @@ from modules.agent.presentation.controllers.execute_release_test_controller impo
 def build_release_test_execution_handler():
     # Commit a pending test before long-lived execution; finish in a separate
     # short Agent UOW. The native Run keeps its existing transaction ownership.
-    store = SQLReleaseTestExecutionStore(build_agent_uow)
+    store = SQLReleaseTestExecutionStore(build_agent_uow, build_snapshot=build_agent_execution_snapshot)
     runtime = NativeReleaseTestRuntime(build_ask_agent_handler(SETTINGS))
     return ExecuteReleaseTestController(ExecuteReleaseTest(store, runtime)).handle

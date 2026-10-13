@@ -15,8 +15,9 @@ from modules.agent.infra.database.asac_environment_selector import (
 
 
 class SQLReleaseTestExecutionStore:
-    def __init__(self, build_uow):
+    def __init__(self, build_uow, *, build_snapshot):
         self._build_uow = build_uow
+        self._build_snapshot = build_snapshot
 
     async def prepare(self, request, principal):
         async with self._build_uow() as uow:
@@ -89,9 +90,7 @@ class SQLReleaseTestExecutionStore:
                     expected_output=request.expected_output,
                 )
             )
-            if hasattr(release, "provider"):
-                from modules.agent.application.execution_snapshot import build_agent_execution_snapshot
-                test.execution_snapshot = build_agent_execution_snapshot(release)
+            test.execution_snapshot = self._build_snapshot(release)
             test.validation_schema = getattr(release, "output_schema", None)
             response = getattr(release, "response_format", None) or {}
             if test.validation_schema is None and not release.contract_version_id:
