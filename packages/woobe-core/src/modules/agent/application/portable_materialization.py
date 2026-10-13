@@ -84,6 +84,9 @@ def compile_imported_agent_inputs(
         settings["response_format"] = deepcopy(output["response_format"])
     if output.get("output_schema") is not None:
         settings["output_schema"] = deepcopy(output["output_schema"])
+        response = deepcopy(settings.get("response_format") or {})
+        response.update(enabled=True, type="json", strict=True, schema=deepcopy(output["output_schema"]))
+        settings["response_format"] = response
     if definitions[primary_key]["spec"].get("base_url"):
         settings["base_url"] = definitions[primary_key]["spec"]["base_url"]
     create = CreateAgentInput.model_validate(

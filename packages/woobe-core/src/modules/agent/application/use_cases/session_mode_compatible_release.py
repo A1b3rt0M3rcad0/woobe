@@ -312,7 +312,7 @@ class SessionModeCompatibleCreateReleaseUseCase:
             response = deepcopy(dto.response_format or {})
             if "response_format" in requested and response.get("schema") is not None and response["schema"] != dto.output_schema:
                 raise ConflictError("Embedded output_schema differs from response_format")
-            response.update(enabled=True, type="json", schema=deepcopy(dto.output_schema))
+            response.update(enabled=True, type="json", schema=deepcopy(dto.output_schema), strict=True)
             dto = dto.model_copy(update={"response_format": response})
         for field, repository in (("prompt_version_id", self._prompt_repo),
                                   ("contract_version_id", self._contract_repo)):
@@ -341,7 +341,7 @@ class SessionModeCompatibleCreateReleaseUseCase:
                 if "response_format" in requested and response.get("schema") is not None and response["schema"] != schema:
                     raise ConflictError("Embedded response_format differs from the referenced Contract version")
                 response.update(enabled=True, type="json", schema=schema,
-                                strict=_enum_value(version.validation_mode) == "strict")
+                                strict=True)
                 runtime = deepcopy(dto.runtime_config or {})
                 runtime["contract_version_snapshot"] = {
                     "id": str(version.id), "project_id": str(version.project_id), "agent_id": str(version.agent_id),
