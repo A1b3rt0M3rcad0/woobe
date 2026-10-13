@@ -8,7 +8,7 @@ Woobe is an **API-first, source-available control plane and runtime for Agents a
 
 Your application calls a released Agent or Network; Woobe resolves its versioned prompts, models, tools, skills and knowledge, executes the workload and records what happened.
 
-[Quick start](#quick-start--run-your-first-agent) · [YAML and coding assistants](#develop-with-yaml-and-coding-assistants) · [Capabilities](#key-capabilities) · [Documentation](#resources) · [Licensing](#licensing)
+[Quick start](#quick-start) · [First Agent](#build-and-run-your-first-agent) · [YAML and coding assistants](#develop-with-yaml-and-coding-assistants) · [Capabilities](#key-capabilities) · [Documentation](#resources) · [Licensing](#licensing)
 
 > **Pre-1.0:** Public APIs and deployment contracts may evolve between minor versions. Review release and upgrade notes before updating.
 
@@ -23,22 +23,26 @@ Production agents need more than a prompt and a model call. Teams need to know w
 
 Woobe provides the control plane and runtime between your application and its AI execution layer. Frameworks can help implement agent behavior; Woobe adds a shared lifecycle for configuration, validation, releases and operation. ChatSurface is one way to deliver that runtime to users.
 
-## Quick start — Run your first Agent
+## Quick start
 
-You need Docker with Docker Compose, Python 3 and credentials for a supported model Provider. CLI steps also require the native [Woobe CLI](https://github.com/A1b3rt0M3rcad0/woobe-cli/releases/latest), or Node.js 22+ for npm installation.
+Requires Docker with Docker Compose.
 
-### 1. Start Woobe Core
+Clone this repository and, from its root directory, run:
 
 ```sh
-git clone https://github.com/A1b3rt0M3rcad0/woobe.git
-cd woobe
-python scripts/generate_self_host_env.py
-docker compose up -d --build
+cp .env.example .env
+docker compose up --build -d
 ```
 
-Open the Web UI at **http://localhost:8080**. The API is at **http://localhost:8000** and ChatSurface at **http://localhost:8081**. The environment generator creates independent bootstrap secrets; keep the generated `.env` private.
+Once startup finishes, open **http://localhost:8080** and register your account. The API is at **http://localhost:8000** and ChatSurface at **http://localhost:8081**.
 
-### 2. Create and validate an Agent
+These defaults are for an initial local run. For production configuration, unique secrets, TLS, backups and upgrades, see [self-hosting](docs/SELF_HOSTING.md).
+
+## Build and run your first Agent
+
+With Woobe running, connect a supported model Provider using your credentials. The optional CLI steps below require the native [Woobe CLI](https://github.com/A1b3rt0M3rcad0/woobe-cli/releases/latest), or Node.js 22+ for npm installation.
+
+### 1. Create and validate an Agent
 
 On a fresh instance, register the instance owner and create or select a Project. Connect your model Provider with its credentials, then create a **Support** Agent and select an available model.
 
@@ -52,7 +56,7 @@ and state what you cannot verify. Never invent a diagnosis.
 
 Save Draft, stage the configuration and run a test such as **“Our API is returning HTTP 503. What should I check?”**. Inspect the result before publishing an immutable Agent Release and explicitly activating that version in Production. Projects enforcing qualified delivery use the [deployment workflow](docs/CLI_DEPLOYMENT.md).
 
-### 3. Connect the CLI
+### 2. Connect the CLI
 
 Install the native binary from [CLI releases](https://github.com/A1b3rt0M3rcad0/woobe-cli/releases/latest), or install through npm:
 
@@ -72,7 +76,7 @@ woobe project agent list
 
 Select the Project when prompted. Copy the Support Agent's UUID from the list for `AGENT_UUID` below.
 
-### 4. Execute and inspect a production Run
+### 3. Execute and inspect a production Run
 
 Create a separate **Runtime Key** in Project settings, scoped to your Agent and runtime operations. Save it in a private `runtime.key` file outside the repository and import it from that location:
 
