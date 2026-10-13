@@ -120,3 +120,42 @@ def test_export_v2_declares_only_public_intent_and_preserves_v1(tmp_path):
     manifest = decode_document(legacy.files["woobe.yaml"], "woobe.yaml")
     validate_document(manifest)
     assert manifest["spec"]["requires"]["credentials"] == [{"ref": "credential-1", "provider": "openai", "metadata": {}}]
+
+
+def network_package(files, source):
+    files["network.yaml"] = {"format": "woobe-package", "schema_version": "2.0", "kind": "Network",
+        "metadata": {"key": "network", "name": "Support Network"}, "spec": {"root": "support", "nodes": [
+            {"key": "support", "agent_ref": "agent", "binding": {"source": source}}], "edges": []}}
+    files["woobe.yaml"]["spec"]["entrypoint"] = {"kind": "Network", "ref": "network"}
+    files["woobe.yaml"]["spec"]["resources"].append("network.yaml")
+    return files
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("source", ["staging", "release"])
+async def test_structural_network_uses_imported_drafts_without_promoting_constituents(tmp_path, source):
+    files = network_package(package(tmp_path), source)
+    for name, document in files.items():
+        (tmp_path / name).write_text(json.dumps(document))
+    class Inspector:
+        async def capabilities(self): return {}
+        async def inspect_bindings(self, **kwargs): return kwargs["bindings"]
+        async def inspect_component(self, **kwargs): return {}
+        async def authorize(self, **kwargs): pass
+    with snapshot_directory(tmp_path) as bundle:
+        approved = await PlanPackageUseCase(Inspector()).execute(project_id=uuid4(), principal=object(),
+            graph=bundle.graph, support={}, artifact_digest=bundle.artifact_digest, upload_id=uuid4(),
+            bindings=bindings(), api_origin="https://example.test", installation_mode="structural")
+        assert approved.document["constituent_binding_policy"] == "imported_draft"
+        assert not {"create_staging", "create_immutable_release", "activate_production"} & {
+            effect["action"] for effect in approved.document["effects"]}
+        assert approved.document["source_definition"]["components"]["network"]["spec"]["nodes"][0]["binding"]["source"] == source
+
+
+def test_reference_collection_accepts_schema_properties_named_source_and_authentication():
+    from modules.package.application.export_projection import reference_requirements
+    payload = {"properties": {"source": {"type": "object"}, "auth": {"credentials": [{"type": "string"}]},
+        "env_secret_refs": {"properties": {"token": {"type": "string"}}}},
+        "authentication": {"type": "api_key", "fields": {"api_key": {"source": "project_environment", "key": "API_KEY"}}},
+        "legacy": {"auth": {"credentials": ["legacy-token"]}, "env_secret_refs": {"TOKEN": "env-token"}}}
+    assert reference_requirements(payload) == ({"API_KEY"}, {"legacy-token", "env-token"})

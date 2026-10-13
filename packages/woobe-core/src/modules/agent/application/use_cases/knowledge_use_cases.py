@@ -598,10 +598,16 @@ class CreateKnowledgeVersionUseCase:
                 is_archived = _as_value(existing.status) == _as_value(
                     KnowledgeVersionStatus.ARCHIVED
                 )
-                if same_snapshot and not is_archived:
+                completed_preparation = (existing_metadata.get("preparation_status") == "pending"
+                    and snapshot.status == VECTOR_SNAPSHOT_READY)
+                if same_snapshot and not is_archived and not completed_preparation:
                     return _knowledge_version_to_output(existing)
 
             collection_ids = [snapshot.collection_id]
+            if snapshot.status == "PENDING_PREPARATION":
+                snapshot_metadata["preparation_status"] = "pending"
+            else:
+                snapshot_metadata.pop("preparation_status", None)
             snapshot_metadata.update(
                 {
                     "vector_snapshot_id": str(snapshot.id),

@@ -30,16 +30,18 @@ def reference_requirements(value):
             for child in item:
                 visit(child)
         elif isinstance(item, dict):
-            if item.get("source") in {"project_environment", "legacy_configuration"} and isinstance(item.get("key"), str):
+            if isinstance(item.get("source"), str) and item["source"] in {"project_environment", "legacy_configuration"} and isinstance(item.get("key"), str):
                 environment.add(item["key"])
             if item.get("kind") == "project_environment" and isinstance(
                 item.get("field"), str
             ):
                 environment.add(item["field"])
             auth = item.get("auth") or {}
-            if isinstance(auth, dict):
-                secrets.update(auth.get("credentials") or [])
-            secrets.update((item.get("env_secret_refs") or {}).values())
+            if isinstance(auth, dict) and isinstance(auth.get("credentials"), list):
+                secrets.update(value for value in auth["credentials"] if isinstance(value, str))
+            references = item.get("env_secret_refs")
+            if isinstance(references, dict):
+                secrets.update(value for value in references.values() if isinstance(value, str))
             for child in item.values():
                 visit(child)
 

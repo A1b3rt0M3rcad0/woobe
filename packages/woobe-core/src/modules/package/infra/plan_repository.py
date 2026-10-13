@@ -40,7 +40,7 @@ PUBLIC_PLAN_FIELDS = (
 
 def plan_status(record):
     return {
-        **({"installation_mode": "structural"} if record.document.get("installation_mode") == "structural" else {}),
+        **({"installation_mode": "structural", "constituent_binding_policy": record.document.get("constituent_binding_policy", "imported_draft")} if record.document.get("installation_mode") == "structural" else {}),
         "package_schema_version": record.document.get("package_schema_version", "1.0"),
         "plan_id": str(record.id),
         "plan_digest": record.plan_digest,

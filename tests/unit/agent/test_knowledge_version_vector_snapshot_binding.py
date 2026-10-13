@@ -95,3 +95,27 @@ async def test_create_knowledge_version_reuses_existing_binding_for_same_snapsho
 
     assert result.id == existing.id
     repo.save.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_prepared_structural_snapshot_creates_new_knowledge_evidence_without_mutating_history():
+    project, agent = uuid4(), uuid4()
+    snapshot = VectorSnapshot(project_id=project, collection_id=uuid4(), version="v1",
+        embedding_provider_model_id=uuid4(), embedding_provider="openai", embedding_model="embedding",
+        status=VECTOR_SNAPSHOT_READY, snapshot_hash="prepared-hash", chunk_count=2, document_count=1)
+    existing = KnowledgeVersion(project_id=project, agent_id=agent, version="v1",
+        collection_ids=[snapshot.collection_id], snapshot_metadata={"vector_snapshot_id": str(snapshot.id),
+            "preparation_status": "pending", "snapshot_hash": None}, status=KnowledgeVersionStatus.DRAFT)
+    repo, vectors, agents = AsyncMock(), AsyncMock(), AsyncMock()
+    repo.list_by_agent.return_value = [existing]
+    repo.get_by_version.return_value = None
+    repo.save.side_effect = lambda entity: entity
+    vectors.get_by_id.return_value = snapshot
+    agents.get_by_id.return_value = Agent(id=agent, project_id=project)
+    result = await CreateKnowledgeVersionUseCase(repo, vectors, agents).execute(CreateKnowledgeVersionInput(
+        project_id=project, agent_id=agent, snapshot_metadata={"vector_snapshot_id": str(snapshot.id)}))
+    assert result.id != existing.id and result.version == "v2"
+    assert result.snapshot_metadata["snapshot_hash"] == "prepared-hash"
+    assert "preparation_status" not in result.snapshot_metadata
+    assert existing.snapshot_metadata["snapshot_hash"] is None
+    assert existing.snapshot_metadata["preparation_status"] == "pending"

@@ -478,3 +478,9 @@ __all__.append("finalize_imported_agent_structural_composer")
 
 from modules.agent.composition.public_api import verify_imported_agent_structural_composer
 __all__.append("verify_imported_agent_structural_composer")
+
+from modules.agent.composition.public_api import prepare_vector_snapshot_composer
+__all__.append("prepare_vector_snapshot_composer")
+
+from modules.agent.composition.public_api import PrepareVectorSnapshotInput
+__all__.append("PrepareVectorSnapshotInput")

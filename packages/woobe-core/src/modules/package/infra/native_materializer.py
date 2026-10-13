@@ -1,6 +1,7 @@
 """Package phase dispatch through public owner composition boundaries."""
 
 import asyncio
+from copy import deepcopy
 import posixpath
 from hashlib import sha256
 import json
@@ -242,7 +243,6 @@ class NativePackageMaterializer:
             body = {"project_id": project, **declaration}
             handler = declare_imported_configuration_composer()
         elif action == "create_reference_credential":
-            from copy import deepcopy
             connection = deepcopy(work.plan["source_definition"]["manifest"]["spec"]["connections"][key])
             for reference in connection["authentication"]["fields"].values():
                 reference["key"] = work.plan["binding_resolutions"]["project_environment"][reference["key"]]["key"]
@@ -551,7 +551,10 @@ class NativePackageMaterializer:
                     "network-draft:" + key, resources[key]
                 )["revision"]
             if action in {"save_network_draft", "verify_materialized_package"}:
-                body["portable_spec"] = document["spec"]
+                body["portable_spec"] = deepcopy(document["spec"])
+                if work.plan.get("installation_mode") == "structural":
+                    for node in body["portable_spec"]["nodes"]:
+                        node["binding"] = {"source": "draft"}
                 body["agents"] = {
                     node["agent_ref"]: resources[node["agent_ref"]]["id"]
                     for node in document["spec"]["nodes"]

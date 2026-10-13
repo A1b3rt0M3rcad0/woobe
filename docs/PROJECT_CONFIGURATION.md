@@ -90,3 +90,20 @@ woobe package import --plan-file ./support-plan.json --wait
 
 Qualification remains in progress: the preparation/resume workflow and ASaC
 binding fingerprints must be completed before this feature is released.
+
+### Knowledge preparation
+
+`POST /agent/knowledge/vector-snapshots/{snapshot_id}/prepare` queues a declared
+snapshot after checking its `expected_build_config_hash`, Project, Environment,
+Model/connection revision and use grants. It requires `knowledge:write` and
+`project:environment:validate` in the owner transaction. Requests without values
+or use approval leave the snapshot pending. Retrying an accepted request does not
+create another build; changed or failed intents require a new version.
+
+The vector Worker uses the central pinned credential at each actual transport
+send. Metadata reads and progress writes use short transactions. Parsing and
+embedding calls hold no SQL transaction. Chunks, document projections and READY
+commit together under the Worker ownership and frozen-document guards. A stale
+Worker cannot commit results or overwrite its successor's terminal state.
+
+Structural Network installation imports captured Agent definitions into Draft and binds destination nodes to those Drafts. The approved plan records `constituent_binding_policy: imported_draft`; it never creates constituent Staging or Release snapshots as an incidental installation effect. The original source selectors remain in the approved source evidence. Preparation authorization is stored separately from the immutable vector build configuration and does not change its hash.

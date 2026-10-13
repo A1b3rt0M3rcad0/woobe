@@ -593,3 +593,9 @@ __all__.append("finalize_imported_agent_structural_composer")
 
 from modules.agent.composition.composers.verify_imported_agent_composer import verify_imported_agent_structural_composer
 __all__.append("verify_imported_agent_structural_composer")
+
+from modules.agent.composition.composers.prepare_vector_snapshot_composer import prepare_vector_snapshot_composer
+__all__.append("prepare_vector_snapshot_composer")
+
+from modules.agent.application.dtos.vector_preparation_dtos import PrepareVectorSnapshotInput
+__all__.append("PrepareVectorSnapshotInput")

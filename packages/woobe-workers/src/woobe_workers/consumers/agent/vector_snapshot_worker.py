@@ -2,23 +2,15 @@ from __future__ import annotations
 
 import logging
 import socket
-from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import update
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from modules.agent.background_boundary import EmbeddingProviderError
-from modules.agent.background_boundary import BuildVectorSnapshotUseCase
+from modules.agent.background_boundary import DetachedVectorBuild, BuildVectorSnapshotUseCase
 from modules.agent.background_boundary import VECTOR_SNAPSHOT_BUILDING
 from modules.agent.background_boundary import LangchainEmbeddingFactory
-from modules.agent.background_boundary import (
-    SQLAlchemyProviderModelRepository,
-)
-from modules.agent.background_boundary import (
-    SQLAlchemyDocumentRepository,
-    SQLAlchemyProviderCredentialRepository,
-)
 from modules.agent.background_boundary import AgentUnitOfWork
 from modules.agent.background_boundary import VectorSnapshotModel
 from modules.agent.background_boundary import (
@@ -28,43 +20,8 @@ from modules.agent.background_boundary import create_file_storage
 from woobe_workers.consumers.agent.vector_snapshot_claims import claim_vector_snapshot_builds
 from woobe_workers.settings import WorkerSettings
 from shared.contracts.errors import DomainError
-from shared.contracts.time import utc_now
 
 logger = logging.getLogger(__name__)
-
-
-class _DurableBuildSnapshotRepository:
-    """Keep build progress durable while final snapshot data stays transactional."""
-
-    def __init__(self, delegate: Any, engine: AsyncEngine, worker_id: str) -> None:
-        self._delegate = delegate
-        self._engine = engine
-        self._worker_id = worker_id
-
-    def __getattr__(self, name: str) -> Any:
-        return getattr(self._delegate, name)
-
-    async def mark_started(self, snapshot_id, *, locked_by: str | None = None) -> None:
-        del snapshot_id, locked_by
-
-    async def mark_failed(self, snapshot_id, error: str) -> None:
-        del snapshot_id, error
-
-    async def update_build_progress(self, snapshot_id, **updates: Any) -> None:
-        async with AgentUnitOfWork(self._engine) as progress_uow:
-            snapshot_repo = SQLAlchemyVectorSnapshotRepository(progress_uow)
-            await snapshot_repo.update_build_progress(snapshot_id, **updates)
-            await progress_uow.session.execute(
-                update(VectorSnapshotModel)
-                .where(
-                    VectorSnapshotModel.id == snapshot_id,
-                    VectorSnapshotModel.status == VECTOR_SNAPSHOT_BUILDING,
-                )
-                .values(
-                    locked_at=utc_now(),
-                    locked_by=self._worker_id,
-                )
-            )
 
 
 def _safe_build_error(exc: Exception) -> str:
@@ -98,45 +55,29 @@ class VectorSnapshotWorker:
             try:
                 async with AgentUnitOfWork(self._engine) as lifecycle_uow:
                     lifecycle_snapshots = SQLAlchemyVectorSnapshotRepository(lifecycle_uow)
-                    snapshot = await lifecycle_snapshots.get_by_id(snapshot_id)
-                    if snapshot is None or snapshot.status != VECTOR_SNAPSHOT_BUILDING:
+                    snapshot = await lifecycle_uow.session.scalar(select(VectorSnapshotModel).where(VectorSnapshotModel.id == snapshot_id).with_for_update())
+                    if snapshot is None or snapshot.status != VECTOR_SNAPSHOT_BUILDING or snapshot.locked_by != self._worker_id:
                         continue
                     await lifecycle_snapshots.mark_started(
                         snapshot_id,
                         locked_by=self._worker_id,
                     )
 
-                async with AgentUnitOfWork(self._engine) as build_uow:
-                    build_snapshots = SQLAlchemyVectorSnapshotRepository(build_uow)
-                    snapshot_repo = _DurableBuildSnapshotRepository(
-                        build_snapshots,
-                        self._engine,
-                        self._worker_id,
-                    )
-                    use_case = BuildVectorSnapshotUseCase(
-                        snapshot_repo=snapshot_repo,
-                        document_repo=SQLAlchemyDocumentRepository(build_uow),
-                        provider_model_repo=SQLAlchemyProviderModelRepository(build_uow),
-                        credential_repo=SQLAlchemyProviderCredentialRepository(build_uow),
-                        storage=storage,
-                        embedding_factory=embedding_factory,
-                        encryption_key=settings.encryption_key,
-                    )
-                    await use_case.execute(snapshot_id)
+                use_case = DetachedVectorBuild(engine=self._engine, worker_id=self._worker_id,
+                    storage=storage, embedding_factory=embedding_factory, encryption_key=settings.encryption_key,
+                    use_case_factory=BuildVectorSnapshotUseCase)
+                await use_case.execute(snapshot_id)
                 logger.info("Vector snapshot %s built", snapshot_id)
             except Exception as exc:
                 try:
                     async with AgentUnitOfWork(self._engine) as failure_uow:
                         failure_snapshots = SQLAlchemyVectorSnapshotRepository(failure_uow)
-                        snapshot = await failure_snapshots.get_by_id(snapshot_id)
-                        if snapshot is not None and snapshot.status == VECTOR_SNAPSHOT_BUILDING:
+                        snapshot = await failure_uow.session.scalar(select(VectorSnapshotModel).where(VectorSnapshotModel.id == snapshot_id).with_for_update())
+                        if snapshot is not None and snapshot.status == VECTOR_SNAPSHOT_BUILDING and snapshot.locked_by == self._worker_id:
                             await failure_snapshots.mark_failed(
                                 snapshot_id,
                                 _safe_build_error(exc),
                             )
                 except Exception:
-                    logger.exception(
-                        "Failed to persist terminal state for vector snapshot %s",
-                        snapshot_id,
-                    )
-                logger.exception("Vector snapshot %s failed: %s", snapshot_id, exc)
+                    logger.warning("Failed to persist terminal state for vector snapshot %s", snapshot_id)
+                logger.warning("Vector snapshot %s failed (%s)", snapshot_id, type(exc).__name__)

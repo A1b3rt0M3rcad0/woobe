@@ -23,7 +23,9 @@ class ImportedNetworkHandler:
 
     async def handle(self, request):
         data = ImportedNetworkInput.model_validate(request.body)
-        if data.structural and data.lifecycle != "draft":
+        if data.structural and (data.lifecycle != "draft" or data.action not in {
+            "prepare_network", "save_network_draft", "verify_materialized_package"
+        }):
             raise ConflictError("Structural verification cannot qualify deployment")
         session = self._uow.session
         actor = (

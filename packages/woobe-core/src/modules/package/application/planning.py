@@ -251,7 +251,7 @@ class PlanPackageUseCase:
             elif kind == "Network":
                 selectors = {}
                 for node in document["spec"]["nodes"]:
-                    source = node.get("binding", {}).get("source", "draft")
+                    source = "draft" if structural else node.get("binding", {}).get("source", "draft")
                     previous = selectors.get(node["agent_ref"], "draft")
                     selectors[node["agent_ref"]] = (
                         "release"
@@ -387,6 +387,7 @@ class PlanPackageUseCase:
         }
         if structural:
             document["installation_mode"] = "structural"
+            document["constituent_binding_policy"] = "imported_draft"
         if candidate is not None:
             from modules.package.application.candidate_planning import isolate_candidate_plan
             document = isolate_candidate_plan(document, **candidate)

@@ -41,6 +41,7 @@ class VectorSnapshot:
     build_config: dict[str, Any] | None = None
     snapshot_hash: str | None = None
     build_config_hash: str | None = None
+    preparation_environment: str | None = None
     document_count: int = 0
     chunk_count: int = 0
     vector_count: int = 0
