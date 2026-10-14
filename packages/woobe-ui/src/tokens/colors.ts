@@ -23,6 +23,7 @@ export const woobeColors = {
   success: '#197542',
   warning: '#9b5700',
   error: '#b42318',
+  destructive: '#b42318', // Existing feature error copy uses this semantic alias.
   network: '#7041cc',
 } as const
 

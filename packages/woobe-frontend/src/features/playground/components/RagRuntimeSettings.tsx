@@ -94,7 +94,7 @@ export function RagRuntimeSettings({ open, value, onClose, onApply }: RagRuntime
       contentClassName="min-h-0 flex-1 p-0"
     >
       <div className="flex h-full min-h-0 flex-col">
-        <div className="grid min-h-0 flex-1 lg:grid-cols-[17rem_minmax(0,1fr)]">
+        <div className="block min-h-0 flex-1 overflow-y-auto lg:grid lg:grid-cols-[17rem_minmax(0,1fr)] lg:overflow-hidden">
           <aside className="border-b border-border bg-background/25 p-ui-md lg:border-b-0 lg:border-r">
             <section className="rounded-container border border-border bg-background/30 p-ui-md">
               <span className="flex h-9 w-9 items-center justify-center rounded-control border border-border bg-control text-primary-light">

@@ -196,9 +196,9 @@ export function Dialog({ open, onClose, title, children, className, contentClass
         className,
       )}
     >
-      <div className="flex h-panel-header shrink-0 items-center justify-between border-b border-border bg-control/20 px-ui-panel-inset">
+      <div className="flex min-h-panel-header shrink-0 items-center justify-between gap-ui-sm border-b border-border bg-control/20 px-ui-panel-inset py-ui-xs">
         {title ? (
-          <h2 id={presentation === 'modal' ? titleId : undefined} className="min-w-0 truncate font-mono text-entity-title font-medium text-accent-foreground">
+          <h2 id={presentation === 'modal' ? titleId : undefined} className="min-w-0 break-words font-mono text-entity-title font-medium text-accent-foreground">
             {title}
           </h2>
         ) : <span />}

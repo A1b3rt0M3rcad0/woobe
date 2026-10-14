@@ -138,6 +138,8 @@ for (const width of [1440,768,390]) for (const item of cases) test(`overlay ${it
   }
   await page.waitForTimeout(150)
   expect(errors).toEqual([])
+  const title=overlay.locator('h2').first()
+  if(await title.count())expect(await title.evaluate(el=>el.scrollWidth-el.clientWidth),'Dialog titles must wrap without hiding their scope').toBeLessThanOrEqual(1)
   const bounds=await overlay.boundingBox()
   expect(bounds!.x).toBeGreaterThanOrEqual(0)
   expect(bounds!.x+bounds!.width).toBeLessThanOrEqual(width+1)

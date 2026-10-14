@@ -1,6 +1,7 @@
 import { useEnvironmentSelection, invalidateEnvironmentSelection, selectionMessage } from './environmentSelection'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { DangerConfirmDialog } from '@woobe/ui'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
@@ -45,6 +46,7 @@ export function AsacWorkbench({ projectId, resourceId, kind }: { projectId: stri
   })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [confirmDiscard, setConfirmDiscard] = useState(false)
   const [notice, setNotice] = useState('')
   const [observed, setObserved] = useState(0)
   const [now, setNow] = useState(Date.now())
@@ -113,7 +115,7 @@ export function AsacWorkbench({ projectId, resourceId, kind }: { projectId: stri
     const link = document.createElement('a'); link.href = url; link.download = file.split('/').pop() ?? 'author.yaml'; link.click(); URL.revokeObjectURL(url)
   }
   function discardEditor() {
-    if (!window.confirm('Discard these local edits? Download any files you need before continuing.')) return
+    setConfirmDiscard(false)
     setEditor(null); setValues({}); setComparison(null); setNotice('Local edits discarded. Load the current saved files explicitly.')
   }
   async function history(more = false) {
@@ -189,7 +191,7 @@ export function AsacWorkbench({ projectId, resourceId, kind }: { projectId: stri
     {editor && <div className={`${box} space-y-ui-md`}>
       <div className="grid gap-ui-sm md:grid-cols-3"><span className={label}>Origin: {text(editor.draft.origin, 'environment')} / {text(editor.draft.origin, 'snapshot_id')}</span><span className={label}>Selected Draft: {editor.draft.name} · generation {editor.draft.generation}</span><span className={label}>Writes update this Draft. Stage and Production are separate.</span></div>
       {stale && <p role="alert" className="text-warning">The remote generation changed. Your edits remain here; saving is blocked. Compare and resolve before refreshing.</p>}
-      {stale && <div className="flex flex-wrap gap-ui-sm"><Button disabled={blocked} onClick={() => void compareRemote()}>Compare remote files</Button><Button variant="outline" disabled={blocked} onClick={discardEditor}>Discard local edits</Button></div>}
+      {stale && <div className="flex flex-wrap gap-ui-sm"><Button disabled={blocked} onClick={() => void compareRemote()}>Compare remote files</Button><Button variant="outline" disabled={blocked} onClick={() => setConfirmDiscard(true)}>Discard local edits</Button></div>}
       {field('Author file', <Select aria-label="Author file" value={file} onChange={event => setFile(event.target.value)} options={files.map(item => ({ value: item.path, label: item.path }))} />)}
       <textarea aria-label="Author YAML" value={values[file] ?? ''} onChange={event => setValues({ ...values, [file]: event.target.value })} disabled={blocked} spellCheck={false} className="min-h-[340px] w-full rounded-control border border-border bg-background p-ui-md font-mono text-xs leading-5" />
       <Button variant="outline" onClick={downloadEditedFile}>Download selected author file</Button>
@@ -235,5 +237,6 @@ export function AsacWorkbench({ projectId, resourceId, kind }: { projectId: stri
           <Button variant="outline" disabled={blocked || !proof} onClick={() => void write('release', operation => mutation(base, '/leases/release', { ...proof, scope: environment }, operation))}>Release lease</Button>
         </div></div>}
     </div>}
+    <DangerConfirmDialog open={confirmDiscard} layer="nestedModal" title="Discard local edits?" description="Download any files you need before continuing. This clears the local editor; saved files stay unchanged." confirmLabel="Discard local edits" onClose={() => setConfirmDiscard(false)} onConfirm={discardEditor} />
   </div>
 }

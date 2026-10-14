@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { AlertTriangle } from 'lucide-react'
 import { Alert, AlertDescription } from './Alert'
 import { Button } from './Button'
-import { Dialog } from './Dialog'
+import { Dialog, type DialogLayer } from './Dialog'
 
 export interface DangerConfirmDialogProps {
   open: boolean
@@ -11,6 +11,7 @@ export interface DangerConfirmDialogProps {
   confirmLabel: string
   loading?: boolean
   disabled?: boolean
+  layer?: DialogLayer
   onConfirm: () => void
   onClose: () => void
 }
@@ -22,11 +23,12 @@ export function DangerConfirmDialog({
   confirmLabel,
   loading = false,
   disabled = false,
+  layer = 'modal',
   onConfirm,
   onClose,
 }: DangerConfirmDialogProps) {
   return (
-    <Dialog open={open} onClose={onClose} title={title} className="max-w-dialog-compact">
+    <Dialog open={open} layer={layer} onClose={onClose} title={title} className="max-w-dialog-compact">
       <div className="space-y-ui-lg">
         <Alert variant="destructive">
           <AlertDescription>

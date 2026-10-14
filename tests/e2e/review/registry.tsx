@@ -1,3 +1,8 @@
+import { AgentResultViewer } from '../../../packages/woobe-frontend/src/features/playground/components/AgentResultViewer'
+import { RagRuntimeSettings } from '../../../packages/woobe-frontend/src/features/playground/components/RagRuntimeSettings'
+import { ConfigurationBatchEditor } from '../../../packages/woobe-frontend/src/features/projects/components/ConfigurationBatchEditor'
+import { ConfigurationLegacyPanel } from '../../../packages/woobe-frontend/src/features/projects/components/ConfigurationLegacyPanel'
+import { AsacWorkbench } from '../../../packages/woobe-frontend/src/features/asac/AsacWorkbench'
 import { CreateProjectDialog as Overlay0 } from '../../../packages/woobe-frontend/src/components/forms/CreateProjectDialog'
 import { CreateWorkspaceDialog as Overlay1 } from '../../../packages/woobe-frontend/src/components/forms/CreateWorkspaceDialog'
 import { AgentBehaviorFieldDialog as Overlay2 } from '../../../packages/woobe-frontend/src/features/agents/components/AgentBehaviorFieldDialog'
@@ -73,6 +78,13 @@ import { HttpProviderPanel } from '../../../packages/woobe-frontend/src/features
 import { McpProviderPanel } from '../../../packages/woobe-frontend/src/features/tools/components/McpProviderPanel'
 import { tool } from '../fixtures/resource-data'
 export const overlayCases: { id: string; source: string; component: ComponentType<any>; props?: Record<string, any> }[] = [
+  { id:'host-agent-result',source:'packages/woobe-frontend/src/features/playground/components/AgentResultViewer.tsx',component:AgentResultViewer as ComponentType<any>,props:{title:'Agent result',value:'# Support handbook\n\nThe handbook entry is available.\n\n- Verify the account.\n- Review the request.'} },
+  { id:'host-config-legacy',source:'packages/woobe-frontend/src/features/projects/components/ConfigurationLegacyPanel.tsx',component:ConfigurationLegacyPanel as ComponentType<any>,props:{canConvert:true} },
+  { id:'host-network-history',source:'packages/woobe-frontend/src/pages/NetworkPage.tsx',component:(()=><Dialog open onClose={()=>{}} title="Network history & lifecycle" variant="workspace" height="workspace"><AsacWorkbench projectId="project-a" resourceId="network-support" kind="Network" /></Dialog>) as ComponentType<any> },
+  { id:'RagRuntimeSettings',source:'packages/woobe-frontend/src/features/playground/components/RagRuntimeSettings.tsx',component:RagRuntimeSettings as ComponentType<any>,props:{value:undefined} },
+  { id:'ConfigurationBatchEditor',source:'packages/woobe-frontend/src/features/projects/components/ConfigurationBatchEditor.tsx',component:ConfigurationBatchEditor as ComponentType<any>,props:{keys:[{id:'batch-demo',key:'SUPPORT_ENDPOINT',kind:'value',value_format:'url',description:'Support API base URL',values:{}}]} },
+  { id:'ManageSkills-Create',source:'packages/woobe-frontend/src/features/skills/ManageSkillsDialog.tsx',component:Overlay59 as ComponentType<any>,props:{initialMode:'create',title:'Create Skill'} },
+  { id:'ManageSkills-Import',source:'packages/woobe-frontend/src/features/skills/ManageSkillsDialog.tsx',component:Overlay59 as ComponentType<any>,props:{initialMode:'import',title:'Import Skill'} },
   { id:'host-context-manager',source:'packages/woobe-frontend/src/features/agents/components/AgentContextAssemblerField.tsx',component:AgentContextAssemblerField as ComponentType<any> },
   { id:'host-execution-strategy',source:'packages/woobe-frontend/src/features/agents/components/AgentExecutionStrategyField.tsx',component:AgentExecutionStrategyField as ComponentType<any> },
   { id:'host-field-description',source:'packages/woobe-frontend/src/features/contracts/ContractFieldBuilder.tsx',component:ContractFieldBuilder as ComponentType<any>,props:{kind:'external',rows:[{name:'customer_id',type:'string',required:true,expose:true,scope:'run',description:'The customer making this request.'}],onChange:()=>{}} },

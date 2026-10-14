@@ -7,6 +7,7 @@ import { respond } from '../fixtures/control-plane'
 import { installApi } from '../fixtures/control-plane'
 
 const hosts=[
+  ['host-agent-result',/^View full result$/],['host-config-legacy',/^Convert draft$/],['host-network-history',null],
   ['host-context-manager',/^Change context manager/],['host-execution-strategy',/^Change$/],
   ['host-field-description',/Edit customer_id description/],['host-runtime-context',null],
   ['host-agent-snapshot',/View 1.2.0 snapshot/],['host-http-routes',/^Configure$/],['host-mcp-tools',/^Configure$/],
@@ -14,7 +15,11 @@ const hosts=[
 for(const width of [1440,768,390])for(const [name,trigger] of hosts)test(`${name} at ${width}px`,async({page})=>{
   await page.setViewportSize({width,height:1100})
   await installApi(page,{asacAgent:true})
+  await page.route('**/configuration/legacy-bindings*',route=>respond(route,{items:[{id:'legacy-demo',key_id:'config-demo',key:'SUPPORT_ENDPOINT',source_kind:'provider_credential',source_id:'credential-demo',field_path:'base_url',revision:1,state:'active',source:'legacy_compat',material:'present'}],total:1}))
+  await page.route('**/asac/**',route=>new URL(route.request().url()).pathname.startsWith('/projects/') ? respond(route,{drafts:[],records:[],watermark:0,has_more:false,next_cursor:null,snapshot_id:null,environment_generation:0,selection_authority:'asac'}) : route.fallback())
   await page.goto(`/review.html?case=${name}`)
+  await expect(page.locator('[data-review-ready]')).toBeVisible()
+  await expect(page.locator('[data-review-error]')).toHaveCount(0)
   if(trigger)await page.getByRole('button',{name:trigger}).first().click()
   await expect(page.getByRole('dialog').last()).toBeVisible()
   await expect(page.locator('[data-review-error]')).toHaveCount(0)
@@ -28,6 +33,17 @@ for(const width of [1440,768,390])for(const [name,trigger] of hosts)test(`${name
     await resetCaptures(directory,`${width}px`)
     await page.screenshot({path:resolve(directory,`${width}px.png`),animations:'disabled'})
     await captureScrollSequence(page,page.getByRole('dialog').last(),directory,`${width}px`)
+    if(name==='host-agent-result') {
+      await page.getByRole('button',{name:/^raw$/i}).click()
+      await expect(page.getByText('Raw response',{exact:true})).toBeVisible()
+      await page.screenshot({path:resolve(directory,`${width}px-raw.png`),animations:'disabled'})
+    }
+    if(name==='host-network-history' && width===1440)for(const tab of ['revisions','releases','deployments']) {
+      await page.getByRole('tab',{name:new RegExp(`^${tab}$`,'i')}).click()
+      await expect(page.locator('[data-review-error]')).toHaveCount(0)
+      await page.screenshot({path:resolve(directory,`section-${tab}.png`),animations:'disabled'})
+      await captureScrollSequence(page,page.getByRole('dialog').last(),directory,`section-${tab}`)
+    }
   }
 })
 

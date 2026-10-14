@@ -47,7 +47,7 @@ export function AgentResultViewer({
   return (
     <>
       <div>
-        <div className={cn('line-clamp-4 overflow-hidden font-mono text-slate-200', compact ? 'text-system-meta leading-5' : 'text-[12px] leading-5')}>
+        <div className={cn('line-clamp-4 overflow-hidden font-sans text-slate-200', compact ? 'text-system-meta leading-5' : 'text-product-body leading-6')}>
           <MarkdownMessage content={text} className={compact ? 'space-y-1.5 text-system-meta leading-5' : 'space-y-2'} />
         </div>
         <button type="button" onClick={() => setOpen(true)} className={cn('mt-2 font-mono text-primary-light hover:text-foreground', compact ? 'text-system-meta' : 'text-system-meta')}>
@@ -92,13 +92,13 @@ export function AgentResultViewer({
           <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto bg-background/15 p-4">
             {view === 'rendered' ? (
               <CodePanel title="Rendered response" icon={<FileText className="h-3.5 w-3.5" />}>
-                <div className="p-4 font-mono text-[12px] leading-6 text-slate-100">
+                <div className="p-4 font-sans text-product-body leading-6 text-slate-100">
                   <MarkdownMessage content={text} />
                 </div>
               </CodePanel>
             ) : (
               <CodePanel title="Raw response" badge="TEXT">
-                <pre className="scrollbar-thin max-h-[560px] overflow-auto whitespace-pre-wrap break-words p-4 font-mono text-system-meta leading-5 text-slate-200">{text}</pre>
+                <pre className="scrollbar-thin max-h-[560px] overflow-auto whitespace-pre-wrap break-words p-4 font-mono text-system-control leading-5 text-slate-200">{text}</pre>
               </CodePanel>
             )}
           </div>

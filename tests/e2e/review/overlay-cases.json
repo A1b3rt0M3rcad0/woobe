@@ -392,5 +392,21 @@
     "alias": "Overlay62",
     "source": "packages/woobe-frontend/src/pages/ToolsCreateDialog.tsx",
     "export": "ToolsCreateDialog"
+  },
+  {
+    "id": "RagRuntimeSettings",
+    "source": "packages/woobe-frontend/src/features/playground/components/RagRuntimeSettings.tsx"
+  },
+  {
+    "id": "ConfigurationBatchEditor",
+    "source": "packages/woobe-frontend/src/features/projects/components/ConfigurationBatchEditor.tsx"
+  },
+  {
+    "id": "ManageSkills-Create",
+    "source": "packages/woobe-frontend/src/features/skills/ManageSkillsDialog.tsx"
+  },
+  {
+    "id": "ManageSkills-Import",
+    "source": "packages/woobe-frontend/src/features/skills/ManageSkillsDialog.tsx"
   }
 ]
