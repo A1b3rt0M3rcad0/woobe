@@ -93,6 +93,14 @@ test('populated resource catalogs, cost attribution and the Run ledger',async({p
       const directory=resolve(process.cwd(),'../../docs/screenshots/v2/pages/network-workspace');await mkdir(directory,{recursive:true})
       await page.screenshot({path:resolve(directory,`populated-${width}px.png`),animations:'disabled'})
       await captureScrollSequence(page,page.locator('body'),directory,`populated-${width}px`)
+      if(width<1280) {
+        const inspector=page.getByRole('complementary',{name:'Network inspector'})
+        await inspector.scrollIntoViewIfNeeded()
+        await page.screenshot({path:resolve(directory,`populated-${width}px-inspector.png`),animations:'disabled'})
+        await captureScrollSequence(page,inspector.locator('.overflow-y-auto').first(),directory,`populated-${width}px-inspector`)
+        const runtime=inspector.getByText('Runtime',{exact:true})
+        await runtime.scrollIntoViewIfNeeded();await expect(runtime).toBeInViewport({ratio:1})
+      }
     }
   }
   expect(errors).toEqual([])

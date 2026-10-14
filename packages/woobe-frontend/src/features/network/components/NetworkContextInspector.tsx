@@ -117,7 +117,7 @@ export function NetworkContextInspector({
           </div>
         ) : null}
 
-        <div className={cn('absolute inset-0', showAgent && 'invisible pointer-events-none')} aria-hidden={showAgent}>
+        <div className={cn('absolute inset-0 flex min-h-0 flex-col', showAgent && 'invisible pointer-events-none')} aria-hidden={showAgent}>
           <NetworkGraphInspector
             embedded
             definition={definition}

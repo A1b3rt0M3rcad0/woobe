@@ -1041,7 +1041,7 @@ export default function NetworkPage() {
           />
         ) : null}
         <div data-network-panes className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto xl:flex-row xl:overflow-hidden">
-        <div className="relative flex min-h-[36rem] min-w-0 flex-1 shrink-0 overflow-hidden xl:min-h-0">
+        <div className="relative flex min-h-[40rem] min-w-0 flex-1 shrink-0 overflow-hidden xl:min-h-0">
           <div className={cn('absolute inset-0 flex min-w-0', effectiveCenterMode !== 'canvas' && 'invisible pointer-events-none')} aria-hidden={effectiveCenterMode !== 'canvas'}>{canvasContent}</div>
           <div className={cn('absolute inset-0 flex min-w-0', effectiveCenterMode !== 'chat' && 'invisible pointer-events-none')} aria-hidden={effectiveCenterMode !== 'chat'}>{chatContent}</div>
           {isReadyUntested && effectiveCenterMode === 'canvas' ? <NetworkReadyToTest pending={draftSavePending || createNetworkSessionMutation.isPending} onTest={() => { void startFirstTest() }} onAddSpecialist={() => openCatalog('add-specialist')} /> : null}
