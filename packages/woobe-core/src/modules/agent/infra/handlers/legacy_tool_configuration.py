@@ -22,7 +22,9 @@ class LegacyToolConfigurationHandler:
         session = self.uow.session
         tool = await SQLAlchemyAgentToolRepository(session).get_by_id(UUID(str(data['id'])))
         projected = (await project_secret_headers(session,project_id=tool.project_id,tools=[tool]))[0]
-        dependencies = [dep for dep in tool_dependencies(projected) if dep.legacy_alias_id is not None]
+        owned = {dep.legacy_alias_id for dep in tool_dependencies(tool) if dep.legacy_alias_id is not None}
+        dependencies = [dep for dep in tool_dependencies(projected)
+            if dep.legacy_alias_id is not None and dep.legacy_alias_id not in owned]
         if not dependencies:
             return result
         store = configuration_for_session(session)

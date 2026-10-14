@@ -246,3 +246,16 @@ These two composers expose detached callable boundaries, covered by the
 architecture gate: they own no global UnitOfWork. Legacy compatibility handlers
 are created lazily only for definitions that have not been converted. A central
 failure never falls back to that path.
+
+New legacy HTTP/MCP Tool writes move explicitly sensitive global header literals
+(and standard authorization/API-key headers) into central storage before the
+first commit. Tool definitions and responses retain only the owner's reference;
+MCP discovery waits for explicit preparation. A legacy replacement rotates the
+same alias. It does not grant a new destination, restore a revoked use policy, or
+choose an Environment after that alias was split. Metadata-only edits retain the
+reference. Clients must use the configuration binding operation to change a
+reference; they cannot submit another Tool's private compatibility alias.
+
+This writer does not migrate retained inline snapshots or promote route-local
+headers to global authority. Those sources still need owner-specific migration
+and historical evidence handling before storage contraction is qualified.

@@ -1702,7 +1702,9 @@ class SQLAlchemyAgentToolRepository(ToolRepository):
         configuration = configuration_for_session(self._session)
         if configuration is not None:
             await configuration.lock_project(tool.project_id)
-        validate_tool_authentication(tool.config or {})
+        from modules.agent.infra.database.configuration_tool_writer import centralize_tool_headers
+        await centralize_tool_headers(self._session, tool)
+        validate_tool_authentication(tool.config or {}, allow_legacy=True)
         dependencies = tool_dependencies(tool)
         if dependencies:
             configuration = configuration_for_session(self._session)

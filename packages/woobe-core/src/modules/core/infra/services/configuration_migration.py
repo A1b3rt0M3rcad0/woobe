@@ -32,7 +32,7 @@ class ConfigurationMigrationService:
             "requires_operator_inventory": True}
 
     async def preview(self, *, project_id, source_kind="provider_credential", after_id=None, limit=100):
-        if source_kind not in {"provider_credential", "secret"} or not 1 <= limit <= 200:
+        if source_kind not in {"provider_credential", "secret", "tool"} or not 1 <= limit <= 200:
             raise ConfigurationError("CONFIG_DEFINITION_INVALID")
         result = await self.inventory(self.session, project_id=project_id, after_id=after_id, limit=limit,
             **({"source_kind": source_kind} if source_kind != "provider_credential" else {}))
@@ -43,7 +43,7 @@ class ConfigurationMigrationService:
             except ConfigurationError as error:
                 item.update(state="blocked", code=error.code, destinations=[])
                 item.pop("closure", None)
-        result["scope"] = "secrets" if source_kind == "secret" else "provider_credentials"
+        result["scope"] = {"secret": "secrets", "tool": "tools", "provider_credential": "provider_credentials"}[source_kind]
         result["counts"] = dict(Counter(item["state"] for item in result["items"]))
         return result
 
@@ -114,6 +114,8 @@ class ConfigurationMigrationService:
                     async with self.session.begin_nested():
                         source = ({"secret_id": UUID(item["id"]), "expected_closure": item["closure"]}
                             if item["kind"] == "secret" else {"credential_id": UUID(item["id"]), "destinations": item["destinations"]})
+                        if item["kind"] == "tool":
+                            source = {"tool_id": UUID(item["id"]), "destinations": item["destinations"]}
                         result = await self.cutover(self.session, project_id=project_id, **source,
                             expected_revision=item["revision"], required_processes=required_processes, actor=actor)
                     material = result.get("material", "unchanged")

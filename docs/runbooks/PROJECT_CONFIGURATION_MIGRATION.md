@@ -1,9 +1,10 @@
 # Project configuration migration
 
-The administrative job covers Provider credentials and recognized API-key/custom
-Secrets referenced by global HTTP/MCP headers. Inline Tool and OAuth sources still
-require their own adapters; completing this job is not evidence that an entire
-Project is ready for storage contraction.
+The administrative job covers Provider credentials, recognized API-key/custom
+Secrets referenced by global HTTP/MCP headers, and global Tool header literals
+without retained snapshots. OAuth, route-local material and retained inline
+snapshots still require their own adapters; completing this job is not evidence
+that an entire Project is ready for storage contraction.
 
 Apply schema migrations before starting the bridge API and Workers. Keep a
 consistent backup and an inventory of every API replica and Worker. Drain and
@@ -19,14 +20,18 @@ Compare every page against the deployment inventory, including Workers. A restar
 changes the identity: review the new inventory before resuming a batch.
 
 The following routes require `project:environment:migrate` in all three
-Environments. Reading/planning also requires `provider:read` or `secret:read` for the selected
+Environments. Reading/planning also requires `provider:read`, `secret:read` or `tool:read` for the selected
 source family; advancing requires the corresponding `:write` permission. These checks run again in the database transaction. Reports
 contain identifiers, revisions, destinations and bounded diagnostics, never
 credential material or its hash.
 
 1. Preview with `POST /core/projects/{project_id}/configuration/migrations/preview`
-   and `{"limit":100}` (Providers) or `{"source_kind":"secret","limit":100}`. Follow `next_after` using `after_id` for another page.
-   Preview reads metadata only and changes nothing.
+   and `{"limit":100}` (Providers), `{"source_kind":"secret","limit":100}`, or
+   `{"source_kind":"tool","limit":100}`. Follow `next_after` using `after_id`
+   for another page, including when the current page has no eligible sources.
+   Preview changes nothing and returns metadata only. Inspecting old Tool source
+   JSON reads the author definition internally; no material or material hashes
+   enter the report, and no decryption or outbound request takes place.
 2. Choose a request UUID and persist that page with
    `PUT /core/projects/{project_id}/configuration/migrations/{migration_id}` and
    the same body. Repeating the same UUID, actor and pagination request recovers
@@ -115,3 +120,20 @@ must be resolved before retrying. The operator's fleet attestation does not bypa
 these checks. A consumed terminal Package plan does not require waiting for its
 expiry. The administrative job checks each owner's metadata through host-composed
 ports; it does not query another domain's private persistence from Core.
+
+### Newly supplied Tool header literals
+
+HTTP/MCP creation and replacement of explicitly sensitive global header literals
+now centralize that material atomically. The mutable Tool configuration contains
+only its owner-checked compatibility reference. The initial grant is limited to
+the supplied Tool, field and fixed destination. Replacing a literal rotates the
+same central source and preserves policy revocations; retargeting needs a separate
+authorized use policy. An Environment-split source rejects ambiguous old writes.
+
+The `tool` migration adapter can backfill existing global header literals only
+when the Tool has no retained Agent snapshot. It rechecks the source revision,
+destination, retention and quiescence inside the cutover transaction. Retained
+snapshots, OAuth state and route-local material report
+`LEGACY_FORMAT_UNSUPPORTED`; they are never silently rewritten or treated as
+completed. Route-specific material must preserve its route boundary and is never
+promoted into a Tool-wide grant.

@@ -134,10 +134,16 @@ async def inventory_configuration_sources(session, *, project_id, source_kind='p
         return await inventory_provider_configuration(session, project_id=project_id, after_id=after_id, limit=limit)
     if source_kind == 'secret':
         return await inventory_secret_configuration(session, project_id=project_id, after_id=after_id, limit=limit)
+    if source_kind == 'tool':
+        from modules.agent.infra.database.configuration_tool_migration import inventory_tool_configuration
+        return await inventory_tool_configuration(session, project_id=project_id, after_id=after_id, limit=limit)
     raise ConfigurationError('CONFIG_DEFINITION_INVALID')
 
 
 async def migrate_configuration_source(session, **arguments):
+    if 'tool_id' in arguments:
+        from modules.agent.infra.database.configuration_tool_migration import migrate_tool_configuration
+        return await migrate_tool_configuration(session, **arguments)
     if 'secret_id' in arguments:
         return await migrate_secret_configuration(session, **arguments)
     from modules.agent.infra.database.configuration_provider_migration import migrate_provider_configuration

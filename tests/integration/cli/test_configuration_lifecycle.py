@@ -231,7 +231,8 @@ async def test_fresh_secret_api_requires_authorized_tool_use_and_preserves_revoc
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('protocol', ['http', 'mcp'])
-async def test_existing_tool_operations_use_central_material_and_preserve_revocations(cli, protocol):
+@pytest.mark.parametrize('source', ['secret', 'inline'])
+async def test_existing_tool_operations_use_central_material_and_preserve_revocations(cli, protocol, source):
     project = await cli.data('project', 'create', body={
         'workspace_id': cli.workspace_id, 'name': 'Detached Tool operation', 'slug': str(uuid4()),
     })
@@ -239,11 +240,15 @@ async def test_existing_tool_operations_use_central_material_and_preserve_revoca
     for name, value in [('auth', 'Bearer ephemeral-native-environment-token'),
                         ('token', 'ephemeral-native-tool-token')]:
         cli.secret_values.add(value)
-        await cli.data('request', 'POST', '/tools/secrets', body={
-            'project_id': cli.project_id, 'name': name, 'type': 'api_key', 'value': value,
-        })
+        if source == 'secret':
+            await cli.data('request', 'POST', '/tools/secrets', body={
+                'project_id': cli.project_id, 'name': name, 'type': 'api_key', 'value': value,
+            })
     headers = [{'key': 'Authorization', 'value': '{{secret:auth}}'},
                {'key': 'X-Tool-Token', 'value': '{{secret:token}}'}]
+    if source == 'inline':
+        headers = [{'key': 'Authorization', 'value': 'Bearer ephemeral-native-environment-token'},
+                   {'key': 'X-Tool-Token', 'value': 'ephemeral-native-tool-token', 'sensitive': True}]
     endpoint = os.environ['WOOBE_TEST_FAKE_MCP_URL']
     config = ({'method': 'GET', 'url': endpoint.removesuffix('/mcp') + '/http-protected', 'headers': headers}
               if protocol == 'http' else {'mode': 'server', 'exposure': 'all_discovered',
@@ -252,6 +257,11 @@ async def test_existing_tool_operations_use_central_material_and_preserve_revoca
         'project_id': cli.project_id, 'name': 'Configured Tool', 'type': protocol,
         'config': config, 'input_schema': {'type': 'object', 'properties': {}},
     })
+    if source == 'inline':
+        assert 'ephemeral-native' not in str(tool)
+        saved = await cli.data('request', 'GET', '/tools/tools', '--query', 'project_id=' + cli.project_id)
+        assert 'ephemeral-native' not in str(saved)
+        await cli.data('request', 'PATCH', '/tools/tools/' + tool['id'], body={'name': 'Safe rename'})
     route = '/tools/tools/execute' if protocol == 'http' else '/tools/mcp/refresh'
     result = await cli.data('request', 'POST', route, body={'tool_id': tool['id']})
     if protocol == 'http':

@@ -55,8 +55,8 @@ def tool_dependencies(tool, *, impact=()):
         for field, ref in auth["fields"].items()]
 
 
-def validate_tool_authentication(config):
-    auth = tool_authentication(config)
+def validate_tool_authentication(config, *, allow_legacy=False):
+    auth = tool_authentication(config, allow_legacy=allow_legacy)
     if auth is None:
         return
     # Mixing two authentication authorities is ambiguous, even if one is legacy.

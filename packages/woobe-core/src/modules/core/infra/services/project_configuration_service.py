@@ -102,7 +102,7 @@ class ProjectConfigurationService:
                             ConfigurationMigrationModel.id == arguments["migration_id"]))
                         if plan:
                             source_kind = plan.get("request", {}).get("source_kind", "provider_credential")
-                    source_permission = "secret" if source_kind == "secret" else "provider"
+                    source_permission = {"secret": "secret", "tool": "tool", "provider_credential": "provider"}[source_kind]
                     required = source_permission + (":write" if action == "migration_advance" else ":read")
                     if isinstance(principal, ControlPlanePrincipal):
                         await authorizer.authorize_control_key(api_key_id=principal.api_key_id,
@@ -140,7 +140,7 @@ class ProjectConfigurationService:
                         "typed_remote_bindings": True, "binding_updates": _binding_adapter is not None, "external_validation": True, "metadata_only_reads": True,
                         "target_readiness": _target_reader is not None,
                         "project_summary": _target_inventory is not None,
-                        "migration_source_kinds": ["provider_credential", "secret"] if _migration_inventory is not None else [],
+                        "migration_source_kinds": ["provider_credential", "secret", "tool"] if _migration_inventory is not None else [],
                         "secret_reveal": False, "environment_fallback": False}
             if action in {"binding", "bind"}:
                 from shared.contracts.project_configuration import ConfigurationError

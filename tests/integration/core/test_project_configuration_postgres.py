@@ -1265,3 +1265,136 @@ async def test_new_secret_is_central_and_new_tool_use_requires_explicit_authorit
     await store.approve_legacy_consumers(project_id=project,dependencies=dependencies,authorize=denied,actor='test')
     with pytest.raises(ConfigurationError):
         await store.acquire(project_id=project,run_id=uuid4(),environment='draft',dependencies=dependencies)
+
+
+@pytest.mark.asyncio
+async def test_inline_tool_material_is_central_owner_scoped_and_rotation_cannot_regrant(configuration, monkeypatch):
+    import json
+    from copy import deepcopy
+    from modules.agent.application.interfaces import project_configuration as port
+    from modules.agent.domain.entities import Tool
+    from modules.agent.domain.enums import ToolType
+    from modules.agent.domain.tool_configuration import tool_dependencies
+    from modules.agent.infra.database.repositories import SQLAlchemyAgentToolRepository
+    from modules.agent.infra.database.models import AgentToolModel
+    from modules.agent.infra.database import configuration_tool_writer as writer
+    from modules.agent.infra.adapters.secret_cipher import SecretCipherAdapter
+    from modules.core.infra.database.configuration_legacy import LegacyConfigurationStore
+    from modules.core.infra.database.configuration_models import ConfigurationUsePolicyModel
+    original, project, _ = configuration
+    store = LegacyConfigurationStore(original.session, encryption_key=original.encryption_key)
+    monkeypatch.setattr(port, '_factory', lambda session: store)
+    monkeypatch.setattr(writer, 'SecretCipherAdapter', lambda: SecretCipherAdapter(store.encryption_key))
+    repo = SQLAlchemyAgentToolRepository(store.session)
+    source = {'url': 'https://approved.example/api',
+        'headers': [{'key': 'Authorization', 'value': 'Bearer ' + CANARY}]}
+    tool = await repo.create(Tool(project_id=project, type=ToolType.HTTP, name='Inline bridge', config=deepcopy(source)))
+    row = await store.session.get(AgentToolModel, tool.id)
+    assert CANARY not in json.dumps(row.config)
+    assert row.config['headers'] == []
+    dependency, = tool_dependencies(tool)
+    run = uuid4()
+    await store.acquire(project_id=project, run_id=run, environment='draft', dependencies=[dependency])
+    assert await resolve(store, project, run, dependency) == 'Bearer ' + CANARY
+    # Rename is metadata-only and preserves the exact reference.
+    reference = deepcopy(tool.config['authentication'])
+    tool.name = 'Renamed'; tool = await repo.update(tool)
+    assert tool.config['authentication'] == reference
+    # A copied alias cannot be persisted by another Tool, including internal writers.
+    impostor = deepcopy(tool); impostor.id = uuid4()
+    with pytest.raises(ConfigurationError) as denied:
+        await repo.create(impostor)
+    assert denied.value.code == 'CONFIG_USAGE_NOT_AUTHORIZED'
+    policy = await store.session.scalar(select(ConfigurationUsePolicyModel).where(ConfigurationUsePolicyModel.project_id == project))
+    await store.revoke_use(project_id=project, policy_id=policy.id, expected_revision=policy.revision, actor='test')
+    tool.config = deepcopy(source)
+    tool.config['headers'][0]['value'] = 'Bearer rotated-test-material'
+    tool = await repo.update(tool)
+    assert tool.config['authentication'] == reference
+    with pytest.raises(ConfigurationError) as denied:
+        await store.acquire(project_id=project, run_id=uuid4(), environment='draft', dependencies=tool_dependencies(tool))
+    assert denied.value.code == 'CONFIG_USAGE_NOT_AUTHORIZED'
+    with pytest.raises(ConfigurationError) as denied:
+        await resolve(store, project, run, dependency)
+    assert denied.value.code == 'CONFIG_USAGE_NOT_AUTHORIZED'
+
+
+@pytest.mark.asyncio
+async def test_tool_migration_is_sanitized_cas_guarded_and_replayable(configuration, monkeypatch):
+    import json
+    from datetime import timedelta
+    from modules.agent.application.interfaces import project_configuration as port
+    from modules.agent.infra.database.configuration_secret_migration import inventory_configuration_sources, migrate_configuration_source
+    from modules.agent.infra.database import configuration_tool_writer as writer
+    from modules.agent.infra.database.models import AgentToolModel
+    from modules.agent.infra.adapters.secret_cipher import SecretCipherAdapter
+    from modules.core.infra.database.configuration_legacy import LegacyConfigurationStore
+    from modules.core.infra.services.configuration_migration import ConfigurationMigrationService
+    from modules.core.infra.database.configuration_fleet import register_configuration_process, BRIDGE_CAPABILITY
+    original, project, _ = configuration
+    store = LegacyConfigurationStore(original.session, encryption_key=original.encryption_key)
+    monkeypatch.setattr(port, '_factory', lambda session: store)
+    monkeypatch.setattr(writer, 'SecretCipherAdapter', lambda: SecretCipherAdapter(store.encryption_key))
+    rows = [AgentToolModel(id=UUID(int=5000 + index), project_id=project, name='Old Tool', type='http',
+        config={'url': 'https://approved.example/api', 'headers': [{'key': 'Authorization', 'value': CANARY}]}) for index in range(2)]
+    store.session.add_all(rows)
+    await store.session.flush()
+    service = ConfigurationMigrationService(store.session, encryption_key=store.encryption_key,
+        inventory=inventory_configuration_sources, cutover=migrate_configuration_source)
+    preview = await service.preview(project_id=project, source_kind='tool', limit=1)
+    assert preview['scope'] == 'tools' and preview['next_after'] == str(rows[0].id)
+    assert CANARY not in json.dumps(preview)
+    migration = uuid4()
+    await service.create(project_id=project, migration_id=migration, actor='owner', source_kind='tool')
+    rows[1].updated_at += timedelta(seconds=1)
+    await store.session.flush()
+    process = 'tool-bridge-' + str(uuid4())
+    await register_configuration_process(store.session, identity=process, capabilities=[BRIDGE_CAPABILITY])
+    args = dict(project_id=project, migration_id=migration, actor='owner', expected_revision=1,
+        required_processes=[process], old_processes_drained=True)
+    result = await service.advance(**args)
+    assert result['counts'] == {'completed': 1, 'blocked': 1}
+    assert result['items'][1]['code'] == 'CONFIG_REVISION_CONFLICT'
+    assert await service.advance(**args) == result
+    await store.session.refresh(rows[0])
+    assert CANARY not in json.dumps(rows[0].config)
+    assert rows[1].config['headers'][0]['value'] == CANARY
+    assert CANARY not in json.dumps(result)
+    assert (await service.preview(project_id=project, source_kind='tool'))['items'][0]['id'] == str(rows[1].id)
+
+
+@pytest.mark.asyncio
+async def test_tool_migration_does_not_certify_retained_inline_or_broaden_routes(configuration, monkeypatch):
+    import json
+    from modules.agent.application.interfaces import project_configuration as port
+    from modules.agent.infra.database.configuration_tool_migration import inventory_tool_configuration, migrate_tool_configuration
+    from modules.agent.infra.database.models import AgentModel, AgentReleaseModel, AgentToolModel
+    from modules.core.infra.database.configuration_legacy import LegacyConfigurationStore
+    from modules.core.infra.database.configuration_fleet import register_configuration_process, BRIDGE_CAPABILITY
+    original, project, _ = configuration
+    store = LegacyConfigurationStore(original.session, encryption_key=original.encryption_key)
+    monkeypatch.setattr(port, '_factory', lambda session: store)
+    config = {'url': 'https://approved.example/api', 'headers': [{'key': 'Authorization', 'value': CANARY}]}
+    rows = [AgentToolModel(project_id=project, name='Retained', type='http', config=config),
+        AgentToolModel(project_id=project, name='Route local', type='http', config={'base_url': 'https://approved.example',
+            'routes': [{'id': 'one', 'path': '/one', 'headers': config['headers']}]}),
+        AgentToolModel(project_id=project, name='OAuth', type='mcp', config={'server': {'url': 'https://approved.example/mcp'},
+            'oauth': {'status': 'connected', 'access_token_encrypted': 'historical-ciphertext-placeholder'}})]
+    agent = AgentModel(project_id=project, name='Historical owner', type='chat', provider='custom', model='example')
+    store.session.add_all([*rows, agent]); await store.session.flush()
+    release = AgentReleaseModel(project_id=project, agent_id=agent.id, version='1.0.0', status='release',
+        snapshot_kind='release', session_mode='stateful', runtime_config={'tools': {'snapshots': [
+            {'id': str(rows[0].id), 'config': config}]}})
+    store.session.add(release); await store.session.flush()
+    result = await inventory_tool_configuration(store.session, project_id=project)
+    assert len(result['items']) == 3 and all(item['state'] == 'blocked' for item in result['items'])
+    assert CANARY not in json.dumps(result) and 'historical-ciphertext-placeholder' not in json.dumps(result)
+    process = 'retention-tool-bridge-' + str(uuid4())
+    await register_configuration_process(store.session, identity=process, capabilities=[BRIDGE_CAPABILITY])
+    with pytest.raises(ConfigurationError) as blocked:
+        await migrate_tool_configuration(store.session, project_id=project, tool_id=rows[0].id,
+            expected_revision=rows[0].updated_at.isoformat(), destinations=['https://approved.example/api'],
+            required_processes=[process], actor='owner')
+    assert blocked.value.code == 'LEGACY_FORMAT_UNSUPPORTED'
+    assert release.runtime_config['tools']['snapshots'][0]['config'] == config
+    assert rows[0].config == config
