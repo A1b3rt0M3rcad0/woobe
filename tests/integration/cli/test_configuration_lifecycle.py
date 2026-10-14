@@ -521,11 +521,14 @@ async def test_detached_existing_oauth_protocol_and_discovery(cli, unused_tcp_po
             started = await cli.data('request', 'POST', '/tools/mcp/oauth/device/start', body={
                 'tool_id': tool['id'], 'authorization_server_issuer': origin})
             assert started['status'] == 'device_pending' and started['user_code'] == 'NATIVE-CODE'
+            pending = await cli.data('request', 'POST', '/tools/mcp/oauth/device/poll', body={'tool_id': tool['id']})
+            assert pending['status'] == 'authorization_pending' and not pending['connected']
             completed = await cli.data('request', 'POST', '/tools/mcp/oauth/device/poll', body={'tool_id': tool['id']})
         assert completed['connected'] and completed['status'] == 'connected'
         listed = await cli.data('request', 'GET', '/tools/tools', '--query', 'project_id=' + cli.project_id)
         owner = next(row for row in listed if row['id'] == tool['id'])
         assert owner['config']['mcp_status'] == 'ready'
+        assert owner['config']['oauth']['resource_metadata_url'] == origin + '/resource-metadata'
         assert owner['config']['discovered_tools'][0]['name'] == 'read_status'
         api_log = (cli.directory / 'api.log').read_text()
         if flow == 'pkce':

@@ -284,3 +284,16 @@ slot. It requires value-write authority for Draft, Staging and Production. An
 Environment-limited key must use a native central value operation for that
 Environment; an ignored `environment` field on an old Provider/Tool request
 cannot narrow the write. HTTP and owner transactions both enforce this scope.
+
+Existing MCP OAuth flows execute discovery and token exchange outside SQL
+transactions and recheck caller authority and the Tool revision before saving.
+Protocol error responses retain only recognized OAuth state codes; provider error
+descriptions are discarded because they can echo credentials. The private OAuth
+transport preserves a validated public `resource_metadata` challenge for MCP
+discovery without exempting arbitrary Bearer headers from redaction.
+
+The central OAuth field codec and owner-checked compatibility revocation are
+implemented as migration building blocks. Revocation invalidates every retained
+material version; a later replacement cannot resurrect revoked Run pins. These
+building blocks do not yet replace the existing encrypted OAuth source fields
+or qualify their cutover. A split alias must use explicit Environment operations.

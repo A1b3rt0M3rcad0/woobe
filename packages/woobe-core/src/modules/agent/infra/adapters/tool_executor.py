@@ -3,6 +3,7 @@ from __future__ import annotations
 import ipaddress
 import json
 import logging
+import re
 import socket
 import time
 from urllib.parse import urlparse
@@ -32,6 +33,34 @@ def _safe_response_headers(headers: httpx.Headers) -> dict[str, str]:
         for key, value in headers.items()
         if key.lower() in SAFE_RESPONSE_HEADERS
     }
+
+
+def _oauth_resource_challenge(header):
+    """Restore only public MCP resource metadata, never a Bearer credential.
+
+    Generic Bearer redaction intentionally treats the challenge parameter as a
+    credential. The composed OAuth owner needs that parameter for discovery.
+    Rebuild a closed challenge rather than exempting the provider's full header.
+    """
+    if not isinstance(header, str) or any(c in header for c in '\r\n\x00'):
+        return None
+    match = re.search(r'\bresource_metadata\s*=\s*"([^"\s]+)"', header, re.IGNORECASE)
+    if match is None:
+        return None
+    url = match[1]
+    try:
+        parsed = urlparse(url)
+        if (parsed.scheme not in ALLOWED_SCHEMES or not parsed.hostname or parsed.username is not None
+                or parsed.password is not None or parsed.query or parsed.fragment):
+            return None
+        _ = parsed.port
+    except ValueError:
+        return None
+    result = 'Bearer resource_metadata="' + url + '"'
+    scope = re.search(r'\bscope\s*=\s*"([A-Za-z0-9:._/ -]{1,1024})"', header, re.IGNORECASE)
+    if scope is not None:
+        result += ', scope="' + scope[1] + '"'
+    return result
 
 
 def _blocked_address(
@@ -298,6 +327,10 @@ class HttpToolExecutor(ToolExecutionPort):
                 }
             )
             from modules.agent.application.interfaces.oauth_protocol import private_oauth_protocol_response
+            if private_oauth_protocol_response.get():
+                challenge = _oauth_resource_challenge(response.headers.get('www-authenticate'))
+                if challenge is not None:
+                    output['headers']['www-authenticate'] = challenge
             if private_oauth_protocol_response.get() and response.is_success and isinstance(output_body, dict):
                 # Only the composed OAuth owner can receive protocol material.
                 # Normal Tool callers retain redaction; arbitrary nested bodies

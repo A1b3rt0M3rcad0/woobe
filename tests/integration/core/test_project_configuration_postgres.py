@@ -17,6 +17,121 @@ CANARY = "configuration-private-canary-7c2f"
 
 
 @pytest.mark.asyncio
+async def test_legacy_revoke_invalidates_current_and_archived_leases_without_new_authority(configuration):
+    from modules.core.infra.database.configuration_legacy import LegacyConfigurationStore
+    from modules.core.infra.database.configuration_models import LegacyConfigurationValueModel, ConfigurationValueVersionModel
+    from shared.infra.crypto import encrypt_secret
+    store, project, _ = configuration
+    store = LegacyConfigurationStore(store.session, encryption_key=store.encryption_key)
+    source = uuid4()
+    original = ConfigurationDependency(project, 'mcp_oauth', source, 'capture',
+        '/config/oauth/fields/access_token', 'unused', 'https://mcp.example/mcp')
+    adopted = await store.adopt(project_id=project, source_kind='mcp_oauth', source_id=source,
+        field_path=original.field_path, source_revision='capture',
+        encrypted_value=encrypt_secret(CANARY, store.encryption_key), dependencies=[original], actor='owner')
+    alias = UUID(adopted['alias_id'])
+    dep = replace(original, key=adopted['key'], legacy_alias_id=alias)
+    old_run, new_run = uuid4(), uuid4()
+    await store.acquire(project_id=project, run_id=old_run, environment='production', dependencies=[dep])
+    await store.rotate_legacy(project_id=project, alias_id=alias,
+        encrypted_value=encrypt_secret(CANARY + '-rotated', store.encryption_key), source_revision='next', actor='owner')
+    await store.acquire(project_id=project, run_id=new_run, environment='production', dependencies=[dep])
+    arguments = dict(project_id=project, alias_id=alias, source_kind='mcp_oauth', source_id=source,
+        field_path=dep.field_path, expected_revision=2, actor='owner')
+    for changed, expected in [({'source_id': uuid4()}, 'CONFIG_USAGE_NOT_AUTHORIZED'),
+                              ({'field_path': '/config/oauth/fields/client_secret'}, 'CONFIG_USAGE_NOT_AUTHORIZED'),
+                              ({'expected_revision': 1}, 'CONFIG_REVISION_CONFLICT')]:
+        with pytest.raises(ConfigurationError) as denied:
+            await store.revoke_legacy(**{**arguments, **changed})
+        assert denied.value.code == expected
+    assert await resolve(store, project, old_run, dep) == CANARY
+    assert await resolve(store, project, new_run, dep) == CANARY + '-rotated'
+    result = await store.revoke_legacy(**arguments)
+    assert result['revision'] == 3 and not result['unchanged']
+    assert (await store.revoke_legacy(**{**arguments, 'expected_revision': 3}))['unchanged']
+    for run in (old_run, new_run):
+        with pytest.raises(ConfigurationError) as denied:
+            await resolve(store, project, run, dep)
+        assert denied.value.code == 'CONFIG_VALUE_REVOKED'
+    row = await store.session.scalar(select(LegacyConfigurationValueModel).where(LegacyConfigurationValueModel.alias_id == alias))
+    assert row.stored_value is None and row.revoked
+    versions = (await store.session.scalars(select(ConfigurationValueVersionModel).where(
+        ConfigurationValueVersionModel.key_id == UUID(adopted['key_id'])))).all()
+    assert len(versions) == 2 and all(version.revoked for version in versions)
+    status, _ = await store.inspect(project_id=project, environment='production', dependencies=[dep])
+    assert status['dependencies'][0]['code'] == 'CONFIG_VALUE_REVOKED'
+    # A later authorized replacement is a new version. It cannot resurrect
+    # accepted operations whose older material was explicitly revoked.
+    await store.rotate_legacy(project_id=project, alias_id=alias,
+        encrypted_value=encrypt_secret(CANARY + '-replacement', store.encryption_key), source_revision='replacement', actor='owner')
+    next_run = uuid4()
+    await store.acquire(project_id=project, run_id=next_run, environment='production', dependencies=[dep])
+    assert await resolve(store, project, next_run, dep) == CANARY + '-replacement'
+    with pytest.raises(ConfigurationError) as still_revoked:
+        await resolve(store, project, old_run, dep)
+    assert still_revoked.value.code == 'CONFIG_VALUE_REVOKED'
+
+
+@pytest.mark.asyncio
+async def test_legacy_revoke_cannot_clear_environment_split_slots(configuration):
+    from modules.core.infra.database.configuration_legacy import LegacyConfigurationStore
+    from shared.infra.crypto import encrypt_secret
+    store, project, _ = configuration
+    store = LegacyConfigurationStore(store.session, encryption_key=store.encryption_key)
+    source = uuid4()
+    dep = ConfigurationDependency(project, 'mcp_oauth', source, 'capture',
+        '/config/oauth/fields/client_secret', 'unused', 'https://auth.example/token')
+    adopted = await store.adopt(project_id=project, source_kind='mcp_oauth', source_id=source,
+        field_path=dep.field_path, source_revision='capture',
+        encrypted_value=encrypt_secret(CANARY, store.encryption_key), dependencies=[dep], actor='owner')
+    alias = UUID(adopted['alias_id'])
+    dep = replace(dep, key=adopted['key'], legacy_alias_id=alias)
+    await store.convert(project_id=project, alias_id=alias, environments=['draft'], expected_revision=1,
+        expected_values={'draft': 0}, actor='owner')
+    with pytest.raises(ConfigurationError) as denied:
+        await store.revoke_legacy(project_id=project, alias_id=alias, source_kind='mcp_oauth', source_id=source,
+            field_path=dep.field_path, expected_revision=2, actor='owner')
+    assert denied.value.code == 'LEGACY_ENVIRONMENT_REQUIRED'
+    run = uuid4()
+    await store.acquire(project_id=project, run_id=run, environment='draft', dependencies=[dep])
+    assert await resolve(store, project, run, dep) == CANARY
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('status,tool_status,tool_type,allowed', [
+    ('connected', 'active', 'mcp', True), ('disconnected', 'active', 'mcp', False),
+    ('pending', 'active', 'mcp', False), ('connected', 'inactive', 'mcp', False),
+    ('connected', 'active', 'http', False),
+])
+async def test_oauth_consumer_resolution_rechecks_safe_connection_metadata(configuration, status, tool_status, tool_type, allowed):
+    from modules.agent.infra.database.models import AgentToolModel
+    from modules.agent.infra.database.configuration_consumer_guard import verify_configuration_consumer
+    store, project, engine = configuration
+    tool = AgentToolModel(id=uuid4(), project_id=project, name='OAuth consumer', type=tool_type,
+        status=tool_status, config={'oauth': {'status': status, 'access_token_encrypted': CANARY}})
+    store.session.add(tool)
+    await store.session.flush()
+    selects = []
+    def capture(conn, cursor, statement, parameters, context, executemany):
+        selects.append(statement)
+    event.listen(engine.sync_engine, 'before_cursor_execute', capture)
+    try:
+        if allowed:
+            await verify_configuration_consumer(store.session, project_id=project, consumer_kind='mcp_oauth', consumer_id=tool.id)
+        else:
+            with pytest.raises(ConfigurationError) as denied:
+                await verify_configuration_consumer(store.session, project_id=project, consumer_kind='mcp_oauth', consumer_id=tool.id)
+            assert denied.value.code == 'CONFIG_VALUE_REVOKED'
+    finally:
+        event.remove(engine.sync_engine, 'before_cursor_execute', capture)
+    assert len(selects) == 1 and 'access_token_encrypted' not in selects[0]
+    assert 'agent_tools.config,' not in selects[0]
+    with pytest.raises(ConfigurationError) as other_project:
+        await verify_configuration_consumer(store.session, project_id=uuid4(), consumer_kind='mcp_oauth', consumer_id=tool.id)
+    assert other_project.value.code == 'CONFIG_VALUE_REVOKED'
+
+
+@pytest.mark.asyncio
 async def test_host_protocol_registration_uses_unique_boot_identity_and_retires(configuration):
     from modules.core.infra.services.configuration_process import ConfigurationProcessRegistration
     from modules.core.infra.database.configuration_fleet import assert_configuration_bridge

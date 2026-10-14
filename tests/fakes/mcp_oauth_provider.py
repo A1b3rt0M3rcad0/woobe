@@ -12,6 +12,7 @@ REFRESH = 'native-oauth-refresh-canary'
 CLIENT_SECRET = 'native-oauth-client-canary'
 DEVICE = 'native-oauth-device-canary'
 challenge = None
+device_polls = 0
 
 
 @app.get('/health')
@@ -19,7 +20,7 @@ async def health():
     return {'ready': True}
 
 
-@app.get('/.well-known/oauth-protected-resource')
+@app.get('/resource-metadata')
 async def resource(request: Request):
     origin = str(request.base_url).rstrip('/')
     return {'resource': origin + '/mcp', 'authorization_servers': [origin], 'scopes_supported': ['mcp:read']}
@@ -54,6 +55,8 @@ async def authorize(request: Request):
 
 @app.post('/device')
 async def device(request: Request):
+    global device_polls
+    device_polls = 0
     body = {key: values[0] for key, values in parse_qs((await request.body()).decode()).items()}
     if body.get('client_id') != 'native-client':
         return JSONResponse({'error': 'invalid_client'}, status_code=401)
@@ -63,6 +66,7 @@ async def device(request: Request):
 
 @app.post('/token')
 async def token(request: Request):
+    global device_polls
     body = {key: values[0] for key, values in parse_qs((await request.body()).decode()).items()}
     if body.get('client_id') != 'native-client' or body.get('client_secret') != CLIENT_SECRET:
         return JSONResponse({'error': 'invalid_client'}, status_code=401)
@@ -76,6 +80,10 @@ async def token(request: Request):
     elif body.get('grant_type') == 'urn:ietf:params:oauth:grant-type:device_code':
         if body.get('device_code') != DEVICE:
             return JSONResponse({'error': 'invalid_grant'}, status_code=400)
+        device_polls += 1
+        if device_polls == 1:
+            return JSONResponse({'error': 'authorization_pending',
+                'error_description': CLIENT_SECRET + ' ' + DEVICE}, status_code=400)
     else:
         return JSONResponse({'error': 'unsupported_grant_type'}, status_code=400)
     return {'access_token': ACCESS, 'refresh_token': REFRESH, 'token_type': 'Bearer', 'expires_in': 3600}
@@ -86,7 +94,7 @@ async def mcp(request: Request):
     if request.headers.get('authorization') != 'Bearer ' + ACCESS:
         origin = str(request.base_url).rstrip('/')
         return JSONResponse({'error': 'authentication_required'}, status_code=401,
-            headers={'WWW-Authenticate': f'Bearer resource_metadata="{origin}/.well-known/oauth-protected-resource"'})
+            headers={'WWW-Authenticate': f'Bearer resource_metadata="{origin}/resource-metadata"'})
     body = await request.json()
     identifier = body.get('id')
     if body['method'] == 'initialize':

@@ -3,7 +3,7 @@ from uuid import UUID, uuid4
 import hashlib
 import re
 
-from sqlalchemy import select, func
+from sqlalchemy import select, func, update
 
 from modules.core.infra.database.configuration_models import (
     LegacyConfigurationAliasModel as Alias, LegacyConfigurationValueModel as Material,
@@ -199,3 +199,40 @@ class LegacyConfigurationStore(ConfigurationResolution):
     async def approve_legacy_consumers(self, **arguments):
         from modules.core.infra.database.configuration_legacy_consumers import approve_legacy_consumers
         return await approve_legacy_consumers(self, **arguments)
+
+    async def revoke_legacy(self, *, project_id, alias_id, source_kind, source_id,
+                            field_path, expected_revision, actor):
+        """Owner-only clearing of a compatibility slot and every retained version.
+
+        The caller must authorize all affected Environments in its transaction.
+        An Environment-split alias requires explicit Environment operations;
+        disconnecting a source cannot silently clear independently owned slots.
+        """
+        await self.lock_project(project_id)
+        alias = await self.session.scalar(select(Alias).where(Alias.project_id == project_id,
+            Alias.id == alias_id).with_for_update().execution_options(populate_existing=True))
+        if alias is None:
+            raise ConfigurationError('CONFIG_REFERENCE_NOT_FOUND')
+        if (alias.source_kind, alias.source_id, alias.field_path) != (source_kind, source_id, field_path):
+            raise ConfigurationError('CONFIG_USAGE_NOT_AUTHORIZED')
+        if alias.revision != expected_revision:
+            raise ConfigurationError('CONFIG_REVISION_CONFLICT')
+        if any(route != 'legacy_compat' for route in alias.routes.values()):
+            raise ConfigurationError('LEGACY_ENVIRONMENT_REQUIRED')
+        key = await self.key(project_id, alias.key_id, lock=True)
+        material = await self.session.scalar(select(Material).where(Material.alias_id == alias.id)
+            .with_for_update().execution_options(populate_existing=True))
+        if material is None:
+            raise ConfigurationError('CONFIG_VERSION_UNAVAILABLE')
+        if material.revoked:
+            return {'alias_id': str(alias.id), 'revision': alias.revision, 'material': 'revoked', 'unchanged': True}
+        await self._archive(key, material, source='legacy:' + str(alias.id))
+        material.stored_value, material.value_version = None, uuid4()
+        material.material_state, material.revoked = 'revoked', True
+        material.revision += 1
+        alias.revision += 1
+        await self.session.flush()
+        await self.session.execute(update(Version).where(Version.project_id == project_id,
+            Version.key_id == key.id, Version.source == 'legacy:' + str(alias.id)).values(revoked=True))
+        await self.audit(project_id, 'legacy.revoked', actor, alias_id=str(alias.id), revision=alias.revision)
+        return {'alias_id': str(alias.id), 'revision': alias.revision, 'material': 'revoked', 'unchanged': False}
