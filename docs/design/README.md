@@ -14,7 +14,7 @@ The Control Plane, setup, configuration, authentication forms and ChatSurface co
 | Governance, access, configuration | `06-permission-matrix.png` | PermissionMatrix: labelled rows, real allowed/denied state, technical controls |
 | API examples and CLI | `07-cli-workflow.png` | TerminalWindow: clear surface, mono output, bounded scrolling, copy confirmation |
 | Editorial page titles, overview sections and sign-in narrative | `12-home-hero-user.png` | Editorial typography: regular Georgia heading, Inter explanation; usable form remains operational |
-| Network graph and traces | `05-mint-ui-overlap.png` | Technical configuration and inspectable result in normal flow; no decorative overlap of active controls |
+| Network graph and traces | `05-mint-ui-overlap.png` | Technical configuration and inspectable result in normal flow; Inter actions and explanations, mono execution data |
 
 ## Geometry and tokens
 
@@ -26,4 +26,6 @@ Inter and JetBrains Mono are real variable WOFF2 resources self-hosted by `woobe
 
 ## Coverage and evidence
 
-See `coverage.json` for the source inventory and `../screenshots/README.md` for the rendered evidence and reproduction commands. The inventory includes redirects and unused compatibility files so they cannot silently count as rendered pages. Each overlay must have an open-state capture; long content also requires scroll/section evidence. Primitive captures must use the production component implementation. Browser checks, visual inspection and backend integration are distinct evidence.
+See `coverage.json` for the source inventory and `../screenshots/README.md` for the rendered evidence and reproduction commands. The inventory includes redirects and unused compatibility files so they cannot silently count as rendered pages. The owner requested a reduced documentation set: only current screenshots of the 18 main pages at desktop, tablet and mobile widths. Shared primitives, open overlays, internal sections, scrolling and nested confirmations remain covered by browser tests, without committed auxiliary screenshots. Browser checks, visual inspection and backend integration are distinct evidence.
+
+The typography correction, local Georgia installation, checksum provenance and browser glyph checks are documented in [FONTS.md](FONTS.md). The original Guild v2 skill files are unchanged.

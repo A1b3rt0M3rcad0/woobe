@@ -1,0 +1,15 @@
+{
+  "family": "Georgia",
+  "version": "2.05",
+  "installer_url": "https://raw.githubusercontent.com/pushcx/corefonts/master/georgi32.exe",
+  "installer_sha256": "2c2c7dcda6606ea5cf08918fb7cd3f3359e9e84338dc690013f20cd42e930301",
+  "font_sha256": {
+    "Georgia.TTF": "7d0bb20c632bb59e81a0885f573bd2173f71f73204de9058feb68ce032227072",
+    "Georgiab.TTF": "82d2fbadb88a8632d7f2e8ad50420c9fd2e7d3cbc0e90b04890213a711b34b93",
+    "Georgiai.TTF": "1523f19bda6acca42c47c50da719a12dd34f85cc2606e6a5af15a7728b377b60",
+    "Georgiaz.TTF": "c983e037d8e4e694dd0fb0ba2e625bca317d67a41da2dc81e46a374e53d0ec8a"
+  },
+  "checksum_authority": "https://deb.debian.org/debian/pool/contrib/m/msttcorefonts/msttcorefonts_3.8.1.tar.xz",
+  "license": "Microsoft TrueType core fonts for the Web EULA; local installation only",
+  "font_directory": "/home/agent/.local/share/fonts/woobe-georgia"
+}

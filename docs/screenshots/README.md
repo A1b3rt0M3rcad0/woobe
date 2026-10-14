@@ -1,59 +1,44 @@
-# Woobe browser evidence · Guild v2
+# Woobe main pages
 
-These screenshots show the implemented interface in Chromium, using deterministic **synthetic API fixtures**. They contain no production accounts, provider calls or real secret material. The fixtures' reference dates are part of the displayed data, not capture timestamps. The visual contract is [Guild v2, operational / comfortable](../design/README.md).
+Updated Chromium captures of the production application, using synthetic API fixtures. Only main pages are retained; component, modal and auxiliary-state screenshots were removed at the owner’s request.
 
-![Project Overview rendered from the production build](project-overview.png)
+![Project Overview](project-overview.png)
 
-The [complete inventory](v2/README.md) links every routed page, shared component group, open overlay and secondary confirmation. The [searchable thumbnail gallery](v2/index.html) helps compare widths and states. [coverage.json](../design/coverage.json) records source paths, image dimensions and SHA-256 hashes; [REVIEW.md](../design/REVIEW.md) separates technical checks from visual inspection and backend integration.
+18 pages · 54 images · desktop 1440 × 1100, tablet 768 × 1100, mobile 390 × 1100.
 
-## What the images represent
-
-| Evidence | Method |
-| --- | --- |
-| `v2/pages/` | Actual production frontend build, navigated through the real router; 1440, 768 and 390px; public sign-in, first-owner registration and missing-route pages include mobile documents |
-| `v2/components/` | Production `@woobe/ui` implementations in an isolated development review entry; typography, buttons, fields, badges, panels, tables, dates, feedback, code, menus and scrolling |
-| `v2/overlays/` | Actual product dialogs/drawers/popovers, with real providers and API fixtures; open at desktop/tablet/mobile; section and scroll captures expose the rest of long content |
-| `v2/flows/` | Creation, credential details, archive/revoke/rotation confirmations, Runtime Key and CLI Key synthetic reveals, Project switcher, mobile navigation and Agent inventory loading/empty/error |
-| `v2/states/` | Hover, visible keyboard focus, selected tabs, copy success, invalid sign-in form, unavailable runtime, nested confirmation and compact/enlarged-text checks |
-| `v2/fonts.json` | Chromium CDP identifies the **rendered custom font and glyph count**, alongside computed family, weight and size; probes include Portuguese glyphs |
-| `chat-surface.png` | Independently built `woobe-embed`, with a completed fixture conversation |
-
-The overlay review entry imports the production component implementations; it is not included in the application build. Its caption identifies the synthetic fixture. The ChatSurface live-test overlay embeds the real independently built iframe through its versioned `/chat/v1/` path.
-
-Long operational dialogs deliberately retain their scrolling regions. A `390px.png` is the initial viewport; `390px-scroll-…` files show subsequent content with overlap for continuity. `section-…` files show internal navigation; `…-pan-…` files show horizontally scrollable navigation in sequence. This preserves real behavior without resizing the dialog into a nonfunctional mockup. Horizontal code and bidimensional canvas regions retain regional scrolling. Public documents use full-page captures where appropriate.
-
-The root images remain convenient stable links for the README and product documentation:
-
-| Area | Images |
-| --- | --- |
-| Operations | [Overview](project-overview.png), [Agents](agents.png), [Networks](networks.png), [Runs](traces.png), [Usage](usage.png) |
-| Editing | [Agent creation](create-agent.png), [Agent playground](agent-playground.png), [Network workspace](network-workspace.png) |
-| Resources | [Knowledge](knowledge.png), [Tools](tools.png), [Skills](skills.png), [Models](models.png), [Credentials](credentials.png) |
-| Governance | [Environments](environments.png), [Runtime Keys](api-keys.png), [ChatSurfaces](chat-surfaces.png) |
-| Access and delivery | [Sign-in](sign-in.png), [Mobile console](mobile-console.png), [ChatSurface](chat-surface.png) |
+| Page | Desktop | Tablet | Mobile |
+| --- | --- | --- | --- |
+| Sign in | [View](sign-in.png) | [View](tablet/sign-in.png) | [View](mobile/sign-in.png) |
+| Workspaces | [View](workspaces.png) | [View](tablet/workspaces.png) | [View](mobile/workspaces.png) |
+| Projects | [View](projects.png) | [View](tablet/projects.png) | [View](mobile/projects.png) |
+| Project Overview | [View](project-overview.png) | [View](tablet/project-overview.png) | [View](mobile/project-overview.png) |
+| Agents | [View](agents.png) | [View](tablet/agents.png) | [View](mobile/agents.png) |
+| Networks | [View](networks.png) | [View](tablet/networks.png) | [View](mobile/networks.png) |
+| Agent playground | [View](agent-playground.png) | [View](tablet/agent-playground.png) | [View](mobile/agent-playground.png) |
+| Network workspace | [View](network-workspace.png) | [View](tablet/network-workspace.png) | [View](mobile/network-workspace.png) |
+| Knowledge | [View](knowledge.png) | [View](tablet/knowledge.png) | [View](mobile/knowledge.png) |
+| Tools | [View](tools.png) | [View](tablet/tools.png) | [View](mobile/tools.png) |
+| Skills | [View](skills.png) | [View](tablet/skills.png) | [View](mobile/skills.png) |
+| Models | [View](models.png) | [View](tablet/models.png) | [View](mobile/models.png) |
+| Credentials | [View](credentials.png) | [View](tablet/credentials.png) | [View](mobile/credentials.png) |
+| Environments | [View](environments.png) | [View](tablet/environments.png) | [View](mobile/environments.png) |
+| API Keys | [View](api-keys.png) | [View](tablet/api-keys.png) | [View](mobile/api-keys.png) |
+| ChatSurfaces | [View](chat-surfaces.png) | [View](tablet/chat-surfaces.png) | [View](mobile/chat-surfaces.png) |
+| Usage | [View](usage.png) | [View](tablet/usage.png) | [View](mobile/usage.png) |
+| Runs | [View](traces.png) | [View](tablet/traces.png) | [View](mobile/traces.png) |
 
 ## Reproduce
 
-From the repository root, install the locked dependencies:
+Install the locked dependencies in `packages/woobe-frontend`, `packages/woobe-embed` and `tests/e2e`. Install Playwright Chromium and the local Georgia family as described in [font provenance](../design/FONTS.md). From `tests/e2e`:
 
 ```sh
-npm --prefix packages/woobe-frontend ci
-npm --prefix packages/woobe-embed ci
-npm --prefix tests/e2e ci
-cd tests/e2e
-npx playwright install --with-deps chromium
-WOOBE_CAPTURE_DOCS=1 npx playwright test --config playwright.config.ts
-WOOBE_CAPTURE_DOCS=1 npx playwright test --config review.config.ts --workers=2
+WOOBE_CAPTURE_DOCS=1 WOOBE_REQUIRE_GEORGIA=1 npx playwright test --config playwright.config.ts tests/surface-coverage.spec.ts tests/typography.spec.ts
 cd ../..
 python3 scripts/frontend_visual_inventory.py
 ```
 
-The browser configs start and stop the frontend and independent embed servers. Run the two suites sequentially when regenerating the same evidence directory. To inspect the gallery, serve `docs/screenshots/v2` with an ordinary static HTTP server and open `index.html` in a browser.
+In this cloud environment, set `PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/chromium` and `PLAYWRIGHT_BROWSERS_PATH=/workspace/.playwright`. The suite builds the real frontend and independent embed before capture. Public and product pages use their actual routers. Images show the initial viewport; long operational content remains scrollable in the application.
 
-In this cloud environment the installed system Chromium is selected with `PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/chromium`. The main suite also uses `PLAYWRIGHT_BROWSERS_PATH=/workspace/.playwright` for its ffmpeg cache. CI installs Playwright's pinned Chromium instead. Browser differences can affect rasterization; the captures are review evidence, not cross-platform pixel baselines.
+The [gallery](index.html) provides thumbnails. [Source inventory and image hashes](../design/coverage.json), [rendered font evidence](../design/fonts/) and [review results](../design/REVIEW.md) record separate checks. Fixtures do not prove live backend or provider integration. Georgia is installed locally for these captures; other clients follow the declared serif fallback stack.
 
-## Boundaries of validation
-
-The browser suites exercise the real UI and HTTP contracts through fixtures. They do not demonstrate a running backend, live provider authorization or actual model execution. Automated axe checks cover selected Control Plane resources and ChatSurface; they are not a complete accessibility certification. Enlarging root text is a reflow stress check, not proof of browser zoom behavior across engines. Customer-selected ChatSurface appearance remains configurable.
-
-Native browser `title` hints keep native rendering. There is no separate custom tooltip component to reproduce as a product overlay. Source inventory, successful browser assertions, rendered font evidence and visual review are recorded separately; none implies numerical “100% fidelity.”
+Component/overlay browser tests remain enabled. Optional auxiliary captures use `WOOBE_CAPTURE_AUXILIARY=1` and stay in ignored test output, outside this documentation.

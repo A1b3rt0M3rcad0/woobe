@@ -1,0 +1,221 @@
+{
+  "browser": "154.0.8037.57",
+  "evidence": [
+    {
+      "selector": "[data-sample=panels] h3",
+      "expected": "JetBrains Mono",
+      "fonts": [
+        {
+          "familyName": "JetBrains Mono",
+          "postScriptName": "JetBrainsMono-Regular",
+          "isCustomFont": true,
+          "glyphCount": 20
+        }
+      ],
+      "computed": {
+        "family": "\"JetBrains Mono\", \"Fira Code\", monospace",
+        "weight": "500",
+        "size": "14px"
+      },
+      "probeSource": "element"
+    },
+    {
+      "selector": "[data-sample=panels] p",
+      "expected": "Inter",
+      "fonts": [
+        {
+          "familyName": "Inter",
+          "postScriptName": "Inter-Regular",
+          "isCustomFont": true,
+          "glyphCount": 54
+        }
+      ],
+      "computed": {
+        "family": "Inter, system-ui, sans-serif",
+        "weight": "400",
+        "size": "12px"
+      },
+      "probeSource": "element"
+    },
+    {
+      "selector": "[data-sample=panels] .text-metric",
+      "expected": "JetBrains Mono",
+      "fonts": [
+        {
+          "familyName": "JetBrains Mono",
+          "postScriptName": "JetBrainsMono-Regular",
+          "isCustomFont": true,
+          "glyphCount": 7
+        }
+      ],
+      "computed": {
+        "family": "\"JetBrains Mono\", \"Fira Code\", monospace",
+        "weight": "400",
+        "size": "32px"
+      },
+      "probeSource": "element"
+    },
+    {
+      "selector": "[data-font-probe=mono]",
+      "expected": "JetBrains Mono",
+      "fonts": [
+        {
+          "familyName": "JetBrains Mono",
+          "postScriptName": "JetBrainsMono-Regular",
+          "isCustomFont": true,
+          "glyphCount": 91
+        }
+      ],
+      "computed": {
+        "family": "\"JetBrains Mono\", \"Fira Code\", monospace",
+        "weight": "500",
+        "size": "14px"
+      },
+      "probeSource": "element"
+    },
+    {
+      "selector": "[data-font-probe=sans]",
+      "expected": "Inter",
+      "fonts": [
+        {
+          "familyName": "Inter",
+          "postScriptName": "Inter-Regular",
+          "isCustomFont": true,
+          "glyphCount": 66
+        }
+      ],
+      "computed": {
+        "family": "Inter, system-ui, sans-serif",
+        "weight": "400",
+        "size": "14px"
+      },
+      "probeSource": "element"
+    },
+    {
+      "selector": "[data-sample=fields] label[for=review-name]",
+      "expected": "Inter",
+      "fonts": [
+        {
+          "familyName": "Inter",
+          "postScriptName": "Inter-Regular",
+          "isCustomFont": true,
+          "glyphCount": 21
+        }
+      ],
+      "computed": {
+        "family": "Inter, system-ui, sans-serif",
+        "weight": "500",
+        "size": "11px"
+      },
+      "probeSource": "element"
+    },
+    {
+      "selector": "#review-name",
+      "expected": "Inter",
+      "fonts": [
+        {
+          "familyName": "Inter",
+          "postScriptName": "Inter-Regular",
+          "isCustomFont": true,
+          "glyphCount": 11
+        }
+      ],
+      "computed": {
+        "family": "Inter, system-ui, sans-serif",
+        "weight": "400",
+        "size": "14px"
+      },
+      "probeSource": "element"
+    },
+    {
+      "selector": "[data-sample=fields] textarea",
+      "expected": "Inter",
+      "fonts": [
+        {
+          "familyName": "Inter",
+          "postScriptName": "Inter-Regular",
+          "isCustomFont": true,
+          "glyphCount": 36
+        }
+      ],
+      "computed": {
+        "family": "Inter, system-ui, sans-serif",
+        "weight": "400",
+        "size": "14px"
+      },
+      "probeSource": "painted descendant or native shadow text"
+    },
+    {
+      "selector": "[data-sample=buttons] button",
+      "expected": "Inter",
+      "fonts": [
+        {
+          "familyName": "Inter",
+          "postScriptName": "Inter-Regular",
+          "isCustomFont": true,
+          "glyphCount": 7
+        }
+      ],
+      "computed": {
+        "family": "Inter, system-ui, sans-serif",
+        "weight": "500",
+        "size": "14px"
+      },
+      "probeSource": "element"
+    },
+    {
+      "selector": "[data-sample=code] .cm-line",
+      "expected": "JetBrains Mono",
+      "fonts": [
+        {
+          "familyName": "JetBrains Mono",
+          "postScriptName": "JetBrainsMono-Regular",
+          "isCustomFont": true,
+          "glyphCount": 1
+        }
+      ],
+      "computed": {
+        "family": "\"JetBrains Mono\", \"Fira Code\", monospace",
+        "weight": "400",
+        "size": "15px"
+      },
+      "probeSource": "painted descendant or native shadow text"
+    },
+    {
+      "selector": "[data-sample=tables] th",
+      "expected": "JetBrains Mono",
+      "fonts": [
+        {
+          "familyName": "JetBrains Mono",
+          "postScriptName": "JetBrainsMono-Regular",
+          "isCustomFont": true,
+          "glyphCount": 5
+        }
+      ],
+      "computed": {
+        "family": "\"JetBrains Mono\", \"Fira Code\", monospace",
+        "weight": "500",
+        "size": "12px"
+      },
+      "probeSource": "element"
+    },
+    {
+      "selector": "[data-sample=tables] h1",
+      "expected": "serif",
+      "fonts": [
+        {
+          "familyName": "Georgia",
+          "postScriptName": "Georgia",
+          "isCustomFont": false,
+          "glyphCount": 17
+        }
+      ],
+      "computed": {
+        "family": "Georgia, \"Times New Roman\", serif",
+        "weight": "400",
+        "size": "36px"
+      },
+      "probeSource": "element"
+    }
+  ]
+}

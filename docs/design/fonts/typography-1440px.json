@@ -1,0 +1,171 @@
+{
+  "browser": "154.0.8037.57",
+  "viewport": {
+    "width": 1440,
+    "height": 1100
+  },
+  "evidence": [
+    {
+      "role": "page-title",
+      "expected": "serif",
+      "computed": {
+        "family": "Georgia, \"Times New Roman\", serif",
+        "weight": "400",
+        "size": "36px",
+        "lineHeight": "40.32px"
+      },
+      "fonts": [
+        {
+          "familyName": "Georgia",
+          "postScriptName": "Georgia",
+          "isCustomFont": false,
+          "glyphCount": 16
+        }
+      ]
+    },
+    {
+      "role": "overview-section",
+      "expected": "serif",
+      "computed": {
+        "family": "Georgia, \"Times New Roman\", serif",
+        "weight": "400",
+        "size": "24px",
+        "lineHeight": "28px"
+      },
+      "fonts": [
+        {
+          "familyName": "Georgia",
+          "postScriptName": "Georgia",
+          "isCustomFont": false,
+          "glyphCount": 13
+        }
+      ]
+    },
+    {
+      "role": "description",
+      "expected": "Inter",
+      "computed": {
+        "family": "Inter, system-ui, sans-serif",
+        "weight": "400",
+        "size": "12px",
+        "lineHeight": "18px"
+      },
+      "fonts": [
+        {
+          "familyName": "Inter",
+          "postScriptName": "Inter-Regular",
+          "isCustomFont": true,
+          "glyphCount": 66
+        }
+      ]
+    },
+    {
+      "role": "breadcrumb",
+      "expected": "Inter",
+      "computed": {
+        "family": "Inter, system-ui, sans-serif",
+        "weight": "400",
+        "size": "14px",
+        "lineHeight": "20px"
+      },
+      "fonts": [
+        {
+          "familyName": "Inter",
+          "postScriptName": "Inter-Regular",
+          "isCustomFont": true,
+          "glyphCount": 20
+        }
+      ]
+    },
+    {
+      "role": "refresh",
+      "expected": "Inter",
+      "computed": {
+        "family": "Inter, system-ui, sans-serif",
+        "weight": "500",
+        "size": "14px",
+        "lineHeight": "20px"
+      },
+      "fonts": [
+        {
+          "familyName": "Inter",
+          "postScriptName": "Inter-Regular",
+          "isCustomFont": true,
+          "glyphCount": 7
+        }
+      ]
+    },
+    {
+      "role": "range",
+      "expected": "Inter",
+      "computed": {
+        "family": "Inter, system-ui, sans-serif",
+        "weight": "400",
+        "size": "14px",
+        "lineHeight": "normal"
+      },
+      "fonts": [
+        {
+          "familyName": "Inter",
+          "postScriptName": "Inter-Regular",
+          "isCustomFont": true,
+          "glyphCount": 13
+        }
+      ]
+    },
+    {
+      "role": "technical-panel",
+      "expected": "JetBrains Mono",
+      "computed": {
+        "family": "\"JetBrains Mono\", \"Fira Code\", monospace",
+        "weight": "500",
+        "size": "14px",
+        "lineHeight": "20px"
+      },
+      "fonts": [
+        {
+          "familyName": "JetBrains Mono",
+          "postScriptName": "JetBrainsMono-Regular",
+          "isCustomFont": true,
+          "glyphCount": 12
+        }
+      ]
+    },
+    {
+      "role": "metric",
+      "expected": "JetBrains Mono",
+      "computed": {
+        "family": "\"JetBrains Mono\", \"Fira Code\", monospace",
+        "weight": "400",
+        "size": "32px",
+        "lineHeight": "38px"
+      },
+      "fonts": [
+        {
+          "familyName": "JetBrains Mono",
+          "postScriptName": "JetBrainsMono-Regular",
+          "isCustomFont": true,
+          "glyphCount": 5
+        }
+      ]
+    },
+    {
+      "role": "navigation",
+      "expected": "Inter",
+      "computed": {
+        "family": "Inter, system-ui, sans-serif",
+        "weight": "500",
+        "size": "14px",
+        "lineHeight": "20px"
+      },
+      "fonts": [
+        {
+          "familyName": "Inter",
+          "postScriptName": "Inter-Regular",
+          "isCustomFont": true,
+          "glyphCount": 8
+        }
+      ]
+    }
+  ]
+}

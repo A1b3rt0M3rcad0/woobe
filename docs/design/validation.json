@@ -1,87 +1,148 @@
 {
-  "recorded_at": "2026-10-14T20:46:19.502708+00:00",
-  "implementation_commit": "9d1d58fc5f91a297e367ba4e5f9d6bca9bd81ba3",
+  "recorded_at": "2026-10-14T18:29:15.569054-03:00",
+  "timezone": "America/Sao_Paulo",
+  "implementation_commit": "3b82c793e1669b8afa1abb27eb6cd36321c7b8db",
   "pr": "https://github.com/A1b3rt0M3rcad0/woobe/pull/217",
   "browser": "154.0.8037.57",
-  "data": "Synthetic API fixtures; no live backend or external provider qualification.",
+  "browser_configuration": "System Chromium via PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/chromium; PLAYWRIGHT_BROWSERS_PATH=/workspace/.playwright; DPR 1.",
+  "data": "Synthetic API fixtures, reference instant 2026-06-20T12:00:00Z; no live backend/provider qualification.",
   "checks": [
     {
       "name": "Frontend unit suite",
-      "command": "npm --prefix packages/woobe-frontend run test:run",
+      "command": "VITE_API_URL=http://127.0.0.1:8000 VITE_CHAT_EMBED_URL=http://127.0.0.1:4181 npm --prefix packages/woobe-frontend run test:run",
       "result": "passed",
       "files": 110,
-      "tests": 643,
-      "final_focused_recheck": {
-        "name": "Network context inspector",
-        "tests": 3,
-        "result": "passed"
-      }
+      "tests": 645
+    },
+    {
+      "name": "Narrative Markdown final recheck",
+      "command": "VITE_API_URL=http://127.0.0.1:8000 VITE_CHAT_EMBED_URL=http://127.0.0.1:4181 npm --prefix packages/woobe-frontend run test:run -- src/features/playground/components/MarkdownMessage.test.tsx",
+      "result": "passed",
+      "tests": 13
     },
     {
       "name": "Production browser suite",
-      "command": "cd tests/e2e && npx playwright test --config playwright.config.ts",
+      "command": "cd tests/e2e && WOOBE_CAPTURE_DOCS=1 WOOBE_REQUIRE_GEORGIA=1 npx playwright test --config playwright.config.ts",
       "result": "passed",
-      "tests": 105,
-      "final_focused_rechecks": {
-        "mvp_flows": 13,
-        "public_form": 1,
-        "network_workspaces": 5,
-        "populated_canvas_after_final_sizing": 1
+      "tests": 109,
+      "final_workspaces_and_embed_recheck": {
+        "tests": 7,
+        "result": "passed",
+        "command": "cd tests/e2e && WOOBE_CAPTURE_DOCS=1 WOOBE_REQUIRE_GEORGIA=1 npx playwright test --config playwright.config.ts tests/surface-coverage.spec.ts tests/embed-design.spec.ts --grep 'complete surface (playground|network-workspace)|ChatSurface preserves'"
       }
     },
     {
-      "name": "Production components and overlays",
-      "command": "cd tests/e2e && WOOBE_CAPTURE_DOCS=1 npx playwright test --config review.config.ts --workers=4",
-      "result": "passed",
-      "tests": 252
+      "name": "Production shared components and overlays",
+      "command": "cd tests/e2e && WOOBE_CAPTURE_DOCS=1 WOOBE_REQUIRE_GEORGIA=1 npx playwright test --config review.config.ts --workers=2",
+      "result": "passed with focused font-probe recheck",
+      "unique_cases": 252,
+      "broad_run": {
+        "passed": 251,
+        "failed": 1,
+        "failure": "The new font probe queried the native textarea element, whose painted text lives in a user-agent shadow descendant. No rendered font was returned for that element."
+      },
+      "correction": "The CDP probe now scrolls the real control into view and inspects its actual painted text owner, including native shadow descendants and CodeMirror token spans. Font assertions are retained.",
+      "focused_recheck": {
+        "command": "cd tests/e2e && WOOBE_CAPTURE_DOCS=1 WOOBE_REQUIRE_GEORGIA=1 npx playwright test --config review.config.ts --workers=1 --grep 'production primitives, variants and actual rendered fonts'",
+        "passed": 1
+      }
     },
     {
-      "name": "Frontend TypeScript and Vite production build",
-      "command": "npm --prefix packages/woobe-frontend run build",
+      "name": "Frontend TypeScript and production build",
       "result": "passed",
-      "note": "Also rebuilt by the final production browser rechecks. Large-chunk warning remains."
+      "command": "npm --prefix packages/woobe-frontend run build",
+      "execution": "Rebuilt by the final production-browser workspace recheck; existing large-chunk warning remains."
     },
     {
       "name": "Independent embed unit suite",
-      "command": "npm --prefix packages/woobe-embed test",
       "result": "passed",
+      "command": "npm --prefix packages/woobe-embed test",
       "tests": 25
     },
     {
-      "name": "Independent embed typecheck and production build",
+      "name": "Independent embed typecheck and build",
+      "result": "passed",
       "command": "npm --prefix packages/woobe-embed run typecheck; npm --prefix packages/woobe-embed run build",
-      "result": "passed"
+      "execution": "Typecheck run directly; production build also run by the final browser workspace/ChatSurface recheck."
     },
     {
       "name": "Frontend UUID architecture policy",
-      "command": ".venv/bin/python -m pytest -q tests/architecture/test_frontend_uuid_policy.py",
       "result": "passed",
+      "command": ".venv/bin/python -m pytest -q tests/architecture/test_frontend_uuid_policy.py",
       "tests": 1
     },
     {
-      "name": "Evidence inventory",
-      "command": "python3 scripts/frontend_visual_inventory.py",
+      "name": "Main-page inventory and screenshot dimensions",
       "result": "passed",
-      "png_count": 618,
-      "overlay_source_files_classified": 77
+      "command": "python3 scripts/frontend_visual_inventory.py",
+      "pages": 18,
+      "screenshots": 54,
+      "route_declarations": 53,
+      "shared_components": 42,
+      "classified_overlay_sources": 77
     },
     {
       "name": "Static screenshot gallery",
       "result": "passed",
-      "checks": [
-        "618 images indexed",
-        "filter updates visible items",
-        "selected original PNG decodes at 390 × 1100",
-        "no page errors"
-      ]
+      "images_decoded": 54,
+      "mobile_filter_visible": 18,
+      "page_errors": 0
     },
     {
-      "name": "Patch whitespace and workflow YAML",
-      "result": "passed"
+      "name": "Patch whitespace",
+      "result": "passed",
+      "command": "git diff --check"
+    },
+    {
+      "name": "Code graph",
+      "result": "updated",
+      "command": "graphify update ."
     }
   ],
+  "screenshots": {
+    "main_pages": 18,
+    "png_count": 54,
+    "viewport_css_pixels": [
+      [
+        1440,
+        1100
+      ],
+      [
+        768,
+        1100
+      ],
+      [
+        390,
+        1100
+      ]
+    ],
+    "file_capture_window": [
+      "2026-10-14T18:19:32.789452-03:00",
+      "2026-10-14T18:25:32.486934-03:00"
+    ],
+    "scope": "Only freshly captured main pages. Previous component, modal, state and scroll-sequence documentation images removed at owner request.",
+    "visual_review": "All three main-page contact sheets inspected; full-size Overview, authentication, workspace/project selection and resource/workspace samples checked against the editorial/technical reference hierarchy."
+  },
+  "rendered_font_evidence": [
+    "fonts/typography-1440px.json",
+    "fonts/typography-768px.json",
+    "fonts/typography-390px.json",
+    "fonts/typography-auth.json",
+    "fonts/primitives.json"
+  ],
+  "installed_font_provenance": "fonts/installation.json",
+  "font_roles": {
+    "editorial": "Actual local Georgia glyphs, weight 400",
+    "interface": "Actual custom Inter glyphs, weights 400 and 500",
+    "technical": "Actual custom JetBrains Mono glyphs, weights 400 and 500, including Portuguese specimen"
+  },
   "source_inventory": "coverage.json",
-  "rendered_font_evidence": "../screenshots/v2/fonts.json",
-  "remote_ci": "Not inspected: api.github.com is rejected by the current cloud network policy.",
+  "skills": "Original frontend-design and guild-inspired-enterprise-ui v2.0 files unchanged.",
+  "environment_configuration": {
+    "install_script": "saved",
+    "start_skill": "saved",
+    "publication": "Pending user review/save/publish in environment settings; Georgia is installed and verified in the current machine."
+  },
+  "remote_ci": "Not inspected: api.github.com is outside the current cloud HTTP allowlist.",
   "merged_by_this_task": false
 }
