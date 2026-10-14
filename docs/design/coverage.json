@@ -1512,6 +1512,7 @@
     "packages/woobe-frontend/src/features/contracts/RuntimeContextPanel.tsx",
     "packages/woobe-frontend/src/features/control-keys/AccessRolePicker.tsx",
     "packages/woobe-frontend/src/features/control-keys/WorkspaceCliKeys.tsx",
+    "packages/woobe-frontend/src/features/dashboard/components/RunActivityChart.tsx",
     "packages/woobe-frontend/src/features/first-run/components/AgentDetailsStep.tsx",
     "packages/woobe-frontend/src/features/first-run/components/AgentModelStep.tsx",
     "packages/woobe-frontend/src/features/first-run/components/AgentReviewStep.tsx",
@@ -2254,6 +2255,12 @@
     {
       "source": "packages/woobe-frontend/src/features/control-keys/WorkspaceCliKeys.tsx",
       "explicit_sans_uses": 6,
+      "explicit_mono_uses": 8,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/dashboard/components/RunActivityChart.tsx",
+      "explicit_sans_uses": 0,
       "explicit_mono_uses": 8,
       "explicit_serif_uses": 0
     },
@@ -3255,8 +3262,8 @@
     },
     {
       "source": "packages/woobe-frontend/src/pages/DashboardPage.tsx",
-      "explicit_sans_uses": 4,
-      "explicit_mono_uses": 42,
+      "explicit_sans_uses": 6,
+      "explicit_mono_uses": 16,
       "explicit_serif_uses": 2
     },
     {
@@ -3766,8 +3773,8 @@
       "path": "docs/screenshots/mobile/network-workspace.png",
       "width": 390,
       "height": 1100,
-      "bytes": 60769,
-      "sha256": "96eb528c8895da32a607b979a5cbca023f9a499699613e5f035cb72a7e560ef1"
+      "bytes": 60772,
+      "sha256": "62d283b4c2f526e914ef5b9e31d012ba10aa48c9e5081d4bedc170ca7331c4a2"
     },
     {
       "path": "docs/screenshots/mobile/networks.png",
@@ -3780,8 +3787,8 @@
       "path": "docs/screenshots/mobile/project-overview.png",
       "width": 390,
       "height": 1100,
-      "bytes": 62815,
-      "sha256": "566d3ecfeb6debe095c0a78b477f4464e32a5fd979bea4827dd65dc213f06c7b"
+      "bytes": 67110,
+      "sha256": "da8d7b5cd22e9ea97c3b7109ca40b719b8e13d8f8ef5ee56a3f6206805bf1c0d"
     },
     {
       "path": "docs/screenshots/mobile/projects.png",
@@ -3815,8 +3822,8 @@
       "path": "docs/screenshots/mobile/traces.png",
       "width": 390,
       "height": 1100,
-      "bytes": 57284,
-      "sha256": "73afd906276eec2fb716b7d83305128054ba491ce7019ae01f2cc36dafe54c91"
+      "bytes": 57288,
+      "sha256": "67b2e0b520f7827b5be165b521153bf8491d7912ad01694d65f710faec9c943e"
     },
     {
       "path": "docs/screenshots/mobile/usage.png",
@@ -3857,8 +3864,8 @@
       "path": "docs/screenshots/project-overview.png",
       "width": 1440,
       "height": 1100,
-      "bytes": 192204,
-      "sha256": "f9df8c35bd145d76ad970fd607a673b2105c22178276547d91dcffbc47a01e0f"
+      "bytes": 221841,
+      "sha256": "10670580623012b78ee16a42614d8de0deeb7903e93eea40afedcd8664788cea"
     },
     {
       "path": "docs/screenshots/projects.png",
@@ -3920,8 +3927,8 @@
       "path": "docs/screenshots/tablet/environments.png",
       "width": 768,
       "height": 1100,
-      "bytes": 46527,
-      "sha256": "f1cec3345a056029425f286f7efef378687699450ee398e68acda9e694721dbd"
+      "bytes": 46553,
+      "sha256": "6cab58845612169008775c5ba273a9cd07f41dca9aaf0086007fc732c91185bf"
     },
     {
       "path": "docs/screenshots/tablet/knowledge.png",
@@ -3955,8 +3962,8 @@
       "path": "docs/screenshots/tablet/project-overview.png",
       "width": 768,
       "height": 1100,
-      "bytes": 87456,
-      "sha256": "475fcc516dadd338348d30e2320157898c9b983c021951ef649b5eed54e01741"
+      "bytes": 103249,
+      "sha256": "e3c775d11cc476fffaa56b83fce9306f1a8563a4992050e4193ae7c97de3c149"
     },
     {
       "path": "docs/screenshots/tablet/projects.png",

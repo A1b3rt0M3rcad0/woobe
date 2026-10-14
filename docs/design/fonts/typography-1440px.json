@@ -114,18 +114,18 @@
       ]
     },
     {
-      "role": "technical-panel",
-      "expected": "JetBrains Mono",
+      "role": "analysis-panel",
+      "expected": "Inter",
       "computed": {
-        "family": "\"JetBrains Mono\", \"Fira Code\", monospace",
+        "family": "Inter, system-ui, sans-serif",
         "weight": "500",
         "size": "14px",
         "lineHeight": "20px"
       },
       "fonts": [
         {
-          "familyName": "JetBrains Mono",
-          "postScriptName": "JetBrainsMono-Regular",
+          "familyName": "Inter",
+          "postScriptName": "Inter-Regular",
           "isCustomFont": true,
           "glyphCount": 12
         }
