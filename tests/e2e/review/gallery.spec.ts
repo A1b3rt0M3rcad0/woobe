@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import cases from './overlay-cases.json'
+import { captureScrollSequence, resetCaptures } from './capture'
 import { installApi, respond, productionAgent, selectedRelease, project, workspace, now } from '../fixtures/control-plane'
 import { DEFAULT_CHAT_SURFACE_APPEARANCE } from '../../../packages/woobe-frontend/src/features/chat-surfaces/appearance'
 
@@ -132,28 +133,19 @@ for (const width of [1440,768,390]) for (const item of cases) test(`overlay ${it
     if(width<1024)expect(frame!.y+frame!.height).toBeLessThanOrEqual(metadata!.y)
     else expect(frame!.x+frame!.width).toBeLessThanOrEqual(metadata!.x)
   }
+  if(['AgentManagerModal','NetworkVersionsModalV2-NetworkVersionsModal'].includes(item.id)) {
+    for(const button of await overlay.locator('footer button').all())await expect(button).toBeInViewport({ratio:1})
+  }
   await page.waitForTimeout(150)
   expect(errors).toEqual([])
   const bounds=await overlay.boundingBox()
   expect(bounds!.x).toBeGreaterThanOrEqual(0)
   expect(bounds!.x+bounds!.width).toBeLessThanOrEqual(width+1)
   expect(await overlay.evaluate(el=>el.scrollWidth-el.clientWidth),'The dialog must not clip horizontal content').toBeLessThanOrEqual(1)
+  await resetCaptures(resolve(captures,'overlays',item.id),`${width}px`)
+  if(width===1440)await resetCaptures(resolve(captures,'overlays',item.id),'section')
   await capture(page,`overlays/${item.id}`,`${width}px`)
-  // Preserve the real scrolling layout while recording all content.
-  if(process.env.WOOBE_CAPTURE_DOCS==='1') {
-    const scrollAreas=await overlay.locator('*').evaluateAll(nodes=>nodes.filter(node=>{
-      const el=node as HTMLElement;const style=getComputedStyle(el)
-      return el.clientHeight>100 && el.scrollHeight>el.clientHeight+4 && /auto|scroll/.test(style.overflowY)
-    }).map((el,index)=>{el.setAttribute('data-review-scroll',String(index));return {index,total:el.scrollHeight,height:el.clientHeight}}))
-    for(const area of scrollAreas) {
-      const scroller=overlay.locator(`[data-review-scroll="${area.index}"]`)
-      for(let top=area.height-60,index=1;top<area.total;top+=area.height-60,index++) {
-        await scroller.evaluate((el,y)=>{el.scrollTop=y},top)
-        await capture(page,`overlays/${item.id}`,`${width}px-scroll-${area.index}-${index}`)
-      }
-      await scroller.evaluate(el=>{el.scrollTop=0})
-    }
-  }
+  await captureScrollSequence(page,overlay,resolve(captures,'overlays',item.id),`${width}px`)
   if(width===1440 && !item.id.includes('Popover')) {
     const sections=overlay.locator('aside nav button,[role=tab],[role=group][aria-label*="sections"] button')
     const labels=await sections.allTextContents()
@@ -164,7 +156,9 @@ for (const width of [1440,768,390]) for (const item of cases) test(`overlay ${it
       await expect(page.locator('[data-review-error]')).toHaveCount(0)
       await page.waitForTimeout(100)
       expect(errors).toEqual([])
-      await capture(page,`overlays/${item.id}`,`section-${index+1}-${labels[index].trim().toLowerCase().replace(/[^a-z0-9]+/g,'-')}`)
+      const name=`section-${index+1}-${labels[index].trim().toLowerCase().replace(/[^a-z0-9]+/g,'-')}`
+      await capture(page,`overlays/${item.id}`,name)
+      await captureScrollSequence(page,overlay,resolve(captures,'overlays',item.id),name)
     }
   }
 })

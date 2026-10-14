@@ -130,8 +130,8 @@ export function AgentContextAssemblerField({ projectId, compact = false }: { pro
 
       <AgentContextConfigurationDialog open={configureOpen} onClose={() => setConfigureOpen(false)} projectId={projectId} managerName={selectedDescriptor.display_name} />
 
-      <Dialog open={open} onClose={() => setOpen(false)} title="Select a Context Manager" className="max-w-dialog-wide overflow-hidden bg-surface/95" contentClassName="p-0">
-        <div className="grid h-dialog-workspace min-h-0 grid-cols-[15.625rem_minmax(0,1fr)] overflow-hidden">
+      <Dialog open={open} onClose={() => setOpen(false)} title="Select a Context Manager" variant="workspace" height="workspace">
+        <div className="grid h-full min-h-0 grid-cols-[15.625rem_minmax(0,1fr)] overflow-hidden">
           <aside className="flex min-h-0 flex-col border-r border-border/90 bg-background/25">
             <div className="shrink-0 border-b border-border/90 px-ui-lg py-ui-md">
               <p className="font-mono text-system-meta font-medium uppercase tracking-[0.12em] text-muted-foreground">Registered managers</p>
@@ -215,9 +215,9 @@ export function AgentContextAssemblerField({ projectId, compact = false }: { pro
               </div>
             </ScrollArea>
 
-            <div className="flex shrink-0 items-center justify-between gap-ui-md border-t border-border/90 bg-background/20 px-ui-lg py-ui-md">
-              <p className="min-w-0 truncate font-mono text-product-caption text-muted-foreground">{catalogBacked ? `${focused.name}${focused.is_default ? ' · system default' : ''}` : 'Registry metadata unavailable'}</p>
-              <div className="flex shrink-0 items-center gap-ui-sm">
+            <div className="flex shrink-0 flex-wrap items-center justify-between gap-ui-md border-t border-border/90 bg-background/20 px-ui-lg py-ui-md">
+              <p className="min-w-0 basis-full font-mono text-product-caption sm:basis-auto text-muted-foreground">{catalogBacked ? `${focused.name}${focused.is_default ? ' · system default' : ''}` : 'Registry metadata unavailable'}</p>
+              <div className="flex shrink-0 flex-wrap items-center gap-ui-sm">
                 <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
                 {incompatibleSkills && <p role="alert" className="max-w-xs font-sans text-product-caption text-warning">Disable installed Skills before selecting a manager without Skills support.</p>}
                 <Button onClick={applySelection} disabled={!canApplySelection}>{focusedIsCurrent ? 'Selected' : 'Select manager'}</Button>

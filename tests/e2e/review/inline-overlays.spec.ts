@@ -1,6 +1,7 @@
 import { test,expect } from '@playwright/test'
 import { mkdir } from 'node:fs/promises'
 import { resolve } from 'node:path'
+import { captureScrollSequence, resetCaptures } from './capture'
 import { installResources } from '../fixtures/resource-api'
 import { respond } from '../fixtures/control-plane'
 import { installApi } from '../fixtures/control-plane'
@@ -17,10 +18,16 @@ for(const width of [1440,768,390])for(const [name,trigger] of hosts)test(`${name
   if(trigger)await page.getByRole('button',{name:trigger}).first().click()
   await expect(page.getByRole('dialog').last()).toBeVisible()
   await expect(page.locator('[data-review-error]')).toHaveCount(0)
+  if(name==='host-context-manager') {
+    const panel=page.getByRole('dialog').locator('section');expect((await panel.boundingBox())!.width).toBeGreaterThan(250)
+    await expect(page.getByRole('dialog').getByRole('button',{name:'Selected',exact:true})).toBeInViewport({ratio:1})
+  }
   await page.evaluate(()=>document.fonts.ready)
   if(process.env.WOOBE_CAPTURE_DOCS==='1'){
     const directory=resolve(process.cwd(),'../../docs/screenshots/v2/overlays',name);await mkdir(directory,{recursive:true})
+    await resetCaptures(directory,`${width}px`)
     await page.screenshot({path:resolve(directory,`${width}px.png`),animations:'disabled'})
+    await captureScrollSequence(page,page.getByRole('dialog').last(),directory,`${width}px`)
   }
 })
 
@@ -32,6 +39,7 @@ for(const width of [1440,768,390])test(`secondary confirmations and input bindin
     const bounds=await dialog.boundingBox();expect(bounds!.x).toBeGreaterThanOrEqual(0);expect(bounds!.x+bounds!.width).toBeLessThanOrEqual(width+1)
     if(process.env.WOOBE_CAPTURE_DOCS!=='1')return
     const directory=resolve(process.cwd(),'../../docs/screenshots/v2/overlays',name);await mkdir(directory,{recursive:true})
+    await resetCaptures(directory,`${width}px`)
     await page.screenshot({path:resolve(directory,`${width}px.png`),animations:'disabled'})
   }
   await page.goto('/review.html?case=host-mcp-tools')

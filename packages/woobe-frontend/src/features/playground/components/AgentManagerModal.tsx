@@ -310,12 +310,12 @@ export function AgentManagerModal({
       variant="workspace"
       height="workspace"
     >
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <header className="flex shrink-0 items-center gap-ui-md border-b border-border bg-background/20 px-ui-lg py-ui-sm">
-          <span className="flex h-control-nav w-control-nav items-center justify-center rounded-control border border-border bg-control text-primary-light">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <header className="flex shrink-0 flex-wrap items-center gap-ui-md border-b border-border bg-background/20 px-ui-lg py-ui-sm">
+          <span className="flex h-control-nav w-control-nav shrink-0 items-center justify-center rounded-control border border-border bg-control text-primary-light">
             <History className="h-icon w-icon" />
           </span>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1 basis-44">
             <p className="truncate font-mono text-system-control font-medium text-accent-foreground">{agentName}</p>
             <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">Draft → Staging → immutable Release → Production.</p>
           </div>
@@ -324,8 +324,8 @@ export function AgentManagerModal({
           </Badge>
         </header>
 
-        <div className="grid min-h-0 flex-1 overflow-hidden lg:grid-cols-12">
-          <ScrollArea orientation="both" className="border-b border-border bg-surface/20 lg:col-span-2 lg:border-b-0 lg:border-r">
+        <div className="grid min-h-0 min-w-0 flex-1 grid-cols-[minmax(0,1fr)] grid-rows-[auto_auto_minmax(0,1fr)] overflow-hidden lg:grid-cols-12 lg:grid-rows-1">
+          <ScrollArea orientation="both" className="min-h-0 min-w-0 border-b border-border bg-surface/20 lg:col-span-2 lg:border-b-0 lg:border-r">
             <nav className="flex min-w-max gap-ui-xs p-ui-sm lg:min-w-0 lg:flex-col">
               {navigation.map((item) => {
                 const Icon = item.icon
@@ -343,7 +343,7 @@ export function AgentManagerModal({
             </nav>
           </ScrollArea>
 
-          <ScrollArea className="border-b border-border bg-background/15 lg:col-span-3 lg:border-b-0 lg:border-r">
+          <ScrollArea className="min-h-0 min-w-0 max-h-52 border-b border-border bg-background/15 lg:max-h-none lg:col-span-3 lg:border-b-0 lg:border-r">
             {section === 'releases' ? (
               <ReleaseList
                 releases={mode === 'rollback' ? rollbackCandidates : immutableReleases}
@@ -373,7 +373,7 @@ export function AgentManagerModal({
             )}
           </ScrollArea>
 
-          <ScrollArea className="bg-surface/10 lg:col-span-7">
+          <ScrollArea className="min-h-0 min-w-0 bg-surface/10 lg:col-span-7">
             <div className="p-ui-md">
               {mode === 'publish' && staging ? (
                 <div className="grid gap-ui-md">
@@ -451,7 +451,7 @@ export function AgentManagerModal({
         </div>
 
         <footer className="flex shrink-0 flex-wrap items-center gap-ui-sm border-t border-border bg-surface/95 px-ui-lg py-ui-md">
-          <p className="min-w-0 flex-1 font-sans text-product-caption text-muted-foreground">
+          <p className="min-w-0 flex-1 basis-full font-sans text-product-caption sm:basis-auto text-muted-foreground">
             {mode === 'rollback'
               ? 'Rollback records a rollback event; manual activation records a reactivation event.'
               : 'Standalone Agent lifecycle is independent from Network Release pointers.'}

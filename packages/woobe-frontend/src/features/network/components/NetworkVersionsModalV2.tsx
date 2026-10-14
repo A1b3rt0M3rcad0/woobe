@@ -79,7 +79,7 @@ function VersionList({ versions, selectedId, activeId, onSelect }: { versions: N
         >
           <div className="flex items-center gap-ui-sm">
             <span className="truncate font-mono text-system-control text-foreground">{version.version}</span>
-            {version.id === activeId ? <span className="ml-auto rounded-technical border border-emerald-500/30 bg-emerald-500/10 px-ui-xs py-ui-hairline font-mono text-system-meta text-success">Active</span> : null}
+            {version.id === activeId ? <span className="ml-auto shrink-0 rounded-technical border border-emerald-500/30 bg-emerald-500/10 px-ui-xs py-ui-hairline font-mono text-system-meta text-success">Active</span> : null}
           </div>
           <p className="mt-ui-xs font-mono text-system-meta text-muted-foreground">{formatDate(version.created_at)} · {version.definition.nodes.length} Agents</p>
         </button>
@@ -162,7 +162,7 @@ function ActivityList({ activations, versions }: { activations: NetworkProductio
           <article key={activation.id} className="rounded-container border border-border bg-background/30 p-ui-md">
             <div className="flex items-center gap-ui-sm">
               <span className="font-mono text-system-control text-foreground">{version?.version ?? activation.version_id.slice(0, 8)}</span>
-              <span className="ml-auto rounded-technical border border-border px-ui-xs py-ui-hairline font-mono text-system-meta capitalize text-muted-foreground">{activation.activation_kind}</span>
+              <span className="ml-auto shrink-0 rounded-technical border border-border px-ui-xs py-ui-hairline font-mono text-system-meta capitalize text-muted-foreground">{activation.activation_kind}</span>
             </div>
             <p className="mt-ui-sm font-sans text-product-caption leading-4 text-slate-300">{activation.change_description}</p>
             <p className="mt-ui-xs font-mono text-system-meta text-muted-foreground">{formatDate(activation.created_at)}</p>
@@ -213,18 +213,18 @@ export function NetworkVersionsModal({ open, networkName, initialSection, initia
 
   return (
     <Dialog open={open} onClose={onClose} title="Manage Network" variant="workspace" height="workspace">
-      <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden">
-        <header className="flex items-center gap-ui-md border-b border-border bg-background/25 px-ui-md py-ui-md">
-          <div className="flex h-control w-control items-center justify-center rounded-control border border-primary/25 bg-primary/10 text-primary-light"><History className="h-icon w-icon" /></div>
-          <div className="min-w-0">
+      <div className="grid min-h-0 min-w-0 flex-1 grid-cols-[minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden">
+        <header className="flex flex-wrap items-center gap-ui-md border-b border-border bg-background/25 px-ui-md py-ui-md">
+          <div className="flex h-control w-control shrink-0 items-center justify-center rounded-control border border-primary/25 bg-primary/10 text-primary-light"><History className="h-icon w-icon" /></div>
+          <div className="min-w-0 flex-1 basis-44">
             <p className="truncate font-mono text-product-small font-medium text-foreground">{networkName}</p>
             <p className="mt-ui-hairline font-sans text-product-caption text-muted-foreground">Draft, Staging, immutable Releases and Production activations.</p>
           </div>
-          <span className="ml-auto rounded-technical border border-emerald-500/25 bg-emerald-500/10 px-ui-sm py-ui-xs font-mono text-system-label text-success">{productionVersion ? `Production · ${productionVersion.version}` : 'No Production'}</span>
+          <span className="ml-auto shrink-0 rounded-technical border border-emerald-500/25 bg-emerald-500/10 px-ui-sm py-ui-xs font-mono text-system-label text-success">{productionVersion ? `Production · ${productionVersion.version}` : 'No Production'}</span>
         </header>
 
-        <div className="grid min-h-0 overflow-hidden lg:grid-cols-[210px_260px_minmax(0,1fr)]">
-          <ScrollArea orientation="both" className="border-b border-border bg-surface/30 lg:border-b-0 lg:border-r">
+        <div className="grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)] grid-rows-[auto_auto_minmax(0,1fr)] overflow-hidden lg:grid-rows-1 lg:grid-cols-[210px_260px_minmax(0,1fr)]">
+          <ScrollArea orientation="both" className="min-h-0 min-w-0 border-b border-border bg-surface/30 lg:border-b-0 lg:border-r">
             <nav className="flex min-w-max gap-ui-sm p-ui-md lg:min-w-0 lg:flex-col">
               <SectionButton active={section === 'draft'} icon={FilePenLine} label="Draft" detail={`r${draftRevision} · editable`} onClick={() => { setSection('draft'); setActivationTargetId(null) }} />
               <SectionButton active={section === 'staging'} icon={ShieldCheck} label="Staging" detail={stagingVersion?.version ?? 'Not created'} onClick={() => { setSection('staging'); setActivationTargetId(null) }} />
@@ -234,7 +234,7 @@ export function NetworkVersionsModal({ open, networkName, initialSection, initia
             </nav>
           </ScrollArea>
 
-          <ScrollArea className="border-b border-border bg-background/20 lg:border-b-0 lg:border-r">
+          <ScrollArea className="min-h-0 min-w-0 max-h-52 border-b border-border bg-background/20 lg:max-h-none lg:border-b-0 lg:border-r">
             {section === 'releases'
               ? <VersionList versions={initialMode === 'rollback' ? rollbackCandidates : releases} selectedId={selectedVersion?.id ?? null} activeId={productionVersion?.id} onSelect={selectRelease} />
               : section === 'activity'
@@ -242,7 +242,7 @@ export function NetworkVersionsModal({ open, networkName, initialSection, initia
                 : <div className="p-ui-md font-mono text-product-caption text-muted-foreground">Select the current environment details.</div>}
           </ScrollArea>
 
-          <ScrollArea className="bg-surface/10">
+          <ScrollArea className="min-h-0 min-w-0 bg-surface/10">
             {activationTarget ? (
               <div className="space-y-ui-md p-ui-md">
                 <div>
@@ -267,7 +267,7 @@ export function NetworkVersionsModal({ open, networkName, initialSection, initia
         </div>
 
         <footer className="flex flex-wrap items-center gap-ui-sm border-t border-border bg-background/30 px-ui-md py-ui-md">
-          <p className="min-w-0 flex-1 truncate font-mono text-product-caption text-muted-foreground">{activationTarget ? `${initialMode === 'rollback' ? 'Rollback' : 'Activation'} changes only Network Production.` : 'Network and Agent Playground Production remain independent.'}</p>
+          <p className="min-w-0 flex-1 basis-full font-mono text-product-caption sm:basis-auto text-muted-foreground">{activationTarget ? `${initialMode === 'rollback' ? 'Rollback' : 'Activation'} changes only Network Production.` : 'Network and Agent Playground Production remain independent.'}</p>
           {activationTarget ? (
             <>
               <Button type="button" size="sm" variant="outline" onClick={initialMode === 'rollback' ? onClose : () => setActivationTargetId(null)}>Cancel</Button>
