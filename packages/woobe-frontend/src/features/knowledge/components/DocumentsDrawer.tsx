@@ -77,8 +77,8 @@ export function DocumentsDrawer({ open, onClose, collectionId, collectionName }:
                 <div key={doc.id} className="rounded-lg border border-border p-4 space-y-2">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium truncate">{doc.title}</p>
-                      <p className="text-xs text-muted truncate">{doc.file_name}</p>
+                      <p className="font-mono text-sm font-medium truncate">{doc.title}</p>
+                      <p className="font-mono text-xs text-muted truncate">{doc.file_name}</p>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
                       <Badge variant={documentStatusVariant[doc.status] || 'default'}>
@@ -130,7 +130,7 @@ export function DocumentsDrawer({ open, onClose, collectionId, collectionName }:
                 <AlertTriangle className="h-5 w-5" />
               </div>
               <div className="min-w-0 space-y-1">
-                <p className="text-sm font-medium text-foreground">Remove this document from the collection?</p>
+                <p className="font-mono text-sm font-medium text-foreground">Remove this document from the collection?</p>
                 <p className="text-sm leading-6 text-muted">
                   This action deletes the document record and its stored file. It cannot be undone.
                 </p>
@@ -138,8 +138,8 @@ export function DocumentsDrawer({ open, onClose, collectionId, collectionName }:
             </div>
 
             <div className="rounded-xl border border-border bg-background/70 p-3">
-              <p className="truncate text-sm font-medium text-foreground">{documentToDelete.title}</p>
-              <p className="mt-1 truncate text-xs text-muted">{documentToDelete.file_name}</p>
+              <p className="font-mono truncate text-sm font-medium text-foreground">{documentToDelete.title}</p>
+              <p className="font-mono mt-1 truncate text-xs text-muted">{documentToDelete.file_name}</p>
               <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
                 <span>{formatBytes(documentToDelete.size_bytes)}</span>
                 <span>{documentToDelete.content_type}</span>

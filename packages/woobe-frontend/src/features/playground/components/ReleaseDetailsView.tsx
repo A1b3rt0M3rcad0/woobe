@@ -86,7 +86,7 @@ export function ReleaseDetailsView({ release }: ReleaseDetailsViewProps) {
 
       {release.release_notes ? (
         <SectionBlock title="Release description" density="compact">
-          <p className="whitespace-pre-wrap font-sans text-product-small leading-5 text-accent-foreground/85">{release.release_notes}</p>
+          <p className="whitespace-pre-wrap font-sans text-product-small leading-5 text-accent-foreground">{release.release_notes}</p>
         </SectionBlock>
       ) : null}
 

@@ -111,7 +111,7 @@ export function AgentToolCard({
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-ui-sm">
-            <h3 title={tool.name} className="truncate font-mono text-system-label font-semibold text-slate-100">{tool.name}</h3>
+            <h3 title={tool.name} className="truncate font-mono text-system-label font-medium text-slate-100">{tool.name}</h3>
             {isRetired ? (
               <span className="shrink-0 font-mono text-system-meta text-warning">Retired</span>
             ) : showReadOnlyStatus ? (

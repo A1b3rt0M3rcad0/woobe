@@ -183,8 +183,8 @@ export function UploadDocumentModal({ open, onClose, projectId, collectionIds, d
                               <FolderOpen className="h-4 w-4" />
                             </div>
                             <div className="min-w-0 flex-1">
-                              <p className="truncate text-sm font-medium">{name}</p>
-                              <p className="truncate text-system-meta text-muted">{collection.id}</p>
+                              <p className="font-mono truncate text-sm font-medium">{name}</p>
+                              <p className="font-mono truncate text-system-meta text-muted">{collection.id}</p>
                             </div>
                             {selected && <CheckCircle2 className="h-4 w-4 shrink-0 text-primary" />}
                           </button>
@@ -244,8 +244,8 @@ export function UploadDocumentModal({ open, onClose, projectId, collectionIds, d
                   <div className="w-full min-w-0 rounded-xl border border-border bg-surface/70 p-3 text-left">
                     <div className="flex min-w-0 items-start gap-3">
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-foreground">{file.name}</p>
-                        <p className="mt-1 truncate text-xs text-muted">
+                        <p className="font-mono truncate text-sm font-medium text-foreground">{file.name}</p>
+                        <p className="font-mono mt-1 truncate text-xs text-muted">
                           {formatBytes(file.size)}{selectedCollection ? ` · ${selectedCollection.name || collectionFallbackName(selectedCollection.id)}` : ''}
                         </p>
                       </div>
@@ -259,14 +259,14 @@ export function UploadDocumentModal({ open, onClose, projectId, collectionIds, d
                       </button>
                     </div>
                   </div>
-                  <p className="text-system-meta text-muted">Click the area to replace the file.</p>
+                  <p className="font-mono text-system-meta text-muted">Click the area to replace the file.</p>
                 </div>
               ) : (
                 <>
                   <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-surface">
                     <UploadCloud className="h-5 w-5 text-primary" />
                   </div>
-                  <p className="text-sm font-medium text-foreground">Drop file here</p>
+                  <p className="font-mono text-sm font-medium text-foreground">Drop file here</p>
                   <p className="mt-1 text-xs text-muted">or click to browse from your computer</p>
                   <div className="mt-4 flex flex-wrap justify-center gap-1.5">
                     {ACCEPTED_DOCUMENT_EXTENSIONS.map((extension) => (
@@ -275,7 +275,7 @@ export function UploadDocumentModal({ open, onClose, projectId, collectionIds, d
                       </span>
                     ))}
                   </div>
-                  <p className="mt-3 text-system-meta text-muted">Maximum {MAX_DOCUMENT_FILE_MB} MB</p>
+                  <p className="font-mono mt-3 text-system-meta text-muted">Maximum {MAX_DOCUMENT_FILE_MB} MB</p>
                 </>
               )}
             </div>

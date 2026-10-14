@@ -143,7 +143,7 @@ export function HttpRequestBodyEditor({ value, onChange }: HttpRequestBodyEditor
     <div className="space-y-3 border-t border-border/70 pt-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-sm font-medium text-foreground">Request body</p>
+          <p className="font-mono text-sm font-medium text-foreground">Request body</p>
           <p className="mt-0.5 text-xs text-muted">Add fields visually or edit the JSON payload.</p>
         </div>
         <div className="flex items-center rounded-lg border border-border/80 bg-background/45 p-1">

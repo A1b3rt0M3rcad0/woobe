@@ -205,13 +205,13 @@ function CredentialDetailsDialog({
           density="compact"
           actions={<StatusBadge status={credential.status || 'active'} size="compact" />}
         >
-          <p className="font-sans text-system-meta text-muted-foreground">Created · {formatDate(credential.created_at)}</p>
+          <p className="font-mono text-system-meta text-muted-foreground">Created · {formatDate(credential.created_at)}</p>
         </SectionBlock>
 
         <SectionBlock title="Connected models" description="Models currently bound to this Project provider connection." density="compact">
           <div className="grid gap-ui-md sm:grid-cols-2">
             <div className="grid content-start gap-ui-xs">
-              <p className="font-sans text-system-meta font-medium uppercase tracking-ui-label text-muted-foreground">Generation</p>
+              <p className="font-mono text-system-meta font-medium uppercase tracking-ui-label text-muted-foreground">Generation</p>
               {generationModels.length === 0 ? (
                 <p className="font-sans text-product-caption text-muted-foreground">No generation models.</p>
               ) : generationModels.map((model) => (
@@ -219,7 +219,7 @@ function CredentialDetailsDialog({
               ))}
             </div>
             <div className="grid content-start gap-ui-xs">
-              <p className="font-sans text-system-meta font-medium uppercase tracking-ui-label text-muted-foreground">Embedding</p>
+              <p className="font-mono text-system-meta font-medium uppercase tracking-ui-label text-muted-foreground">Embedding</p>
               {embeddingModels.length === 0 ? (
                 <p className="font-sans text-product-caption text-muted-foreground">No embedding models.</p>
               ) : embeddingModels.map((model) => (

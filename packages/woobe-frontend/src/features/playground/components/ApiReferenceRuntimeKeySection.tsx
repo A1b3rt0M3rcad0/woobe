@@ -49,7 +49,7 @@ export function ApiReferenceRuntimeKeySection({
   return (
     <div>
       <div className="flex items-center justify-between gap-2">
-        <p className="text-system-meta font-semibold uppercase tracking-[0.16em] text-muted">Runtime Key</p>
+        <p className="font-mono text-system-meta font-medium uppercase tracking-[0.16em] text-muted">Runtime Key</p>
         <button type="button" onClick={() => setShowCreate(true)} className="inline-flex items-center gap-1 text-system-meta font-medium text-primary-light hover:text-foreground">
           <Plus className="h-3.5 w-3.5" /> Create
         </button>
@@ -72,14 +72,14 @@ export function ApiReferenceRuntimeKeySection({
                 <Key className="h-3.5 w-3.5 text-primary-light" />
                 <code className="min-w-0 flex-1 truncate text-system-meta text-foreground">{selectedKey.key_prefix}...</code>
               </div>
-              <p className="mt-1 truncate text-system-meta text-muted">{selectedKey.interfaces.join(' · ')}</p>
+              <p className="font-mono mt-1 truncate text-system-meta text-muted">{selectedKey.interfaces.join(' · ')}</p>
             </div>
           )}
         </div>
       ) : (
         <div className="mt-2 rounded-xl border border-dashed border-border/80 bg-background/35 p-3">
-          <p className="text-xs font-medium text-foreground">No Runtime Key for this environment</p>
-          <p className="mt-1 text-system-meta leading-4 text-muted">Create a key bound to {agentName} and {environment}.</p>
+          <p className="font-mono text-xs font-medium text-foreground">No Runtime Key for this environment</p>
+          <p className="font-mono mt-1 text-system-meta leading-4 text-muted">Create a key bound to {agentName} and {environment}.</p>
           <Button className="mt-3 w-full" size="sm" onClick={() => setShowCreate(true)}>
             <Plus className="mr-2 h-3.5 w-3.5" /> Create Runtime Key
           </Button>

@@ -50,7 +50,7 @@ function TraceListItem({ trace, selected, onSelect }: { trace: NetworkTraceRecor
             {skills ? <span>{skills} Skill operations</span> : null}
           </div>
         </div>
-        <ChevronRight className={cn('mt-1 h-3.5 w-3.5 shrink-0', selected ? 'text-primary-light' : 'text-muted-foreground/50')} />
+        <ChevronRight className={cn('mt-1 h-3.5 w-3.5 shrink-0', selected ? 'text-primary-light' : 'text-muted-foreground')} />
       </div>
     </button>
   )
@@ -77,8 +77,8 @@ export function NetworkTracePanel({ traces, session, selectedTraceId, onSelectTr
     return (
       <div className="flex h-full items-center justify-center p-ui-xl text-center">
         <div>
-          <Activity className="mx-auto h-8 w-8 text-muted-foreground/40" />
-          <p className="mt-ui-md font-sans text-product-small font-medium text-foreground">No Network Session selected</p>
+          <Activity className="mx-auto h-8 w-8 text-muted-foreground" />
+          <p className="mt-ui-md font-mono text-product-small font-medium text-foreground">No Network Session selected</p>
           <p className="mt-ui-xs max-w-[260px] font-sans text-product-caption leading-5 text-muted-foreground">Select or create a session in Network Chat to view its Runs.</p>
         </div>
       </div>
@@ -90,9 +90,9 @@ export function NetworkTracePanel({ traces, session, selectedTraceId, onSelectTr
       <div className="shrink-0 border-b border-border/80 p-ui-md">
         <div className="flex items-start justify-between gap-ui-md">
           <div className="min-w-0">
-            <h2 className="font-mono text-system-heading font-semibold text-foreground">Network Runs</h2>
-            <p className="mt-ui-xs truncate font-sans text-product-small text-slate-300">{session.title}</p>
-            <p className="mt-ui-hairline font-sans text-system-meta text-muted-foreground">{session.versionLabel} · select a Run to inspect its path</p>
+            <h2 className="font-mono text-system-heading font-medium text-foreground">Network Runs</h2>
+            <p className="mt-ui-xs truncate font-mono text-product-small text-slate-300">{session.title}</p>
+            <p className="mt-ui-hairline font-mono text-system-meta text-muted-foreground">{session.versionLabel} · select a Run to inspect its path</p>
           </div>
           <div className="flex items-center gap-ui-xs font-mono text-system-meta text-muted-foreground"><Filter className="h-3.5 w-3.5" />{filtered.length}</div>
         </div>
@@ -120,7 +120,7 @@ export function NetworkTracePanel({ traces, session, selectedTraceId, onSelectTr
       <ScrollArea className={cn('shrink-0 border-b border-border/80', selected ? 'max-h-[190px]' : 'min-h-0 flex-1')}>
         <div className="space-y-ui-xs p-ui-sm">
           {filtered.length ? filtered.map((trace) => <TraceListItem key={trace.id} trace={trace} selected={selected?.id === trace.id} onSelect={() => onSelectTrace(trace)} />) : (
-            <div className="p-ui-xl text-center"><Activity className="mx-auto h-7 w-7 text-muted-foreground/40" /><p className="mt-ui-sm font-sans text-product-caption text-muted-foreground">No Runs in this session match the current filter.</p></div>
+            <div className="p-ui-xl text-center"><Activity className="mx-auto h-7 w-7 text-muted-foreground" /><p className="mt-ui-sm font-sans text-product-caption text-muted-foreground">No Runs in this session match the current filter.</p></div>
           )}
         </div>
       </ScrollArea>

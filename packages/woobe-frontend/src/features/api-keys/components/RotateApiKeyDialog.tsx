@@ -53,7 +53,7 @@ export function RotateApiKeyDialog({
                 <RotateCcw className="h-4 w-4" />
               </div>
               <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-foreground">{apiKey.name}</p>
+                <p className="font-mono truncate text-sm font-medium text-foreground">{apiKey.name}</p>
                 <code className="mt-1 block truncate text-xs text-muted">{apiKey.key_prefix}...</code>
               </div>
             </div>
@@ -61,21 +61,21 @@ export function RotateApiKeyDialog({
             {apiKey.kind === 'runtime' ? (
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 <div className="rounded-lg border border-border/70 bg-background/55 p-3">
-                  <div className="flex items-center gap-2 text-system-meta font-semibold uppercase tracking-[0.16em] text-muted"><TargetIcon className="h-3.5 w-3.5" />{targetLabel}</div>
-                  <p className="mt-1 truncate text-sm font-medium text-foreground">{resolvedTargetName}</p>
+                  <div className="flex items-center gap-2 text-system-meta font-medium uppercase tracking-[0.16em] text-muted"><TargetIcon className="h-3.5 w-3.5" />{targetLabel}</div>
+                  <p className="font-mono mt-1 truncate text-sm font-medium text-foreground">{resolvedTargetName}</p>
                 </div>
                 <div className="rounded-lg border border-border/70 bg-background/55 p-3">
-                  <p className="text-system-meta font-semibold uppercase tracking-[0.16em] text-muted">Environment</p>
-                  <p className="mt-1 text-sm font-medium capitalize text-foreground">{apiKey.environment}</p>
+                  <p className="font-mono text-system-meta font-medium uppercase tracking-[0.16em] text-muted">Environment</p>
+                  <p className="font-mono mt-1 text-sm font-medium capitalize text-foreground">{apiKey.environment}</p>
                 </div>
                 <div className="rounded-lg border border-border/70 bg-background/55 p-3 sm:col-span-2">
-                  <p className="text-system-meta font-semibold uppercase tracking-[0.16em] text-muted">Interfaces</p>
+                  <p className="font-mono text-system-meta font-medium uppercase tracking-[0.16em] text-muted">Interfaces</p>
                   <p className="mt-1 text-sm text-foreground">{apiKey.interfaces.join(' · ')}</p>
                 </div>
               </div>
             ) : (
               <div className="mt-4 rounded-lg border border-border/70 bg-background/55 p-3">
-                <div className="flex items-center gap-2 text-system-meta font-semibold uppercase tracking-[0.16em] text-muted"><KeyRound className="h-3.5 w-3.5" />Permissions</div>
+                <div className="flex items-center gap-2 text-system-meta font-medium uppercase tracking-[0.16em] text-muted"><KeyRound className="h-3.5 w-3.5" />Permissions</div>
                 <p className="mt-1 text-sm text-foreground">{apiKey.scopes.map(permissionLabel).join(' · ')}</p>
               </div>
             )}
@@ -85,8 +85,8 @@ export function RotateApiKeyDialog({
             <div className="flex items-start gap-3">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
               <div>
-                <p className="text-sm font-semibold text-warning">The current key stops working immediately</p>
-                <p className="mt-1 text-xs leading-5 text-warning/70">Name, purpose, {targetLabel} binding, environment and interfaces remain unchanged. Only the secret changes.</p>
+                <p className="font-mono text-sm font-medium text-warning">The current key stops working immediately</p>
+                <p className="mt-1 text-xs leading-5 text-warning">Name, purpose, {targetLabel} binding, environment and interfaces remain unchanged. Only the secret changes.</p>
               </div>
             </div>
           </section>

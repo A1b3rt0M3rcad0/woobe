@@ -62,11 +62,18 @@ describe('configuration component typography after class merging', () => {
     expect(textElement('Name').classList.contains('text-product-caption')).toBe(true)
     expect(textElement('Initial Draft objective.').classList.contains('text-product-caption')).toBe(true)
     expect(textElement('Support Agent').classList.contains('text-product-small')).toBe(true)
-    expect(textElement('Add connection').classList.contains('text-accent-foreground/85')).toBe(true)
+    expect(textElement('Add connection').classList.contains('text-accent-foreground')).toBe(true)
   })
 
   it('preserves the existing clsx input support in the frontend helper', () => {
     expect(cn(['text-system-meta', { 'text-error': true, hidden: false }], null))
       .toBe('text-system-meta text-error')
+  })
+
+  it('lets a feature select its dialog width and radius without retaining a conflicting default', () => {
+    expect(uiCn('max-w-dialog-compact rounded-container', 'max-w-5xl rounded-lg'))
+      .toBe('max-w-5xl rounded-lg')
+    expect(uiCn('max-w-5xl', 'max-w-dialog-wide')).toBe('max-w-dialog-wide')
+    expect(uiCn('max-h-dialog', 'max-h-screen')).toBe('max-h-screen')
   })
 })

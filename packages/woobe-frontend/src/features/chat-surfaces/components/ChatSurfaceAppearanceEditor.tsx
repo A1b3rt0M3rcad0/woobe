@@ -34,7 +34,7 @@ function SettingPanel({ title, description, action, children }: { title: string;
 function SubsectionTitle({ title, description }: { title: string; description?: string }) {
   return (
     <div className="py-ui-md first:pt-0">
-      <p className="font-sans text-system-label font-semibold uppercase tracking-ui-eyebrow text-accent-foreground/85">{title}</p>
+      <p className="font-mono text-system-label font-medium uppercase tracking-ui-eyebrow text-accent-foreground">{title}</p>
       {description ? <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">{description}</p> : null}
     </div>
   )
@@ -44,7 +44,7 @@ function SettingRow({ label, description, children, align = 'center' }: { label:
   return (
     <div className={cn('grid min-w-0 gap-ui-md py-ui-md md:grid-cols-2', align === 'center' ? 'md:items-center' : 'md:items-start')}>
       <div className="min-w-0">
-        <p className="font-sans text-system-control font-medium text-accent-foreground">{label}</p>
+        <p className="font-mono text-system-control font-medium text-accent-foreground">{label}</p>
         {description ? <p className="mt-ui-xs max-w-xl font-sans text-product-caption text-muted-foreground">{description}</p> : null}
       </div>
       <div className="min-w-0 md:w-full md:justify-self-end">{children}</div>
@@ -83,7 +83,7 @@ function NumberControl({ value, min, max, suffix, disabled, onChange }: { value:
 
 function ToggleControl({ checked, label, disabled, onChange }: { checked: boolean; label: string; disabled?: boolean; onChange: (checked: boolean) => void }) {
   return (
-    <label className="flex min-w-0 items-center gap-ui-sm font-mono text-system-control text-accent-foreground/85 md:justify-end">
+    <label className="flex min-w-0 items-center gap-ui-sm font-mono text-system-control text-accent-foreground md:justify-end">
       <Checkbox checked={checked} disabled={disabled} onChange={(event) => onChange(event.target.checked)} />
       <span className="truncate">{label}</span>
     </label>
@@ -99,7 +99,7 @@ function MessageRows({ value, primaryColor, disabled, onChange }: { value: ChatS
     <>
       <SettingRow label="Background" description="Bubble background color."><OptionalColorControl value={value.background_color} fallback={primaryColor} disabled={disabled} onChange={(background_color) => onChange({ ...value, background_color })} /></SettingRow>
       <SettingRow label="Text color" description="Foreground color used by message content."><OptionalColorControl value={value.text_color} fallback="#FFFFFF" disabled={disabled} onChange={(text_color) => onChange({ ...value, text_color })} /></SettingRow>
-      <SettingRow label="Border color" description="Optional outline color for the message bubble."><OptionalColorControl value={value.border_color} fallback="#1E293B" disabled={disabled} onChange={(border_color) => onChange({ ...value, border_color })} /></SettingRow>
+      <SettingRow label="Border color" description="Optional outline color for the message bubble."><OptionalColorControl value={value.border_color} fallback="#e3e1dd" disabled={disabled} onChange={(border_color) => onChange({ ...value, border_color })} /></SettingRow>
       <SettingRow label="Border width"><NumberControl value={value.border_width} min={0} max={4} suffix="px" disabled={disabled} onChange={(border_width) => onChange({ ...value, border_width })} /></SettingRow>
       <SettingRow label="Radius"><NumberControl value={value.border_radius} min={0} max={32} suffix="px" disabled={disabled} onChange={(border_radius) => onChange({ ...value, border_radius })} /></SettingRow>
       <SettingRow label="Maximum width" description="Maximum bubble width relative to the conversation area."><NumberControl value={value.max_width} min={40} max={100} suffix="%" disabled={disabled} onChange={(max_width) => onChange({ ...value, max_width })} /></SettingRow>
@@ -141,9 +141,9 @@ export function ChatSurfaceAppearanceEditor({ appearance, section, disabled, onC
   if (section === 'header') return (
     <SettingPanel title="Header" description="Control the top bar independently from the rest of the conversation." action={resetAction}>
       <SettingRow label="Visibility" description="Hide the complete top bar when the integrator provides its own surrounding UI."><ToggleControl checked={appearance.header.visible} label="Show header" disabled={disabled} onChange={(visible) => update('header', { ...appearance.header, visible })} /></SettingRow>
-      <SettingRow label="Background"><OptionalColorControl value={appearance.header.background_color} fallback="#0F1729" disabled={disabled} onChange={(background_color) => update('header', { ...appearance.header, background_color })} /></SettingRow>
-      <SettingRow label="Text color"><OptionalColorControl value={appearance.header.text_color} fallback="#F8FAFC" disabled={disabled} onChange={(text_color) => update('header', { ...appearance.header, text_color })} /></SettingRow>
-      <SettingRow label="Border color"><OptionalColorControl value={appearance.header.border_color} fallback="#1E293B" disabled={disabled} onChange={(border_color) => update('header', { ...appearance.header, border_color })} /></SettingRow>
+      <SettingRow label="Background"><OptionalColorControl value={appearance.header.background_color} fallback="#fffefd" disabled={disabled} onChange={(background_color) => update('header', { ...appearance.header, background_color })} /></SettingRow>
+      <SettingRow label="Text color"><OptionalColorControl value={appearance.header.text_color} fallback="#242321" disabled={disabled} onChange={(text_color) => update('header', { ...appearance.header, text_color })} /></SettingRow>
+      <SettingRow label="Border color"><OptionalColorControl value={appearance.header.border_color} fallback="#e3e1dd" disabled={disabled} onChange={(border_color) => update('header', { ...appearance.header, border_color })} /></SettingRow>
       <SettingRow label="Border width"><NumberControl value={appearance.header.border_width} min={0} max={4} suffix="px" disabled={disabled} onChange={(border_width) => update('header', { ...appearance.header, border_width })} /></SettingRow>
       <SettingRow label="Height"><NumberControl value={appearance.header.height} min={40} max={96} suffix="px" disabled={disabled} onChange={(height) => update('header', { ...appearance.header, height })} /></SettingRow>
       <SettingRow label="Horizontal padding"><NumberControl value={appearance.header.padding} min={0} max={40} suffix="px" disabled={disabled} onChange={(padding) => update('header', { ...appearance.header, padding })} /></SettingRow>
@@ -154,13 +154,13 @@ export function ChatSurfaceAppearanceEditor({ appearance, section, disabled, onC
   if (section === 'surface') return (
     <SettingPanel title="Surface and conversation" description="Configure the outer ChatSurface shell and the scrolling message area." action={resetAction}>
       <SubsectionTitle title="Surface" description="Outer boundary of the embedded ChatSurface." />
-      <SettingRow label="Background"><OptionalColorControl value={appearance.surface.background_color} fallback="#020817" disabled={disabled} onChange={(background_color) => update('surface', { ...appearance.surface, background_color })} /></SettingRow>
-      <SettingRow label="Border color"><OptionalColorControl value={appearance.surface.border_color} fallback="#1E293B" disabled={disabled} onChange={(border_color) => update('surface', { ...appearance.surface, border_color })} /></SettingRow>
+      <SettingRow label="Background"><OptionalColorControl value={appearance.surface.background_color} fallback="#f8f7f5" disabled={disabled} onChange={(background_color) => update('surface', { ...appearance.surface, background_color })} /></SettingRow>
+      <SettingRow label="Border color"><OptionalColorControl value={appearance.surface.border_color} fallback="#e3e1dd" disabled={disabled} onChange={(border_color) => update('surface', { ...appearance.surface, border_color })} /></SettingRow>
       <SettingRow label="Border width"><NumberControl value={appearance.surface.border_width} min={0} max={4} suffix="px" disabled={disabled} onChange={(border_width) => update('surface', { ...appearance.surface, border_width })} /></SettingRow>
       <SettingRow label="Radius"><NumberControl value={appearance.surface.border_radius} min={0} max={32} suffix="px" disabled={disabled} onChange={(border_radius) => update('surface', { ...appearance.surface, border_radius })} /></SettingRow>
       <SettingRow label="Shadow"><Select value={appearance.surface.shadow} disabled={disabled} onChange={(event) => update('surface', { ...appearance.surface, shadow: event.target.value as ChatSurfaceAppearance['surface']['shadow'] })} options={[{ value: 'none', label: 'None' }, { value: 'sm', label: 'Small' }, { value: 'md', label: 'Medium' }, { value: 'lg', label: 'Large' }]} /></SettingRow>
       <SubsectionTitle title="Conversation" description="Scrollable area containing messages and execution feedback." />
-      <SettingRow label="Background"><OptionalColorControl value={appearance.conversation.background_color} fallback="#020817" disabled={disabled} onChange={(background_color) => update('conversation', { ...appearance.conversation, background_color })} /></SettingRow>
+      <SettingRow label="Background"><OptionalColorControl value={appearance.conversation.background_color} fallback="#f8f7f5" disabled={disabled} onChange={(background_color) => update('conversation', { ...appearance.conversation, background_color })} /></SettingRow>
       <SettingRow label="Padding"><NumberControl value={appearance.conversation.padding} min={0} max={48} suffix="px" disabled={disabled} onChange={(padding) => update('conversation', { ...appearance.conversation, padding })} /></SettingRow>
       <SettingRow label="Message gap"><NumberControl value={appearance.conversation.message_gap} min={0} max={32} suffix="px" disabled={disabled} onChange={(message_gap) => update('conversation', { ...appearance.conversation, message_gap })} /></SettingRow>
       <SettingRow label="Content width" description="Maximum width used by the conversation content inside the surface."><NumberControl value={appearance.conversation.max_content_width} min={40} max={100} suffix="%" disabled={disabled} onChange={(max_content_width) => update('conversation', { ...appearance.conversation, max_content_width })} /></SettingRow>
@@ -169,7 +169,7 @@ export function ChatSurfaceAppearanceEditor({ appearance, section, disabled, onC
 
   if (section === 'messages') {
     const messageValue = appearance.messages[messageRole]
-    const roleFallback = messageRole === 'user' ? appearance.primary_color : '#0B1220'
+    const roleFallback = messageRole === 'user' ? appearance.primary_color : '#efeeeb'
     return (
       <SettingPanel title="Messages" description="Edit one message role at a time without expanding three large forms." action={resetAction}>
         <div className="py-ui-md"><MessageRoleSelector value={messageRole} onChange={setMessageRole} /></div>
@@ -181,14 +181,14 @@ export function ChatSurfaceAppearanceEditor({ appearance, section, disabled, onC
   if (section === 'composer') return (
     <SettingPanel title="Composer and input" description="Configure the bottom composer shell separately from the text input itself." action={resetAction}>
       <SubsectionTitle title="Composer" description="Container that holds the input and send action." />
-      <SettingRow label="Background"><OptionalColorControl value={appearance.composer.background_color} fallback="#0F1729" disabled={disabled} onChange={(background_color) => update('composer', { ...appearance.composer, background_color })} /></SettingRow>
-      <SettingRow label="Border color"><OptionalColorControl value={appearance.composer.border_color} fallback="#1E293B" disabled={disabled} onChange={(border_color) => update('composer', { ...appearance.composer, border_color })} /></SettingRow>
+      <SettingRow label="Background"><OptionalColorControl value={appearance.composer.background_color} fallback="#fffefd" disabled={disabled} onChange={(background_color) => update('composer', { ...appearance.composer, background_color })} /></SettingRow>
+      <SettingRow label="Border color"><OptionalColorControl value={appearance.composer.border_color} fallback="#e3e1dd" disabled={disabled} onChange={(border_color) => update('composer', { ...appearance.composer, border_color })} /></SettingRow>
       <SettingRow label="Padding"><NumberControl value={appearance.composer.padding} min={0} max={32} suffix="px" disabled={disabled} onChange={(padding) => update('composer', { ...appearance.composer, padding })} /></SettingRow>
       <SubsectionTitle title="Input" description="Text entry control inside the composer." />
-      <SettingRow label="Background"><OptionalColorControl value={appearance.input.background_color} fallback="#0B1220" disabled={disabled} onChange={(background_color) => update('input', { ...appearance.input, background_color })} /></SettingRow>
-      <SettingRow label="Text color"><OptionalColorControl value={appearance.input.text_color} fallback="#F8FAFC" disabled={disabled} onChange={(text_color) => update('input', { ...appearance.input, text_color })} /></SettingRow>
-      <SettingRow label="Placeholder color"><OptionalColorControl value={appearance.input.placeholder_color} fallback="#94A3B8" disabled={disabled} onChange={(placeholder_color) => update('input', { ...appearance.input, placeholder_color })} /></SettingRow>
-      <SettingRow label="Border color"><OptionalColorControl value={appearance.input.border_color} fallback="#334155" disabled={disabled} onChange={(border_color) => update('input', { ...appearance.input, border_color })} /></SettingRow>
+      <SettingRow label="Background"><OptionalColorControl value={appearance.input.background_color} fallback="#efeeeb" disabled={disabled} onChange={(background_color) => update('input', { ...appearance.input, background_color })} /></SettingRow>
+      <SettingRow label="Text color"><OptionalColorControl value={appearance.input.text_color} fallback="#242321" disabled={disabled} onChange={(text_color) => update('input', { ...appearance.input, text_color })} /></SettingRow>
+      <SettingRow label="Placeholder color"><OptionalColorControl value={appearance.input.placeholder_color} fallback="#6b6863" disabled={disabled} onChange={(placeholder_color) => update('input', { ...appearance.input, placeholder_color })} /></SettingRow>
+      <SettingRow label="Border color"><OptionalColorControl value={appearance.input.border_color} fallback="#8c867d" disabled={disabled} onChange={(border_color) => update('input', { ...appearance.input, border_color })} /></SettingRow>
       <SettingRow label="Focus border"><OptionalColorControl value={appearance.input.focus_border_color} fallback={appearance.primary_color} disabled={disabled} onChange={(focus_border_color) => update('input', { ...appearance.input, focus_border_color })} /></SettingRow>
       <SettingRow label="Radius"><NumberControl value={appearance.input.border_radius} min={0} max={32} suffix="px" disabled={disabled} onChange={(border_radius) => update('input', { ...appearance.input, border_radius })} /></SettingRow>
       <SettingRow label="Font size"><NumberControl value={appearance.input.font_size} min={12} max={20} suffix="px" disabled={disabled} onChange={(font_size) => update('input', { ...appearance.input, font_size })} /></SettingRow>

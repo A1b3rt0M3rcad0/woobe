@@ -102,7 +102,7 @@ export function SkillCatalog({ projectId, bindings = [], onInstall, managerName,
         {(selected || importing) && <Button variant="ghost" size="sm" disabled={busy} onClick={back}><ArrowLeft className="mr-2 h-4 w-4" />Project catalog</Button>}
         {importing ? (
           <div className="space-y-4">
-            <h3 className="font-semibold">{selected ? `New version of ${selected.name}` : creating ? 'Create a Skill' : 'Import a Skill'}</h3>
+            <h3 className="font-medium">{selected ? `New version of ${selected.name}` : creating ? 'Create a Skill' : 'Import a Skill'}</h3>
             <p className="text-xs text-muted">{creating ? 'Describe when to use this Skill and write its instructions. Publish a fixed version to the Project catalog.' : <>Choose SKILL.md or a folder with SKILL.md and text files in references/ or assets/. Maximum 1 MB. Script execution is not supported.</>}</p>
             {!creating && <div className="flex flex-wrap gap-2">
               <Button variant="outline" size="sm" disabled={busy} onClick={() => fileInput.current?.click()}>Choose SKILL.md</Button>
@@ -124,19 +124,19 @@ export function SkillCatalog({ projectId, bindings = [], onInstall, managerName,
         ) : selected ? (
           <div className="grid gap-5 md:grid-cols-[220px_minmax(0,1fr)]">
             <div className="space-y-3">
-              <h3 className="break-words font-semibold">{selected.name}</h3>
+              <h3 className="break-words font-medium">{selected.name}</h3>
               <Button size="sm" variant="outline" onClick={startImport} disabled={busy}>Import new version</Button>
               {versions.isPending && <p role="status" className="text-xs text-muted">Loading versions…</p>}
               {versions.isError && <Button size="sm" variant="outline" onClick={() => void versions.refetch()}>Retry loading versions</Button>}
-              {versions.data?.map(item => <button key={item.id} type="button" disabled={busy} onClick={() => void review(item.id)} aria-pressed={preview?.skill_version_id === item.id} className={`w-full rounded-lg border p-3 text-left text-xs ${preview?.skill_version_id === item.id ? 'border-primary bg-primary/10' : 'border-border hover:bg-accent'}`}><span className="block font-mono font-semibold">{item.version}</span><span className="mt-1 block text-muted">≈{item.estimated_instruction_units.toLocaleString()} instruction units</span>{bindings.some(binding => binding.skill_version_id === item.id) && <span className="mt-1 block text-primary-light">Installed in draft</span>}</button>)}
+              {versions.data?.map(item => <button key={item.id} type="button" disabled={busy} onClick={() => void review(item.id)} aria-pressed={preview?.skill_version_id === item.id} className={`w-full rounded-lg border p-3 text-left text-xs ${preview?.skill_version_id === item.id ? 'border-primary bg-primary/10' : 'border-border hover:bg-accent'}`}><span className="block font-mono font-medium">{item.version}</span><span className="mt-1 block text-muted">≈{item.estimated_instruction_units.toLocaleString()} instruction units</span>{bindings.some(binding => binding.skill_version_id === item.id) && <span className="mt-1 block text-primary-light">Installed in draft</span>}</button>)}
               <Pagination offset={versionOffset} count={versions.data?.length ?? 0} loading={versions.isFetching} onChange={setVersionOffset} />
             </div>
             {preview ? <div className="min-w-0 space-y-4">
-              <div><h3 className="font-semibold">{preview.package.name} <span className="font-mono text-sm text-muted">{preview.version}</span></h3><p className="mt-2 text-sm text-muted">{preview.package.description}</p></div>
+              <div><h3 className="font-medium">{preview.package.name} <span className="font-mono text-sm text-muted">{preview.version}</span></h3><p className="mt-2 text-sm text-muted">{preview.package.description}</p></div>
               {!!preview.package.required_tools.length && <p className="text-xs text-muted">Required Tools: {preview.package.required_tools.join(', ')}</p>}
               <pre className="max-h-72 overflow-auto whitespace-pre-wrap rounded-lg border border-border bg-background/50 p-4 font-mono text-xs leading-relaxed">{preview.package.skill_md}</pre>
               {Object.entries(preview.package.resources).map(([path, content]) => <details key={path} className="rounded-lg border border-border p-3 text-xs"><summary className="cursor-pointer break-all font-mono">{path}</summary><pre className="mt-3 max-h-48 overflow-auto whitespace-pre-wrap">{content}</pre></details>)}
-              <p className="break-all font-sans text-system-meta text-muted">SHA-256 {preview.package_hash}</p>
+              <p className="break-all font-mono text-system-meta text-muted">SHA-256 {preview.package_hash}</p>
               <Button disabled={busy || installDisabled || !onInstall || bindings.some(item => item.skill_version_id === preview.skill_version_id && item.enabled)} onClick={() => onInstall?.(preview)}><Download className="mr-2 h-4 w-4" />{bindings.some(item => item.skill_id === preview.skill_id) ? 'Use this version' : 'Install on Agent'}</Button>
             </div> : <p className="py-12 text-center text-sm text-muted">Select a version to review its instructions and resources.</p>}
           </div>

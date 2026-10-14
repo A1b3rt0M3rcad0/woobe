@@ -124,7 +124,7 @@ export function CreateReleaseDialog({ open, onClose, agentId, projectId }: Creat
           />
         </div>
         <div className="rounded-lg border border-border p-3 space-y-3">
-          <p className="text-xs font-semibold text-muted uppercase tracking-wider">Version Composition</p>
+          <p className="font-mono text-xs font-medium text-muted uppercase tracking-wider">Version Composition</p>
           <div>
             <label className="block text-xs font-medium text-muted mb-1">
               Prompt: {latestPrompt ? `${latestPrompt.version} (${latestPrompt.status})` : '—'}

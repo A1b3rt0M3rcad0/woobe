@@ -21,7 +21,7 @@ function Label({ children }: { children: ReactNode }) {
 function PanelHeader({ title, description }: { title: string; description: string }) {
   return (
     <div className="mb-ui-md">
-      <h3 className="font-mono text-system-control font-semibold text-slate-50">{title}</h3>
+      <h3 className="font-mono text-system-control font-medium text-slate-50">{title}</h3>
       <p className="mt-ui-xs font-sans text-product-small leading-5 text-muted-foreground">{description}</p>
     </div>
   )
@@ -100,8 +100,8 @@ export function RagRuntimeSettings({ open, value, onClose, onApply }: RagRuntime
               <span className="flex h-9 w-9 items-center justify-center rounded-control border border-border bg-control text-primary-light">
                 <SlidersHorizontal className="h-icon w-icon" />
               </span>
-              <p className="mt-ui-md font-sans text-product-caption uppercase tracking-[0.08em] text-muted-foreground">Draft configuration</p>
-              <h3 className="mt-ui-xs font-mono text-system-control font-semibold text-slate-50">Runtime retrieval</h3>
+              <p className="mt-ui-md font-mono text-product-caption uppercase tracking-[0.08em] text-muted-foreground">Draft configuration</p>
+              <h3 className="mt-ui-xs font-mono text-system-control font-medium text-slate-50">Runtime retrieval</h3>
               <p className="mt-ui-xs font-sans text-product-small leading-5 text-muted-foreground">
                 Controls how the Agent searches the selected immutable Knowledge version. Staging freezes these values.
               </p>

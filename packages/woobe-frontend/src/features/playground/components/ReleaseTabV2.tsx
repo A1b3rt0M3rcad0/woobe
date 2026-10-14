@@ -85,7 +85,7 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
   return (
     <div className="p-ui-md">
       <div className="pb-ui-md">
-        <h2 className="font-mono text-system-heading font-semibold text-slate-50">Version history</h2>
+        <h2 className="font-mono text-system-heading font-medium text-slate-50">Version history</h2>
         <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">Inspect mutable Draft state, immutable environments, Releases and Production changes.</p>
       </div>
 
@@ -125,7 +125,7 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
         <div className="mb-ui-sm flex items-center justify-between gap-ui-md">
           <div className="flex items-center gap-ui-sm">
             <Package className="h-3.5 w-3.5 text-primary-light" />
-            <h3 className="font-mono text-system-meta font-semibold uppercase tracking-[0.08em] text-muted-foreground">Releases</h3>
+            <h3 className="font-mono text-system-meta font-medium uppercase tracking-[0.08em] text-muted-foreground">Releases</h3>
             <span className="font-mono text-system-meta text-muted-foreground">{availableReleases.length}</span>
           </div>
           {availableReleases.length ? <Button size="sm" variant="ghost" onClick={() => setReleaseLibraryOpen(true)}>View all</Button> : null}
@@ -151,7 +151,7 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
         <div className="mb-ui-sm flex items-center justify-between gap-ui-md">
           <div className="flex items-center gap-ui-sm">
             <History className="h-3.5 w-3.5 text-muted-foreground" />
-            <h3 className="font-mono text-system-meta font-semibold uppercase tracking-[0.08em] text-muted-foreground">Production history</h3>
+            <h3 className="font-mono text-system-meta font-medium uppercase tracking-[0.08em] text-muted-foreground">Production history</h3>
             <span className="font-mono text-system-meta text-muted-foreground">{latestProductionChanges.length}</span>
           </div>
           {latestProductionChanges.length ? <Button size="sm" variant="ghost" onClick={() => openProductionChange()}>View all</Button> : null}

@@ -68,7 +68,7 @@ function PermissionChoices({
   return (
     <div className="grid min-w-0 gap-ui-sm">
       <div className="flex flex-wrap items-center justify-between gap-ui-xs">
-        <p className="font-sans text-system-label text-muted-foreground">
+        <p className="font-mono text-system-label text-muted-foreground">
           {title}
         </p>
         <Badge variant="outline" size="compact">
@@ -104,7 +104,7 @@ function PermissionChoices({
       <div className="scrollbar-thin grid max-h-60 gap-ui-md overflow-y-auto pr-ui-xs">
         {[...groups].map(([family, items]) => (
           <div key={family} className="grid gap-ui-xs">
-            <p className="font-sans text-system-meta uppercase tracking-ui-eyebrow text-muted-foreground">
+            <p className="font-mono text-system-meta uppercase tracking-ui-eyebrow text-muted-foreground">
               {permissionName(family)}
             </p>
             <div className="grid gap-ui-xs sm:grid-cols-2">
@@ -231,7 +231,7 @@ function ProjectPermissions({
         />
       )}
       {Object.keys(access.data.conditions).length ? (
-        <p className="text-system-meta text-muted-foreground">
+        <p className="font-mono text-system-meta text-muted-foreground">
           Your existing access restrictions also apply.
         </p>
       ) : null}
@@ -485,7 +485,7 @@ export function WorkspaceCliKeys({
           >
             <pre className="overflow-x-auto p-ui-md font-mono text-system-label">{`woobe context create woobe --api-url ${API_BASE_URL}\nwoobe context use woobe\nwoobe auth login --cli-key`}</pre>
           </CodePanel>
-          <p className="mt-ui-sm text-system-label text-muted-foreground">
+          <p className="font-mono mt-ui-sm text-system-label text-muted-foreground">
             One granted Project is selected automatically. With several Projects,
             choose one by name. To switch later, run{' '}
             <code>woobe context project select</code>. Works on Windows, Linux and
@@ -807,7 +807,7 @@ export function WorkspaceCliKeys({
                     setExpirationPreset('custom')
                   }}
                 />
-                <p className="text-system-meta text-muted-foreground">
+                <p className="font-mono text-system-meta text-muted-foreground">
                   {expirationDate
                     ? `Valid through ${formatWoobeDate(expirationDate)}. The entire selected day is included.`
                     : 'Active until revoked. Choose a calendar day to set an expiration.'}
@@ -816,7 +816,7 @@ export function WorkspaceCliKeys({
             </SectionBlock>
           </div>
           <div className="sticky bottom-0 z-sticky flex flex-wrap items-center justify-between gap-ui-sm border-t border-border bg-surface py-ui-md">
-            <p className="text-system-label text-muted-foreground">
+            <p className="font-mono text-system-label text-muted-foreground">
               {workspacePermissions.length} Workspace permissions ·{' '}
               {grants.filter((grant) => grant.permissions.length > 0).length}{' '}
               Project grants
@@ -917,17 +917,17 @@ export function WorkspaceCliKeys({
                   label="Key prefix"
                   description={key.key_prefix}
                 />
-                <p className="mt-ui-xs text-system-label text-muted-foreground">
+                <p className="font-mono mt-ui-xs text-system-label text-muted-foreground">
                   Expires: {date(key.expires_at, true)} · Last used:{' '}
                   {date(key.last_used_at)}
                 </p>
-                <p className="mt-ui-xs break-all font-sans text-system-label">
+                <p className="mt-ui-xs break-all font-mono text-system-label">
                   Workspace: {key.permissions.join(', ') || 'No permissions'}
                 </p>
                 {key.project_grants.map((grant) => (
                   <p
                     key={grant.project_id}
-                    className="mt-ui-xs break-all font-sans text-system-label"
+                    className="mt-ui-xs break-all font-mono text-system-label"
                   >
                     {projects.find((project) => project.id === grant.project_id)
                       ?.name ?? grant.project_id}
@@ -935,7 +935,7 @@ export function WorkspaceCliKeys({
                   </p>
                 ))}
                 {key.on_project_create_permissions.length ? (
-                  <p className="mt-ui-xs break-all font-sans text-system-label">
+                  <p className="mt-ui-xs break-all font-mono text-system-label">
                     New Projects: {key.on_project_create_permissions.join(', ')}
                   </p>
                 ) : null}

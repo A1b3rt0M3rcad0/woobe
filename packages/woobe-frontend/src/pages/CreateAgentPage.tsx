@@ -174,7 +174,7 @@ export default function CreateAgentPage() {
         </SectionBlock>
 
         <div className="flex flex-col items-end gap-1 border-t border-border pt-3">
-          {reason ? <p className="font-sans text-system-meta text-muted">{reason}</p> : null}
+          {reason ? <p className="font-mono text-system-meta text-muted">{reason}</p> : null}
           <div className="flex gap-2"><Button type="button" variant="outline" onClick={() => navigate(-1)}>Cancel</Button><Button type="submit" loading={createAgent.isPending} disabled={Boolean(reason)}>Create Agent</Button></div>
         </div>
       </form>

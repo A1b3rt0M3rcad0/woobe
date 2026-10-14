@@ -51,7 +51,7 @@ function OperationGroup({ toolCalls, variant = 'playground', label, kind }: Tool
       >
         {open ? <ChevronDown className="h-icon-sm w-icon-sm shrink-0" /> : <ChevronRight className="h-icon-sm w-icon-sm shrink-0" />}
         {hasRunningTool ? <Loader2 className="h-icon-sm w-icon-sm shrink-0 animate-spin" /> : hasFailedTool ? <XCircle className="h-icon-sm w-icon-sm shrink-0" /> : kind === 'skill' ? <Puzzle className="h-icon-sm w-icon-sm shrink-0 text-primary-light" /> : <Wrench className="h-icon-sm w-icon-sm shrink-0 text-primary-light" />}
-        <span className="truncate font-semibold">{summaryLabel(toolCalls, label)}</span>
+        <span className="truncate font-medium">{summaryLabel(toolCalls, label)}</span>
       </button>
 
       {open ? (
@@ -65,7 +65,7 @@ function OperationGroup({ toolCalls, variant = 'playground', label, kind }: Tool
                 <div className="flex items-center justify-between gap-ui-sm">
                   <div className="flex min-w-0 flex-1 items-center gap-ui-sm">
                     {isRunning ? <Loader2 className="h-icon-sm w-icon-sm shrink-0 animate-spin text-muted-foreground" /> : isSuccess ? <CheckCircle className="h-icon-sm w-icon-sm shrink-0 text-success" /> : <XCircle className="h-icon-sm w-icon-sm shrink-0 text-error" />}
-                    <span className="truncate font-mono text-system-meta font-semibold text-slate-200">{operationLabel(toolCall)}</span>
+                    <span className="truncate font-mono text-system-meta font-medium text-slate-200">{operationLabel(toolCall)}</span>
                   </div>
                   <div className="flex shrink-0 items-center gap-ui-sm font-mono text-system-meta">
                     {isRunning ? <span className="text-muted-foreground">running</span> : null}

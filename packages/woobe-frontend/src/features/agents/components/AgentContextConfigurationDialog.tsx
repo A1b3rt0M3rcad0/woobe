@@ -95,7 +95,7 @@ function CapacityCard({
   if (!model || !capacity) {
     return (
       <div className="rounded-container border border-dashed border-border bg-background/25 p-ui-md">
-        <p className="font-sans text-system-label font-semibold uppercase tracking-system-label text-muted-foreground">{title}</p>
+        <p className="font-mono text-system-label font-medium uppercase tracking-system-label text-muted-foreground">{title}</p>
         <p className="mt-ui-sm font-sans text-product-caption text-muted-foreground">{isFallback ? 'No fallback model configured.' : 'No primary model configured.'}</p>
       </div>
     )

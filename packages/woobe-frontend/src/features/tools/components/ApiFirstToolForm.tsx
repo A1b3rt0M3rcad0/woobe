@@ -198,7 +198,7 @@ function highestRouteRisk(routes: RouteDraft[]): string {
 }
 
 function FieldError({ message }: { message?: string }) {
-  return message ? <p className="mt-1 text-system-meta text-error">{message}</p> : null
+  return message ? <p className="font-mono mt-1 text-system-meta text-error">{message}</p> : null
 }
 
 function AdvancedSection({
@@ -254,8 +254,8 @@ function HeaderRows({
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-xs font-medium text-foreground">Headers</p>
-          <p className="mt-0.5 text-system-meta text-muted">Use a Secret reference for sensitive values.</p>
+          <p className="font-mono text-xs font-medium text-foreground">Headers</p>
+          <p className="font-mono mt-0.5 text-system-meta text-muted">Use a Secret reference for sensitive values.</p>
         </div>
         <Button type="button" size="sm" variant="ghost" onClick={addHeader}>
           <Plus className="mr-1 h-3.5 w-3.5" />
@@ -342,8 +342,8 @@ function RouteHeadersEditor({
       <div>
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-xs font-medium text-foreground">Inherited headers</p>
-            <p className="mt-0.5 text-system-meta text-muted">Shared by the API. Override only the exceptions.</p>
+            <p className="font-mono text-xs font-medium text-foreground">Inherited headers</p>
+            <p className="font-mono mt-0.5 text-system-meta text-muted">Shared by the API. Override only the exceptions.</p>
           </div>
           <span className="text-system-meta text-muted">{shared.length} inherited</span>
         </div>
@@ -355,8 +355,8 @@ function RouteHeadersEditor({
               return (
                 <div key={header.key.toLowerCase()} className="flex flex-wrap items-center gap-2 px-3 py-2.5">
                   <div className="min-w-0 flex-1">
-                    <p className="truncate font-sans text-system-meta text-foreground">{header.key}</p>
-                    <p className="mt-0.5 truncate text-system-meta text-muted">
+                    <p className="truncate font-mono text-system-meta text-foreground">{header.key}</p>
+                    <p className="font-mono mt-0.5 truncate text-system-meta text-muted">
                       {state === 'removed' ? 'Not sent by this route' : state === 'overridden' ? 'Overridden by this route' : 'Inherited from API'}
                     </p>
                   </div>
@@ -388,7 +388,7 @@ function RouteHeadersEditor({
       {effective.length > 0 ? (
         <div className="rounded-lg border border-border/70 bg-background/35 px-3 py-2.5">
           <div className="flex items-center justify-between gap-3">
-            <p className="text-system-meta font-medium text-foreground">Effective request headers</p>
+            <p className="font-mono text-system-meta font-medium text-foreground">Effective request headers</p>
             <span className="text-system-meta text-muted">{effective.length} sent</span>
           </div>
           <div className="mt-2 flex flex-wrap gap-1.5">
@@ -733,18 +733,18 @@ export function ApiFirstToolForm({
         {step === 'type' ? (
           <div className="space-y-4">
             <div>
-              <h3 className="text-base font-semibold text-foreground">What are you connecting?</h3>
+              <h3 className="text-base font-medium text-foreground">What are you connecting?</h3>
               <p className="mt-1 text-sm text-muted">Choose a provider type. Configuration appears only after selection.</p>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <button type="button" onClick={() => selectProtocol('http')} className="rounded-xl border border-border/80 bg-background/35 p-4 text-left transition-colors hover:border-primary/45 hover:bg-primary/5">
                 <Globe2 className="h-4 w-4 text-primary-light" />
-                <p className="mt-3 text-sm font-semibold text-foreground">HTTP API</p>
+                <p className="font-mono mt-3 text-sm font-medium text-foreground">HTTP API</p>
                 <p className="mt-1 text-xs leading-5 text-muted">Connect one API domain and expose its routes.</p>
               </button>
               <button type="button" onClick={() => selectProtocol('mcp')} className="rounded-xl border border-border/80 bg-background/35 p-4 text-left transition-colors hover:border-primary/45 hover:bg-primary/5">
                 <Server className="h-4 w-4 text-primary-light" />
-                <p className="mt-3 text-sm font-semibold text-foreground">MCP Server</p>
+                <p className="font-mono mt-3 text-sm font-medium text-foreground">MCP Server</p>
                 <p className="mt-1 text-xs leading-5 text-muted">Connect a remote server and discover its tools.</p>
               </button>
             </div>
@@ -763,7 +763,7 @@ export function ApiFirstToolForm({
                 </Button>
               ) : null}
               <div>
-                <h3 className="text-base font-semibold text-foreground">{protocol === 'http' ? (initialTool ? 'Edit HTTP API' : 'Create HTTP API') : 'Connect MCP Server'}</h3>
+                <h3 className="text-base font-medium text-foreground">{protocol === 'http' ? (initialTool ? 'Edit HTTP API' : 'Create HTTP API') : 'Connect MCP Server'}</h3>
                 <p className="mt-1 text-sm text-muted">{protocol === 'http' ? 'Connect the API first, then add only the routes the Agent needs.' : 'Tools are discovered automatically after creation.'}</p>
               </div>
             </div>
@@ -773,7 +773,7 @@ export function ApiFirstToolForm({
                 <div>
                   <label className="mb-1 block text-xs font-medium text-muted">Base URL *</label>
                   <ToolTemplateInput autoFocus value={baseUrl} onValueChange={updateBaseUrl} placeholder="https://api.example.com/v1 or {{project_env.API_URL}}" className="font-mono text-xs" />
-                  <p className="mt-1 text-system-meta text-muted">All routes remain under this domain and base path.</p>
+                  <p className="font-mono mt-1 text-system-meta text-muted">All routes remain under this domain and base path.</p>
                   <FieldError message={errors.baseUrl} />
                 </div>
                 <div>
@@ -790,7 +790,7 @@ export function ApiFirstToolForm({
                 <div className="space-y-3 border-t border-border/70 pt-5">
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <p className="text-sm font-medium text-foreground">Routes</p>
+                      <p className="font-mono text-sm font-medium text-foreground">Routes</p>
                       <p className="mt-0.5 text-xs text-muted">Each route becomes an independent capability for the Agent.</p>
                     </div>
                     <Button type="button" size="sm" variant="outline" onClick={addRoute}>
@@ -801,17 +801,17 @@ export function ApiFirstToolForm({
                   {routes.length === 0 ? (
                     <button type="button" onClick={addRoute} className="w-full rounded-xl border border-dashed border-border/80 px-4 py-7 text-center transition-colors hover:border-primary/40 hover:bg-primary/5">
                       <Route className="mx-auto h-5 w-5 text-primary-light" />
-                      <p className="mt-2 text-sm font-medium text-foreground">Add the first route</p>
+                      <p className="font-mono mt-2 text-sm font-medium text-foreground">Add the first route</p>
                       <p className="mt-1 text-xs text-muted">Start with the endpoint the Agent needs most.</p>
                     </button>
                   ) : (
                     <div className="divide-y divide-border/70 rounded-xl border border-border/75 bg-background/20">
                       {routes.map((route) => (
                         <div key={route.id} className="flex items-center gap-3 px-3 py-3">
-                          <span className="shrink-0 rounded-md border border-border/80 bg-background px-2 py-1 font-mono text-system-meta font-semibold text-primary-light">{route.method}</span>
+                          <span className="shrink-0 rounded-md border border-border/80 bg-background px-2 py-1 font-mono text-system-meta font-medium text-primary-light">{route.method}</span>
                           <button type="button" onClick={() => editRoute(route)} className="min-w-0 flex-1 text-left">
-                            <p className="truncate text-sm font-medium text-foreground">{route.name}</p>
-                            <p className="mt-0.5 truncate font-sans text-system-meta text-muted">{route.path}</p>
+                            <p className="font-mono truncate text-sm font-medium text-foreground">{route.name}</p>
+                            <p className="mt-0.5 truncate font-mono text-system-meta text-muted">{route.path}</p>
                           </button>
                           <Button type="button" size="sm" variant="ghost" className="text-error" onClick={() => removeRoute(route.id)} aria-label={`Remove ${route.name}`}>
                             <Trash2 className="h-3.5 w-3.5" />
@@ -840,7 +840,7 @@ export function ApiFirstToolForm({
                 <div>
                   <label className="mb-1 block text-xs font-medium text-muted">MCP Server URL *</label>
                   <Input autoFocus value={mcpUrl} onChange={(event) => updateMcpUrl(event.target.value)} placeholder="https://mcp.example.com/mcp" className="font-mono text-xs" />
-                  <p className="mt-1 text-system-meta text-muted">Public tools are loaded automatically after creation.</p>
+                  <p className="font-mono mt-1 text-system-meta text-muted">Public tools are loaded automatically after creation.</p>
                   <FieldError message={errors.mcpUrl} />
                 </div>
                 <div>
@@ -875,9 +875,9 @@ export function ApiFirstToolForm({
                 <ArrowLeft className="h-4 w-4" />
               </Button>
               <div>
-                <h3 className="text-base font-semibold text-foreground">{routeEditor.isNew ? 'Add route' : 'Edit route'}</h3>
+                <h3 className="text-base font-medium text-foreground">{routeEditor.isNew ? 'Add route' : 'Edit route'}</h3>
                 <p className="mt-1 text-sm text-muted">Define the request. Woobe creates and preserves the technical identifier automatically.</p>
-                {initialTool ? <p className="mt-1 text-system-meta text-muted">Apply the route here, then use Save changes to persist the Tool.</p> : null}
+                {initialTool ? <p className="font-mono mt-1 text-system-meta text-muted">Apply the route here, then use Save changes to persist the Tool.</p> : null}
               </div>
             </div>
 
@@ -917,8 +917,8 @@ export function ApiFirstToolForm({
             {routeDependencies.length ? (
               <div className="space-y-2">
                 <div>
-                  <p className="text-xs font-medium text-foreground">Runtime inputs</p>
-                  <p className="mt-0.5 text-system-meta text-muted">
+                  <p className="font-mono text-xs font-medium text-foreground">Runtime inputs</p>
+                  <p className="font-mono mt-0.5 text-system-meta text-muted">
                     Derived from the request template. Edit the URL, headers or body to change these dependencies.
                   </p>
                 </div>
@@ -960,7 +960,7 @@ export function ApiFirstToolForm({
                     })}
                   </div>
                   <div className="border-t border-border/70 px-3 py-2">
-                    <p className="text-system-meta leading-4 text-muted">
+                    <p className="font-mono text-system-meta leading-4 text-muted">
                       {'{{name}}'} is model-provided. {'{{external_context.name}}'} comes from the Run snapshot. {'{{project_env.KEY}}'} comes from the selected execution environment.
                     </p>
                   </div>
@@ -990,9 +990,9 @@ export function ApiFirstToolForm({
               </div>}
               {!routeEditor.isNew && routeEditor.draft.operation_id ? (
                 <div>
-                  <p className="text-xs font-medium text-muted">Technical identifier</p>
+                  <p className="font-mono text-xs font-medium text-muted">Technical identifier</p>
                   <code className="mt-1 block rounded-lg border border-border/70 bg-background px-3 py-2 text-xs text-foreground">{routeEditor.draft.operation_id}</code>
-                  <p className="mt-1 text-system-meta text-muted">Stable identifier generated when the route was created.</p>
+                  <p className="font-mono mt-1 text-system-meta text-muted">Stable identifier generated when the route was created.</p>
                   <FieldError message={routeErrors.operationId} />
                 </div>
               ) : null}

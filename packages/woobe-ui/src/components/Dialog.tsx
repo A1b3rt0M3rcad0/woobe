@@ -88,7 +88,7 @@ export const dialogTypographyClass = [
   '[&_h1]:text-heading-sm [&_h2]:text-section-title [&_h3]:text-section-title [&_h4]:text-system-control',
   '[&_label]:font-mono [&_legend]:font-mono [&_button]:font-mono',
   '[&_input]:font-mono [&_input]:text-system-control',
-  '[&_select]:font-mono [&_select]:h-control [&_select]:rounded-control [&_select]:border-border [&_select]:bg-control [&_select]:text-system-control [&_select]:font-normal [&_select]:text-accent-foreground',
+  '[&_select]:font-mono [&_select]:h-control [&_select]:rounded-control [&_select]:border-control-border [&_select]:bg-control [&_select]:text-system-control [&_select]:font-normal [&_select]:text-accent-foreground',
   '[&_option]:font-mono [&_option]:text-system-control',
   '[&_textarea]:font-mono [&_textarea]:text-system-control',
   '[&_th]:font-mono [&_dt]:font-mono [&_code]:font-mono [&_pre]:font-mono',
@@ -186,7 +186,7 @@ export function Dialog({ open, onClose, title, children, className, contentClass
       tabIndex={presentation === 'modal' ? -1 : undefined}
       data-dialog-variant={variant}
       className={cn(
-        'dialog-scrollbars relative w-full max-w-dialog-compact rounded-container border border-border bg-surface text-accent-foreground shadow-popup',
+        'dialog-scrollbars relative my-auto w-full max-w-dialog-compact rounded-container border border-border bg-surface text-accent-foreground shadow-popup',
         workspace && 'flex max-h-dialog max-w-dialog-wide flex-col overflow-hidden',
         workspace && height === 'workspace' && 'h-dialog-workspace',
         dialogTypographyClass,
@@ -227,7 +227,7 @@ export function Dialog({ open, onClose, title, children, className, contentClass
     <div
       ref={overlayRef}
       className={cn(
-        'fixed inset-0 flex min-h-svh w-screen items-center justify-center bg-foreground/20',
+        'fixed inset-0 flex min-h-svh w-screen items-start justify-center bg-foreground/20',
         workspace && height === 'workspace' ? 'p-ui-lg' : 'p-ui-lg',
         contentScroll ? 'overflow-hidden' : 'overflow-y-auto',
         LAYER_CLASS[layer],

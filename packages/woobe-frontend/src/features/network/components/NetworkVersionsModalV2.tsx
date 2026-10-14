@@ -55,7 +55,7 @@ function SectionButton({ active, icon: Icon, label, detail, onClick }: { active:
     >
       <Icon className="h-3.5 w-3.5 shrink-0" />
       <span className="min-w-0">
-        <span className="block font-mono text-system-label font-semibold">{label}</span>
+        <span className="block font-mono text-system-label font-medium">{label}</span>
         <span className="block truncate font-mono text-system-meta text-muted-foreground">{detail}</span>
       </span>
     </button>
@@ -81,7 +81,7 @@ function VersionList({ versions, selectedId, activeId, onSelect }: { versions: N
             <span className="truncate font-mono text-system-control text-foreground">{version.version}</span>
             {version.id === activeId ? <span className="ml-auto rounded-technical border border-emerald-500/30 bg-emerald-500/10 px-ui-xs py-ui-hairline font-mono text-system-meta text-success">Active</span> : null}
           </div>
-          <p className="mt-ui-xs font-sans text-system-meta text-muted-foreground">{formatDate(version.created_at)} · {version.definition.nodes.length} Agents</p>
+          <p className="mt-ui-xs font-mono text-system-meta text-muted-foreground">{formatDate(version.created_at)} · {version.definition.nodes.length} Agents</p>
         </button>
       ))}
     </div>
@@ -93,19 +93,19 @@ function SnapshotDetails({ version, agents }: { version: NetworkVersion; agents:
   return (
     <div className="space-y-ui-md p-ui-md">
       <div>
-        <p className="font-sans text-system-meta uppercase tracking-ui-label text-primary-light">{version.kind === 'release' ? 'Network Release' : 'Network Staging'}</p>
-        <h3 className="mt-ui-xs font-mono text-heading-sm font-semibold text-foreground">{version.version}</h3>
-        <p className="mt-ui-xs font-sans text-system-meta text-muted-foreground">Immutable snapshot · {formatDate(version.created_at)}</p>
+        <p className="font-mono text-system-meta uppercase tracking-ui-label text-primary-light">{version.kind === 'release' ? 'Network Release' : 'Network Staging'}</p>
+        <h3 className="mt-ui-xs font-mono text-heading-sm font-medium text-foreground">{version.version}</h3>
+        <p className="mt-ui-xs font-mono text-system-meta text-muted-foreground">Immutable snapshot · {formatDate(version.created_at)}</p>
       </div>
       <section className="rounded-container border border-border bg-background/30 p-ui-md">
         <div className="grid grid-cols-3 gap-ui-md">
-          <div><p className="font-sans text-system-meta text-muted-foreground">Agents</p><p className="mt-ui-xs font-sans text-system-control text-foreground">{version.definition.nodes.length}</p></div>
-          <div><p className="font-sans text-system-meta text-muted-foreground">Delegations</p><p className="mt-ui-xs font-sans text-system-control text-foreground">{version.definition.edges.length}</p></div>
-          <div><p className="font-sans text-system-meta text-muted-foreground">Mode</p><p className="mt-ui-xs font-sans text-system-control capitalize text-foreground">{version.definition.settings.session_mode}</p></div>
+          <div><p className="font-mono text-system-meta text-muted-foreground">Agents</p><p className="mt-ui-xs font-mono text-system-control text-foreground">{version.definition.nodes.length}</p></div>
+          <div><p className="font-mono text-system-meta text-muted-foreground">Delegations</p><p className="mt-ui-xs font-mono text-system-control text-foreground">{version.definition.edges.length}</p></div>
+          <div><p className="font-mono text-system-meta text-muted-foreground">Mode</p><p className="mt-ui-xs font-mono text-system-control capitalize text-foreground">{version.definition.settings.session_mode}</p></div>
         </div>
       </section>
       <section>
-        <p className="mb-ui-sm font-sans text-system-label font-semibold uppercase tracking-ui-label text-muted-foreground">Agent bindings</p>
+        <p className="mb-ui-sm font-mono text-system-label font-medium uppercase tracking-ui-label text-muted-foreground">Agent bindings</p>
         <div className="space-y-ui-sm">
           {version.definition.nodes.map((node) => {
             const resolved = version.resolved_bindings[node.id]
@@ -114,8 +114,8 @@ function SnapshotDetails({ version, agents }: { version: NetworkVersion; agents:
             return (
               <div key={node.id} className="flex items-center gap-ui-md rounded-container border border-border bg-background/30 p-ui-md">
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-sans text-product-small text-foreground">{label}</p>
-                  <p className="mt-ui-xs font-sans text-system-meta text-muted-foreground">{node.id === version.definition.root_node_id ? 'Entry Agent' : 'Specialist'}</p>
+                  <p className="truncate font-mono text-product-small text-foreground">{label}</p>
+                  <p className="mt-ui-xs font-mono text-system-meta text-muted-foreground">{node.id === version.definition.root_node_id ? 'Entry Agent' : 'Specialist'}</p>
                 </div>
                 <div className="w-44"><NetworkBindingBadge source={source} version={resolved?.release_version ?? 'pinned'} /></div>
               </div>
@@ -133,16 +133,16 @@ function DraftDetails({ definition, revision, dirty, agents }: { definition: Net
   return (
     <div className="space-y-ui-md p-ui-md">
       <div>
-        <p className="font-sans text-system-meta uppercase tracking-ui-label text-primary-light">Editable Network Draft</p>
-        <h3 className="mt-ui-xs font-mono text-heading-sm font-semibold text-foreground">Revision {revision}</h3>
+        <p className="font-mono text-system-meta uppercase tracking-ui-label text-primary-light">Editable Network Draft</p>
+        <h3 className="mt-ui-xs font-mono text-heading-sm font-medium text-foreground">Revision {revision}</h3>
         <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">{dirty ? 'Unsaved changes' : 'Saved'} · Draft bindings remain unchanged after promotion.</p>
       </div>
       <div className="space-y-ui-sm">
         {definition.nodes.map((node) => (
           <div key={node.id} className="flex items-center gap-ui-md rounded-container border border-border bg-background/30 p-ui-md">
             <div className="min-w-0 flex-1">
-              <p className="truncate font-sans text-product-small text-foreground">{agentsById.get(node.agent_id)?.name ?? node.label}</p>
-              <p className="mt-ui-xs font-sans text-system-meta text-muted-foreground">{node.id === definition.root_node_id ? 'Entry Agent' : 'Specialist'}</p>
+              <p className="truncate font-mono text-product-small text-foreground">{agentsById.get(node.agent_id)?.name ?? node.label}</p>
+              <p className="mt-ui-xs font-mono text-system-meta text-muted-foreground">{node.id === definition.root_node_id ? 'Entry Agent' : 'Specialist'}</p>
             </div>
             <div className="w-44"><NetworkBindingBadge source={node.binding.source} version={node.binding.source === 'draft' ? 'current' : 'pinned'} /></div>
           </div>
@@ -165,7 +165,7 @@ function ActivityList({ activations, versions }: { activations: NetworkProductio
               <span className="ml-auto rounded-technical border border-border px-ui-xs py-ui-hairline font-mono text-system-meta capitalize text-muted-foreground">{activation.activation_kind}</span>
             </div>
             <p className="mt-ui-sm font-sans text-product-caption leading-4 text-slate-300">{activation.change_description}</p>
-            <p className="mt-ui-xs font-sans text-system-meta text-muted-foreground">{formatDate(activation.created_at)}</p>
+            <p className="mt-ui-xs font-mono text-system-meta text-muted-foreground">{formatDate(activation.created_at)}</p>
           </article>
         )
       })}
@@ -217,7 +217,7 @@ export function NetworkVersionsModal({ open, networkName, initialSection, initia
         <header className="flex items-center gap-ui-md border-b border-border bg-background/25 px-ui-md py-ui-md">
           <div className="flex h-control w-control items-center justify-center rounded-control border border-primary/25 bg-primary/10 text-primary-light"><History className="h-icon w-icon" /></div>
           <div className="min-w-0">
-            <p className="truncate font-sans text-product-small font-semibold text-foreground">{networkName}</p>
+            <p className="truncate font-mono text-product-small font-medium text-foreground">{networkName}</p>
             <p className="mt-ui-hairline font-sans text-product-caption text-muted-foreground">Draft, Staging, immutable Releases and Production activations.</p>
           </div>
           <span className="ml-auto rounded-technical border border-emerald-500/25 bg-emerald-500/10 px-ui-sm py-ui-xs font-mono text-system-label text-success">{productionVersion ? `Production · ${productionVersion.version}` : 'No Production'}</span>
@@ -246,15 +246,15 @@ export function NetworkVersionsModal({ open, networkName, initialSection, initia
             {activationTarget ? (
               <div className="space-y-ui-md p-ui-md">
                 <div>
-                  <p className="font-sans text-system-meta uppercase tracking-ui-label text-warning">{initialMode === 'rollback' ? 'Rollback target' : 'Production activation'}</p>
+                  <p className="font-mono text-system-meta uppercase tracking-ui-label text-warning">{initialMode === 'rollback' ? 'Rollback target' : 'Production activation'}</p>
                   <h3 className="mt-ui-xs font-mono text-heading-sm text-foreground">{activationTarget.version}</h3>
-                  <p className="mt-ui-xs font-sans text-system-meta text-muted-foreground">Current: {productionVersion?.version ?? 'none'}</p>
+                  <p className="mt-ui-xs font-mono text-system-meta text-muted-foreground">Current: {productionVersion?.version ?? 'none'}</p>
                 </div>
                 <label className="block font-mono text-system-label text-muted-foreground">
                   Reason / audit note
                   <Textarea value={description} onChange={(event) => setDescription(event.target.value)} className="mt-ui-sm min-h-24" />
                 </label>
-                <p className="font-sans text-system-meta text-muted-foreground">Required for Production audit. The Network pointer changes; Agent Playground Productions do not.</p>
+                <p className="font-mono text-system-meta text-muted-foreground">Required for Production audit. The Network pointer changes; Agent Playground Productions do not.</p>
               </div>
             ) : section === 'draft' ? (
               <DraftDetails definition={draftDefinition} revision={draftRevision} dirty={draftDirty} agents={agents} />
@@ -267,7 +267,7 @@ export function NetworkVersionsModal({ open, networkName, initialSection, initia
         </div>
 
         <footer className="flex flex-wrap items-center gap-ui-sm border-t border-border bg-background/30 px-ui-md py-ui-md">
-          <p className="min-w-0 flex-1 truncate font-sans text-product-caption text-muted-foreground">{activationTarget ? `${initialMode === 'rollback' ? 'Rollback' : 'Activation'} changes only Network Production.` : 'Network and Agent Playground Production remain independent.'}</p>
+          <p className="min-w-0 flex-1 truncate font-mono text-product-caption text-muted-foreground">{activationTarget ? `${initialMode === 'rollback' ? 'Rollback' : 'Activation'} changes only Network Production.` : 'Network and Agent Playground Production remain independent.'}</p>
           {activationTarget ? (
             <>
               <Button type="button" size="sm" variant="outline" onClick={initialMode === 'rollback' ? onClose : () => setActivationTargetId(null)}>Cancel</Button>

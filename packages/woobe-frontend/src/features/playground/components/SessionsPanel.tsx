@@ -101,7 +101,7 @@ export function SessionsPanel({
     <div className="space-y-ui-md p-ui-md">
       <div className="flex items-center justify-between gap-ui-md border-b border-border/70 pb-ui-sm">
         <div>
-          <h3 className="font-mono text-system-control font-semibold text-slate-50">Sessions</h3>
+          <h3 className="font-mono text-system-control font-medium text-slate-50">Sessions</h3>
           <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">Conversation continuity for this Agent runtime.</p>
         </div>
         <span className="font-mono text-system-meta text-muted-foreground">{sessions.length} loaded</span>

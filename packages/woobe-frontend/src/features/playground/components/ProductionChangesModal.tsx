@@ -117,13 +117,13 @@ export function ProductionChangesModal({
                   <Badge variant={badgeVariant(selected.action)} size="compact">{activationLabel(selected.action, selected.previous_release_id)}</Badge>
                   <span className="font-mono text-system-control text-muted-foreground">{previousRelease?.version ?? 'No Production'}</span>
                   <ArrowRight className="h-icon w-icon text-muted-foreground" />
-                  <span className="font-mono text-system-control font-semibold text-accent-foreground">{currentRelease.version}</span>
+                  <span className="font-mono text-system-control font-medium text-accent-foreground">{currentRelease.version}</span>
                 </div>
-                <p className="mt-ui-sm font-sans text-system-meta text-muted-foreground">{formatReleaseDate(selected.created_at)}</p>
+                <p className="mt-ui-sm font-mono text-system-meta text-muted-foreground">{formatReleaseDate(selected.created_at)}</p>
               </SectionBlock>
 
               <SectionBlock title="Audit note" density="compact">
-                <p className="whitespace-pre-wrap font-sans text-product-small leading-5 text-accent-foreground/85">
+                <p className="whitespace-pre-wrap font-sans text-product-small leading-5 text-accent-foreground">
                   {selected.change_description || 'No audit note was recorded for this historical activation.'}
                 </p>
               </SectionBlock>
@@ -136,7 +136,7 @@ export function ProductionChangesModal({
 
               {currentRelease.release_notes ? (
                 <SectionBlock title="Release description" density="compact">
-                  <p className="whitespace-pre-wrap font-sans text-product-small leading-5 text-accent-foreground/85">{currentRelease.release_notes}</p>
+                  <p className="whitespace-pre-wrap font-sans text-product-small leading-5 text-accent-foreground">{currentRelease.release_notes}</p>
                 </SectionBlock>
               ) : null}
 

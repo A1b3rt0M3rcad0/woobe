@@ -100,7 +100,7 @@ export function PlaygroundHeader({
                 </Badge>
               ) : null}
             </div>
-            <p className="mt-ui-hairline hidden truncate font-sans text-chrome-nano text-muted-foreground md:block" title={`${visibleProvider || 'provider unavailable'} / ${visibleModel || 'model unavailable'}`}>
+            <p className="mt-ui-hairline hidden truncate font-mono text-chrome-nano text-muted-foreground md:block" title={`${visibleProvider || 'provider unavailable'} / ${visibleModel || 'model unavailable'}`}>
               {visibleProvider || 'provider unavailable'} / {visibleModel || 'model unavailable'}
             </p>
           </div>

@@ -40,7 +40,7 @@ function MetricCard({
         <Icon className="h-3.5 w-3.5" />
         <span className="font-mono text-system-meta uppercase tracking-ui-label">{label}</span>
       </div>
-      <p className="mt-ui-xs truncate font-sans text-system-heading text-foreground">{value}</p>
+      <p className="mt-ui-xs truncate font-mono text-system-heading text-foreground">{value}</p>
     </div>
   )
 }
@@ -90,12 +90,12 @@ function ContextComposition({ context }: { context: NetworkContextOverview }) {
     <section className="rounded-control border border-border bg-background px-ui-sm py-ui-sm">
       <div className="flex items-end justify-between gap-ui-md">
         <div>
-          <p className="font-sans text-system-label font-semibold uppercase tracking-ui-label text-muted-foreground">Input composition</p>
+          <p className="font-mono text-system-label font-medium uppercase tracking-ui-label text-muted-foreground">Input composition</p>
           <p className="mt-ui-hairline font-sans text-product-caption text-slate-300">Cumulative across {context.model_invocation_count} Model Invocation{context.model_invocation_count === 1 ? '' : 's'}</p>
         </div>
         <div className="text-right">
           <p className="font-sans text-product-small text-foreground">{trackedUnits > 0 ? formatTokens(trackedUnits) : '—'}</p>
-          <p className="font-sans text-system-meta text-muted-foreground">{context.input_measurement}</p>
+          <p className="font-mono text-system-meta text-muted-foreground">{context.input_measurement}</p>
         </div>
       </div>
 
@@ -132,11 +132,11 @@ function ContextComposition({ context }: { context: NetworkContextOverview }) {
       </div>
 
       {context.budget_unknown_count > 0 ? (
-        <p className="mt-ui-sm font-sans text-system-meta leading-4 text-warning">
+        <p className="mt-ui-sm font-mono text-system-meta leading-4 text-warning">
           Input usage is still counted. For future Runs, configure the Context Window of each invoked Model or set a Custom input budget in Agent Context Configuration.
         </p>
       ) : null}
-      <p className="mt-ui-sm font-sans text-system-meta leading-4 text-muted-foreground">Source shares use persisted Context units aggregated from child Model Invocations. They are not a proportional allocation of USD cost.</p>
+      <p className="mt-ui-sm font-mono text-system-meta leading-4 text-muted-foreground">Source shares use persisted Context units aggregated from child Model Invocations. They are not a proportional allocation of USD cost.</p>
     </section>
   )
 }
@@ -202,12 +202,12 @@ function AgentRunDetails({
                 <span className="text-muted-foreground">{depth === 0 ? 'Entry Agent' : 'Delegated Agent'}</span>
                 <span className={status.className}>· {status.label}</span>
               </div>
-              <p className="mt-ui-hairline truncate font-sans text-product-caption font-medium text-slate-200">{invocation.agentName}</p>
-              <p className="truncate font-sans text-system-meta text-muted-foreground">{invocation.source} · {invocation.version}{invocation.provider || invocation.model ? ` · ${invocation.provider || '—'}/${invocation.model || '—'}` : ''}</p>
+              <p className="mt-ui-hairline truncate font-mono text-product-caption font-medium text-slate-200">{invocation.agentName}</p>
+              <p className="truncate font-mono text-system-meta text-muted-foreground">{invocation.source} · {invocation.version}{invocation.provider || invocation.model ? ` · ${invocation.provider || '—'}/${invocation.model || '—'}` : ''}</p>
             </div>
             <div className="shrink-0 text-right">
-              <p className="font-sans text-system-label text-slate-300">{totalTokens == null ? '—' : formatTokens(totalTokens)}</p>
-              <p className="font-sans text-system-meta text-muted-foreground">{invocation.durationMs == null ? 'Running' : formatLatency(invocation.durationMs)} · {invocation.costUsd == null ? 'Unknown' : formatCurrency(invocation.costUsd)}</p>
+              <p className="font-mono text-system-label text-slate-300">{totalTokens == null ? '—' : formatTokens(totalTokens)}</p>
+              <p className="font-mono text-system-meta text-muted-foreground">{invocation.durationMs == null ? 'Running' : formatLatency(invocation.durationMs)} · {invocation.costUsd == null ? 'Unknown' : formatCurrency(invocation.costUsd)}</p>
             </div>
           </button>
         )
@@ -219,7 +219,7 @@ function AgentRunDetails({
 function ExecutionBreakdown({ data }: { data: NetworkRunDiagnostics }) {
   return (
     <div className="space-y-ui-sm border-t border-border/70 pt-ui-md">
-      <p className="font-sans text-system-label font-semibold uppercase tracking-ui-label text-muted-foreground">Execution breakdown</p>
+      <p className="font-mono text-system-label font-medium uppercase tracking-ui-label text-muted-foreground">Execution breakdown</p>
       <div className="grid grid-cols-2 gap-ui-xs">
         <MetricCard label="Network wall" value={formatLatency(data.network_wall_latency_ms)} icon={Activity} />
         <MetricCard label="Agent work Σ" value={formatLatency(data.agent_work_latency_ms)} icon={Bot} />
@@ -243,12 +243,12 @@ function ContextByAgent({ context, root }: { context: NetworkContextOverview; ro
 
   return (
     <div className="space-y-ui-sm border-t border-border/70 pt-ui-md">
-      <p className="font-sans text-system-label font-semibold uppercase tracking-ui-label text-muted-foreground">Context by Agent</p>
+      <p className="font-mono text-system-label font-medium uppercase tracking-ui-label text-muted-foreground">Context by Agent</p>
       <div className="space-y-ui-xs">
         {context.agents.map((agent) => (
           <div key={agent.agent_id} className="rounded-control border border-border/70 bg-background/35 px-ui-sm py-ui-sm">
             <div className="flex items-center justify-between gap-ui-sm">
-              <p className="truncate font-sans text-product-caption font-medium text-slate-300">{names.get(agent.agent_id) || `Agent ${agent.agent_id.slice(0, 8)}`}</p>
+              <p className="truncate font-mono text-product-caption font-medium text-slate-300">{names.get(agent.agent_id) || `Agent ${agent.agent_id.slice(0, 8)}`}</p>
               <span className="font-mono text-system-meta text-muted-foreground">{agent.model_invocation_count} invocation{agent.model_invocation_count === 1 ? '' : 's'}</span>
             </div>
             <div className="mt-ui-xs flex flex-wrap gap-x-ui-md gap-y-ui-xs font-mono text-system-meta text-muted-foreground">
@@ -288,7 +288,7 @@ export function NetworkRunDiagnosticsPanel({
   if (isLoading) {
     return (
       <section className="space-y-ui-sm">
-        <p className="font-sans text-system-heading font-medium text-foreground">Network Run Analytics</p>
+        <p className="font-mono text-system-heading font-medium text-foreground">Network Run Analytics</p>
         <p className="font-sans text-product-caption text-muted-foreground">Loading Network Run metrics…</p>
       </section>
     )
@@ -297,7 +297,7 @@ export function NetworkRunDiagnosticsPanel({
   if (isError || !data) {
     return (
       <section className="space-y-ui-sm rounded-control border border-border bg-background px-ui-md py-ui-md">
-        <div className="flex items-center gap-ui-xs text-warning"><AlertTriangle className="h-3.5 w-3.5" /><p className="font-sans text-product-caption font-medium">Network Run Analytics unavailable</p></div>
+        <div className="flex items-center gap-ui-xs text-warning"><AlertTriangle className="h-3.5 w-3.5" /><p className="font-mono text-product-caption font-medium">Network Run Analytics unavailable</p></div>
         <p className="font-sans text-product-caption text-muted-foreground">The Network Run remains inspectable through Path and Evidence.</p>
       </section>
     )
@@ -309,7 +309,7 @@ export function NetworkRunDiagnosticsPanel({
     <section className="space-y-ui-md">
       <div className="flex items-start justify-between gap-ui-md">
         <div>
-          <p className="font-sans text-system-heading font-medium text-foreground">Network Run Analytics</p>
+          <p className="font-mono text-system-heading font-medium text-foreground">Network Run Analytics</p>
           <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">Network-level totals first; individual Agent Runs remain available on demand.</p>
         </div>
         {data.fallback_count > 0 ? <span className="rounded-technical border border-amber-500/25 bg-amber-500/10 px-ui-sm py-ui-hairline font-mono text-system-meta text-warning">{data.fallback_count} fallback{data.fallback_count === 1 ? '' : 's'}</span> : null}

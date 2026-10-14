@@ -99,9 +99,9 @@ export function NetworkContextInspector({
               </div>
               <div className="mt-3 flex min-w-0 items-start gap-3">
                 <div className="min-w-0 flex-1">
-                  <h2 className="truncate text-sm font-semibold text-foreground">{selectedAgent?.name ?? selectedNode?.label}</h2>
-                  <p className="mt-1 truncate text-system-meta text-muted">Prompt, model, Tools, Knowledge and output contract</p>
-                  {selectedBinding ? <p className="mt-1 truncate font-sans text-system-meta text-slate-300">{selectedBinding.source} · {selectedBinding.version}</p> : null}
+                  <h2 className="truncate text-sm font-medium text-foreground">{selectedAgent?.name ?? selectedNode?.label}</h2>
+                  <p className="font-mono mt-1 truncate text-system-meta text-muted">Prompt, model, Tools, Knowledge and output contract</p>
+                  {selectedBinding ? <p className="mt-1 truncate font-mono text-system-meta text-slate-300">{selectedBinding.source} · {selectedBinding.version}</p> : null}
                 </div>
                 {canLocate ? (
                   <button type="button" onClick={onLocateOnCanvas} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border bg-background/45 px-2.5 py-2 text-system-meta font-medium text-muted hover:border-primary/30 hover:text-foreground">

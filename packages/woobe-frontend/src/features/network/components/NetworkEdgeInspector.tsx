@@ -64,7 +64,7 @@ export function NetworkEdgeInspector({
 
         {target ? (
           <SectionBlock density="compact" title="Internal tool">
-            <p className="break-all font-sans text-system-control text-accent-foreground/85">{delegationToolName(target)}</p>
+            <p className="break-all font-mono text-system-control text-accent-foreground">{delegationToolName(target)}</p>
           </SectionBlock>
         ) : null}
 

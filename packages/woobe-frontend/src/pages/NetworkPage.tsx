@@ -926,8 +926,8 @@ export default function NetworkPage() {
   ) : !environmentReady && !snapshotInspection ? (
     <div className="flex min-w-0 flex-1 items-center justify-center p-6 text-center">
       <div className="max-w-sm rounded-2xl border border-border bg-surface/70 p-6">
-        <p className="text-sm font-medium text-foreground">{environment === 'staging' ? 'Staging has not been created' : 'Production has not been published'}</p>
-        <p className="mt-2 text-system-meta leading-5 text-muted">{environment === 'staging' ? 'Return to Draft, save the composition and create an immutable Staging version.' : 'Validate the Network in Staging, then publish that exact snapshot.'}</p>
+        <p className="font-mono text-sm font-medium text-foreground">{environment === 'staging' ? 'Staging has not been created' : 'Production has not been published'}</p>
+        <p className="font-mono mt-2 text-system-meta leading-5 text-muted">{environment === 'staging' ? 'Return to Draft, save the composition and create an immutable Staging version.' : 'Validate the Network in Staging, then publish that exact snapshot.'}</p>
         <button type="button" onClick={() => changeEnvironment(environment === 'staging' ? 'draft' : 'staging')} className="mt-ui-lg rounded-control bg-primary px-ui-md py-ui-sm font-mono text-system-label font-medium text-primary-foreground transition-colors hover:bg-primary-hover">Go to {environment === 'staging' ? 'Draft' : 'Staging'}</button>
       </div>
     </div>
@@ -970,11 +970,11 @@ export default function NetworkPage() {
         <button type="button" aria-label={networkIdentity ? "Back to Networks" : "Back to Project"} onClick={() => navigate(`/workspaces/${workspaceId}/projects/${projectId}${networkIdentity ? "/networks" : ""}`)} className="flex h-8 w-8 items-center justify-center rounded-control border border-border text-muted-foreground transition-colors hover:text-foreground"><ChevronLeft className="h-4 w-4" /></button>
         <div>
           <div className="flex items-center gap-ui-sm">
-            <h1 className="text-sm font-semibold text-foreground">{networkIdentity || `${currentProject?.name || 'Project'} Network`}</h1>
+            <h1 className="text-sm font-medium text-foreground">{networkIdentity || `${currentProject?.name || 'Project'} Network`}</h1>
             <Badge>{networkQuery.isLoading ? 'Loading' : isInitialSetup ? 'Setup incomplete' : 'Runtime'}</Badge>
             {!isInitialSetup ? <button type="button" onClick={() => openNetworkManager('production')} className={cn('rounded-technical border px-ui-sm py-ui-hairline font-mono text-system-label', productionVersion ? 'border-emerald-500/30 bg-emerald-500/10 text-success' : 'border-border bg-background/45 text-muted-foreground')}>{productionVersion ? `Production · ${productionVersion.version}` : 'No Production release'}</button> : null}
           </div>
-          <p className="font-sans text-system-micro text-muted-foreground">Network workspace · isolated within this Project</p>
+          <p className="font-mono text-system-micro text-muted-foreground">Network workspace · isolated within this Project</p>
         </div>
         {isInitialSetup ? (
           <div className="ml-auto flex items-center gap-ui-sm"><span className="rounded-control border border-primary/25 bg-primary/5 px-ui-md py-ui-xs font-mono text-system-micro font-medium text-primary-light">Draft · initial setup</span></div>
@@ -990,9 +990,9 @@ export default function NetworkPage() {
             <button type="button" onClick={() => setShowAsac(true)} className={smallButton}>History & lifecycle</button>
             <button type="button" onClick={() => setShowApi(true)} className={smallButton}><Code2 className="mr-ui-xs inline h-3.5 w-3.5" />API Reference</button>
             {environment === 'production' ? (
-              <button type="button" disabled={!rollbackAvailable} onClick={() => openNetworkManager('production', 'rollback')} title={rollbackAvailable ? 'Choose a historical Release to reactivate' : 'No previous Production Release is available'} className="inline-flex items-center gap-ui-xs rounded-control bg-primary px-ui-md py-ui-sm font-mono text-system-label font-semibold text-primary-foreground transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-45"><RotateCcw className="h-3.5 w-3.5" />Rollback</button>
+              <button type="button" disabled={!rollbackAvailable} onClick={() => openNetworkManager('production', 'rollback')} title={rollbackAvailable ? 'Choose a historical Release to reactivate' : 'No previous Production Release is available'} className="inline-flex items-center gap-ui-xs rounded-control bg-primary px-ui-md py-ui-sm font-mono text-system-label font-medium text-primary-foreground transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-45"><RotateCcw className="h-3.5 w-3.5" />Rollback</button>
             ) : (
-              <button type="button" disabled={releaseActionBlocked} onClick={() => void openReleaseAction(environment === 'draft' ? 'stage' : 'publish')} className="rounded-control bg-primary px-ui-md py-ui-sm font-mono text-system-label font-semibold text-primary-foreground transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-45">{environment === 'draft' ? 'Stage Network' : 'Publish Release'}</button>
+              <button type="button" disabled={releaseActionBlocked} onClick={() => void openReleaseAction(environment === 'draft' ? 'stage' : 'publish')} className="rounded-control bg-primary px-ui-md py-ui-sm font-mono text-system-label font-medium text-primary-foreground transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-45">{environment === 'draft' ? 'Stage Network' : 'Publish Release'}</button>
             )}
           </div>
         )}

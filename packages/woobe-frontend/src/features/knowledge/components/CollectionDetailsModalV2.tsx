@@ -258,7 +258,7 @@ export function CollectionDetailsModal({ open, onClose, collection, projectId, o
             <AlertTitle>Vector build failed</AlertTitle>
             <AlertDescription>{latestSnapshot?.error_message || 'The latest vector build failed.'}</AlertDescription>
             {latestSnapshot ? (
-              <div className="mt-ui-sm font-mono text-system-meta text-error/80">
+              <div className="mt-ui-sm font-mono text-system-meta text-error">
                 {latestSnapshot.embedding_provider} · {latestSnapshot.embedding_model} · {latestSnapshot.build_stage || 'FAILED'}
               </div>
             ) : null}
@@ -362,7 +362,7 @@ export function CollectionDetailsModal({ open, onClose, collection, projectId, o
 
             <DialogFooter
               meta={(
-                <p className="font-sans text-system-meta text-muted-foreground">
+                <p className="font-mono text-system-meta text-muted-foreground">
                   {hasChanges ? 'Unsaved Collection changes' : `${items.length} documents · ${indexedCount} ready · ${formatBytes(totalSize)}`}
                 </p>
               )}

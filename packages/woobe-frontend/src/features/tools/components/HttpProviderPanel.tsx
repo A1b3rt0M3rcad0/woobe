@@ -122,9 +122,9 @@ export function HttpProviderPanel({ tool, footerActions, summaryNote, permission
   return (
     <div className="mt-ui-sm">
       <div className={footerActions ? 'min-w-0 pl-ui-xl' : 'min-w-0'}>
-        <p title={providerHost(tool)} className="truncate font-sans text-system-micro text-muted-foreground">{providerHost(tool)}</p>
-        <p className="mt-ui-sm font-sans text-system-micro text-muted-foreground">HTTP · {allRoutes.length} routes · {counts.allow} allowed</p>
-        <p className="mt-ui-sm flex items-center gap-ui-xs font-sans text-system-micro text-muted-foreground"><span className={`h-1.5 w-1.5 shrink-0 rounded-full ${ready ? 'bg-emerald-300' : 'bg-amber-300'}`} />{ready ? 'Ready' : 'Needs permission'}</p>
+        <p title={providerHost(tool)} className="truncate font-mono text-system-micro text-muted-foreground">{providerHost(tool)}</p>
+        <p className="mt-ui-sm font-mono text-system-micro text-muted-foreground">HTTP · {allRoutes.length} routes · {counts.allow} allowed</p>
+        <p className="mt-ui-sm flex items-center gap-ui-xs font-mono text-system-micro text-muted-foreground"><span className={`h-1.5 w-1.5 shrink-0 rounded-full ${ready ? 'bg-emerald-300' : 'bg-amber-300'}`} />{ready ? 'Ready' : 'Needs permission'}</p>
       </div>
       {summaryNote}
       <div className="mt-ui-md grid grid-cols-2 gap-ui-sm border-t border-border/75 pt-ui-md">
@@ -136,7 +136,7 @@ export function HttpProviderPanel({ tool, footerActions, summaryNote, permission
         <div className="space-y-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <p className="text-sm font-medium text-foreground">{counts.allow} allowed · {counts.review} review · {counts.deny} blocked</p>
+              <p className="font-mono text-sm font-medium text-foreground">{counts.allow} allowed · {counts.review} review · {counts.deny} blocked</p>
               <p className="mt-1 text-xs text-muted">Each allowed route is exposed independently to this Agent.</p>
             </div>
             {canEditPermissions ? (
@@ -163,12 +163,12 @@ export function HttpProviderPanel({ tool, footerActions, summaryNote, permission
                 <div key={route.id} className="grid gap-3 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
                   <div className="min-w-0">
                     <div className="flex min-w-0 items-center gap-2">
-                      <span className="shrink-0 rounded-md border border-border/80 bg-background px-2 py-1 font-mono text-system-meta font-semibold text-primary-light">{route.method}</span>
-                      <p className="truncate text-xs font-medium text-foreground">{route.name}</p>
+                      <span className="shrink-0 rounded-md border border-border/80 bg-background px-2 py-1 font-mono text-system-meta font-medium text-primary-light">{route.method}</span>
+                      <p className="font-mono truncate text-xs font-medium text-foreground">{route.name}</p>
                       {showRisk ? <span className="shrink-0 text-system-meta capitalize text-warning">{route.risk_level} risk</span> : null}
                     </div>
-                    <p className="mt-1 truncate font-sans text-system-meta text-muted">{route.path}</p>
-                    <p className="mt-1 line-clamp-2 text-system-meta leading-4 text-muted">{route.description}</p>
+                    <p className="mt-1 truncate font-mono text-system-meta text-muted">{route.path}</p>
+                    <p className="font-mono mt-1 line-clamp-2 text-system-meta leading-4 text-muted">{route.description}</p>
                   </div>
                   <PermissionControl
                     mode={permission.mode}

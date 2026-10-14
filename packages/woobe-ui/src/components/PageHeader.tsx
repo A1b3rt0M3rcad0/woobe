@@ -31,7 +31,7 @@ const PageHeader = forwardRef<HTMLDivElement, PageHeaderProps>(
           {title}
         </h1>
         {description ? (
-          <div className="mt-ui-xs max-w-3xl font-mono text-product-small text-muted-foreground">
+          <div className="mt-ui-xs max-w-3xl font-sans text-product-small text-muted-foreground">
             {description}
           </div>
         ) : null}

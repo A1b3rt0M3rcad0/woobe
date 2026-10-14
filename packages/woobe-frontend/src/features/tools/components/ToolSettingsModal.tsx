@@ -606,7 +606,7 @@ export function ToolSettingsModal({ tool, onClose, onSaved, projectControls = fa
               </span>
               <div className="min-w-0 flex-1">
                 <div className="flex min-w-0 flex-wrap items-center gap-ui-sm">
-                  <h3 className="min-w-0 flex-1 truncate font-mono text-system-heading font-semibold text-accent-foreground">{tool.name}</h3>
+                  <h3 className="min-w-0 flex-1 truncate font-mono text-system-heading font-medium text-accent-foreground">{tool.name}</h3>
                   <StatusBadge status={tool.status} size="compact" />
                 </div>
                 <div className="mt-ui-xs flex min-w-0 flex-wrap items-center gap-x-ui-md gap-y-ui-xs font-mono text-system-meta text-muted-foreground">

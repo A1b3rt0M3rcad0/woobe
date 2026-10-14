@@ -54,7 +54,7 @@ export function AgentSkillsSection({ projectId }: { projectId: string }) {
                   const runtime = nextEnabled && manager ? enableSkillsContext(state.runtimeConfig, manager) : state.runtimeConfig
                   setField('runtimeConfig', { ...runtime, skills: { ...config, bindings: config.bindings.map(item => item.skill_id === binding.skill_id ? { ...item, enabled: nextEnabled } : item) } })
                 }} aria-label={`Enable ${name}`} />
-                <span className="min-w-0"><span className="block break-words font-mono text-system-label font-semibold text-slate-100">{name}</span><span className="mt-ui-xs block font-mono text-system-meta text-muted-foreground">{snapshot?.version ?? 'Pinned version'} · {binding.enabled ? 'Available' : 'Disabled'}</span></span>
+                <span className="min-w-0"><span className="block break-words font-mono text-system-label font-medium text-slate-100">{name}</span><span className="mt-ui-xs block font-mono text-system-meta text-muted-foreground">{snapshot?.version ?? 'Pinned version'} · {binding.enabled ? 'Available' : 'Disabled'}</span></span>
               </label>
               <button type="button" aria-label={`Uninstall ${name} from draft`} className="flex h-control-segment w-control-segment shrink-0 items-center justify-center rounded-control border border-transparent text-muted-foreground hover:border-red-500/25 hover:bg-red-500/[0.06] hover:text-error" onClick={() => setField('runtimeConfig', { ...state.runtimeConfig, skills: { bindings: config.bindings.filter(item => item.skill_id !== binding.skill_id), snapshots: config.snapshots.filter(item => item.skill_id !== binding.skill_id) } })}><Trash2 className="h-3.5 w-3.5" /></button>
             </div>

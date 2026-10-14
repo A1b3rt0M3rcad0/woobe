@@ -88,7 +88,7 @@ export function AgentInspector({
     >
       <div className="flex h-control shrink-0 items-center gap-ui-sm border-b border-border bg-background/20 px-ui-md">
         <div className="min-w-0 flex-1">
-          <p className="truncate font-sans text-chrome-label font-semibold text-slate-50">Agent settings</p>
+          <p className="truncate font-mono text-chrome-label font-medium text-slate-50">Agent settings</p>
         </div>
 
         <SegmentedControl

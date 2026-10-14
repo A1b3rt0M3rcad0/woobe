@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ChevronDown, X } from 'lucide-react'
 import { toast } from 'sonner'
@@ -21,6 +21,7 @@ export function NetworkRuntimeControlsPopover({ networkId, projectId }: { networ
   const rootRef = useRef<HTMLDivElement | null>(null)
   const menuRef = useRef<HTMLDivElement | null>(null)
   const buttonRef = useRef<HTMLButtonElement | null>(null)
+  const menuId = useId()
   const [open, setOpen] = useState(false)
   const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0, width: menuWidth })
   const statesQuery = useNetworkRuntimeEnvironments(networkId, projectId)
@@ -74,10 +75,10 @@ export function NetworkRuntimeControlsPopover({ networkId, projectId }: { networ
   }
 
   const menu = open ? (
-    <div ref={menuRef} className="fixed z-focus overflow-hidden rounded-container border border-border bg-surface/95 shadow-popup backdrop-blur-md" style={menuPosition}>
+    <div ref={menuRef} id={menuId} role="region" aria-label="Network runtime controls" className="fixed z-focus overflow-hidden rounded-container border border-border bg-surface/95 shadow-popup backdrop-blur-md" style={menuPosition}>
       <div className="flex items-center justify-between border-b border-border px-ui-md py-ui-sm">
         <div>
-          <p className="font-sans text-system-control font-semibold text-accent-foreground">Network runtime</p>
+          <p className="font-mono text-system-control font-medium text-accent-foreground">Network runtime</p>
           <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">Control Network Runs by environment.</p>
         </div>
         <Button type="button" variant="ghost" size="iconXs" onClick={() => setOpen(false)} aria-label="Close runtime controls"><X className="h-icon-sm w-icon-sm" /></Button>
@@ -91,7 +92,7 @@ export function NetworkRuntimeControlsPopover({ networkId, projectId }: { networ
               <div className="flex min-w-0 items-center gap-ui-sm">
                 <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', enabled ? 'bg-success' : 'bg-muted')} />
                 <div className="min-w-0">
-                  <p className="font-sans text-system-control font-medium text-accent-foreground">{titleCase(environment)}</p>
+                  <p className="font-mono text-system-control font-medium text-accent-foreground">{titleCase(environment)}</p>
                   <p className="font-sans text-product-caption text-muted-foreground">{enabled ? 'Runs allowed' : 'Runs blocked'}</p>
                 </div>
               </div>
@@ -122,10 +123,11 @@ export function NetworkRuntimeControlsPopover({ networkId, projectId }: { networ
     <div ref={rootRef} className="relative z-playground-chrome flex items-center">
       <Button
         ref={buttonRef}
+        aria-expanded={open}
+        aria-controls={menuId}
         type="button"
         size="sm"
         variant={open ? 'secondary' : 'outline'}
-        aria-expanded={open}
         onClick={() => open ? setOpen(false) : openMenu()}
         title="Network runtime environments"
       >

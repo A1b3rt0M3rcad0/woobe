@@ -129,7 +129,7 @@ function HeaderEditor({
     <div className="min-w-0 space-y-2 rounded-xl border border-border/70 bg-background/60 p-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-system-meta font-medium text-muted uppercase tracking-wider">{title}</p>
+          <p className="font-mono text-system-meta font-medium text-muted uppercase tracking-wider">{title}</p>
           {description && <p className="mt-1 text-xs text-muted break-words">{description}</p>}
         </div>
         <Button type="button" size="sm" variant="ghost" onClick={addHeader}>
@@ -447,7 +447,7 @@ export function ToolDiscoveryForm({ submitLabel = 'Create', cancelLabel = 'Cance
       <div className="min-w-0 rounded-2xl border border-border/80 bg-background/80 p-4 shadow-sm">
         <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary-light">Tool runtime</p>
+            <p className="font-mono text-xs font-medium uppercase tracking-[0.2em] text-primary-light">Tool runtime</p>
             <p className="mt-1 text-sm text-muted break-words">Choose how Woobe should execute this capability.</p>
           </div>
           <div className="w-full sm:w-44">
@@ -456,11 +456,11 @@ export function ToolDiscoveryForm({ submitLabel = 'Create', cancelLabel = 'Cance
         </div>
         <div className="grid gap-3 md:grid-cols-2">
           <button type="button" onClick={() => setProtocol('http')} className={`min-w-0 rounded-xl border p-3 text-left transition ${protocol === 'http' ? 'border-primary/60 bg-primary/10 text-foreground' : 'border-border bg-card/60 text-muted hover:border-border-light'}`}>
-            <p className="text-sm font-medium break-words">HTTP API</p>
+            <p className="font-mono text-sm font-medium break-words">HTTP API</p>
             <p className="mt-1 text-xs text-muted break-words">Call a REST-style endpoint directly.</p>
           </button>
           <button type="button" onClick={() => setProtocol('mcp')} className={`min-w-0 rounded-xl border p-3 text-left transition ${protocol === 'mcp' ? 'border-primary/60 bg-primary/10 text-foreground' : 'border-border bg-card/60 text-muted hover:border-border-light'}`}>
-            <p className="text-sm font-medium break-words">MCP Server</p>
+            <p className="font-mono text-sm font-medium break-words">MCP Server</p>
             <p className="mt-1 text-xs text-muted break-words">Connect a server and let the agent choose any discovered tool.</p>
           </button>
         </div>
@@ -486,7 +486,7 @@ export function ToolDiscoveryForm({ submitLabel = 'Create', cancelLabel = 'Cance
         <div className="min-w-0 space-y-4 overflow-hidden rounded-2xl border border-border/80 bg-card/40 p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
-              <p className="text-sm font-medium text-foreground">HTTP request</p>
+              <p className="font-mono text-sm font-medium text-foreground">HTTP request</p>
               <p className="mt-1 text-xs text-muted break-words">Use template variables like {'{{customerId}}'} in the URL.</p>
             </div>
             <div className="w-full sm:w-32"><Select value={method} onChange={e => setMethod(e.target.value)} options={HTTP_METHODS} /></div>
@@ -497,7 +497,7 @@ export function ToolDiscoveryForm({ submitLabel = 'Create', cancelLabel = 'Cance
           </div>
           {urlVariables.length > 0 && (
             <div className="min-w-0 rounded-xl border border-border/70 bg-background/60 p-3 space-y-2">
-              <p className="text-system-meta font-medium text-muted uppercase tracking-wider">URL Variables</p>
+              <p className="font-mono text-system-meta font-medium text-muted uppercase tracking-wider">URL Variables</p>
               {urlVariables.map(v => (
                 <div key={v} className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
                   <span className="text-xs font-mono text-muted break-all sm:min-w-[120px]">{'{{'}{v}{'}}'}</span>
@@ -512,7 +512,7 @@ export function ToolDiscoveryForm({ submitLabel = 'Create', cancelLabel = 'Cance
       ) : (
         <div className="min-w-0 space-y-4 overflow-hidden rounded-2xl border border-border/80 bg-card/40 p-4">
           <div className="min-w-0 rounded-xl border border-blue-500/30 bg-blue-500/5 p-3">
-            <p className="text-sm font-medium text-primary-light break-words">Connect MCP server</p>
+            <p className="font-mono text-sm font-medium text-primary-light break-words">Connect MCP server</p>
             <p className="mt-1 text-xs text-muted break-words">Connect once. Woobe will expose all discovered server tools to the agent and the model will decide which one to call.</p>
           </div>
           <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-end">
@@ -529,8 +529,8 @@ export function ToolDiscoveryForm({ submitLabel = 'Create', cancelLabel = 'Cance
           {mcpTools.length > 0 && (
             <div className="min-w-0 space-y-2">
               <div className="flex items-center justify-between gap-3">
-                <p className="text-system-meta font-medium text-muted uppercase tracking-wider">Available to agent</p>
-                {mcpTools.length > 2 && <p className="text-system-meta text-muted">Scroll to view all</p>}
+                <p className="font-mono text-system-meta font-medium text-muted uppercase tracking-wider">Available to agent</p>
+                {mcpTools.length > 2 && <p className="font-mono text-system-meta text-muted">Scroll to view all</p>}
               </div>
               <p className="text-xs text-muted">{mcpTools.length} tools discovered. The agent can choose any of them automatically.</p>
               <div className={`grid min-w-0 gap-2 pr-1 ${mcpTools.length > 2 ? 'max-h-64 overflow-y-auto overscroll-contain' : ''}`}>
@@ -538,8 +538,8 @@ export function ToolDiscoveryForm({ submitLabel = 'Create', cancelLabel = 'Cance
                   <div key={tool.name} className="w-full min-w-0 overflow-hidden rounded-xl border border-border bg-background/60 p-3 text-left">
                     <div className="flex min-w-0 items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <p className="text-sm font-medium break-words text-foreground">{displayNameForTool(tool)}</p>
-                        <p className="mt-1 text-system-meta font-sans text-muted break-all">{tool.name}</p>
+                        <p className="font-mono text-sm font-medium break-words text-foreground">{displayNameForTool(tool)}</p>
+                        <p className="mt-1 text-system-meta font-mono text-muted break-all">{tool.name}</p>
                       </div>
                       {onTest && (
                         <Button

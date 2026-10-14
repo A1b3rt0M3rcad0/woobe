@@ -64,7 +64,7 @@ export function NetworkSessionsPanel({
       <div className="shrink-0 border-b border-border/80 px-ui-md py-ui-md">
         <div className="flex items-start justify-between gap-ui-md">
           <div>
-            <h3 className="font-mono text-system-heading font-semibold text-foreground">Sessions</h3>
+            <h3 className="font-mono text-system-heading font-medium text-foreground">Sessions</h3>
             <p className="mt-ui-hairline font-sans text-product-caption text-muted-foreground">Conversation continuity for the active Network environment.</p>
           </div>
           {activeSession && !activeSessionIsEarlierSnapshot ? (

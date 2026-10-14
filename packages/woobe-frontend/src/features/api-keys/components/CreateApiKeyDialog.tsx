@@ -435,7 +435,7 @@ export function CreateApiKeyDialog({
           </div>
 
           <DialogFooter
-            meta={error ? <p className="font-sans text-system-label text-error">{error}</p> : <p className="truncate font-sans text-system-meta text-muted-foreground">{summary}</p>}
+            meta={error ? <p className="font-mono text-system-label text-error">{error}</p> : <p className="truncate font-mono text-system-meta text-muted-foreground">{summary}</p>}
             actions={(
               <>
                 <Button type="button" variant="outline" onClick={close}>Cancel</Button>

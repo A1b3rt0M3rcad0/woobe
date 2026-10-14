@@ -123,7 +123,7 @@ function RunContextSummary({ invocations }: { invocations: ContextModelInvocatio
     <div className="rounded-lg border border-border bg-background px-2.5 py-2">
       <div className="flex items-end justify-between gap-3">
         <div>
-          <p className="text-system-meta uppercase tracking-wider text-muted">Model input</p>
+          <p className="font-mono text-system-meta uppercase tracking-wider text-muted">Model input</p>
           <p className="mt-0.5 text-sm font-sans text-foreground">{formatUnits(totalInput)}</p>
         </div>
         <span className="text-system-meta text-muted">Across {invocations.length} invocation{invocations.length === 1 ? '' : 's'}</span>
@@ -216,14 +216,14 @@ function BlockedInvocationCard({ invocation }: { invocation: ContextModelInvocat
     <div className="space-y-2.5 rounded-lg border border-red-500/25 bg-red-500/5 p-2.5">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="truncate text-system-meta font-medium text-foreground">Invocation #{invocation.call_index ?? '—'} · {invocation.phase || 'model_invocation'}</p>
-          <p className="truncate font-sans text-system-meta text-muted">{invocation.provider || '—'}/{invocation.model || '—'}</p>
+          <p className="font-mono truncate text-system-meta font-medium text-foreground">Invocation #{invocation.call_index ?? '—'} · {invocation.phase || 'model_invocation'}</p>
+          <p className="truncate font-mono text-system-meta text-muted">{invocation.provider || '—'}/{invocation.model || '—'}</p>
         </div>
         <span className={cn('shrink-0 rounded-full border px-1.5 py-0.5 text-system-meta font-medium', fitClass('UNFIT'))}>UNFIT</span>
       </div>
       <div className="grid grid-cols-2 gap-1.5 text-system-meta">
-        <div className="rounded border border-border px-2 py-1.5"><p className="text-system-meta uppercase tracking-wider text-muted">Effective budget</p><p className="font-sans text-foreground">{formatUnits(number('effective_budget_units'))}</p></div>
-        <div className="rounded border border-border px-2 py-1.5"><p className="text-system-meta uppercase tracking-wider text-muted">Mandatory context</p><p className="font-sans text-foreground">{formatUnits(number('mandatory_units'))}</p></div>
+        <div className="rounded border border-border px-2 py-1.5"><p className="font-mono text-system-meta uppercase tracking-wider text-muted">Effective budget</p><p className="font-sans text-foreground">{formatUnits(number('effective_budget_units'))}</p></div>
+        <div className="rounded border border-border px-2 py-1.5"><p className="font-mono text-system-meta uppercase tracking-wider text-muted">Mandatory context</p><p className="font-sans text-foreground">{formatUnits(number('mandatory_units'))}</p></div>
       </div>
       <div className="flex flex-wrap gap-x-3 gap-y-1 text-system-meta text-muted">
         <span>Capacity {formatUnits(number('model_capacity_units'))}</span>
@@ -234,7 +234,7 @@ function BlockedInvocationCard({ invocation }: { invocation: ContextModelInvocat
         <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
         Provider was not called because mandatory Context exceeded the invocation-specific budget.
       </div>
-      {invocation.error ? <p className="text-system-meta text-muted">{invocation.error}</p> : null}
+      {invocation.error ? <p className="font-mono text-system-meta text-muted">{invocation.error}</p> : null}
     </div>
   )
 }
@@ -267,10 +267,10 @@ function InvocationCard({ invocation }: { invocation: ContextModelInvocation }) 
     <div className="rounded-lg border border-border bg-background p-2.5 space-y-2.5">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="truncate text-system-meta font-medium text-foreground">
+          <p className="font-mono truncate text-system-meta font-medium text-foreground">
             Invocation #{invocation.call_index ?? '—'} · {invocation.phase || 'model_invocation'}
           </p>
-          <p className="truncate font-sans text-system-meta text-muted">
+          <p className="truncate font-mono text-system-meta text-muted">
             {invocation.provider || '—'}/{invocation.model || '—'}
           </p>
         </div>
@@ -286,14 +286,14 @@ function InvocationCard({ invocation }: { invocation: ContextModelInvocation }) 
 
       <div className="grid grid-cols-2 gap-1.5">
         <div className="rounded border border-border px-2 py-1.5">
-          <p className="text-system-meta uppercase tracking-wider text-muted">Input</p>
+          <p className="font-mono text-system-meta uppercase tracking-wider text-muted">Input</p>
           <p className="text-[12px] font-sans text-foreground">{formatUnits(input)}</p>
-          <p className="text-system-meta text-muted">{providerReported != null ? 'Provider reported' : 'Woobe estimate'}</p>
+          <p className="font-mono text-system-meta text-muted">{providerReported != null ? 'Provider reported' : 'Woobe estimate'}</p>
         </div>
         <div className="rounded border border-border px-2 py-1.5">
-          <p className="text-system-meta uppercase tracking-wider text-muted">Effective budget</p>
+          <p className="font-mono text-system-meta uppercase tracking-wider text-muted">Effective budget</p>
           <p className="text-[12px] font-sans text-foreground">{budgetKnown ? formatUnits(snapshot.usable_input_budget) : 'Unavailable'}</p>
-          <p className="text-system-meta text-muted">{budgetKnown ? `${formatPercent(snapshot.utilization)} used` : 'Model capacity was not resolved'}</p>
+          <p className="font-mono text-system-meta text-muted">{budgetKnown ? `${formatPercent(snapshot.utilization)} used` : 'Model capacity was not resolved'}</p>
         </div>
       </div>
 
@@ -308,7 +308,7 @@ function InvocationCard({ invocation }: { invocation: ContextModelInvocation }) 
 
       <div>
         <div className="mb-1.5 flex items-center justify-between gap-2">
-          <p className="text-system-meta uppercase tracking-wider text-muted">Composition</p>
+          <p className="font-mono text-system-meta uppercase tracking-wider text-muted">Composition</p>
           <span className="text-system-meta text-muted">estimated shares</span>
         </div>
         <Composition snapshot={snapshot} />
@@ -334,7 +334,7 @@ function InvocationCard({ invocation }: { invocation: ContextModelInvocation }) 
       {snapshotWarnings.length > 0 ? (
         <div className="space-y-1">
           {snapshotWarnings.map((warning) => (
-            <p key={warning} className="flex items-center gap-1.5 text-system-meta text-warning">
+            <p key={warning} className="font-mono flex items-center gap-1.5 text-system-meta text-warning">
               <AlertTriangle className="h-3 w-3 shrink-0" />
               {warningLabel(warning)}
             </p>
@@ -355,7 +355,7 @@ function InvocationCard({ invocation }: { invocation: ContextModelInvocation }) 
           </div>
           <JsonCodeBlock value={snapshot.manifest} maxHeight={180} />
           <JsonCodeBlock value={snapshot.contributions} maxHeight={180} />
-          <p className="break-all text-system-meta text-muted">policy {snapshot.policy_hash} · materialized {snapshot.materialized_hash}</p>
+          <p className="font-mono break-all text-system-meta text-muted">policy {snapshot.policy_hash} · materialized {snapshot.materialized_hash}</p>
         </div>
       </details>
     </div>
@@ -374,7 +374,7 @@ export function ContextInspector({ traceId, runId, finalizing = false }: { trace
       <div className="px-4 pb-4">
         <div className="space-y-1.5 rounded-lg border border-border bg-surface/30 p-3">
           <div className="flex items-center gap-2 text-xs text-muted"><Brain className="h-3.5 w-3.5" />Context evidence unavailable</div>
-          <p className="text-system-meta text-muted">{finalizing ? 'The Agent Run completed, but Context evidence has not been finalized yet.' : error instanceof Error ? error.message : 'Context evidence could not be loaded.'}</p>
+          <p className="font-mono text-system-meta text-muted">{finalizing ? 'The Agent Run completed, but Context evidence has not been finalized yet.' : error instanceof Error ? error.message : 'Context evidence could not be loaded.'}</p>
           <button onClick={() => refetch()} className="text-system-meta text-primary hover:underline">Retry</button>
         </div>
       </div>

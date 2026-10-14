@@ -57,7 +57,7 @@ function outputSummary(release: AgentRelease) {
 function SnapshotField({ label, value, mono = false }: { label: string; value: string | number | null | undefined; mono?: boolean }) {
   return (
     <div className="rounded-lg border border-border/75 bg-background/35 p-3">
-      <p className="text-system-meta font-semibold uppercase tracking-wide text-muted">{label}</p>
+      <p className="font-mono text-system-meta font-medium uppercase tracking-wide text-muted">{label}</p>
       <p className={`mt-1 break-words text-system-meta text-slate-200 ${mono ? 'font-mono' : ''}`}>{value == null || value === '' ? 'Not configured' : String(value)}</p>
     </div>
   )
@@ -84,12 +84,12 @@ export function AgentSnapshotDetails({ release }: { release: AgentRelease }) {
           <SnapshotField label="Execution strategy" value={executionStrategy === 'standard' ? 'Standard' : executionStrategy} mono />
           <SnapshotField label="Context manager" value={contextManager(release.runtime_config)} mono />
         </div>
-        <p className="mt-2 text-system-meta text-muted">Created {formatDate(release.created_at)}{release.promoted_at ? ` · Promoted ${formatDate(release.promoted_at)}` : ''}</p>
+        <p className="font-mono mt-2 text-system-meta text-muted">Created {formatDate(release.created_at)}{release.promoted_at ? ` · Promoted ${formatDate(release.promoted_at)}` : ''}</p>
       </section>
 
       {release.release_notes ? (
         <section>
-          <p className="mb-1.5 text-system-meta font-semibold uppercase tracking-wide text-muted">Release description</p>
+          <p className="font-mono mb-1.5 text-system-meta font-medium uppercase tracking-wide text-muted">Release description</p>
           <div className="rounded-xl border border-border/75 bg-background/35 p-3 text-system-meta leading-5 text-slate-200">{release.release_notes}</div>
         </section>
       ) : null}
@@ -98,18 +98,18 @@ export function AgentSnapshotDetails({ release }: { release: AgentRelease }) {
 
       <div className="grid gap-3 sm:grid-cols-3">
         <section className="rounded-xl border border-border/75 bg-background/35 p-3">
-          <p className="text-system-meta font-semibold uppercase tracking-wide text-muted">Knowledge</p>
-          <p className="mt-1 text-system-meta font-medium text-slate-200">{collections.length ? `${collections.length} Collection${collections.length === 1 ? '' : 's'}` : 'No Collection configured'}</p>
-          {release.knowledge_version_id ? <p className="mt-1 truncate font-sans text-system-meta text-muted">Snapshot {release.knowledge_version_id}</p> : null}
+          <p className="font-mono text-system-meta font-medium uppercase tracking-wide text-muted">Knowledge</p>
+          <p className="font-mono mt-1 text-system-meta font-medium text-slate-200">{collections.length ? `${collections.length} Collection${collections.length === 1 ? '' : 's'}` : 'No Collection configured'}</p>
+          {release.knowledge_version_id ? <p className="mt-1 truncate font-mono text-system-meta text-muted">Snapshot {release.knowledge_version_id}</p> : null}
         </section>
         <section className="rounded-xl border border-border/75 bg-background/35 p-3">
-          <p className="text-system-meta font-semibold uppercase tracking-wide text-muted">Tools</p>
-          <p className="mt-1 text-system-meta font-medium text-slate-200">{tools.length ? `${tools.length} enabled` : 'No Tools configured'}</p>
-          {tools.length ? <p className="mt-1 line-clamp-2 text-system-meta leading-4 text-muted">{tools.join(' · ')}</p> : null}
+          <p className="font-mono text-system-meta font-medium uppercase tracking-wide text-muted">Tools</p>
+          <p className="font-mono mt-1 text-system-meta font-medium text-slate-200">{tools.length ? `${tools.length} enabled` : 'No Tools configured'}</p>
+          {tools.length ? <p className="font-mono mt-1 line-clamp-2 text-system-meta leading-4 text-muted">{tools.join(' · ')}</p> : null}
         </section>
         <section className="rounded-xl border border-border/75 bg-background/35 p-3">
-          <p className="text-system-meta font-semibold uppercase tracking-wide text-muted">Output</p>
-          <p className="mt-1 text-system-meta font-medium text-slate-200">{output}</p>
+          <p className="font-mono text-system-meta font-medium uppercase tracking-wide text-muted">Output</p>
+          <p className="font-mono mt-1 text-system-meta font-medium text-slate-200">{output}</p>
         </section>
       </div>
 

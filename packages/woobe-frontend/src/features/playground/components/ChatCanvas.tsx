@@ -106,7 +106,7 @@ function SessionMessagesLoading({ compact = false }: { compact?: boolean }) {
           </div>
           <div className="h-control-segment w-control-segment shrink-0 animate-pulse rounded-control border border-primary/25 bg-primary/[0.08]" />
         </div>
-        <p className="pt-ui-xs text-center font-sans text-system-meta text-muted-foreground">Loading session messages...</p>
+        <p className="pt-ui-xs text-center font-mono text-system-meta text-muted-foreground">Loading session messages...</p>
       </div>
     </div>
   )
@@ -297,7 +297,7 @@ export function ChatCanvas({
                 : 'mx-auto flex max-w-2xl items-start gap-ui-sm border-l-2 border-l-primary bg-primary/[0.045] px-ui-md py-ui-sm text-left'}>
                 <CheckCircle2 className="mt-ui-hairline h-icon w-icon shrink-0 text-primary-light" />
                 <div>
-                  <p className="font-sans text-system-label font-semibold text-slate-100">First test completed</p>
+                  <p className="font-mono text-system-label font-medium text-slate-100">First test completed</p>
                   <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">Your Agent Draft responded successfully. Continue testing or configure Versions when you are ready.</p>
                 </div>
               </div>

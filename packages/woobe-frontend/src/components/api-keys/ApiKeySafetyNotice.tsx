@@ -6,8 +6,8 @@ export function ApiKeySafetyNotice() {
       <div className="flex items-start gap-2">
         <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-warning" />
         <div>
-          <p className="text-sm font-medium text-warning">Copy this key now</p>
-          <p className="text-xs text-warning/70">It is shown once and cannot be recovered later.</p>
+          <p className="font-mono text-sm font-medium text-warning">Copy this key now</p>
+          <p className="text-xs text-warning">It is shown once and cannot be recovered later.</p>
         </div>
       </div>
     </div>

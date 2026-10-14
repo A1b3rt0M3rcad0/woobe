@@ -948,7 +948,7 @@ export function ModelSettingsModal({
             </div>
 
             <div className="border-t border-border pt-ui-md">
-              <p className="font-sans text-system-meta font-semibold uppercase tracking-[0.12em] text-muted-foreground">Declared capabilities</p>
+              <p className="font-mono text-system-meta font-medium uppercase tracking-[0.12em] text-muted-foreground">Declared capabilities</p>
               <div className="mt-ui-sm flex flex-wrap gap-ui-xs">
                 {Object.keys(normalizedSpec.capabilities).length ? Object.entries(normalizedSpec.capabilities).map(([name, supported]) => (
                   <Badge key={name} variant={supported === true ? 'success' : 'outline'} size="compact">
@@ -1061,7 +1061,7 @@ export function ModelSettingsModal({
                 </div>
                 <div className="min-w-0">
                   <div className="flex min-w-0 flex-wrap items-center gap-ui-sm">
-                    <h3 className="truncate font-mono text-system-heading font-semibold text-accent-foreground">{technicalName}</h3>
+                    <h3 className="truncate font-mono text-system-heading font-medium text-accent-foreground">{technicalName}</h3>
                     <StatusBadge status={selectedModel ? status : 'draft'} size="compact" />
                   </div>
                   <div className="mt-ui-xs flex min-w-0 flex-wrap items-center gap-x-ui-md gap-y-ui-xs font-mono text-system-meta text-muted-foreground">

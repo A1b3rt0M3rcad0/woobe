@@ -71,7 +71,7 @@ export function RuntimeContextPanel({
           <div className="rounded-container border border-border bg-background/35 px-ui-md py-ui-sm">
             <div className="flex items-center justify-between gap-ui-md">
               <div>
-                <p className="font-sans text-system-control font-semibold text-accent-foreground">
+                <p className="font-mono text-system-control font-medium text-accent-foreground">
                   Runtime values
                 </p>
                 <p className="mt-ui-hairline font-sans text-product-caption text-muted-foreground">

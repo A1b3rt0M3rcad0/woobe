@@ -135,7 +135,7 @@ function DetailPanel({
     <details className="group overflow-hidden rounded-container border border-border bg-background/25">
       <summary className="flex cursor-pointer list-none items-center gap-ui-md px-ui-md py-ui-sm text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40">
         <span className="min-w-0 flex-1">
-          <span className="block font-mono text-system-control font-semibold text-accent-foreground">{title}</span>
+          <span className="block font-mono text-system-control font-medium text-accent-foreground">{title}</span>
           {description ? <span className="mt-ui-xs block font-mono text-product-caption text-muted-foreground">{description}</span> : null}
         </span>
         <ChevronDown className="h-icon w-icon shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />

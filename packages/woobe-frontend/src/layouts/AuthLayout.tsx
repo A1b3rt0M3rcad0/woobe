@@ -13,7 +13,7 @@ export function AuthLayout() {
       <section className="relative hidden flex-col justify-between overflow-hidden bg-background p-12 text-foreground lg:flex xl:p-16" aria-label="About Woobe">
         <div className="flex items-center gap-ui-md" translate="no">
           <Orbit className="h-8 w-8" strokeWidth={1.6} aria-hidden="true" />
-          <span className="text-brand-title font-semibold tracking-tight">Woobe</span>
+          <span className="text-brand-title font-medium tracking-tight">Woobe</span>
         </div>
         <div className="relative my-16 max-w-lg">
           <p className="mb-6 text-product-small text-muted-foreground">Your agents. Your infrastructure.</p>
@@ -32,7 +32,7 @@ export function AuthLayout() {
       </section>
       <section className="flex min-w-0 flex-col justify-center border-l border-border bg-surface px-6 py-12 sm:px-12 lg:px-16">
         <div className="mx-auto w-full max-w-form-narrow">
-          <div className="mb-12 flex items-center gap-ui-sm text-foreground lg:hidden" translate="no"><Orbit className="h-7 w-7" aria-hidden="true" /><span className="text-brand-title font-semibold">Woobe</span></div>
+          <div className="mb-12 flex items-center gap-ui-sm text-foreground lg:hidden" translate="no"><Orbit className="h-7 w-7" aria-hidden="true" /><span className="text-brand-title font-medium">Woobe</span></div>
           <Outlet />
           <p className="mt-10 border-t border-border pt-5 text-product-caption text-muted-foreground">Control plane for production AI agents</p>
         </div>

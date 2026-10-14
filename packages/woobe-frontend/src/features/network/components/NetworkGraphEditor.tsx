@@ -71,16 +71,16 @@ function AgentNode({ data, selected }: NodeProps<AgentFlowNode>) {
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-ui-sm">
-            <p className="truncate font-sans text-product-small font-semibold text-foreground">{data.node.label}</p>
+            <p className="truncate font-mono text-product-small font-medium text-foreground">{data.node.label}</p>
             {issue ? <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-error" /> : null}
           </div>
-          <p className="mt-ui-xs truncate font-sans text-system-meta text-muted-foreground">{data.agent ? `${data.agent.provider}/${data.agent.model}` : 'Agent unavailable'}</p>
+          <p className="mt-ui-xs truncate font-mono text-system-meta text-muted-foreground">{data.agent ? `${data.agent.provider}/${data.agent.model}` : 'Agent unavailable'}</p>
           {data.node.capability_description ? <p className="mt-ui-sm line-clamp-2 font-sans text-product-caption leading-4 text-slate-400">{data.node.capability_description}</p> : null}
         </div>
       </div>
       <div className="mt-ui-md space-y-ui-sm border-t border-border/70 pt-ui-sm">
         <div className="flex items-center justify-between gap-ui-sm">
-          <span className={cn('rounded-technical border px-ui-xs py-ui-hairline font-mono text-system-meta font-semibold uppercase', data.activeInRun ? 'border-emerald-500/30 bg-emerald-500/10 text-success' : data.isRoot ? 'border-primary/30 bg-primary/10 text-primary-light' : 'border-border text-muted-foreground')}>
+          <span className={cn('rounded-technical border px-ui-xs py-ui-hairline font-mono text-system-meta font-medium uppercase', data.activeInRun ? 'border-emerald-500/30 bg-emerald-500/10 text-success' : data.isRoot ? 'border-primary/30 bg-primary/10 text-primary-light' : 'border-border text-muted-foreground')}>
             {data.activeInRun ? 'Executed' : data.isRoot ? 'Entry point' : 'Agent'}
           </span>
           <span className={cn('h-2 w-2 shrink-0 rounded-full', data.agent?.status === 'active' ? 'bg-emerald-400' : 'bg-amber-400')} />
@@ -94,7 +94,7 @@ function AgentNode({ data, selected }: NodeProps<AgentFlowNode>) {
             title={`${data.binding.source === 'release' ? 'Agent Release' : data.binding.source === 'staging' ? 'Agent Staging snapshot' : 'Agent Draft'}: ${data.binding.version}${data.binding.dirty ? ' · unsaved changes' : ''}`}
           />
         ) : (
-          <span className="block rounded-technical border border-red-500/30 bg-red-500/10 px-ui-sm py-ui-xs text-center font-mono text-system-meta font-semibold text-error">Binding unavailable</span>
+          <span className="block rounded-technical border border-red-500/30 bg-red-500/10 px-ui-sm py-ui-xs text-center font-mono text-system-meta font-medium text-error">Binding unavailable</span>
         )}
       </div>
     </article>
@@ -222,9 +222,9 @@ export function NetworkGraphEditor({
       source: edge.source_node_id,
       target: edge.target_node_id,
       selected: selection.type === 'edge' && selection.id === edge.id,
-      markerEnd: { type: MarkerType.ArrowClosed, color: active ? '#34d399' : undefined },
+      markerEnd: { type: MarkerType.ArrowClosed, color: active ? '#24ad65' : undefined },
       animated: active,
-      style: { strokeWidth: active ? 2.5 : 2, stroke: active ? '#34d399' : undefined },
+      style: { strokeWidth: active ? 2.5 : 2, stroke: active ? '#24ad65' : undefined },
     }
   }), [activePath, definition.edges, selection])
   const fitKey = useMemo(() => [
@@ -296,9 +296,9 @@ export function NetworkGraphEditor({
           zoomable
           inversePan
           zoomStep={5}
-          bgColor="#020817"
-          nodeStrokeColor="#64748b"
-          nodeColor={(node) => activePathSet.has(node.id) ? '#10b981' : node.id === definition.root_node_id ? '#7c3aed' : '#334155'}
+          bgColor="var(--g-canvas)"
+          nodeStrokeColor="#8c867d"
+          nodeColor={(node) => activePathSet.has(node.id) ? '#197542' : node.id === definition.root_node_id ? '#7c3aed' : '#e3e1dd'}
           maskColor="rgba(2,8,23,.52)"
           maskStrokeColor="rgba(96,165,250,.9)"
           maskStrokeWidth={1.5}
@@ -322,7 +322,7 @@ export function NetworkGraphEditor({
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-ui-xl">
           <div className="pointer-events-auto max-w-sm rounded-container border border-border bg-surface/95 p-ui-xl text-center">
             <div className="mx-auto flex h-control-lg w-control-lg items-center justify-center rounded-control border border-primary/25 bg-primary/10 text-primary-light"><Plus className="h-icon-lg w-icon-lg" /></div>
-            <h2 className="mt-ui-lg font-mono text-heading-sm font-semibold text-foreground">Build your Network</h2>
+            <h2 className="mt-ui-lg font-mono text-heading-sm font-medium text-foreground">Build your Network</h2>
             <p className="mt-ui-sm font-sans text-product-caption leading-5 text-muted-foreground">Add an Agent, make it the entry point, then connect the Agents it may delegate work to.</p>
             {!readOnly ? <Button type="button" size="sm" onClick={onAddAgent} className="mt-ui-lg">Add first Agent</Button> : null}
           </div>

@@ -62,7 +62,9 @@ export function StageDraftSnapshotModal({ open, state, snapshot, currentStaging,
       open={open}
       onClose={onClose}
       title="Stage current draft?"
-      className="max-w-5xl"
+      className="max-w-dialog-wide"
+      variant="workspace"
+      height="workspace"
       contentClassName="p-0"
       scrollMode="content"
     >
@@ -82,8 +84,8 @@ export function StageDraftSnapshotModal({ open, state, snapshot, currentStaging,
                   <Package className="h-4 w-4" />
                 </span>
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-foreground">{state.name || 'Untitled agent'}</p>
-                  <p className="text-system-meta text-muted">Draft to Staging</p>
+                  <p className="font-mono truncate text-sm font-medium text-foreground">{state.name || 'Untitled agent'}</p>
+                  <p className="font-mono text-system-meta text-muted">Draft to Staging</p>
                 </div>
               </div>
 
@@ -95,7 +97,7 @@ export function StageDraftSnapshotModal({ open, state, snapshot, currentStaging,
               ) : null}
 
               <section className="mt-4 space-y-2 rounded-xl border border-border/80 bg-background/45 p-4">
-                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-300">
+                <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-slate-300">
                   <FileText className="h-3.5 w-3.5" />
                   Snapshot
                 </div>
@@ -116,12 +118,12 @@ export function StageDraftSnapshotModal({ open, state, snapshot, currentStaging,
               <AgentBehaviorDetails behavior={behaviorToSpec(state.behavior)} />
 
               <section className="space-y-2 rounded-xl border border-border/80 bg-background/45 p-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-300">Output / schema</p>
+                <p className="font-mono text-xs font-medium uppercase tracking-wide text-slate-300">Output / schema</p>
                 <pre className="max-h-56 overflow-auto whitespace-pre-wrap rounded-lg border border-border/60 bg-black/20 p-3 text-xs text-slate-200">{formatJson(outputSchema ?? snapshot.response_format)}</pre>
               </section>
 
               <section className="space-y-2 rounded-xl border border-border/80 bg-background/45 p-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-300">Runtime config / knowledge</p>
+                <p className="font-mono text-xs font-medium uppercase tracking-wide text-slate-300">Runtime config / knowledge</p>
                 <pre className="max-h-56 overflow-auto whitespace-pre-wrap rounded-lg border border-border/60 bg-black/20 p-3 text-xs text-slate-200">{formatJson(runtimeConfig)}</pre>
               </section>
             </div>

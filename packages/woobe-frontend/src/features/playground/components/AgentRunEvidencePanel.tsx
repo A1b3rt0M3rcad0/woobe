@@ -25,7 +25,7 @@ function CollapsibleSection({ title, badge, children }: { title: string; badge?:
         aria-expanded={open}
       >
         {open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-        <span className="font-semibold">{title}</span>
+        <span className="font-medium">{title}</span>
         {badge ? <span className="ml-auto rounded-technical border border-border bg-control/30 px-1.5 py-0.5 text-system-meta text-muted-foreground">{badge}</span> : null}
       </button>
       {open ? <div className="px-2.5 pb-2.5">{children}</div> : null}
@@ -53,8 +53,8 @@ function IdRow({ label, value }: { label: string; value?: string | null }) {
 function MetaItem({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0 border-l border-border/60 pl-2 first:border-l-0 first:pl-0">
-      <p className="font-sans text-system-meta uppercase tracking-[0.08em] text-muted-foreground">{label}</p>
-      <p className="mt-0.5 truncate font-sans text-system-meta text-slate-200">{value}</p>
+      <p className="font-mono text-system-meta uppercase tracking-[0.08em] text-muted-foreground">{label}</p>
+      <p className="mt-0.5 truncate font-mono text-system-meta text-slate-200">{value}</p>
     </div>
   )
 }
@@ -107,15 +107,15 @@ export function AgentRunEvidencePanel({ runId, traceId }: { runId?: string | nul
 
       {data.failure_code || failure ? (
         <div className="rounded-container border border-red-500/20 bg-background/30 px-3 py-2.5">
-          <p className="font-sans text-system-meta font-semibold uppercase tracking-[0.08em] text-error">Failure evidence</p>
-          <p className="mt-1 font-sans text-system-meta leading-4 text-error">{String(failure?.message || data.failure_code || 'Agent Run failed')}</p>
-          {data.failure_detail ? <p className="mt-2 whitespace-pre-wrap break-words font-sans text-system-meta leading-4 text-muted-foreground">{data.failure_detail}</p> : null}
+          <p className="font-mono text-system-meta font-medium uppercase tracking-[0.08em] text-error">Failure evidence</p>
+          <p className="mt-1 font-mono text-system-meta leading-4 text-error">{String(failure?.message || data.failure_code || 'Agent Run failed')}</p>
+          {data.failure_detail ? <p className="mt-2 whitespace-pre-wrap break-words font-mono text-system-meta leading-4 text-muted-foreground">{data.failure_detail}</p> : null}
         </div>
       ) : null}
 
       <div className="overflow-hidden rounded-container border border-border/75 bg-background/20">
         <CollapsibleSection title="Diagnostics" badge={data.diagnostics ? 'available' : 'none'}>
-          {data.diagnostics ? <JsonCodeBlock value={data.diagnostics} maxHeight={220} /> : <p className="font-sans text-system-meta text-muted-foreground">No diagnostics payload persisted.</p>}
+          {data.diagnostics ? <JsonCodeBlock value={data.diagnostics} maxHeight={220} /> : <p className="font-mono text-system-meta text-muted-foreground">No diagnostics payload persisted.</p>}
         </CollapsibleSection>
 
         {data.llm_calls.length ? <CollapsibleSection title="Model invocations" badge={String(data.llm_calls.length)}><JsonCodeBlock value={data.llm_calls} maxHeight={280} /></CollapsibleSection> : null}
@@ -123,7 +123,7 @@ export function AgentRunEvidencePanel({ runId, traceId }: { runId?: string | nul
         {data.sources.length ? <CollapsibleSection title="Context / Source evidence" badge={String(data.sources.length)}><JsonCodeBlock value={data.sources} maxHeight={260} /></CollapsibleSection> : null}
 
         <CollapsibleSection title="Observability events" badge={optionalTrace.isLoading ? 'loading' : String(events.length)}>
-          {events.length ? <JsonCodeBlock value={events} maxHeight={300} /> : optionalTrace.isLoading ? <div className="flex items-center gap-2 font-mono text-system-meta text-muted-foreground"><RefreshCw className="h-3 w-3 animate-spin" />Loading Trace events…</div> : <p className="font-sans text-system-meta leading-4 text-muted-foreground">No separate Observability Trace events were materialized. Durable Agent Run evidence remains authoritative.</p>}
+          {events.length ? <JsonCodeBlock value={events} maxHeight={300} /> : optionalTrace.isLoading ? <div className="flex items-center gap-2 font-mono text-system-meta text-muted-foreground"><RefreshCw className="h-3 w-3 animate-spin" />Loading Trace events…</div> : <p className="font-mono text-system-meta leading-4 text-muted-foreground">No separate Observability Trace events were materialized. Durable Agent Run evidence remains authoritative.</p>}
         </CollapsibleSection>
 
         <CollapsibleSection title="Technical identifiers" badge={String(identifierCount)}>

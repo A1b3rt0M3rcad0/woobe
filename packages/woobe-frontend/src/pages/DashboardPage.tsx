@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { ChangeEvent, KeyboardEvent, ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import type { LucideIcon } from 'lucide-react'
-import { Dialog } from '@woobe/ui'
+import { Card, Dialog, PanelHeader as TechnicalPanelHeader } from '@woobe/ui'
 import {
   Activity,
   AlertCircle,
@@ -54,22 +54,11 @@ const CHART_HEIGHT = 170
 const CHART_PADDING = 20
 
 function Panel({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return <section className={`rounded-container border border-border bg-surface ${className}`}>{children}</section>
+  return <Card className={className}>{children}</Card>
 }
 
 function PanelHeader({ title, subtitle, action }: { title: string; subtitle?: string; action?: ReactNode }) {
-  return (
-    <div className="flex items-start justify-between gap-3 px-5 pb-3 pt-4">
-      <div className="min-w-0">
-        <div className="flex items-center gap-1.5">
-          <h2 className="text-section-title font-medium text-foreground">{title}</h2>
-
-        </div>
-        {subtitle && <p className="mt-ui-xs text-product-caption text-muted-foreground">{subtitle}</p>}
-      </div>
-      {action}
-    </div>
-  )
+  return <TechnicalPanelHeader title={title} description={subtitle} actions={action} hierarchy="section" />
 }
 
 function StorySectionHeader({ title, description }: { title: string; description: string }) {
@@ -97,7 +86,7 @@ function MetricCard({ metric, onReviewPricing }: { metric: DashboardMetric; onRe
     <Panel className="flex min-h-[168px] flex-col p-ui-xl">
       <div className="flex h-full flex-1 flex-col gap-ui-md">
         <div className="flex items-start justify-between gap-ui-sm">
-          <p className="text-product-caption font-medium text-muted-foreground">{metric.label}</p>
+          <p className="font-mono text-product-caption font-medium text-muted-foreground">{metric.label}</p>
           {metric.costHelp
             ? <button type="button" aria-label="Runtime cost details" onClick={() => setHelpOpen(true)} className="shrink-0 text-muted hover:text-foreground"><AlertCircle className="h-icon w-icon" aria-hidden="true" /></button>
             : <Icon className={`h-icon w-icon shrink-0 ${metric.tone}`} aria-hidden="true" />}
@@ -107,12 +96,12 @@ function MetricCard({ metric, onReviewPricing }: { metric: DashboardMetric; onRe
             {[metric.comparison.agent, metric.comparison.network].map((item) => (
               <div key={item.label} className="min-w-0">
                 <p className={`text-product-caption ${item.tone}`}>{item.label}</p>
-                <p className="mt-ui-xs break-words text-product-label font-semibold tabular-nums text-foreground">{item.value}</p>
+                <p className="font-mono mt-ui-xs break-words text-product-label font-medium tabular-nums text-foreground">{item.value}</p>
                 <p className="mt-ui-xs text-product-caption text-muted">{item.detail}</p>
               </div>
             ))}
           </div>
-        ) : <p className="break-words text-metric-lg font-normal leading-none tracking-tight tabular-nums text-foreground">{metric.value}</p>}
+        ) : <p className="font-mono break-words font-mono text-metric-lg font-normal leading-none tracking-tight tabular-nums text-foreground">{metric.value}</p>}
         <p className={`mt-auto text-product-caption ${detailTone}`}>{metric.detail ?? 'No terminal Runs in this interval'}</p>
       </div>
       {metric.costHelp && <Dialog open={helpOpen} onClose={() => setHelpOpen(false)} title="Runtime cost coverage" className="max-w-md">
@@ -145,7 +134,7 @@ export function DashboardErrorState({ message, onRetry }: { message: string; onR
   return (
     <Panel className="flex min-h-[280px] flex-col items-center justify-center p-8 text-center">
       <XCircle className="h-10 w-10 text-error" />
-      <h2 className="mt-3 text-base font-semibold text-foreground">Overview unavailable</h2>
+      <h2 className="mt-3 text-base font-medium text-foreground">Overview unavailable</h2>
       <p className="mt-1 max-w-lg text-sm text-muted">{message}</p>
       <button type="button" onClick={onRetry} className="mt-5 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary-dark"><RefreshCw className="h-4 w-4" />Retry</button>
     </Panel>
@@ -156,7 +145,7 @@ function EmptyExecutionState() {
   return (
     <Panel className="flex min-h-[180px] flex-col items-center justify-center p-7 text-center">
       <Activity className="h-9 w-9 text-muted" />
-      <h2 className="mt-3 text-sm font-semibold text-foreground">No Agent Runs or Network Runs in this interval</h2>
+      <h2 className="mt-3 text-sm font-medium text-foreground">No Agent Runs or Network Runs in this interval</h2>
       <p className="mt-1 max-w-lg text-xs leading-5 text-muted">The selected environment and time range returned no runtime activity.</p>
     </Panel>
   )
@@ -276,9 +265,9 @@ function RunActivityChart({ model }: { model: DashboardViewModel }) {
           >
             <defs>
               <linearGradient id="agent-run-area" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#3b82f6" stopOpacity="0.28" />
-                <stop offset="55%" stopColor="#3b82f6" stopOpacity="0.10" />
-                <stop offset="95%" stopColor="#3b82f6" stopOpacity="0.01" />
+                <stop offset="5%" stopColor="#ff5500" stopOpacity="0.28" />
+                <stop offset="55%" stopColor="#ff5500" stopOpacity="0.10" />
+                <stop offset="95%" stopColor="#ff5500" stopOpacity="0.01" />
               </linearGradient>
               <linearGradient id="network-run-bar" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#a78bfa" stopOpacity="0.9" />
@@ -292,7 +281,7 @@ function RunActivityChart({ model }: { model: DashboardViewModel }) {
                 x2={activeX}
                 y1={CHART_PADDING - 2}
                 y2={CHART_HEIGHT - CHART_PADDING}
-                stroke="#334155"
+                stroke="#e3e1dd"
                 strokeWidth="1"
                 strokeDasharray="3 5"
                 opacity="0.8"
@@ -324,7 +313,7 @@ function RunActivityChart({ model }: { model: DashboardViewModel }) {
               <path
                 d={agentPath}
                 fill="none"
-                stroke="#3b82f6"
+                stroke="#ff5500"
                 strokeWidth="2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -344,11 +333,11 @@ function RunActivityChart({ model }: { model: DashboardViewModel }) {
                   <rect x={left} y={0} width={width} height={CHART_HEIGHT} fill="transparent" />
                   {isActive && (
                     <>
-                      <circle cx={x} cy={agentY} r="5" fill="#020817" stroke="#60a5fa" strokeWidth="2" vectorEffect="non-scaling-stroke" />
-                      <circle cx={x} cy={agentY} r="1.5" fill="#93c5fd" />
+                      <circle cx={x} cy={agentY} r="5" fill="#fffefd" stroke="#ad3900" strokeWidth="2" vectorEffect="non-scaling-stroke" />
+                      <circle cx={x} cy={agentY} r="1.5" fill="#ff5500" />
                     </>
                   )}
-                  {hasErrors && <circle cx={x} cy={CHART_HEIGHT - 8} r="3" fill="#f87171" />}
+                  {hasErrors && <circle cx={x} cy={CHART_HEIGHT - 8} r="3" fill="#b42318" />}
                 </g>
               )
             })}
@@ -357,13 +346,13 @@ function RunActivityChart({ model }: { model: DashboardViewModel }) {
         </div>
         {activePoint && (
           <div className="flex flex-col gap-3 rounded-md border border-border/80 bg-background/45 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="min-w-[150px]"><p className="font-sans text-system-meta font-medium uppercase tracking-[0.08em] text-muted">Selected interval</p><p className="mt-1 font-sans text-system-meta font-medium text-foreground">{activePoint.label}</p></div>
+            <div className="min-w-[150px]"><p className="font-mono text-system-meta font-medium uppercase tracking-[0.08em] text-muted">Selected interval</p><p className="mt-1 font-mono text-system-meta font-medium text-foreground">{activePoint.label}</p></div>
             <div className="grid flex-1 grid-cols-2 gap-3 sm:grid-cols-5">
-              <div><p className="font-sans text-system-meta text-muted">Agent Runs</p><p className="mt-1 font-sans text-sm font-semibold text-primary-light">{activePoint.agentRuns}</p></div>
-              <div><p className="font-sans text-system-meta text-muted">Network Runs</p><p className="mt-1 font-sans text-sm font-semibold text-network">{activePoint.networkRuns}</p></div>
-              <div><p className="font-sans text-system-meta text-muted">Successful</p><p className="mt-1 font-sans text-sm font-semibold text-success">{activePoint.agentSuccess + activePoint.networkSuccess}</p></div>
-              <div><p className="font-sans text-system-meta text-muted">Errors</p><p className="mt-1 font-sans text-sm font-semibold text-error">{activePoint.agentErrors + activePoint.networkErrors}</p></div>
-              <div><p className="font-sans text-system-meta text-muted">Runtime cost</p><p className="mt-1 font-sans text-sm font-semibold text-foreground">{formatCost(activePoint.costUsd, activePoint.costUsd !== null)}</p></div>
+              <div><p className="font-mono text-system-meta text-muted">Agent Runs</p><p className="mt-1 font-mono text-sm font-medium text-primary-light">{activePoint.agentRuns}</p></div>
+              <div><p className="font-mono text-system-meta text-muted">Network Runs</p><p className="mt-1 font-mono text-sm font-medium text-network">{activePoint.networkRuns}</p></div>
+              <div><p className="font-mono text-system-meta text-muted">Successful</p><p className="mt-1 font-mono text-sm font-medium text-success">{activePoint.agentSuccess + activePoint.networkSuccess}</p></div>
+              <div><p className="font-mono text-system-meta text-muted">Errors</p><p className="mt-1 font-mono text-sm font-medium text-error">{activePoint.agentErrors + activePoint.networkErrors}</p></div>
+              <div><p className="font-mono text-system-meta text-muted">Runtime cost</p><p className="mt-1 font-mono text-sm font-medium text-foreground">{formatCost(activePoint.costUsd, activePoint.costUsd !== null)}</p></div>
             </div>
           </div>
         )}
@@ -384,7 +373,7 @@ function ReliabilityDistribution({ group }: { group: DashboardReliabilityGroup }
   const activeSegments = segments.filter((segment) => segment.value > 0)
   return (
     <div>
-      <div className="flex h-2.5 overflow-hidden rounded-full bg-background ring-1 ring-border/80">
+      <div className="flex h-1 overflow-hidden rounded-technical bg-background ring-1 ring-border/80">
         {group.terminalRuns === 0 ? <span className="h-full w-full bg-muted/20" /> : activeSegments.map((segment) => <span key={segment.key} title={`${segment.label}: ${segment.value}`} className={segment.className} style={{ width: `${(segment.value / denominator) * 100}%` }} />)}
       </div>
       {activeSegments.length > 1 && <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-system-meta text-muted">{activeSegments.map((segment) => <span key={segment.key} className="flex items-center gap-1"><span className={`h-1.5 w-1.5 rounded-full ${segment.className}`} />{segment.label} {segment.value}</span>)}</div>}
@@ -397,8 +386,8 @@ function ReliabilityGroupView({ group }: { group: DashboardReliabilityGroup }) {
   return (
     <div className="rounded-xl border border-border/80 bg-background/45 p-3">
       <div className="flex items-start justify-between gap-3">
-        <div><p className="text-xs font-semibold text-foreground">{group.label}</p><p className="mt-1 text-system-meta text-slate-400">{group.successful} successful · {errors} errors · {group.running} running</p></div>
-        <div className="text-right"><p className={`text-lg font-semibold ${group.successRate !== null && group.successRate >= 99 ? 'text-success' : errors > 0 ? 'text-warning' : 'text-foreground'}`}>{formatPercent(group.successRate)}</p><p className="text-system-meta text-muted">success</p></div>
+        <div><p className="font-mono text-xs font-medium text-foreground">{group.label}</p><p className="font-mono mt-1 text-system-meta text-slate-400">{group.successful} successful · {errors} errors · {group.running} running</p></div>
+        <div className="text-right"><p className={`font-mono text-lg font-medium ${group.successRate !== null && group.successRate >= 99 ? 'text-success' : errors > 0 ? 'text-warning' : 'text-foreground'}`}>{formatPercent(group.successRate)}</p><p className="font-mono text-system-meta text-muted">success</p></div>
       </div>
       <div className="mt-3"><ReliabilityDistribution group={group} /></div>
       <div className="mt-3 grid grid-cols-3 gap-x-3 text-xs">
@@ -429,7 +418,7 @@ function OperationalIssues({ model }: { model: DashboardViewModel }) {
     return (
       <Panel className="border-red-500/15 bg-red-500/[0.018] px-4 py-3">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-start gap-3"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-error" /><div><p className="text-sm font-semibold text-foreground">{totalIssues} operational {totalIssues === 1 ? 'issue' : 'issues'} in this period</p><p className="mt-1 text-xs text-slate-400">{model.issues.summary.join(' · ')}</p></div></div>
+          <div className="flex items-start gap-3"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-error" /><div><p className="font-mono text-sm font-medium text-foreground">{totalIssues} operational {totalIssues === 1 ? 'issue' : 'issues'} in this period</p><p className="mt-1 text-xs text-slate-400">{model.issues.summary.join(' · ')}</p></div></div>
           <div className="flex flex-wrap gap-x-6 gap-y-2 text-xs"><span className="text-muted">Affected <b className="ml-1 text-foreground">{firstEntity?.name ?? 'Unknown'}</b></span><span className="text-muted">Failure code <b className="ml-1 font-mono text-error">{firstCode?.code ?? 'unknown'}</b></span>{model.issues.peakLabel && <span className="text-muted">Occurred <b className="ml-1 text-foreground">{model.issues.peakLabel}</b></span>}</div>
         </div>
       </Panel>
@@ -440,10 +429,10 @@ function OperationalIssues({ model }: { model: DashboardViewModel }) {
     <Panel className="border-red-500/20 bg-red-500/[0.025]">
       <PanelHeader title="Operational Issues" action={<AlertTriangle className="h-4 w-4 text-error" />} />
       <div className="grid gap-4 px-5 pb-5 xl:grid-cols-12">
-        <div className="xl:col-span-4"><p className="text-system-meta font-medium uppercase tracking-wide text-muted">What happened</p><div className="mt-2 space-y-2">{model.issues.summary.map((item) => <div key={item} className="rounded-lg border border-red-500/15 bg-background/45 px-3 py-2 text-xs text-error">{item}</div>)}</div>{model.issues.peakLabel && <p className="mt-3 text-xs text-muted">Failure peak: <span className="font-medium text-foreground">{model.issues.peakLabel}</span> · {model.issues.peakCount} errors</p>}</div>
-        <div className="xl:col-span-3"><p className="text-system-meta font-medium uppercase tracking-wide text-muted">Most affected Agents</p><div className="mt-2 space-y-2">{model.issues.topAgents.length === 0 ? <p className="text-xs text-muted">No Agent failures.</p> : model.issues.topAgents.map((item) => <div key={`${item.entity_id}-${item.name}`} className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-background/45 px-3 py-2 text-xs"><span className="truncate text-slate-200">{item.name}</span><b className="text-error">{item.failure_count}</b></div>)}</div></div>
-        <div className="xl:col-span-3"><p className="text-system-meta font-medium uppercase tracking-wide text-muted">Most affected Networks</p><div className="mt-2 space-y-2">{model.issues.topNetworks.length === 0 ? <p className="text-xs text-muted">No Network failures.</p> : model.issues.topNetworks.map((item) => <div key={`${item.entity_id}-${item.name}`} className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-background/45 px-3 py-2 text-xs"><span className="truncate text-slate-200">{item.name}</span><b className="text-error">{item.failure_count}</b></div>)}</div></div>
-        <div className="xl:col-span-2"><p className="text-system-meta font-medium uppercase tracking-wide text-muted">Failure codes</p><div className="mt-2 space-y-2">{model.issues.topCodes.map((item) => <div key={item.code} className="rounded-lg border border-border/70 bg-background/45 px-3 py-2"><p className="truncate font-sans text-system-meta text-slate-200">{item.code}</p><p className="mt-1 text-xs font-semibold text-error">{item.failure_count}</p></div>)}</div></div>
+        <div className="xl:col-span-4"><p className="font-mono text-system-meta font-medium uppercase tracking-wide text-muted">What happened</p><div className="mt-2 space-y-2">{model.issues.summary.map((item) => <div key={item} className="rounded-lg border border-red-500/15 bg-background/45 px-3 py-2 text-xs text-error">{item}</div>)}</div>{model.issues.peakLabel && <p className="mt-3 text-xs text-muted">Failure peak: <span className="font-medium text-foreground">{model.issues.peakLabel}</span> · {model.issues.peakCount} errors</p>}</div>
+        <div className="xl:col-span-3"><p className="font-mono text-system-meta font-medium uppercase tracking-wide text-muted">Most affected Agents</p><div className="mt-2 space-y-2">{model.issues.topAgents.length === 0 ? <p className="text-xs text-muted">No Agent failures.</p> : model.issues.topAgents.map((item) => <div key={`${item.entity_id}-${item.name}`} className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-background/45 px-3 py-2 text-xs"><span className="truncate text-slate-200">{item.name}</span><b className="text-error">{item.failure_count}</b></div>)}</div></div>
+        <div className="xl:col-span-3"><p className="font-mono text-system-meta font-medium uppercase tracking-wide text-muted">Most affected Networks</p><div className="mt-2 space-y-2">{model.issues.topNetworks.length === 0 ? <p className="text-xs text-muted">No Network failures.</p> : model.issues.topNetworks.map((item) => <div key={`${item.entity_id}-${item.name}`} className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-background/45 px-3 py-2 text-xs"><span className="truncate text-slate-200">{item.name}</span><b className="text-error">{item.failure_count}</b></div>)}</div></div>
+        <div className="xl:col-span-2"><p className="font-mono text-system-meta font-medium uppercase tracking-wide text-muted">Failure codes</p><div className="mt-2 space-y-2">{model.issues.topCodes.map((item) => <div key={item.code} className="rounded-lg border border-border/70 bg-background/45 px-3 py-2"><p className="truncate font-mono text-system-meta text-slate-200">{item.code}</p><p className="font-mono mt-1 text-xs font-medium text-error">{item.failure_count}</p></div>)}</div></div>
       </div>
     </Panel>
   )
@@ -513,7 +502,7 @@ function RuntimeAssets({ model }: { model: DashboardViewModel }) {
               className={`flex min-h-10 items-center justify-between gap-3 border-b border-border/60 px-4 py-2.5 ${!isLast && index % 2 === 0 ? 'sm:border-r' : ''} ${isLast ? 'sm:col-span-2' : ''}`}
             >
               <span className="min-w-0 truncate font-mono text-system-meta text-muted-foreground">{label}</span>
-              <span className="shrink-0 font-mono text-xs font-semibold tabular-nums text-slate-50">{value}</span>
+              <span className="shrink-0 font-mono text-xs font-medium tabular-nums text-slate-50">{value}</span>
             </div>
           )
         })}
@@ -541,9 +530,9 @@ function KnowledgeBase({ model, onOpen }: { model: DashboardViewModel; onOpen: (
             <div key={entry.label} className={`min-h-[62px] border-b border-border/60 px-4 py-3 ${index % 2 === 0 ? 'border-r' : ''}`}>
               <div className="flex min-w-0 items-center gap-2">
                 <Icon className={`h-3.5 w-3.5 shrink-0 ${entry.tone}`} />
-                <p className="truncate font-sans text-system-meta text-muted-foreground">{entry.label}</p>
+                <p className="truncate font-mono text-system-meta text-muted-foreground">{entry.label}</p>
               </div>
-              <p className={`mt-1.5 truncate font-mono text-base font-semibold leading-none tabular-nums ${entry.tone}`}>{entry.value}</p>
+              <p className={`mt-1.5 truncate font-mono text-base font-medium leading-none tabular-nums ${entry.tone}`}>{entry.value}</p>
             </div>
           )
         })}
@@ -574,7 +563,7 @@ function ToolsIntegrations({ model, onOpen }: { model: DashboardViewModel; onOpe
                 <Icon className={`h-3.5 w-3.5 shrink-0 ${item.tone}`} />
                 <span className="truncate">{item.label}</span>
               </span>
-              <span className={`shrink-0 font-mono text-xs font-semibold tabular-nums ${item.tone}`}>{item.value}</span>
+              <span className={`shrink-0 font-mono text-xs font-medium tabular-nums ${item.tone}`}>{item.value}</span>
             </div>
           )
         })}
@@ -603,12 +592,12 @@ function RecentRuns({ model, onOpen, onViewAll }: { model: DashboardViewModel; o
               return (
                 <div key={`${run.kind}-${run.id}`} role="link" tabIndex={0} onClick={open} onKeyDown={(event) => keyboardActivate(event, open)} className="grid cursor-pointer gap-3 rounded-xl border border-border/80 bg-background/45 p-3 outline-none transition-colors hover:border-primary/25 hover:bg-background/75 focus:ring-1 focus:ring-primary/60 xl:grid-cols-[110px_minmax(220px,1fr)_100px_125px_165px_90px_155px] xl:items-center">
                   <div><span className="rounded-md border border-border bg-surface px-2 py-0.5 text-xs font-medium text-slate-200">{run.typeLabel}</span></div>
-                  <div className="min-w-0"><p className="truncate text-sm font-semibold text-foreground">{run.title}</p><p className="mt-1 truncate text-xs text-muted">{run.sourceLabel}</p></div>
+                  <div className="min-w-0"><p className="font-mono truncate text-sm font-medium text-foreground">{run.title}</p><p className="font-mono mt-1 truncate text-xs text-muted">{run.sourceLabel}</p></div>
                   <div><EnvironmentBadge value={run.environmentLabel} /></div>
                   <div><StatusBadge value={run.statusLabel} /></div>
                   <p className="text-xs text-muted">{run.timeLabel}</p>
-                  <p className="text-xs font-medium text-foreground xl:text-right">{run.durationLabel}</p>
-                  <div className="min-w-0 xl:text-right"><p className="truncate text-xs font-medium text-foreground">{run.costLabel}</p>{run.costDetail && <p className="mt-1 truncate text-system-meta text-warning" title={run.costDetail}>{run.costDetail}</p>}</div>
+                  <p className="font-mono text-xs font-medium text-foreground xl:text-right">{run.durationLabel}</p>
+                  <div className="min-w-0 xl:text-right"><p className="font-mono truncate text-xs font-medium text-foreground">{run.costLabel}</p>{run.costDetail && <p className="font-mono mt-1 truncate text-system-meta text-warning" title={run.costDetail}>{run.costDetail}</p>}</div>
                 </div>
               )
             })}
@@ -676,7 +665,7 @@ export default function DashboardPage() {
           {isUpdating && <div className="absolute inset-x-0 top-0 h-0.5 animate-pulse bg-primary/70" />}
           <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
             <div className="min-w-0">
-              <div className="flex items-center gap-2"><h1 className="text-page-title font-semibold tracking-tight text-foreground">Project Overview</h1>{isUpdating && <span className="rounded-full border border-primary/20 bg-primary/5 px-2 py-0.5 text-system-meta text-primary-light">Updating {environmentLabel(environment)} overview…</span>}</div>
+              <div className="flex items-center gap-2"><h1 className="font-mono text-page-title font-medium tracking-tight text-foreground">Project Overview</h1>{isUpdating && <span className="rounded-full border border-primary/20 bg-primary/5 px-2 py-0.5 text-system-meta text-primary-light">Updating {environmentLabel(environment)} overview…</span>}</div>
               {model && <p className="mt-ui-sm text-product-caption text-muted">Interval: {model.intervalLabel} · {model.timezoneLabel} · Last refreshed {model.generatedAtLabel}</p>}
             </div>
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center xl:justify-end">

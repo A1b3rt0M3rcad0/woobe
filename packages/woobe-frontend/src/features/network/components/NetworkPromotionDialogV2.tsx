@@ -121,7 +121,7 @@ export function NetworkPromotionDialog({
           density="compact"
           actions={<ShieldCheck className="h-icon w-icon text-primary-light" />}
         >
-          <p className="font-sans text-system-control text-accent-foreground">{summary}</p>
+          <p className="font-mono text-system-control text-accent-foreground">{summary}</p>
           <p className="mt-ui-sm font-sans text-product-caption leading-5 text-muted-foreground">
             The source Network snapshot remains unchanged. Only incompatible Agent bindings require a new snapshot.
           </p>
@@ -202,7 +202,7 @@ export function NetworkPromotionDialog({
         {errors.length ? (
           <Alert variant="destructive">
             <AlertDescription>
-              <span className="flex items-center gap-ui-xs font-mono text-system-label font-semibold">
+              <span className="flex items-center gap-ui-xs font-mono text-system-label font-medium">
                 <AlertTriangle className="h-icon-sm w-icon-sm" />Resolve the composition before promotion
               </span>
               {errors.map((issue, index) => <span key={`${issue.code}-${index}`} className="mt-ui-xs block">• {issue.message}</span>)}

@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useState } from 'react'
+import { type ReactNode, useEffect, useId, useState } from 'react'
 import { cn } from '../lib/cn'
 
 export interface TabItem {
@@ -17,6 +17,7 @@ export interface TabsProps {
 }
 
 export function Tabs({ tabs, defaultTab, value, onValueChange, className, contentClassName }: TabsProps) {
+  const id = useId()
   const [internalActive, setInternalActive] = useState(defaultTab || tabs[0]?.id)
   const active = value ?? internalActive
 
@@ -40,13 +41,26 @@ export function Tabs({ tabs, defaultTab, value, onValueChange, className, conten
               key={tab.id}
               type="button"
               role="tab"
+              id={`${id}-tab-${tab.id}`}
+              aria-controls={`${id}-panel-${tab.id}`}
+              tabIndex={active === tab.id ? 0 : -1}
               aria-selected={active === tab.id}
               onClick={() => setActive(tab.id)}
+              onKeyDown={(event) => {
+                const index = tabs.findIndex(item => item.id === tab.id)
+                const next = event.key === 'ArrowRight' ? (index + 1) % tabs.length
+                  : event.key === 'ArrowLeft' ? (index - 1 + tabs.length) % tabs.length
+                  : event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : null
+                if (next === null) return
+                event.preventDefault()
+                setActive(tabs[next].id)
+                document.getElementById(`${id}-tab-${tabs[next].id}`)?.focus()
+              }}
               className={cn(
                 'flex h-control-xs items-center whitespace-nowrap rounded-technical border px-ui-sm font-mono text-chrome-label font-normal transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40',
                 active === tab.id
                   ? 'border-border bg-accent text-accent-foreground'
-                  : 'border-transparent text-muted-foreground hover:text-accent-foreground/90',
+                  : 'border-transparent text-muted-foreground hover:text-accent-foreground',
               )}
             >
               {tab.label}
@@ -54,7 +68,7 @@ export function Tabs({ tabs, defaultTab, value, onValueChange, className, conten
           ))}
         </div>
       </div>
-      <div className={cn('mt-ui-md', contentClassName)}>
+      <div role="tabpanel" id={`${id}-panel-${active}`} aria-labelledby={`${id}-tab-${active}`} tabIndex={0} className={cn('mt-ui-md', contentClassName)}>
         {tabs.find((tab) => tab.id === active)?.content}
       </div>
     </div>

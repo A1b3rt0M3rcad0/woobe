@@ -34,7 +34,7 @@ const CreateResourceCard = forwardRef<HTMLButtonElement, CreateResourceCardProps
       <span className="flex h-control-segment w-control-segment items-center justify-center rounded-control border border-primary/30 bg-primary/[0.07] text-primary-light">
         <Plus className="h-icon w-icon" />
       </span>
-      <span className="mt-ui-md font-mono text-product-label font-semibold text-accent-foreground">{title}</span>
+      <span className="mt-ui-md font-mono text-product-label font-medium text-accent-foreground">{title}</span>
       <span className="mt-ui-xs max-w-sm font-mono text-product-small text-muted-foreground">{description}</span>
     </button>
   ),

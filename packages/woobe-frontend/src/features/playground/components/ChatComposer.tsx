@@ -194,7 +194,7 @@ export function ChatComposer({
           </div>
           <div className="flex min-w-0 shrink-0 items-center gap-ui-sm">
             {compact ? <span className="sr-only">{resolvedStatus}</span> : (
-              <span className="hidden max-w-[17.5rem] truncate font-mono text-system-micro text-muted-foreground/80 sm:inline">
+              <span className="hidden max-w-[17.5rem] truncate font-mono text-system-micro text-muted-foreground sm:inline">
                 {resolvedStatus}
               </span>
             )}

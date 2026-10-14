@@ -7,8 +7,8 @@ export type ButtonSize = 'xs' | 'technical' | 'default' | 'sm' | 'lg' | 'icon' |
 const variantClasses: Record<ButtonVariant, string> = {
   default: 'border border-primary bg-primary font-medium text-primary-foreground hover:border-primary-hover hover:bg-primary-hover',
   secondary: 'border border-control-border bg-control text-accent-foreground hover:bg-border',
-  outline: 'border border-control-border bg-surface text-accent-foreground/85 hover:border-muted hover:bg-accent hover:text-accent-foreground',
-  ghost: 'border border-transparent bg-transparent text-accent-foreground/75 hover:bg-accent hover:text-accent-foreground',
+  outline: 'border border-control-border bg-surface text-accent-foreground hover:border-muted hover:bg-accent hover:text-accent-foreground',
+  ghost: 'border border-transparent bg-transparent text-accent-foreground hover:bg-accent hover:text-accent-foreground',
   destructive: 'border border-error/40 bg-error/10 font-medium text-error hover:border-error/55 hover:bg-error/[0.16] hover:text-error',
   link: 'border border-transparent bg-transparent p-0 text-primary-light underline-offset-4 hover:underline',
 }

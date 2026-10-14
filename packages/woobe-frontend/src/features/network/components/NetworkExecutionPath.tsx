@@ -68,12 +68,12 @@ export function NetworkExecutionPath({
             )}
             style={{ paddingLeft: `${10 + Math.min(depth, 4) * 16}px` }}
           >
-            {depth > 0 ? <CornerDownRight className="absolute left-1 top-2.5 h-3 w-3 text-muted-foreground/55" style={{ marginLeft: `${Math.min(depth - 1, 3) * 16}px` }} /> : null}
+            {depth > 0 ? <CornerDownRight className="absolute left-1 top-2.5 h-3 w-3 text-muted-foreground" style={{ marginLeft: `${Math.min(depth - 1, 3) * 16}px` }} /> : null}
             <div className="flex items-start gap-ui-sm">
               <span className="mt-ui-hairline shrink-0"><StatusIcon status={invocation.status} /></span>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-ui-sm">
-                  <p className="truncate font-sans text-product-small font-medium text-foreground">{invocation.agentName}</p>
+                  <p className="truncate font-mono text-product-small font-medium text-foreground">{invocation.agentName}</p>
                   <span className="shrink-0 font-mono text-system-meta uppercase tracking-ui-label text-muted-foreground">{role === 'entry' ? 'Entry' : 'Delegated'}</span>
                   {invocation.durationMs != null ? <span className="ml-auto shrink-0 font-mono text-system-meta text-muted-foreground">{formatLatency(invocation.durationMs)}</span> : null}
                 </div>

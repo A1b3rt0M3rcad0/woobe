@@ -1,8 +1,7 @@
 import { behaviorFields } from '@/features/agents/behavior'
-import { X } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
-import { dialogTypographyClass } from '@/components/ui/Dialog'
+import { Dialog } from '@/components/ui/Dialog'
 import type { AgentRelease } from '@/features/agents/types'
 
 interface ConfirmVersionModalProps {
@@ -58,23 +57,12 @@ export function ConfirmVersionModal({ open, onClose, onConfirm, versionName, cur
   })
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
-    >
-      <div role="dialog" aria-modal="true" aria-label="New Version" className={`${dialogTypographyClass} w-full max-w-lg rounded-xl border border-border bg-surface shadow-xl`}>
-        <div className="flex items-center justify-between p-4 border-b border-border">
-          <h2 className="text-sm font-semibold text-foreground">New Version</h2>
-          <button onClick={onClose} className="p-1 rounded-md text-muted hover:text-foreground hover:bg-accent transition-colors">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
+    <Dialog open={open} onClose={onClose} title="New Version" className="max-w-dialog" scrollMode="content">
         <div className="p-4 space-y-4">
           {hasUnsavedChanges && (
             <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/5 p-3">
-              <p className="text-xs text-warning font-medium">Draft has unsaved changes</p>
-              <p className="text-system-meta text-muted mt-1">These changes will be included in the version. Consider saving draft first.</p>
+              <p className="font-mono text-xs text-warning font-medium">Draft has unsaved changes</p>
+              <p className="font-mono text-system-meta text-muted mt-1">These changes will be included in the version. Consider saving draft first.</p>
             </div>
           )}
 
@@ -86,7 +74,7 @@ export function ConfirmVersionModal({ open, onClose, onConfirm, versionName, cur
           </div>
 
           <div>
-            <p className="text-xs font-medium text-muted mb-2">Changes from previous version</p>
+            <p className="font-mono text-xs font-medium text-muted mb-2">Changes from previous version</p>
             {changedFields.length === 0 ? (
               <p className="text-xs text-muted italic">No changes detected — snapshot will be identical to the latest version.</p>
             ) : (
@@ -127,7 +115,6 @@ export function ConfirmVersionModal({ open, onClose, onConfirm, versionName, cur
             Create Version
           </Button>
         </div>
-      </div>
-    </div>
+    </Dialog>
   )
 }

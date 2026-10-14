@@ -27,6 +27,7 @@ export {
   type DialogVariant,
 } from './components/Dialog'
 export { Drawer, type DrawerProps } from './components/Drawer'
+export { DotMeter, type DotMeterProps } from './components/DotMeter'
 export { Dropdown, type DropdownHandle, type DropdownProps } from './components/Dropdown'
 export { EmptyStatePanel, type EmptyStatePanelProps, type EmptyStatePanelVariant } from './components/EmptyStatePanel'
 export { Field, FieldDescription, FieldError, FieldLabel, FieldOptional } from './components/Field'

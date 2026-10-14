@@ -292,7 +292,7 @@ export default function UsagePage() {
           </div>
 
           <div className="flex flex-col gap-ui-sm border-t border-border/70 pt-ui-md lg:flex-row lg:items-center">
-            <div className="flex shrink-0 items-center gap-ui-xs font-mono text-system-meta font-semibold uppercase tracking-ui-eyebrow text-muted-foreground">
+            <div className="flex shrink-0 items-center gap-ui-xs font-mono text-system-meta font-medium uppercase tracking-ui-eyebrow text-muted-foreground">
               <SlidersHorizontal className="h-icon w-icon text-primary-light" />
               Scope and attribution
             </div>
@@ -317,14 +317,14 @@ export default function UsagePage() {
               className="min-w-[190px]"
               options={lensOptions}
             />
-            <p className="font-sans text-system-control leading-4 text-muted-foreground">
+            <p className="font-mono text-system-control leading-4 text-muted-foreground">
               Runs define the operation. Provider and Model only explain where the Run cost came from.
             </p>
           </div>
 
           {activeScopeCount > 0 ? (
             <div className="flex flex-wrap items-center gap-ui-xs border-t border-border/70 pt-ui-md">
-              <span className="font-mono text-system-meta font-semibold uppercase tracking-ui-eyebrow text-muted-foreground">Active scope</span>
+              <span className="font-mono text-system-meta font-medium uppercase tracking-ui-eyebrow text-muted-foreground">Active scope</span>
               {environment !== 'all' ? <ScopeChip label="Environment" value={environmentLabels[environment]} onRemove={() => selectEnvironment('all')} /> : null}
               {operation !== 'all' ? <ScopeChip label="Operation" value={operationLabels[operation]} onRemove={() => selectOperation('all')} /> : null}
               {networkScope ? <ScopeChip label="Network" value={networkScope.label} onRemove={() => selectNetwork('')} /> : null}

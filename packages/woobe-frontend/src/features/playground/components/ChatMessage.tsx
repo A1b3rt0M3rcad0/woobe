@@ -73,7 +73,7 @@ function SourcesCollapsible({
                 compact ? 'p-ui-sm' : 'p-ui-md',
               )}
             >
-              <p className={cn('truncate font-mono font-semibold text-slate-100', compact ? 'text-system-label' : 'text-system-control')}>{source.document_title || 'Untitled'}</p>
+              <p className={cn('truncate font-mono font-medium text-slate-100', compact ? 'text-system-label' : 'text-system-control')}>{source.document_title || 'Untitled'}</p>
               {(source.page_number != null || source.score != null) && (
                 <div className={cn('mt-ui-xs flex flex-wrap gap-x-ui-sm font-mono text-muted-foreground', compact ? 'text-system-meta' : 'text-system-micro')}>
                   {source.page_number != null && <span>Page {source.page_number}</span>}
@@ -290,7 +290,7 @@ export function ChatMessage({
 
         <div className={cn('min-w-0 space-y-ui-sm', compact ? 'flex-1' : 'max-w-conversation')}>
           {compact && agentName && (
-            <p className="truncate font-sans text-system-meta text-muted-foreground" title={agentName}>
+            <p className="truncate font-mono text-system-meta text-muted-foreground" title={agentName}>
               {agentName}
             </p>
           )}
@@ -332,7 +332,7 @@ export function ChatMessage({
           <div className="flex flex-wrap items-center justify-between gap-x-ui-md gap-y-ui-xs">
             <div className={cn('flex min-w-0 flex-wrap items-center font-mono text-muted-foreground', compact ? 'gap-x-ui-sm gap-y-ui-xs text-system-meta' : 'gap-x-ui-sm gap-y-ui-xs text-system-nano')}>
               {message.model && (
-                <span className={cn('break-all', !compact && 'text-muted-foreground/70')}>
+                <span className={cn('break-all', !compact && 'text-muted-foreground')}>
                   {message.provider ? `${message.provider}/` : ''}{message.model}
                 </span>
               )}
@@ -343,7 +343,7 @@ export function ChatMessage({
                 </span>
               )}
               {message.trace_id && (
-                <span className={compact ? undefined : 'text-muted-foreground/70'}>trace {message.trace_id.slice(0, 8)}…</span>
+                <span className={compact ? undefined : 'text-muted-foreground'}>trace {message.trace_id.slice(0, 8)}…</span>
               )}
               {footerMeta ? <span>{footerMeta}</span> : null}
             </div>

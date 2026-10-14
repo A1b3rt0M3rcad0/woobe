@@ -47,7 +47,7 @@ const FieldOptional = forwardRef<HTMLSpanElement, HTMLAttributes<HTMLSpanElement
       <span
         ref={ref}
         className={cn(
-          'ml-ui-xs font-mono font-normal normal-case tracking-normal text-muted-foreground/65',
+          'ml-ui-xs font-mono font-normal normal-case tracking-normal text-muted-foreground',
           density === 'technical' ? 'text-product-caption' : 'text-system-nano',
           className,
         )}

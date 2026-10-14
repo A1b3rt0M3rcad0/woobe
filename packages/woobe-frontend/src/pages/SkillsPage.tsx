@@ -228,7 +228,7 @@ function ProjectSkills({ workspaceId, projectId }: { workspaceId?: string; proje
               </button>
             ))}
           </div>
-        ) : <p className="font-sans text-system-meta text-muted-foreground">{agentQuery ? 'No matching Agents.' : 'Create an Agent before installing this Skill.'}</p>}
+        ) : <p className="font-mono text-system-meta text-muted-foreground">{agentQuery ? 'No matching Agents.' : 'Create an Agent before installing this Skill.'}</p>}
       </div>
     </Dialog>}
   </ResourcePage>

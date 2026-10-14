@@ -57,7 +57,7 @@ const operateNavItems: NavItem[] = [
 
 function SidebarSectionTitle({ children }: { children: string }) {
   return (
-    <p className="mb-ui-sm px-ui-sm font-sans text-chrome-meta font-medium tracking-wide text-muted-foreground">
+    <p className="mb-ui-sm px-ui-sm font-mono text-chrome-meta font-medium tracking-wide text-muted-foreground">
       {children}
     </p>
   )
@@ -205,10 +205,10 @@ function ProjectContextCard({
         )}
       >
         <div className="max-h-sidebar-context overflow-y-auto scrollbar-thin">
-          <p className="px-ui-sm pb-ui-xs pt-ui-xs font-sans text-chrome-meta font-semibold uppercase tracking-[0.14em] text-muted-foreground">Switch project</p>
+          <p className="px-ui-sm pb-ui-xs pt-ui-xs font-mono text-chrome-meta font-medium uppercase tracking-[0.14em] text-muted-foreground">Switch project</p>
           <div className="grid min-w-0 grid-cols-1 gap-ui-hairline">
             {projects.length === 0 ? (
-              <p className="px-ui-sm py-ui-sm font-sans text-chrome-label text-muted-foreground">No projects available</p>
+              <p className="px-ui-sm py-ui-sm font-mono text-chrome-label text-muted-foreground">No projects available</p>
             ) : projects.map((project) => (
               <ContextMenuItem
                 key={project.id}
@@ -226,7 +226,7 @@ function ProjectContextCard({
           </div>
 
           <div className="border-t border-border pt-ui-xs">
-            <p className="px-ui-sm pb-ui-xs pt-ui-xs font-sans text-chrome-meta font-semibold uppercase tracking-[0.14em] text-muted-foreground">Workspace</p>
+            <p className="px-ui-sm pb-ui-xs pt-ui-xs font-mono text-chrome-meta font-medium uppercase tracking-[0.14em] text-muted-foreground">Workspace</p>
             {workspaces.map((workspace) => (
               <ContextMenuItem
                 key={workspace.id}
@@ -277,7 +277,7 @@ function ProjectContextSkeleton() {
 function NoWorkspaceState() {
   return (
     <div className="rounded-container border border-border bg-control/35 p-ui-lg text-center">
-      <p className="font-sans text-product-small font-semibold text-slate-100">Workspace required</p>
+      <p className="font-mono text-product-small font-medium text-slate-100">Workspace required</p>
       <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">Select a Workspace before opening a Project.</p>
     </div>
   )
@@ -315,8 +315,8 @@ export function Sidebar() {
             <Orbit className="h-icon-brand w-icon-brand" strokeWidth={1.7} />
           </div>
           <div className="min-w-0">
-            <p className="font-sans text-brand-title font-semibold tracking-tight text-slate-50">WOOBE</p>
-            <p className="mt-ui-hairline font-sans text-chrome-meta text-muted-foreground">control plane</p>
+            <p className="font-mono text-brand-title font-medium tracking-tight text-slate-50">WOOBE</p>
+            <p className="mt-ui-hairline font-mono text-chrome-meta text-muted-foreground">control plane</p>
           </div>
         </header>
 

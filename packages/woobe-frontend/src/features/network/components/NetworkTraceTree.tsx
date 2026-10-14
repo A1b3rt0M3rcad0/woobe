@@ -103,10 +103,10 @@ export function NetworkTraceInvocation({ invocation, trace, depth, onOpenAgent }
           <div className="mt-ui-hairline flex h-control-sm w-control-sm shrink-0 items-center justify-center rounded-control border border-border bg-surface">{statusIcon}</div>
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 flex-wrap items-center gap-ui-xs">
-              <p className="truncate font-sans text-product-small font-medium text-foreground">{invocation.agentName}</p>
+              <p className="truncate font-mono text-product-small font-medium text-foreground">{invocation.agentName}</p>
               <Badge tone={invocation.source === 'release' ? 'production' : invocation.source}>{invocation.source}</Badge>
             </div>
-            <p className="mt-ui-xs truncate font-sans text-system-meta text-muted-foreground">{invocation.provider || '—'}/{invocation.model || '—'} · {invocation.version}</p>
+            <p className="mt-ui-xs truncate font-mono text-system-meta text-muted-foreground">{invocation.provider || '—'}/{invocation.model || '—'} · {invocation.version}</p>
             <div className="mt-ui-xs flex flex-wrap gap-x-ui-sm gap-y-ui-xs font-mono text-system-meta text-muted-foreground">
               {invocation.durationMs != null ? <span>{formatLatency(invocation.durationMs)}</span> : null}
               {invocation.usage ? <span>{formatNumber(invocation.usage.input_tokens, 0)} in / {formatNumber(invocation.usage.output_tokens, 0)} out</span> : null}
@@ -123,12 +123,12 @@ export function NetworkTraceInvocation({ invocation, trace, depth, onOpenAgent }
             <ContextSummary invocation={invocation} />
             {invocation.failure ? (
               <div className="rounded-control border border-red-500/30 bg-red-500/5 p-ui-sm">
-                <p className="font-sans text-product-caption font-medium text-error">{invocation.failure.message}</p>
-                <p className="mt-ui-xs font-sans text-system-meta text-muted-foreground">{invocation.failure.code} · {invocation.failure.stage}{invocation.failure.retryable ? ' · retryable' : ''}</p>
+                <p className="font-mono text-product-caption font-medium text-error">{invocation.failure.message}</p>
+                <p className="mt-ui-xs font-mono text-system-meta text-muted-foreground">{invocation.failure.code} · {invocation.failure.stage}{invocation.failure.retryable ? ' · retryable' : ''}</p>
               </div>
             ) : null}
-            {invocation.input !== undefined ? <div><p className="mb-ui-sm font-sans text-system-meta font-medium uppercase tracking-ui-label text-muted-foreground">Input</p><JsonCodeBlock value={invocation.input} maxHeight={128} /></div> : null}
-            {invocation.output ? <div className="rounded-control border border-border/70 bg-surface/45 p-ui-sm"><p className="font-sans text-system-meta uppercase tracking-ui-label text-muted-foreground">Output</p><p className="mt-ui-xs whitespace-pre-wrap font-sans text-product-caption leading-4 text-slate-200">{invocation.output}</p></div> : null}
+            {invocation.input !== undefined ? <div><p className="mb-ui-sm font-mono text-system-meta font-medium uppercase tracking-ui-label text-muted-foreground">Input</p><JsonCodeBlock value={invocation.input} maxHeight={128} /></div> : null}
+            {invocation.output ? <div className="rounded-control border border-border/70 bg-surface/45 p-ui-sm"><p className="font-mono text-system-meta uppercase tracking-ui-label text-muted-foreground">Output</p><p className="mt-ui-xs whitespace-pre-wrap font-sans text-product-caption leading-4 text-slate-200">{invocation.output}</p></div> : null}
             {invocation.parsedOutput ? <JsonCodeBlock value={invocation.parsedOutput} maxHeight={128} /> : null}
             <RoutingDecision event={routingEvent} />
             {invocation.tools.length ? <ToolCallsCollapsible toolCalls={invocation.tools} variant="network" /> : null}

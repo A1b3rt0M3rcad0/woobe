@@ -30,7 +30,7 @@ function CanvasPreparing() {
         <div className="flex h-control-lg w-control-lg items-center justify-center rounded-control border border-primary/25 bg-primary/10 text-primary-light">
           <Loader2 className="h-icon-lg w-icon-lg animate-spin" />
         </div>
-        <p className="mt-ui-md font-sans text-system-label font-semibold uppercase tracking-ui-eyebrow text-slate-200">Preparing Canvas</p>
+        <p className="mt-ui-md font-mono text-system-label font-medium uppercase tracking-ui-eyebrow text-slate-200">Preparing Canvas</p>
         <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">Positioning the Network composition.</p>
       </div>
     </div>

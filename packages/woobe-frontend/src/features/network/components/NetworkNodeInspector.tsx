@@ -58,8 +58,8 @@ function AgentBindingPicker({ node, agent, resolvedVersion, readOnly, onChange }
       <section className="rounded-container border border-border bg-background/30 p-ui-md">
         <div className="flex items-center gap-ui-md">
           <div className="min-w-0 flex-1">
-            <p className="font-sans text-system-label font-semibold uppercase tracking-ui-label text-muted-foreground">Agent version</p>
-            <p className="mt-ui-xs truncate font-sans text-system-control text-slate-200">{version}</p>
+            <p className="font-mono text-system-label font-medium uppercase tracking-ui-label text-muted-foreground">Agent version</p>
+            <p className="mt-ui-xs truncate font-mono text-system-control text-slate-200">{version}</p>
           </div>
           <button type="button" disabled={releasesQuery.isLoading} onClick={() => { setPending(bindingValue(node.binding)); setOpen(true) }} className={networkInspectorAction}>{readOnly ? 'View' : 'Change'}</button>
         </div>
@@ -74,7 +74,7 @@ function AgentBindingPicker({ node, agent, resolvedVersion, readOnly, onChange }
           ) : (
             <>
               <button type="button" onClick={() => setOpen(false)} className={networkInspectorAction}>Cancel</button>
-              <button type="button" onClick={apply} className="rounded-control bg-primary px-ui-md py-ui-sm font-mono text-system-micro font-semibold text-primary-foreground transition-colors hover:bg-primary-hover">Apply</button>
+              <button type="button" onClick={apply} className="rounded-control bg-primary px-ui-md py-ui-sm font-mono text-system-micro font-medium text-primary-foreground transition-colors hover:bg-primary-hover">Apply</button>
             </>
           )}
         >
@@ -119,12 +119,12 @@ export function NetworkNodeInspector({
         <div className="flex items-start gap-ui-md">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-container border border-primary/20 bg-primary/5 text-primary-light"><Bot className="h-4 w-4" /></div>
           <div className="min-w-0 flex-1">
-            <p className="font-sans text-system-micro font-semibold uppercase tracking-ui-label text-primary-light">Agent in Network</p>
+            <p className="font-mono text-system-micro font-medium uppercase tracking-ui-label text-primary-light">Agent in Network</p>
             <div className="mt-ui-xs flex min-w-0 items-center gap-ui-sm">
-              <h2 className="truncate text-sm font-semibold text-foreground">{node.label}</h2>
+              <h2 className="truncate text-sm font-medium text-foreground">{node.label}</h2>
               {definition.root_node_id === node.id ? <span className="shrink-0 rounded-technical border border-primary/25 bg-primary/5 px-ui-xs py-ui-hairline font-mono text-system-micro uppercase text-primary-light">Entry point</span> : null}
             </div>
-            <p className="mt-ui-xs truncate font-sans text-system-label text-muted-foreground">{binding ? `${binding.source} · ${binding.version}` : agent ? `${agent.provider}/${agent.model}` : node.agent_id}</p>
+            <p className="mt-ui-xs truncate font-mono text-system-label text-muted-foreground">{binding ? `${binding.source} · ${binding.version}` : agent ? `${agent.provider}/${agent.model}` : node.agent_id}</p>
           </div>
           {onOpenAgent ? <button type="button" onClick={onOpenAgent} className={networkInspectorAction}><ExternalLink className="mr-ui-xs inline h-3 w-3" />Open Agent</button> : null}
           <details className="relative">
@@ -139,7 +139,7 @@ export function NetworkNodeInspector({
 
       <div className="space-y-ui-lg p-ui-md">
         <section className="space-y-ui-lg">
-          <div className="flex items-center gap-ui-sm"><p className="font-sans text-system-label font-semibold uppercase tracking-ui-label text-slate-300">In this Network</p><Help text="These settings affect only this Network node. Prompt, model, Tools and Knowledge remain owned by the shared Agent." /></div>
+          <div className="flex items-center gap-ui-sm"><p className="font-mono text-system-label font-medium uppercase tracking-ui-label text-slate-300">In this Network</p><Help text="These settings affect only this Network node. Prompt, model, Tools and Knowledge remain owned by the shared Agent." /></div>
           <label className="block font-mono text-system-label text-muted-foreground">Node label<input disabled={readOnly} className={networkInspectorInput} value={node.label} onChange={(event) => onChange({ type: 'rename-node', nodeId: node.id, label: event.target.value })} /></label>
           <label className="block font-mono text-system-label text-muted-foreground">
             <span className="inline-flex items-center gap-ui-sm">Delegation capability <Help text="Connected upstream Agents use this description to decide when work should be delegated to this node." /></span>
@@ -152,17 +152,17 @@ export function NetworkNodeInspector({
         <section className="rounded-container border border-border bg-background/30 p-ui-md">
           <div className="flex items-center gap-ui-md">
             <div className="min-w-0 flex-1">
-              <p className="font-sans text-system-label font-semibold uppercase tracking-ui-label text-muted-foreground">Role</p>
-              <p className="mt-ui-xs font-sans text-system-control text-slate-200">{definition.root_node_id === node.id ? 'Entry point and final responder' : 'Specialist Agent'}</p>
+              <p className="font-mono text-system-label font-medium uppercase tracking-ui-label text-muted-foreground">Role</p>
+              <p className="mt-ui-xs font-mono text-system-control text-slate-200">{definition.root_node_id === node.id ? 'Entry point and final responder' : 'Specialist Agent'}</p>
             </div>
             {!readOnly && definition.root_node_id !== node.id ? <button type="button" onClick={() => onChange({ type: 'set-root', nodeId: node.id })} className={networkInspectorAction}>Set as Entry Point</button> : null}
           </div>
         </section>
 
         <details className="rounded-container border border-border bg-background/30">
-          <summary className="cursor-pointer list-none px-ui-md py-ui-md font-mono text-system-label font-semibold uppercase tracking-ui-label text-muted-foreground [&::-webkit-details-marker]:hidden">Advanced <span className="float-right">›</span></summary>
+          <summary className="cursor-pointer list-none px-ui-md py-ui-md font-mono text-system-label font-medium uppercase tracking-ui-label text-muted-foreground [&::-webkit-details-marker]:hidden">Advanced <span className="float-right">›</span></summary>
           <div className="flex items-center gap-ui-sm border-t border-border px-ui-md py-ui-md">
-            <p className="min-w-0 flex-1 break-all font-sans text-system-control text-slate-200">{delegationToolName(node)}</p>
+            <p className="min-w-0 flex-1 break-all font-mono text-system-control text-slate-200">{delegationToolName(node)}</p>
             <button type="button" onClick={() => void navigator.clipboard.writeText(delegationToolName(node))} className={networkInspectorAction}><Copy className="h-3 w-3" /></button>
           </div>
         </details>

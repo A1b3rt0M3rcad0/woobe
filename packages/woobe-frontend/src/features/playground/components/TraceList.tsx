@@ -82,7 +82,7 @@ export function TraceList({ traces, selectedTraceId, onSelectTrace, isLoading, i
     <div className="p-ui-md">
       <div className="mb-ui-md flex items-center justify-between gap-ui-md border-b border-border/70 pb-ui-sm">
         <div>
-          <h3 className="font-mono text-system-control font-semibold text-slate-50">Agent Runs</h3>
+          <h3 className="font-mono text-system-control font-medium text-slate-50">Agent Runs</h3>
           <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">One Run for each Agent execution.</p>
         </div>
         <Button type="button" size="sm" variant="ghost" className="text-muted-foreground">
@@ -97,7 +97,7 @@ export function TraceList({ traces, selectedTraceId, onSelectTrace, isLoading, i
           if (!items?.length) return null
           return (
             <div key={group}>
-              <p className="mb-ui-sm font-sans text-system-meta uppercase tracking-[0.08em] text-muted-foreground">{group}</p>
+              <p className="mb-ui-sm font-mono text-system-meta uppercase tracking-[0.08em] text-muted-foreground">{group}</p>
               <div className="space-y-ui-sm">
                 {items.map((trace) => (
                   <TechnicalListItem

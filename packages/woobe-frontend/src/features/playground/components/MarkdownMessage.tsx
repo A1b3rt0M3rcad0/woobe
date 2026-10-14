@@ -371,7 +371,7 @@ export function MarkdownMessage({ content, isStreaming, className }: MarkdownMes
                 <th
                   key={`table-${currentKey}-h-${headerIndex}`}
                   className={cn(
-                    'border-b border-border px-ui-md py-ui-sm font-semibold uppercase tracking-wide',
+                    'border-b border-border px-ui-md py-ui-sm font-medium uppercase tracking-wide',
                     alignmentClass(table.alignments[headerIndex] ?? 'left'),
                   )}
                 >
@@ -387,7 +387,7 @@ export function MarkdownMessage({ content, isStreaming, className }: MarkdownMes
                   <td
                     key={`table-${currentKey}-r-${rowIndex}-c-${cellIndex}`}
                     className={cn(
-                      'min-w-content-table-cell px-ui-md py-ui-sm align-top text-foreground/90',
+                      'min-w-content-table-cell px-ui-md py-ui-sm align-top text-foreground',
                       alignmentClass(table.alignments[cellIndex] ?? 'left'),
                     )}
                   >
@@ -464,7 +464,7 @@ export function MarkdownMessage({ content, isStreaming, className }: MarkdownMes
         <HeadingTag
           key={`h-${currentKey}`}
           className={cn(
-            'mt-ui-xs font-mono font-semibold text-slate-50',
+            'mt-ui-xs font-mono font-medium text-slate-50',
             level === 1 && 'text-heading-lg',
             level === 2 && 'text-heading',
             level === 3 && 'text-heading-sm',

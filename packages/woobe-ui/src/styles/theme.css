@@ -34,6 +34,22 @@
 :where(h1,h2,h3) { text-wrap: balance; scroll-margin-top: 1rem; }
 :where(td,th) { font-variant-numeric: tabular-nums; }
 :where(pre,code) { tab-size: 2; }
+.woobe-dot-meter {
+  --meter-color: var(--g-accent);
+  position: relative;
+  height: .5rem;
+  background: radial-gradient(circle, #ddd9d3 1px, transparent 1.15px) 0 0 / 3px 3px;
+}
+.woobe-dot-meter > span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--meter-fill);
+  background: radial-gradient(circle, var(--meter-color) 1px, transparent 1.15px) 0 0 / 3px 3px;
+}
+.woobe-dot-meter[data-tone='success'] { --meter-color: var(--g-success-mark); }
+.woobe-dot-meter[data-tone='warning'] { --meter-color: var(--g-warning-mark); }
+.woobe-dot-meter[data-tone='danger'] { --meter-color: var(--g-danger-mark); }
+.woobe-dot-meter[data-tone='neutral'] { --meter-color: var(--g-text-faint); }
 @media (prefers-reduced-motion: reduce) {
   *,*::before,*::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }

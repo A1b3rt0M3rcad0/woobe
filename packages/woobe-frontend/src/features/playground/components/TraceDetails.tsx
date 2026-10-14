@@ -120,7 +120,7 @@ function UsageInline({
   if (totalTokens != null) parts.push(`Total ${formatTokens(totalTokens)}`)
   if (costUsd != null) parts.push(formatCurrency(costUsd))
   if (parts.length === 0) return null
-  return <p className="text-system-meta text-muted">{parts.join('  ·  ')}</p>
+  return <p className="font-mono text-system-meta text-muted">{parts.join('  ·  ')}</p>
 }
 
 const statusConfig: Record<string, { label: string; className: string; icon: typeof CheckCircle }> = {
@@ -311,7 +311,7 @@ function DetailView({ traceId, projectId, agentId, sessionId, messageId, status,
 
       {fallbackInfo && (
         <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/5 p-2.5 space-y-1">
-          <p className="text-system-meta font-medium text-warning uppercase tracking-wider">Fallback Details</p>
+          <p className="font-mono text-system-meta font-medium text-warning uppercase tracking-wider">Fallback Details</p>
           <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-system-meta">
             <span className="text-muted">Primary:</span>
             <span className="text-foreground font-mono text-right truncate">{fallbackInfo.primary_provider}/{fallbackInfo.primary_model}</span>
@@ -325,14 +325,14 @@ function DetailView({ traceId, projectId, agentId, sessionId, messageId, status,
 
       {userMessage && (
         <div className="rounded-lg border border-border bg-background p-2.5">
-          <p className="text-system-meta font-medium text-muted uppercase tracking-wider mb-1">User Message</p>
+          <p className="font-mono text-system-meta font-medium text-muted uppercase tracking-wider mb-1">User Message</p>
           <ClampedText text={userMessage} lines={2} />
         </div>
       )}
 
       {answerLength != null && (
         <div className="rounded-lg border border-border bg-background p-2.5">
-          <p className="text-system-meta font-medium text-muted uppercase tracking-wider mb-1">Response</p>
+          <p className="font-mono text-system-meta font-medium text-muted uppercase tracking-wider mb-1">Response</p>
           <p className="text-xs text-muted">{formatTokens(answerLength)} characters (stored in session messages)</p>
         </div>
       )}
@@ -489,7 +489,7 @@ function LocalTraceDetail({ trace, onBack }: { trace: TraceItem; onBack: () => v
 
         {trace.fallback_used && trace.fallback_info && (
           <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/5 p-2.5 space-y-1">
-            <p className="text-system-meta font-medium text-warning uppercase tracking-wider">Fallback Details</p>
+            <p className="font-mono text-system-meta font-medium text-warning uppercase tracking-wider">Fallback Details</p>
             <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-system-meta">
               <span className="text-muted">Primary:</span>
               <span className="text-foreground font-mono text-right truncate">{trace.fallback_info.primary_provider}/{trace.fallback_info.primary_model}</span>
@@ -503,7 +503,7 @@ function LocalTraceDetail({ trace, onBack }: { trace: TraceItem; onBack: () => v
 
         {response.answer && (
           <div className="rounded-lg border border-border bg-background p-2.5">
-            <p className="text-system-meta font-medium text-muted uppercase tracking-wider mb-1">Answer</p>
+            <p className="font-mono text-system-meta font-medium text-muted uppercase tracking-wider mb-1">Answer</p>
             <ClampedText text={response.answer} lines={2} />
           </div>
         )}

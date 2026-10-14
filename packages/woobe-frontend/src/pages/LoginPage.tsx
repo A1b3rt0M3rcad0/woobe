@@ -24,7 +24,7 @@ export default function LoginPage() {
   return (
     <div>
       <header className="mb-ui-content-gutter">
-        <h1 className="font-mono text-page-title font-semibold tracking-tight text-slate-50">
+        <h1 className="font-mono text-page-title font-medium tracking-tight text-slate-50">
           Sign in to Woobe
         </h1>
         <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">

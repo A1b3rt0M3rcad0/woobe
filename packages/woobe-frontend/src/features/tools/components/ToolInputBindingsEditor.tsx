@@ -134,8 +134,8 @@ export function ToolInputBindingsEditor({
               className="grid min-h-[48px] grid-cols-[minmax(110px,1fr)_76px_150px_minmax(150px,1.1fr)] items-center gap-2 px-3 py-2"
             >
               <div className="min-w-0">
-                <p className="truncate font-sans text-system-meta font-medium text-foreground">{input.name}</p>
-                {input.required ? <p className="mt-0.5 text-system-meta text-muted">required</p> : null}
+                <p className="truncate font-mono text-system-meta font-medium text-foreground">{input.name}</p>
+                {input.required ? <p className="font-mono mt-0.5 text-system-meta text-muted">required</p> : null}
               </div>
               <span className="truncate font-mono text-system-meta capitalize text-muted">{input.type}</span>
               <Select
@@ -165,7 +165,7 @@ export function ToolInputBindingsEditor({
       </div>
 
       <div className="border-t border-border/70 px-3 py-2">
-        <p className="text-system-meta leading-4 text-muted">
+        <p className="font-mono text-system-meta leading-4 text-muted">
           Runtime bindings are removed from the model-visible Tool schema. External Context comes from the immutable Run snapshot; Project Environment comes from the selected draft/staging/production execution environment and is never exposed to the model.
         </p>
       </div>
