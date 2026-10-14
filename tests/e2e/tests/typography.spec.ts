@@ -51,7 +51,7 @@ for (const width of [1440, 768, 390]) test(`editorial, interface and technical f
     ['breadcrumb', page.locator('header').getByRole('link', { name: workspace.name, exact: true }), 'Inter'],
     ['refresh', page.getByRole('button', { name: 'Refresh', exact: true }), 'Inter'],
     ['range', page.getByLabel('Dashboard range'), 'Inter'],
-    ['technical-panel', page.getByRole('heading', { name: 'Run Activity', exact: true }), 'JetBrains Mono'],
+    ['analysis-panel', page.getByRole('heading', { name: 'Run Activity', exact: true }), 'Inter'],
     ['metric', page.getByText('$0.25', { exact: true }), 'JetBrains Mono'],
   ] as const) evidence.push(await renderedFont(page, locator, role, family))
   if (width < 1024) await page.getByRole('button', { name: 'Open navigation', exact: true }).click()

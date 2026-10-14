@@ -1,5 +1,5 @@
 import { ProjectConfigurationNotice } from '@/features/projects/components/ProjectConfigurationNotice'
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { ChangeEvent, KeyboardEvent, ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import type { LucideIcon } from 'lucide-react'
@@ -34,9 +34,9 @@ import type {
   DashboardMetric,
   DashboardReliabilityGroup,
   DashboardRunRow,
-  DashboardSeriesPoint,
   DashboardViewModel,
 } from '@/features/dashboard/adapters'
+import { RunActivityChart } from '@/features/dashboard/components/RunActivityChart'
 import { useProjectOverview } from '@/features/dashboard/hooks'
 import type { DashboardEnvironment, DashboardRangePreset } from '@/features/dashboard/types'
 import { workspaceProjectPath } from '@/lib/constants/routes'
@@ -49,21 +49,17 @@ const ENVIRONMENTS: Array<{ value: DashboardEnvironment; label: string; tone: st
 ]
 
 const RANGES: DashboardRangePreset[] = ['24h', '7d', '30d']
-const CHART_WIDTH = 760
-const CHART_HEIGHT = 170
-const CHART_PADDING = 20
-
 function Panel({ children, className = '' }: { children: ReactNode; className?: string }) {
   return <Card className={className}>{children}</Card>
 }
 
 function PanelHeader({ title, subtitle, action }: { title: string; subtitle?: string; action?: ReactNode }) {
-  return <TechnicalPanelHeader title={title} description={subtitle} actions={action} hierarchy="technical" />
+  return <TechnicalPanelHeader title={title} description={subtitle} actions={action} hierarchy="section" className="border-0 bg-transparent [&_h2]:text-product-label" />
 }
 
 function StorySectionHeader({ title, description }: { title: string; description: string }) {
   return (
-    <div className="border-t border-border pt-ui-xl">
+    <div className="pt-ui-sm">
       <h2 className="font-serif text-editorial-section font-normal text-foreground">{title}</h2>
       <p className="mt-ui-xs max-w-3xl text-product-caption text-muted-foreground">{description}</p>
     </div>
@@ -78,27 +74,21 @@ function MiniLink({ label, onClick }: { label: string; onClick?: () => void }) {
   )
 }
 
-function MetricCard({ metric, onReviewPricing }: { metric: DashboardMetric; onReviewPricing: () => void }) {
+function MetricCard({ metric, onReviewPricing, onNavigate }: { metric: DashboardMetric; onReviewPricing: () => void; onNavigate: (segment: string) => void }) {
   const [helpOpen, setHelpOpen] = useState(false)
-  const Icon = metric.icon
-  const detailTone = metric.direction === 'up' ? 'text-success' : metric.direction === 'down' ? 'text-error' : 'text-muted'
-  return <Panel className="flex min-w-0 flex-col">
-    <div className="flex min-h-panel-header items-center justify-between gap-ui-sm rounded-t-container border-b border-border bg-panel-band px-ui-panel-inset py-ui-sm">
-      <h2 className="font-mono text-product-label font-medium text-foreground">{metric.label}</h2>
-      {metric.costHelp
-        ? <button type="button" aria-label="Runtime cost details" onClick={() => setHelpOpen(true)} className="flex h-control-xs w-control-xs shrink-0 items-center justify-center rounded-technical text-muted hover:text-foreground"><AlertCircle className="h-icon w-icon" aria-hidden="true" /></button>
-        : <Icon className={`h-icon w-icon shrink-0 ${metric.tone}`} aria-hidden="true" />}
+  const destination = metric.label === 'Runtime Cost' ? 'usage' : 'traces'
+  return <Panel className="flex min-w-0 flex-col p-ui-panel-inset">
+    <div className="flex items-center justify-between gap-ui-sm">
+      <h2 className="font-sans text-product-label font-medium text-foreground">
+        <button type="button" onClick={() => onNavigate(destination)} title={destination === 'usage' ? 'Open Usage' : 'Open Run ledger'} className="inline-flex items-center gap-ui-xs rounded-control text-left hover:text-primary-light">
+          {metric.label}<ArrowRight className="h-3 w-3 text-muted-foreground" aria-hidden="true" />
+        </button>
+      </h2>
+      {metric.costHelp && <button type="button" aria-label="Runtime cost details" onClick={() => setHelpOpen(true)} className="flex h-control-xs w-control-xs shrink-0 items-center justify-center rounded-technical text-warning"><AlertCircle className="h-icon w-icon" aria-hidden="true" /></button>}
     </div>
-    <div className="min-w-0 flex-1 px-ui-panel-inset py-ui-lg">
-      {metric.comparison ? <div className="grid grid-cols-2 gap-ui-md">
-        {[metric.comparison.agent, metric.comparison.network].map(item=><div key={item.label} className="min-w-0">
-          <p className={`font-mono text-product-caption ${item.tone}`}>{item.label}</p>
-          <p className="mt-ui-xs break-words font-mono text-product-label font-normal tabular-nums text-foreground">{item.value}</p>
-          <p className="mt-ui-xs font-mono text-product-caption text-muted">{item.detail}</p>
-        </div>)}
-      </div> : <p className="break-words font-mono text-metric font-normal tabular-nums text-foreground">{metric.value}</p>}
-    </div>
-    <p className={`min-h-control rounded-b-container border-t border-border bg-panel-band/70 px-ui-panel-inset py-ui-sm font-sans text-product-caption ${detailTone}`}>{metric.detail ?? 'No terminal Runs in this interval'}</p>
+    <p className="my-ui-sm break-words font-mono text-metric font-normal tabular-nums text-foreground">{metric.value}</p>
+    <p className="text-product-caption text-muted-foreground">{metric.detail ?? 'No terminal Runs in this interval'}</p>
+    {metric.change && <p className="mt-ui-xs text-product-caption text-foreground">{metric.change}</p>}
     {metric.costHelp && <Dialog open={helpOpen} onClose={() => setHelpOpen(false)} title="Runtime cost coverage" className="max-w-md">
       <p className="font-sans text-sm leading-6 text-muted-foreground">{metric.costHelp.description}</p>
       {metric.costHelp.reviewPricing && <div className="mt-4 space-y-3">
@@ -116,7 +106,7 @@ function SkeletonPanel({ className = '' }: { className?: string }) {
 export function DashboardLoadingState() {
   return (
     <div aria-label="Loading project overview" className="space-y-4">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">{Array.from({ length: 6 }, (_, index) => <SkeletonPanel key={index} className="min-h-[128px]" />)}</div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">{Array.from({ length: 4 }, (_, index) => <SkeletonPanel key={index} className="min-h-[128px]" />)}</div>
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-12"><SkeletonPanel className="min-h-[330px] xl:col-span-8" /><SkeletonPanel className="min-h-[330px] xl:col-span-4" /></div>
       <SkeletonPanel className="min-h-[120px]" />
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3"><SkeletonPanel className="min-h-[250px]" /><SkeletonPanel className="min-h-[250px]" /><SkeletonPanel className="min-h-[250px]" /></div>
@@ -145,216 +135,6 @@ function EmptyExecutionState() {
   )
 }
 
-function sum(values: number[]) {
-  return values.reduce((total, value) => total + value, 0)
-}
-
-function getTickIndexes(length: number, maxTicks = 5): number[] {
-  if (length <= 0) return []
-  if (length <= maxTicks) return Array.from({ length }, (_, index) => index)
-  return Array.from(new Set(Array.from({ length: maxTicks }, (_, index) => Math.round((index * (length - 1)) / (maxTicks - 1)))))
-}
-
-function pointX(index: number, length: number): number {
-  if (length <= 1) return CHART_WIDTH / 2
-  return CHART_PADDING + (index / (length - 1)) * (CHART_WIDTH - CHART_PADDING * 2)
-}
-
-function pointY(value: number, maxValue: number): number {
-  return CHART_HEIGHT - CHART_PADDING - (value / Math.max(maxValue, 1)) * (CHART_HEIGHT - CHART_PADDING * 2)
-}
-
-type ChartPoint = { x: number; y: number }
-
-function chartPoints(values: number[], maxValue: number): ChartPoint[] {
-  return values.map((value, index) => ({
-    x: pointX(index, values.length),
-    y: pointY(value, maxValue),
-  }))
-}
-
-function buildSmoothPath(values: number[], maxValue: number): string {
-  const points = chartPoints(values, maxValue)
-  if (points.length === 0) return ''
-  if (points.length === 1) return `M ${points[0].x.toFixed(2)} ${points[0].y.toFixed(2)}`
-
-  return points.slice(1).reduce((path, current, index) => {
-    const previous = points[index]
-    const distance = current.x - previous.x
-    const controlOffset = Math.min(distance * 0.42, 24)
-    return `${path} C ${(previous.x + controlOffset).toFixed(2)} ${previous.y.toFixed(2)} ${(current.x - controlOffset).toFixed(2)} ${current.y.toFixed(2)} ${current.x.toFixed(2)} ${current.y.toFixed(2)}`
-  }, `M ${points[0].x.toFixed(2)} ${points[0].y.toFixed(2)}`)
-}
-
-function buildAreaPath(values: number[], maxValue: number): string {
-  if (values.length === 0) return ''
-  const baseline = CHART_HEIGHT - CHART_PADDING
-  const line = buildSmoothPath(values, maxValue)
-  return `${line} L ${pointX(values.length - 1, values.length).toFixed(2)} ${baseline} L ${pointX(0, values.length).toFixed(2)} ${baseline} Z`
-}
-
-function latestActivityIndex(series: DashboardSeriesPoint[]): number {
-  for (let index = series.length - 1; index >= 0; index -= 1) {
-    const point = series[index]
-    if (point && point.agentRuns + point.networkRuns + point.agentErrors + point.networkErrors > 0) return index
-  }
-  return Math.max(series.length - 1, 0)
-}
-
-function ChartTicks({ model }: { model: DashboardViewModel }) {
-  const ticks = getTickIndexes(model.series.length)
-  return (
-    <div className="absolute bottom-0 left-0 right-0 flex justify-between overflow-hidden font-mono text-system-meta text-muted">
-      {ticks.map((index) => <span key={`${model.series[index]?.label}-${index}`} className="max-w-[108px] truncate">{model.series[index]?.label}</span>)}
-    </div>
-  )
-}
-
-function ChartGrid() {
-  return <div className="absolute bottom-7 left-0 right-0 top-0 flex flex-col justify-between">{[0, 1, 2, 3].map((line) => <div key={line} className="border-t border-border/55" />)}</div>
-}
-
-function RunActivityChart({ model }: { model: DashboardViewModel }) {
-  const [selectedIndex, setSelectedIndex] = useState(() => latestActivityIndex(model.series))
-  const [hoverIndex, setHoverIndex] = useState<number | null>(null)
-  const activeIndex = hoverIndex ?? selectedIndex
-  const agentValues = model.series.map((point) => point.agentRuns)
-  const networkValues = model.series.map((point) => point.networkRuns)
-  const maxValue = Math.max(...agentValues, ...networkValues, 1)
-  const agentPath = buildSmoothPath(agentValues, maxValue)
-  const agentAreaPath = buildAreaPath(agentValues, maxValue)
-  const hasAgentActivity = agentValues.some((value) => value > 0)
-  const hasNetworkActivity = networkValues.some((value) => value > 0)
-  const activePoint = model.series[activeIndex] ?? null
-  const activeX = activePoint ? pointX(activeIndex, model.series.length) : null
-  const bucketWidth = model.series.length > 1 ? (CHART_WIDTH - CHART_PADDING * 2) / (model.series.length - 1) : CHART_WIDTH - CHART_PADDING * 2
-  const networkBarWidth = Math.min(Math.max(bucketWidth * 0.18, 3), 7)
-  const hitWidth = Math.max(bucketWidth, 20)
-
-  useEffect(() => {
-    setSelectedIndex(latestActivityIndex(model.series))
-    setHoverIndex(null)
-  }, [model.series])
-
-  return (
-    <Panel className="h-full min-h-[330px]">
-      <PanelHeader
-        title="Run Activity"
-        action={<div className="rounded-md border border-border bg-background/55 px-3 py-1.5 text-right font-mono text-system-meta text-muted"><span className="block uppercase tracking-[0.08em]">Period total</span><b className="mt-0.5 block text-system-meta font-medium text-slate-200">{sum(agentValues).toLocaleString()} Agent Runs · {sum(networkValues).toLocaleString()} Network Runs</b></div>}
-      />
-      <div className="px-5 pb-5">
-        <div className="mb-3 flex flex-wrap items-center gap-4 font-mono text-system-meta text-muted">
-          {hasAgentActivity && <span className="flex items-center gap-1.5"><span className="h-0.5 w-4 rounded bg-blue-500" />Agent Runs</span>}
-          {hasNetworkActivity && <span className="flex items-center gap-1.5"><span className="h-3 w-1 rounded-sm bg-violet-500/80" />Network Runs</span>}
-          <span className="flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-red-400" />Errors</span>
-        </div>
-        <div className="relative h-[190px]">
-          <ChartGrid />
-          <svg
-            onMouseLeave={() => setHoverIndex(null)}
-            className="absolute inset-x-0 top-0 h-[166px] w-full"
-            viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
-            preserveAspectRatio="none"
-            aria-label="Agent Run area and Network Run bars by time bucket"
-          >
-            <defs>
-              <linearGradient id="agent-run-area" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#ff5500" stopOpacity="0.28" />
-                <stop offset="55%" stopColor="#ff5500" stopOpacity="0.10" />
-                <stop offset="95%" stopColor="#ff5500" stopOpacity="0.01" />
-              </linearGradient>
-              <linearGradient id="network-run-bar" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#a78bfa" stopOpacity="0.9" />
-                <stop offset="100%" stopColor="#7c3aed" stopOpacity="0.45" />
-              </linearGradient>
-            </defs>
-
-            {activeX !== null && (
-              <line
-                x1={activeX}
-                x2={activeX}
-                y1={CHART_PADDING - 2}
-                y2={CHART_HEIGHT - CHART_PADDING}
-                stroke="#e3e1dd"
-                strokeWidth="1"
-                strokeDasharray="3 5"
-                opacity="0.8"
-                vectorEffect="non-scaling-stroke"
-              />
-            )}
-
-            {hasAgentActivity && agentAreaPath && <path d={agentAreaPath} fill="url(#agent-run-area)" />}
-
-            {hasNetworkActivity && model.series.map((point, index) => {
-              if (point.networkRuns <= 0) return null
-              const x = pointX(index, model.series.length)
-              const y = pointY(point.networkRuns, maxValue)
-              const baseline = CHART_HEIGHT - CHART_PADDING
-              return (
-                <rect
-                  key={`network-bar-${point.bucketStart}`}
-                  x={x - networkBarWidth / 2}
-                  y={y}
-                  width={networkBarWidth}
-                  height={Math.max(baseline - y, 2)}
-                  rx={Math.min(networkBarWidth / 2, 3)}
-                  fill="url(#network-run-bar)"
-                />
-              )
-            })}
-
-            {hasAgentActivity && agentPath && (
-              <path
-                d={agentPath}
-                fill="none"
-                stroke="#ff5500"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                vectorEffect="non-scaling-stroke"
-              />
-            )}
-
-            {model.series.map((point, index) => {
-              const x = pointX(index, model.series.length)
-              const hasErrors = point.agentErrors + point.networkErrors > 0
-              const isActive = activeIndex === index
-              const agentY = pointY(point.agentRuns, maxValue)
-              const left = Math.max(x - hitWidth / 2, 0)
-              const width = Math.min(hitWidth, CHART_WIDTH - left)
-              return (
-                <g key={point.bucketStart} onMouseEnter={() => setHoverIndex(index)} onClick={() => setSelectedIndex(index)} className="cursor-pointer">
-                  <rect x={left} y={0} width={width} height={CHART_HEIGHT} fill="transparent" />
-                  {isActive && (
-                    <>
-                      <circle cx={x} cy={agentY} r="5" fill="#fffefd" stroke="#ad3900" strokeWidth="2" vectorEffect="non-scaling-stroke" />
-                      <circle cx={x} cy={agentY} r="1.5" fill="#ff5500" />
-                    </>
-                  )}
-                  {hasErrors && <circle cx={x} cy={CHART_HEIGHT - 8} r="3" fill="#b42318" />}
-                </g>
-              )
-            })}
-          </svg>
-          <ChartTicks model={model} />
-        </div>
-        {activePoint && (
-          <div className="flex flex-col gap-3 rounded-md border border-border/80 bg-background/45 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="min-w-[150px]"><p className="font-mono text-system-meta font-medium uppercase tracking-[0.08em] text-muted">Selected interval</p><p className="mt-1 font-mono text-system-meta font-medium text-foreground">{activePoint.label}</p></div>
-            <div className="grid flex-1 grid-cols-2 gap-3 sm:grid-cols-5">
-              <div><p className="font-mono text-system-meta text-muted">Agent Runs</p><p className="mt-1 font-mono text-sm font-medium text-primary-light">{activePoint.agentRuns}</p></div>
-              <div><p className="font-mono text-system-meta text-muted">Network Runs</p><p className="mt-1 font-mono text-sm font-medium text-network">{activePoint.networkRuns}</p></div>
-              <div><p className="font-mono text-system-meta text-muted">Successful</p><p className="mt-1 font-mono text-sm font-medium text-success">{activePoint.agentSuccess + activePoint.networkSuccess}</p></div>
-              <div><p className="font-mono text-system-meta text-muted">Errors</p><p className="mt-1 font-mono text-sm font-medium text-error">{activePoint.agentErrors + activePoint.networkErrors}</p></div>
-              <div><p className="font-mono text-system-meta text-muted">Runtime cost</p><p className="mt-1 font-mono text-sm font-medium text-foreground">{formatCost(activePoint.costUsd, activePoint.costUsd !== null)}</p></div>
-            </div>
-          </div>
-        )}
-      </div>
-    </Panel>
-  )
-}
-
 function ReliabilityDistribution({ group }: { group: DashboardReliabilityGroup }) {
   const denominator = Math.max(group.terminalRuns, 1)
   const errors = group.failed + group.timedOut + group.uncertain
@@ -377,59 +157,62 @@ function ReliabilityDistribution({ group }: { group: DashboardReliabilityGroup }
 
 function ReliabilityGroupView({ group }: { group: DashboardReliabilityGroup }) {
   const errors = group.failed + group.timedOut + group.uncertain
-  return (
-    <div className="rounded-xl border border-border/80 bg-background/45 p-3">
-      <div className="flex items-start justify-between gap-3">
-        <div><p className="font-mono text-xs font-medium text-foreground">{group.label}</p><p className="font-mono mt-1 text-system-meta text-slate-400">{group.successful} successful · {errors} errors · {group.running} running</p></div>
-        <div className="text-right"><p className={`font-mono text-lg font-medium ${group.successRate !== null && group.successRate >= 99 ? 'text-success' : errors > 0 ? 'text-warning' : 'text-foreground'}`}>{formatPercent(group.successRate)}</p><p className="font-mono text-system-meta text-muted">success</p></div>
+  return <section className="space-y-ui-sm" aria-label={`${group.label} reliability`}>
+    <div className="flex items-start justify-between gap-ui-md">
+      <div><h3 className="text-product-label font-medium">{group.label === 'Network Runs' ? 'Network Run Success' : 'Agent Run Success'}</h3>
+        <p className="mt-ui-xs text-product-caption text-muted-foreground"><span className="font-mono text-foreground">{group.successful} / {group.terminalRuns}</span> terminal Runs successful</p>
       </div>
-      <div className="mt-3"><ReliabilityDistribution group={group} /></div>
-      <div className="mt-3 grid grid-cols-3 gap-x-3 text-xs">
-        <span className="text-muted">Error rate <b className="mt-1 block text-foreground">{formatPercent(group.errorRate)}</b></span>
-        <span className="text-muted">Average <b className="mt-1 block text-foreground">{group.averageDurationLabel}</b></span>
-        <span className="text-muted" title="95% of terminal Runs completed within this duration">p95 <b className="mt-1 block text-foreground">{group.p95DurationLabel}</b></span>
-      </div>
+      <p className={`font-mono text-xl font-normal ${errors > 0 ? 'text-warning' : 'text-foreground'}`}>{formatPercent(group.successRate)}</p>
     </div>
-  )
+    <ReliabilityDistribution group={group} />
+    <p className="text-product-caption text-muted-foreground">{group.running} running or queued · {group.cancelled} cancelled{group.completedWithIssues > 0 ? ` · ${group.completedWithIssues} completed with issues` : ''}</p>
+    <dl className="grid grid-cols-3 gap-ui-sm">
+      {[
+        ['Error rate', formatPercent(group.errorRate)],
+        ['Average duration', group.averageDurationLabel],
+        ['p95 duration', group.p95DurationLabel],
+      ].map(([label, value]) => <div key={label}><dt className="text-product-caption text-muted-foreground">{label}</dt><dd className="mt-ui-xs font-mono text-product-caption text-foreground">{value}</dd></div>)}
+    </dl>
+    {errors > 0 && <p className="text-product-caption text-error">{group.failed} failed · {group.timedOut} timed out · {group.uncertain} uncertain</p>}
+  </section>
 }
 
 function ReliabilityPanel({ model }: { model: DashboardViewModel }) {
-  return (
-    <Panel className="h-full min-h-[330px]">
-      <PanelHeader title="Reliability & Performance" />
-      <div className="space-y-3 px-5 pb-5"><ReliabilityGroupView group={model.reliability.agent} /><ReliabilityGroupView group={model.reliability.network} /></div>
-    </Panel>
-  )
+  return <Panel className="h-full">
+    <PanelHeader title="Reliability & Performance" />
+    <div className="space-y-ui-xl px-ui-panel-inset pb-ui-panel-inset">
+      <ReliabilityGroupView group={model.reliability.agent} />
+      <ReliabilityGroupView group={model.reliability.network} />
+      <p className="text-product-caption text-muted-foreground">Success is completed / terminal Runs. Running Runs are excluded. Average Run Time and p95 describe recorded terminal durations; p95 is the duration not exceeded by 95% of those measurements.</p>
+    </div>
+  </Panel>
 }
 
-function OperationalIssues({ model }: { model: DashboardViewModel }) {
-  if (!model.issues.hasIssues) return null
-  const totalIssues = model.issues.totalAgentErrors + model.issues.totalNetworkErrors
-  const firstEntity = model.issues.topAgents[0] ?? model.issues.topNetworks[0]
-  const firstCode = model.issues.topCodes[0]
-
-  if (totalIssues <= 2) {
-    return (
-      <Panel className="border-red-500/15 bg-red-500/[0.018] px-4 py-3">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-start gap-3"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-error" /><div><p className="font-sans text-sm font-medium text-foreground">{totalIssues} operational {totalIssues === 1 ? 'issue' : 'issues'} in this period</p><p className="mt-1 text-xs text-slate-400">{model.issues.summary.join(' · ')}</p></div></div>
-          <div className="flex flex-wrap gap-x-6 gap-y-2 text-xs"><span className="text-muted">Affected <b className="ml-1 text-foreground">{firstEntity?.name ?? 'Unknown'}</b></span><span className="text-muted">Failure code <b className="ml-1 font-mono text-error">{firstCode?.code ?? 'unknown'}</b></span>{model.issues.peakLabel && <span className="text-muted">Occurred <b className="ml-1 text-foreground">{model.issues.peakLabel}</b></span>}</div>
-        </div>
-      </Panel>
-    )
-  }
-
-  return (
-    <Panel className="border-red-500/20 bg-red-500/[0.025]">
-      <PanelHeader title="Operational Issues" action={<AlertTriangle className="h-4 w-4 text-error" />} />
-      <div className="grid gap-4 px-5 pb-5 xl:grid-cols-12">
-        <div className="xl:col-span-4"><p className="font-mono text-system-meta font-medium uppercase tracking-wide text-muted">What happened</p><div className="mt-2 space-y-2">{model.issues.summary.map((item) => <div key={item} className="rounded-lg border border-red-500/15 bg-background/45 px-3 py-2 text-xs text-error">{item}</div>)}</div>{model.issues.peakLabel && <p className="mt-3 text-xs text-muted">Failure peak: <span className="font-medium text-foreground">{model.issues.peakLabel}</span> · {model.issues.peakCount} errors</p>}</div>
-        <div className="xl:col-span-3"><p className="font-mono text-system-meta font-medium uppercase tracking-wide text-muted">Most affected Agents</p><div className="mt-2 space-y-2">{model.issues.topAgents.length === 0 ? <p className="text-xs text-muted">No Agent failures.</p> : model.issues.topAgents.map((item) => <div key={`${item.entity_id}-${item.name}`} className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-background/45 px-3 py-2 text-xs"><span className="truncate text-slate-200">{item.name}</span><b className="text-error">{item.failure_count}</b></div>)}</div></div>
-        <div className="xl:col-span-3"><p className="font-mono text-system-meta font-medium uppercase tracking-wide text-muted">Most affected Networks</p><div className="mt-2 space-y-2">{model.issues.topNetworks.length === 0 ? <p className="text-xs text-muted">No Network failures.</p> : model.issues.topNetworks.map((item) => <div key={`${item.entity_id}-${item.name}`} className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-background/45 px-3 py-2 text-xs"><span className="truncate text-slate-200">{item.name}</span><b className="text-error">{item.failure_count}</b></div>)}</div></div>
-        <div className="xl:col-span-2"><p className="font-mono text-system-meta font-medium uppercase tracking-wide text-muted">Failure codes</p><div className="mt-2 space-y-2">{model.issues.topCodes.map((item) => <div key={item.code} className="rounded-lg border border-border/70 bg-background/45 px-3 py-2"><p className="truncate font-mono text-system-meta text-slate-200">{item.code}</p><p className="font-mono mt-1 text-xs font-medium text-error">{item.failure_count}</p></div>)}</div></div>
+function OperationalIssues({ model, onNavigate, onOpenRun }: { model: DashboardViewModel; onNavigate: (segment: string) => void; onOpenRun: (run: DashboardRunRow) => void }) {
+  if (!model.issues.hasIssues) return model.isExecutionEmpty ? null : <p className="text-product-small text-muted-foreground">No failed, timed out or uncertain Runs recorded in this interval.</p>
+  const recentError = model.runs.find(run => ['Failed', 'Timed out', 'Uncertain'].includes(run.statusLabel))
+  return <Panel className="border-error/30 p-ui-md">
+    <div className="flex flex-wrap items-start justify-between gap-ui-md">
+      <div className="flex min-w-0 items-start gap-ui-sm">
+        <AlertTriangle className="mt-0.5 h-icon w-icon shrink-0 text-error" aria-hidden="true" />
+        <div><h3 className="text-product-label font-medium">Execution errors</h3><p className="mt-ui-xs text-product-small text-error">{model.issues.summary.join(' · ')}</p></div>
       </div>
-    </Panel>
-  )
+      <div className="flex flex-wrap gap-ui-md">
+        {recentError && <MiniLink label="Open recent error Run" onClick={() => onOpenRun(recentError)} />}
+        <MiniLink label="Open Run ledger" onClick={() => onNavigate('traces')} />
+      </div>
+    </div>
+    <div className="mt-ui-md flex flex-wrap gap-x-ui-xl gap-y-ui-sm text-product-caption">
+      {([...model.issues.topAgents.map(item => ({ ...item, kind: 'agent' })), ...model.issues.topNetworks.map(item => ({ ...item, kind: 'network' }))]).map(item =>
+        <span key={`${item.kind}-${item.entity_id}-${item.name}`} className="inline-flex flex-wrap items-center gap-ui-xs">
+          <span className="text-muted-foreground">{item.kind === 'agent' ? 'Agent' : 'Network'}</span>
+          {item.entity_id ? <MiniLink label={item.name} onClick={() => onNavigate(item.kind === 'agent' ? `agents/${item.entity_id}/playground` : `networks/${item.entity_id}`)} /> : <span>{item.name}</span>}
+          <span className="font-mono text-error">{item.failure_count}</span>
+        </span>)}
+      {model.issues.topCodes.map(item => <span key={item.code} className="min-w-0 break-words"><span className="font-mono text-error">{item.code}</span> <span className="font-mono">({item.failure_count})</span></span>)}
+      {model.issues.peakLabel && <span className="text-muted-foreground">Peak interval starts <span className="font-mono text-foreground">{model.issues.peakLabel}</span> · {model.issues.peakCount} errors</span>}
+    </div>
+  </Panel>
 }
 
 function EnvironmentBadge({ value }: { value: string }) {
@@ -487,7 +270,7 @@ function RuntimeAssets({ model }: { model: DashboardViewModel }) {
   return (
     <Panel className="flex h-full min-h-[230px] flex-col overflow-hidden">
       <PanelHeader title="Runtime Assets" />
-      <div className="grid flex-1 grid-cols-1 border-t border-border/70 sm:grid-cols-2">
+      <div className="grid flex-1 grid-cols-1 sm:grid-cols-2">
         {rows.map(([label, value], index) => {
           const isLast = index === rows.length - 1
           return (
@@ -495,7 +278,7 @@ function RuntimeAssets({ model }: { model: DashboardViewModel }) {
               key={label}
               className={`flex min-h-10 items-center justify-between gap-3 border-b border-border/60 px-4 py-2.5 ${!isLast && index % 2 === 0 ? 'sm:border-r' : ''} ${isLast ? 'sm:col-span-2' : ''}`}
             >
-              <span className="min-w-0 truncate font-mono text-system-meta text-muted-foreground">{label}</span>
+              <span className="min-w-0 truncate font-sans text-product-caption text-muted-foreground">{label}</span>
               <span className="shrink-0 font-mono text-xs font-medium tabular-nums text-slate-50">{value}</span>
             </div>
           )
@@ -517,14 +300,14 @@ function KnowledgeBase({ model, onOpen }: { model: DashboardViewModel; onOpen: (
   return (
     <Panel className="flex h-full min-h-[230px] flex-col overflow-hidden">
       <PanelHeader title="Knowledge" />
-      <div className="grid flex-1 grid-cols-2 border-t border-border/70">
+      <div className="grid flex-1 grid-cols-2">
         {entries.map((entry, index) => {
           const Icon = entry.icon
           return (
             <div key={entry.label} className={`min-h-[62px] border-b border-border/60 px-4 py-3 ${index % 2 === 0 ? 'border-r' : ''}`}>
               <div className="flex min-w-0 items-center gap-2">
                 <Icon className={`h-3.5 w-3.5 shrink-0 ${entry.tone}`} />
-                <p className="truncate font-mono text-system-meta text-muted-foreground">{entry.label}</p>
+                <p className="truncate font-sans text-product-caption text-muted-foreground">{entry.label}</p>
               </div>
               <p className={`mt-1.5 truncate font-mono text-base font-medium leading-none tabular-nums ${entry.tone}`}>{entry.value}</p>
             </div>
@@ -548,12 +331,12 @@ function ToolsIntegrations({ model, onOpen }: { model: DashboardViewModel; onOpe
   return (
     <Panel className="flex h-full min-h-[230px] flex-col overflow-hidden">
       <PanelHeader title="Tools" />
-      <div className="flex-1 border-t border-border/70">
+      <div className="flex-1">
         {items.map((item) => {
           const Icon = item.icon
           return (
             <div key={item.label} className="flex min-h-10 items-center justify-between gap-3 border-b border-border/60 px-4 py-2.5">
-              <span className="flex min-w-0 items-center gap-2 font-mono text-system-meta text-muted-foreground">
+              <span className="flex min-w-0 items-center gap-2 font-sans text-product-caption text-muted-foreground">
                 <Icon className={`h-3.5 w-3.5 shrink-0 ${item.tone}`} />
                 <span className="truncate">{item.label}</span>
               </span>
@@ -575,21 +358,21 @@ function keyboardActivate(event: KeyboardEvent<HTMLElement>, action: () => void)
 
 function RecentRuns({ model, onOpen, onViewAll }: { model: DashboardViewModel; onOpen: (run: DashboardRunRow) => void; onViewAll: () => void }) {
   return (
-    <Panel className="overflow-hidden">
+    <Panel className="overflow-hidden" >
       <PanelHeader title="Recent Runs" action={<MiniLink label="View all Runs" onClick={onViewAll} />} />
       <div className="px-5 pb-5">
         {model.runs.length === 0 ? <p className="py-6 text-center text-sm text-muted">No Runs in this interval.</p> : (
           <div className="space-y-2">
-            <div className="hidden grid-cols-[110px_minmax(220px,1fr)_100px_125px_165px_90px_155px] gap-3 px-3 text-system-meta font-medium uppercase tracking-wide text-muted xl:grid"><span>Type</span><span>Name</span><span>Environment</span><span>Status</span><span>Started</span><span className="text-right">Duration</span><span className="text-right">Cost</span></div>
+            <div className="hidden grid-cols-[80px_minmax(120px,1fr)_80px_110px_140px_75px_100px] gap-3 px-3 text-system-meta font-medium uppercase tracking-wide text-muted xl:grid"><span>Type</span><span>Name</span><span>Environment</span><span>Status</span><span>Started</span><span className="text-right">Duration</span><span className="text-right">Cost</span></div>
             {model.runs.map((run) => {
               const open = () => onOpen(run)
               return (
-                <div key={`${run.kind}-${run.id}`} role="link" tabIndex={0} onClick={open} onKeyDown={(event) => keyboardActivate(event, open)} className="grid cursor-pointer gap-3 rounded-xl border border-border/80 bg-background/45 p-3 outline-none transition-colors hover:border-primary/25 hover:bg-background/75 focus:ring-1 focus:ring-primary/60 xl:grid-cols-[110px_minmax(220px,1fr)_100px_125px_165px_90px_155px] xl:items-center">
+                <div key={`${run.kind}-${run.id}`} role="link" tabIndex={0} onClick={open} onKeyDown={(event) => keyboardActivate(event, open)} className="grid cursor-pointer gap-3 rounded-xl border border-border/80 bg-background/45 p-3 outline-none transition-colors hover:border-primary/25 hover:bg-background/75 focus:ring-1 focus:ring-primary/60 xl:grid-cols-[80px_minmax(120px,1fr)_80px_110px_140px_75px_100px] xl:items-center">
                   <div><span className="rounded-md border border-border bg-surface px-2 py-0.5 text-xs font-medium text-slate-200">{run.typeLabel}</span></div>
-                  <div className="min-w-0"><p className="font-mono truncate text-sm font-medium text-foreground">{run.title}</p><p className="font-mono mt-1 truncate text-xs text-muted">{run.sourceLabel}</p></div>
+                  <div className="min-w-0"><p className="font-mono truncate text-sm font-medium text-foreground">{run.title}</p><p className="mt-1 truncate text-xs text-muted">{run.sourceLabel}</p></div>
                   <div><EnvironmentBadge value={run.environmentLabel} /></div>
                   <div><StatusBadge value={run.statusLabel} /></div>
-                  <p className="text-xs text-muted">{run.timeLabel}</p>
+                  <p className="font-mono text-xs text-muted">{run.timeLabel}</p>
                   <p className="font-mono text-xs font-medium text-foreground xl:text-right">{run.durationLabel}</p>
                   <div className="min-w-0 xl:text-right"><p className="font-mono truncate text-xs font-medium text-foreground">{run.costLabel}</p>{run.costDetail && <p className="font-mono mt-1 truncate text-system-meta text-warning" title={run.costDetail}>{run.costDetail}</p>}</div>
                 </div>
@@ -605,11 +388,12 @@ function RecentRuns({ model, onOpen, onViewAll }: { model: DashboardViewModel; o
 export function DashboardDataState({ model, environment = 'all', onNavigate, onOpenRun }: { model: DashboardViewModel; environment?: DashboardEnvironment; onNavigate: (segment: string) => void; onOpenRun: (run: DashboardRunRow) => void }) {
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">{model.metrics.map((metric) => <MetricCard key={metric.label} metric={metric} onReviewPricing={() => onNavigate('models')} />)}</div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">{model.metrics.map((metric) => <MetricCard key={metric.label} metric={metric} onReviewPricing={() => onNavigate('models')} onNavigate={onNavigate} />)}</div>
 
       <StorySectionHeader title="What happened" description="Volume, reliability, performance, and cost in the selected period." />
-      {model.isExecutionEmpty ? <EmptyExecutionState /> : <div className="grid grid-cols-1 gap-4 xl:grid-cols-12"><div className="xl:col-span-8"><RunActivityChart model={model} /></div><div className="xl:col-span-4"><ReliabilityPanel model={model} /></div></div>}
-      <OperationalIssues model={model} />
+      <OperationalIssues model={model} onNavigate={onNavigate} onOpenRun={onOpenRun} />
+      <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-12"><div className="xl:col-span-8">{model.isExecutionEmpty ? <EmptyExecutionState /> : <RunActivityChart model={model} />}</div><div className="xl:col-span-4"><ReliabilityPanel model={model} /></div></div>
+      <RecentRuns model={model} onOpen={onOpenRun} onViewAll={() => onNavigate('traces')} />
 
       <StorySectionHeader title="What changed" description="Configuration and release activity for the selected environment and period." />
       <ChangesInPeriod model={model} environment={environment} onNavigate={onNavigate} />
@@ -617,8 +401,6 @@ export function DashboardDataState({ model, environment = 'all', onNavigate, onO
       <StorySectionHeader title="Current Project State" description="Current deployable resources. Knowledge and Tools are Project-wide, not historical environment snapshots." />
       <div className="grid grid-cols-1 items-stretch gap-4 xl:grid-cols-3"><RuntimeAssets model={model} /><KnowledgeBase model={model} onOpen={() => onNavigate('knowledge')} /><ToolsIntegrations model={model} onOpen={() => onNavigate('tools')} /></div>
 
-      <StorySectionHeader title="Latest executions" description="A compact operational handoff to the detailed Agent or Network workspace." />
-      <RecentRuns model={model} onOpen={onOpenRun} onViewAll={() => onNavigate('traces')} />
     </div>
   )
 }
@@ -654,8 +436,8 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-full">
-      <div className="min-w-0 space-y-ui-xxl pb-ui-xxl" aria-busy={isUpdating}>
-        <header className="relative border-b border-border pb-ui-xxl">
+      <div className="min-w-0 space-y-ui-lg pb-ui-xxl" aria-busy={isUpdating}>
+        <header className="relative pb-ui-sm">
           {isUpdating && <div className="absolute inset-x-0 top-0 h-0.5 animate-pulse bg-primary/70" />}
           <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
             <div className="min-w-0">

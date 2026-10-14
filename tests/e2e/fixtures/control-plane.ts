@@ -82,6 +82,11 @@ export async function installApi(page: Page, options?: { freshCore?: boolean; as
       await respond(route, project)
     } else if (path === `/core/projects/${project.id}/overview`) {
       await respond(route, overview)
+    } else if (path === `/core/projects/${project.id}/configuration/summary`) {
+      await respond(route, { environment: new URL(request.url()).searchParams.get('environment'),
+        state: 'unknown', complete: false, scope: 'current_selections', checked_at: now,
+        inspected_target_count: 0, unselected_target_count: 0, affected_target_count: 0,
+        blocked_key_count: 0, missing_key_count: 0, required_key_count: 0, affected_consumer_count: 0 })
     } else if (path === `/network/projects/${project.id}/networks` && method === 'GET') {
       await respond(route, networks)
     } else if (path.startsWith(`/network/projects/${project.id}/networks/`) && method === 'GET') {
