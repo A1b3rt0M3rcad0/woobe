@@ -134,7 +134,7 @@ export function ToolInputBindingsEditor({
               className="grid min-h-[48px] grid-cols-[minmax(110px,1fr)_76px_150px_minmax(150px,1.1fr)] items-center gap-2 px-3 py-2"
             >
               <div className="min-w-0">
-                <p className="truncate font-mono text-system-meta font-medium text-foreground">{input.name}</p>
+                <p className="truncate font-sans text-system-meta font-medium text-foreground">{input.name}</p>
                 {input.required ? <p className="mt-0.5 text-system-meta text-muted">required</p> : null}
               </div>
               <span className="truncate font-mono text-system-meta capitalize text-muted">{input.type}</span>

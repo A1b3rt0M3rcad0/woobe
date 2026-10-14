@@ -100,7 +100,7 @@ export function AgentSnapshotDetails({ release }: { release: AgentRelease }) {
         <section className="rounded-xl border border-border/75 bg-background/35 p-3">
           <p className="text-system-meta font-semibold uppercase tracking-wide text-muted">Knowledge</p>
           <p className="mt-1 text-system-meta font-medium text-slate-200">{collections.length ? `${collections.length} Collection${collections.length === 1 ? '' : 's'}` : 'No Collection configured'}</p>
-          {release.knowledge_version_id ? <p className="mt-1 truncate font-mono text-system-meta text-muted">Snapshot {release.knowledge_version_id}</p> : null}
+          {release.knowledge_version_id ? <p className="mt-1 truncate font-sans text-system-meta text-muted">Snapshot {release.knowledge_version_id}</p> : null}
         </section>
         <section className="rounded-xl border border-border/75 bg-background/35 p-3">
           <p className="text-system-meta font-semibold uppercase tracking-wide text-muted">Tools</p>

@@ -68,7 +68,7 @@ function PermissionChoices({
   return (
     <div className="grid min-w-0 gap-ui-sm">
       <div className="flex flex-wrap items-center justify-between gap-ui-xs">
-        <p className="font-mono text-system-label text-muted-foreground">
+        <p className="font-sans text-system-label text-muted-foreground">
           {title}
         </p>
         <Badge variant="outline" size="compact">
@@ -104,7 +104,7 @@ function PermissionChoices({
       <div className="scrollbar-thin grid max-h-60 gap-ui-md overflow-y-auto pr-ui-xs">
         {[...groups].map(([family, items]) => (
           <div key={family} className="grid gap-ui-xs">
-            <p className="font-mono text-system-meta uppercase tracking-ui-eyebrow text-muted-foreground">
+            <p className="font-sans text-system-meta uppercase tracking-ui-eyebrow text-muted-foreground">
               {permissionName(family)}
             </p>
             <div className="grid gap-ui-xs sm:grid-cols-2">
@@ -502,7 +502,7 @@ export function WorkspaceCliKeys({
     <div className="grid gap-ui-md">
       {creating ? (
         <div className="flex items-center justify-between gap-ui-sm">
-          <h3 className="font-mono text-section-title font-semibold">
+          <h3 className="font-mono text-section-title font-medium">
             Create CLI key
           </h3>
           <Badge variant="outline" size="compact">
@@ -921,13 +921,13 @@ export function WorkspaceCliKeys({
                   Expires: {date(key.expires_at, true)} · Last used:{' '}
                   {date(key.last_used_at)}
                 </p>
-                <p className="mt-ui-xs break-all font-mono text-system-label">
+                <p className="mt-ui-xs break-all font-sans text-system-label">
                   Workspace: {key.permissions.join(', ') || 'No permissions'}
                 </p>
                 {key.project_grants.map((grant) => (
                   <p
                     key={grant.project_id}
-                    className="mt-ui-xs break-all font-mono text-system-label"
+                    className="mt-ui-xs break-all font-sans text-system-label"
                   >
                     {projects.find((project) => project.id === grant.project_id)
                       ?.name ?? grant.project_id}
@@ -935,7 +935,7 @@ export function WorkspaceCliKeys({
                   </p>
                 ))}
                 {key.on_project_create_permissions.length ? (
-                  <p className="mt-ui-xs break-all font-mono text-system-label">
+                  <p className="mt-ui-xs break-all font-sans text-system-label">
                     New Projects: {key.on_project_create_permissions.join(', ')}
                   </p>
                 ) : null}

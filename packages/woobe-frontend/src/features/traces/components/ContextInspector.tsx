@@ -124,7 +124,7 @@ function RunContextSummary({ invocations }: { invocations: ContextModelInvocatio
       <div className="flex items-end justify-between gap-3">
         <div>
           <p className="text-system-meta uppercase tracking-wider text-muted">Model input</p>
-          <p className="mt-0.5 text-sm font-mono text-foreground">{formatUnits(totalInput)}</p>
+          <p className="mt-0.5 text-sm font-sans text-foreground">{formatUnits(totalInput)}</p>
         </div>
         <span className="text-system-meta text-muted">Across {invocations.length} invocation{invocations.length === 1 ? '' : 's'}</span>
       </div>
@@ -217,13 +217,13 @@ function BlockedInvocationCard({ invocation }: { invocation: ContextModelInvocat
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="truncate text-system-meta font-medium text-foreground">Invocation #{invocation.call_index ?? '—'} · {invocation.phase || 'model_invocation'}</p>
-          <p className="truncate font-mono text-system-meta text-muted">{invocation.provider || '—'}/{invocation.model || '—'}</p>
+          <p className="truncate font-sans text-system-meta text-muted">{invocation.provider || '—'}/{invocation.model || '—'}</p>
         </div>
         <span className={cn('shrink-0 rounded-full border px-1.5 py-0.5 text-system-meta font-medium', fitClass('UNFIT'))}>UNFIT</span>
       </div>
       <div className="grid grid-cols-2 gap-1.5 text-system-meta">
-        <div className="rounded border border-border px-2 py-1.5"><p className="text-system-meta uppercase tracking-wider text-muted">Effective budget</p><p className="font-mono text-foreground">{formatUnits(number('effective_budget_units'))}</p></div>
-        <div className="rounded border border-border px-2 py-1.5"><p className="text-system-meta uppercase tracking-wider text-muted">Mandatory context</p><p className="font-mono text-foreground">{formatUnits(number('mandatory_units'))}</p></div>
+        <div className="rounded border border-border px-2 py-1.5"><p className="text-system-meta uppercase tracking-wider text-muted">Effective budget</p><p className="font-sans text-foreground">{formatUnits(number('effective_budget_units'))}</p></div>
+        <div className="rounded border border-border px-2 py-1.5"><p className="text-system-meta uppercase tracking-wider text-muted">Mandatory context</p><p className="font-sans text-foreground">{formatUnits(number('mandatory_units'))}</p></div>
       </div>
       <div className="flex flex-wrap gap-x-3 gap-y-1 text-system-meta text-muted">
         <span>Capacity {formatUnits(number('model_capacity_units'))}</span>
@@ -270,7 +270,7 @@ function InvocationCard({ invocation }: { invocation: ContextModelInvocation }) 
           <p className="truncate text-system-meta font-medium text-foreground">
             Invocation #{invocation.call_index ?? '—'} · {invocation.phase || 'model_invocation'}
           </p>
-          <p className="truncate font-mono text-system-meta text-muted">
+          <p className="truncate font-sans text-system-meta text-muted">
             {invocation.provider || '—'}/{invocation.model || '—'}
           </p>
         </div>
@@ -287,12 +287,12 @@ function InvocationCard({ invocation }: { invocation: ContextModelInvocation }) 
       <div className="grid grid-cols-2 gap-1.5">
         <div className="rounded border border-border px-2 py-1.5">
           <p className="text-system-meta uppercase tracking-wider text-muted">Input</p>
-          <p className="text-[12px] font-mono text-foreground">{formatUnits(input)}</p>
+          <p className="text-[12px] font-sans text-foreground">{formatUnits(input)}</p>
           <p className="text-system-meta text-muted">{providerReported != null ? 'Provider reported' : 'Woobe estimate'}</p>
         </div>
         <div className="rounded border border-border px-2 py-1.5">
           <p className="text-system-meta uppercase tracking-wider text-muted">Effective budget</p>
-          <p className="text-[12px] font-mono text-foreground">{budgetKnown ? formatUnits(snapshot.usable_input_budget) : 'Unavailable'}</p>
+          <p className="text-[12px] font-sans text-foreground">{budgetKnown ? formatUnits(snapshot.usable_input_budget) : 'Unavailable'}</p>
           <p className="text-system-meta text-muted">{budgetKnown ? `${formatPercent(snapshot.utilization)} used` : 'Model capacity was not resolved'}</p>
         </div>
       </div>

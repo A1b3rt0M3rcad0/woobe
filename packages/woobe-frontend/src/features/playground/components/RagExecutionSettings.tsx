@@ -60,7 +60,7 @@ export function RagExecutionSettings({
 
       <div className="rounded-container border border-border bg-background/25 p-ui-md">
         <div className="flex items-center justify-between gap-ui-md">
-          <p className="font-mono text-chrome-label font-semibold text-slate-100">
+          <p className="font-sans text-chrome-label font-semibold text-slate-100">
             {current.display_name}
           </p>
           {current.is_default ? (

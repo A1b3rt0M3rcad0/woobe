@@ -1,0 +1,106 @@
+/* Guild-inspired v2. Proposed reconstruction tokens, not official Guild tokens. */
+:root {
+  --g-font-mono: "JetBrains Mono", "Fira Code", monospace;
+  --g-font-sans: "Inter", system-ui, sans-serif;
+  --g-font-serif: Georgia, "Times New Roman", serif;
+  --g-canvas: #f8f7f5;
+  --g-surface: #fffefd;
+  --g-ink: #242321;
+  --g-text-muted: #6b6863;
+  --g-text-faint: #a09c95;
+  --g-line: #e3e1dd;
+  --g-line-subtle: #efeeeb;
+  --g-control-border: #8c867d;
+  --g-accent: #ff5500;
+  --g-accent-ink: #ad3900;
+  --g-success-ink: #197542;
+  --g-success-mark: #24ad65;
+  --g-success-bg: #e8f5ea;
+  --g-warning-ink: #9b5700;
+  --g-warning-mark: #e58b16;
+  --g-warning-bg: #fff1df;
+  --g-danger-ink: #b42318;
+  --g-danger-mark: #ea554d;
+  --g-danger-bg: #fff0ed;
+  --g-info-ink: #2454a6;
+  --g-info-bg: #ecf1ff;
+  --g-peach: #ffe4d6;
+  --g-mint: #d9f7d6;
+  --g-space-1: .125rem;
+  --g-space-2: .25rem;
+  --g-space-3: .375rem;
+  --g-space-4: .5rem;
+  --g-space-5: .625rem;
+  --g-space-6: .75rem;
+  --g-space-8: 1rem;
+  --g-space-10: 1.25rem;
+  --g-space-12: 1.5rem;
+  --g-space-16: 2rem;
+  --g-space-24: 3rem;
+  --g-radius-panel: 10px;
+  --g-radius-stage: 26px;
+  --g-shadow-panel: 0 1px 2px rgb(25 22 16 / .04), 0 6px 14px rgb(25 22 16 / .035);
+  --g-shadow-front: 0 1px 2px rgb(25 22 16 / .05), 0 8px 20px rgb(25 22 16 / .045);
+}
+.g-ui, .g-panel {
+  --g-body-size: .875rem;
+  --g-body-leading: 1.25rem;
+  --g-meta-size: .75rem;
+  --g-meta-leading: 1.125rem;
+  --g-title-size: 1rem;
+  --g-title-leading: 1.375rem;
+  --g-value-size: 2rem;
+  --g-value-leading: 2.375rem;
+  --g-label-size: .6875rem;
+  --g-label-leading: 1rem;
+  --g-badge-size: .6875rem;
+  --g-badge-leading: .9375rem;
+  --g-panel-inset: 1.125rem;
+  --g-header-height: 3rem;
+  --g-row-height: 3rem;
+  --g-footer-height: 2.5rem;
+  --g-avatar-size: 2rem;
+  --g-meter-height: .5rem;
+  --g-meter-pitch: 3px;
+  --g-meter-dot: 1px;
+}
+.g-panel[data-density="compact"] {
+  --g-body-size: .75rem;
+  --g-body-leading: 1.125rem;
+  --g-meta-size: .6875rem;
+  --g-meta-leading: 1rem;
+  --g-title-size: .875rem;
+  --g-title-leading: 1.25rem;
+  --g-value-size: 1.875rem;
+  --g-value-leading: 2.25rem;
+  --g-label-size: .625rem;
+  --g-label-leading: .875rem;
+  --g-badge-size: .625rem;
+  --g-badge-leading: .875rem;
+  --g-panel-inset: .875rem;
+  --g-header-height: 2.625rem;
+  --g-row-height: 2.5rem;
+  --g-footer-height: 2.25rem;
+  --g-avatar-size: 1.75rem;
+}
+/* Closed, non-interactive marketing figure only. Do not attach to body or forms. */
+.g-panel[data-density="illustration"] {
+  --g-body-size: 8px;
+  --g-body-leading: 12px;
+  --g-meta-size: 7px;
+  --g-meta-leading: 10px;
+  --g-title-size: 10px;
+  --g-title-leading: 14px;
+  --g-value-size: 22px;
+  --g-value-leading: 27px;
+  --g-label-size: 6.5px;
+  --g-label-leading: 10px;
+  --g-badge-size: 6.5px;
+  --g-badge-leading: 9px;
+  --g-panel-inset: 10px;
+  --g-header-height: 34px;
+  --g-row-height: 34px;
+  --g-footer-height: 26px;
+  --g-avatar-size: 20px;
+  --g-radius-panel: 7px;
+}

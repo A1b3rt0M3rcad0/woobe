@@ -257,7 +257,7 @@ export function WoobeDateTimePicker({
         <span className="flex h-control-segment w-control-segment shrink-0 items-center justify-center rounded-control border border-border bg-background/55 text-primary-light">
           <CalendarDays className="h-icon w-icon" />
         </span>
-        <span className="min-w-0 flex-1 truncate font-sans text-product-small text-accent-foreground/90">
+        <span className="min-w-0 flex-1 truncate font-mono text-product-small text-accent-foreground/90">
           {value ? formatWoobeDateTime(value) : 'Select date and time'}
         </span>
         <span className="shrink-0 font-mono text-system-control text-muted-foreground">
@@ -277,7 +277,7 @@ export function WoobeDateTimePicker({
             <Button type="button" variant="outline" size="iconSm" onClick={() => changeMonth(-1)} className="text-muted-foreground" aria-label="Previous month">
               <ChevronLeft className="h-icon-lg w-icon-lg" />
             </Button>
-            <p className="font-mono text-system-control font-semibold text-accent-foreground">{monthLabel(visibleMonth)}</p>
+            <p className="font-sans text-system-control font-semibold text-accent-foreground">{monthLabel(visibleMonth)}</p>
             <Button type="button" variant="outline" size="iconSm" onClick={() => changeMonth(1)} className="text-muted-foreground" aria-label="Next month">
               <ChevronRight className="h-icon-lg w-icon-lg" />
             </Button>
@@ -330,10 +330,10 @@ export function WoobeDateTimePicker({
             </div>
 
             <div className="mt-ui-sm text-center">
-              <p className={cn('font-sans text-product-small font-medium', isValid ? 'text-accent-foreground' : 'text-error')}>
+              <p className={cn('font-mono text-product-small font-medium', isValid ? 'text-accent-foreground' : 'text-error')}>
                 {isValid ? formatWoobeDateTime(draft) : 'Choose a future date and time'}
               </p>
-              <p className="mt-ui-xs font-mono text-system-control text-muted-foreground">{timeZoneLabel(draft)}</p>
+              <p className="mt-ui-xs font-sans text-system-control text-muted-foreground">{timeZoneLabel(draft)}</p>
             </div>
           </div>
 

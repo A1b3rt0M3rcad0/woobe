@@ -82,7 +82,7 @@ export function AgentBehaviorFieldDialog({ field, value, agentName, onApply, onC
           <>
             <div className="flex min-h-0 flex-1 flex-col gap-ui-md overflow-hidden p-ui-lg">
               <div className="shrink-0 border-b border-border pb-ui-md">
-                <p className="truncate font-mono text-system-control font-semibold text-accent-foreground">{agentName || 'Unnamed Agent'}</p>
+                <p className="truncate font-sans text-system-control font-semibold text-accent-foreground">{agentName || 'Unnamed Agent'}</p>
                 <p className="mt-ui-xs font-sans text-product-caption leading-4 text-muted-foreground">{field.help}</p>
               </div>
 
@@ -146,7 +146,7 @@ export function AgentBehaviorFieldDialog({ field, value, agentName, onApply, onC
                     value={item ? item.text : draft as string}
                     onChange={(event) => item ? setItem({ ...item, text: event.target.value }) : setDraft(event.target.value)}
                     placeholder={item ? 'Describe this item...' : field.help}
-                    className="scrollbar-thin h-full min-h-0 resize-none overflow-y-auto overscroll-contain bg-background/25 font-sans text-product-body leading-5"
+                    className="scrollbar-thin h-full min-h-0 resize-none overflow-y-auto overscroll-contain bg-background/25 font-mono text-product-body leading-5"
                   />
                 </div>
               )}

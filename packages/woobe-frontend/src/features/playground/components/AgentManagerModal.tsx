@@ -316,7 +316,7 @@ export function AgentManagerModal({
             <History className="h-icon w-icon" />
           </span>
           <div className="min-w-0">
-            <p className="truncate font-mono text-system-control font-semibold text-accent-foreground">{agentName}</p>
+            <p className="truncate font-sans text-system-control font-semibold text-accent-foreground">{agentName}</p>
             <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">Draft → Staging → immutable Release → Production.</p>
           </div>
           <Badge variant={production ? 'success' : 'secondary'} size="compact" className="ml-auto">
@@ -419,7 +419,7 @@ export function AgentManagerModal({
                         )}
                       >
                         <div className="border-t border-border pt-ui-sm">
-                          <p className="font-mono text-system-label uppercase tracking-system-label text-muted-foreground">Audit note</p>
+                          <p className="font-sans text-system-label uppercase tracking-system-label text-muted-foreground">Audit note</p>
                           <p className="mt-ui-sm whitespace-pre-wrap font-sans text-product-small leading-5 text-accent-foreground/85">
                             {selectedActivation.change_description || 'No audit note recorded for this historical event.'}
                           </p>

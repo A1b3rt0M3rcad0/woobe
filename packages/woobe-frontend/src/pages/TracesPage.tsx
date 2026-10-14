@@ -257,9 +257,9 @@ function RunStatusBadge({ status }: { status: RunStatus }) {
 function MetricCard({ label, value, detail }: { label: string; value: string; detail: string }) {
   return (
     <div className="border border-border bg-surface/[0.9] px-3.5 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.012)]">
-      <p className="font-mono text-system-meta font-semibold uppercase tracking-[0.11em] text-muted-foreground">{label}</p>
-      <p className="mt-1.5 font-mono text-lg font-bold tabular-nums tracking-tight text-slate-50">{value}</p>
-      <p className="mt-1 font-mono text-system-meta leading-4 text-muted-foreground">{detail}</p>
+      <p className="font-sans text-system-meta font-semibold uppercase tracking-[0.11em] text-muted-foreground">{label}</p>
+      <p className="mt-1.5 font-sans text-lg font-bold tabular-nums tracking-tight text-slate-50">{value}</p>
+      <p className="mt-1 font-sans text-system-meta leading-4 text-muted-foreground">{detail}</p>
     </div>
   )
 }
@@ -388,7 +388,7 @@ function Timeline({ items }: { items: TimelineItem[] }) {
     return (
       <div className="flex min-h-[40px] items-center gap-2.5 border border-dashed border-border bg-control/15 px-3 py-2">
         <Clock3 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-        <p className="font-mono text-system-meta text-muted-foreground"><span className="text-slate-300">Timeline unavailable</span> · detailed execution events were not recorded for this Run.</p>
+        <p className="font-sans text-system-meta text-muted-foreground"><span className="text-slate-300">Timeline unavailable</span> · detailed execution events were not recorded for this Run.</p>
       </div>
     )
   }
@@ -403,9 +403,9 @@ function Timeline({ items }: { items: TimelineItem[] }) {
         const failed = item.status === 'error' || item.status === 'failed'
         return (
           <div key={item.id} className="grid gap-2 px-3 py-2 md:grid-cols-[150px_minmax(0,1fr)_68px] md:items-center">
-            <div className="min-w-0"><p className="truncate font-mono text-system-meta font-medium capitalize text-slate-200">{item.label}</p><p className="font-mono text-system-meta uppercase tracking-wide text-muted-foreground">{item.phase}</p></div>
+            <div className="min-w-0"><p className="truncate font-sans text-system-meta font-medium capitalize text-slate-200">{item.label}</p><p className="font-sans text-system-meta uppercase tracking-wide text-muted-foreground">{item.phase}</p></div>
             <div className="relative h-4 overflow-hidden border border-border/60 bg-control/40"><div className={cn('absolute top-1/2 h-2 -translate-y-1/2 rounded-technical', failed ? 'bg-red-400/80' : item.status === 'running' ? 'bg-blue-400/80' : 'bg-primary/80')} style={{ left: `${left}%`, width: `${Math.min(100 - left, width)}%` }} /></div>
-            <p className="text-right font-mono text-system-meta text-muted-foreground">{formatLatency(item.durationMs)}</p>
+            <p className="text-right font-sans text-system-meta text-muted-foreground">{formatLatency(item.durationMs)}</p>
           </div>
         )
       })}
@@ -441,14 +441,14 @@ function RunHeader({ title, subtitle, status, icon, metrics }: { title: string; 
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-control border border-border bg-control text-primary-light">{icon}</div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2"><h2 className="truncate font-mono text-system-meta font-bold text-slate-50">{title}</h2><RunStatusBadge status={status} /></div>
-          <p className="mt-1 font-mono text-system-meta text-muted-foreground">{subtitle}</p>
+          <p className="mt-1 font-sans text-system-meta text-muted-foreground">{subtitle}</p>
         </div>
       </div>
       <div className="grid border-t border-border/70 sm:grid-cols-2 xl:grid-cols-4">
         {metrics.map((metric, index) => (
           <div key={metric.label} className={cn('px-4 py-2.5', index > 0 && 'sm:border-l sm:border-border/70')}>
-            <p className="font-mono text-system-meta uppercase tracking-[0.1em] text-muted-foreground">{metric.label}</p>
-            <p className="mt-1 font-mono text-system-meta font-semibold text-slate-100">{metric.value}</p>
+            <p className="font-sans text-system-meta uppercase tracking-[0.1em] text-muted-foreground">{metric.label}</p>
+            <p className="mt-1 font-sans text-system-meta font-semibold text-slate-100">{metric.value}</p>
           </div>
         ))}
       </div>
@@ -507,9 +507,9 @@ function AgentRunInspector({ trace, detail, agentName, networkName }: { trace: T
                 <div className="divide-y divide-border/60 border border-border bg-background/20">
                   {llmCalls.map((call, index) => (
                     <div key={asString(call.call_id) ?? `${index}`} className="grid gap-2 px-3 py-2 sm:grid-cols-[minmax(0,1fr)_80px_80px] sm:items-center">
-                      <div className="min-w-0"><p className="truncate font-mono text-system-meta font-medium text-slate-100">{asString(call.provider) ?? 'Provider unknown'} / {asString(call.model) ?? 'Model unknown'}</p><p className="font-mono text-system-meta text-muted-foreground">{asString(call.phase) ?? 'inference'} · {asString(call.status) ?? 'unknown'}</p></div>
-                      <p className="font-mono text-system-meta text-muted-foreground sm:text-right">{formatLatency(asNumber(call.latency_ms))}</p>
-                      <p className="font-mono text-system-meta text-muted-foreground sm:text-right">{asNumber(call.cost_usd) == null ? 'Cost unknown' : formatMoney(asNumber(call.cost_usd)!)}</p>
+                      <div className="min-w-0"><p className="truncate font-sans text-system-meta font-medium text-slate-100">{asString(call.provider) ?? 'Provider unknown'} / {asString(call.model) ?? 'Model unknown'}</p><p className="font-sans text-system-meta text-muted-foreground">{asString(call.phase) ?? 'inference'} · {asString(call.status) ?? 'unknown'}</p></div>
+                      <p className="font-sans text-system-meta text-muted-foreground sm:text-right">{formatLatency(asNumber(call.latency_ms))}</p>
+                      <p className="font-sans text-system-meta text-muted-foreground sm:text-right">{asNumber(call.cost_usd) == null ? 'Cost unknown' : formatMoney(asNumber(call.cost_usd)!)}</p>
                     </div>
                   ))}
                 </div>
@@ -519,7 +519,7 @@ function AgentRunInspector({ trace, detail, agentName, networkName }: { trace: T
             {sources.length ? (
               <div>
                 <div className="mb-1.5 flex items-center gap-2 font-mono text-system-meta font-medium text-slate-300"><Database className="h-3.5 w-3.5 text-network" />Knowledge sources <span className="text-muted-foreground">{sources.length}</span></div>
-                <div className="divide-y divide-border/60 border border-border bg-background/20">{sources.map((item, index) => <div key={asString(item.chunk_id) ?? asString(item.document_id) ?? `${index}`} className="px-3 py-2"><p className="truncate font-mono text-system-meta font-medium text-slate-100">{asString(item.document_title) ?? 'Knowledge source'}</p><p className="mt-0.5 line-clamp-2 font-sans text-system-meta leading-4 text-muted-foreground">{asString(item.content_preview) ?? 'No content preview recorded.'}</p></div>)}</div>
+                <div className="divide-y divide-border/60 border border-border bg-background/20">{sources.map((item, index) => <div key={asString(item.chunk_id) ?? asString(item.document_id) ?? `${index}`} className="px-3 py-2"><p className="truncate font-sans text-system-meta font-medium text-slate-100">{asString(item.document_title) ?? 'Knowledge source'}</p><p className="mt-0.5 line-clamp-2 font-sans text-system-meta leading-4 text-muted-foreground">{asString(item.content_preview) ?? 'No content preview recorded.'}</p></div>)}</div>
               </div>
             ) : null}
           </div>
@@ -529,8 +529,8 @@ function AgentRunInspector({ trace, detail, agentName, networkName }: { trace: T
       {(preview || output) ? (
         <InspectorSection title="Request and result" description="Business input and observable output for this Run.">
           <div className="grid gap-2">
-            {preview ? <div className="border border-border/70 bg-control/20 p-3"><p className="font-mono text-system-meta uppercase tracking-wide text-muted-foreground">Request</p><p className="mt-1.5 whitespace-pre-wrap font-sans text-system-meta leading-5 text-slate-200">{preview}</p></div> : null}
-            {output ? <div className="border border-border/70 bg-control/20 p-3"><p className="font-mono text-system-meta uppercase tracking-wide text-muted-foreground">Result</p><p className="mt-1.5 whitespace-pre-wrap font-sans text-system-meta leading-5 text-slate-200">{output}</p></div> : null}
+            {preview ? <div className="border border-border/70 bg-control/20 p-3"><p className="font-sans text-system-meta uppercase tracking-wide text-muted-foreground">Request</p><p className="mt-1.5 whitespace-pre-wrap font-sans text-system-meta leading-5 text-slate-200">{preview}</p></div> : null}
+            {output ? <div className="border border-border/70 bg-control/20 p-3"><p className="font-sans text-system-meta uppercase tracking-wide text-muted-foreground">Result</p><p className="mt-1.5 whitespace-pre-wrap font-sans text-system-meta leading-5 text-slate-200">{output}</p></div> : null}
           </div>
         </InspectorSection>
       ) : null}
@@ -538,8 +538,8 @@ function AgentRunInspector({ trace, detail, agentName, networkName }: { trace: T
       <InspectorSection title="Trace evidence" description="Identifiers and raw evidence for audit or incident analysis." tone="muted">
         <div className="space-y-2">
           <div className="grid border border-border/60 bg-background/15 sm:grid-cols-2">
-            <div className="px-3 py-2 sm:border-r sm:border-border/60"><p className="font-mono text-system-meta uppercase tracking-wide text-muted-foreground">Trace ID</p><code className="mt-1 block truncate font-mono text-system-meta text-slate-300">{source.id}</code></div>
-            <div className="px-3 py-2"><p className="font-mono text-system-meta uppercase tracking-wide text-muted-foreground">Agent ID</p><code className="mt-1 block truncate font-mono text-system-meta text-slate-300">{source.agent_id ?? '—'}</code></div>
+            <div className="px-3 py-2 sm:border-r sm:border-border/60"><p className="font-sans text-system-meta uppercase tracking-wide text-muted-foreground">Trace ID</p><code className="mt-1 block truncate font-mono text-system-meta text-slate-300">{source.id}</code></div>
+            <div className="px-3 py-2"><p className="font-sans text-system-meta uppercase tracking-wide text-muted-foreground">Agent ID</p><code className="mt-1 block truncate font-mono text-system-meta text-slate-300">{source.agent_id ?? '—'}</code></div>
           </div>
           {detail?.events?.length ? <details className="border border-border/60 bg-background/15 px-3 py-2"><summary className="cursor-pointer font-mono text-system-meta font-medium text-slate-300">Recorded events · {detail.events.length}</summary><div className="mt-2 space-y-2">{detail.events.map((event: TraceEvent) => <div key={event.id} className="border border-border/50 bg-background/40 p-2.5"><div className="flex items-center justify-between gap-3"><code className="truncate font-mono text-system-meta text-slate-300">{operationEventLabel(event.event_type, event.payload)}</code><span className="font-mono text-system-meta text-muted-foreground">{event.created_at ? formatDateTime(event.created_at) : '—'}</span></div>{event.payload ? <JsonCodeBlock value={event.payload} maxHeight={150} className="mt-2" /> : null}</div>)}</div></details> : null}
           <details className="border border-border/60 bg-background/15 px-3 py-2"><summary className="cursor-pointer font-mono text-system-meta font-medium text-slate-300">Raw Trace</summary><JsonCodeBlock value={detail ?? trace} maxHeight={320} className="mt-2" /></details>
@@ -584,9 +584,9 @@ function NetworkRunInspector({ group, agentNames, onSelectAgent }: { group: Netw
             return (
               <button key={trace.id} type="button" onClick={() => onSelectAgent(trace)} className="grid w-full gap-2 px-3 py-2 text-left transition-colors hover:bg-control/35 sm:grid-cols-[24px_minmax(0,1fr)_100px_72px] sm:items-center">
                 <div className="flex h-6 w-6 items-center justify-center rounded-control border border-border bg-control text-primary-light">{index === 0 ? <Route className="h-3 w-3" /> : <Bot className="h-3 w-3" />}</div>
-                <div className="min-w-0"><p className="truncate font-mono text-system-meta font-medium text-slate-100">{agentName}</p><p className="font-mono text-system-meta text-muted-foreground">{index === 0 ? 'Entry Agent' : 'Delegated Agent'} · {trace.provider || 'provider unknown'}/{trace.model || 'model unknown'}</p></div>
+                <div className="min-w-0"><p className="truncate font-sans text-system-meta font-medium text-slate-100">{agentName}</p><p className="font-sans text-system-meta text-muted-foreground">{index === 0 ? 'Entry Agent' : 'Delegated Agent'} · {trace.provider || 'provider unknown'}/{trace.model || 'model unknown'}</p></div>
                 <RunStatusBadge status={normalizedStatus(trace.status)} />
-                <p className="font-mono text-system-meta text-muted-foreground sm:text-right">{formatLatency(trace.total_latency_ms)}</p>
+                <p className="font-sans text-system-meta text-muted-foreground sm:text-right">{formatLatency(trace.total_latency_ms)}</p>
               </button>
             )
           })}
@@ -601,7 +601,7 @@ function NetworkRunInspector({ group, agentNames, onSelectAgent }: { group: Netw
             const left = ((start - min) / range) * 100
             const width = Math.max(2, ((Math.max(end, start) - start) / range) * 100)
             const agentName = trace.agent_id ? agentNames.get(trace.agent_id) ?? `Agent ${compactId(trace.agent_id)}` : `Agent Run ${index + 1}`
-            return <div key={trace.id} className="grid gap-2 md:grid-cols-[130px_minmax(0,1fr)_62px] md:items-center"><p className="truncate font-mono text-system-meta text-slate-300">{agentName}</p><div className="relative h-4 overflow-hidden border border-border/60 bg-control/40"><div className={cn('absolute top-1/2 h-2 -translate-y-1/2 rounded-technical', normalizedStatus(trace.status) === 'failed' ? 'bg-red-400/80' : 'bg-violet-400/80')} style={{ left: `${left}%`, width: `${Math.min(100 - left, width)}%` }} /></div><p className="text-right font-mono text-system-meta text-muted-foreground">{formatLatency(trace.total_latency_ms)}</p></div>
+            return <div key={trace.id} className="grid gap-2 md:grid-cols-[130px_minmax(0,1fr)_62px] md:items-center"><p className="truncate font-sans text-system-meta text-slate-300">{agentName}</p><div className="relative h-4 overflow-hidden border border-border/60 bg-control/40"><div className={cn('absolute top-1/2 h-2 -translate-y-1/2 rounded-technical', normalizedStatus(trace.status) === 'failed' ? 'bg-red-400/80' : 'bg-violet-400/80')} style={{ left: `${left}%`, width: `${Math.min(100 - left, width)}%` }} /></div><p className="text-right font-sans text-system-meta text-muted-foreground">{formatLatency(trace.total_latency_ms)}</p></div>
           })}
         </div>
       </InspectorSection>
@@ -611,8 +611,8 @@ function NetworkRunInspector({ group, agentNames, onSelectAgent }: { group: Netw
       <InspectorSection title="Run evidence" description="Identifiers and child Trace references for audit." tone="muted">
         <div className="space-y-2">
           <div className="grid border border-border/60 bg-background/15 sm:grid-cols-2">
-            <div className="px-3 py-2 sm:border-r sm:border-border/60"><p className="font-mono text-system-meta uppercase tracking-wide text-muted-foreground">Network Run ID</p><code className="mt-1 block truncate font-mono text-system-meta text-slate-300">{group.id}</code></div>
-            <div className="px-3 py-2"><p className="font-mono text-system-meta uppercase tracking-wide text-muted-foreground">Network ID</p><code className="mt-1 block truncate font-mono text-system-meta text-slate-300">{group.networkId ?? '—'}</code></div>
+            <div className="px-3 py-2 sm:border-r sm:border-border/60"><p className="font-sans text-system-meta uppercase tracking-wide text-muted-foreground">Network Run ID</p><code className="mt-1 block truncate font-mono text-system-meta text-slate-300">{group.id}</code></div>
+            <div className="px-3 py-2"><p className="font-sans text-system-meta uppercase tracking-wide text-muted-foreground">Network ID</p><code className="mt-1 block truncate font-mono text-system-meta text-slate-300">{group.networkId ?? '—'}</code></div>
           </div>
           <details className="border border-border/60 bg-background/15 px-3 py-2"><summary className="cursor-pointer font-mono text-system-meta font-medium text-slate-300">Child Trace references · {sorted.length}</summary><div className="mt-2 divide-y divide-border/50 border border-border/50">{sorted.map((trace, index) => <button key={trace.id} type="button" onClick={() => onSelectAgent(trace)} className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left hover:bg-control/25"><span className="font-mono text-system-meta text-muted-foreground">Agent Run {index + 1}</span><code className="truncate font-mono text-system-meta text-slate-300">{trace.id}</code></button>)}</div></details>
         </div>

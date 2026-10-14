@@ -41,7 +41,7 @@ function TraceListItem({ trace, selected, onSelect }: { trace: NetworkTraceRecor
       <div className="flex items-start gap-ui-sm">
         <span className={cn('mt-1.5 h-2 w-2 shrink-0 rounded-full', statusTone(trace.status))} />
         <div className="min-w-0 flex-1">
-          <p className={cn('truncate font-sans text-product-small', selected ? 'font-medium text-foreground' : 'text-slate-300')}>{trace.title}</p>
+          <p className={cn('truncate font-mono text-product-small', selected ? 'font-medium text-foreground' : 'text-slate-300')}>{trace.title}</p>
           <div className="mt-ui-xs flex flex-wrap items-center gap-x-ui-sm gap-y-ui-xs font-mono text-system-meta text-muted-foreground">
             <span>{formatTraceTime(trace.startedAt)}</span>
             <span>{formatLatency(trace.durationMs)}</span>
@@ -92,7 +92,7 @@ export function NetworkTracePanel({ traces, session, selectedTraceId, onSelectTr
           <div className="min-w-0">
             <h2 className="font-mono text-system-heading font-semibold text-foreground">Network Runs</h2>
             <p className="mt-ui-xs truncate font-sans text-product-small text-slate-300">{session.title}</p>
-            <p className="mt-ui-hairline font-mono text-system-meta text-muted-foreground">{session.versionLabel} · select a Run to inspect its path</p>
+            <p className="mt-ui-hairline font-sans text-system-meta text-muted-foreground">{session.versionLabel} · select a Run to inspect its path</p>
           </div>
           <div className="flex items-center gap-ui-xs font-mono text-system-meta text-muted-foreground"><Filter className="h-3.5 w-3.5" />{filtered.length}</div>
         </div>

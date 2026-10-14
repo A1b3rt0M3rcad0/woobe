@@ -56,8 +56,8 @@ export function ContractValueForm({ contract, values, lockedValues = {}, disable
               : 'grid min-h-control grid-cols-[minmax(110px,0.8fr)_minmax(150px,1.4fr)] items-center gap-ui-sm py-ui-xs'}
           >
             <div className="min-w-0">
-              <p className="truncate font-mono text-system-control text-accent-foreground">{name}</p>
-              <p className="font-mono text-system-label text-muted-foreground">
+              <p className="truncate font-sans text-system-control text-accent-foreground">{name}</p>
+              <p className="font-sans text-system-label text-muted-foreground">
                 {type}{required ? ' · required' : ''}{scope === 'session' ? locked ? ' · SESSION · fixed' : ' · SESSION · set once' : ' · RUN'}
               </p>
               {field.description ? (

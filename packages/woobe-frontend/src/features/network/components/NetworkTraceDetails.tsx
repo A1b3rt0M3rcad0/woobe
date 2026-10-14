@@ -93,7 +93,7 @@ function CopyableIdRow({ label, value }: { label: string; value: string }) {
 }
 
 function MetaItem({ label, value }: { label: string; value: string }) {
-  return <div className="min-w-0"><p className="font-mono text-system-meta uppercase tracking-ui-label text-muted-foreground">{label}</p><p className="mt-ui-hairline truncate font-sans text-product-caption font-medium text-slate-200">{value}</p></div>
+  return <div className="min-w-0"><p className="font-sans text-system-meta uppercase tracking-ui-label text-muted-foreground">{label}</p><p className="mt-ui-hairline truncate font-sans text-product-caption font-medium text-slate-200">{value}</p></div>
 }
 
 function outcomeMeta(outcome: ReturnType<typeof networkRunOutcome>) {
@@ -167,9 +167,9 @@ function AgentRunDetail({ invocation, root, onBack, onOpenAgent, onNetworkEviden
         <div className="flex items-start gap-ui-md">
           <div className="mt-ui-hairline flex h-control-sm w-control-sm shrink-0 items-center justify-center rounded-control border border-border bg-surface">{statusIcon(invocation.status)}</div>
           <div className="min-w-0 flex-1">
-            <p className="font-mono text-system-meta uppercase tracking-ui-label text-primary-light">{role}</p>
-            <h4 className="mt-ui-xs truncate font-sans text-product-small font-semibold text-foreground">{invocation.agentName}</h4>
-            <p className="mt-ui-xs truncate font-mono text-system-meta text-muted-foreground">{invocation.source} · {invocation.version}</p>
+            <p className="font-sans text-system-meta uppercase tracking-ui-label text-primary-light">{role}</p>
+            <h4 className="mt-ui-xs truncate font-mono text-product-small font-semibold text-foreground">{invocation.agentName}</h4>
+            <p className="mt-ui-xs truncate font-sans text-system-meta text-muted-foreground">{invocation.source} · {invocation.version}</p>
           </div>
           {invocation.nodeId ? <button type="button" onClick={() => onOpenAgent(invocation.nodeId!)} className="inline-flex h-control-segment shrink-0 items-center gap-ui-xs rounded-control border border-border px-ui-sm font-mono text-system-micro text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground"><ExternalLink className="h-3 w-3" />Open Agent</button> : null}
         </div>
@@ -195,19 +195,19 @@ function AgentRunDetail({ invocation, root, onBack, onOpenAgent, onNetworkEviden
             resultSubtitle={`${role} · ${invocation.source} ${invocation.version}`}
           >
             <section>
-              <p className="font-mono text-system-meta uppercase tracking-ui-label text-muted-foreground">Model</p>
-              <p className="mt-ui-xs truncate font-mono text-system-meta text-slate-300">{invocation.provider || '—'}/{invocation.model || '—'}</p>
+              <p className="font-sans text-system-meta uppercase tracking-ui-label text-muted-foreground">Model</p>
+              <p className="mt-ui-xs truncate font-sans text-system-meta text-slate-300">{invocation.provider || '—'}/{invocation.model || '—'}</p>
             </section>
 
             <section className="border-t border-border/70 pt-ui-md">
-              <div className="flex items-center gap-ui-sm"><p className="font-mono text-system-meta font-semibold uppercase tracking-ui-label text-muted-foreground">Session continuity</p><Info className="h-3 w-3 text-muted-foreground" aria-label="Session continuity used by this Agent Run" /></div>
+              <div className="flex items-center gap-ui-sm"><p className="font-sans text-system-meta font-semibold uppercase tracking-ui-label text-muted-foreground">Session continuity</p><Info className="h-3 w-3 text-muted-foreground" aria-label="Session continuity used by this Agent Run" /></div>
               <p className="mt-ui-xs font-sans text-product-caption text-slate-300">{sessionContinuityLabel(invocation)}</p>
             </section>
 
             {invocation.failure ? (
               <section className="rounded-container border border-red-500/25 bg-red-500/5 p-ui-md">
                 <p className="font-sans text-product-caption font-medium text-error">{invocation.failure.message}</p>
-                <p className="mt-ui-xs font-mono text-system-meta text-muted-foreground">{invocation.failure.code} · {invocation.failure.stage}</p>
+                <p className="mt-ui-xs font-sans text-system-meta text-muted-foreground">{invocation.failure.code} · {invocation.failure.stage}</p>
                 <button type="button" onClick={() => setDetailView('evidence')} className="mt-ui-sm font-mono text-system-micro font-medium text-error transition-colors hover:text-foreground">Review Agent Run evidence</button>
               </section>
             ) : null}
@@ -278,8 +278,8 @@ export function NetworkTraceDetails({ trace, session, onViewCanvas, onOpenAgent 
         <div className="flex items-start gap-ui-md">
           <div className={cn('flex h-control w-control shrink-0 items-center justify-center rounded-control border', meta.surface)}><OutcomeIcon className={cn('h-4 w-4', meta.text, outcome === 'running' && 'animate-pulse')} /></div>
           <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-ui-sm"><h3 className="truncate font-sans text-product-small font-semibold text-foreground">{trace.execution.root.agentName}</h3><span className={cn('rounded-technical border px-ui-sm py-ui-hairline font-mono text-system-meta font-medium', meta.surface, meta.text)}>{meta.label}</span></div>
-            <p className="mt-ui-xs truncate font-mono text-system-meta text-muted-foreground">Network Run · {trace.environment} · {trace.networkVersion}</p>
+            <div className="flex flex-wrap items-center gap-ui-sm"><h3 className="truncate font-mono text-product-small font-semibold text-foreground">{trace.execution.root.agentName}</h3><span className={cn('rounded-technical border px-ui-sm py-ui-hairline font-mono text-system-meta font-medium', meta.surface, meta.text)}>{meta.label}</span></div>
+            <p className="mt-ui-xs truncate font-sans text-system-meta text-muted-foreground">Network Run · {trace.environment} · {trace.networkVersion}</p>
           </div>
           <button type="button" onClick={() => onViewCanvas(trace)} className="inline-flex h-control-segment shrink-0 items-center gap-ui-xs rounded-control border border-primary/25 bg-primary/10 px-ui-sm font-mono text-system-micro text-primary-light transition-colors hover:text-foreground"><Play className="h-3 w-3" />Canvas</button>
         </div>
@@ -319,10 +319,10 @@ export function NetworkTraceDetails({ trace, session, onViewCanvas, onOpenAgent 
               <section className="rounded-container border border-amber-500/25 bg-amber-500/5 p-ui-md"><p className="font-sans text-product-caption font-medium text-warning">The Network completed with a usable result, but at least one delegated Agent Run reported an issue.</p><button type="button" onClick={() => setView('path')} className="mt-ui-sm font-mono text-system-micro font-medium text-warning transition-colors hover:text-foreground">Review execution path</button></section>
             ) : null}
 
-            <section><p className="font-mono text-system-meta font-semibold uppercase tracking-ui-label text-muted-foreground">Request</p><p className="mt-ui-xs line-clamp-2 font-sans text-product-caption leading-5 text-slate-300">{trace.userMessage}</p></section>
+            <section><p className="font-sans text-system-meta font-semibold uppercase tracking-ui-label text-muted-foreground">Request</p><p className="mt-ui-xs line-clamp-2 font-sans text-product-caption leading-5 text-slate-300">{trace.userMessage}</p></section>
 
             <section className="rounded-container border border-border/75 bg-background/30 p-ui-md">
-              <p className="font-mono text-system-label font-semibold uppercase tracking-ui-label text-muted-foreground">Result</p>
+              <p className="font-sans text-system-label font-semibold uppercase tracking-ui-label text-muted-foreground">Result</p>
               <div className="mt-ui-sm"><AgentResultViewer value={trace.answer} title="Network result" subtitle={`${trace.environment} · ${trace.networkVersion}`} compact emptyLabel={outcome === 'running' ? 'The final response is still being generated.' : outcome === 'cancelled' ? 'The Run was cancelled before a final response was produced.' : 'The Run ended without a final response.'} /></div>
             </section>
           </>
@@ -330,7 +330,7 @@ export function NetworkTraceDetails({ trace, session, onViewCanvas, onOpenAgent 
 
         {view === 'path' ? (
           <>
-            <div><div className="flex items-center gap-ui-sm"><p className="font-mono text-system-label font-semibold uppercase tracking-ui-label text-muted-foreground">Execution Path</p><Info className="h-3 w-3 text-muted-foreground" aria-label="Select an Agent Run to inspect it without leaving the Network Run" /></div><p className="mt-ui-xs font-sans text-product-caption leading-4 text-muted-foreground">{agentRuns} Agent Run{agentRuns === 1 ? '' : 's'} across {agents} Agent{agents === 1 ? '' : 's'} · {delegations} delegation{delegations === 1 ? '' : 's'}. Select any invocation to drill into its Run and Evidence.</p></div>
+            <div><div className="flex items-center gap-ui-sm"><p className="font-sans text-system-label font-semibold uppercase tracking-ui-label text-muted-foreground">Execution Path</p><Info className="h-3 w-3 text-muted-foreground" aria-label="Select an Agent Run to inspect it without leaving the Network Run" /></div><p className="mt-ui-xs font-sans text-product-caption leading-4 text-muted-foreground">{agentRuns} Agent Run{agentRuns === 1 ? '' : 's'} across {agents} Agent{agents === 1 ? '' : 's'} · {delegations} delegation{delegations === 1 ? '' : 's'}. Select any invocation to drill into its Run and Evidence.</p></div>
             <section className="rounded-container border border-border/75 bg-background/30 p-ui-md"><NetworkExecutionPath root={trace.execution.root} selectedSpanId={selectedSpanId} onSelect={openInvocation} /></section>
           </>
         ) : null}
@@ -339,8 +339,8 @@ export function NetworkTraceDetails({ trace, session, onViewCanvas, onOpenAgent 
 
         {view === 'evidence' ? (
           <>
-            <div><div className="flex items-center gap-ui-sm"><p className="font-mono text-system-label font-semibold uppercase tracking-ui-label text-muted-foreground">Evidence</p><Info className="h-3 w-3 text-muted-foreground" aria-label="Trace events, Session continuity and raw runtime data" /></div><p className="mt-ui-xs font-sans text-product-caption leading-4 text-muted-foreground">Technical and causal evidence is preserved here and stays out of the operational Execution view until needed.</p></div>
-            {trace.execution.root.failure ? <section className="rounded-container border border-red-500/25 bg-red-500/5 p-ui-md"><p className="font-sans text-product-caption font-medium text-error">{trace.execution.root.failure.message}</p><p className="mt-ui-xs font-mono text-system-meta text-muted-foreground">{trace.execution.root.failure.code} · {trace.execution.root.failure.stage}{trace.execution.root.failure.phase ? ` · ${trace.execution.root.failure.phase}` : ''}</p></section> : null}
+            <div><div className="flex items-center gap-ui-sm"><p className="font-sans text-system-label font-semibold uppercase tracking-ui-label text-muted-foreground">Evidence</p><Info className="h-3 w-3 text-muted-foreground" aria-label="Trace events, Session continuity and raw runtime data" /></div><p className="mt-ui-xs font-sans text-product-caption leading-4 text-muted-foreground">Technical and causal evidence is preserved here and stays out of the operational Execution view until needed.</p></div>
+            {trace.execution.root.failure ? <section className="rounded-container border border-red-500/25 bg-red-500/5 p-ui-md"><p className="font-sans text-product-caption font-medium text-error">{trace.execution.root.failure.message}</p><p className="mt-ui-xs font-sans text-system-meta text-muted-foreground">{trace.execution.root.failure.code} · {trace.execution.root.failure.stage}{trace.execution.root.failure.phase ? ` · ${trace.execution.root.failure.phase}` : ''}</p></section> : null}
 
             <div className="rounded-container border border-border/75 bg-background/30 px-ui-md">
               <CollapsibleSection title="Execution evidence" badge={`${agentRuns} Agent Runs`}><NetworkTraceInvocation invocation={trace.execution.root} trace={trace} depth={0} onOpenAgent={onOpenAgent} /></CollapsibleSection>
@@ -351,7 +351,7 @@ export function NetworkTraceDetails({ trace, session, onViewCanvas, onOpenAgent 
                       {compactStatusIcon(delegation.status)}
                       <div className="min-w-0 flex-1">
                         <p className="truncate font-sans text-product-caption text-slate-200"><span className="text-muted-foreground">{delegation.parent}</span> → {delegation.child}</p>
-                        <p className="mt-ui-hairline truncate font-mono text-system-meta text-muted-foreground">{delegation.source} · {delegation.version}</p>
+                        <p className="mt-ui-hairline truncate font-sans text-system-meta text-muted-foreground">{delegation.source} · {delegation.version}</p>
                       </div>
                     </button>
                   )) : <p className="font-sans text-product-caption text-muted-foreground">No Agent delegations were executed.</p>}

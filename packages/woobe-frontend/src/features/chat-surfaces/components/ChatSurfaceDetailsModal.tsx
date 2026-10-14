@@ -819,7 +819,7 @@ export function ChatSurfaceDetailsModal({
                         <p className="truncate text-sm font-medium text-foreground">{accessKey.name}</p>
                         <StatusBadge status={accessKey.status} size="compact" />
                       </div>
-                      <p className="mt-1 truncate font-mono text-xs text-muted">{accessKey.prefix}</p>
+                      <p className="mt-1 truncate font-sans text-xs text-muted">{accessKey.prefix}</p>
                       <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-system-meta text-muted">
                         <span>Created · {formatDate(accessKey.created_at)}</span>
                         <span>Last used · {formatDate(accessKey.last_used_at)}</span>
@@ -1023,7 +1023,7 @@ export function ChatSurfaceDetailsModal({
           <div className="space-y-5">
             <div className="rounded-xl border border-border bg-background/55 p-4">
               <p className="text-sm font-medium text-foreground">{revokeCandidate.name}</p>
-              <p className="mt-1 font-mono text-xs text-muted">{revokeCandidate.prefix}</p>
+              <p className="mt-1 font-sans text-xs text-muted">{revokeCandidate.prefix}</p>
             </div>
             <p className="text-sm leading-6 text-muted">Requests using this credential will stop authenticating immediately.</p>
             <div className="flex justify-end gap-2 border-t border-border pt-4">

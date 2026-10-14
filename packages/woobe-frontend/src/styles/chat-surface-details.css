@@ -68,7 +68,7 @@
   .dialog-scrollbars.max-w-7xl > div:nth-child(2) > .grid > aside {
     min-height: 0 !important;
     border-right: 0 !important;
-    border-bottom: 1px solid #1e293b !important;
+    border-bottom: 1px solid rgb(var(--woobe-border)) !important;
   }
 
   .dialog-scrollbars.max-w-7xl > div:nth-child(2) > .grid > aside > div:first-child {
@@ -100,7 +100,7 @@
     min-height: 1.625rem !important;
     flex: 0 0 auto;
     padding: 0.3125rem 0.5rem !important;
-    font-size: 0.625rem !important;
+    font-size: 0.75rem !important;
     line-height: 1.125rem !important;
   }
 

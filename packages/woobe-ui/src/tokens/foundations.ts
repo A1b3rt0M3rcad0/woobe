@@ -2,22 +2,22 @@ export const woobeTypographyScale = {
   chromeNano: ['0.75rem', { lineHeight: '1.125rem', letterSpacing: '0' }],
   chromeMeta: ['0.75rem', { lineHeight: '1.125rem', letterSpacing: '0' }],
   chromeLabel: ['0.8125rem', { lineHeight: '1.1875rem', letterSpacing: '0' }],
-  chromeControl: ['0.8125rem', { lineHeight: '1.1875rem', letterSpacing: '0' }],
+  chromeControl: ['0.875rem', { lineHeight: '1.25rem', letterSpacing: '0' }],
   systemTiny: ['0.6875rem', { lineHeight: '1.0625rem', letterSpacing: '0' }],
   systemNano: ['0.6875rem', { lineHeight: '1.0625rem', letterSpacing: '0' }],
   systemMicro: ['0.75rem', { lineHeight: '1.125rem', letterSpacing: '0' }],
   systemMeta: ['0.75rem', { lineHeight: '1.125rem', letterSpacing: '0' }],
   systemLabel: ['0.75rem', { lineHeight: '1.125rem', letterSpacing: '0.01em' }],
-  systemControl: ['0.8125rem', { lineHeight: '1.1875rem', letterSpacing: '0' }],
+  systemControl: ['0.875rem', { lineHeight: '1.25rem', letterSpacing: '0' }],
   systemValue: ['0.875rem', { lineHeight: '1.25rem', letterSpacing: '0' }],
   systemHeading: ['0.9375rem', { lineHeight: '1.3125rem', letterSpacing: '0.015em' }],
   productCaption: ['0.75rem', { lineHeight: '1.125rem', letterSpacing: '0' }],
   productSmall: ['0.875rem', { lineHeight: '1.25rem', letterSpacing: '0' }],
   productLabel: ['0.875rem', { lineHeight: '1.25rem', letterSpacing: '0' }],
-  productBody: ['0.9375rem', { lineHeight: '1.3125rem', letterSpacing: '0' }],
+  productBody: ['0.875rem', { lineHeight: '1.25rem', letterSpacing: '0' }],
   productReading: ['1rem', { lineHeight: '1.375rem', letterSpacing: '0' }],
   entityTitle: ['1rem', { lineHeight: '1.375rem', letterSpacing: '0' }],
-  sectionTitle: ['0.9375rem', { lineHeight: '1.3125rem', letterSpacing: '0.015em' }],
+  sectionTitle: ['1rem', { lineHeight: '1.375rem', letterSpacing: '-0.01em' }],
   brandTitle: ['1.25rem', { lineHeight: '1.625rem', letterSpacing: '0.02em' }],
   brandCaption: ['0.6875rem', { lineHeight: '1.0625rem', letterSpacing: '0.12em' }],
   pageTitle: ['1.75rem', { lineHeight: '2.125rem', letterSpacing: '0.01em' }],
@@ -26,10 +26,10 @@ export const woobeTypographyScale = {
   headingSmall: ['1.125rem', { lineHeight: '1.5rem', letterSpacing: '-0.01em' }],
   heading: ['1.375rem', { lineHeight: '1.75rem', letterSpacing: '0.01em' }],
   headingLarge: ['1.75rem', { lineHeight: '2.125rem', letterSpacing: '-0.02em' }],
-  metric: ['1.75rem', { lineHeight: '2.125rem', letterSpacing: '-0.02em' }],
+  metric: ['2rem', { lineHeight: '2.375rem', letterSpacing: '-0.02em' }],
   metricEmphasis: ['1.5rem', { lineHeight: '1.875rem', letterSpacing: '-0.01em' }],
   metricCompact: ['1.5rem', { lineHeight: '1.875rem', letterSpacing: '-0.02em' }],
-  metricLarge: ['2.25rem', { lineHeight: '2.625rem', letterSpacing: '-0.04em' }],
+  metricLarge: ['2rem', { lineHeight: '2.375rem', letterSpacing: '-0.04em' }],
 } as const
 
 export const woobeTypographyTracking = {
@@ -46,7 +46,7 @@ export const woobeSpacing = {
   sm: '0.5rem',
   md: '0.75rem',
   stack: '0.875rem',
-  panelInset: '0.9375rem',
+  panelInset: '1.125rem',
   lg: '1rem',
   contentGutter: '2rem',
   xl: '1.25rem',
@@ -58,7 +58,7 @@ export const woobeControl = {
     technical: '1.5rem',
     segment: '1.625rem',
     compact: '2.25rem',
-    default: '2.5rem',
+    default: '2.75rem',
     navigation: '2.5rem',
     large: '2.75rem',
     row: '2.625rem',
@@ -136,14 +136,15 @@ export const woobeLayout = {
 } as const
 
 export const woobePattern = {
-  technicalGridImage: 'linear-gradient(rgb(148 163 184 / 0.02) 1px, transparent 1px), linear-gradient(90deg, rgb(148 163 184 / 0.02) 1px, transparent 1px)',
+  technicalGridImage: 'none',
   technicalGridSize: '2rem 2rem',
 } as const
 
 export const woobeShadow = {
   none: 'none',
-  popup: '0 12px 36px rgb(25 35 31 / 0.12)',
-  overlay: '0 24px 80px rgb(25 35 31 / 0.16)',
+  panel: '0 1px 2px rgb(25 22 16 / .04), 0 6px 14px rgb(25 22 16 / .035)',
+  popup: '0 1px 2px rgb(25 22 16 / .05), 0 8px 20px rgb(25 22 16 / .045)',
+  overlay: '0 8px 24px rgb(25 22 16 / .12)',
 } as const
 
 export const woobeLayers = {

@@ -23,15 +23,15 @@ const PageHeader = forwardRef<HTMLDivElement, PageHeaderProps>(
     >
       <div className="min-w-0">
         {eyebrow ? (
-          <div className="mb-ui-xs font-sans text-system-label font-medium text-primary-light">
+          <div className="mb-ui-xs font-mono text-system-label font-medium text-primary-light">
             {eyebrow}
           </div>
         ) : null}
-        <h1 className="font-sans text-page-title font-semibold tracking-tight text-slate-100">
+        <h1 className="font-mono text-page-title font-medium tracking-tight text-slate-100">
           {title}
         </h1>
         {description ? (
-          <div className="mt-ui-xs max-w-3xl font-sans text-product-small text-muted-foreground">
+          <div className="mt-ui-xs max-w-3xl font-mono text-product-small text-muted-foreground">
             {description}
           </div>
         ) : null}

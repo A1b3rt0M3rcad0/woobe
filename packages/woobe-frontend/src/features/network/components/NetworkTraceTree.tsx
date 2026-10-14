@@ -35,7 +35,7 @@ function SourcesList({ invocation }: { invocation: NetworkAgentInvocation }) {
         <div key={source.chunk_id || `${source.document_id || 'source'}-${index}`} className="rounded-control border border-border/70 bg-background/45 p-ui-sm">
           <div className="flex items-center gap-ui-sm">
             <Database className="h-3.5 w-3.5 shrink-0 text-network" />
-            <span className="min-w-0 flex-1 truncate font-sans text-product-small text-foreground">{source.document_title || 'Untitled source'}</span>
+            <span className="min-w-0 flex-1 truncate font-mono text-product-small text-foreground">{source.document_title || 'Untitled source'}</span>
             {source.page_number != null ? <span className="font-mono text-system-meta text-muted-foreground">p. {source.page_number}</span> : null}
             {source.score != null ? <span className="font-mono text-system-meta text-muted-foreground">{formatNumber(source.score * 100, 0)}%</span> : null}
           </div>
@@ -106,7 +106,7 @@ export function NetworkTraceInvocation({ invocation, trace, depth, onOpenAgent }
               <p className="truncate font-sans text-product-small font-medium text-foreground">{invocation.agentName}</p>
               <Badge tone={invocation.source === 'release' ? 'production' : invocation.source}>{invocation.source}</Badge>
             </div>
-            <p className="mt-ui-xs truncate font-mono text-system-meta text-muted-foreground">{invocation.provider || '—'}/{invocation.model || '—'} · {invocation.version}</p>
+            <p className="mt-ui-xs truncate font-sans text-system-meta text-muted-foreground">{invocation.provider || '—'}/{invocation.model || '—'} · {invocation.version}</p>
             <div className="mt-ui-xs flex flex-wrap gap-x-ui-sm gap-y-ui-xs font-mono text-system-meta text-muted-foreground">
               {invocation.durationMs != null ? <span>{formatLatency(invocation.durationMs)}</span> : null}
               {invocation.usage ? <span>{formatNumber(invocation.usage.input_tokens, 0)} in / {formatNumber(invocation.usage.output_tokens, 0)} out</span> : null}
@@ -124,11 +124,11 @@ export function NetworkTraceInvocation({ invocation, trace, depth, onOpenAgent }
             {invocation.failure ? (
               <div className="rounded-control border border-red-500/30 bg-red-500/5 p-ui-sm">
                 <p className="font-sans text-product-caption font-medium text-error">{invocation.failure.message}</p>
-                <p className="mt-ui-xs font-mono text-system-meta text-muted-foreground">{invocation.failure.code} · {invocation.failure.stage}{invocation.failure.retryable ? ' · retryable' : ''}</p>
+                <p className="mt-ui-xs font-sans text-system-meta text-muted-foreground">{invocation.failure.code} · {invocation.failure.stage}{invocation.failure.retryable ? ' · retryable' : ''}</p>
               </div>
             ) : null}
-            {invocation.input !== undefined ? <div><p className="mb-ui-sm font-mono text-system-meta font-medium uppercase tracking-ui-label text-muted-foreground">Input</p><JsonCodeBlock value={invocation.input} maxHeight={128} /></div> : null}
-            {invocation.output ? <div className="rounded-control border border-border/70 bg-surface/45 p-ui-sm"><p className="font-mono text-system-meta uppercase tracking-ui-label text-muted-foreground">Output</p><p className="mt-ui-xs whitespace-pre-wrap font-sans text-product-caption leading-4 text-slate-200">{invocation.output}</p></div> : null}
+            {invocation.input !== undefined ? <div><p className="mb-ui-sm font-sans text-system-meta font-medium uppercase tracking-ui-label text-muted-foreground">Input</p><JsonCodeBlock value={invocation.input} maxHeight={128} /></div> : null}
+            {invocation.output ? <div className="rounded-control border border-border/70 bg-surface/45 p-ui-sm"><p className="font-sans text-system-meta uppercase tracking-ui-label text-muted-foreground">Output</p><p className="mt-ui-xs whitespace-pre-wrap font-sans text-product-caption leading-4 text-slate-200">{invocation.output}</p></div> : null}
             {invocation.parsedOutput ? <JsonCodeBlock value={invocation.parsedOutput} maxHeight={128} /> : null}
             <RoutingDecision event={routingEvent} />
             {invocation.tools.length ? <ToolCallsCollapsible toolCalls={invocation.tools} variant="network" /> : null}

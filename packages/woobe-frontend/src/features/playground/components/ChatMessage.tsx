@@ -81,7 +81,7 @@ function SourcesCollapsible({
                 </div>
               )}
               {source.content_preview && (
-                <p className={cn('mt-ui-xs font-sans italic text-muted-foreground', compact ? 'line-clamp-3 text-product-caption' : 'text-product-small')}>
+                <p className={cn('mt-ui-xs font-mono italic text-muted-foreground', compact ? 'line-clamp-3 text-product-caption' : 'text-product-small')}>
                   &quot;{source.content_preview.slice(0, compact ? 160 : 200)}{source.content_preview.length > (compact ? 160 : 200) ? '…' : ''}&quot;
                 </p>
               )}
@@ -116,7 +116,7 @@ function ActivityBubble({
   return (
     <div
       className={cn(
-        'inline-flex items-center border border-border/80 bg-surface/65 font-sans text-muted-foreground',
+        'inline-flex items-center border border-border/80 bg-surface/65 font-mono text-muted-foreground',
         compact
           ? 'gap-ui-sm rounded-control px-ui-sm py-ui-sm text-product-caption'
           : 'gap-ui-sm rounded-container px-ui-md py-ui-sm text-product-small',
@@ -162,7 +162,7 @@ function AssistantContent({
     return (
       <div
         className={cn(
-          'border border-border/80 bg-surface/72 font-sans text-slate-100',
+          'border border-border/80 bg-surface/72 font-mono text-slate-100',
           compact
             ? 'rounded-control px-ui-sm py-ui-sm text-product-small'
             : 'rounded-container px-ui-md py-ui-sm text-product-reading',
@@ -180,7 +180,7 @@ function AssistantContent({
   return (
     <div
       className={cn(
-        'border border-border/80 bg-surface/72 font-sans text-slate-100',
+        'border border-border/80 bg-surface/72 font-mono text-slate-100',
         compact
           ? 'rounded-control px-ui-sm py-ui-sm text-product-small'
           : 'rounded-container px-ui-md py-ui-sm text-product-reading',
@@ -236,7 +236,7 @@ export function ChatMessage({
         <div className={compact ? 'max-w-conversation-compact' : 'max-w-conversation'}>
           <div
             className={cn(
-              'whitespace-pre-wrap break-words border border-primary/25 bg-primary/[0.09] font-sans text-slate-100',
+              'whitespace-pre-wrap break-words border border-primary/25 bg-primary/[0.09] font-mono text-slate-100',
               compact
                 ? 'rounded-control px-ui-sm py-ui-sm text-product-small'
                 : 'rounded-container px-ui-md py-ui-sm text-product-reading',
@@ -290,7 +290,7 @@ export function ChatMessage({
 
         <div className={cn('min-w-0 space-y-ui-sm', compact ? 'flex-1' : 'max-w-conversation')}>
           {compact && agentName && (
-            <p className="truncate font-mono text-system-meta text-muted-foreground" title={agentName}>
+            <p className="truncate font-sans text-system-meta text-muted-foreground" title={agentName}>
               {agentName}
             </p>
           )}
@@ -321,7 +321,7 @@ export function ChatMessage({
             <div
               className={cn(
                 'flex items-start gap-ui-sm border border-amber-500/25 bg-amber-500/[0.07] text-warning',
-                compact ? 'rounded-control px-ui-sm py-ui-xs font-sans text-product-caption' : 'rounded-container px-ui-sm py-ui-sm font-sans text-product-small',
+                compact ? 'rounded-control px-ui-sm py-ui-xs font-mono text-product-caption' : 'rounded-container px-ui-sm py-ui-sm font-mono text-product-small',
               )}
             >
               <AlertCircle className={cn('mt-ui-hairline shrink-0', compact ? 'h-icon-sm w-icon-sm' : 'h-icon w-icon')} />

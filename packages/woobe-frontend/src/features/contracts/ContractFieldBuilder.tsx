@@ -176,7 +176,7 @@ export function ContractFieldBuilder({
           {descriptionRow && descriptionFieldIndex !== null ? (
             <div className="grid gap-ui-md">
               <div className="rounded-control border border-border bg-background/35 px-ui-sm py-ui-sm">
-                <p className="font-mono text-system-label uppercase tracking-system-label text-muted-foreground">
+                <p className="font-sans text-system-label uppercase tracking-system-label text-muted-foreground">
                   {descriptionRow.name || `Field ${descriptionFieldIndex + 1}`}
                 </p>
                 <p className="mt-ui-hairline font-sans text-product-caption text-muted-foreground">

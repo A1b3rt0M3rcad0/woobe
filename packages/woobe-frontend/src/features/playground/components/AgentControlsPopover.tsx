@@ -83,7 +83,7 @@ export function AgentControlsPopover({
         <div className="absolute right-0 top-9 z-[1000] w-[300px] overflow-hidden rounded-container border border-border bg-surface/[0.98]">
           <div className="flex min-h-panel-header items-center justify-between border-b border-border px-ui-md py-ui-sm">
             <div>
-              <p className="font-mono text-system-label font-bold text-slate-50">Agent runtime</p>
+              <p className="font-sans text-system-label font-bold text-slate-50">Agent runtime</p>
               <p className="mt-ui-hairline font-sans text-product-caption text-muted-foreground">Control direct Agent Runs by environment.</p>
             </div>
             <button type="button" onClick={() => setOpen(false)} className="flex h-control-sm w-control-sm items-center justify-center rounded-control border border-transparent text-muted-foreground transition-colors hover:border-border hover:bg-control hover:text-slate-50" aria-label="Close runtime controls">
@@ -99,7 +99,7 @@ export function AgentControlsPopover({
                   <div className="flex min-w-0 items-center gap-ui-sm">
                     <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', enabled ? 'bg-emerald-400' : 'bg-slate-500')} />
                     <div className="min-w-0">
-                      <p className="font-mono text-system-label font-semibold text-slate-100">{titleCase(environment)}</p>
+                      <p className="font-sans text-system-label font-semibold text-slate-100">{titleCase(environment)}</p>
                       <p className="mt-ui-hairline font-sans text-product-caption text-muted-foreground">{!statesKnown && !statesQuery.isLoading ? 'Runtime state unavailable' : statesQuery.isLoading ? 'Checking runtime…' : enabled ? 'Runs allowed' : 'Runs blocked'}</p>
                     </div>
                   </div>

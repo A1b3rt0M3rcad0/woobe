@@ -125,7 +125,7 @@ export function NetworkSessionsPanel({
                 <div className="flex items-start justify-between gap-ui-md">
                   <div className="flex min-w-0 items-center gap-ui-sm">
                     <Circle className={cn('h-2 w-2 shrink-0 fill-current', selected ? 'text-primary-light' : 'text-muted-foreground')} />
-                    <span className={cn('truncate font-sans text-product-small', selected ? 'font-medium text-foreground' : 'text-slate-200')}>{session.title}</span>
+                    <span className={cn('truncate font-mono text-product-small', selected ? 'font-medium text-foreground' : 'text-slate-200')}>{session.title}</span>
                   </div>
                   {selected ? <span className="shrink-0 font-mono text-system-meta font-medium uppercase text-primary-light">Selected</span> : null}
                 </div>

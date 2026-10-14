@@ -17,7 +17,7 @@ const typeAliases = { string: ['string', 'str', 'text'], number: ['number', 'flo
 function HelpSection({ title, children }: { title: string; children: ReactNode }) {
   return (
     <SectionBlock title={title} density="compact">
-      <div className="grid gap-ui-sm font-sans text-product-small leading-5 text-muted-foreground">{children}</div>
+      <div className="grid gap-ui-sm font-mono text-product-small leading-5 text-muted-foreground">{children}</div>
     </SectionBlock>
   )
 }

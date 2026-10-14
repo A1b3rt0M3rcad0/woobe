@@ -32,14 +32,14 @@ export function ResourcePage({
   return (
     <div
       className={cn(
-        'resource-page-shell w-full font-sans',
+        'resource-page-shell w-full font-mono',
         canvas ? 'max-w-none' : 'mx-auto max-w-resource space-y-ui-lg',
         '[&_input]:text-system-control',
-        '[&_select]:font-sans [&_select]:text-system-control [&_select]:font-normal [&_select]:text-slate-100 [&_select]:outline-none',
+        '[&_select]:font-mono [&_select]:text-system-control [&_select]:font-normal [&_select]:text-slate-100 [&_select]:outline-none',
         '[&_code]:font-mono [&_pre]:font-mono',
 
-        '[&_textarea]:font-sans',
-        '[&_.rounded-2xl]:rounded-container [&_.rounded-xl]:rounded-container [&_.rounded-lg]:rounded-control [&_.rounded-md]:rounded-technical',
+        '[&_textarea]:font-mono',
+        '[&_.rounded-2xl]:rounded-container [&_.rounded-xl]:rounded-container [&_.rounded-lg]:rounded-container [&_.rounded-md]:rounded-control',
         '[&_.shadow-sm]:shadow-none [&_.shadow-lg]:shadow-none [&_.shadow-xl]:shadow-none [&_.shadow-2xl]:shadow-none',
         className,
       )}
@@ -81,12 +81,12 @@ export function ResourcePageHeader({
       <div className="flex w-full flex-col gap-ui-md md:flex-row md:items-center md:justify-between">
         <div className="min-w-0">
           {eyebrow ? (
-            <div className="mb-ui-sm flex items-center gap-ui-sm font-sans text-system-meta font-medium text-muted-foreground">
+            <div className="mb-ui-sm flex items-center gap-ui-sm font-mono text-system-meta font-medium text-muted-foreground">
               <span className="h-ui-xs w-ui-xs bg-primary" />
               {eyebrow}
             </div>
           ) : null}
-          <h1 className={cn('font-sans font-semibold text-slate-50', 'text-page-title tracking-tight')}>{title}</h1>
+          <h1 className={cn('font-mono font-medium text-slate-50', 'text-page-title tracking-tight')}>{title}</h1>
           <p className="mt-ui-xs max-w-3xl font-sans text-product-small text-muted-foreground">{description}</p>
         </div>
         {action ? <div className="shrink-0">{action}</div> : null}
@@ -187,7 +187,7 @@ export function ResourceSearch({
         }}
         placeholder={placeholder}
         aria-label={label}
-        className="h-control-sm pl-8 pr-8 font-sans text-system-control"
+        className="h-control-sm pl-8 pr-8 font-mono text-system-control"
       />
       {value ? (
         <button
@@ -209,7 +209,7 @@ export function ResourceSectionHeader({ title, description, count }: { title: st
       <span className="h-1.5 w-1.5 shrink-0 bg-primary" />
       <div className="min-w-0">
         <div className="flex items-center gap-ui-sm">
-          <h2 className="font-sans text-section-title font-semibold text-slate-50">{title}</h2>
+          <h2 className="font-mono text-section-title font-medium text-slate-50">{title}</h2>
           {count !== undefined ? <ResourceCount>{count}</ResourceCount> : null}
         </div>
         {description ? <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">{description}</p> : null}

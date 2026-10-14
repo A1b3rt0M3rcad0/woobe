@@ -539,7 +539,7 @@ export function ToolDiscoveryForm({ submitLabel = 'Create', cancelLabel = 'Cance
                     <div className="flex min-w-0 items-start justify-between gap-2">
                       <div className="min-w-0">
                         <p className="text-sm font-medium break-words text-foreground">{displayNameForTool(tool)}</p>
-                        <p className="mt-1 text-system-meta font-mono text-muted break-all">{tool.name}</p>
+                        <p className="mt-1 text-system-meta font-sans text-muted break-all">{tool.name}</p>
                       </div>
                       {onTest && (
                         <Button

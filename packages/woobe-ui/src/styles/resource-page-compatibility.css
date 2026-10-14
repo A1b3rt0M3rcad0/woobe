@@ -1,13 +1,4 @@
-/* Legacy resource pages consume the same readable hierarchy as shared primitives.
-   Keep this boundary until each feature has replaced its old utility sizes. */
-.resource-page-shell { font-family: Inter, system-ui, sans-serif; }
-.resource-page-shell :is(code, pre, kbd, samp, .font-mono) {
-  font-family: 'JetBrains Mono', 'Fira Code', monospace;
-}
-.resource-page-shell :is([class~='text-[7px]'], [class~='text-[8px]'], [class~='text-[9px]'], [class~='text-[10px]'], [class~='text-[11px]']) {
-  font-size: 0.75rem;
-  line-height: 1.125rem;
-}
+/* Layout only. Technical typography and densities are owned by shared components. */
+.resource-page-shell { font-family: var(--g-font-mono); }
 .resource-page-shell :is(input,select,textarea) { max-width: 100%; }
 .resource-page-shell :is(.grid,.flex) { min-width: 0; }
-.resource-page-shell .resource-toolbar { box-shadow: none; }

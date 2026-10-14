@@ -21,7 +21,7 @@ function Label({ children }: { children: ReactNode }) {
 function PanelHeader({ title, description }: { title: string; description: string }) {
   return (
     <div className="mb-ui-md">
-      <h3 className="font-sans text-system-control font-semibold text-slate-50">{title}</h3>
+      <h3 className="font-mono text-system-control font-semibold text-slate-50">{title}</h3>
       <p className="mt-ui-xs font-sans text-product-small leading-5 text-muted-foreground">{description}</p>
     </div>
   )
@@ -100,8 +100,8 @@ export function RagRuntimeSettings({ open, value, onClose, onApply }: RagRuntime
               <span className="flex h-9 w-9 items-center justify-center rounded-control border border-border bg-control text-primary-light">
                 <SlidersHorizontal className="h-icon w-icon" />
               </span>
-              <p className="mt-ui-md font-mono text-product-caption uppercase tracking-[0.08em] text-muted-foreground">Draft configuration</p>
-              <h3 className="mt-ui-xs font-sans text-system-control font-semibold text-slate-50">Runtime retrieval</h3>
+              <p className="mt-ui-md font-sans text-product-caption uppercase tracking-[0.08em] text-muted-foreground">Draft configuration</p>
+              <h3 className="mt-ui-xs font-mono text-system-control font-semibold text-slate-50">Runtime retrieval</h3>
               <p className="mt-ui-xs font-sans text-product-small leading-5 text-muted-foreground">
                 Controls how the Agent searches the selected immutable Knowledge version. Staging freezes these values.
               </p>
@@ -114,7 +114,7 @@ export function RagRuntimeSettings({ open, value, onClose, onApply }: RagRuntime
                   ['Context chunks', maxContextChunks],
                 ].map(([label, current]) => (
                   <div key={String(label)} className="flex min-h-control items-center justify-between gap-ui-md py-ui-sm">
-                    <span className="font-sans text-product-caption text-muted-foreground">{label}</span>
+                    <span className="font-mono text-product-caption text-muted-foreground">{label}</span>
                     <span className="font-mono text-product-caption text-slate-200">{current}</span>
                   </div>
                 ))}
@@ -151,8 +151,8 @@ export function RagRuntimeSettings({ open, value, onClose, onApply }: RagRuntime
                 <label className="mt-ui-md flex items-start gap-ui-sm rounded-container border border-border bg-background/20 p-ui-md">
                   <Checkbox checked={minScoreEnabled} onChange={(event) => setMinScoreEnabled(event.target.checked)} className="mt-0.5" />
                   <span>
-                    <span className="block font-sans text-product-small font-medium text-slate-100">Enable minimum similarity</span>
-                    <span className="mt-ui-xs block font-sans text-product-caption leading-5 text-muted-foreground">Discard candidates below the configured score before context selection.</span>
+                    <span className="block font-mono text-product-small font-medium text-slate-100">Enable minimum similarity</span>
+                    <span className="mt-ui-xs block font-mono text-product-caption leading-5 text-muted-foreground">Discard candidates below the configured score before context selection.</span>
                   </span>
                 </label>
               </section>

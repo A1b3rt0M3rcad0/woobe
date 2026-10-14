@@ -95,7 +95,7 @@ export function NetworkGraphInspector({
                 <AlertTriangle className="h-icon w-icon" />
                 {errors.length} issue{errors.length === 1 ? '' : 's'} block this composition
               </div>
-              <ul className="mt-ui-sm space-y-ui-xs font-sans text-product-caption">
+              <ul className="mt-ui-sm space-y-ui-xs font-mono text-product-caption">
                 {errors.map((item, index) => <li key={`${item.code}-${item.nodeId ?? item.edgeId ?? index}`}>• {item.message}</li>)}
               </ul>
             </AlertDescription>

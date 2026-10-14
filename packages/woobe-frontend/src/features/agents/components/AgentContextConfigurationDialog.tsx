@@ -70,7 +70,7 @@ function CapacityRow({
 }) {
   return (
     <div className="flex items-center justify-between gap-ui-md border-b border-border/60 py-ui-xs last:border-b-0">
-      <span className="inline-flex min-w-0 items-center gap-ui-xs font-sans text-product-caption text-muted-foreground">
+      <span className="inline-flex min-w-0 items-center gap-ui-xs font-mono text-product-caption text-muted-foreground">
         <span>{label}</span>
         <Help text={help} label={label} />
       </span>
@@ -95,7 +95,7 @@ function CapacityCard({
   if (!model || !capacity) {
     return (
       <div className="rounded-container border border-dashed border-border bg-background/25 p-ui-md">
-        <p className="font-mono text-system-label font-semibold uppercase tracking-system-label text-muted-foreground">{title}</p>
+        <p className="font-sans text-system-label font-semibold uppercase tracking-system-label text-muted-foreground">{title}</p>
         <p className="mt-ui-sm font-sans text-product-caption text-muted-foreground">{isFallback ? 'No fallback model configured.' : 'No primary model configured.'}</p>
       </div>
     )

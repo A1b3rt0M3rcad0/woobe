@@ -93,14 +93,14 @@ export function PlaygroundHeader({
           </span>
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-ui-sm">
-              <span className="min-w-0 truncate font-sans text-entity-title font-semibold text-slate-50" title={agent.name}>{agent.name}</span>
+              <span className="min-w-0 truncate font-mono text-entity-title font-medium text-slate-50" title={agent.name}>{agent.name}</span>
               {releaseVersion ? (
                 <Badge variant={environment === 'production' ? 'success' : environment === 'staging' ? 'warning' : 'outline'} className="shrink-0">
                   {releaseVersion}
                 </Badge>
               ) : null}
             </div>
-            <p className="mt-ui-hairline hidden truncate font-mono text-chrome-nano text-muted-foreground md:block" title={`${visibleProvider || 'provider unavailable'} / ${visibleModel || 'model unavailable'}`}>
+            <p className="mt-ui-hairline hidden truncate font-sans text-chrome-nano text-muted-foreground md:block" title={`${visibleProvider || 'provider unavailable'} / ${visibleModel || 'model unavailable'}`}>
               {visibleProvider || 'provider unavailable'} / {visibleModel || 'model unavailable'}
             </p>
           </div>

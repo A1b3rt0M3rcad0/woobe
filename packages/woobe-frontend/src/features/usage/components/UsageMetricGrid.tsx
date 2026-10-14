@@ -46,8 +46,8 @@ function MetricCard({ label, value, description, icon: Icon, warning }: MetricCa
     <div className="min-h-[104px] rounded-container border border-border bg-surface/[0.92] px-3.5 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.014)]">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="font-mono text-system-meta font-semibold uppercase tracking-[0.11em] text-muted-foreground">{label}</p>
-          <p className="mt-1.5 truncate font-mono text-xl font-bold tabular-nums tracking-tight text-slate-50" title={value}>{value}</p>
+          <p className="font-sans text-system-meta font-semibold uppercase tracking-[0.11em] text-muted-foreground">{label}</p>
+          <p className="mt-1.5 truncate font-sans text-xl font-bold tabular-nums tracking-tight text-slate-50" title={value}>{value}</p>
           <div className={warning
             ? 'mt-1 font-mono text-system-meta leading-4 text-warning'
             : 'mt-1 font-mono text-system-meta leading-4 text-muted-foreground'}
@@ -76,9 +76,9 @@ function SupportingMetric({ label, value, detail, icon: Icon }: {
     <div className="flex min-w-0 items-center gap-2.5 border-r border-border/70 px-3 py-2.5 last:border-r-0">
       <Icon className="h-3.5 w-3.5 shrink-0 text-primary-light" />
       <div className="min-w-0">
-        <p className="font-mono text-system-meta font-semibold uppercase tracking-[0.1em] text-muted-foreground">{label}</p>
-        <p className="mt-0.5 font-mono text-system-meta font-bold tabular-nums text-slate-100">{value}</p>
-        <p className="mt-0.5 truncate font-mono text-system-meta leading-4 text-muted-foreground" title={detail}>{detail}</p>
+        <p className="font-sans text-system-meta font-semibold uppercase tracking-[0.1em] text-muted-foreground">{label}</p>
+        <p className="mt-0.5 font-sans text-system-meta font-bold tabular-nums text-slate-100">{value}</p>
+        <p className="mt-0.5 truncate font-sans text-system-meta leading-4 text-muted-foreground" title={detail}>{detail}</p>
       </div>
     </div>
   )

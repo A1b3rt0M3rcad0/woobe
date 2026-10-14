@@ -9,7 +9,7 @@ export default function WorkspaceProjectDetailPage() {
   if (!workspaceId || !projectId) {
     return (
       <Card className="mx-auto max-w-lg border-error/30 bg-error/[0.05] px-6 py-10 text-center">
-        <p className="font-mono text-system-meta font-bold text-error">Project not found</p>
+        <p className="font-sans text-system-meta font-bold text-error">Project not found</p>
       </Card>
     )
   }

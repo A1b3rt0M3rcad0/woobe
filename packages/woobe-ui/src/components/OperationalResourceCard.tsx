@@ -29,19 +29,19 @@ export function ResourceCard({
     <button
       type={type}
       className={cn(
-        'group flex min-h-resource-card w-full flex-col overflow-hidden rounded-container border border-border bg-surface/[0.94] text-left transition-colors',
+        'group flex min-h-resource-card w-full flex-col overflow-hidden rounded-container border border-border bg-surface shadow-panel text-left transition-colors',
         'hover:border-muted hover:bg-surface focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary',
         'disabled:cursor-not-allowed disabled:opacity-50',
         className,
       )}
       {...props}
     >
-      <span className="flex items-start justify-between gap-ui-md px-ui-xl py-ui-xl">
+      <span className="flex items-start justify-between gap-ui-md px-ui-panel-inset py-ui-lg">
         <span className="flex min-w-0 items-start gap-ui-sm">
-          <span className="flex h-control w-control shrink-0 items-center justify-center rounded-control border border-border bg-control text-primary-light">{icon}</span>
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-control bg-[#ffe6d9] text-primary-light">{icon}</span>
           <span className="min-w-0 pt-ui-hairline">
-            <span className="block truncate font-sans text-entity-title font-semibold text-accent-foreground">{title}</span>
-            {subtitle ? <span className="mt-ui-xs block truncate font-sans text-product-caption text-muted-foreground">{subtitle}</span> : null}
+            <span className="block break-words font-mono text-product-label font-medium text-accent-foreground">{title}</span>
+            {subtitle ? <span className="mt-ui-xs block break-words font-mono text-product-caption text-muted-foreground">{subtitle}</span> : null}
           </span>
         </span>
         <span className="flex shrink-0 items-center gap-ui-xs">
@@ -50,8 +50,8 @@ export function ResourceCard({
         </span>
       </span>
 
-      {metadata ? <span className="flex flex-1 flex-wrap content-start items-start gap-ui-xs border-t border-border/70 px-ui-xl py-ui-md">{metadata}</span> : null}
-      {footer ? <span className="mt-auto block border-t border-border/70 bg-control/35 px-ui-xl py-ui-md font-sans text-system-meta text-muted-foreground">{footer}</span> : null}
+      {metadata ? <span className="flex flex-1 flex-wrap content-start items-start gap-ui-xs border-t border-border/70 px-ui-panel-inset py-ui-md">{metadata}</span> : null}
+      {footer ? <span className="mt-auto block border-t border-border/70 bg-surface px-ui-panel-inset py-ui-md font-mono text-system-meta text-muted-foreground">{footer}</span> : null}
     </button>
   )
 }

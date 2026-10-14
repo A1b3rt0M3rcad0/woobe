@@ -45,7 +45,7 @@ function CheckField({ checked, label, detail, onChange }: { checked: boolean; la
       <Checkbox checked={checked} onChange={(event) => onChange(event.target.checked)} className="mt-ui-xs" />
       <span className="min-w-0">
         <span className="block font-mono text-system-label font-semibold text-accent-foreground">{label}</span>
-        {detail ? <span className="mt-ui-xs block font-sans text-product-caption text-muted-foreground">{detail}</span> : null}
+        {detail ? <span className="mt-ui-xs block font-mono text-product-caption text-muted-foreground">{detail}</span> : null}
       </span>
     </label>
   )

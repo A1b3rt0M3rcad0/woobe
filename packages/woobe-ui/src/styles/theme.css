@@ -1,43 +1,43 @@
-/* Woobe editorial console. Shared appearance only; no product behavior. */
+@import './fonts.css';
+@import './guild-tokens.css';
+/* Guild v2 operational mapping. Values match the supplied reconstruction contract. */
 :root {
   color-scheme: light;
-  --woobe-canvas: 247 247 244;
-  --woobe-surface: 255 255 255;
-  --woobe-control: 242 243 240;
-  --woobe-border: 217 222 218;
-  --woobe-ink: 25 35 31;
-  --woobe-secondary: 54 66 60;
-  --woobe-muted: 98 109 104;
-  --woobe-link: 36 89 211;
+  --woobe-canvas: 248 247 245;
+  --woobe-surface: 255 254 253;
+  --woobe-control: 239 238 235;
+  --woobe-border: 227 225 221;
+  --woobe-control-border: 140 134 125;
+  --woobe-ink: 36 35 33;
+  --woobe-secondary: 70 67 63;
+  --woobe-muted: 107 104 99;
+  --woobe-link: 173 57 0;
 }
+/* Explicit alternate theme for consumers that opt in; the console is operational light. */
 .woobe-dark {
   color-scheme: dark;
-  --woobe-canvas: 21 29 25;
-  --woobe-surface: 25 35 30;
-  --woobe-control: 32 43 36;
-  --woobe-border: 55 68 59;
-  --woobe-ink: 247 248 245;
-  --woobe-secondary: 218 225 218;
-  --woobe-muted: 160 176 163;
-  --woobe-link: 161 190 255;
+  --woobe-canvas: 24 23 21;
+  --woobe-surface: 36 35 33;
+  --woobe-control: 48 46 43;
+  --woobe-border: 82 78 72;
+  --woobe-control-border: 160 156 149;
+  --woobe-ink: 255 254 253;
+  --woobe-secondary: 227 225 221;
+  --woobe-muted: 192 187 179;
+  --woobe-link: 255 174 133;
 }
-:where(button, a, input, textarea, select, summary, [tabindex]):focus-visible {
-  outline: 2px solid #2459d3;
+:where(button,a,input,textarea,select,summary,[tabindex]):focus-visible {
+  outline: 2px solid var(--g-accent-ink);
   outline-offset: 3px;
 }
-:where(button, a, input, select, textarea) { touch-action: manipulation; }
+:where(button,a,input,select,textarea) { touch-action: manipulation; }
 :where(h1,h2,h3) { text-wrap: balance; scroll-margin-top: 1rem; }
 :where(td,th) { font-variant-numeric: tabular-nums; }
 :where(pre,code) { tab-size: 2; }
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
-  }
+  *,*::before,*::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }
-
-.woobe-dark :where(button, a, input, textarea, select, summary, [tabindex]):focus-visible {
-  outline-color: rgb(var(--woobe-link));
+@media (forced-colors: active) {
+  :where(input,textarea,select,button) { border-color: ButtonText; }
+  :focus-visible { outline-color: Highlight; }
 }

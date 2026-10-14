@@ -29,7 +29,7 @@ const FieldLabel = forwardRef<HTMLLabelElement, LabelHTMLAttributes<HTMLLabelEle
       <label
         ref={ref}
         className={cn(
-          'font-sans font-medium text-muted',
+          'font-mono font-medium text-muted',
           density === 'technical' ? 'text-product-caption' : 'text-system-nano',
           className,
         )}
@@ -67,7 +67,7 @@ const FieldDescription = forwardRef<HTMLParagraphElement, HTMLAttributes<HTMLPar
       <p
         ref={ref}
         className={cn(
-          'font-sans text-muted-foreground',
+          'font-mono text-muted-foreground',
           density === 'technical' ? 'text-product-caption' : 'text-system-micro',
           className,
         )}
@@ -85,7 +85,7 @@ const FieldError = forwardRef<HTMLParagraphElement, HTMLAttributes<HTMLParagraph
       <p
         ref={ref}
         className={cn(
-          'font-sans text-error',
+          'font-mono text-error',
           density === 'technical' ? 'text-product-caption' : 'text-system-micro',
           className,
         )}

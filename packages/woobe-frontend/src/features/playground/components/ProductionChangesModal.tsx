@@ -119,7 +119,7 @@ export function ProductionChangesModal({
                   <ArrowRight className="h-icon w-icon text-muted-foreground" />
                   <span className="font-mono text-system-control font-semibold text-accent-foreground">{currentRelease.version}</span>
                 </div>
-                <p className="mt-ui-sm font-mono text-system-meta text-muted-foreground">{formatReleaseDate(selected.created_at)}</p>
+                <p className="mt-ui-sm font-sans text-system-meta text-muted-foreground">{formatReleaseDate(selected.created_at)}</p>
               </SectionBlock>
 
               <SectionBlock title="Audit note" density="compact">

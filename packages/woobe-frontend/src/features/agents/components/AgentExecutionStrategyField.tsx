@@ -33,7 +33,7 @@ function DetailList({ items }: { items: string[] }) {
   return (
     <div className="space-y-ui-sm">
       {items.map((item) => (
-        <div key={item} className="flex gap-ui-sm font-sans text-product-small text-slate-300">
+        <div key={item} className="flex gap-ui-sm font-mono text-product-small text-slate-300">
           <span className="mt-[0.4rem] h-1 w-1 shrink-0 rounded-full bg-primary" />
           <span>{item}</span>
         </div>
@@ -125,7 +125,7 @@ export function AgentExecutionStrategyField({
     <>
       <section className={cn(!compact && 'rounded-container border border-border bg-surface p-ui-lg')} aria-label="Execution Strategy">
         <div>
-          <p className="font-mono text-system-meta font-semibold uppercase tracking-[0.1em] text-muted-foreground">Execution Strategy</p>
+          <p className="font-sans text-system-meta font-semibold uppercase tracking-[0.1em] text-muted-foreground">Execution Strategy</p>
           <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">Selects the backend-registered execution algorithm used by this Agent.</p>
         </div>
 
@@ -175,7 +175,7 @@ export function AgentExecutionStrategyField({
         <div className="grid h-full min-h-0 grid-cols-[15.625rem_minmax(0,1fr)] overflow-hidden">
           <aside className="flex min-h-0 flex-col border-r border-border bg-background/25">
             <div className="shrink-0 border-b border-border px-ui-lg py-ui-md">
-              <p className="font-mono text-system-meta font-semibold uppercase tracking-[0.12em] text-muted-foreground">Registered strategies</p>
+              <p className="font-sans text-system-meta font-semibold uppercase tracking-[0.12em] text-muted-foreground">Registered strategies</p>
               <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">
                 {isLoading ? 'Loading catalog…' : isError ? 'Current selection only' : `${strategies.length} available`}
               </p>
@@ -261,18 +261,18 @@ export function AgentExecutionStrategyField({
                   <>
                     <div className="mt-ui-lg grid gap-ui-lg border-t border-border/75 pt-ui-lg md:grid-cols-2">
                       <div>
-                        <p className="font-mono text-system-meta font-semibold uppercase tracking-[0.12em] text-muted-foreground">Description</p>
+                        <p className="font-sans text-system-meta font-semibold uppercase tracking-[0.12em] text-muted-foreground">Description</p>
                         <p className="mt-ui-sm font-sans text-product-body text-slate-200">{focusedDescriptor.description}</p>
                       </div>
                       <div>
-                        <p className="font-mono text-system-meta font-semibold uppercase tracking-[0.12em] text-muted-foreground">How it operates</p>
+                        <p className="font-sans text-system-meta font-semibold uppercase tracking-[0.12em] text-muted-foreground">How it operates</p>
                         <p className="mt-ui-sm font-sans text-product-body text-slate-300">{focusedDescriptor.behavior}</p>
                       </div>
                     </div>
 
                     <div className="mt-ui-lg grid gap-ui-lg border-t border-border/75 pt-ui-lg md:grid-cols-2">
                       <div>
-                        <p className="font-mono text-system-meta font-semibold uppercase tracking-[0.12em] text-muted-foreground">Model contract</p>
+                        <p className="font-sans text-system-meta font-semibold uppercase tracking-[0.12em] text-muted-foreground">Model contract</p>
                         <div className="mt-ui-sm">
                           <DetailList items={[
                             `Operations: ${focusedDescriptor.compatibility.operations.join(', ')}`,
@@ -283,7 +283,7 @@ export function AgentExecutionStrategyField({
                         </div>
                       </div>
                       <div>
-                        <p className="font-mono text-system-meta font-semibold uppercase tracking-[0.12em] text-muted-foreground">Capability modes</p>
+                        <p className="font-sans text-system-meta font-semibold uppercase tracking-[0.12em] text-muted-foreground">Capability modes</p>
                         <div className="mt-ui-sm">
                           <DetailList items={[
                             `Context: ${focusedDescriptor.compatibility.context_mode}`,
@@ -298,17 +298,17 @@ export function AgentExecutionStrategyField({
                     </div>
 
                     <div className="mt-ui-lg border-t border-border/75 pt-ui-lg">
-                      <p className="font-mono text-system-meta font-semibold uppercase tracking-[0.12em] text-muted-foreground">Recommended for</p>
+                      <p className="font-sans text-system-meta font-semibold uppercase tracking-[0.12em] text-muted-foreground">Recommended for</p>
                       <div className="mt-ui-sm"><DetailList items={focusedDescriptor.recommended_for} /></div>
                     </div>
 
                     <div className="mt-ui-lg grid gap-ui-xl border-t border-border/75 pt-ui-lg md:grid-cols-2">
                       <div>
-                        <p className="font-mono text-system-meta font-semibold uppercase tracking-[0.12em] text-muted-foreground">Capabilities</p>
+                        <p className="font-sans text-system-meta font-semibold uppercase tracking-[0.12em] text-muted-foreground">Capabilities</p>
                         <div className="mt-ui-sm"><DetailList items={focusedDescriptor.capabilities} /></div>
                       </div>
                       <div>
-                        <p className="font-mono text-system-meta font-semibold uppercase tracking-[0.12em] text-muted-foreground">Limitations</p>
+                        <p className="font-sans text-system-meta font-semibold uppercase tracking-[0.12em] text-muted-foreground">Limitations</p>
                         <div className="mt-ui-sm"><DetailList items={focusedDescriptor.limitations} /></div>
                       </div>
                     </div>

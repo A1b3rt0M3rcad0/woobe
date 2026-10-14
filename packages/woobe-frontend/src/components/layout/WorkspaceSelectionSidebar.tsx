@@ -92,13 +92,13 @@ export function WorkspaceSelectionSidebar({ compact = false }: { compact?: boole
           <Orbit className="h-icon-brand w-icon-brand" strokeWidth={1.7} />
         </div>
         <div className="min-w-0">
-          <p className="font-mono text-heading-sm font-bold tracking-[0.02em] text-slate-50">WOOBE</p>
-          <p className="mt-ui-hairline font-mono text-system-label uppercase tracking-[0.12em] text-muted-foreground">control plane</p>
+          <p className="font-sans text-heading-sm font-bold tracking-[0.02em] text-slate-50">WOOBE</p>
+          <p className="mt-ui-hairline font-sans text-system-label uppercase tracking-[0.12em] text-muted-foreground">control plane</p>
         </div>
       </header>
 
       <nav className="flex-1 overflow-y-auto px-ui-md py-ui-lg" aria-label="Workspace navigation">
-        <p className="mb-ui-sm px-ui-sm font-mono text-system-label font-bold uppercase tracking-[0.15em] text-muted-foreground">
+        <p className="mb-ui-sm px-ui-sm font-sans text-system-label font-bold uppercase tracking-[0.15em] text-muted-foreground">
           Workspace
         </p>
         <div className="grid gap-ui-hairline">{flowItems}</div>

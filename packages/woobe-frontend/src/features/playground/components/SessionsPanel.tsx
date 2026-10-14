@@ -108,7 +108,7 @@ export function SessionsPanel({
       </div>
 
       {disabledReason ? (
-        <div className="flex gap-ui-sm rounded-container border border-border bg-background/25 px-ui-md py-ui-sm font-sans text-product-caption text-muted-foreground">
+        <div className="flex gap-ui-sm rounded-container border border-border bg-background/25 px-ui-md py-ui-sm font-mono text-product-caption text-muted-foreground">
           <Activity className="mt-ui-hairline h-icon-sm w-icon-sm shrink-0 text-primary-light" />
           <p>{disabledReason}. Historical Sessions remain available for inspection.</p>
         </div>
@@ -162,7 +162,7 @@ export function SessionsPanel({
       {sessions.length > 0 ? (
         <div className="space-y-ui-sm">
           {selectedSessionMissing && !isError ? (
-            <div className="flex items-start gap-ui-sm rounded-container border border-amber-400/20 bg-background/25 px-ui-md py-ui-sm font-sans text-product-caption text-muted-foreground">
+            <div className="flex items-start gap-ui-sm rounded-container border border-amber-400/20 bg-background/25 px-ui-md py-ui-sm font-mono text-product-caption text-muted-foreground">
               <AlertTriangle className="mt-ui-hairline h-icon-sm w-icon-sm shrink-0 text-warning" />
               <p>The selected Session is not present in the loaded page. Refresh before continuing it.</p>
             </div>

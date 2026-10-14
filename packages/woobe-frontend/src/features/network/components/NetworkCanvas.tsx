@@ -37,7 +37,7 @@ function NodeCard({ id, binding, active, selected, dirty, className, onSelect }:
             </div>
             <div className="min-w-0 flex-1">
               <p className="truncate font-sans text-product-small font-semibold text-foreground">{binding.agent.name}</p>
-              <p className="mt-ui-xs truncate font-mono text-system-meta text-muted-foreground">{binding.agent.provider}/{binding.agent.model}</p>
+              <p className="mt-ui-xs truncate font-sans text-system-meta text-muted-foreground">{binding.agent.provider}/{binding.agent.model}</p>
             </div>
             <span className={cn('mt-ui-xs h-2 w-2 rounded-full', dirty ? 'bg-amber-400' : 'bg-emerald-400')} />
           </div>
@@ -65,7 +65,7 @@ export function NetworkCanvas({ bindings, run, selectedNode, environment, dirtyA
         <NodeCard id="billing" binding={bindings.billing} dirty={dirtyAgentIds.has(bindings.billing.agent.id)} active={active.has('billing')} selected={selectedNode === 'billing'} className="left-[540px] top-[142px]" onSelect={() => onSelect('billing')} />
         <NodeCard id="technical" binding={bindings.technical} dirty={dirtyAgentIds.has(bindings.technical.agent.id)} active={active.has('technical')} selected={selectedNode === 'technical'} className="left-[540px] top-[392px]" onSelect={() => onSelect('technical')} />
         <NodeCard id="end" active={active.has('end')} selected={selectedNode === 'end'} className="left-[852px] top-[298px]" onSelect={() => onSelect('end')} />
-        <div className="absolute bottom-ui-md left-ui-md z-30 w-80 rounded-container border border-primary/20 bg-surface/90 p-ui-md"><p className="font-mono text-system-control font-medium text-foreground">Agent workspace inside the Network</p><p className="mt-ui-xs font-sans text-product-caption leading-4 text-muted-foreground">Select an Agent to edit its Draft, inspect Versions and run an isolated Chat without leaving the Network.</p></div>
+        <div className="absolute bottom-ui-md left-ui-md z-30 w-80 rounded-container border border-primary/20 bg-surface/90 p-ui-md"><p className="font-sans text-system-control font-medium text-foreground">Agent workspace inside the Network</p><p className="mt-ui-xs font-sans text-product-caption leading-4 text-muted-foreground">Select an Agent to edit its Draft, inspect Versions and run an isolated Chat without leaving the Network.</p></div>
       </div>
     </ScrollArea>
   )

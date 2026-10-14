@@ -355,7 +355,7 @@ function RouteHeadersEditor({
               return (
                 <div key={header.key.toLowerCase()} className="flex flex-wrap items-center gap-2 px-3 py-2.5">
                   <div className="min-w-0 flex-1">
-                    <p className="truncate font-mono text-system-meta text-foreground">{header.key}</p>
+                    <p className="truncate font-sans text-system-meta text-foreground">{header.key}</p>
                     <p className="mt-0.5 truncate text-system-meta text-muted">
                       {state === 'removed' ? 'Not sent by this route' : state === 'overridden' ? 'Overridden by this route' : 'Inherited from API'}
                     </p>
@@ -811,7 +811,7 @@ export function ApiFirstToolForm({
                           <span className="shrink-0 rounded-md border border-border/80 bg-background px-2 py-1 font-mono text-system-meta font-semibold text-primary-light">{route.method}</span>
                           <button type="button" onClick={() => editRoute(route)} className="min-w-0 flex-1 text-left">
                             <p className="truncate text-sm font-medium text-foreground">{route.name}</p>
-                            <p className="mt-0.5 truncate font-mono text-system-meta text-muted">{route.path}</p>
+                            <p className="mt-0.5 truncate font-sans text-system-meta text-muted">{route.path}</p>
                           </button>
                           <Button type="button" size="sm" variant="ghost" className="text-error" onClick={() => removeRoute(route.id)} aria-label={`Remove ${route.name}`}>
                             <Trash2 className="h-3.5 w-3.5" />

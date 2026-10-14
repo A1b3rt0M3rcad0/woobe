@@ -97,7 +97,7 @@ export function TraceList({ traces, selectedTraceId, onSelectTrace, isLoading, i
           if (!items?.length) return null
           return (
             <div key={group}>
-              <p className="mb-ui-sm font-mono text-system-meta uppercase tracking-[0.08em] text-muted-foreground">{group}</p>
+              <p className="mb-ui-sm font-sans text-system-meta uppercase tracking-[0.08em] text-muted-foreground">{group}</p>
               <div className="space-y-ui-sm">
                 {items.map((trace) => (
                   <TechnicalListItem

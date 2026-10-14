@@ -276,7 +276,7 @@ function CreateSurfaceDialog({
         </div>
 
         <div className="flex items-center justify-between gap-ui-md border-t border-border bg-surface/95 px-ui-panel-inset py-ui-md">
-          <p className="hidden font-mono text-system-meta text-muted-foreground sm:block">Production binding is immutable after creation.</p>
+          <p className="hidden font-sans text-system-meta text-muted-foreground sm:block">Production binding is immutable after creation.</p>
           <div className="ml-auto flex gap-ui-sm">
             <Button type="button" variant="secondary" onClick={onClose}>Cancel</Button>
             <Button type="submit" loading={pending}>Create draft</Button>

@@ -1,3 +1,4 @@
+@import '../../woobe-ui/src/styles/fonts.css';
 :root {
   color-scheme: light dark;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -19,14 +20,14 @@ body {
 }
 
 #woobe-chat {
-  --woobe-primary: #3b82f6;
-  --woobe-background: #f7f7f4;
-  --woobe-surface: #ffffff;
-  --woobe-control: #f2f3f0;
-  --woobe-text: #19231f;
-  --woobe-subtle-text: #626d68;
-  --woobe-muted-border: #d9deda;
-  --woobe-input-border: #94a3b8;
+  --woobe-primary: #242321;
+  --woobe-background: #f8f7f5;
+  --woobe-surface: #fffefd;
+  --woobe-control: #efeeeb;
+  --woobe-text: #242321;
+  --woobe-subtle-text: #6b6863;
+  --woobe-muted-border: #e3e1dd;
+  --woobe-input-border: #8c867d;
   --woobe-danger-surface: #fffafa;
   --woobe-danger-border: #fecaca;
   --woobe-danger-text: #b91c1c;
@@ -70,17 +71,17 @@ body {
 
 #woobe-chat[data-theme="dark"] {
   color-scheme: dark;
-  --woobe-background: #020817;
-  --woobe-surface: #0f1729;
-  --woobe-control: #0b1220;
+  --woobe-background: #181715;
+  --woobe-surface: #242321;
+  --woobe-control: #302e2b;
   --woobe-text: #f8fafc;
-  --woobe-subtle-text: #94a3b8;
-  --woobe-muted-border: #1e293b;
-  --woobe-input-border: #334155;
-  --woobe-danger-surface: #0b1220;
+  --woobe-subtle-text: #8c867d;
+  --woobe-muted-border: #524e48;
+  --woobe-input-border: #a09c95;
+  --woobe-danger-surface: #302e2b;
   --woobe-danger-border: #7f1d1d;
   --woobe-danger-text: #fca5a5;
-  --woobe-warning-surface: #0b1220;
+  --woobe-warning-surface: #302e2b;
   --woobe-warning-border: #78350f;
   --woobe-warning-text: #fcd34d;
 }
@@ -92,17 +93,17 @@ body {
 @media (prefers-color-scheme: dark) {
   #woobe-chat[data-theme="system"] {
     color-scheme: dark;
-    --woobe-background: #020817;
-    --woobe-surface: #0f1729;
-    --woobe-control: #0b1220;
+    --woobe-background: #181715;
+    --woobe-surface: #242321;
+    --woobe-control: #302e2b;
     --woobe-text: #f8fafc;
-    --woobe-subtle-text: #94a3b8;
-    --woobe-muted-border: #1e293b;
-    --woobe-input-border: #334155;
-    --woobe-danger-surface: #0b1220;
+    --woobe-subtle-text: #8c867d;
+    --woobe-muted-border: #524e48;
+    --woobe-input-border: #a09c95;
+    --woobe-danger-surface: #302e2b;
     --woobe-danger-border: #7f1d1d;
     --woobe-danger-text: #fca5a5;
-    --woobe-warning-surface: #0b1220;
+    --woobe-warning-surface: #302e2b;
     --woobe-warning-border: #78350f;
     --woobe-warning-text: #fcd34d;
   }
@@ -130,7 +131,7 @@ body {
   color: var(--woobe-header-text-custom, var(--woobe-text));
   font-family: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 500;
   letter-spacing: 0.01em;
   text-align: var(--woobe-header-alignment);
   text-overflow: ellipsis;
@@ -181,7 +182,7 @@ body {
   align-self: flex-end;
   max-width: min(var(--woobe-user-message-max-width), var(--woobe-conversation-content-width));
   padding: var(--woobe-user-message-padding-y) var(--woobe-user-message-padding-x);
-  color: var(--woobe-user-message-text-custom, #ffffff);
+  color: var(--woobe-user-message-text-custom, #fffefd);
   background: var(--woobe-user-message-background-custom, var(--woobe-primary));
   border: var(--woobe-user-message-border-width) solid var(--woobe-user-message-border-custom, transparent);
   border-radius: var(--woobe-user-message-border-radius);
@@ -208,7 +209,7 @@ body {
   vertical-align: middle;
   font-family: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 500;
   border: 1px solid currentColor;
   border-radius: 3px;
   opacity: 0.65;
@@ -495,7 +496,7 @@ button:focus-visible {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  color: var(--woobe-send-text-custom, #ffffff);
+  color: var(--woobe-send-text-custom, #fffefd);
   font-family: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 12px;
   font-weight: 600;

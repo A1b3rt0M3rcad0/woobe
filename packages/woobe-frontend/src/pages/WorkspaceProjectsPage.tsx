@@ -52,7 +52,7 @@ function SectionHeading({
         )}
       </div>
       {description && (
-        <p className="mt-1.5 pl-[15px] font-mono text-system-meta leading-4 text-muted-foreground">{description}</p>
+        <p className="mt-1.5 pl-[15px] font-sans text-system-meta leading-4 text-muted-foreground">{description}</p>
       )}
     </div>
   )
@@ -147,7 +147,7 @@ function EmptyState({
         {icon}
       </div>
       <h3 className="mt-3 font-mono text-system-meta font-bold text-slate-100">{title}</h3>
-      <p className="mx-auto mt-1.5 max-w-lg font-mono text-system-meta leading-4 text-muted-foreground">{description}</p>
+      <p className="mx-auto mt-1.5 max-w-lg font-sans text-system-meta leading-4 text-muted-foreground">{description}</p>
       {action && <div className="mt-4 flex justify-center">{action}</div>}
     </Card>
   )
@@ -252,7 +252,7 @@ export default function WorkspaceProjectsPage() {
           </div>
           <div className="min-w-0">
             <h1 className="font-mono text-base font-bold tracking-[0.01em] text-slate-50">Projects</h1>
-            <p className="mt-0.5 truncate font-mono text-system-meta text-muted-foreground">
+            <p className="mt-0.5 truncate font-sans text-system-meta text-muted-foreground">
               {workspace ? `Projects in ${workspace.name}.` : 'Select and operate a Project.'}
             </p>
           </div>
@@ -296,7 +296,7 @@ export default function WorkspaceProjectsPage() {
             <Card className="border-error/30 bg-error/[0.05] px-6 py-10 text-center">
               <AlertCircle className="mx-auto h-5 w-5 text-error" />
               <h3 className="mt-3 font-mono text-system-meta font-bold text-slate-100">Unable to load Projects</h3>
-              <p className="mx-auto mt-1.5 max-w-lg font-mono text-system-meta leading-4 text-error/80">{errorMessage}</p>
+              <p className="mx-auto mt-1.5 max-w-lg font-sans text-system-meta leading-4 text-error/80">{errorMessage}</p>
               <div className="mt-4 flex justify-center">
                 <Button type="button" size="sm" variant="outline" onClick={() => refetch()}>Try again</Button>
               </div>

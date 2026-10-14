@@ -18,7 +18,7 @@ export function AgentBehaviorDetails({ behavior, legacyPrompt }: { behavior?: Be
             return (
               <div key={specKey} className="grid gap-1 py-2 sm:grid-cols-[132px_minmax(0,1fr)] sm:gap-3">
                 <dt className="font-mono text-system-meta text-muted-foreground">{label}</dt>
-                <dd className={`min-w-0 whitespace-pre-wrap break-words font-sans text-system-meta leading-4 ${empty ? 'text-muted-foreground' : 'text-slate-200'}`}>
+                <dd className={`min-w-0 whitespace-pre-wrap break-words font-mono text-system-meta leading-4 ${empty ? 'text-muted-foreground' : 'text-slate-200'}`}>
                   {Array.isArray(value)
                     ? value.length
                       ? <ul className="space-y-1">{value.map((item, index) => <li key={index} className="flex gap-2"><span className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-muted-foreground" /><span>{item}</span></li>)}</ul>

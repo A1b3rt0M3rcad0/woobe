@@ -144,7 +144,7 @@ function WorkspaceHeader({
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 flex-wrap items-center gap-ui-sm">
-            <p className="min-w-0 flex-1 truncate font-mono text-system-heading font-semibold text-accent-foreground">{agent.name}</p>
+            <p className="min-w-0 flex-1 truncate font-sans text-system-heading font-semibold text-accent-foreground">{agent.name}</p>
             {readOnly ? <Badge variant="outline" size="compact">Read-only</Badge> : null}
           </div>
           <div className="mt-ui-xs flex min-w-0 flex-wrap items-center gap-x-ui-sm gap-y-ui-xs font-mono text-system-meta text-muted-foreground">

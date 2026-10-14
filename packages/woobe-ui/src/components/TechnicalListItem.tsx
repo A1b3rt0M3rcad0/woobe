@@ -128,7 +128,7 @@ const TechnicalListItem = forwardRef<HTMLDivElement, TechnicalListItemProps>(
               'mt-ui-hairline block text-muted-foreground',
               descriptionVariant === 'technical'
                 ? cn('font-mono', technicalDescriptionSize)
-                : cn('font-sans', productDescriptionSize),
+                : cn('font-mono', productDescriptionSize),
               multiline ? 'whitespace-normal break-words' : 'truncate',
             )}>
               {description}

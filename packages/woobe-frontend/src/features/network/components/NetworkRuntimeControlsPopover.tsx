@@ -77,7 +77,7 @@ export function NetworkRuntimeControlsPopover({ networkId, projectId }: { networ
     <div ref={menuRef} className="fixed z-focus overflow-hidden rounded-container border border-border bg-surface/95 shadow-popup backdrop-blur-md" style={menuPosition}>
       <div className="flex items-center justify-between border-b border-border px-ui-md py-ui-sm">
         <div>
-          <p className="font-mono text-system-control font-semibold text-accent-foreground">Network runtime</p>
+          <p className="font-sans text-system-control font-semibold text-accent-foreground">Network runtime</p>
           <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">Control Network Runs by environment.</p>
         </div>
         <Button type="button" variant="ghost" size="iconXs" onClick={() => setOpen(false)} aria-label="Close runtime controls"><X className="h-icon-sm w-icon-sm" /></Button>
@@ -91,7 +91,7 @@ export function NetworkRuntimeControlsPopover({ networkId, projectId }: { networ
               <div className="flex min-w-0 items-center gap-ui-sm">
                 <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', enabled ? 'bg-success' : 'bg-muted')} />
                 <div className="min-w-0">
-                  <p className="font-mono text-system-control font-medium text-accent-foreground">{titleCase(environment)}</p>
+                  <p className="font-sans text-system-control font-medium text-accent-foreground">{titleCase(environment)}</p>
                   <p className="font-sans text-product-caption text-muted-foreground">{enabled ? 'Runs allowed' : 'Runs blocked'}</p>
                 </div>
               </div>

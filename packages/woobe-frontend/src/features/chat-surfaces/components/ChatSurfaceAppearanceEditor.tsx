@@ -34,7 +34,7 @@ function SettingPanel({ title, description, action, children }: { title: string;
 function SubsectionTitle({ title, description }: { title: string; description?: string }) {
   return (
     <div className="py-ui-md first:pt-0">
-      <p className="font-mono text-system-label font-semibold uppercase tracking-ui-eyebrow text-accent-foreground/85">{title}</p>
+      <p className="font-sans text-system-label font-semibold uppercase tracking-ui-eyebrow text-accent-foreground/85">{title}</p>
       {description ? <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">{description}</p> : null}
     </div>
   )
@@ -44,7 +44,7 @@ function SettingRow({ label, description, children, align = 'center' }: { label:
   return (
     <div className={cn('grid min-w-0 gap-ui-md py-ui-md md:grid-cols-2', align === 'center' ? 'md:items-center' : 'md:items-start')}>
       <div className="min-w-0">
-        <p className="font-mono text-system-control font-medium text-accent-foreground">{label}</p>
+        <p className="font-sans text-system-control font-medium text-accent-foreground">{label}</p>
         {description ? <p className="mt-ui-xs max-w-xl font-sans text-product-caption text-muted-foreground">{description}</p> : null}
       </div>
       <div className="min-w-0 md:w-full md:justify-self-end">{children}</div>

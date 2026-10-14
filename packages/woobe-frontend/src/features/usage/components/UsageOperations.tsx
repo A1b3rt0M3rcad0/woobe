@@ -100,7 +100,7 @@ function CoverageRow({ label, value, partial, unpriced }: { label: string; value
           style={{ width: `${value ?? 0}%` }}
         />
       </div>
-      <p className="mt-1.5 font-mono text-system-meta text-muted-foreground">{partial} partial · {unpriced} unpriced</p>
+      <p className="mt-1.5 font-sans text-system-meta text-muted-foreground">{partial} partial · {unpriced} unpriced</p>
     </div>
   )
 }
@@ -166,7 +166,7 @@ export function UsageOperations({
                     <span className="w-5 shrink-0 font-mono text-system-meta font-semibold text-muted-foreground">{row.key === 'others' ? '—' : index + 1}</span>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-3">
-                        <p className="truncate font-mono text-system-meta font-medium text-slate-100" title={row.label}>{row.label}</p>
+                        <p className="truncate font-sans text-system-meta font-medium text-slate-100" title={row.label}>{row.label}</p>
                         <div className="flex shrink-0 items-center gap-3 font-mono text-system-meta">
                           <span className="text-muted-foreground">{row.share_percent.toFixed(1)}%</span>
                           <span className="min-w-[84px] text-right font-medium text-slate-100">{formatKnownMoney(row.known_cost_usd)}</span>
@@ -203,10 +203,10 @@ export function UsageOperations({
               <h2 className="font-mono text-system-meta font-bold text-slate-50">Agent Run efficiency</h2>
             </div>
             <div className="grid grid-cols-2 divide-x divide-y divide-border/70">
-              <div className="p-3"><p className="font-mono text-system-meta uppercase tracking-[0.1em] text-muted-foreground">Known cost / run</p><p className="mt-1 font-mono text-system-meta font-bold text-slate-100">{formatKnownMoney(costPerRun)}</p></div>
-              <div className="p-3"><p className="font-mono text-system-meta uppercase tracking-[0.1em] text-muted-foreground">LLM calls / run</p><p className="mt-1 font-mono text-system-meta font-bold text-slate-100">{callsPerRun.toFixed(2)}</p></div>
-              <div className="p-3"><p className="font-mono text-system-meta uppercase tracking-[0.1em] text-muted-foreground">Tokens / run</p><p className="mt-1 font-mono text-system-meta font-bold text-slate-100">{formatNumber(tokensPerRun)}</p></div>
-              <div className="p-3"><p className="font-mono text-system-meta uppercase tracking-[0.1em] text-muted-foreground">Tool/Skill operations</p><p className="mt-1 font-mono text-system-meta font-bold text-slate-100">{formatNumber(composition.tool_calls)}</p></div>
+              <div className="p-3"><p className="font-sans text-system-meta uppercase tracking-[0.1em] text-muted-foreground">Known cost / run</p><p className="mt-1 font-sans text-system-meta font-bold text-slate-100">{formatKnownMoney(costPerRun)}</p></div>
+              <div className="p-3"><p className="font-sans text-system-meta uppercase tracking-[0.1em] text-muted-foreground">LLM calls / run</p><p className="mt-1 font-sans text-system-meta font-bold text-slate-100">{callsPerRun.toFixed(2)}</p></div>
+              <div className="p-3"><p className="font-sans text-system-meta uppercase tracking-[0.1em] text-muted-foreground">Tokens / run</p><p className="mt-1 font-sans text-system-meta font-bold text-slate-100">{formatNumber(tokensPerRun)}</p></div>
+              <div className="p-3"><p className="font-sans text-system-meta uppercase tracking-[0.1em] text-muted-foreground">Tool/Skill operations</p><p className="mt-1 font-sans text-system-meta font-bold text-slate-100">{formatNumber(composition.tool_calls)}</p></div>
             </div>
             <div className="border-t border-border px-4 py-2.5 font-mono text-system-meta leading-4 text-muted-foreground">
               <Layers3 className="mr-1.5 inline h-3.5 w-3.5 text-primary-light" />
@@ -227,7 +227,7 @@ export function UsageOperations({
               <CoverageRow label="Network Runs" value={networkCoverage} partial={quality.partial_network_runs} unpriced={quality.unpriced_network_runs} />
             </div>
             {incompleteCoverage ? (
-              <div className="flex items-start gap-2 border-t border-border px-4 py-2.5 font-sans text-system-meta leading-4 text-muted-foreground">
+              <div className="flex items-start gap-2 border-t border-border px-4 py-2.5 font-mono text-system-meta leading-4 text-muted-foreground">
                 <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
                 <span><span className="text-warning">Known cost is a subtotal</span> when pricing is partial. Missing cost is never converted to zero.</span>
               </div>
@@ -259,11 +259,11 @@ export function UsageOperations({
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       {isNetwork ? <Network className="h-3.5 w-3.5 text-network" /> : <Workflow className="h-3.5 w-3.5 text-primary-light" />}
-                      <p className="truncate font-mono text-system-meta font-medium text-slate-100">{isNetwork ? execution.network_name ?? 'Network Run' : execution.agent_name ?? 'Unattributed Agent'}</p>
+                      <p className="truncate font-sans text-system-meta font-medium text-slate-100">{isNetwork ? execution.network_name ?? 'Network Run' : execution.agent_name ?? 'Unattributed Agent'}</p>
                       <span className="rounded-technical border border-border bg-control/50 px-1.5 py-0.5 font-mono text-system-meta uppercase tracking-[0.09em] text-muted-foreground">{isNetwork ? 'Network Run' : 'Agent Run'}</span>
                       <span className={cn('rounded-technical border px-1.5 py-0.5 font-mono text-system-meta uppercase tracking-[0.09em]', execution.status === 'completed' ? 'border-emerald-400/20 bg-emerald-400/[0.05] text-success' : 'border-amber-400/20 bg-amber-400/[0.05] text-warning')}>{execution.status}</span>
                     </div>
-                    <p className="mt-1 truncate font-mono text-system-meta text-muted-foreground">{execution.environment ?? 'unknown environment'}{isNetwork ? ` · ${execution.agent_runs_count} Agent Runs` : ` · ${execution.provider ?? 'Unknown provider'} / ${execution.model ?? 'Unknown model'}`}</p>
+                    <p className="mt-1 truncate font-sans text-system-meta text-muted-foreground">{execution.environment ?? 'unknown environment'}{isNetwork ? ` · ${execution.agent_runs_count} Agent Runs` : ` · ${execution.provider ?? 'Unknown provider'} / ${execution.model ?? 'Unknown model'}`}</p>
                   </div>
                   <div className="flex flex-wrap gap-3 font-mono text-system-meta text-muted-foreground md:justify-end"><span>{formatDuration(execution.duration_ms)}</span><span>{execution.llm_calls} LLM calls</span><span>{formatNumber(execution.input_tokens + execution.output_tokens)} tokens</span></div>
                   <div className="flex items-center justify-between gap-3 md:justify-end">

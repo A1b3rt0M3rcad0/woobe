@@ -15,7 +15,7 @@ import { CopyButton } from '@/components/common/CopyButton'
 import { workspaceProjectPath } from '@/lib/constants/routes'
 
 function DetailRow({ label, value }: { label: string; value: ReactNode }) {
-  return <div className="flex items-center justify-between gap-4 border-b border-border py-2 last:border-b-0"><span className="font-mono text-system-meta uppercase tracking-[0.12em] text-muted">{label}</span><span className="min-w-0 text-right font-sans text-xs text-slate-200">{value}</span></div>
+  return <div className="flex items-center justify-between gap-4 border-b border-border py-2 last:border-b-0"><span className="font-mono text-system-meta uppercase tracking-[0.12em] text-muted">{label}</span><span className="min-w-0 text-right font-mono text-xs text-slate-200">{value}</span></div>
 }
 
 export default function AgentDetailPage() {

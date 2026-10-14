@@ -65,7 +65,7 @@ export function AgentSkillsSection({ projectId }: { projectId: string }) {
         {!manager ? <p role={isError ? 'alert' : 'status'} className="font-sans text-product-caption text-muted-foreground">{isPending ? 'Loading compatible Context Managers…' : isError ? 'Unable to load compatible Context Managers.' : 'No installed Context Manager supports Skills.'}</p> : null}
         {isError ? <Button size="sm" variant="ghost" onClick={() => void refetch()}>Retry Context Managers</Button> : null}
         <Link to={workspaceProjectPath(workspaceId, projectId, 'skills')} className="block text-center font-mono text-system-meta text-primary-light hover:underline">Open Project Skills</Link>
-        {!!config.bindings.length ? <details className="font-sans text-product-caption text-muted-foreground">
+        {!!config.bindings.length ? <details className="font-mono text-product-caption text-muted-foreground">
           <summary className="cursor-pointer font-mono text-system-meta text-slate-300">Context budget</summary>
           <div className="mt-ui-md space-y-ui-md border-t border-border/60 pt-ui-md">
             <p>Estimated input units, including the catalog. Instructions are preserved in full. If the budget is exhausted, another activation is declined.</p>

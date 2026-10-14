@@ -74,7 +74,7 @@ function AgentNode({ data, selected }: NodeProps<AgentFlowNode>) {
             <p className="truncate font-sans text-product-small font-semibold text-foreground">{data.node.label}</p>
             {issue ? <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-error" /> : null}
           </div>
-          <p className="mt-ui-xs truncate font-mono text-system-meta text-muted-foreground">{data.agent ? `${data.agent.provider}/${data.agent.model}` : 'Agent unavailable'}</p>
+          <p className="mt-ui-xs truncate font-sans text-system-meta text-muted-foreground">{data.agent ? `${data.agent.provider}/${data.agent.model}` : 'Agent unavailable'}</p>
           {data.node.capability_description ? <p className="mt-ui-sm line-clamp-2 font-sans text-product-caption leading-4 text-slate-400">{data.node.capability_description}</p> : null}
         </div>
       </div>
@@ -322,7 +322,7 @@ export function NetworkGraphEditor({
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-ui-xl">
           <div className="pointer-events-auto max-w-sm rounded-container border border-border bg-surface/95 p-ui-xl text-center">
             <div className="mx-auto flex h-control-lg w-control-lg items-center justify-center rounded-control border border-primary/25 bg-primary/10 text-primary-light"><Plus className="h-icon-lg w-icon-lg" /></div>
-            <h2 className="mt-ui-lg font-sans text-heading-sm font-semibold text-foreground">Build your Network</h2>
+            <h2 className="mt-ui-lg font-mono text-heading-sm font-semibold text-foreground">Build your Network</h2>
             <p className="mt-ui-sm font-sans text-product-caption leading-5 text-muted-foreground">Add an Agent, make it the entry point, then connect the Agents it may delegate work to.</p>
             {!readOnly ? <Button type="button" size="sm" onClick={onAddAgent} className="mt-ui-lg">Add first Agent</Button> : null}
           </div>

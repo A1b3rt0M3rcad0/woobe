@@ -41,7 +41,7 @@ export function AgentSessionModeField({
     <section className={cn(!compact && 'rounded-container border border-border bg-surface p-ui-lg')} aria-label="Session Mode">
       <div className="flex items-start justify-between gap-ui-md">
         <div>
-          <p className="font-mono text-system-meta font-semibold uppercase tracking-[0.1em] text-muted-foreground">Session Mode</p>
+          <p className="font-sans text-system-meta font-semibold uppercase tracking-[0.1em] text-muted-foreground">Session Mode</p>
           <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">Controls continuity between Runs.</p>
         </div>
         {definedBy ? <span className="shrink-0 rounded-technical border border-border bg-background/50 px-ui-sm py-ui-xs font-mono text-system-meta text-muted-foreground">{definedBy}</span> : null}

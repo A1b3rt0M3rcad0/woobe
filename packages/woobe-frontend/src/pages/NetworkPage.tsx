@@ -974,7 +974,7 @@ export default function NetworkPage() {
             <Badge>{networkQuery.isLoading ? 'Loading' : isInitialSetup ? 'Setup incomplete' : 'Runtime'}</Badge>
             {!isInitialSetup ? <button type="button" onClick={() => openNetworkManager('production')} className={cn('rounded-technical border px-ui-sm py-ui-hairline font-mono text-system-label', productionVersion ? 'border-emerald-500/30 bg-emerald-500/10 text-success' : 'border-border bg-background/45 text-muted-foreground')}>{productionVersion ? `Production · ${productionVersion.version}` : 'No Production release'}</button> : null}
           </div>
-          <p className="font-mono text-system-micro text-muted-foreground">Network workspace · isolated within this Project</p>
+          <p className="font-sans text-system-micro text-muted-foreground">Network workspace · isolated within this Project</p>
         </div>
         {isInitialSetup ? (
           <div className="ml-auto flex items-center gap-ui-sm"><span className="rounded-control border border-primary/25 bg-primary/5 px-ui-md py-ui-xs font-mono text-system-micro font-medium text-primary-light">Draft · initial setup</span></div>

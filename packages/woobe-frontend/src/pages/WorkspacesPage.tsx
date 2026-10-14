@@ -51,7 +51,7 @@ function SectionHeading({
         )}
       </div>
       {description && (
-        <p className="mt-1.5 pl-[15px] font-mono text-system-meta leading-4 text-muted-foreground">{description}</p>
+        <p className="mt-1.5 pl-[15px] font-sans text-system-meta leading-4 text-muted-foreground">{description}</p>
       )}
     </div>
   )
@@ -146,7 +146,7 @@ function EmptyState({
         {icon}
       </div>
       <h3 className="mt-3 font-mono text-system-meta font-bold text-slate-100">{title}</h3>
-      <p className="mx-auto mt-1.5 max-w-lg font-mono text-system-meta leading-4 text-muted-foreground">{description}</p>
+      <p className="mx-auto mt-1.5 max-w-lg font-sans text-system-meta leading-4 text-muted-foreground">{description}</p>
       {action && <div className="mt-4 flex justify-center">{action}</div>}
     </Card>
   )
@@ -250,7 +250,7 @@ export default function WorkspacesPage() {
           </div>
           <div className="min-w-0">
             <h1 className="font-mono text-base font-bold tracking-[0.01em] text-slate-50">Workspaces</h1>
-            <p className="mt-0.5 truncate font-mono text-system-meta text-muted-foreground">
+            <p className="mt-0.5 truncate font-sans text-system-meta text-muted-foreground">
               Select the commercial workspace you want to operate.
             </p>
           </div>
@@ -280,8 +280,8 @@ export default function WorkspacesPage() {
                         <MailPlus className="h-3.5 w-3.5" />
                       </div>
                       <div className="min-w-0">
-                        <p className="truncate font-mono text-system-meta font-bold text-slate-100">{invite.workspace_name}</p>
-                        <p className="mt-1 truncate font-mono text-system-meta text-muted-foreground">
+                        <p className="truncate font-sans text-system-meta font-bold text-slate-100">{invite.workspace_name}</p>
+                        <p className="mt-1 truncate font-sans text-system-meta text-muted-foreground">
                           /{invite.workspace_slug} · {invite.role} · {invite.project_count ?? 0} prepared Project(s)
                         </p>
                       </div>
@@ -321,7 +321,7 @@ export default function WorkspacesPage() {
             <Card className="border-error/30 bg-error/[0.05] px-6 py-10 text-center">
               <AlertCircle className="mx-auto h-5 w-5 text-error" />
               <h3 className="mt-3 font-mono text-system-meta font-bold text-slate-100">Unable to load Workspaces</h3>
-              <p className="mx-auto mt-1.5 max-w-lg font-mono text-system-meta leading-4 text-error/80">{workspaceErrorMessage}</p>
+              <p className="mx-auto mt-1.5 max-w-lg font-sans text-system-meta leading-4 text-error/80">{workspaceErrorMessage}</p>
             </Card>
           ) : workspaces.length === 0 ? (
             <EmptyState

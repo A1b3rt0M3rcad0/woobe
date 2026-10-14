@@ -21,7 +21,7 @@ export function ErrorState({ error, message, onRetry, className }: ErrorStatePro
       description={(
         <div>
           <p>{displayMessage}</p>
-          {status ? <p className="mt-ui-xs font-mono text-system-label text-muted-foreground">HTTP {status}</p> : null}
+          {status ? <p className="mt-ui-xs font-sans text-system-label text-muted-foreground">HTTP {status}</p> : null}
         </div>
       )}
       action={onRetry ? (

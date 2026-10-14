@@ -32,7 +32,7 @@ function DetailList({ items }: { items: string[] }) {
   return (
     <div className="space-y-ui-sm">
       {items.map((item) => (
-        <div key={item} className="flex gap-ui-sm font-sans text-product-small text-slate-300">
+        <div key={item} className="flex gap-ui-sm font-mono text-product-small text-slate-300">
           <span className="mt-[0.4rem] h-1 w-1 shrink-0 rounded-full bg-primary" />
           <span>{item}</span>
         </div>
@@ -100,7 +100,7 @@ export function AgentContextAssemblerField({ projectId, compact = false }: { pro
     <>
       <section aria-label="Context Manager" className={cn(!compact && 'rounded-container border border-border bg-surface p-ui-lg')}>
         <div className="mb-ui-sm">
-          <p className="font-mono text-system-meta font-semibold uppercase tracking-[0.1em] text-muted-foreground">Context Manager</p>
+          <p className="font-sans text-system-meta font-semibold uppercase tracking-[0.1em] text-muted-foreground">Context Manager</p>
           <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">Controls how context is managed before each Agent execution.</p>
         </div>
 
@@ -110,8 +110,8 @@ export function AgentContextAssemblerField({ projectId, compact = false }: { pro
               <BrainCircuit className="h-3.5 w-3.5" />
             </span>
             <div className="min-w-0 flex-1">
-              <p className="break-words font-mono text-system-label font-semibold text-slate-100">{selectedDescriptor.display_name}</p>
-              <p className="mt-ui-xs font-mono text-system-meta text-muted-foreground">{selectedName}</p>
+              <p className="break-words font-sans text-system-label font-semibold text-slate-100">{selectedDescriptor.display_name}</p>
+              <p className="mt-ui-xs font-sans text-system-meta text-muted-foreground">{selectedName}</p>
               {selectedDescriptor.description ? <p className="mt-ui-sm line-clamp-2 font-sans text-product-caption text-muted-foreground">{selectedDescriptor.description}</p> : null}
             </div>
           </div>
@@ -134,7 +134,7 @@ export function AgentContextAssemblerField({ projectId, compact = false }: { pro
         <div className="grid h-dialog-workspace min-h-0 grid-cols-[15.625rem_minmax(0,1fr)] overflow-hidden">
           <aside className="flex min-h-0 flex-col border-r border-border/90 bg-background/25">
             <div className="shrink-0 border-b border-border/90 px-ui-lg py-ui-md">
-              <p className="font-mono text-system-meta font-semibold uppercase tracking-[0.12em] text-muted-foreground">Registered managers</p>
+              <p className="font-sans text-system-meta font-semibold uppercase tracking-[0.12em] text-muted-foreground">Registered managers</p>
               <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">
                 {isLoading ? 'Loading registry…' : isError ? 'Current selection only' : `${catalogOptions.length} available`}
               </p>
@@ -191,21 +191,21 @@ export function AgentContextAssemblerField({ projectId, compact = false }: { pro
                     </div>
 
                     <div className="mt-ui-lg grid gap-ui-lg border-t border-border/75 pt-ui-lg md:grid-cols-2">
-                      <div><p className="font-mono text-system-meta font-semibold uppercase tracking-[0.12em] text-muted-foreground">Description</p><p className="mt-ui-sm font-sans text-product-body text-slate-200">{focused.description}</p></div>
-                      <div><p className="font-mono text-system-meta font-semibold uppercase tracking-[0.12em] text-muted-foreground">How it operates</p><p className="mt-ui-sm font-sans text-product-body text-slate-300">{focused.behavior}</p></div>
+                      <div><p className="font-sans text-system-meta font-semibold uppercase tracking-[0.12em] text-muted-foreground">Description</p><p className="mt-ui-sm font-sans text-product-body text-slate-200">{focused.description}</p></div>
+                      <div><p className="font-sans text-system-meta font-semibold uppercase tracking-[0.12em] text-muted-foreground">How it operates</p><p className="mt-ui-sm font-sans text-product-body text-slate-300">{focused.behavior}</p></div>
                     </div>
 
                     <div className="mt-ui-lg border-t border-border/75 pt-ui-lg">
-                      <p className="font-mono text-system-meta font-semibold uppercase tracking-[0.12em] text-muted-foreground">Recommended for</p>
+                      <p className="font-sans text-system-meta font-semibold uppercase tracking-[0.12em] text-muted-foreground">Recommended for</p>
                       <div className="mt-ui-sm grid gap-x-ui-xl gap-y-ui-xs sm:grid-cols-2"><DetailList items={focused.recommended_for} /></div>
                     </div>
 
                     <div className="mt-ui-lg grid gap-ui-xl border-t border-border/75 pt-ui-lg md:grid-cols-2">
-                      <div><p className="font-mono text-system-meta font-semibold uppercase tracking-[0.12em] text-muted-foreground">Capabilities</p><div className="mt-ui-sm"><DetailList items={focused.capabilities} /></div></div>
-                      <div><p className="font-mono text-system-meta font-semibold uppercase tracking-[0.12em] text-muted-foreground">Limitations</p><div className="mt-ui-sm"><DetailList items={focused.limitations} /></div></div>
+                      <div><p className="font-sans text-system-meta font-semibold uppercase tracking-[0.12em] text-muted-foreground">Capabilities</p><div className="mt-ui-sm"><DetailList items={focused.capabilities} /></div></div>
+                      <div><p className="font-sans text-system-meta font-semibold uppercase tracking-[0.12em] text-muted-foreground">Limitations</p><div className="mt-ui-sm"><DetailList items={focused.limitations} /></div></div>
                     </div>
 
-                    <div className="mt-ui-lg rounded-container border border-border/75 bg-background/30 px-ui-md py-ui-md font-sans text-product-small text-muted-foreground">
+                    <div className="mt-ui-lg rounded-container border border-border/75 bg-background/30 px-ui-md py-ui-md font-mono text-product-small text-muted-foreground">
                       The Agent snapshot stores the selected Context Manager name: <span className="font-mono text-slate-200">{focused.name}</span>.
                     </div>
                   </>

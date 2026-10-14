@@ -27,8 +27,8 @@ export function FirstRunShell({ workspaceName, projectName, activeStage, onExit,
       <header className="shrink-0 border-b border-border bg-surface/55">
         <div className="mx-auto flex h-[58px] w-full max-w-[1320px] items-center justify-between gap-4 px-5 sm:px-8">
           <div className="min-w-0">
-            <p className="font-mono text-system-meta uppercase tracking-[0.18em] text-primary-light">WOOBE / first run</p>
-            <p className="mt-0.5 truncate font-mono text-[12px] font-semibold text-slate-100">Launch your first Agent</p>
+            <p className="font-sans text-system-meta uppercase tracking-[0.18em] text-primary-light">WOOBE / first run</p>
+            <p className="mt-0.5 truncate font-sans text-[12px] font-semibold text-slate-100">Launch your first Agent</p>
           </div>
           <Button type="button" size="sm" variant="outline" onClick={onExit}>
             <ArrowLeft className="mr-1.5 h-3.5 w-3.5" />Exit setup

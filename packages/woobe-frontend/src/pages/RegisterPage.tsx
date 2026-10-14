@@ -24,7 +24,7 @@ export default function RegisterPage() {
   return (
     <div>
       <header className="mb-ui-content-gutter">
-        <h1 className="font-sans text-page-title font-semibold tracking-tight text-slate-50">
+        <h1 className="font-mono text-page-title font-semibold tracking-tight text-slate-50">
           Create workspace
         </h1>
         <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">
@@ -44,11 +44,11 @@ export default function RegisterPage() {
             placeholder="you@company.com"
             invalid={Boolean(errors.email)}
             aria-describedby={errors.email ? 'register-email-error' : undefined}
-            className="h-control rounded-control bg-control px-ui-md font-sans text-system-control text-slate-100"
+            className="h-control rounded-control bg-control px-ui-md font-mono text-system-control text-slate-100"
             {...register('email')}
           />
           {errors.email?.message && (
-            <FieldError id="register-email-error" className="font-sans text-product-caption">
+            <FieldError id="register-email-error" className="font-mono text-product-caption">
               {errors.email.message}
             </FieldError>
           )}
@@ -65,18 +65,18 @@ export default function RegisterPage() {
             placeholder="At least 6 characters"
             invalid={Boolean(errors.password)}
             aria-describedby={errors.password ? 'register-password-error' : undefined}
-            className="h-control rounded-control bg-control px-ui-md font-sans text-system-control text-slate-100"
+            className="h-control rounded-control bg-control px-ui-md font-mono text-system-control text-slate-100"
             {...register('password')}
           />
           {errors.password?.message && (
-            <FieldError id="register-password-error" className="font-sans text-product-caption">
+            <FieldError id="register-password-error" className="font-mono text-product-caption">
               {errors.password.message}
             </FieldError>
           )}
         </Field>
 
         {errors.root && (
-          <Alert variant="destructive" className="flex items-start gap-ui-sm rounded-control px-ui-md py-ui-sm font-sans text-product-caption">
+          <Alert variant="destructive" className="flex items-start gap-ui-sm rounded-control px-ui-md py-ui-sm font-mono text-product-caption">
             <AlertTriangle className="mt-px h-icon-sm w-icon-sm shrink-0 text-error" />
             <p>{errors.root.message}</p>
           </Alert>
@@ -87,7 +87,7 @@ export default function RegisterPage() {
         </Button>
       </form>
 
-      <div className="mt-ui-content-gutter border-t border-border pt-ui-md text-center font-sans text-system-meta text-muted-foreground">
+      <div className="mt-ui-content-gutter border-t border-border pt-ui-md text-center font-mono text-system-meta text-muted-foreground">
         Already have an account?{' '}
         <Link
           to="/login"

@@ -35,7 +35,7 @@ function Metric({ label, value, icon: Icon, hint }: {
         <Icon className="h-3.5 w-3.5" />
         <span className="text-system-meta uppercase tracking-wide">{label}</span>
       </div>
-      <p className="mt-1 text-sm font-mono text-foreground">{value}</p>
+      <p className="mt-1 text-sm font-sans text-foreground">{value}</p>
     </div>
   )
 }

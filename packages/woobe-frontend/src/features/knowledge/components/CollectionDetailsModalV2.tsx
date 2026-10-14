@@ -362,7 +362,7 @@ export function CollectionDetailsModal({ open, onClose, collection, projectId, o
 
             <DialogFooter
               meta={(
-                <p className="font-mono text-system-meta text-muted-foreground">
+                <p className="font-sans text-system-meta text-muted-foreground">
                   {hasChanges ? 'Unsaved Collection changes' : `${items.length} documents · ${indexedCount} ready · ${formatBytes(totalSize)}`}
                 </p>
               )}

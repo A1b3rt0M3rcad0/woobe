@@ -57,7 +57,7 @@ export function AgentOverviewSettings({ onOpenBehavior }: AgentOverviewSettingsP
               ['Guidance', `${guidance} / 3`],
             ].map(([label, value]) => (
               <div key={label} className="flex min-h-control items-center justify-between gap-ui-md px-ui-md py-ui-sm">
-                <span className="font-sans text-product-caption text-muted-foreground">{label}</span>
+                <span className="font-mono text-product-caption text-muted-foreground">{label}</span>
                 <span className="font-mono text-chrome-meta text-slate-300">{value}</span>
               </div>
             ))}

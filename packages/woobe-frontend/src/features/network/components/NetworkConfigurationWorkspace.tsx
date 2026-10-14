@@ -38,11 +38,11 @@ function RuntimeSettings({ readOnly }: { readOnly: boolean }) {
     <div className="space-y-ui-md">
       <div className="grid gap-ui-sm sm:grid-cols-2">
         <button disabled={readOnly} className="rounded-container border border-primary/35 bg-primary/[0.08] p-ui-md text-left disabled:opacity-50">
-          <p className="font-mono text-system-control font-medium text-accent-foreground">Stateful</p>
+          <p className="font-sans text-system-control font-medium text-accent-foreground">Stateful</p>
           <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">Persistent Network sessions</p>
         </button>
         <button disabled={readOnly} className="rounded-container border border-border bg-background/25 p-ui-md text-left disabled:opacity-50">
-          <p className="font-mono text-system-control font-medium text-accent-foreground">Stateless</p>
+          <p className="font-sans text-system-control font-medium text-accent-foreground">Stateless</p>
           <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">Independent requests</p>
         </button>
       </div>

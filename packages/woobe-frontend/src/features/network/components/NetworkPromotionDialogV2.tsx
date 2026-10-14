@@ -121,7 +121,7 @@ export function NetworkPromotionDialog({
           density="compact"
           actions={<ShieldCheck className="h-icon w-icon text-primary-light" />}
         >
-          <p className="font-mono text-system-control text-accent-foreground">{summary}</p>
+          <p className="font-sans text-system-control text-accent-foreground">{summary}</p>
           <p className="mt-ui-sm font-sans text-product-caption leading-5 text-muted-foreground">
             The source Network snapshot remains unchanged. Only incompatible Agent bindings require a new snapshot.
           </p>
@@ -181,7 +181,7 @@ export function NetworkPromotionDialog({
                 )}
               >
                 {item.action_required ? (
-                  <div className="mt-ui-sm flex items-center gap-ui-xs border-t border-border pt-ui-sm font-sans text-product-caption text-warning">
+                  <div className="mt-ui-sm flex items-center gap-ui-xs border-t border-border pt-ui-sm font-mono text-product-caption text-warning">
                     <GitBranch className="h-icon-sm w-icon-sm" />
                     {actionLabel(item.action_required)}
                   </div>

@@ -21,5 +21,5 @@ export const woobeTypography = {
 export const woobeRadius = {
   technical: '0.25rem',
   control: '0.375rem',
-  container: '0.5rem',
+  container: '0.625rem',
 } as const

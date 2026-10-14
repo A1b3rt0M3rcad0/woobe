@@ -28,13 +28,13 @@ export function Table<T>({
 }: TableProps<T>) {
   return (
     <ScrollArea orientation="both" className={cn('w-full', className)}>
-      <table className="w-full font-sans text-product-small">
+      <table className="w-full font-mono text-product-small">
         <thead className="bg-background/20">
           <tr className="border-b border-border">
             {columns.map((column) => (
               <th
                 key={column.key}
-                className={cn('px-ui-lg py-ui-md text-left font-sans text-system-label font-semibold text-muted-foreground', column.className)}
+                className={cn('px-ui-lg py-ui-md text-left font-mono text-system-label font-semibold text-muted-foreground', column.className)}
               >
                 {column.header}
               </th>
@@ -44,7 +44,7 @@ export function Table<T>({
         <tbody>
           {data.length === 0 ? (
             <tr>
-              <td colSpan={columns.length} className="px-ui-lg py-ui-xxl text-center font-sans text-product-small text-muted-foreground">
+              <td colSpan={columns.length} className="px-ui-lg py-ui-xxl text-center font-mono text-product-small text-muted-foreground">
                 {emptyLabel}
               </td>
             </tr>

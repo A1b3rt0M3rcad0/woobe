@@ -47,7 +47,7 @@ export function AgentResultViewer({
   return (
     <>
       <div>
-        <div className={cn('line-clamp-4 overflow-hidden font-sans text-slate-200', compact ? 'text-system-meta leading-5' : 'text-[12px] leading-5')}>
+        <div className={cn('line-clamp-4 overflow-hidden font-mono text-slate-200', compact ? 'text-system-meta leading-5' : 'text-[12px] leading-5')}>
           <MarkdownMessage content={text} className={compact ? 'space-y-1.5 text-system-meta leading-5' : 'space-y-2'} />
         </div>
         <button type="button" onClick={() => setOpen(true)} className={cn('mt-2 font-mono text-primary-light hover:text-foreground', compact ? 'text-system-meta' : 'text-system-meta')}>
@@ -67,7 +67,7 @@ export function AgentResultViewer({
           <div className="flex min-h-[46px] shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-2.5">
             <div className="min-w-0">
               <div className="flex items-center gap-2 font-mono text-system-meta font-semibold text-slate-100"><FileText className="h-3.5 w-3.5 text-primary-light" />Markdown result</div>
-              {subtitle ? <p className="mt-0.5 truncate font-mono text-system-meta text-muted-foreground">{subtitle}</p> : null}
+              {subtitle ? <p className="mt-0.5 truncate font-sans text-system-meta text-muted-foreground">{subtitle}</p> : null}
             </div>
             <div className="flex items-center gap-1.5">
               <div className="flex rounded-control border border-border bg-background/35 p-[2px]">
@@ -92,7 +92,7 @@ export function AgentResultViewer({
           <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto bg-background/15 p-4">
             {view === 'rendered' ? (
               <CodePanel title="Rendered response" icon={<FileText className="h-3.5 w-3.5" />}>
-                <div className="p-4 font-sans text-[12px] leading-6 text-slate-100">
+                <div className="p-4 font-mono text-[12px] leading-6 text-slate-100">
                   <MarkdownMessage content={text} />
                 </div>
               </CodePanel>

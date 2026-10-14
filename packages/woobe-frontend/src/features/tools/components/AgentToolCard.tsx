@@ -64,12 +64,12 @@ function ActionsMenu({ canEdit, editLabel, onEdit, onRemove }: { canEdit: boolea
       </summary>
       <div className="absolute right-0 top-8 z-popover min-w-40 rounded-container border border-border bg-surface p-ui-xs shadow-popup">
         {canEdit && onEdit ? (
-          <button type="button" onClick={onEdit} className="flex w-full items-center gap-ui-sm rounded-control px-ui-sm py-ui-sm text-left font-sans text-system-label text-slate-100 hover:bg-accent">
+          <button type="button" onClick={onEdit} className="flex w-full items-center gap-ui-sm rounded-control px-ui-sm py-ui-sm text-left font-mono text-system-label text-slate-100 hover:bg-accent">
             <Pencil className="h-3.5 w-3.5" />
             {editLabel}
           </button>
         ) : null}
-        <button type="button" onClick={onRemove} className="flex w-full items-center gap-ui-sm rounded-control px-ui-sm py-ui-sm text-left font-sans text-system-label text-error hover:bg-red-500/10">
+        <button type="button" onClick={onRemove} className="flex w-full items-center gap-ui-sm rounded-control px-ui-sm py-ui-sm text-left font-mono text-system-label text-error hover:bg-red-500/10">
           <Trash2 className="h-3.5 w-3.5" />
           Remove from Agent
         </button>
@@ -98,7 +98,7 @@ export function AgentToolCard({
   const showReadOnlyStatus = context === 'playground' && !onToggleActive
 
   const actions = <ActionsMenu canEdit={!isRetired && isHttpProvider} editLabel={context === 'playground' ? 'Edit Project Tool' : 'Edit Tool'} onEdit={onEdit} onRemove={onRemove} />
-  const riskNotice = showRisk ? <div className="mt-ui-sm flex items-center gap-ui-xs pl-ui-lg font-sans text-product-small text-warning"><AlertTriangle className="h-3 w-3" />{risk} risk</div> : null
+  const riskNotice = showRisk ? <div className="mt-ui-sm flex items-center gap-ui-xs pl-ui-lg font-mono text-product-small text-warning"><AlertTriangle className="h-3 w-3" />{risk} risk</div> : null
 
   return (
     <article className={cn(

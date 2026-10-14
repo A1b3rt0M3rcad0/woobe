@@ -7,9 +7,14 @@
   * {
     @apply border-border;
   }
+  p { font-family: 'Inter', system-ui, sans-serif; }
   body {
     @apply bg-background text-foreground;
-    font-family: 'Inter', system-ui, sans-serif;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: .875rem;
+    font-variant-numeric: tabular-nums lining-nums;
+    font-variant-ligatures: none;
+    font-synthesis: none;
   }
 }
 
@@ -18,7 +23,7 @@
   .dialog-scrollbars,
   .dialog-scrollbars * {
     scrollbar-width: thin;
-    scrollbar-color: rgba(148, 163, 184, 0.15) transparent;
+    scrollbar-color: rgba(107, 104, 99, 0.28) transparent;
     scrollbar-gutter: stable;
   }
 
@@ -38,7 +43,7 @@
   .scrollbar-thin::-webkit-scrollbar-thumb,
   .dialog-scrollbars::-webkit-scrollbar-thumb,
   .dialog-scrollbars *::-webkit-scrollbar-thumb {
-    background-color: rgba(148, 163, 184, 0.15);
+    background-color: rgba(107, 104, 99, 0.28);
     border-radius: 999px;
     border: 1px solid transparent;
     background-clip: content-box;
@@ -66,7 +71,7 @@
 .model-picker-scroll {
   scrollbar-gutter: stable;
   scrollbar-width: auto;
-  scrollbar-color: rgba(148, 163, 184, 0.55) rgba(15, 23, 42, 0.35);
+  scrollbar-color: rgba(148, 163, 184, 0.55) rgba(227, 225, 221, 0.5);
 }
 
 .model-picker-scroll::-webkit-scrollbar {
@@ -74,7 +79,7 @@
 }
 
 .model-picker-scroll::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.35);
+  background: rgba(227, 225, 221, 0.5);
   border-radius: 999px;
 }
 

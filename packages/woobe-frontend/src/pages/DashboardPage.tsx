@@ -62,7 +62,7 @@ function PanelHeader({ title, subtitle, action }: { title: string; subtitle?: st
     <div className="flex items-start justify-between gap-3 px-5 pb-3 pt-4">
       <div className="min-w-0">
         <div className="flex items-center gap-1.5">
-          <h2 className="text-section-title font-semibold text-foreground">{title}</h2>
+          <h2 className="text-section-title font-medium text-foreground">{title}</h2>
 
         </div>
         {subtitle && <p className="mt-ui-xs text-product-caption text-muted-foreground">{subtitle}</p>}
@@ -75,7 +75,7 @@ function PanelHeader({ title, subtitle, action }: { title: string; subtitle?: st
 function StorySectionHeader({ title, description }: { title: string; description: string }) {
   return (
     <div className="border-t border-border pt-ui-xl">
-      <h2 className="text-section-title font-semibold text-foreground">{title}</h2>
+      <h2 className="text-section-title font-medium text-foreground">{title}</h2>
       <p className="mt-ui-xs max-w-3xl text-product-caption text-muted-foreground">{description}</p>
     </div>
   )
@@ -112,7 +112,7 @@ function MetricCard({ metric, onReviewPricing }: { metric: DashboardMetric; onRe
               </div>
             ))}
           </div>
-        ) : <p className="break-words text-metric-lg font-medium leading-none tracking-tight tabular-nums text-foreground">{metric.value}</p>}
+        ) : <p className="break-words text-metric-lg font-normal leading-none tracking-tight tabular-nums text-foreground">{metric.value}</p>}
         <p className={`mt-auto text-product-caption ${detailTone}`}>{metric.detail ?? 'No terminal Runs in this interval'}</p>
       </div>
       {metric.costHelp && <Dialog open={helpOpen} onClose={() => setHelpOpen(false)} title="Runtime cost coverage" className="max-w-md">
@@ -357,13 +357,13 @@ function RunActivityChart({ model }: { model: DashboardViewModel }) {
         </div>
         {activePoint && (
           <div className="flex flex-col gap-3 rounded-md border border-border/80 bg-background/45 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="min-w-[150px]"><p className="font-mono text-system-meta font-medium uppercase tracking-[0.08em] text-muted">Selected interval</p><p className="mt-1 font-mono text-system-meta font-medium text-foreground">{activePoint.label}</p></div>
+            <div className="min-w-[150px]"><p className="font-sans text-system-meta font-medium uppercase tracking-[0.08em] text-muted">Selected interval</p><p className="mt-1 font-sans text-system-meta font-medium text-foreground">{activePoint.label}</p></div>
             <div className="grid flex-1 grid-cols-2 gap-3 sm:grid-cols-5">
-              <div><p className="font-mono text-system-meta text-muted">Agent Runs</p><p className="mt-1 font-mono text-sm font-semibold text-primary-light">{activePoint.agentRuns}</p></div>
-              <div><p className="font-mono text-system-meta text-muted">Network Runs</p><p className="mt-1 font-mono text-sm font-semibold text-network">{activePoint.networkRuns}</p></div>
-              <div><p className="font-mono text-system-meta text-muted">Successful</p><p className="mt-1 font-mono text-sm font-semibold text-success">{activePoint.agentSuccess + activePoint.networkSuccess}</p></div>
-              <div><p className="font-mono text-system-meta text-muted">Errors</p><p className="mt-1 font-mono text-sm font-semibold text-error">{activePoint.agentErrors + activePoint.networkErrors}</p></div>
-              <div><p className="font-mono text-system-meta text-muted">Runtime cost</p><p className="mt-1 font-mono text-sm font-semibold text-foreground">{formatCost(activePoint.costUsd, activePoint.costUsd !== null)}</p></div>
+              <div><p className="font-sans text-system-meta text-muted">Agent Runs</p><p className="mt-1 font-sans text-sm font-semibold text-primary-light">{activePoint.agentRuns}</p></div>
+              <div><p className="font-sans text-system-meta text-muted">Network Runs</p><p className="mt-1 font-sans text-sm font-semibold text-network">{activePoint.networkRuns}</p></div>
+              <div><p className="font-sans text-system-meta text-muted">Successful</p><p className="mt-1 font-sans text-sm font-semibold text-success">{activePoint.agentSuccess + activePoint.networkSuccess}</p></div>
+              <div><p className="font-sans text-system-meta text-muted">Errors</p><p className="mt-1 font-sans text-sm font-semibold text-error">{activePoint.agentErrors + activePoint.networkErrors}</p></div>
+              <div><p className="font-sans text-system-meta text-muted">Runtime cost</p><p className="mt-1 font-sans text-sm font-semibold text-foreground">{formatCost(activePoint.costUsd, activePoint.costUsd !== null)}</p></div>
             </div>
           </div>
         )}
@@ -443,7 +443,7 @@ function OperationalIssues({ model }: { model: DashboardViewModel }) {
         <div className="xl:col-span-4"><p className="text-system-meta font-medium uppercase tracking-wide text-muted">What happened</p><div className="mt-2 space-y-2">{model.issues.summary.map((item) => <div key={item} className="rounded-lg border border-red-500/15 bg-background/45 px-3 py-2 text-xs text-error">{item}</div>)}</div>{model.issues.peakLabel && <p className="mt-3 text-xs text-muted">Failure peak: <span className="font-medium text-foreground">{model.issues.peakLabel}</span> · {model.issues.peakCount} errors</p>}</div>
         <div className="xl:col-span-3"><p className="text-system-meta font-medium uppercase tracking-wide text-muted">Most affected Agents</p><div className="mt-2 space-y-2">{model.issues.topAgents.length === 0 ? <p className="text-xs text-muted">No Agent failures.</p> : model.issues.topAgents.map((item) => <div key={`${item.entity_id}-${item.name}`} className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-background/45 px-3 py-2 text-xs"><span className="truncate text-slate-200">{item.name}</span><b className="text-error">{item.failure_count}</b></div>)}</div></div>
         <div className="xl:col-span-3"><p className="text-system-meta font-medium uppercase tracking-wide text-muted">Most affected Networks</p><div className="mt-2 space-y-2">{model.issues.topNetworks.length === 0 ? <p className="text-xs text-muted">No Network failures.</p> : model.issues.topNetworks.map((item) => <div key={`${item.entity_id}-${item.name}`} className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-background/45 px-3 py-2 text-xs"><span className="truncate text-slate-200">{item.name}</span><b className="text-error">{item.failure_count}</b></div>)}</div></div>
-        <div className="xl:col-span-2"><p className="text-system-meta font-medium uppercase tracking-wide text-muted">Failure codes</p><div className="mt-2 space-y-2">{model.issues.topCodes.map((item) => <div key={item.code} className="rounded-lg border border-border/70 bg-background/45 px-3 py-2"><p className="truncate font-mono text-system-meta text-slate-200">{item.code}</p><p className="mt-1 text-xs font-semibold text-error">{item.failure_count}</p></div>)}</div></div>
+        <div className="xl:col-span-2"><p className="text-system-meta font-medium uppercase tracking-wide text-muted">Failure codes</p><div className="mt-2 space-y-2">{model.issues.topCodes.map((item) => <div key={item.code} className="rounded-lg border border-border/70 bg-background/45 px-3 py-2"><p className="truncate font-sans text-system-meta text-slate-200">{item.code}</p><p className="mt-1 text-xs font-semibold text-error">{item.failure_count}</p></div>)}</div></div>
       </div>
     </Panel>
   )
@@ -541,7 +541,7 @@ function KnowledgeBase({ model, onOpen }: { model: DashboardViewModel; onOpen: (
             <div key={entry.label} className={`min-h-[62px] border-b border-border/60 px-4 py-3 ${index % 2 === 0 ? 'border-r' : ''}`}>
               <div className="flex min-w-0 items-center gap-2">
                 <Icon className={`h-3.5 w-3.5 shrink-0 ${entry.tone}`} />
-                <p className="truncate font-mono text-system-meta text-muted-foreground">{entry.label}</p>
+                <p className="truncate font-sans text-system-meta text-muted-foreground">{entry.label}</p>
               </div>
               <p className={`mt-1.5 truncate font-mono text-base font-semibold leading-none tabular-nums ${entry.tone}`}>{entry.value}</p>
             </div>

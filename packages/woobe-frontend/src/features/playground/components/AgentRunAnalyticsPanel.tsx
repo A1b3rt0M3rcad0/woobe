@@ -107,7 +107,7 @@ function CompositionRows({ rows }: { rows: CompositionRow[] }) {
         return (
           <div key={row.key}>
             <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2">
-              <span className="truncate font-sans text-system-meta text-slate-300">{row.label}</span>
+              <span className="truncate font-mono text-system-meta text-slate-300">{row.label}</span>
               <span className="font-mono text-system-meta text-slate-200">{formatTokens(row.units)}</span>
               <span className="w-10 text-right font-mono text-system-meta text-muted-foreground">{formatPercent(share)}</span>
             </div>
@@ -134,17 +134,17 @@ function InvocationDetails({ invocation, index }: { invocation: ContextModelInvo
       <summary className="flex cursor-pointer list-none items-center gap-2 px-2 py-2.5 text-left">
         <ChevronRight className="h-3 w-3 shrink-0 text-muted-foreground transition-transform group-open:rotate-90" />
         <div className="min-w-0 flex-1">
-          <p className="truncate font-mono text-system-meta font-semibold text-slate-200">Invocation #{callIndex} · {invocation.phase || 'model_invocation'}</p>
-          <p className="truncate font-mono text-system-meta text-muted-foreground">{invocation.provider || '—'}/{invocation.model || '—'}</p>
+          <p className="truncate font-sans text-system-meta font-semibold text-slate-200">Invocation #{callIndex} · {invocation.phase || 'model_invocation'}</p>
+          <p className="truncate font-sans text-system-meta text-muted-foreground">{invocation.provider || '—'}/{invocation.model || '—'}</p>
         </div>
         <div className="shrink-0 text-right">
-          <p className="font-mono text-system-meta text-slate-300">{total == null ? '—' : formatTokens(total)}</p>
-          <p className="font-mono text-system-meta text-muted-foreground">{invocation.latency_ms == null ? '—' : formatLatency(invocation.latency_ms)} · {formatCost(invocation.cost_usd ?? null)}</p>
+          <p className="font-sans text-system-meta text-slate-300">{total == null ? '—' : formatTokens(total)}</p>
+          <p className="font-sans text-system-meta text-muted-foreground">{invocation.latency_ms == null ? '—' : formatLatency(invocation.latency_ms)} · {formatCost(invocation.cost_usd ?? null)}</p>
         </div>
       </summary>
 
       <div className="space-y-3 px-2 pb-3 pl-7">
-        {blocked ? <div className="flex items-start gap-1.5 rounded-container border border-red-500/20 bg-background/25 px-2.5 py-2 font-sans text-system-meta leading-4 text-error"><AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />Provider call was blocked because mandatory Context exceeded the invocation budget.</div> : null}
+        {blocked ? <div className="flex items-start gap-1.5 rounded-container border border-red-500/20 bg-background/25 px-2.5 py-2 font-mono text-system-meta leading-4 text-error"><AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />Provider call was blocked because mandatory Context exceeded the invocation budget.</div> : null}
 
         <div className="grid grid-cols-2 gap-px overflow-hidden rounded-container border border-border/70 bg-border/70">
           {[
@@ -158,7 +158,7 @@ function InvocationDetails({ invocation, index }: { invocation: ContextModelInvo
         </div>
 
         <div>
-          <div className="mb-1.5 flex items-center justify-between gap-2"><p className="font-mono text-system-meta font-semibold uppercase tracking-[0.08em] text-muted-foreground">Context composition</p><span className="font-mono text-system-meta text-muted-foreground">estimated source units</span></div>
+          <div className="mb-1.5 flex items-center justify-between gap-2"><p className="font-sans text-system-meta font-semibold uppercase tracking-[0.08em] text-muted-foreground">Context composition</p><span className="font-mono text-system-meta text-muted-foreground">estimated source units</span></div>
           <CompositionRows rows={rows} />
         </div>
 
@@ -203,7 +203,7 @@ export function AgentRunAnalyticsPanel({ traceId, runId, finalizing = false }: {
   return (
     <div className="space-y-3 border-b border-border p-3">
       <div className="flex items-start justify-between gap-3">
-        <div><p className="font-mono text-system-meta font-semibold text-slate-50">Run Analytics</p><p className="mt-0.5 font-sans text-system-meta leading-4 text-muted-foreground">Run totals first; invocation detail remains available on demand.</p></div>
+        <div><p className="font-sans text-system-meta font-semibold text-slate-50">Run Analytics</p><p className="mt-0.5 font-sans text-system-meta leading-4 text-muted-foreground">Run totals first; invocation detail remains available on demand.</p></div>
         {fallbackUsed ? <span className="rounded-technical border border-amber-500/25 bg-amber-500/[0.07] px-1.5 py-0.5 font-mono text-system-meta text-warning">Fallback used</span> : null}
       </div>
 
@@ -223,8 +223,8 @@ export function AgentRunAnalyticsPanel({ traceId, runId, finalizing = false }: {
         <span>Cost telemetry {costStatus}</span>
       </div>
 
-      <SectionBlock density="compact" eyebrow="Context" title="Input composition" description={`Cumulative across ${invocations.length} Model Invocation${invocations.length === 1 ? '' : 's'}`} actions={<div className="text-right"><p className="font-mono text-system-meta text-slate-50">{trackedContextUnits ? formatTokens(trackedContextUnits) : '—'}</p><p className="font-mono text-system-meta text-muted-foreground">{contextMeasurement}</p></div>} className="bg-background/20">
-        {context.isLoading ? <div className="flex items-center gap-2 font-sans text-system-meta text-muted-foreground"><RefreshCw className="h-3 w-3 animate-spin" />Loading Context composition…</div> : context.isError ? <div className="flex items-start gap-1.5 font-sans text-system-meta text-warning"><AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />Context composition is unavailable for this Run.</div> : !invocations.length && finalizing ? <div className="flex items-center gap-2 font-sans text-system-meta text-muted-foreground"><RefreshCw className="h-3 w-3 animate-spin" />Finalizing Context evidence…</div> : <CompositionRows rows={rows} />}
+      <SectionBlock density="compact" eyebrow="Context" title="Input composition" description={`Cumulative across ${invocations.length} Model Invocation${invocations.length === 1 ? '' : 's'}`} actions={<div className="text-right"><p className="font-sans text-system-meta text-slate-50">{trackedContextUnits ? formatTokens(trackedContextUnits) : '—'}</p><p className="font-sans text-system-meta text-muted-foreground">{contextMeasurement}</p></div>} className="bg-background/20">
+        {context.isLoading ? <div className="flex items-center gap-2 font-mono text-system-meta text-muted-foreground"><RefreshCw className="h-3 w-3 animate-spin" />Loading Context composition…</div> : context.isError ? <div className="flex items-start gap-1.5 font-mono text-system-meta text-warning"><AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />Context composition is unavailable for this Run.</div> : !invocations.length && finalizing ? <div className="flex items-center gap-2 font-mono text-system-meta text-muted-foreground"><RefreshCw className="h-3 w-3 animate-spin" />Finalizing Context evidence…</div> : <CompositionRows rows={rows} />}
         <p className="mt-2 font-sans text-system-meta leading-3.5 text-muted-foreground">Source shares use persisted Context contribution units. They are not a proportional allocation of USD cost.</p>
       </SectionBlock>
 

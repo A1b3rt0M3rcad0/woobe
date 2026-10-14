@@ -16,7 +16,7 @@ export function NetworkReleaseModal({ action, draftBindings, stagingBindings, on
     <Dialog open onClose={onClose} title={title} className="max-w-dialog" scrollMode="content">
       <div className="space-y-ui-md">
         <div>
-          <p className="font-mono text-system-meta uppercase tracking-ui-eyebrow text-primary-light">{eyebrow}</p>
+          <p className="font-sans text-system-meta uppercase tracking-ui-eyebrow text-primary-light">{eyebrow}</p>
           <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">The plan resolves every node to a compatible exact version.</p>
         </div>
 

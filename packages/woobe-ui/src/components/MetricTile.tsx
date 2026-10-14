@@ -12,15 +12,15 @@ const MetricTile = forwardRef<HTMLDivElement, MetricTileProps>(
   ({ className, label, value, icon, detail, ...props }, ref) => (
     <div
       ref={ref}
-      className={cn('min-w-0 rounded-container border border-border bg-background/35 px-ui-xl py-ui-lg', className)}
+      className={cn('min-w-0 rounded-container border border-border bg-surface shadow-panel px-ui-xl py-ui-lg', className)}
       {...props}
     >
-      <div className="flex items-center gap-ui-xs font-sans text-system-meta text-muted-foreground">
+      <div className="flex items-center gap-ui-xs font-mono text-system-meta text-muted-foreground">
         {icon ? <span className="shrink-0 text-muted-foreground">{icon}</span> : null}
         <span className="truncate">{label}</span>
       </div>
-      <div className="mt-ui-sm truncate font-sans text-metric tabular-nums font-semibold text-accent-foreground">{value}</div>
-      {detail ? <div className="mt-ui-xs truncate font-sans text-product-caption text-muted-foreground">{detail}</div> : null}
+      <div className="mt-ui-sm break-words font-mono text-metric tabular-nums font-normal text-accent-foreground">{value}</div>
+      {detail ? <div className="mt-ui-xs font-mono text-product-caption text-muted-foreground">{detail}</div> : null}
     </div>
   ),
 )

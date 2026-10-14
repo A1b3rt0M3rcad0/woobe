@@ -415,9 +415,9 @@ export function McpProviderPanel({ tool, footerActions, summaryNote, onChanged, 
   return (
     <div className="mt-ui-sm">
       <div className={footerActions ? 'min-w-0 pl-ui-xl' : 'min-w-0'}>
-        <p title={providerHost(tool)} className="truncate font-mono text-system-micro text-muted-foreground">{providerHost(tool)}</p>
-        <p className="mt-ui-sm font-mono text-system-micro text-muted-foreground">MCP · {state.discovered_count} tools · {state.exposed_count} allowed</p>
-        <p className="mt-ui-sm flex items-center gap-ui-xs font-mono text-system-micro text-muted-foreground"><span className={`h-1.5 w-1.5 shrink-0 rounded-full ${statusTone(visibleState)}`} />{visibleLabel}</p>
+        <p title={providerHost(tool)} className="truncate font-sans text-system-micro text-muted-foreground">{providerHost(tool)}</p>
+        <p className="mt-ui-sm font-sans text-system-micro text-muted-foreground">MCP · {state.discovered_count} tools · {state.exposed_count} allowed</p>
+        <p className="mt-ui-sm flex items-center gap-ui-xs font-sans text-system-micro text-muted-foreground"><span className={`h-1.5 w-1.5 shrink-0 rounded-full ${statusTone(visibleState)}`} />{visibleLabel}</p>
       </div>
       {summaryNote}
       <div className="mt-ui-md grid grid-cols-2 gap-ui-sm border-t border-border/75 pt-ui-md">
@@ -425,7 +425,7 @@ export function McpProviderPanel({ tool, footerActions, summaryNote, onChanged, 
         {footerActions}
       </div>
 
-      {diagnostic ? <p className="mt-ui-xs line-clamp-2 px-ui-xs font-mono text-system-meta leading-4 text-warning">{state.message}</p> : null}
+      {diagnostic ? <p className="mt-ui-xs line-clamp-2 px-ui-xs font-sans text-system-meta leading-4 text-warning">{state.message}</p> : null}
       {state.oauth_connected ? (
         <button type="button" onClick={() => void handleDisconnect()} className="mt-ui-xs px-ui-xs font-mono text-system-micro text-muted-foreground hover:text-foreground">Disconnect</button>
       ) : null}
@@ -460,10 +460,10 @@ export function McpProviderPanel({ tool, footerActions, summaryNote, onChanged, 
                   <div key={item.name} className="grid gap-3 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
                     <div className="min-w-0">
                       <p className="truncate text-xs font-medium text-foreground">{item.title || item.name}</p>
-                      <p className="mt-0.5 truncate font-mono text-system-meta text-muted">{item.name}</p>
+                      <p className="mt-0.5 truncate font-sans text-system-meta text-muted">{item.name}</p>
                       {item.description ? <p className="mt-1 line-clamp-2 text-system-meta leading-4 text-muted">{item.description}</p> : null}
                       {Object.keys(item.bindings || {}).length ? (
-                        <p className="mt-1 font-mono text-system-meta text-primary-light">
+                        <p className="mt-1 font-sans text-system-meta text-primary-light">
                           {Object.keys(item.bindings || {}).length} context binding{Object.keys(item.bindings || {}).length === 1 ? '' : 's'}
                         </p>
                       ) : null}

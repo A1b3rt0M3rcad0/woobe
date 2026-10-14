@@ -31,10 +31,10 @@ const EmptyStatePanel = forwardRef<HTMLDivElement, EmptyStatePanelProps>(
       {...props}
     >
       {icon ? <div className="mb-ui-lg flex h-control-row w-control-row items-center justify-center rounded-container border border-border bg-control text-primary">{icon}</div> : null}
-      <div className="font-sans text-section-title font-semibold text-slate-200">{title}</div>
+      <div className="font-mono text-section-title font-medium text-slate-200">{title}</div>
       {description ? (
         <div className={cn(
-          'mt-ui-xs max-w-md font-sans text-muted-foreground',
+          'mt-ui-xs max-w-md font-mono text-muted-foreground',
           'text-product-caption',
         )}>
           {description}

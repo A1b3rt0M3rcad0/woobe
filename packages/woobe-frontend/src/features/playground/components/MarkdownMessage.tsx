@@ -364,7 +364,7 @@ export function MarkdownMessage({ content, isStreaming, className }: MarkdownMes
     const currentKey = key++
     blocks.push(
       <div key={`table-${currentKey}`} className="my-ui-md overflow-x-auto rounded-container border border-border bg-background/35">
-        <table className="min-w-full border-collapse font-sans text-product-small">
+        <table className="min-w-full border-collapse font-mono text-product-small">
           <thead className="bg-surface/70 font-mono text-system-label text-muted-foreground">
             <tr>
               {table.headers.map((header, headerIndex) => (
@@ -464,7 +464,7 @@ export function MarkdownMessage({ content, isStreaming, className }: MarkdownMes
         <HeadingTag
           key={`h-${currentKey}`}
           className={cn(
-            'mt-ui-xs font-sans font-semibold text-slate-50',
+            'mt-ui-xs font-mono font-semibold text-slate-50',
             level === 1 && 'text-heading-lg',
             level === 2 && 'text-heading',
             level === 3 && 'text-heading-sm',
@@ -484,7 +484,7 @@ export function MarkdownMessage({ content, isStreaming, className }: MarkdownMes
       blocks.push(
         <blockquote
           key={`quote-${currentKey}`}
-          className="border-l-2 border-primary/60 pl-ui-md font-sans text-muted-foreground"
+          className="border-l-2 border-primary/60 pl-ui-md font-mono text-muted-foreground"
         >
           {renderInline(quoteMatch[1], `quote-${currentKey}`)}
         </blockquote>,

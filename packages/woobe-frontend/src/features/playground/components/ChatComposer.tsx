@@ -124,7 +124,7 @@ export function ChatComposer({
                 : <ChevronRight className="h-icon-sm w-icon-sm text-muted-foreground" />}
               <Braces className="h-icon-sm w-icon-sm text-primary-light" />
               <span className="font-mono text-system-control font-medium text-slate-100">External Context</span>
-              <span className="font-sans text-product-caption text-muted-foreground">
+              <span className="font-mono text-product-caption text-muted-foreground">
                 {externalContextFieldEntries.length} field{externalContextFieldEntries.length === 1 ? '' : 's'}
               </span>
               {missingRequiredExternalContextFields > 0 ? (
@@ -175,19 +175,19 @@ export function ChatComposer({
           placeholder={runtimeBlocked ? (runtimeBlockReason ?? 'Runtime blocked') : placeholder}
           rows={1}
           className={compact
-            ? 'min-h-control max-h-multiline min-w-0 w-full resize-none bg-transparent px-ui-sm py-ui-sm font-sans text-product-small text-slate-100 outline-none placeholder:text-muted-foreground'
-            : 'min-h-control-row max-h-multiline min-w-0 w-full resize-none bg-transparent px-ui-md py-ui-sm font-sans text-product-reading text-slate-100 outline-none placeholder:text-muted-foreground'}
+            ? 'min-h-control max-h-multiline min-w-0 w-full resize-none bg-transparent px-ui-sm py-ui-sm font-mono text-product-small text-slate-100 outline-none placeholder:text-muted-foreground'
+            : 'min-h-control-row max-h-multiline min-w-0 w-full resize-none bg-transparent px-ui-md py-ui-sm font-mono text-product-reading text-slate-100 outline-none placeholder:text-muted-foreground'}
           disabled={blocked}
         />
         <div className={compact
           ? 'flex min-w-0 items-center justify-between gap-ui-xs border-t border-border/60 px-ui-xs py-ui-xs'
           : 'flex min-w-0 items-center justify-between border-t border-border/60 px-ui-sm py-ui-sm'}>
           <div className="flex min-w-0 items-center gap-ui-xs">
-            <Button type="button" variant="ghost" size={compact ? 'xs' : 'sm'} disabled={blocked} className="font-sans text-muted-foreground">
+            <Button type="button" variant="ghost" size={compact ? 'xs' : 'sm'} disabled={blocked} className="font-mono text-muted-foreground">
               <Paperclip className="h-icon-sm w-icon-sm" />
               Attach
             </Button>
-            <Button type="button" variant="ghost" size={compact ? 'xs' : 'sm'} disabled={blocked} className="font-sans text-muted-foreground">
+            <Button type="button" variant="ghost" size={compact ? 'xs' : 'sm'} disabled={blocked} className="font-mono text-muted-foreground">
               <Wrench className="h-icon-sm w-icon-sm" />
               Tools
             </Button>
