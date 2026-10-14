@@ -25,7 +25,7 @@ npx playwright test --config playwright.config.ts
 When no external frontend is configured, the runner builds and serves both.
 Set `WOOBE_CAPTURE_DOCS=1` to refresh the documented screenshots after assertions;
 see [capture provenance and instructions](../../docs/screenshots/README.md).
-The suite includes axe checks for the Overview and real ChatSurface iframe, and
+The suite includes axe checks for the Overview, ten resource families and real ChatSurface iframe, and
 keyboard/mobile regressions across 360–1920px.
 `fullstack.config.ts` is the separate real-service product suite. Generated
 `test-results/` and `playwright-report/` remain local evidence.

@@ -412,7 +412,7 @@ export default function CredentialsPage() {
         />
         <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px]">
           <ResourceSearch value={query} onChange={setQuery} placeholder="Search Credentials, providers or endpoints..." label="Search Credentials" />
-          <Select value={providerFilter} onChange={(event) => setProviderFilter(event.target.value)} className="h-10" options={[{ value: 'all', label: 'All providers' }, ...providerOptions.map((provider) => ({ value: provider, label: modelProviderLabel(provider) }))]} />
+          <Select aria-label="Filter by provider" value={providerFilter} onChange={(event) => setProviderFilter(event.target.value)} className="h-10" options={[{ value: 'all', label: 'All providers' }, ...providerOptions.map((provider) => ({ value: provider, label: modelProviderLabel(provider) }))]} />
         </div>
       </ResourceToolbar>
 

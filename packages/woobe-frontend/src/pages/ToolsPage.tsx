@@ -113,6 +113,7 @@ export default function ToolsPage() {
         <div className="grid gap-ui-sm lg:grid-cols-[minmax(0,1fr)_180px_160px]">
           <ResourceSearch value={query} onChange={setQuery} placeholder="Search Tools, protocols or risk..." label="Search Tools" />
           <Select
+            aria-label="Filter Tools by protocol"
             value={protocolFilter}
             onChange={(event) => setProtocolFilter(event.target.value as ToolProtocolFilter)}
             options={[
@@ -123,6 +124,7 @@ export default function ToolsPage() {
             ]}
           />
           <Select
+            aria-label="Filter Tools by risk"
             value={riskFilter}
             onChange={(event) => setRiskFilter(event.target.value as ToolRiskFilter)}
             options={[

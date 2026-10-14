@@ -184,6 +184,7 @@ export default function ModelsPage() {
         <div className="grid gap-ui-sm lg:grid-cols-[minmax(0,1fr)_220px]">
           <ResourceSearch value={query} onChange={setQuery} placeholder="Search Models, providers or credentials..." label="Search Models" />
           <Select
+            aria-label="Filter by provider"
             value={providerFilter}
             onChange={(event) => setProviderFilter(event.target.value)}
             options={[

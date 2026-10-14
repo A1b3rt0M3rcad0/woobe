@@ -102,6 +102,7 @@ test('resource families share readable states and retain their owning routes', a
     direct_agent_runs: [], network_runs: [],
   }))
   const failures: string[] = []
+  const accessibilityFailures: unknown[] = []
   page.on('pageerror', error => failures.push(error.message))
   for (const [segment, title] of [
     ['knowledge', 'Knowledge'], ['tools', 'Tools'], ['skills', 'Skills'],
@@ -113,10 +114,11 @@ test('resource families share readable states and retain their owning routes', a
     await expect(page.getByRole('heading', { name: title, level: 1, exact: true })).toBeVisible()
     await expect(page.getByText('Something went wrong', { exact: true })).not.toBeVisible()
     const audit = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()
-    expect(audit.violations.map(({ id, nodes }) => ({ id, targets: nodes.map(node => ({ target: node.target, summary: node.failureSummary })) }))).toEqual([])
+    accessibilityFailures.push(...audit.violations.map(({ id, nodes }) => ({ surface: segment, id, targets: nodes.map(node => ({ target: node.target, summary: node.failureSummary })) })))
     await capture(page, segment)
   }
   expect(failures).toEqual([])
+  expect(accessibilityFailures).toEqual([])
 })
 
 test('Agent and Network workspaces keep release context and their separate runtime surfaces', async ({ page }) => {

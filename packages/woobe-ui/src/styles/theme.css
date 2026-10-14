@@ -37,3 +37,7 @@
     scroll-behavior: auto !important;
   }
 }
+
+.woobe-dark :where(button, a, input, textarea, select, summary, [tabindex]):focus-visible {
+  outline-color: rgb(var(--woobe-link));
+}

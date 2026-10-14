@@ -299,6 +299,7 @@ export default function UsagePage() {
             {operation !== 'agent' ? (
               <Select
                 id="usage-network-scope"
+                aria-label="Network scope"
                 value={networkScope?.id ?? ''}
                 onChange={(event) => selectNetwork(event.target.value)}
                 className="min-w-[200px]"
@@ -310,6 +311,7 @@ export default function UsagePage() {
             ) : null}
             <Select
               id="usage-analyze-by"
+              aria-label="Analyze usage by"
               value={lens}
               onChange={(event) => setLens(event.target.value as UsageLens)}
               className="min-w-[190px]"
