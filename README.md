@@ -1,6 +1,8 @@
 # Woobe — Control Plane for Production AI Agents
 
-![Woobe — Product Overview](docs/assets/woobe-product-overview.png)
+![Woobe Control Plane — Project Overview](docs/screenshots/project-overview.png)
+
+*Rendered interface with demonstration data. [Screenshots and reproduction instructions](docs/screenshots/README.md).*
 
 **Define, version, test, deploy and operate AI agents like production software.**
 
