@@ -5,6 +5,8 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
 
+VECTOR_SNAPSHOT_PENDING = "PENDING_PREPARATION"
+
 VECTOR_SNAPSHOT_BUILDING = "BUILDING"
 VECTOR_SNAPSHOT_READY = "READY"
 VECTOR_SNAPSHOT_FAILED = "FAILED"
@@ -39,6 +41,7 @@ class VectorSnapshot:
     build_config: dict[str, Any] | None = None
     snapshot_hash: str | None = None
     build_config_hash: str | None = None
+    preparation_environment: str | None = None
     document_count: int = 0
     chunk_count: int = 0
     vector_count: int = 0

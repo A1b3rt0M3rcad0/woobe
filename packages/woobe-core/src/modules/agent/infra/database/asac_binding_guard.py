@@ -6,6 +6,7 @@ from modules.agent.infra.database.vector_snapshot_models import VectorSnapshotMo
 from modules.agent.infra.database.provider_model_repositories import ProviderModelModel
 from modules.agent.infra.database.portable_export_reader import authorize_export_read
 from shared.contracts.errors import ConflictError
+from shared.contracts.project_configuration import compile_authentication
 
 
 class AgentASaCBindingGuard:
@@ -23,8 +24,17 @@ class AgentASaCBindingGuard:
             row=await session.scalar(select(ProviderCredentialModel).where(
                 ProviderCredentialModel.id==UUID(evidence['credential_id']),ProviderCredentialModel.project_id==project_id)
                 .with_for_update(read=True))
-            if row is None or row.status!='active' or {'credential_id':str(row.id),'provider':row.provider,
-                'revision':row.updated_at.isoformat(),'existing':True}!=evidence:
+            actual = None if row is None else {'credential_id':str(row.id),'provider':row.provider,
+                'revision':row.updated_at.isoformat(),'existing':True}
+            if actual is not None and 'binding_revision' in evidence:
+                actual.pop('revision')
+                actual['binding_revision'] = row.binding_revision
+            if actual is not None and 'binding_source' in evidence:
+                authentication = compile_authentication(row.authentication or {}, allow_legacy=True)
+                actual['binding_source'] = ('legacy_configuration' if any(
+                    ref['source'] == 'legacy_configuration' for ref in authentication['fields'].values()
+                ) else 'project_environment')
+            if row is None or row.status!='active' or actual!=evidence:
                 raise ConflictError('ASAC_DEPLOYMENT_BINDINGS_CHANGED: credential version unavailable')
         for alias,evidence in sorted(expected.get('secrets',{}).items()):
             if evidence.get('existing') is not True or 'secret_id' not in evidence:

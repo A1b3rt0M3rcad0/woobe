@@ -76,7 +76,8 @@ async def test_cli_upload_and_native_plan_against_live_postgres(
             "provider": "custom",
             "name": "Package fake provider",
             "secret": "ephemeral-package-test-provider-key",
-            "metadata": {"provider_family": "openai", "compatibility": "compatible"},
+            "metadata": {"provider_family": "openai", "compatibility": "compatible",
+                         "base_url": os.environ["WOOBE_TEST_FAKE_PROVIDER_URL"]},
         },
     )
     cli.secret_values.add("ephemeral-package-test-provider-key")
@@ -663,6 +664,7 @@ async def test_cli_upload_and_native_plan_against_live_postgres(
                 "metadata": {
                     "provider_family": "openai",
                     "compatibility": "compatible",
+                    "base_url": os.environ["WOOBE_TEST_FAKE_PROVIDER_URL"],
                 },
             },
         )

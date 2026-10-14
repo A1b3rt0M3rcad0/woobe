@@ -96,7 +96,7 @@ class Bundle:
     def lock(self):
         return {
             "format": "woobe-package",
-            "schema_version": "1.0",
+            "schema_version": self.graph.manifest["schema_version"],
             "kind": "PackageLock",
             "algorithm": "sha256",
             "inventory": self.inventory,
@@ -219,7 +219,7 @@ def snapshot_directory(source: Path, *, locked=False) -> Bundle:
                 capture(support)
         graph = resolve_graph(manifest, documents)
         inventory.sort(key=lambda item: item["path"])
-        bundle = Bundle(temporary, root, graph, inventory, inventory_digest(inventory))
+        bundle = Bundle(temporary, root, graph, inventory, inventory_digest(inventory, schema_version=manifest["schema_version"]))
         lock_path = source / "woobe.lock.json"
         if lock_path.exists() or lock_path.is_symlink():
             with confined_reader(source, "woobe.lock.json") as stream:

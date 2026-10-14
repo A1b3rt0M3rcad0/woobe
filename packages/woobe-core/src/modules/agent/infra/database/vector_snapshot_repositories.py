@@ -46,6 +46,7 @@ def _snapshot_model_to_entity(model: VectorSnapshotModel) -> VectorSnapshot:
         chunking_strategy=model.chunking_strategy,
         parser_config=model.parser_config,
         build_config=model.build_config,
+        preparation_environment=model.preparation_environment,
         snapshot_hash=model.snapshot_hash,
         build_config_hash=model.build_config_hash,
         document_count=model.document_count,
@@ -87,6 +88,7 @@ def _snapshot_entity_to_model(entity: VectorSnapshot) -> VectorSnapshotModel:
         chunking_strategy=entity.chunking_strategy,
         parser_config=entity.parser_config,
         build_config=entity.build_config,
+        preparation_environment=entity.preparation_environment,
         snapshot_hash=entity.snapshot_hash,
         build_config_hash=entity.build_config_hash,
         document_count=entity.document_count,
@@ -191,6 +193,10 @@ class SQLAlchemyVectorSnapshotRepository(VectorSnapshotRepository):
         return self._uow.session
 
     async def create(self, snapshot: VectorSnapshot) -> VectorSnapshot:
+        from modules.agent.application.interfaces.project_configuration import configuration_for_session
+        port = configuration_for_session(self._session)
+        if port is not None:
+            await port.lock_project(snapshot.project_id)
         model = _snapshot_entity_to_model(snapshot)
         self._session.add(model)
         await self._session.flush()

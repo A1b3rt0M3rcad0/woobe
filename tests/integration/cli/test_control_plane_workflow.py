@@ -176,8 +176,9 @@ class Cli:
 
 
 @pytest_asyncio.fixture
-async def cli(tmp_path):
+async def cli(tmp_path, monkeypatch):
     binary = os.environ.get("WOOBE_CLI_BINARY", "/artifacts/woobe")
+    expected_cli_commit = os.environ.get("WOOBE_TEST_CLI_SHA", CLI_COMMIT)
     if not Path(binary).is_file():
         if os.environ.get("WOOBE_REQUIRE_CLI_E2E", "false").lower() == "true":
             pytest.fail(
@@ -187,6 +188,16 @@ async def cli(tmp_path):
             "Compile the pinned CLI and set WOOBE_CLI_BINARY to run this contract"
         )
     settings = Settings()
+    # Some contract cases execute an owner worker in this test process. Install
+    # the same configuration ports as the API/Worker subprocesses, scoped to the
+    # fixture, so those paths cannot bypass readiness through missing composition.
+    from modules.agent.application.interfaces import project_configuration
+    from modules.network.application import configuration_acceptance
+    from modules.core.entrypoint import build_project_configuration_runtime, build_configuration_acceptor, build_configuration_runtime_resolver
+    from modules.agent.entrypoint import collect_configuration_dependencies, verify_configuration_consumer
+    monkeypatch.setattr(project_configuration, "_factory", build_project_configuration_runtime)
+    monkeypatch.setattr(project_configuration, "_runtime_resolver", build_configuration_runtime_resolver(consumer_verifier=verify_configuration_consumer))
+    monkeypatch.setattr(configuration_acceptance, "_accept", build_configuration_acceptor(collect_configuration_dependencies))
     engine = create_engine(settings)
     factory = create_session_factory(engine)
     workspace_id = uuid4()
@@ -314,7 +325,7 @@ async def cli(tmp_path):
             else:
                 pytest.fail("Live API did not become ready")
         version = await harness.run("version")
-        assert version["data"]["commit"] == CLI_COMMIT
+        assert version["data"]["commit"] == expected_cli_commit
         yield harness
     finally:
         for process in processes:
@@ -334,7 +345,7 @@ async def cli(tmp_path):
             (evidence_dir / f"cli-contract-{workspace_id}.json").write_text(
                 json.dumps(
                     {
-                        "cli_commit": CLI_COMMIT,
+                        "cli_commit": expected_cli_commit,
                         "server_commit": os.environ.get("WOOBE_TEST_SERVER_SHA"),
                         "database_revision": database_revision,
                         "openapi_sha256": harness.openapi_sha256,

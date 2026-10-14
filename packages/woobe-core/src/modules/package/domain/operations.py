@@ -88,9 +88,15 @@ def operation_status(record) -> dict[str, Any]:
     """Only explicit operational evidence is exposed; protected payloads stay private."""
     state = OperationState(record.state)
     return {
+        **({"installation_mode": "structural",
+            "installation_status": "installed" if state == OperationState.SUCCEEDED else "pending",
+            "configuration_status": "ready" if record.configuration_ready else "unknown",
+            "runtime_preparation_status": "ready" if record.execution_ready else "pending",
+            "deployment_status": "not_activated"}
+           if getattr(record, "installation_mode", "operational") == "structural" else {}),
         "operation_id": str(record.id),
         "project_id": str(record.project_id),
-        "package_schema_version": "1.0",
+        "package_schema_version": getattr(record, "package_schema_version", "1.0"),
         "artifact_digest": record.artifact_digest,
         "state": state.value,
         "terminal": state in TERMINAL_STATES,

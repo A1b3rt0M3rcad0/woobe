@@ -48,6 +48,7 @@ const buildNavItems: NavItem[] = [
 ]
 
 const operateNavItems: NavItem[] = [
+  { label: 'Environments', icon: Key, href: (workspaceId: string, projId: string) => workspaceProjectPath(workspaceId, projId, 'environments') },
   { label: 'ChatSurfaces', icon: MessageSquare, href: (workspaceId: string, projId: string) => workspaceProjectPath(workspaceId, projId, 'chat-surfaces') },
   { label: 'API Keys', icon: Key, href: (workspaceId: string, projId: string) => workspaceProjectPath(workspaceId, projId, 'api-keys') },
   { label: 'Usage', icon: BarChart3, href: (workspaceId: string, projId: string) => workspaceProjectPath(workspaceId, projId, 'usage') },

@@ -42,7 +42,7 @@ from modules.agent.presentation.controllers.create_release_controller import (
 from shared.infra.transactional_handler import TransactionalHandler
 
 
-def _build_finalization_controller(uow, allow_existing) -> TransactionalHandler:
+def _build_finalization_controller(uow, allow_existing, *, structural=False) -> TransactionalHandler:
     agents = SQLAlchemyAgentRepositoryWithProviderModels(uow)
     releases = SQLAlchemyAgentReleaseRepositoryWithProviderModels(uow)
     knowledge = SQLAlchemyKnowledgeVersionRepository(uow)
@@ -54,7 +54,7 @@ def _build_finalization_controller(uow, allow_existing) -> TransactionalHandler:
     models = SQLAlchemyProviderModelRepository(uow)
     outbox = SQLAlchemyAgentOutboxEventWriter(uow)
     usage = SQLAlchemyNetworkAgentUsageReader(uow)
-    validator = KnowledgeReleaseValidator(knowledge, vectors)
+    validator = KnowledgeReleaseValidator(knowledge, vectors, allow_pending=structural)
     save_release = KnowledgeSafeCreateReleaseUseCase(
         releases, validator, tools, skills, project_environment_reader=environment
     )
@@ -82,4 +82,10 @@ def finalize_imported_agent_composer() -> TransactionalHandler:
 def finalize_existing_agent_composer() -> TransactionalHandler:
     uow = AgentUnitOfWork(DATABASE_ENGINE)
     controller = _build_finalization_controller(uow, True)
+    return TransactionalHandler(uow, controller.handle)
+
+
+def finalize_imported_agent_structural_composer() -> TransactionalHandler:
+    uow = AgentUnitOfWork(DATABASE_ENGINE)
+    controller = _build_finalization_controller(uow, False, structural=True)
     return TransactionalHandler(uow, controller.handle)

@@ -326,6 +326,20 @@ class AnthropicChatModel:
         )
 
     async def ainvoke(self, messages: list[BaseMessage]) -> AIMessage:
+        from modules.agent.infra.adapters.configuration_transport import BoundConfigurationCredential, ConfigurationTransport
+        if isinstance(self.api_key, BoundConfigurationCredential):
+            import httpx
+            transport = ConfigurationTransport(self.api_key, header="X-Api-Key", prefix="")
+            async with httpx.AsyncClient(transport=transport, follow_redirects=False, trust_env=False, timeout=120) as client:
+                response = await client.post(f"{self.base_url}/v1/messages", json=self._payload(messages),
+                    headers={"anthropic-version": self.anthropic_version})
+                if response.status_code >= 300:
+                    raise AnthropicChatModelError("Anthropic request failed")
+                try:
+                    payload = response.json()
+                except ValueError:
+                    raise AnthropicChatModelError("Anthropic returned invalid JSON") from None
+            return self._result(payload)
         payload = await asyncio.to_thread(
             _post_json,
             f"{self.base_url}/v1/messages",

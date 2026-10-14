@@ -5,6 +5,7 @@ from uuid import UUID, uuid4
 from sqlalchemy import select, text
 from shared.contracts.asac import asac_digest
 from shared.contracts.errors import ConflictError, NotFoundError
+from shared.contracts.project_configuration import ConfigurationError
 from shared.infra.admin_idempotency import principal_identity
 from shared.infra.asac_lease_store import database_now, _utc
 from shared.infra.asac_lease_errors import asac_lease_database_errors
@@ -47,6 +48,9 @@ class ASaCDeploymentStore:
         self.policy,self.maximum_plan_seconds=policy,maximum_plan_seconds
 
     async def _authorize(self,session,args,environment,*,write=False):
+        guard = getattr(self.selector, "configuration_lock", None)
+        if write and guard is not None:
+            await guard(session, project_id=args['project_id'])
         await self.drafts.owner.inspect(session,**args,kind=self.drafts.kind,environment=environment,lock=write,
             required_permission=self.drafts.kind.lower()+(':production' if environment=='production' and write else ':version' if write else ':read'))
 
@@ -84,6 +88,10 @@ class ASaCDeploymentStore:
             value=await self.policy.inspect(session,**args,environment=environment)
         return {'policy':value,'project_policy_digest':asac_digest('project-lifecycle-policy',value)}
 
+    async def _configuration(self, session, args, environment, release_id):
+        guard = getattr(self.selector, "configuration", None)
+        return await guard(session, **args, environment=environment, release_id=release_id) if guard else None
+
     async def plan(self,*,project_id,resource_id,principal,request):
         args=dict(project_id=project_id,resource_id=resource_id,principal=principal)
         async with self.drafts.transactions.begin() as session:
@@ -104,6 +112,7 @@ class ASaCDeploymentStore:
             if fingerprints!=current.runtime_fingerprints:
                 raise ConflictError('ASAC_DEPLOYMENT_BINDINGS_CHANGED')
             await self.bindings.verify(session,**args,environment=request.environment,expected=fingerprints)
+            configuration=await self._configuration(session,args,request.environment,request.release_id)
             policy=await self._policy(session,args,request.environment)
             now=await database_now(session)
             row=self.plans(project_id=project_id,resource_id=resource_id,publication_id=pub.id,release_id=request.release_id,
@@ -113,7 +122,8 @@ class ASaCDeploymentStore:
                 evidence={'kind':self.drafts.kind,'runtime_digest':current.runtime_digest,'runtime_digest_scope':current.runtime_digest_scope,
                     'record_digest':current.record_digest,'binding_digest':evaluation.binding_digest,
                     'runtime_fingerprints':fingerprints,'evaluation_id':str(evaluation.id),'candidate_id':str(current.id),
-                    'native_fingerprint':native['fingerprint'],'clock_authority':'database',**policy})
+                    'native_fingerprint':native['fingerprint'],'clock_authority':'database',
+                    **({'configuration':configuration} if configuration is not None else {}),**policy})
             session.add(row); await session.flush()
             return self.drafts._receipt(session,**args,request=request,digest=digest,result=plan_output(row))
 
@@ -153,6 +163,9 @@ class ASaCDeploymentStore:
             if policy['project_policy_digest']!=plan.evidence['project_policy_digest']:
                 raise ConflictError('ASAC_DEPLOYMENT_POLICY_CHANGED: create a plan under the current policy')
             await self.bindings.verify(session,**args,environment=plan.environment,expected=fingerprints)
+            configuration=await self._configuration(session,args,plan.environment,plan.release_id)
+            if configuration != plan.evidence.get('configuration'):
+                raise ConfigurationError('CONFIG_REVISION_CONFLICT', environment=plan.environment)
             await self.drafts.leases.check(session,**args,scope=plan.environment,proofs=request.leases,required=True)
             identifier,outbox_id=uuid4(),uuid4()
             if session.bind.dialect.name=='postgresql':

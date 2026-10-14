@@ -5,7 +5,7 @@ from typing import Any
 from uuid import UUID
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, text
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -16,6 +16,7 @@ from shared.infra.database.base import BaseModel
 class VectorSnapshotModel(BaseModel):
     __tablename__ = "vector_snapshots"
     __table_args__ = (
+        CheckConstraint("preparation_environment IS NULL OR preparation_environment IN ('draft', 'staging', 'production')", name="ck_vector_preparation_environment"),
         UniqueConstraint(
             "project_id",
             "collection_id",
@@ -47,6 +48,7 @@ class VectorSnapshotModel(BaseModel):
     chunking_strategy: Mapped[str] = mapped_column(String(64), default="recursive_text")
     parser_config: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     build_config: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    preparation_environment: Mapped[str | None] = mapped_column(String(16))
     snapshot_hash: Mapped[str | None] = mapped_column(String(64))
     build_config_hash: Mapped[str | None] = mapped_column(String(64))
     document_count: Mapped[int] = mapped_column(Integer, default=0)

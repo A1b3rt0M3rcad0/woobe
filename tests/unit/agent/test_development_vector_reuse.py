@@ -67,7 +67,8 @@ async def test_existing_version_with_different_evidence_is_never_reused(change):
 
 
 @pytest.mark.asyncio
-async def test_snapshot_freezes_only_selected_documents_in_a_shared_collection():
+@pytest.mark.parametrize("structural", [False, True])
+async def test_snapshot_freezes_only_selected_documents_in_a_shared_collection(structural):
     from modules.agent.application.use_cases.vector_snapshot_use_cases import CreateVectorSnapshotUseCase
 
     request, _, _, _ = setup_case()
@@ -87,8 +88,9 @@ async def test_snapshot_freezes_only_selected_documents_in_a_shared_collection()
     models.get_by_id.return_value = SimpleNamespace(id=request.embedding_provider_model_id, project_id=request.project_id, status="active", metadata={"capability": "embedding"}, model="fake-embedding", provider_credential_id=credential_id)
     credentials = AsyncMock()
     credentials.get_by_id.return_value = SimpleNamespace(project_id=request.project_id, status="active", provider="custom")
-    use_case = CreateVectorSnapshotUseCase(snapshot_repo=snapshots, collection_repo=collections, document_repo=documents, provider_model_repo=models, credential_repo=credentials)
+    use_case = CreateVectorSnapshotUseCase(snapshot_repo=snapshots, collection_repo=collections, document_repo=documents, provider_model_repo=models, credential_repo=credentials, defer_preparation=structural)
     result = await use_case.execute(request)
+    assert result.status == ("PENDING_PREPARATION" if structural else "BUILDING")
     assert result.document_count == 1
     assert [item.document_id for item in snapshots.add_snapshot_documents.await_args.args[0]] == [selected.id]
     with pytest.raises(ConflictError):

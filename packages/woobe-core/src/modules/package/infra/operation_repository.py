@@ -120,6 +120,8 @@ class PackageOperationRepository:
         and native preparation operation together. Normal Package callers use
         accept above. All existing pins, authority checks and replay guards apply.
         """
+        from modules.package.application.configuration_barrier import lock_configuration_project
+        await lock_configuration_project(session, project_id)
         identity, key_digest = principal_identity(principal), self.key_digest(key)
         fingerprint = self.protected_fingerprint(project_id, payload)
         encoded = canonical_bytes(payload).decode()
@@ -195,6 +197,8 @@ class PackageOperationRepository:
             upload_id=plan.upload_id,
             plan_id=plan.id,
             lifecycle=payload["lifecycle"],
+            package_schema_version=plan.document.get("package_schema_version", "1.0"),
+            installation_mode=plan.document.get("installation_mode", "operational"),
             phases_total=len(plan.document["effects"]),
             state="accepted",
         )
@@ -325,8 +329,12 @@ class PackageOperationRepository:
             record.state = transition(record.state, target).value
             for field, value in changes.items():
                 setattr(record, field, value)
+            candidate_prepared = False
+            if record.state == "succeeded" and record.lifecycle_state == "candidate":
+                plan = await session.get(PackagePlanModel, record.plan_id)
+                candidate_prepared = plan is not None and plan.document.get("mode") == "candidate"
             if record.state == "succeeded" and (
-                not record.configuration_ready
+                (not record.configuration_ready and record.installation_mode != "structural" and not candidate_prepared)
                 or record.phases_completed != record.phases_total
             ):
                 raise PackageError(

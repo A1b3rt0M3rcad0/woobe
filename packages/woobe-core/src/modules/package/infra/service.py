@@ -33,7 +33,7 @@ class PackageService:
         ).hexdigest()
         return {
             **capabilities,
-            "asac": {"schema_version": "1.0", "definition_digest_scope": "woobe-portable-definition@1.0", "isolated_drafts": True, "draft_source_preflight": True, "retained_artifacts": True, "revision_registration": True, "revision_catalog": True, "retained_object_hydration": True, "author_source_retention": True, "author_digest_declarations": True, "accepted_binding_generations": True, "candidate_preparation": True, "candidate_evaluation": True, "candidate_publication_kinds": ["Agent", "Network"], "network_runtime_digest_scope": "network-execution-runtime@2", "candidate_lifecycle": False, "fenced_deployment": True, "operation_environment_reads": True, "deployment_scope": "exact-release-owner-selection@1", "deployment_clock": "database", "deployment_plan_maximum_seconds": 300, "operation_leases": True, "lease_fencing_scope": "owner-authoring-transaction@1", "lease_clock": "database", "environment_generation_environments": ["staging", "production"], "environment_generation_scope": "monotonic-owner-selection@1"},
+            "asac": {"schema_version": "1.0", "definition_digest_scope": "woobe-portable-definition@1.0", "definition_digest_scopes": ["woobe-portable-definition@1.0", "woobe-portable-definition@2.0"], "isolated_drafts": True, "draft_source_preflight": True, "retained_artifacts": True, "revision_registration": True, "revision_catalog": True, "retained_object_hydration": True, "author_source_retention": True, "author_digest_declarations": True, "accepted_binding_generations": True, "candidate_preparation": True, "candidate_evaluation": True, "candidate_publication_kinds": ["Agent", "Network"], "network_runtime_digest_scope": "network-execution-runtime@2", "candidate_lifecycle": False, "fenced_deployment": True, "operation_environment_reads": True, "deployment_scope": "exact-release-owner-selection@1", "deployment_clock": "database", "deployment_plan_maximum_seconds": 300, "operation_leases": True, "lease_fencing_scope": "owner-authoring-transaction@1", "lease_clock": "database", "environment_generation_environments": ["staging", "production"], "environment_generation_scope": "monotonic-owner-selection@1"},
             "supported_operations": [
                 "upload",
                 "plan",
@@ -70,6 +70,7 @@ class PackageService:
             release_notes=request.release_notes,
             reason=request.reason,
             api_origin=api_origin,
+            installation_mode=request.installation_mode,
             **development,
         )
 
@@ -82,6 +83,8 @@ class PackageService:
 
     async def apply(self, *, project_id, principal, key, request):
         payload = request.model_dump(mode="json")
+        if payload.get("installation_mode") == "operational":
+            payload.pop("installation_mode")  # Preserve existing request identities.
         payload["bindings"] = request.bindings.model_dump(mode="json", exclude_none=True)
         operation, replayed = await self.operations.accept(
             project_id=project_id, principal=principal, key=key, payload=payload

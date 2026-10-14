@@ -70,6 +70,8 @@ async def read_project_environment_values(
          AND v.environment = :environment
         WHERE k.project_id = :project_id
           AND k.key IN :keys
+          AND v.stored_value IS NOT NULL
+          AND NOT v.revoked AND v.material_state = 'present'
         """
     ).bindparams(bindparam("keys", expanding=True))
     result = await session.execute(
@@ -174,7 +176,8 @@ class ProjectEnvironmentService:
                         k.created_at,
                         k.updated_at,
                         v.environment,
-                        v.stored_value
+                        CASE WHEN k.kind = 'value' THEN v.stored_value ELSE NULL END AS stored_value,
+                        (v.stored_value IS NOT NULL AND NOT v.revoked AND v.material_state = 'present') AS configured
                     FROM core.project_environment_keys AS k
                     LEFT JOIN core.project_environment_values AS v
                       ON v.key_id = k.id
@@ -211,150 +214,14 @@ class ProjectEnvironmentService:
                 item_values = item["values"]
                 assert isinstance(item_values, dict)
                 item_values[env] = {
-                    "configured": True,
+                    "configured": bool(row["configured"]),
                     "value": (
                         str(row["stored_value"])
-                        if kind == "value"
+                        if kind == "value" and row["configured"]
                         else None
                     ),
                 }
             return list(by_id.values())
-
-    async def upsert_key(
-        self,
-        *,
-        project_id: UUID,
-        key: str,
-        kind: str,
-        values: Mapping[str, str | None],
-        clear_environments: list[str] | tuple[str, ...] = (),
-    ) -> dict[str, object]:
-        normalized_key = normalize_project_environment_key(key)
-        normalized_kind = normalize_project_environment_kind(kind)
-
-        normalized_values: dict[str, str] = {}
-        for raw_environment, raw_value in values.items():
-            environment = normalize_runtime_environment(raw_environment)
-            if raw_value is None:
-                continue
-            normalized_values[environment] = str(raw_value)
-
-        clear = {
-            normalize_runtime_environment(environment)
-            for environment in clear_environments
-        }
-
-        async with self._session_factory() as session, session.begin():
-            project_exists = await session.scalar(
-                text("SELECT 1 FROM core.projects WHERE id = :project_id"),
-                {"project_id": project_id},
-            )
-            if project_exists is None:
-                raise NotFoundError("Project not found")
-
-            existing = (
-                await session.execute(
-                    text(
-                        """
-                        SELECT id, kind
-                        FROM core.project_environment_keys
-                        WHERE project_id = :project_id
-                          AND key = :key
-                        FOR UPDATE
-                        """
-                    ),
-                    {"project_id": project_id, "key": normalized_key},
-                )
-            ).mappings().one_or_none()
-
-            kind_changed = (
-                existing is not None
-                and normalize_project_environment_kind(str(existing["kind"]))
-                != normalized_kind
-            )
-
-            if existing is None:
-                key_id = await session.scalar(
-                    text(
-                        """
-                        INSERT INTO core.project_environment_keys
-                            (id, project_id, key, kind, created_at, updated_at)
-                        VALUES
-                            (gen_random_uuid(), :project_id, :key, :kind, now(), now())
-                        RETURNING id
-                        """
-                    ),
-                    {
-                        "project_id": project_id,
-                        "key": normalized_key,
-                        "kind": normalized_kind,
-                    },
-                )
-            else:
-                key_id = existing["id"]
-                await session.execute(
-                    text(
-                        """
-                        UPDATE core.project_environment_keys
-                        SET kind = :kind,
-                            updated_at = now()
-                        WHERE id = :key_id
-                        """
-                    ),
-                    {"key_id": key_id, "kind": normalized_kind},
-                )
-                if kind_changed:
-                    # Values cannot safely survive a value <-> secret semantic change.
-                    await session.execute(
-                        text(
-                            "DELETE FROM core.project_environment_values WHERE key_id = :key_id"
-                        ),
-                        {"key_id": key_id},
-                    )
-
-            for environment in clear:
-                await session.execute(
-                    text(
-                        """
-                        DELETE FROM core.project_environment_values
-                        WHERE key_id = :key_id
-                          AND environment = :environment
-                        """
-                    ),
-                    {"key_id": key_id, "environment": environment},
-                )
-
-            for environment, raw_value in normalized_values.items():
-                stored_value = (
-                    encrypt_secret(raw_value, self._encryption_key)
-                    if normalized_kind == "secret"
-                    else raw_value
-                )
-                await session.execute(
-                    text(
-                        """
-                        INSERT INTO core.project_environment_values
-                            (id, key_id, environment, stored_value, created_at, updated_at)
-                        VALUES
-                            (gen_random_uuid(), :key_id, :environment, :stored_value, now(), now())
-                        ON CONFLICT (key_id, environment)
-                        DO UPDATE SET
-                            stored_value = EXCLUDED.stored_value,
-                            updated_at = now()
-                        """
-                    ),
-                    {
-                        "key_id": key_id,
-                        "environment": environment,
-                        "stored_value": stored_value,
-                    },
-                )
-
-        items = await self.list_keys(project_id=project_id)
-        for item in items:
-            if item["key"] == normalized_key:
-                return item
-        raise NotFoundError("Project Environment key not found after update")
 
     async def resolve_values(
         self,
@@ -375,38 +242,10 @@ class ProjectEnvironmentService:
             encryption_key=self._encryption_key,
         )
 
-    async def delete_key(self, *, project_id: UUID, key: str) -> None:
-        normalized_key = normalize_project_environment_key(key)
-        async with self._session_factory() as session, session.begin():
-            result = await session.execute(
-                text(
-                    """
-                    DELETE FROM core.project_environment_keys
-                    WHERE project_id = :project_id
-                      AND key = :key
-                    RETURNING id
-                    """
-                ),
-                {"project_id": project_id, "key": normalized_key},
-            )
-            if result.scalar_one_or_none() is None:
-                raise NotFoundError("Project Environment key not found")
-
-
-def build_project_environment_service() -> ProjectEnvironmentService:
-    from shared.composition_resources import SESSION_FACTORY
-
-    return ProjectEnvironmentService(
-        SESSION_FACTORY,
-        encryption_key=Settings().encryption_key,
-    )
-
-
 __all__ = [
     "PreparedProjectEnvironmentValue",
     "ProjectEnvironmentKind",
     "ProjectEnvironmentService",
-    "build_project_environment_service",
     "materialize_project_environment_values",
     "normalize_project_environment_key",
     "normalize_project_environment_kind",

@@ -21,8 +21,9 @@ from modules.package.domain.errors import PackageError
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("schema_version", ["1.0", "2.0"])
 async def test_exports_have_independent_ids_and_scope_rechecks_every_dependency(
-    monkeypatch, tmp_path
+    monkeypatch, tmp_path, schema_version
 ):
     engine = create_async_engine(
         "sqlite+aiosqlite://",
@@ -92,6 +93,7 @@ async def test_exports_have_independent_ids_and_scope_rechecks_every_dependency(
         reference_collector=reference_requirements,
     )
     request = ExportPackageRequest(
+        package_schema_version=schema_version,
         kind="Agent",
         target_id=str(target),
         source="draft",
@@ -134,6 +136,7 @@ async def test_exports_have_independent_ids_and_scope_rechecks_every_dependency(
         principal=actor,
         export_id=__import__("uuid").UUID(first["export_id"]),
     )
+    assert receipt["package_schema_version"] == schema_version
     assert len(content) == receipt["size_bytes"]
     assert {call.args[3] for call in authority.await_args_list} >= {
         "project:read",

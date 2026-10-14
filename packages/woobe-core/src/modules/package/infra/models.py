@@ -70,6 +70,8 @@ class PackageOperationModel(BaseModel):
     upload_id: Mapped[UUID] = mapped_column()
     plan_id: Mapped[UUID] = mapped_column()
     lifecycle: Mapped[str] = mapped_column(String(16))
+    package_schema_version: Mapped[str] = mapped_column(String(8), default="1.0", server_default="1.0")
+    installation_mode: Mapped[str] = mapped_column(String(16), default="operational", server_default="operational")
     lifecycle_state: Mapped[str | None] = mapped_column(String(16), nullable=True)
     state: Mapped[str] = mapped_column(String(32), default="accepted")
     phase: Mapped[str | None] = mapped_column(String(160), nullable=True)

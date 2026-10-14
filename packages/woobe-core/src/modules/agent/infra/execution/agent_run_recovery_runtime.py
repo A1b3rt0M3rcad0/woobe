@@ -316,6 +316,9 @@ class AgentRunRecoveryRuntime(FrozenSnapshotStructuredOutputRuntime):
         ) = self._require_recovery_tool_runtime()
 
         async def read_prepare(repositories, _outbox):
+            configuration = getattr(repositories, "configuration", None)
+            if configuration is not None:
+                await configuration.lock_project(input_dto.project_id)
             run = await repositories.runs.get_by_id(accepted.run_id)
             if run is None:
                 raise ConflictError("Agent Run no longer exists")
@@ -470,13 +473,14 @@ class AgentRunRecoveryRuntime(FrozenSnapshotStructuredOutputRuntime):
                 name_to_id,
             ) = await self._prepare_recovery_material(accepted, input_dto)
 
-            api_key = self._decrypt_api_key(primary_credential)
+            api_key = await self._resolve_api_key(primary_credential, base_url=self._resolve_base_url(agent, primary_credential))
             base_url = self._resolve_base_url(agent, primary_credential)
             fallback_data = None
             if fallback_credential is not None:
                 fallback_provider = _value(agent.fallback_provider)
                 fallback_data = {
-                    "api_key": self._decrypt_api_key(fallback_credential),
+                    "api_key": await self._resolve_api_key(fallback_credential, base_url=self._resolve_base_url_for_provider(
+                        fallback_provider, fallback_credential, fallback_connection_settings(agent))),
                     "base_url": self._resolve_base_url_for_provider(
                         fallback_provider,
                         fallback_credential,

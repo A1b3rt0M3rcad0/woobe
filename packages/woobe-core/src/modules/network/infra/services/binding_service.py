@@ -103,6 +103,8 @@ class ExplicitBindingNetworkService(NetworkApplicationService):
         approved_action_ids: list[str] | None = None,
     ) -> NetworkVersionModel:
         async with self._session_factory() as session, session.begin():
+            from modules.network.application.configuration_acceptance import lock_configuration
+            await lock_configuration(session, project_id=project_id)
             network = await session.get(NetworkModel, network_id, with_for_update=True)
             if network is None or network.project_id != project_id:
                 raise NotFoundError("Network not found")
@@ -248,6 +250,9 @@ class ExplicitBindingNetworkService(NetworkApplicationService):
             if environment == NetworkEnvironment.STAGING:
                 network.staging_version_id = version.id
             else:
+                from modules.network.application.configuration_acceptance import prepare_configuration
+                await prepare_configuration(session, project_id=project_id, environment="production",
+                    bindings=version.resolved_bindings or {})
                 network.production_version_id = version.id
             return version
 

@@ -14,12 +14,14 @@ def create_engine(settings: Settings) -> AsyncEngine:
         return create_async_engine(
             url=settings.database_url,
             echo=settings.debug,
+            hide_parameters=True,
             poolclass=NullPool,
         )
 
     return create_async_engine(
         url=settings.database_url,
         echo=settings.debug,
+        hide_parameters=True,
         pool_size=settings.db_pool_size,
         max_overflow=settings.db_max_overflow,
     )

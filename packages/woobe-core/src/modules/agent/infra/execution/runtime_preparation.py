@@ -175,12 +175,30 @@ async def prepare_tool_state(
         secret_names.update(collect_secret_names(tool.config or {}))
 
     encrypted_by_name: dict[str, str] = {}
+    references = {}
     for name in sorted(secret_names):
         try:
             secret = await repositories.tool_secrets.get_by_name(agent.project_id, name)
         except Exception as exc:
             raise ValidationError(f"Configured Tool secret was not found: {name}") from exc
-        encrypted_by_name[name] = secret.encrypted_value
+        reference = getattr(secret, "configuration_reference", None)
+        if reference is not None:
+            references[name] = reference
+        else:
+            encrypted_by_name[name] = secret.encrypted_value
+    context = current_execution.get()
+    if context is not None:
+        context.prepared_tool_configuration_references = {
+            str(tool.id): {
+                name: deepcopy(references[name])
+                for name in collect_secret_names(tool.config or {})
+                if name in references
+            }
+            for tool in tools
+        }
+    if references:
+        from modules.agent.domain.legacy_tool_configuration import bind_legacy_tool_headers
+        tools = [bind_legacy_tool_headers(tool, references) for tool in tools]
     return tools, encrypted_by_name
 
 

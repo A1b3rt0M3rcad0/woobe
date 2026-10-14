@@ -43,7 +43,10 @@ def _json_get(url: str, api_key: str, *, timeout: int = 20) -> dict[str, Any]:
 class OpenRouterEmbeddingModelDiscoveryService:
     async def list_models(self, *, api_key: str, metadata: dict[str, Any]) -> list[AvailableProviderModelOutput]:
         base_url = str(metadata.get("base_url") or OPENROUTER_BASE_URL).rstrip("/")
-        payload = await asyncio.to_thread(_json_get, f"{base_url}/embeddings/models", api_key)
+        from modules.agent.infra.adapters.configuration_transport import BoundConfigurationCredential, configuration_get_json
+        payload = (await configuration_get_json(f"{base_url}/embeddings/models", api_key)
+            if isinstance(api_key, BoundConfigurationCredential)
+            else await asyncio.to_thread(_json_get, f"{base_url}/embeddings/models", api_key))
         items = payload.get("data")
         if not isinstance(items, list):
             raise ProviderModelDiscoveryError("OpenRouter embedding discovery response has no data array")

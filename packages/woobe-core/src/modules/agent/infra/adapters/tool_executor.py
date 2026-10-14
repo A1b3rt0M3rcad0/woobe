@@ -3,6 +3,7 @@ from __future__ import annotations
 import ipaddress
 import json
 import logging
+import re
 import socket
 import time
 from urllib.parse import urlparse
@@ -32,6 +33,34 @@ def _safe_response_headers(headers: httpx.Headers) -> dict[str, str]:
         for key, value in headers.items()
         if key.lower() in SAFE_RESPONSE_HEADERS
     }
+
+
+def _oauth_resource_challenge(header):
+    """Restore only public MCP resource metadata, never a Bearer credential.
+
+    Generic Bearer redaction intentionally treats the challenge parameter as a
+    credential. The composed OAuth owner needs that parameter for discovery.
+    Rebuild a closed challenge rather than exempting the provider's full header.
+    """
+    if not isinstance(header, str) or any(c in header for c in '\r\n\x00'):
+        return None
+    match = re.search(r'\bresource_metadata\s*=\s*"([^"\s]+)"', header, re.IGNORECASE)
+    if match is None:
+        return None
+    url = match[1]
+    try:
+        parsed = urlparse(url)
+        if (parsed.scheme not in ALLOWED_SCHEMES or not parsed.hostname or parsed.username is not None
+                or parsed.password is not None or parsed.query or parsed.fragment):
+            return None
+        _ = parsed.port
+    except ValueError:
+        return None
+    result = 'Bearer resource_metadata="' + url + '"'
+    scope = re.search(r'\bscope\s*=\s*"([A-Za-z0-9:._/ -]{1,1024})"', header, re.IGNORECASE)
+    if scope is not None:
+        result += ', scope="' + scope[1] + '"'
+    return result
 
 
 def _blocked_address(
@@ -183,9 +212,15 @@ class HttpToolExecutor(ToolExecutionPort):
         if normalized_method not in ALLOWED_HTTP_METHODS:
             return ExecutionResult(success=False, error="HTTP method is not allowed")
 
+        from modules.agent.infra.adapters.tool_configuration_transport import current_tool_configuration
+        # A remote reference still must pass its exact destination grant before
+        # bytes are sent; explicit approvals may include internal endpoints.
+        configuration_scope = current_tool_configuration.get()
+        approved_configuration_path = bool(configuration_scope and (
+            configuration_scope[3]['fields'] or configuration_scope[3].get('bindings')))
         validator = (
             _validated_local_addresses
-            if self._allow_local_networks
+            if self._allow_local_networks or approved_configuration_path
             else _validated_public_addresses
         )
         first_resolution = validator(url)
@@ -209,6 +244,8 @@ class HttpToolExecutor(ToolExecutionPort):
         effective_timeout = max(1, min(requested_timeout, self._max_timeout_ms))
         started_at = time.monotonic()
         response: httpx.Response | None = None
+        request = None
+        private_headers = {}
 
         try:
             request = self._client.build_request(
@@ -218,10 +255,22 @@ class HttpToolExecutor(ToolExecutionPort):
                 content=body.encode("utf-8") if body else None,
                 timeout=httpx.Timeout(effective_timeout / 1000),
             )
+            # A shared HTTP client's defaults and cookie jar are not a Tool's
+            # authority. Only its explicit legacy headers or the per-send
+            # configuration resolver may supply authentication.
+            explicit_names = {name.lower() for name in (headers or {})}
+            for name in ('cookie', 'authorization', 'proxy-authorization'):
+                if name not in explicit_names:
+                    request.headers.pop(name, None)
+            from modules.agent.infra.adapters.tool_configuration_transport import configuration_headers
+            private_headers = await configuration_headers(str(request.url)) if current_tool_configuration.get() is not None else {}
+            if private_headers:
+                request.headers.update(private_headers)
             response = await self._client.send(
                 request,
                 stream=True,
                 follow_redirects=False,
+                auth=None,
             )
             duration_ms = round((time.monotonic() - started_at) * 1000)
 
@@ -277,6 +326,27 @@ class HttpToolExecutor(ToolExecutionPort):
                     "body": output_body,
                 }
             )
+            from modules.agent.application.interfaces.oauth_protocol import private_oauth_protocol_response
+            if private_oauth_protocol_response.get():
+                challenge = _oauth_resource_challenge(response.headers.get('www-authenticate'))
+                if challenge is not None:
+                    output['headers']['www-authenticate'] = challenge
+            if private_oauth_protocol_response.get() and response.is_success and isinstance(output_body, dict):
+                # Only the composed OAuth owner can receive protocol material.
+                # Normal Tool callers retain redaction; arbitrary nested bodies
+                # and unsuccessful responses never receive this exception.
+                for field in ('access_token', 'refresh_token', 'client_secret', 'device_code',
+                              'token_type', 'token_endpoint_auth_method', 'token_endpoint',
+                              'authorization_endpoint', 'device_authorization_endpoint'):
+                    material = output_body.get(field)
+                    if isinstance(material, str) and material:
+                        output['body'][field] = material
+                for field in ('token_endpoint_auth_methods_supported', 'authorization_servers'):
+                    methods = output_body.get(field)
+                    if isinstance(methods, list) and all(isinstance(item, str) for item in methods):
+                        output['body'][field] = methods
+            if private_headers:
+                output = private_headers.scrub(output)
             return ExecutionResult(
                 success=response.is_success,
                 status_code=response.status_code,
@@ -294,9 +364,13 @@ class HttpToolExecutor(ToolExecutionPort):
             return ExecutionResult(
                 success=False,
                 duration_ms=round((time.monotonic() - started_at) * 1000),
-                error=f"Request failed: {_sanitize_error(str(exc))}",
+                error="Configured Tool request failed" if private_headers else f"Request failed: {_sanitize_error(str(exc))}",
             )
         finally:
+            if request is not None:
+                for header in private_headers:
+                    request.headers.pop(header, None)
+            private_headers.clear()
             if response is not None:
                 await response.aclose()
 

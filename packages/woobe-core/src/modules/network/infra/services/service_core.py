@@ -158,6 +158,8 @@ class NetworkApplicationService:
         created_by: UUID | None,
     ) -> NetworkVersionModel:
         async with self._session_factory() as session, session.begin():
+            from modules.network.application.configuration_acceptance import lock_configuration
+            await lock_configuration(session, project_id=project_id)
             network = await session.get(NetworkModel, network_id, with_for_update=True)
             if network is None or network.project_id != project_id:
                 raise NotFoundError("Network not found")
@@ -208,6 +210,9 @@ class NetworkApplicationService:
             if environment == NetworkEnvironment.STAGING:
                 network.staging_version_id = version.id
             else:
+                from modules.network.application.configuration_acceptance import prepare_configuration
+                await prepare_configuration(session, project_id=project_id, environment="production",
+                    bindings=version.resolved_bindings or {})
                 network.production_version_id = version.id
             return version
 
@@ -412,6 +417,8 @@ class NetworkApplicationService:
         created_by: UUID | None,
     ) -> NetworkVersionModel:
         async with self._session_factory() as session, session.begin():
+            from modules.network.application.configuration_acceptance import lock_configuration
+            await lock_configuration(session, project_id=project_id)
             network = await session.get(NetworkModel, network_id, with_for_update=True)
             if network is None or network.project_id != project_id:
                 raise NotFoundError("Network not found")
@@ -445,6 +452,9 @@ class NetworkApplicationService:
             )
             session.add(version)
             await session.flush()
+            from modules.network.application.configuration_acceptance import prepare_configuration
+            await prepare_configuration(session, project_id=project_id, environment="production",
+                bindings=version.resolved_bindings or {})
             network.production_version_id = version.id
             return version
 
@@ -502,6 +512,8 @@ class NetworkApplicationService:
         if not message.strip():
             raise ValidationError("Network message cannot be blank")
         async with self._session_factory() as session, session.begin():
+            from modules.network.application.configuration_acceptance import lock_configuration
+            await lock_configuration(session, project_id=project_id)
             network_session = await session.get(
                 NetworkSessionModel,
                 network_session_id,

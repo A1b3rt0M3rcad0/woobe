@@ -59,3 +59,26 @@ from modules.core.composition.public_api import build_asac_receipt_signer
 
 from modules.core.composition.public_api import build_asac_git_verifier
 __all__.append("build_asac_git_verifier")
+
+from modules.core.composition.public_api import build_project_configuration_service, build_project_configuration_runtime
+__all__ += ["build_project_configuration_service", "build_project_configuration_runtime"]
+from modules.core.composition.public_api import build_project_environment_service
+__all__.append("build_project_environment_service")
+
+from modules.core.composition.public_api import build_configuration_acceptor
+__all__.append("build_configuration_acceptor")
+
+from modules.core.composition.public_api import configure_configuration_target_reader
+__all__.append("configure_configuration_target_reader")
+
+from modules.core.composition.public_api import build_configuration_runtime_resolver
+__all__.append("build_configuration_runtime_resolver")
+
+from modules.core.composition.public_api import configure_configuration_binding_adapter
+__all__.append("configure_configuration_binding_adapter")
+
+from modules.core.composition.public_api import build_configuration_process_registration, configure_configuration_migration_adapter
+__all__ += ["build_configuration_process_registration", "configure_configuration_migration_adapter"]
+
+from modules.core.composition.public_api import declare_imported_configuration_composer, inspect_configuration_declarations
+__all__ += ["declare_imported_configuration_composer", "inspect_configuration_declarations"]

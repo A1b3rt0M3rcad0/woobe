@@ -151,3 +151,43 @@ async def test_authoring_reservation_does_not_block_environment_selection(deploy
     await store.drafts.leases.acquire(**args,request=AcquireASaCLease(operation_id=uuid4(),scope='resource',workflow_id=uuid4(),ttl_seconds=120))
     plan=await store.plan(**args,request=request)
     assert (await store.apply(**args,request=application(plan,lease)))['generation_after']==8
+
+
+@pytest.mark.asyncio
+async def test_configuration_rotation_fences_plan_without_changing_release(deployment_fixture):
+    store,args,request,lease,tables,sessions=deployment_fixture
+    first={'schema_version':'1','environment':'production','pins':[{'version':str(uuid4())}]}
+    store.selector.configuration=AsyncMock(return_value=first)
+    plan=await store.plan(**args,request=request)
+    assert plan['configuration']==first
+    store.selector.configuration.return_value={**first,'pins':[{'version':str(uuid4())}]}
+    from shared.contracts.project_configuration import ConfigurationError
+    with pytest.raises(ConfigurationError):
+        await store.apply(**args,request=application(plan,lease))
+    store.selector.apply.assert_not_awaited()
+    async with sessions() as session:
+        assert await session.scalar(select(func.count()).select_from(DeploymentTestOutboxModel))==0
+    # Explicit replan can select the same immutable Release with current values.
+    replacement=await store.plan(**args,request=request.model_copy(update={'operation_id':uuid4()}))
+    result=await store.apply(**args,request=application(replacement,lease))
+    assert result['release_id']==plan['release_id']
+    assert result['configuration']==replacement['configuration']
+
+
+@pytest.mark.asyncio
+async def test_missing_or_revoked_configuration_blocks_activation_before_outbox(deployment_fixture):
+    from shared.contracts.project_configuration import ConfigurationError
+    store,args,request,lease,tables,sessions=deployment_fixture
+    store.selector.configuration=AsyncMock(side_effect=ConfigurationError('CONFIG_VALUE_MISSING'))
+    with pytest.raises(ConfigurationError):
+        await store.plan(**args,request=request)
+    store.selector.apply.assert_not_awaited()
+    store.selector.configuration.side_effect=None
+    store.selector.configuration.return_value={'schema_version':'1','pins':[]}
+    plan=await store.plan(**args,request=request)
+    store.selector.configuration.side_effect=ConfigurationError('CONFIG_VALUE_REVOKED')
+    with pytest.raises(ConfigurationError):
+        await store.apply(**args,request=application(plan,lease))
+    store.selector.apply.assert_not_awaited()
+    async with sessions() as session:
+        assert await session.scalar(select(func.count()).select_from(DeploymentTestOutboxModel))==0

@@ -427,7 +427,7 @@ def _prepare_fallback_model_factory(
         fallback_model = request.llm_factory.create_chat_model(
             provider=fallback_provider,
             model=fallback_model_name,
-            api_key=str(prepared_fallback.get("api_key") or ""),
+            api_key=prepared_fallback.get("api_key") or "",
             base_url=prepared_fallback.get("base_url"),
             temperature=agent.temperature or 0.2,
             max_tokens=fallback_output_tokens,

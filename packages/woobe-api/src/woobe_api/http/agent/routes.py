@@ -33,7 +33,7 @@ from modules.core.entrypoint import build_project_access_service
 from modules.agent.entrypoint import list_provider_credentials_composer
 from modules.agent.entrypoint import update_provider_credential_composer
 from modules.agent.entrypoint import create_provider_model_composer
-from modules.agent.entrypoint import list_provider_models_composer
+from modules.agent.entrypoint import list_provider_models_composer, list_available_provider_models_composer
 from modules.agent.entrypoint import get_provider_model_composer
 from modules.agent.entrypoint import update_provider_model_composer
 from modules.agent.entrypoint import create_agent_composer
@@ -131,7 +131,7 @@ async def create_provider_model(request: FastAPIRequest):
 
 @router.get("/provider-models", openapi_extra=query_parameter_contract(ListProviderModelsInput, "/ai/provider-models"))
 async def list_provider_models(request: FastAPIRequest):
-    handler = list_provider_models_composer()
+    handler = list_available_provider_models_composer() if request.query_params.get("available_for_credential_id") else list_provider_models_composer()
     response = await request_adapter(request, handler)
     return response_adapter(response)
 

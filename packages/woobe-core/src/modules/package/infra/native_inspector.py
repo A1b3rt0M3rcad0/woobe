@@ -46,6 +46,11 @@ class NativePackageInspectorGateway:
             # compatibility contract hashes LF bytes, matching the pinned CLI
             # catalog; line endings do not change the schema itself.
             "schema_catalog_sha256": sha256(catalog.replace(b"\r\n", b"\n")).hexdigest(),
+            "supported_package_schemas": {
+                version: sha256(files("modules.package.domain.schemas").joinpath(name).read_bytes().replace(b"\r\n", b"\n")).hexdigest()
+                for version, name in (("1.0", "catalog.json"), ("2.0", "catalog-v2.json"))
+            },
+            "structural_installation": True,
             "agent": portable_definition_capabilities(),
             "network": self._network.package_capabilities(),
         }
@@ -56,6 +61,9 @@ class NativePackageInspectorGateway:
                 await authorize_phase(session, principal, project_id, permission)
 
     async def inspect_bindings(self, *, project_id, principal, requirements, bindings):
+        if "configuration" in requirements:
+            return await self.inspect_structural_bindings(project_id=project_id, principal=principal,
+                requirements=requirements, bindings=bindings)
         reads = ["project:read"]
         for group, permission in (
             ("credentials", "provider:read"),
@@ -104,6 +112,24 @@ class NativePackageInspectorGateway:
             )
         )
         return result.body["data"]
+
+    async def inspect_structural_bindings(self, *, project_id, principal, requirements, bindings):
+        from modules.core.entrypoint import inspect_configuration_declarations
+        from modules.agent.entrypoint import inspect_configuration_provider_reuse
+        # Existing owner inspectors validate explicit reused credentials and
+        # Knowledge. Newly declared connections need no material/discovery.
+        existing = {"knowledge": bindings.get("knowledge", {})}
+        legacy_requirements = {key: value for key, value in requirements.items() if key not in {"configuration", "connections"}}
+        result = await self.inspect_bindings(project_id=project_id, principal=principal,
+            requirements=legacy_requirements, bindings=existing)
+        async with self._sessions() as session:
+            await authorize_phase(session, principal, project_id, "project:environment:read")
+            result["project_environment"] = await inspect_configuration_declarations(session,
+                project_id=project_id, declarations=requirements["configuration"], bindings=bindings.get("project_environment", {}))
+            await authorize_phase(session, principal, project_id, "provider:read")
+            result["credentials"] = await inspect_configuration_provider_reuse(session, project_id=project_id,
+                connections=requirements["connections"], bindings=bindings.get("credentials", {}), configuration=result["project_environment"])
+        return result
 
     async def inspect_component(
         self, *, project_id, principal, document, graph, support, bindings, inspected

@@ -3,6 +3,7 @@ import io
 import os
 
 from modules.package.domain.errors import PackageError
+from modules.package.domain.configuration import package_requirements
 from modules.package.infra.bundles import confined_reader, snapshot_directory
 
 MAX_EDITOR_FILE = 1 << 20
@@ -30,8 +31,31 @@ def editor_files(bundle):
         files.append({**item,'content':content,'editable':content is not None,'readonly_reason':reason})
     entry=bundle.graph.manifest['spec']['entrypoint']
     return {'entrypoint_path':bundle.graph.paths[entry['ref']],'files':files,
-            'requirements':bundle.graph.manifest['spec'].get('requires',{}),
+            'requirements':package_requirements(bundle.graph.manifest),
             'component_digests_status':'validated_closed_object','complete':True}
+
+
+def editor_binding_document(manifest, credentials):
+    """Retained Web edits reuse exact captured identities, never create values."""
+    version = manifest.get('schema_version', '1.0')
+    requirements = package_requirements(manifest)
+    spec = {}
+    groups = ('credentials', 'project_environment', 'knowledge') if version == '2.0' else ('credentials', 'project_environment', 'secrets', 'knowledge')
+    for group in groups:
+        values = {}
+        for item in requirements.get(group, []):
+            alias = item.get('key') if group == 'project_environment' else item.get('ref')
+            if group == 'credentials':
+                if alias not in credentials:
+                    raise PackageError('ASAC_EDITOR_BINDING_UNAVAILABLE', 'An explicit Provider binding is required')
+                values[alias] = {'credential_id': credentials[alias]}
+            elif group == 'knowledge':
+                raise PackageError('ASAC_EDITOR_BINDING_UNAVAILABLE', 'Open a portable Knowledge closure before Web Stage')
+            else:
+                values[alias] = {'existing_key': alias}
+        spec[group] = values
+    return {'format': 'woobe-package', 'schema_version': version,
+            'kind': 'ImportBindings', 'metadata': {'name': 'Web Candidate'}, 'spec': spec}
 
 
 def edited_archive(bundle,replacements):

@@ -50,6 +50,14 @@ jobs:
           go-version: '1.27.1'
           cache-dependency-path: .ci/woobe-cli/go.sum
 
+      - name: Checkout the reviewed configuration CLI
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          repository: A1b3rt0M3rcad0/woobe-cli
+          ref: 813b2d88d5ff2891ca4f9d49b3ffb460264da563
+          path: .ci/woobe-cli-configuration
+          persist-credentials: false
+
       - name: Build and verify the CLI used by the backend contract
         working-directory: .ci/woobe-cli
         env:
@@ -58,6 +66,14 @@ jobs:
           go mod verify
           go build -trimpath -ldflags '-X github.com/A1b3rt0M3rcad0/woobe-cli/internal/cli.Commit=a44c0804143a86576479c5c5e83836c595a496b4' -o ../../.test-artifacts/woobe ./cmd/woobe
           ../../.test-artifacts/woobe version > ../../.test-artifacts/cli-version.json
+
+      - name: Build the paired configuration CLI contract
+        working-directory: .ci/woobe-cli-configuration
+        env:
+          CGO_ENABLED: '0'
+        run: |
+          go mod verify
+          go build -trimpath -ldflags '-X github.com/A1b3rt0M3rcad0/woobe-cli/internal/cli.Commit=813b2d88d5ff2891ca4f9d49b3ffb460264da563' -o ../../.test-artifacts/woobe-configuration ./cmd/woobe
 
       - name: Validate standalone backend test Compose contract
         run: docker compose -f compose.test.yaml config --quiet

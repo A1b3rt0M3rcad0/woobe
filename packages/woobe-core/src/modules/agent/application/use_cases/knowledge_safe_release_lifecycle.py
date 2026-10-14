@@ -122,11 +122,13 @@ class KnowledgeSafeReleaseLifecycleUseCase(AutoCompatibleReleaseLifecycleUseCase
         activation_repo: AgentReleaseActivationRepository | None = None,
         *,
         activation_action: str = "reactivate",
+        configuration_validator=None,
     ) -> None:
         super().__init__(release_repo)
         self._knowledge_validator = knowledge_validator
         self._activation_repo = activation_repo
         self._activation_action = activation_action
+        self._configuration_validator = configuration_validator
 
     async def execute(self, agent_id, release_id, input_dto=None, **kwargs):
         release = await self._release_repo.get_by_id(release_id)
@@ -142,6 +144,8 @@ class KnowledgeSafeReleaseLifecycleUseCase(AutoCompatibleReleaseLifecycleUseCase
         previous = None
         existing_release_ids: set = set()
         if target_status == ReleaseStatus.production.value:
+            if self._configuration_validator is not None:
+                await self._configuration_validator.validate(release, "production")
             snapshot_kind = getattr(release, "snapshot_kind", None)
             if snapshot_kind == "staging":
                 release_notes = _audit_text(input_dto, "release_notes")

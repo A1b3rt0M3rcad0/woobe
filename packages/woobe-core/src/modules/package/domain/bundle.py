@@ -63,7 +63,9 @@ def portable_path(value: str, *, descriptor: str = "") -> str:
     return joined
 
 
-def inventory_digest(inventory: list[dict]) -> str:
+def inventory_digest(inventory: list[dict], *, schema_version="1.0") -> str:
+    if schema_version not in {"1.0", "2.0"}:
+        raise PackageError("PACKAGE_SCHEMA_UNSUPPORTED", "Unsupported inventory schema")
     tuples = [
         [item["path"], item["size_bytes"], item["sha256"]]
         for item in sorted(inventory, key=lambda item: item["path"])
@@ -72,7 +74,7 @@ def inventory_digest(inventory: list[dict]) -> str:
         tuples, ensure_ascii=False, separators=(",", ":"), allow_nan=False
     )
     data = data.replace("\u2028", "\\u2028").replace("\u2029", "\\u2029")
-    return sha256(b"woobe-package@1.0\n" + data.encode("utf-8")).hexdigest()
+    return sha256(f"woobe-package@{schema_version}\n".encode() + data.encode("utf-8")).hexdigest()
 
 
 def component_references(document: dict) -> list[tuple[str, str, str]]:
@@ -145,6 +147,8 @@ class PackageGraph:
 def resolve_graph(manifest: dict, documents: dict[str, dict]) -> PackageGraph:
     index, paths = {}, {}
     for path, document in documents.items():
+        if document.get("schema_version") != manifest.get("schema_version"):
+            raise PackageError("PACKAGE_SCHEMA_UNSUPPORTED", "Components must use the manifest schema version", file=path)
         if document["kind"] in {"Package", "PackageLock", "ImportBindings"}:
             raise PackageError(
                 "PACKAGE_RESOURCE_INVALID",
@@ -179,6 +183,22 @@ def resolve_graph(manifest: dict, documents: dict[str, dict]) -> PackageGraph:
             )
     knowledge_requirements = {item["ref"] for item in requirements.get("knowledge", [])}
     credential_requirements = {}
+    if manifest.get("schema_version") == "2.0":
+        declarations = manifest["spec"].get("configuration", {}).get("keys", [])
+        keys = {item["key"]: item for item in declarations}
+        if len(keys) != len(declarations):
+            raise PackageError("PACKAGE_REQUIREMENT_DUPLICATE", "Configuration declaration is duplicated")
+        connections = manifest["spec"].get("connections", {})
+        credential_requirements = {alias: item["provider"] for alias, item in connections.items()}
+        authentications = [item["authentication"] for item in connections.values()]
+        authentications += [item["spec"]["config"]["authentication"] for item in index.values() if item["kind"] == "Tool"]
+        authentications += [route['authentication'] for item in index.values() if item['kind'] == 'Tool'
+            for route in item['spec']['config'].get('routes', []) if route.get('authentication') is not None]
+        for authentication in authentications:
+            for reference in authentication.get("fields", {}).values():
+                declaration = keys.get(reference["key"])
+                if declaration is None or declaration.get("kind", "secret") != "secret":
+                    raise PackageError("PACKAGE_REQUIREMENT_INVALID", "Authentication requires a declared secret configuration key")
     for requirement in requirements.get("credentials", []):
         if requirement["ref"] in credential_requirements:
             raise PackageError(

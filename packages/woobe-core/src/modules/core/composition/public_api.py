@@ -108,3 +108,74 @@ def build_asac_git_verifier():
     return ASaCGitVerifier(SETTINGS.asac_git_trusted_builders)
 
 __all__.append('build_asac_git_verifier')
+
+
+def build_project_configuration_service():
+    from modules.core.infra.services.project_configuration_service import ProjectConfigurationService
+    from shared.composition_resources import SESSION_FACTORY, SETTINGS
+    return ProjectConfigurationService(SESSION_FACTORY, encryption_key=SETTINGS.encryption_key)
+
+
+def build_project_configuration_runtime(session):
+    from modules.core.infra.database.configuration_legacy import LegacyConfigurationStore
+    from shared.composition_resources import SETTINGS
+    return LegacyConfigurationStore(session, encryption_key=SETTINGS.encryption_key)
+
+
+__all__ += ["build_project_configuration_service", "build_project_configuration_runtime"]
+
+
+def build_configuration_acceptor(dependency_reader):
+    from modules.core.infra.services.configuration_acceptance import ConfigurationAcceptance
+    return ConfigurationAcceptance(build_project_configuration_runtime, dependency_reader)
+
+
+__all__.append("build_configuration_acceptor")
+
+
+def build_project_environment_service():
+    from modules.core.infra.services.legacy_project_environment_service import LegacyProjectEnvironmentService
+    from shared.composition_resources import SESSION_FACTORY, SETTINGS
+    return LegacyProjectEnvironmentService(SESSION_FACTORY, encryption_key=SETTINGS.encryption_key)
+
+
+__all__.append("build_project_environment_service")
+
+from modules.core.infra.services.project_configuration_service import configure_configuration_target_reader
+__all__.append("configure_configuration_target_reader")
+
+
+def build_configuration_runtime_resolver(*, consumer_verifier):
+    from modules.core.infra.services.configuration_runtime_resolver import ConfigurationRuntimeResolver
+    from shared.composition_resources import SESSION_FACTORY, SETTINGS
+    return ConfigurationRuntimeResolver(SESSION_FACTORY, encryption_key=SETTINGS.encryption_key, consumer_verifier=consumer_verifier)
+
+__all__.append("build_configuration_runtime_resolver")
+
+from modules.core.infra.services.project_configuration_service import configure_configuration_binding_adapter
+__all__.append("configure_configuration_binding_adapter")
+
+
+def build_configuration_process_registration(session_factory, *, role):
+    from modules.core.infra.services.configuration_process import ConfigurationProcessRegistration
+    return ConfigurationProcessRegistration(session_factory, role=role)
+
+
+__all__.append("build_configuration_process_registration")
+
+from modules.core.infra.services.project_configuration_service import configure_configuration_migration_adapter
+__all__.append("configure_configuration_migration_adapter")
+
+
+def declare_imported_configuration_composer():
+    from modules.core.infra.services.configuration_package import DeclareImportedConfiguration
+    from modules.core.infra.database.unit_of_work import CoreUnitOfWork
+    from shared.composition_resources import DATABASE_ENGINE, SETTINGS
+    from shared.infra.transactional_handler import TransactionalHandler
+    uow = CoreUnitOfWork(DATABASE_ENGINE)
+    return TransactionalHandler(uow, DeclareImportedConfiguration(uow, encryption_key=SETTINGS.encryption_key),
+        additional_permissions=lambda _: [("project:environment:declare", None)])
+
+
+from modules.core.infra.services.configuration_package import inspect_configuration_declarations
+__all__ += ["declare_imported_configuration_composer", "inspect_configuration_declarations"]

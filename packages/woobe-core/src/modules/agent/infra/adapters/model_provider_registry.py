@@ -417,7 +417,9 @@ class AnthropicProviderAdapter:
         connection: ProviderConnection,
     ) -> tuple[ModelSpec, ...]:
         base_url = _connection_base_url(connection, ANTHROPIC_BASE_URL)
-        payload = await _async_json_get(
+        from modules.agent.infra.adapters.configuration_transport import BoundConfigurationCredential, configuration_get_json
+        payload = await configuration_get_json(f"{base_url}/v1/models?limit=1000", connection.api_key,
+            header="X-Api-Key", prefix="", headers={"anthropic-version": str(connection.metadata.get("anthropic_version") or "2023-06-01")}) if isinstance(connection.api_key, BoundConfigurationCredential) else await _async_json_get(
             f"{base_url}/v1/models?limit=1000",
             headers={
                 "X-Api-Key": connection.api_key,
@@ -573,7 +575,8 @@ class DeepSeekProviderAdapter:
         connection: ProviderConnection,
     ) -> tuple[ModelSpec, ...]:
         base_url = _connection_base_url(connection, DEEPSEEK_BASE_URL)
-        payload = await _async_json_get(
+        from modules.agent.infra.adapters.configuration_transport import BoundConfigurationCredential, configuration_get_json
+        payload = await configuration_get_json(f"{base_url}/models", connection.api_key) if isinstance(connection.api_key, BoundConfigurationCredential) else await _async_json_get(
             f"{base_url}/models",
             headers={
                 "Authorization": f"Bearer {connection.api_key}",

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { ConfigurationAuthenticationEditor } from './ConfigurationAuthenticationEditor'
 import type { FormEvent, ReactNode } from 'react'
 import { ArrowLeft, ChevronDown, Globe2, Plus, Route, Server, Trash2, Undo2 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -32,6 +33,7 @@ import type {
   Tool,
   ToolConfig,
   ToolProtocol,
+  RemoteAuthentication,
 } from '@/features/tools/types'
 
 export type ApiFirstToolFormSubmitValue = Omit<CreateToolRequest, 'project_id'>
@@ -416,6 +418,7 @@ export function ApiFirstToolForm({
   const initialMcp = initialTool?.type === 'mcp' ? (initialTool.config || {}) as McpToolConfig : null
   const initialProtocol: Protocol = initialMcp ? 'mcp' : 'http'
 
+  const [authentication, setAuthentication] = useState<RemoteAuthentication | undefined>((initialMcp || initialHttp)?.authentication ?? (initialTool ? undefined : { type: 'none', fields: {} }))
   const [step, setStep] = useState<FormStep>(initialTool ? 'details' : 'type')
   const [protocol, setProtocol] = useState<Protocol>(initialProtocol)
   const [name, setName] = useState(initialTool?.name || '')
@@ -524,6 +527,10 @@ export function ApiFirstToolForm({
     else if (/^https?:\/\//i.test(route.path.trim())) nextErrors.path = 'Use a path relative to the Base URL.'
     if (!route.name.trim()) nextErrors.name = 'Route name is required.'
     if (!route.description.trim()) nextErrors.description = 'Describe when the Agent should use this route.'
+    if (route.authentication && (Object.values(route.authentication.fields).some(ref => !ref.key)
+      || (route.authentication.type === 'headers' && !Object.keys(route.authentication.fields).length))) {
+      nextErrors.authentication = 'Select a declared key for every route authentication field.'
+    }
     if (route.operation_id) {
       if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(route.operation_id)) nextErrors.operationId = 'Technical identifier is invalid.'
       const duplicate = routes.some((item) => item.id !== route.id && item.operation_id === route.operation_id)
@@ -583,6 +590,7 @@ export function ApiFirstToolForm({
       description: route.description.trim(),
       method: route.method,
       path: route.path.trim(),
+      ...(route.authentication ? { authentication: route.authentication } : {}),
       headers: routeHeaders,
       body: canHaveBody && route.body.trim() ? route.body.trim() : undefined,
       variables: route.variables || {},
@@ -601,6 +609,7 @@ export function ApiFirstToolForm({
     if (protocol === 'mcp') {
       return {
         protocol: 'mcp',
+        ...(authentication ? { authentication } : {}),
         mode: 'server',
         exposure: 'all_discovered',
         server: {
@@ -615,6 +624,7 @@ export function ApiFirstToolForm({
     }
     return {
       protocol: 'http',
+      ...(authentication ? { authentication } : {}),
       mode: 'group',
       schema_version: 2,
       base_url: baseUrl.trim().replace(/\/+$/, ''),
@@ -651,6 +661,9 @@ export function ApiFirstToolForm({
       if (!name.trim()) nextErrors.name = 'Display name is required.'
       if (!description.trim()) nextErrors.description = 'Describe what this API provides to Agents.'
       if (routes.length === 0) nextErrors.routes = 'Add at least one route.'
+    }
+    if (authentication && (Object.values(authentication.fields).some(ref => !ref.key) || (authentication.type === 'headers' && !Object.keys(authentication.fields).length))) {
+      nextErrors.authentication = 'Select a declared key for every authentication field.'
     }
     setErrors(nextErrors)
     return Object.keys(nextErrors).length === 0
@@ -707,7 +720,7 @@ export function ApiFirstToolForm({
     : initialTool
       ? 'Save changes'
       : protocol === 'mcp'
-        ? 'Create & discover'
+        ? authentication ? 'Create connection' : 'Create & discover'
         : submitLabel === 'Create' ? 'Create API' : submitLabel
 
   return (
@@ -740,6 +753,9 @@ export function ApiFirstToolForm({
 
         {step === 'details' ? (
           <div className="space-y-5">
+            {projectId && authentication && <ConfigurationAuthenticationEditor projectId={projectId} value={authentication} onChange={setAuthentication} />}
+            <FieldError message={errors.authentication} />
+            {initialTool && !authentication && <p className="text-xs text-muted">This connection uses legacy authentication. Review its mapping in Project → Environments before converting it.</p>}
             <div className="flex items-start gap-3">
               {!initialTool ? (
                 <Button type="button" size="sm" variant="ghost" className="mt-0.5 px-2" onClick={() => setStep('type')}>
@@ -958,6 +974,20 @@ export function ApiFirstToolForm({
               onToggle={() => setRouteAdvancedOpen((current) => !current)}
               summary={`${sharedHeaders.length} inherited headers · ${routeEditor.draft.headers.length} route rules`}
             >
+              {projectId && <div className="space-y-ui-md">
+                <div className="grid items-start gap-ui-md sm:grid-cols-2">
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-muted">Route authentication</label>
+                    <Select value={routeEditor.draft.authentication ? 'route' : 'inherit'}
+                      onChange={event => updateRouteDraft({ authentication: event.target.value === 'inherit' ? undefined : { type: 'none', fields: {} } })}
+                      options={[{ value: 'inherit', label: 'Use connection authentication' }, { value: 'route', label: 'Set authentication for this route' }]} />
+                  </div>
+                  <p className="text-xs text-muted">Route keys are authorized for this path. No authentication sends this route without the connection’s private headers.</p>
+                </div>
+                {routeEditor.draft.authentication && <ConfigurationAuthenticationEditor projectId={projectId}
+                  value={routeEditor.draft.authentication} onChange={authentication => updateRouteDraft({ authentication })} />}
+                <FieldError message={routeErrors.authentication} />
+              </div>}
               {!routeEditor.isNew && routeEditor.draft.operation_id ? (
                 <div>
                   <p className="text-xs font-medium text-muted">Technical identifier</p>

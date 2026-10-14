@@ -70,6 +70,8 @@ def build_agent_asac_deployments(*, artifacts, preparation, environment_reader, 
     from modules.agent.infra.database.asac_transactions import AgentASaCDeploymentStore
     from modules.agent.infra.database.asac_environment_selector import AgentASaCEnvironmentSelector
     from modules.agent.infra.database.models import AgentOutboxEventModel
+    from modules.agent.infra.database.configuration_activation import AgentConfigurationActivation
+    from modules.agent.composition.factories.configuration_readers import collect_configuration_dependencies
     return AgentASaCDeploymentStore(publications=build_agent_asac_publications(artifacts=artifacts,preparation=preparation),
         plans=ASaCDeploymentPlanModel,deployments=ASaCDeploymentModel,selections=ASaCEnvironmentSelectionModel,
-        selector=AgentASaCEnvironmentSelector(),outbox=AgentOutboxEventModel,policy=policy,bindings=build_agent_asac_binding_guard(environment_reader=environment_reader))
+        selector=AgentASaCEnvironmentSelector(AgentConfigurationActivation(collect_configuration_dependencies)),outbox=AgentOutboxEventModel,policy=policy,bindings=build_agent_asac_binding_guard(environment_reader=environment_reader))

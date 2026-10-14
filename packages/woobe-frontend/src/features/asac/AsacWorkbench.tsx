@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { get, post } from '@/lib/api/client'
+import { ConfigurationReadinessNotice } from '@/features/projects/components/ConfigurationReadinessNotice'
 import { confirmedRejection, ledgerPage, leaseProof, mutation, ownerPath, readEditor, saveEditor, text } from './api'
 import type { Current, Draft, Editor, Ledger, LeaseProof, Pending, RecordData, ResourceKind } from './api'
 
@@ -24,6 +25,7 @@ export function AsacWorkbench({ projectId, resourceId, kind }: { projectId: stri
   const [file, setFile] = useState('')
   const [name, setName] = useState('hotfix')
   const [source, setSource] = useState('production')
+  const [packageSchema, setPackageSchema] = useState('2.0')
   const [version, setVersion] = useState('')
   const [reason, setReason] = useState('')
   const [parents, setParents] = useState<string[]>([])
@@ -33,7 +35,7 @@ export function AsacWorkbench({ projectId, resourceId, kind }: { projectId: stri
   const [publication, setPublication] = useState<RecordData | null>(null)
   const [plan, setPlan] = useState<RecordData | null>(null)
   const [proof, setProof] = useState<LeaseProof | null>(null)
-  const [environment, setEnvironment] = useState('production')
+  const [environment, setEnvironment] = useState<'staging' | 'production'>('production')
   const [testInput, setTestInput] = useState('Hello')
   const [expected, setExpected] = useState('')
   const [suite, setSuite] = useState('web-acceptance')
@@ -149,7 +151,7 @@ export function AsacWorkbench({ projectId, resourceId, kind }: { projectId: stri
     let exported: RecordData
     try {
       // Capture first: failures here have not submitted an owner mutation.
-      exported = await post<RecordData>(`/projects/${projectId}/packages/export`, { kind, target_id: resourceId, source, ...(source === 'release' ? { release_version: version } : {}), knowledge: 'portable', development: true }, { sensitive: true })
+      exported = await post<RecordData>(`/projects/${projectId}/packages/export`, { kind, target_id: resourceId, source, ...(source === 'release' ? { release_version: version } : {}), knowledge: 'portable', development: true, package_schema_version: packageSchema }, { sensitive: true })
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Snapshot capture failed.'); setBusy(false); return
     }
@@ -176,12 +178,14 @@ export function AsacWorkbench({ projectId, resourceId, kind }: { projectId: stri
       <p className={label}>Production: {production.snapshotId ?? selectionMessage(production, 'Production')} · generation {production.data?.environment_generation ?? '—'}</p>
       <Button onClick={() => void loadEditor()} disabled={!draftId || blocked || dirty}>Load saved files</Button>
     </div>
-    <div className={`${box} grid items-end gap-ui-md md:grid-cols-4`}>
+    <div className={`${box} grid items-end gap-ui-md md:grid-cols-2 xl:grid-cols-5`}>
       {field('New Draft name', <Input value={name} onChange={event => setName(event.target.value)} aria-label="New Draft name" />)}
       {field('Open from', <Select value={source} onChange={event => setSource(event.target.value)} aria-label="Open from" options={['draft', 'staging', 'release', 'production'].map(value => ({ value, label: value }))} />)}
       {field('Release version', <Input value={version} disabled={source !== 'release'} onChange={event => setVersion(event.target.value)} aria-label="Release version" placeholder="Only for a fixed Release" />)}
+      {field('Connection mode', <Select value={packageSchema} onChange={event => setPackageSchema(event.target.value)} aria-label="Connection mode" options={[{ value: '2.0', label: 'Remote references' }, { value: '1.0', label: 'Legacy compatibility' }]} />)}
       <Button onClick={() => void open()} disabled={blocked || dirty || !name || (source === 'release' && !version)}>Open isolated Draft</Button>
     </div>
+    {packageSchema === '1.0' && <p className={label}>Legacy compatibility preserves the existing connection contract. Use remote references after reviewing the Project configuration mapping.</p>}
     {editor && <div className={`${box} space-y-ui-md`}>
       <div className="grid gap-ui-sm md:grid-cols-3"><span className={label}>Origin: {text(editor.draft.origin, 'environment')} / {text(editor.draft.origin, 'snapshot_id')}</span><span className={label}>Selected Draft: {editor.draft.name} · generation {editor.draft.generation}</span><span className={label}>Writes update this Draft. Stage and Production are separate.</span></div>
       {stale && <p role="alert" className="text-amber-300">The remote generation changed. Your edits remain here; saving is blocked. Compare and resolve before refreshing.</p>}
@@ -212,6 +216,7 @@ export function AsacWorkbench({ projectId, resourceId, kind }: { projectId: stri
     </div>}
     {candidate && <div className={`${box} space-y-ui-md`}>
       <div className="flex flex-wrap items-center justify-between gap-ui-sm"><p className={label}>Candidate {text(candidate, 'candidate_id')} · {text(candidate, 'state')} · checkpoint {text(candidate, 'revision_id')}</p><Button disabled={busy} onClick={() => void inspect('candidate')}>Refresh Candidate</Button></div>
+      {typeof candidate.snapshot_id === 'string' && <ConfigurationReadinessNotice projectId={projectId} targetKind={kind === 'Agent' ? 'agent' : 'network'} targetId={resourceId} environment="staging" versionId={candidate.snapshot_id} />}
       <div className="grid gap-ui-md md:grid-cols-3">{field('Suite identity', <Input value={suite} onChange={event => setSuite(event.target.value)} />)}{field('Suite / dataset version', <Input value={suiteVersion} onChange={event => setSuiteVersion(event.target.value)} />)}{field('Exact expected text (optional)', <Input value={expected} onChange={event => setExpected(event.target.value)} />)}</div>
       {field('Acceptance case input', <textarea value={testInput} onChange={event => setTestInput(event.target.value)} className="w-full rounded-control border border-border bg-background p-ui-sm text-xs" aria-label="Acceptance case input" />)}
       <Button disabled={blocked || candidate.state !== 'ready' || !testInput.trim() || !suite || !suiteVersion} onClick={() => void write('evaluate', operation => mutation(base, `/candidates/${text(candidate, 'candidate_id')}/evaluations`, { suite: { schema_version: '1.0', suite_id: suite, suite_version: suiteVersion, dataset_version: suiteVersion, cases: [{ id: 'web-case', message: testInput, ...(expected ? { expected_output: expected } : {}) }] } }, operation))}>Evaluate this Candidate</Button>
@@ -220,7 +225,8 @@ export function AsacWorkbench({ projectId, resourceId, kind }: { projectId: stri
     </div>}
     {publication && <div className={`${box} space-y-ui-md`}>
       <p className={label}>Published Release {text(publication, 'release_version')} / {text(publication, 'release_id')}. Git provenance: unavailable for this Web operation.</p>
-      <div className="grid items-end gap-ui-md md:grid-cols-[1fr_2fr_auto]">{field('Deployment environment', <Select value={environment} disabled={Boolean(plan)} onChange={event => setEnvironment(event.target.value)} options={['staging', 'production'].map(value => ({ value, label: value }))} />)}{field('Activation reason', <Input value={reason} onChange={event => setReason(event.target.value)} />)}
+      {typeof publication.release_id === 'string' && <ConfigurationReadinessNotice projectId={projectId} targetKind={kind === 'Agent' ? 'agent' : 'network'} targetId={resourceId} environment={environment} versionId={publication.release_id} />}
+      <div className="grid items-end gap-ui-md md:grid-cols-[1fr_2fr_auto]">{field('Deployment environment', <Select value={environment} disabled={Boolean(plan)} onChange={event => setEnvironment(event.target.value === "staging" ? "staging" : "production")} options={['staging', 'production'].map(value => ({ value, label: value }))} />)}{field('Activation reason', <Input value={reason} onChange={event => setReason(event.target.value)} />)}
         <Button disabled={blocked || reason.trim().length < 3} onClick={() => void prepareDeployment()}>Plan exact activation</Button>
       </div>
       {plan && <div className="space-y-ui-sm"><p className={label}>Plan {text(plan, 'plan_id')} · expected generation {text(plan, 'expected_generation')} · {environment}. Review this selection before applying.</p>

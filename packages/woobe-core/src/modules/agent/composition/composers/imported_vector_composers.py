@@ -28,16 +28,16 @@ from modules.agent.presentation.controllers.imported_vector_controller import (
 from shared.infra.transactional_handler import TransactionalHandler
 
 
-def create_imported_vector_composer() -> TransactionalHandler:
-    uow = AgentUnitOfWork(DATABASE_ENGINE)
+def _build_imported_vector_controller(uow, *, structural=False):
     use_case = CreateVectorSnapshotUseCase(
+        defer_preparation=structural,
         snapshot_repo=SQLAlchemyVectorSnapshotRepository(uow),
         collection_repo=SQLAlchemyDocumentCollectionRepository(uow),
         document_repo=SQLAlchemyGuardedDocumentRepository(uow),
         provider_model_repo=SQLAlchemyProviderModelRepository(uow),
         credential_repo=SQLAlchemyProviderCredentialRepository(uow),
     )
-    return TransactionalHandler(uow, ImportedVectorController(use_case).handle)
+    return ImportedVectorController(use_case)
 
 
 def verify_imported_vector_composer() -> TransactionalHandler:
@@ -60,3 +60,15 @@ def create_development_vector_composer() -> TransactionalHandler:
     )
     use_case = MaterializeDevelopmentVector(repository, create)
     return TransactionalHandler(uow, ImportedVectorController(use_case).handle)
+
+
+def create_imported_vector_composer() -> TransactionalHandler:
+    uow = AgentUnitOfWork(DATABASE_ENGINE)
+    controller = _build_imported_vector_controller(uow)
+    return TransactionalHandler(uow, controller.handle)
+
+
+def create_imported_vector_structural_composer() -> TransactionalHandler:
+    uow = AgentUnitOfWork(DATABASE_ENGINE)
+    controller = _build_imported_vector_controller(uow, structural=True)
+    return TransactionalHandler(uow, controller.handle)

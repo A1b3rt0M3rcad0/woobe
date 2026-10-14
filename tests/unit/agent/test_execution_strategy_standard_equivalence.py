@@ -381,7 +381,8 @@ async def test_standard_strategy_preserves_structured_json_repair() -> None:
 
 
 @pytest.mark.asyncio
-async def test_standard_strategy_decides_fallback_through_model_capability() -> None:
+@pytest.mark.parametrize("central", [False, True])
+async def test_standard_strategy_decides_fallback_through_model_capability(central) -> None:
     primary = _FailingModel()
     fallback = _SequenceModel([AIMessage(content="fallback answer")])
     factory = _MultiModelFactory([primary, fallback])
@@ -401,8 +402,12 @@ async def test_standard_strategy_decides_fallback_through_model_capability() -> 
         raise AssertionError("Tool execution must not run")
 
     context = new_execution_context()
+    from modules.agent.infra.adapters.configuration_transport import BoundConfigurationCredential
+    async def resolve(_destination):
+        raise AssertionError("Material is resolved at HTTP send, not preparation")
+    credential = BoundConfigurationCredential(resolve) if central else "fallback-key"
     context.prepared_fallback = {
-        "api_key": "fallback-key",
+        "api_key": credential,
         "base_url": None,
     }
     token = current_execution.set(context)
@@ -430,6 +435,7 @@ async def test_standard_strategy_decides_fallback_through_model_capability() -> 
     assert len(factory.calls) == 2
     assert factory.calls[1]["provider"] == "openai"
     assert factory.calls[1]["model"] == "fallback-model"
+    assert factory.calls[1]["api_key"] is credential
 
 
 @pytest.mark.asyncio

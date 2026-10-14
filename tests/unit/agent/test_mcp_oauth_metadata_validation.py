@@ -97,6 +97,24 @@ async def test_validate_mcp_oauth_metadata_rejects_incomplete_generic_metadata()
 
 
 @pytest.mark.asyncio
+async def test_flow_resolver_retains_challenge_metadata_and_scopes():
+    from modules.agent.application.mcp_oauth_flow_safety import WoobeMcpOAuthMetadataResolver
+    resource = 'https://mcp.example.com/.well-known/oauth-protected-resource'
+    executor = SequenceExecutor([
+        ExecutionResult(success=False, status_code=401,
+            headers={'WWW-Authenticate': f'Bearer resource_metadata="{resource}", scope="mcp:read mcp:write"'}),
+        ExecutionResult(success=True, status_code=200, output={'body': {
+            'resource': 'https://mcp.example.com/mcp', 'authorization_servers': ['https://auth.example.com']}}),
+    ])
+    metadata = await WoobeMcpOAuthMetadataResolver(executor).resolve(server_url='https://mcp.example.com/mcp',
+        authorization_endpoint='https://auth.example.com/authorize', token_endpoint='https://auth.example.com/token',
+        registration_endpoint=None, authorization_server_issuer=None, timeout_ms=5000)
+    assert metadata['required_scopes'] == ['mcp:read', 'mcp:write']
+    assert metadata['resource_metadata_url'] == resource
+    assert metadata['authorization_server_issuer'] == 'https://auth.example.com'
+
+
+@pytest.mark.asyncio
 async def test_validate_mcp_oauth_metadata_classifies_run_tools_as_managed_when_incomplete() -> None:
     server_url = "https://skillflow--rafsilva85.run.tools"
     resource_metadata_url = f"{server_url}/.well-known/oauth-protected-resource"

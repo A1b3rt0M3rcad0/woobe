@@ -69,3 +69,6 @@ __all__ = [
     "RedisNetworkExecutionStore",
     "classify_runtime_exception",
 ]
+
+from modules.network.application.configuration_acceptance import configure_configuration_acceptance
+__all__.append("configure_configuration_acceptance")

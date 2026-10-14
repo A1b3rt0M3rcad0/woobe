@@ -29,7 +29,7 @@ from shared.security.rate_limit import (
     ApiKeyConcurrencyLimiter,
     LoginRateLimiter,
 )
-from woobe_api.security.operation_catalog import resolve_operation, verified_query_context
+from woobe_api.security.operation_catalog import resolve_operation, verified_query_context, configuration_query_scope
 
 PUBLIC_PATHS = {
     "/identity/auth/login",
@@ -42,6 +42,31 @@ PUBLIC_PATHS = {
 _LOCAL_ENVIRONMENTS = {"development", "dev", "test", "local"}
 _ALLOWED_SAME_SITE = {"lax", "strict", "none"}
 _CSRF_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+
+
+def _configuration_permissions(method, path, body, path_params):
+    """Additional authority; never infer it from a client-supplied marker."""
+    if not isinstance(body, dict):
+        return []
+    credential = path_params.get("credential_id")
+    provider_write = (method == "POST" and path == "/ai/credentials") or (
+        method == "PATCH" and credential is not None and path == f"/ai/credentials/{credential}")
+    provider_rotate = method == "POST" and credential is not None and path == f"/ai/credentials/{credential}/rotate"
+    permissions = []
+    if method == 'POST' and path in {
+        '/tools/mcp/oauth/start', '/tools/mcp/oauth/complete',
+        '/tools/mcp/oauth/device/start', '/tools/mcp/oauth/device/poll',
+    }:
+        permissions.append(('project:environment:value:write', 'tool:write'))
+    if method in {'POST', 'PUT', 'PATCH'} and '/tools' in path:
+        from shared.contracts.project_configuration import tool_configuration_permissions
+        permissions.extend(tool_configuration_permissions(body.get('config'),
+            compatibility_update=method == 'PATCH' and path_params.get('tool_id') is not None))
+    if provider_write and "authentication" in body:
+        permissions.append(("project:environment:bind", None))
+    if (provider_write or provider_rotate) and "secret" in body:
+        permissions.append(("project:environment:value:write", "provider:credential:rotate" if provider_rotate else "provider:write"))
+    return permissions
 
 
 def _is_public_run_cancel(method: str, path: str) -> bool:
@@ -235,21 +260,31 @@ class HttpSecurityGuard:
             body,
         )
 
+        query_params = configuration_query_scope(request.method, path, path_params, query_params)
         authorization_path_params = verified_query_context(
             request.method, path, authorization_path_params, query_params
         )
         body = self._authorization_body(request, path_params, body)
+        configuration_permissions = _configuration_permissions(request.method, path, body, path_params)
         authorization = request.headers.get("authorization", "")
         scheme, _, credentials = authorization.partition(" ")
         if scheme.lower() == "bearer" and credentials:
             if is_api_key_candidate(credentials):
-                return await self._authenticate_api_key(
+                principal = await self._authenticate_api_key(
                     request=request,
                     credentials=credentials,
                     body=body,
                     query_params=query_params,
                     path_params=authorization_path_params,
                 )
+                for permission, legacy in configuration_permissions:
+                    from shared.contracts.project_configuration import configuration_permission_contexts
+                    for context in configuration_permission_contexts(permission, legacy, authorization_path_params):
+                        await self._authenticator.authenticate_api_key(credentials=credentials,
+                            required_scope=_required_api_key_scope(request.method, request.url.path),
+                            runtime_interface=public_runtime_interface(request.method, request.url.path),
+                            path_params=context, query_params=query_params, body=body, control_permission=permission)
+                return principal
             access_token = credentials
             token_source = "header"
         else:
@@ -271,6 +306,13 @@ class HttpSecurityGuard:
         if token_source == "cookie":
             self._validate_csrf(request)
 
+        for permission, legacy in configuration_permissions:
+            from shared.contracts.project_configuration import configuration_permission_contexts
+            for context in configuration_permission_contexts(permission, legacy, authorization_path_params):
+                await self._authenticator.authenticate_user(access_token=access_token,
+                    path_params=context, query_params=query_params, body=body,
+                    required_permission=permission, mutation=True)
+
         return principal
 
     @staticmethod
@@ -279,6 +321,21 @@ class HttpSecurityGuard:
         path_params: dict[str, Any],
         body: Any = None,
     ) -> dict[str, Any]:
+        project = path_params.get("project_id")
+        if project and request.method == "POST" and isinstance(body, dict):
+            base = f"/core/projects/{project}/configuration/"
+            environments = []
+            if request.url.path == base + "use-policies" or (
+                path_params.get("alias_id") and request.url.path == base + f"legacy-bindings/{path_params['alias_id']}/convert"):
+                environments = body.get("environments")
+            elif request.url.path == base + "value-batches":
+                operations = body.get("operations")
+                if isinstance(operations, list):
+                    environments = [op.get("environment") for op in operations if isinstance(op, dict)]
+            # This is only the preliminary boundary check. The authoritative
+            # configuration transaction authorizes every requested environment.
+            if isinstance(environments, list) and environments and environments[0] in ("draft", "staging", "production"):
+                return {**path_params, "environment": environments[0]}
         if request.method == "GET" and "project_id" in path_params and "resource_id" in path_params:
             project, resource = path_params["project_id"], path_params["resource_id"]
             for plural, identifier in (("agents", "agent_id"), ("networks", "network_id")):

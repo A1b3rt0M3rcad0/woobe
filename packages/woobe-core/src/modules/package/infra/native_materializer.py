@@ -1,6 +1,7 @@
 """Package phase dispatch through public owner composition boundaries."""
 
 import asyncio
+from copy import deepcopy
 import posixpath
 from hashlib import sha256
 import json
@@ -23,6 +24,7 @@ from modules.agent.entrypoint import (
     reuse_frozen_agent_composer,
     reuse_development_resource_composer,
     verify_imported_agent_composer,
+    verify_imported_agent_structural_composer,
     create_contract_version_composer,
     create_prompt_version_composer,
     materialize_development_prompt_composer,
@@ -37,20 +39,24 @@ from modules.agent.entrypoint import (
     create_secret_composer,
     create_collection_composer,
     create_knowledge_version_composer,
+    create_knowledge_version_structural_composer,
     skill_catalog_composer,
     build_imported_document_preparation,
     upload_document_composer,
     create_imported_vector_composer,
+    create_imported_vector_structural_composer,
     verify_imported_vector_composer,
     build_imported_mcp_preparation,
     commit_imported_mcp_composer,
     finalize_imported_agent_composer,
+    finalize_imported_agent_structural_composer,
     materialize_imported_tool_composer,
     resolve_imported_model_composer,
 )
 from modules.package.domain.errors import PackageError
 from modules.package.application.execution import DependencyWait
 from modules.core.entrypoint import create_imported_environment_composer
+from modules.core.entrypoint import declare_imported_configuration_composer
 from modules.network.entrypoint import imported_network_composer, network_candidate_lifecycle_composer
 from modules.package.domain.bundle import portable_path
 from modules.package.infra.receipts import PackageTransactionReceipt
@@ -73,6 +79,8 @@ def installed_resources(work):
         resources[phase] = data
         group, _, key = phase.partition(":")
         if group in {"model", "tool", "skill", "agent", "network", "vector-ready"}:
+            resources[key] = data
+        if group == "vector" and work.plan.get("installation_mode") == "structural":
             resources[key] = data
     for key, component in work.plan["source_definition"]["components"].items():
         if component["kind"] == "Knowledge" and component["spec"]["mode"] == "binding":
@@ -230,6 +238,16 @@ class NativePackageMaterializer:
                 "metadata": requirement.get("metadata"),
             }
             handler = create_provider_credential_composer()
+        elif action == "declare_configuration":
+            declaration = next(item for item in work.plan["source_definition"]["manifest"]["spec"]["configuration"]["keys"] if item["key"] == key)
+            body = {"project_id": project, **declaration}
+            handler = declare_imported_configuration_composer()
+        elif action == "create_reference_credential":
+            connection = deepcopy(work.plan["source_definition"]["manifest"]["spec"]["connections"][key])
+            for reference in connection["authentication"]["fields"].values():
+                reference["key"] = work.plan["binding_resolutions"]["project_environment"][reference["key"]]["key"]
+            body = {"project_id": project, **connection}
+            handler = create_provider_credential_composer()
         elif action == "create_environment_value":
             requirement = next(
                 item
@@ -301,7 +319,7 @@ class NativePackageMaterializer:
                 if work.plan.get("mode") == "sync"
                 else upload_document_composer()
             )
-        elif action == "build_vector_snapshot":
+        elif action in {"build_vector_snapshot", "declare_vector_snapshot"}:
             embedding = resources[document["spec"]["embedding"]["model_ref"]]
             body = {
                 "project_id": project,
@@ -320,7 +338,7 @@ class NativePackageMaterializer:
                 ).hexdigest()
                 handler = create_development_vector_composer()
             else:
-                handler = create_imported_vector_composer()
+                handler = (create_imported_vector_structural_composer() if action == "declare_vector_snapshot" else create_imported_vector_composer())
         elif action == "verify_vector_snapshot":
             body = {
                 "project_id": project,
@@ -341,7 +359,7 @@ class NativePackageMaterializer:
                 },
             }
             paths["agent_id"] = agent_id
-            handler = create_knowledge_version_composer()
+            handler = (create_knowledge_version_structural_composer() if work.plan.get("installation_mode") == "structural" else create_knowledge_version_composer())
         elif action == "resolve_model":
             alias = document["spec"]["credential"]["ref"]
             resolution = work.plan["binding_resolutions"]["credentials"][alias]
@@ -478,7 +496,7 @@ class NativePackageMaterializer:
                 finalize_existing_agent_composer()
                 if target.get("resource_id")
                 and not target.get("preparation", {}).get("new_root")
-                else finalize_imported_agent_composer()
+                else (finalize_imported_agent_structural_composer() if work.plan.get("installation_mode") == "structural" else finalize_imported_agent_composer())
             )
         elif (
             document
@@ -511,6 +529,7 @@ class NativePackageMaterializer:
             handler = promote_release_composer()
         elif document and document["kind"] == "Network":
             body = {
+                **({"structural": True} if work.plan.get("installation_mode") == "structural" else {}),
                 "project_id": project,
                 "action": action,
                 "name": document["metadata"]["name"],
@@ -532,7 +551,10 @@ class NativePackageMaterializer:
                     "network-draft:" + key, resources[key]
                 )["revision"]
             if action in {"save_network_draft", "verify_materialized_package"}:
-                body["portable_spec"] = document["spec"]
+                body["portable_spec"] = deepcopy(document["spec"])
+                if work.plan.get("installation_mode") == "structural":
+                    for node in body["portable_spec"]["nodes"]:
+                        node["binding"] = {"source": "draft"}
                 body["agents"] = {
                     node["agent_ref"]: resources[node["agent_ref"]]["id"]
                     for node in document["spec"]["nodes"]
@@ -565,6 +587,7 @@ class NativePackageMaterializer:
             and document["kind"] == "Agent"
         ):
             body = {
+                **({"structural": True} if work.plan.get("installation_mode") == "structural" else {}),
                 "project_id": project,
                 "agent_id": resources[key]["id"],
                 "draft_id": resources["draft:" + key]["id"],
@@ -580,7 +603,7 @@ class NativePackageMaterializer:
             handler = (
                 verify_development_agent_composer()
                 if work.plan.get("mode") == "sync"
-                else verify_imported_agent_composer()
+                else (verify_imported_agent_structural_composer() if work.plan.get("installation_mode") == "structural" else verify_imported_agent_composer())
             )
         else:
             raise PackageError(

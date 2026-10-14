@@ -3,7 +3,7 @@ from modules.agent.application.portable_authentication import (
     validate_portable_model_authentication,
 )
 from types import SimpleNamespace
-from modules.agent.application.tool_release_snapshots import tool_to_release_snapshot
+from modules.agent.application.tool_release_snapshots import tool_to_release_snapshot, tool_from_release_snapshot
 from modules.agent.application.execution_snapshot import build_agent_execution_snapshot
 from modules.agent.application.portable_export_tools import export_frozen_tool
 from modules.agent.application.skill_bindings import frozen_enabled_skills
@@ -108,8 +108,12 @@ class PortableAgentExportCompiler:
         return PortableAgentExportCompiler.definition(source)
 
     @staticmethod
-    def tool(snapshot):
-        return export_frozen_tool(snapshot)
+    def decode_tool(snapshot):
+        return tool_from_release_snapshot(snapshot)
+
+    @staticmethod
+    def tool(snapshot, *, configuration_projection=None):
+        return export_frozen_tool(snapshot, configuration_projection=configuration_projection)
 
     @staticmethod
     def validate_skills(runtime, project_id):

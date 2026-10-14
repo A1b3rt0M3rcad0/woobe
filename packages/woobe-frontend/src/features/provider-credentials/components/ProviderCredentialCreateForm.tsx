@@ -16,7 +16,7 @@ import {
 
 import { useCreateCredential } from '@/features/provider-credentials/hooks'
 import type { ProviderCredential } from '@/features/provider-credentials/types'
-import { ProviderSecretInput } from '@/features/provider-credentials/components/ProviderSecretInput'
+import { ConfigurationReferenceSelector } from '@/features/projects/components/ConfigurationReferenceSelector'
 import { buildModelProviderCredentialMetadata, isOpenAICompatibleProvider, MODEL_PROVIDER_LABELS, MODEL_PROVIDER_OPTIONS } from '@/features/provider-credentials/providers'
 
 interface ProviderCredentialCreateFormProps {
@@ -52,14 +52,14 @@ export function ProviderCredentialCreateForm({
   existingCredentials,
   onCreated,
   formId,
-  submitLabel = 'Connect',
+  submitLabel = 'Save provider',
   showActions = true,
   onCancel,
   onPendingChange,
 }: ProviderCredentialCreateFormProps) {
   const createCredential = useCreateCredential()
   const [provider, setProvider] = useState('openai')
-  const [secret, setSecret] = useState('')
+  const [configurationKey, setConfigurationKey] = useState('')
   const [baseUrl, setBaseUrl] = useState('')
   const [customName, setCustomName] = useState('')
   const selectedProvider = useMemo(() => MODEL_PROVIDER_OPTIONS.find((item) => item.value === provider) || MODEL_PROVIDER_OPTIONS[0], [provider])
@@ -74,7 +74,7 @@ export function ProviderCredentialCreateForm({
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault()
-    if (!secret.trim()) return void toast.error('API key is required')
+    if (!configurationKey) return void toast.error('Choose a Project configuration key')
     if (isOpenAICompatibleProvider(provider) && !baseUrl.trim()) return void toast.error('Base URL is required for OpenAI Compatible providers')
     const baseName = isOpenAICompatibleProvider(provider)
       ? customName.trim() || customCredentialBaseName(baseUrl)
@@ -85,15 +85,15 @@ export function ProviderCredentialCreateForm({
         project_id: projectId,
         provider,
         name,
-        secret: secret.trim(),
+        authentication: { type: 'api_key', fields: { api_key: { source: 'project_environment', key: configurationKey } } },
         metadata: buildModelProviderCredentialMetadata(provider, baseUrl),
       })
-      setSecret('')
+      setConfigurationKey('')
       setBaseUrl('')
       setCustomName('')
       onCreated(credential)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to connect provider')
+      toast.error(err instanceof Error ? err.message : 'Failed to save provider')
     }
   }
 
@@ -143,9 +143,9 @@ export function ProviderCredentialCreateForm({
       ) : null}
 
       <Field density="technical">
-        <FieldLabel>API key</FieldLabel>
-        <ProviderSecretInput value={secret} onChange={setSecret} />
-        <FieldDescription>Stored as a Project credential and never used as a login password.</FieldDescription>
+        <FieldLabel>API key reference</FieldLabel>
+        <ConfigurationReferenceSelector projectId={projectId} value={configurationKey} onChange={setConfigurationKey} />
+        <FieldDescription>Save the Provider now. Configure values and approve the destination in Project → Environments before testing.</FieldDescription>
       </Field>
 
       {provider === 'openrouter' ? (

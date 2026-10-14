@@ -1,3 +1,5 @@
+from modules.agent.infra.database.configuration_activation import AgentConfigurationActivation, ConfigurationReleaseValidator
+from modules.agent.composition.factories.configuration_readers import collect_configuration_dependencies
 from modules.agent.application.use_cases.knowledge_release_validator import KnowledgeReleaseValidator
 from modules.agent.application.use_cases.knowledge_safe_release_lifecycle import KnowledgeSafeReleaseLifecycleUseCase
 from modules.agent.composition.resources import DATABASE_ENGINE
@@ -21,6 +23,7 @@ def promote_release_composer() -> TransactionalHandler:
         release_repo,
         validator,
         activation_repo,
+        configuration_validator=ConfigurationReleaseValidator(uow, AgentConfigurationActivation(collect_configuration_dependencies)),
         activation_action="reactivate",
     )
     controller = PromoteReleaseController(use_case)

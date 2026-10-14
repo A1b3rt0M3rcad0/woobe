@@ -1,3 +1,5 @@
+from modules.agent.infra.database.configuration_activation import AgentConfigurationActivation
+from modules.agent.composition.factories.configuration_readers import collect_configuration_dependencies
 from modules.agent.application.use_cases.create_candidate_snapshot import CreateCandidateSnapshot
 from modules.agent.application.use_cases.knowledge_release_validator import KnowledgeReleaseValidator
 from modules.agent.application.use_cases.knowledge_safe_release_lifecycle import KnowledgeSafeCreateReleaseUseCase
@@ -32,7 +34,7 @@ def create_candidate_snapshot_composer() -> TransactionalHandler:
 def agent_candidate_lifecycle_composer() -> TransactionalHandler:
     uow = AgentUnitOfWork(DATABASE_ENGINE)
     handler = AgentCandidateLifecycleHandler(uow, build_development_resource_reader(),
-        SQLAlchemyAgentReleaseRepositoryWithProviderModels(uow))
+        SQLAlchemyAgentReleaseRepositoryWithProviderModels(uow), AgentConfigurationActivation(collect_configuration_dependencies))
     return TransactionalHandler(uow, handler.handle)
 
 from modules.agent.application.interfaces.candidate_execution import CandidateExecutionGrant, candidate_execution

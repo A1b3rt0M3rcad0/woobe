@@ -298,6 +298,11 @@ class ExplicitRuntimePersistenceMixin:
             source = str(metadata.get("source") or "runtime_api")
             environment = normalize_runtime_environment(input_dto.execution_context)
 
+            # Serialize source reads with cutover, even for legacy-only Runs.
+            configuration = getattr(repositories, "configuration", None)
+            if configuration is not None:
+                await configuration.lock_project(input_dto.project_id)
+
             if source != "network_runtime":
                 await repositories.environment.assert_enabled(
                     agent_id=input_dto.agent_id,
@@ -398,6 +403,28 @@ class ExplicitRuntimePersistenceMixin:
                     environment=normalize_runtime_environment(input_dto.execution_context))
             evaluation_grant = candidate_execution.get()
             evaluation_identity = {"id": evaluation_grant.run_id} if evaluation_grant and evaluation_grant.run_id else {}
+            from modules.agent.infra.adapters.configuration_bindings import provider_dependencies
+            dependencies = provider_dependencies(primary_credential, base_url=self._resolve_base_url(agent, primary_credential))
+            if fallback_credential is not None:
+                dependencies += provider_dependencies(fallback_credential, base_url=self._resolve_base_url_for_provider(
+                    agent.fallback_provider.value if hasattr(agent.fallback_provider, "value") else agent.fallback_provider,
+                    fallback_credential, fallback_connection_settings(agent)))
+            if rag_binding is not None:
+                from modules.agent.infra.execution.rag.embedding_capability import embedding_base_url
+                dependencies.extend(provider_dependencies(rag_binding.credential,
+                    base_url=embedding_base_url(rag_binding.snapshot, rag_binding.provider_model, rag_binding.credential),
+                    impact=(("knowledge", str(rag_binding.knowledge.id)),)))
+            from modules.agent.domain.tool_configuration import tool_dependencies
+            for tool in tools:
+                dependencies.extend(tool_dependencies(tool))
+            if dependencies:
+                from shared.contracts.project_configuration import ConfigurationError
+                if repositories.configuration is None:
+                    raise ConfigurationError("CONFIG_STORE_UNAVAILABLE")
+                evaluation_identity.setdefault("id", uuid4())
+                execution_snapshot["configuration_pins"] = await repositories.configuration.acquire(
+                    project_id=input_dto.project_id, run_id=evaluation_identity["id"],
+                    environment=environment, dependencies=dependencies)
             if evaluation_grant is not None:
                 execution_snapshot["asac"] = {
                     "evaluation_id": str(evaluation_grant.evaluation_id),
@@ -530,7 +557,7 @@ class ExplicitRuntimePersistenceMixin:
 
         try:
             # Decryption and all external work happen after the Acceptance COMMIT.
-            api_key = self._decrypt_api_key(primary_credential)
+            api_key = await self._resolve_api_key(primary_credential, base_url=self._resolve_base_url(agent, primary_credential))
             base_url = self._resolve_base_url(agent, primary_credential)
             fallback_data = None
             if fallback_credential is not None:
@@ -540,7 +567,8 @@ class ExplicitRuntimePersistenceMixin:
                     else agent.fallback_provider
                 )
                 fallback_data = {
-                    "api_key": self._decrypt_api_key(fallback_credential),
+                    "api_key": await self._resolve_api_key(fallback_credential, base_url=self._resolve_base_url_for_provider(
+                        fallback_provider, fallback_credential, fallback_connection_settings(agent))),
                     "base_url": self._resolve_base_url_for_provider(
                         fallback_provider,
                         fallback_credential,
@@ -843,7 +871,7 @@ class ExplicitRuntimePersistenceMixin:
         fallback_chat_model = self._llm_factory.create_chat_model(
             provider=fallback_provider,
             model=agent.fallback_model,
-            api_key=str((prepared or {}).get("api_key") or ""),
+            api_key=(prepared or {}).get("api_key") or "",
             base_url=(prepared or {}).get("base_url"),
             temperature=agent.temperature or 0.2,
             max_tokens=agent.max_output_tokens or 1000,

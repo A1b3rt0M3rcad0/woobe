@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from typing import cast
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -129,6 +129,9 @@ class SQLAlchemyProviderCredentialRepository(
         super().__init__(session, ProviderCredentialModel)
 
     async def save(self, credential: ProviderCredential) -> ProviderCredential:
+        from modules.agent.infra.database.configuration_provider_migration import centralize_new_provider
+        await centralize_new_provider(self._session, credential)
+        await self._configuration_references(credential)
         model = provider_credential_entity_to_model(credential)
         await self._add_model(model)
         await self._flush()
@@ -140,6 +143,13 @@ class SQLAlchemyProviderCredentialRepository(
         return provider_credential_model_to_entity(model) if model else None
 
     async def lock_by_id(self, credential_id: UUID) -> ProviderCredential | None:
+        from modules.agent.application.interfaces.project_configuration import configuration_for_session
+        configuration = configuration_for_session(self._session)
+        if configuration is not None:
+            project_id = await self._session.scalar(select(ProviderCredentialModel.project_id).where(
+                ProviderCredentialModel.id == credential_id))
+            if project_id is not None:
+                await configuration.lock_project(project_id)
         result = await self._session.execute(
             select(ProviderCredentialModel)
             .where(ProviderCredentialModel.id == credential_id)
@@ -181,18 +191,55 @@ class SQLAlchemyProviderCredentialRepository(
         )
 
     async def update(self, credential: ProviderCredential) -> ProviderCredential:
-        model = await self._get_model_by_id(credential.id)
+        from modules.agent.application.interfaces.project_configuration import configuration_for_session
+        configuration = configuration_for_session(self._session)
+        if configuration is not None:
+            await configuration.lock_project(credential.project_id)
+        model = await self._session.scalar(select(ProviderCredentialModel).where(
+            ProviderCredentialModel.id == credential.id).with_for_update().execution_options(populate_existing=True))
         if not model:
             from modules.agent.domain.errors import CredentialNotFoundError
             raise CredentialNotFoundError(credential.id)
+        if credential.encrypted_secret and model.authentication is not None:
+            from modules.agent.application.interfaces.project_configuration import configuration_for_session
+            from shared.contracts.project_configuration import ConfigurationError
+            reference = (model.authentication.get("fields") or {}).get("api_key") or {}
+            if reference.get("source") != "legacy_configuration" or credential.authentication != model.authentication:
+                raise ConfigurationError("LEGACY_ENVIRONMENT_REQUIRED")
+            configuration = configuration_for_session(self._session)
+            if configuration is None:
+                raise ConfigurationError("CONFIG_STORE_UNAVAILABLE")
+            await configuration.rotate_legacy(project_id=credential.project_id, alias_id=UUID(reference["alias_id"]),
+                encrypted_value=credential.encrypted_secret, source_revision=str(uuid4()), actor="legacy-provider-writer")
+            credential.encrypted_secret = ""
+        provider = credential.provider.value if hasattr(credential.provider, "value") else credential.provider
+        if credential.authentication != model.authentication or credential.metadata != (model.meta or {}) or provider != model.provider:
+            credential.binding_revision = (model.binding_revision or 1) + 1
+        await self._configuration_references(credential)
         model.provider = credential.provider.value if hasattr(credential.provider, 'value') else credential.provider
         model.name = credential.name
-        model.encrypted_secret = credential.encrypted_secret
+        model.encrypted_secret = credential.encrypted_secret or None
+        model.authentication = credential.authentication
+        model.binding_revision = credential.binding_revision
         model.status = credential.status.value if hasattr(credential.status, 'value') else credential.status
         model.last_validated_at = credential.last_validated_at
         model.meta = credential.metadata or None
         await self._flush()
         return provider_credential_model_to_entity(model)
+
+    async def _configuration_references(self, credential):
+        if credential.authentication is None:
+            return
+        from modules.agent.application.interfaces.project_configuration import configuration_for_session
+        from shared.contracts.project_configuration import ConfigurationDependency, ConfigurationError, compile_authentication
+        if credential.encrypted_secret:
+            raise ConfigurationError("CONFIG_BINDING_INVALID")
+        from modules.agent.infra.adapters.configuration_bindings import provider_dependencies
+        references = provider_dependencies(credential, require_destination=False)
+        configuration = configuration_for_session(self._session)
+        if configuration is None:
+            raise ConfigurationError("CONFIG_STORE_UNAVAILABLE")
+        await configuration.register_references(references)
 
     async def delete(self, credential_id: UUID) -> None:
         model = await self._get_model_by_id(credential_id)
@@ -1542,6 +1589,12 @@ class SQLAlchemyAgentInboxRepository(AgentInboxRepository):
 class SQLAlchemyAgentToolRepository(ToolRepository):
 
     async def lock_by_id(self, tool_id: UUID) -> Tool:
+        from modules.agent.application.interfaces.project_configuration import configuration_for_session
+        configuration = configuration_for_session(self._session)
+        if configuration is not None:
+            project_id = await self._session.scalar(select(AgentToolModel.project_id).where(AgentToolModel.id == tool_id))
+            if project_id is not None:
+                await configuration.lock_project(project_id)
         result = await self._session.execute(select(AgentToolModel).where(AgentToolModel.id == tool_id)
             .with_for_update().execution_options(populate_existing=True))
         model = result.scalar_one_or_none()
@@ -1560,6 +1613,7 @@ class SQLAlchemyAgentToolRepository(ToolRepository):
         return self._session_or_uow
 
     async def create(self, tool: Tool) -> Tool:
+        await self._register_configuration(tool)
         model = tool_to_model(tool)
         await self._base._add_model(model)
         await self._base._flush()
@@ -1625,6 +1679,7 @@ class SQLAlchemyAgentToolRepository(ToolRepository):
         )
 
     async def update(self, tool: Tool) -> Tool:
+        await self._register_configuration(tool)
         model = await self._base._get_model_by_id(tool.id)
         if model is None:
             raise ToolNotFoundError(tool.id)
@@ -1639,6 +1694,23 @@ class SQLAlchemyAgentToolRepository(ToolRepository):
         model.timeout_ms = tool.timeout_ms
         model.status = tool.status.value if hasattr(tool.status, 'value') else tool.status
         return model_to_tool(model)
+
+    async def _register_configuration(self, tool):
+        from modules.agent.domain.tool_configuration import tool_dependencies, validate_tool_authentication
+        from modules.agent.application.interfaces.project_configuration import configuration_for_session
+        from shared.contracts.project_configuration import ConfigurationError
+        configuration = configuration_for_session(self._session)
+        if configuration is not None:
+            await configuration.lock_project(tool.project_id)
+        from modules.agent.infra.database.configuration_tool_writer import centralize_tool_headers
+        await centralize_tool_headers(self._session, tool)
+        validate_tool_authentication(tool.config or {}, allow_legacy=True)
+        dependencies = tool_dependencies(tool)
+        if dependencies:
+            configuration = configuration_for_session(self._session)
+            if configuration is None:
+                raise ConfigurationError("CONFIG_STORE_UNAVAILABLE")
+            await configuration.register_references(dependencies)
 
     async def delete(self, tool_id: UUID) -> None:
         model = await self._base._get_model_by_id(tool_id)
@@ -1660,6 +1732,8 @@ class SQLAlchemyAgentToolSecretRepository(SecretRepository):
         return self._session_or_uow
 
     async def create(self, secret: Secret) -> Secret:
+        from modules.agent.infra.database.configuration_secret_writer import centralize_new_secret
+        await centralize_new_secret(self._session, secret)
         model = secret_to_model(secret)
         await self._base._add_model(model)
         await self._base._flush()
@@ -1710,17 +1784,43 @@ class SQLAlchemyAgentToolSecretRepository(SecretRepository):
         )
 
     async def update(self, secret: Secret) -> Secret:
-        model = await self._base._get_model_by_id(secret.id)
+        from modules.agent.application.interfaces.project_configuration import configuration_for_session
+        from shared.contracts.project_configuration import ConfigurationError
+        configuration = configuration_for_session(self._session)
+        if configuration is not None:
+            await configuration.lock_project(secret.project_id)
+        model = await self._session.scalar(select(AgentToolSecretModel).where(
+            AgentToolSecretModel.id == secret.id, AgentToolSecretModel.project_id == secret.project_id)
+            .with_for_update().execution_options(populate_existing=True))
         if model is None:
             raise SecretNotFoundError(secret.id)
+        if model.configuration_reference is not None:
+            if secret.configuration_reference != model.configuration_reference or secret.name != model.name:
+                raise ConfigurationError("CONFIG_REVISION_CONFLICT")
+            if secret.encrypted_value:
+                if configuration is None:
+                    raise ConfigurationError("CONFIG_STORE_UNAVAILABLE")
+                await configuration.rotate_legacy(project_id=secret.project_id,
+                    alias_id=UUID(model.configuration_reference["alias_id"]), encrypted_value=secret.encrypted_value,
+                    source_revision=str(uuid4()), actor="legacy-secret-writer")
+            secret.encrypted_value = ""
         model.name = secret.name
         model.type = secret.type.value if hasattr(secret.type, 'value') else secret.type
-        model.encrypted_value = secret.encrypted_value
+        model.encrypted_value = secret.encrypted_value or None
         model.data = secret.data
         return model_to_secret(model)
 
     async def delete(self, secret_id: UUID) -> None:
-        model = await self._base._get_model_by_id(secret_id)
+        from modules.agent.application.interfaces.project_configuration import configuration_for_session
+        from shared.contracts.project_configuration import ConfigurationError
+        project_id = await self._session.scalar(select(AgentToolSecretModel.project_id).where(AgentToolSecretModel.id == secret_id))
+        configuration = configuration_for_session(self._session)
+        if configuration is not None and project_id is not None:
+            await configuration.lock_project(project_id)
+        model = await self._session.scalar(select(AgentToolSecretModel).where(AgentToolSecretModel.id == secret_id)
+            .with_for_update().execution_options(populate_existing=True))
         if model is None:
             raise SecretNotFoundError(secret_id)
+        if model.configuration_reference is not None:
+            raise ConfigurationError("CONFIG_REFERENCE_IN_USE")
         await self._base._delete_model(model)

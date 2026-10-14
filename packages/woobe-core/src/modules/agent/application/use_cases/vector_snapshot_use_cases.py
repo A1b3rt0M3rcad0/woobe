@@ -41,6 +41,7 @@ from modules.agent.application.interfaces.repositories import (
 )
 from modules.agent.domain.vector_snapshot_entities import (
     VECTOR_SNAPSHOT_BUILDING,
+    VECTOR_SNAPSHOT_PENDING,
     VECTOR_SNAPSHOT_FAILED,
     VECTOR_SNAPSHOT_READY,
     VECTOR_SNAPSHOT_STAGE_CHUNKING,
@@ -51,6 +52,7 @@ from modules.agent.domain.vector_snapshot_entities import (
     VectorSnapshotChunk,
     VectorSnapshotDocument,
 )
+from modules.agent.domain.vector_configuration import vector_configuration_identity
 from shared.security.crypto import decrypt_secret
 from shared.contracts.errors import ConflictError, NotFoundError, ValidationError
 from shared.contracts.time import utc_now
@@ -190,8 +192,10 @@ class CreateVectorSnapshotUseCase:
         document_repo: DocumentRepository,
         provider_model_repo: Any,
         credential_repo: ProviderCredentialRepository,
+        defer_preparation: bool = False,
     ) -> None:
         self._snapshot_repo = snapshot_repo
+        self._defer_preparation = defer_preparation
         self._collection_repo = collection_repo
         self._document_repo = document_repo
         self._provider_model_repo = provider_model_repo
@@ -267,6 +271,7 @@ class CreateVectorSnapshotUseCase:
             raise ConflictError("Embedding provider credential must be active")
 
         embedding_config = {
+            **vector_configuration_identity(provider_model, credential),
             "provider_model_id": str(provider_model.id),
             "provider": _value(credential.provider),
             "model": provider_model.model,
@@ -295,6 +300,7 @@ class CreateVectorSnapshotUseCase:
             )
 
         snapshot = VectorSnapshot(
+            **({"status": VECTOR_SNAPSHOT_PENDING, "build_stage": VECTOR_SNAPSHOT_PENDING} if self._defer_preparation else {}),
             project_id=input_dto.project_id,
             collection_id=input_dto.collection_id,
             version=version,
@@ -563,7 +569,9 @@ class BuildVectorSnapshotUseCase:
         encryption_key: str,
         parser: DocumentParser | None = None,
         chunker: RecursiveTextChunker | None = None,
+        resolve_credential=None,
     ) -> None:
+        self._resolve_credential = resolve_credential
         self._snapshot_repo = snapshot_repo
         self._document_repo = document_repo
         self._provider_model_repo = provider_model_repo
@@ -602,10 +610,13 @@ class BuildVectorSnapshotUseCase:
         if credential is None:
             raise NotFoundError("Embedding provider credential not found")
 
-        api_key = decrypt_secret(
-            credential.encrypted_secret,
-            self._encryption_key,
-        )
+        if self._resolve_credential is not None:
+            api_key = await self._resolve_credential(snapshot, provider_model, credential)
+        elif getattr(credential, "authentication", None) is not None:
+            from shared.contracts.project_configuration import ConfigurationError
+            raise ConfigurationError("CONFIG_STORE_UNAVAILABLE")
+        else:
+            api_key = decrypt_secret(credential.encrypted_secret, self._encryption_key)
         metadata = provider_model.metadata or {}
         base_url = metadata.get("base_url") or (
             credential.metadata or {}
@@ -675,6 +686,8 @@ class BuildVectorSnapshotUseCase:
                     "Frozen snapshot document not found: "
                     f"{frozen_document.document_id}"
                 )
+            if getattr(frozen_document, "document_sha256", None) and document.sha256 != frozen_document.document_sha256:
+                raise ConflictError("Document differs from the frozen vector selection")
             if not document.storage_key:
                 raise ConflictError(
                     f"Document has no storage key: {document.id}"

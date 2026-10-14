@@ -1,4 +1,7 @@
+export type ProviderRemoteAuthentication = { type: 'api_key'; fields: { api_key: { source: 'project_environment'; key: string } } }
 export interface ProviderCredential {
+  authentication?: { type: 'api_key'; fields: { api_key: { source: 'project_environment' | 'legacy_configuration'; key: string; alias_id?: string } } } | null
+  binding_revision?: number
   id: string
   project_id: string
   provider: string
@@ -14,11 +17,13 @@ export interface CreateProviderCredentialRequest {
   project_id: string
   provider: string
   name: string
-  secret: string
+  secret?: string
+  authentication?: ProviderRemoteAuthentication
   metadata?: Record<string, string>
 }
 
 export interface UpdateProviderCredentialRequest {
+  authentication?: ProviderRemoteAuthentication
   name?: string
   provider?: string
   secret?: string

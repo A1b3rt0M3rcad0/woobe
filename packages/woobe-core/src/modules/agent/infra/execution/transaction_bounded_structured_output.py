@@ -126,6 +126,9 @@ class TransactionBoundedStructuredOutputRuntime(StructuredOutputAskAgentUseCase)
 
     async def _prepare_deferred_network(self, input_dto):
         async def read_prepare(repositories, _outbox):
+            configuration = getattr(repositories, "configuration", None)
+            if configuration is not None:
+                await configuration.lock_project(input_dto.project_id)
             agent = await self._load_agent(repositories, input_dto)
             # Network Acceptance already froze this Run input; child Session
             # continuity must not affect External Context.
@@ -275,7 +278,7 @@ class TransactionBoundedStructuredOutputRuntime(StructuredOutputAskAgentUseCase)
             else uuid6.uuid7()
         )
         trace_id = uuid6.uuid7()
-        api_key = self._decrypt_api_key(credential)
+        api_key = await self._resolve_api_key(credential, base_url=self._resolve_base_url(agent, credential))
         base_url = self._resolve_base_url(agent, credential)
         fallback_data = None
         if fallback_credential is not None:
@@ -285,7 +288,8 @@ class TransactionBoundedStructuredOutputRuntime(StructuredOutputAskAgentUseCase)
                 else agent.fallback_provider
             )
             fallback_data = {
-                "api_key": self._decrypt_api_key(fallback_credential),
+                "api_key": await self._resolve_api_key(fallback_credential, base_url=self._resolve_base_url_for_provider(
+                        fallback_provider, fallback_credential, fallback_connection_settings(agent))),
                 "base_url": self._resolve_base_url_for_provider(
                     fallback_provider,
                     fallback_credential,

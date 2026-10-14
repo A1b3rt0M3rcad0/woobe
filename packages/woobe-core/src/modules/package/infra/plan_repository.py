@@ -1,4 +1,5 @@
 from __future__ import annotations
+from modules.package.domain.configuration import package_requirements
 
 import asyncio
 from collections.abc import Mapping
@@ -39,7 +40,8 @@ PUBLIC_PLAN_FIELDS = (
 
 def plan_status(record):
     return {
-        "package_schema_version": "1.0",
+        **({"installation_mode": "structural", "constituent_binding_policy": record.document.get("constituent_binding_policy", "imported_draft")} if record.document.get("installation_mode") == "structural" else {}),
+        "package_schema_version": record.document.get("package_schema_version", "1.0"),
         "plan_id": str(record.id),
         "plan_digest": record.plan_digest,
         **{key: record.document.get(key) for key in PUBLIC_PLAN_FIELDS},
@@ -71,6 +73,7 @@ class PackagePlanRepository:
         registry_id=None,
         resource_bindings=None,
         candidate=None,
+        installation_mode="operational",
     ):
         upload = await self._artifacts.get_record(
             project_id=project_id, principal=principal, upload_id=upload_id
@@ -96,6 +99,7 @@ class PackagePlanRepository:
                 reason=reason,
                 api_origin=api_origin,
                 candidate=candidate if mode == "candidate" else None,
+                installation_mode=installation_mode,
             )
             if mode == "sync":
                 if self.registry is None:
@@ -114,6 +118,8 @@ class PackagePlanRepository:
             expires_at=approved.expires_at,
         )
         async with self._sessions.begin() as session:
+            from modules.package.application.configuration_barrier import lock_configuration_project
+            await lock_configuration_project(session, project_id)
             current = await session.get(PackageUploadModel, upload_id)
             if current is None or as_utc(current.expires_at) <= datetime.now(UTC):
                 raise PackageError(
@@ -130,6 +136,8 @@ class PackagePlanRepository:
         # only native read scopes and pure contract checks; it never opens storage,
         # uploads documents, invokes providers or discovers MCP servers.
         document = plan.document
+        if payload.get("installation_mode", "operational") != document.get("installation_mode", "operational"):
+            raise PackageError("PACKAGE_PLAN_MISMATCH", "Installation mode differs from the approved plan")
         if self.registry and document.get("mode") == "sync":
             await self.registry.validate(session, plan, principal)
         elif document.get("mode") == "candidate":
@@ -187,7 +195,7 @@ class PackagePlanRepository:
         bindings = await self._inspector.inspect_bindings(
             project_id=plan.project_id,
             principal=principal,
-            requirements=graph.manifest["spec"].get("requires", {}),
+            requirements=package_requirements(graph.manifest),
             bindings=document["bindings"]["spec"],
         )
         if bindings != document["binding_resolutions"]:

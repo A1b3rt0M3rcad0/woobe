@@ -11,9 +11,9 @@ from modules.agent.application.tool_types import is_http_tool_type, is_mcp_tool_
 from shared.contracts.errors import ValidationError
 
 
-def export_frozen_tool(snapshot):
+def export_frozen_tool(snapshot, *, configuration_projection=None):
     tool = tool_from_release_snapshot(snapshot)
-    raw = deepcopy(tool.config or {})
+    raw = deepcopy((tool.config or {}) if configuration_projection is None else configuration_projection)
     if is_http_tool_type(tool.type):
         kind = "http"
         config = HttpToolConfig.model_validate(raw).model_dump(

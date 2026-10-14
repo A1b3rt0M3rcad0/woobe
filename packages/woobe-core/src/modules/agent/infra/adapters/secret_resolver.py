@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from uuid import UUID
+import re
+from shared.contracts.project_configuration import ConfigurationError
 
 from modules.agent.application.interfaces.ports import SecretCipherPort, ToolSecretResolverPort
 from modules.agent.application.interfaces.repositories import SecretRepository
@@ -36,16 +38,31 @@ class ToolSecretResolverAdapter(ToolSecretResolverPort):
             if secret_name is not None:
                 try:
                     secret = await self._secret_repo.get_by_name(project_id, secret_name)
+                    if secret is None or secret.project_id != project_id:
+                        raise ConfigurationError("CONFIG_REFERENCE_NOT_FOUND")
+                    if getattr(secret, "configuration_reference", None) is not None:
+                        # A legacy helper has no environment/consumer identity.
+                        # It must not resolve central material by name alone.
+                        raise ConfigurationError("LEGACY_ENVIRONMENT_REQUIRED")
                     value = await self._cipher.decrypt(secret.encrypted_value)
+                    if not isinstance(value, str) or not value or any(character in value for character in "\r\n\x00"):
+                        raise ConfigurationError("CONFIG_VALUE_INVALID")
+                except ConfigurationError:
+                    raise
                 except Exception:
-                    value = ""
+                    raise ConfigurationError("CONFIG_STORE_UNAVAILABLE") from None
             resolved[key] = value
         return resolved
 
     def _extract_secret_name(self, value: str) -> str | None:
-        if not value.startswith(SECRET_REF_PREFIX):
-            return None
-        end = value.find(SECRET_REF_SUFFIX, len(SECRET_REF_PREFIX))
-        if end == -1:
-            return None
-        return value[len(SECRET_REF_PREFIX):end]
+        if not isinstance(value, str):
+            raise ConfigurationError("CONFIG_BINDING_INVALID")
+        match = re.fullmatch(r"\{\{secret:([^{}]+)\}\}", value)
+        if match:
+            name = match[1].strip()
+            if name:
+                return name
+            raise ConfigurationError("CONFIG_BINDING_INVALID")
+        if SECRET_REF_PREFIX in value:
+            raise ConfigurationError("CONFIG_BINDING_INVALID")
+        return None

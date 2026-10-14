@@ -230,6 +230,7 @@ class ASaCDraftStore(ASaCWorkbench):
         entry = artifact["manifest"]["spec"]["entrypoint"]
         if (record["kind"] != self.kind or record["artifact_digest"] != artifact["artifact_digest"]
             or record["definition_digest"] != artifact["definition_digest"]
+            or record["definition_digest_scope"] != artifact.get("definition_digest_scope", "woobe-portable-definition@1.0")
             or set(request.component_uids) != set(artifact["component_digests"])
             or not set(request.provider_uids) <= set(artifact["provider_digests"])):
             raise ConflictError("ASAC_REVISION_MISMATCH: revision is not the verified closed Draft")
@@ -334,7 +335,8 @@ class ASaCDraftStore(ASaCWorkbench):
             raise ConflictError("ASAC_INTEGRITY_CONFLICT: retained revision identity differs")
         evidence, content = await self.artifacts.transfer(project_id=project_id,
             principal=principal, artifact_id=observed["artifact_id"])
-        if evidence["artifact_digest"] != record["artifact_digest"] or evidence["definition_digest"] != record["definition_digest"]:
+        if (evidence["artifact_digest"] != record["artifact_digest"] or evidence["definition_digest"] != record["definition_digest"]
+            or evidence.get("definition_digest_scope", "woobe-portable-definition@1.0") != record["definition_digest_scope"]):
             raise ConflictError("ASAC_INTEGRITY_CONFLICT: executable object differs from its revision")
         # Recheck owner authority after potentially long archive I/O. No transient
         # uploader identity is reused, and no SQL transaction spans that I/O.

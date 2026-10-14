@@ -51,8 +51,14 @@ class RotateProviderCredentialUseCase:
         if status != CredentialStatus.active.value:
             raise ConflictError("Only active provider credentials can be rotated")
 
-        secret = input_dto.secret.strip()
-        if not secret:
+        authentication = getattr(credential, "authentication", None)
+        if authentication is not None:
+            reference = (authentication.get("fields") or {}).get("api_key") or {}
+            if reference.get("source") != "legacy_configuration":
+                from shared.contracts.project_configuration import ConfigurationError
+                raise ConfigurationError("LEGACY_ENVIRONMENT_REQUIRED")
+        secret = input_dto.secret
+        if not secret.strip():
             raise ValidationError("New provider API key is required")
 
         provider = str(getattr(credential.provider, "value", credential.provider))

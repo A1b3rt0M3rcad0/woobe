@@ -2,7 +2,8 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_serializer
+from modules.agent.domain.oauth_public_configuration import public_tool_configuration, public_runtime_configuration
 
 from modules.agent.application.dtos.behavior_dtos import BehaviorSpecification
 from modules.agent.domain.enums import (
@@ -33,7 +34,8 @@ class CreateProviderCredentialRequest(BaseModel):
     project_id: UUID
     provider: Provider
     name: str
-    secret: str
+    secret: str | None = Field(default=None, repr=False)
+    authentication: dict[str, Any] | None = None
     metadata: dict[str, Any] = {}
 
 
@@ -45,12 +47,15 @@ class ProviderCredentialResponse(BaseModel):
     status: CredentialStatus
     created_at: datetime | None = None
     metadata: dict[str, Any] = {}
+    authentication: dict[str, Any] | None = None
+    binding_revision: int = 1
 
 
 class UpdateProviderCredentialRequest(BaseModel):
     name: str | None = None
     provider: Provider | None = None
-    secret: str | None = None
+    secret: str | None = Field(default=None, repr=False)
+    authentication: dict[str, Any] | None = None
     metadata: dict[str, Any] | None = None
     status: CredentialStatus | None = None
 
@@ -301,6 +306,10 @@ class ReleaseResponse(BaseModel):
     promoted_at: datetime | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
+
+    @field_serializer('runtime_config')
+    def public_runtime_config(self, config):
+        return public_runtime_configuration(config)
 
 
 class ListReleasesResponse(BaseModel):
@@ -602,6 +611,10 @@ class ToolResponse(BaseModel):
     status: ToolStatus
     created_at: datetime | None = None
     updated_at: datetime | None = None
+
+    @field_serializer('config')
+    def public_config(self, config):
+        return public_tool_configuration(config, tool_type=self.type)
 
 
 class UpdateToolRequest(BaseModel):

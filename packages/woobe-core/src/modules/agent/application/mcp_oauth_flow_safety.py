@@ -193,7 +193,7 @@ class WoobeMcpOAuthMetadataResolver(_oauth.McpOAuthMetadataResolver):
         server_url: str,
         *,
         timeout_ms: int,
-    ) -> tuple[str | None, list[str]]:
+    ) -> dict[str, Any]:
         initialize_payload = {
             "jsonrpc": "2.0",
             "id": "oauth-discovery",
@@ -216,10 +216,11 @@ class WoobeMcpOAuthMetadataResolver(_oauth.McpOAuthMetadataResolver):
             timeout_ms=timeout_ms,
         )
         header = _oauth._headers(result).get("www-authenticate")
-        return (
-            _oauth._parse_www_authenticate_resource_metadata(header),
-            _oauth._parse_www_authenticate_scopes(header),
-        )
+        return {
+            'resource_metadata_url': _oauth._parse_www_authenticate_resource_metadata(header),
+            'scopes': _oauth._parse_www_authenticate_scopes(header),
+            'www_authenticate': header,
+        }
 
 
 class ProviderAwareMcpOAuthStartUseCase(_flows.ProviderAwareMcpOAuthStartUseCase):

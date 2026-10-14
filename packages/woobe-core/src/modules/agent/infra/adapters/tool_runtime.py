@@ -34,6 +34,8 @@ from modules.agent.domain.mcp_permissions import (
 )
 from modules.agent.infra.adapters.http_tool_renderer import render_http_tool_request
 
+from modules.agent.infra.adapters.tool_configuration_transport import configuration_bound_tool, current_tool_configuration
+
 logger = logging.getLogger(__name__)
 
 MCP_PROTOCOL_VERSION = "2025-06-18"
@@ -224,6 +226,7 @@ class HttpToolRuntime(ToolRuntimePort):
         self._executor = executor
         self._secret_resolver = secret_resolver
 
+    @configuration_bound_tool
     async def execute(
         self,
         tool: Any,
@@ -430,6 +433,7 @@ class McpToolRuntime(ToolRuntimePort):
         self._session_ttl_seconds = session_ttl_seconds
         self._auth_header_provider = auth_header_provider
 
+    @configuration_bound_tool
     async def execute(
         self,
         tool: Any,
@@ -651,6 +655,10 @@ class McpToolRuntime(ToolRuntimePort):
         session_cache_key = None
         if agent_session_id and provider_id and self._session_store is not None:
             session_cache_key = f"{agent_session_id}:{provider_id}"
+            configuration_binding = current_tool_configuration.get()
+            if configuration_binding is not None:
+                # Never share authenticated MCP sessions across accepted Runs.
+                session_cache_key += ":configuration:" + str(configuration_binding[1])
             cached_session_id = await self._session_store.get(session_cache_key)
             if cached_session_id:
                 logger.info(

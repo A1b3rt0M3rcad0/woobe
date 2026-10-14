@@ -72,9 +72,10 @@ class OpenAICompatibleEmbeddingProvider:
         base_url: str | None = None,
         dimensions: int = 1536,
     ) -> Any:
+        from modules.agent.infra.adapters.configuration_transport import configuration_client_options
         kwargs: dict[str, Any] = {
             "model": model,
-            "api_key": api_key,
+            **configuration_client_options(api_key),
             "check_embedding_ctx_length": self.check_embedding_ctx_length,
         }
         if dimensions:

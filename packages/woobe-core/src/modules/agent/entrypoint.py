@@ -438,3 +438,58 @@ from modules.agent.composition.composers.asac_draft_composer import build_agent_
 from modules.agent.composition.composers.asac_draft_composer import build_agent_asac_leases
 
 from modules.agent.composition.composers.asac_draft_composer import build_agent_asac_deployments, build_agent_asac_binding_guard
+
+from modules.agent.composition.public_api import configure_project_configuration
+__all__.append("configure_project_configuration")
+
+from modules.agent.composition.public_api import collect_configuration_dependencies
+__all__.append("collect_configuration_dependencies")
+
+from modules.agent.composition.public_api import read_configuration_target
+__all__.append("read_configuration_target")
+
+from modules.agent.composition.public_api import list_available_provider_models_composer
+__all__.append("list_available_provider_models_composer")
+
+from modules.agent.composition.public_api import configure_runtime_configuration_resolver
+__all__.append("configure_runtime_configuration_resolver")
+
+from modules.agent.composition.public_api import configuration_binding
+__all__.append("configuration_binding")
+
+from modules.agent.composition.public_api import build_configuration_tool_preparation
+__all__.append("build_configuration_tool_preparation")
+
+from modules.agent.composition.public_api import verify_configuration_consumer
+__all__.append("verify_configuration_consumer")
+from modules.agent.composition.public_api import inventory_provider_configuration, migrate_provider_configuration
+__all__ += ["inventory_provider_configuration", "migrate_provider_configuration"]
+from modules.agent.composition.public_api import inspect_configuration_provider_reuse
+__all__.append("inspect_configuration_provider_reuse")
+
+from modules.agent.composition.public_api import create_knowledge_version_structural_composer
+__all__.append("create_knowledge_version_structural_composer")
+
+from modules.agent.composition.public_api import create_imported_vector_structural_composer
+__all__.append("create_imported_vector_structural_composer")
+
+from modules.agent.composition.public_api import finalize_imported_agent_structural_composer
+__all__.append("finalize_imported_agent_structural_composer")
+
+from modules.agent.composition.public_api import verify_imported_agent_structural_composer
+__all__.append("verify_imported_agent_structural_composer")
+
+from modules.agent.composition.public_api import prepare_vector_snapshot_composer
+__all__.append("prepare_vector_snapshot_composer")
+
+from modules.agent.composition.public_api import PrepareVectorSnapshotInput
+__all__.append("PrepareVectorSnapshotInput")
+
+from modules.agent.composition.public_api import assert_agent_configuration_quiescent
+__all__.append("assert_agent_configuration_quiescent")
+
+from modules.agent.composition.public_api import inventory_configuration_sources, migrate_configuration_source
+__all__ += ["inventory_configuration_sources", "migrate_configuration_source"]
+
+from modules.agent.composition.public_api import configuration_targets
+__all__.append('configuration_targets')

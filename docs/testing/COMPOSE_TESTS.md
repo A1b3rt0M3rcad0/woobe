@@ -131,6 +131,16 @@ are stored only in private temporary files and never included in those reports.
 The CLI revision is pinned deliberately; update the workflow and test pin
 together when changing the client contract.
 
+The configuration lifecycle has a second reviewed CLI pin in the workflow and
+`compose.test.yaml`, built into `.test-artifacts/woobe-configuration`. The main
+registry and legacy compatibility suite keep their original executable.
+`test_configuration_lifecycle.py` alone selects `WOOBE_CONFIGURATION_CLI_BINARY`
+and checks its `WOOBE_CONFIGURATION_CLI_SHA`. Build both pinned executables for
+the required Compose contract. These new Agent/Network cases cover structural
+schema2 import, local development, Candidate readiness/evaluation, publication,
+missing Production values and rotation between deployment plan/apply. They use
+only disposable values and deterministic fake Provider calls.
+
 The discovery fixture at `tests/unit/api/fixtures/woobe_cli_operations.json`
 records all 190 HTTP operations from the pinned client, including the 81 commands
 that require a body. Unit tests require an unambiguous server route, complete

@@ -76,5 +76,9 @@ class NetworkCandidateLifecycleHandler:
                 candidate_id=UUID(body["candidate_id"]), preparation_operation_id=UUID(body["preparation_operation_id"]),
                 snapshot_id=snapshot_id, runtime_digest=runtime_digest, native_bindings=bindings,
                 runtime_fingerprints=body["runtime_fingerprints"], runtime_digest_scope=NETWORK_RUNTIME_SCOPE)
-            result.update(configuration_ready=True, execution_ready=True)
+        from modules.network.application.configuration_acceptance import configuration_status
+        status = await configuration_status(session, project_id=project, environment="staging", bindings=bindings)
+        ready = status["state"] in {"ready", "ready_with_notices"}
+        result.update(candidate_prepared=True, structural_complete=True, lifecycle_state="candidate",
+            configuration_ready=ready, execution_ready=ready)
         return OperationResult(body={"success": True, "data": result})

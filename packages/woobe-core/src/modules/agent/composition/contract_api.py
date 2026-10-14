@@ -6,7 +6,7 @@ from modules.agent.application.dtos.rag_config_dtos import (
     RAGBuildConfig,
     RAGRuntimeConfig,
 )
-from modules.agent.application.dtos.tools_dtos import HttpToolConfig, McpToolConfig
+from modules.agent.application.dtos.tools_dtos import HttpToolConfig, HttpRouteConfig, McpToolConfig
 from modules.agent.application.interfaces.context_policy import ContextPolicyV1
 from modules.agent.domain.execution_definition import (
     canonicalize_agent_execution_definition,
@@ -36,6 +36,7 @@ __all__ = [
     "RAGBuildConfig",
     "RAGRuntimeConfig",
     "HttpToolConfig",
+    "HttpRouteConfig",
     "McpToolConfig",
     "ContextPolicyV1",
     "canonicalize_agent_execution_definition",

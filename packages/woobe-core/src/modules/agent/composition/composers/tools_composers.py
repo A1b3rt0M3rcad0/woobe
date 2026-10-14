@@ -1,3 +1,5 @@
+from collections.abc import Callable
+from modules.agent.application.interfaces.configuration_authority import tool_binding_permissions
 from modules.agent.application import mcp_oauth
 from modules.agent.application import mcp_oauth_flow_safety as mcp_oauth_flows
 from modules.agent.application.mcp_discovery import DiscoverMcpToolsUseCase
@@ -6,12 +8,10 @@ from modules.agent.application.mcp_permissions import (
     UpdateMcpToolPermissionsUseCase,
 )
 from modules.agent.application.mcp_tool_bootstrap import McpToolBootstrapper
-from modules.agent.application.mcp_tool_refresh import RefreshMcpProviderToolsUseCase
 from modules.agent.application.project_environment_references import (
     ProjectEnvironmentToolUsageUseCase,
 )
 from modules.agent.application.runtime_tool_use_cases import (
-    RuntimeExecuteToolUseCase,
     RuntimeTestToolUseCase,
 )
 from modules.agent.application.use_cases.tools_use_cases import (
@@ -28,7 +28,6 @@ from modules.agent.application.use_cases.tools_use_cases import (
 from modules.agent.composition.resources import DATABASE_ENGINE, SETTINGS
 from modules.agent.infra.adapters.http_tool_runtime import get_http_tool_executor
 from modules.agent.infra.adapters.secret_cipher import SecretCipherAdapter
-from modules.agent.infra.adapters.secret_resolver import ToolSecretResolverAdapter
 from modules.agent.infra.database.project_environment_reader import (
     SQLAlchemyProjectEnvironmentReader,
 )
@@ -49,7 +48,6 @@ from modules.agent.presentation.controllers.delete_tool_controller import Delete
 from modules.agent.presentation.controllers.discover_mcp_tools_controller import (
     DiscoverMcpToolsController,
 )
-from modules.agent.presentation.controllers.execute_tool_controller import ExecuteToolController
 from modules.agent.presentation.controllers.get_tool_usage_impact_controller import (
     GetToolUsageImpactController,
 )
@@ -73,15 +71,13 @@ from modules.agent.presentation.controllers.mcp_permission_controllers import (
 from modules.agent.presentation.controllers.project_environment_tool_usage_controller import (
     ProjectEnvironmentToolUsageController,
 )
-from modules.agent.presentation.controllers.refresh_mcp_tools_controller import (
-    RefreshMcpToolsController,
-)
 from modules.agent.presentation.controllers.test_tool_controller import TestToolController
 from modules.agent.presentation.controllers.update_tool_controller import UpdateToolController
 from modules.agent.presentation.controllers.update_tool_status_controller import (
     UpdateToolStatusController,
 )
 from shared.infra.transactional_handler import TransactionalHandler
+from modules.agent.infra.handlers.legacy_tool_configuration import LegacyToolConfigurationHandler
 
 
 def _project_environment(
@@ -116,7 +112,7 @@ def create_tool_composer() -> TransactionalHandler:
         project_environment_key_validator=_project_environment(uow).require_keys,
     )
     controller = CreateToolController(use_case)
-    return TransactionalHandler(uow, controller.handle)
+    return TransactionalHandler(uow, LegacyToolConfigurationHandler(uow, controller.handle), additional_permissions=tool_binding_permissions)
 
 
 
@@ -128,7 +124,8 @@ def materialize_imported_tool_composer() -> TransactionalHandler:
         SQLAlchemyAgentOutboxEventWriter(uow),
         project_environment_key_validator=_project_environment(uow).require_keys,
     )
-    return TransactionalHandler(uow, CreateToolController(use_case).handle)
+    return TransactionalHandler(uow, LegacyToolConfigurationHandler(uow, CreateToolController(use_case).handle),
+        additional_permissions=tool_binding_permissions)
 
 def update_tool_composer() -> TransactionalHandler:
     uow = AgentUnitOfWork(DATABASE_ENGINE)
@@ -140,7 +137,7 @@ def update_tool_composer() -> TransactionalHandler:
         project_environment_key_validator=_project_environment(uow).require_keys,
     )
     controller = UpdateToolController(use_case)
-    return TransactionalHandler(uow, controller.handle)
+    return TransactionalHandler(uow, LegacyToolConfigurationHandler(uow, controller.handle), additional_permissions=tool_binding_permissions)
 
 
 def delete_tool_composer() -> TransactionalHandler:
@@ -209,26 +206,9 @@ def discover_mcp_tools_composer() -> TransactionalHandler:
     return TransactionalHandler(uow, controller.handle)
 
 
-def refresh_mcp_tools_composer() -> TransactionalHandler:
-    uow = AgentUnitOfWork(DATABASE_ENGINE)
-    tool_repo = SQLAlchemyAgentToolRepository(uow)
-    tool_secret_repo = SQLAlchemyAgentToolSecretRepository(uow)
-    runtime_executor = get_http_tool_executor()
-    cipher = SecretCipherAdapter(SETTINGS.encryption_key)
-    resolver = ToolSecretResolverAdapter(tool_secret_repo, cipher)
-    auth_header_provider = mcp_oauth.McpOAuthConfigTokenProvider(
-        executor=runtime_executor,
-        cipher=cipher,
-    )
-    use_case = RefreshMcpProviderToolsUseCase(
-        tool_repo=tool_repo,
-        executor=runtime_executor,
-        secret_resolver=resolver,
-        auth_header_provider=auth_header_provider,
-        project_environment_resolver=_project_environment(uow).resolve_values,
-    )
-    controller = RefreshMcpToolsController(use_case)
-    return TransactionalHandler(uow, controller.handle)
+def refresh_mcp_tools_composer() -> Callable:
+    from modules.agent.composition.factories.configured_tool_operations import build_configured_tool_refresh
+    return build_configured_tool_refresh()
 
 
 def update_mcp_tool_permissions_composer() -> TransactionalHandler:
@@ -247,56 +227,24 @@ def bulk_update_mcp_tool_permissions_composer() -> TransactionalHandler:
     return TransactionalHandler(uow, controller.handle)
 
 
-def start_mcp_oauth_composer() -> TransactionalHandler:
-    uow = AgentUnitOfWork(DATABASE_ENGINE)
-    tool_repo = SQLAlchemyAgentToolRepository(uow)
-    use_case_cls = getattr(mcp_oauth_flows, "ProviderAwareMcpOAuthStartUseCase")
-    use_case = use_case_cls(
-        tool_repo=tool_repo,
-        executor=get_http_tool_executor(),
-        cipher=SecretCipherAdapter(SETTINGS.encryption_key),
-    )
-    controller = StartMcpConnectController(use_case)
-    return TransactionalHandler(uow, controller.handle)
+def start_mcp_oauth_composer() -> Callable:
+    from modules.agent.composition.factories.detached_mcp_oauth import build_mcp_oauth_start
+    return build_mcp_oauth_start()
 
 
-def complete_mcp_oauth_composer() -> TransactionalHandler:
-    uow = AgentUnitOfWork(DATABASE_ENGINE)
-    tool_repo = SQLAlchemyAgentToolRepository(uow)
-    use_case_cls = getattr(mcp_oauth, "McpOAuthCompleteUseCase")
-    use_case = use_case_cls(
-        tool_repo=tool_repo,
-        executor=get_http_tool_executor(),
-        cipher=SecretCipherAdapter(SETTINGS.encryption_key),
-    )
-    controller = CompleteMcpConnectController(use_case)
-    return TransactionalHandler(uow, controller.handle)
+def complete_mcp_oauth_composer() -> Callable:
+    from modules.agent.composition.factories.detached_mcp_oauth import build_mcp_oauth_complete
+    return build_mcp_oauth_complete()
 
 
-def start_mcp_oauth_device_composer() -> TransactionalHandler:
-    uow = AgentUnitOfWork(DATABASE_ENGINE)
-    tool_repo = SQLAlchemyAgentToolRepository(uow)
-    use_case_cls = getattr(mcp_oauth_flows, "McpOAuthDeviceStartUseCase")
-    use_case = use_case_cls(
-        tool_repo=tool_repo,
-        executor=get_http_tool_executor(),
-        cipher=SecretCipherAdapter(SETTINGS.encryption_key),
-    )
-    controller = StartMcpDeviceConnectController(use_case)
-    return TransactionalHandler(uow, controller.handle)
+def start_mcp_oauth_device_composer() -> Callable:
+    from modules.agent.composition.factories.detached_mcp_oauth import build_mcp_oauth_device_start
+    return build_mcp_oauth_device_start()
 
 
-def poll_mcp_oauth_device_composer() -> TransactionalHandler:
-    uow = AgentUnitOfWork(DATABASE_ENGINE)
-    tool_repo = SQLAlchemyAgentToolRepository(uow)
-    use_case_cls = getattr(mcp_oauth_flows, "McpOAuthDevicePollUseCase")
-    use_case = use_case_cls(
-        tool_repo=tool_repo,
-        executor=get_http_tool_executor(),
-        cipher=SecretCipherAdapter(SETTINGS.encryption_key),
-    )
-    controller = PollMcpDeviceConnectController(use_case)
-    return TransactionalHandler(uow, controller.handle)
+def poll_mcp_oauth_device_composer() -> Callable:
+    from modules.agent.composition.factories.detached_mcp_oauth import build_mcp_oauth_device_poll
+    return build_mcp_oauth_device_poll()
 
 
 def status_mcp_oauth_composer() -> TransactionalHandler:
@@ -315,23 +263,9 @@ def disconnect_mcp_oauth_composer() -> TransactionalHandler:
     return TransactionalHandler(uow, controller.handle)
 
 
-def execute_tool_composer() -> TransactionalHandler:
-    uow = AgentUnitOfWork(DATABASE_ENGINE)
-    tool_repo = SQLAlchemyAgentToolRepository(uow)
-    tool_secret_repo = SQLAlchemyAgentToolSecretRepository(uow)
-    cipher = SecretCipherAdapter(SETTINGS.encryption_key)
-    resolver = ToolSecretResolverAdapter(tool_secret_repo, cipher)
-    registry = build_tool_runtime_registry(
-        settings=SETTINGS,
-        executor=get_http_tool_executor(),
-        secret_resolver=resolver,
-    )
-    use_case = RuntimeExecuteToolUseCase(
-        tool_repo=tool_repo,
-        runtime_registry=registry,
-    )
-    controller = ExecuteToolController(use_case)
-    return TransactionalHandler(uow, controller.handle)
+def execute_tool_composer() -> Callable:
+    from modules.agent.composition.factories.configured_tool_operations import build_configured_tool_execution
+    return build_configured_tool_execution()
 
 
 def create_secret_composer() -> TransactionalHandler:

@@ -1,3 +1,4 @@
+from modules.agent.application.interfaces.configuration_authority import provider_rotation_permissions
 from modules.agent.application.use_cases.rotate_provider_credential_use_case import (
     RotateProviderCredentialUseCase,
 )
@@ -29,4 +30,4 @@ def rotate_provider_credential_composer() -> TransactionalHandler:
         encryption_key=SETTINGS.encryption_key,
     )
     controller = RotateProviderCredentialController(use_case)
-    return TransactionalHandler(uow, controller.handle)
+    return TransactionalHandler(uow, controller.handle, additional_permissions=provider_rotation_permissions)

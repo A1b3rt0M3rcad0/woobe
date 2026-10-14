@@ -1,0 +1,53 @@
+"""Host composition of owner-scoped dependency readers."""
+from modules.agent.entrypoint import collect_configuration_dependencies, read_configuration_target
+from modules.core.entrypoint import configure_configuration_target_reader
+from modules.network.entrypoint import read_configuration_bindings
+
+
+async def target_reader(session, *, project_id, target_kind, target_id, environment, version_id=None):
+    if target_kind == "network":
+        target = await read_configuration_bindings(session, project_id=project_id,
+            target_id=target_id, environment=environment, version_id=version_id)
+        result = await collect_configuration_dependencies(session, project_id=project_id,
+            bindings=target["bindings"], include_notices=True)
+        result["selection"] = target["selection"]
+        return result
+    return await read_configuration_target(session, project_id=project_id, target_kind=target_kind,
+        target_id=target_id, environment=environment, version_id=version_id)
+
+
+def configure_target_readiness():
+    from modules.package.entrypoint import configure_package_configuration_barrier
+    from modules.core.entrypoint import build_project_configuration_runtime
+    configure_package_configuration_barrier(build_project_configuration_runtime)
+    configure_configuration_target_reader(target_reader, inventory=target_inventory)
+    from modules.agent.entrypoint import configuration_binding
+    from modules.core.entrypoint import configure_configuration_binding_adapter
+    configure_configuration_binding_adapter(configuration_binding)
+    from modules.agent.entrypoint import inventory_configuration_sources, migrate_configuration_source
+    from modules.core.entrypoint import configure_configuration_migration_adapter
+    configure_configuration_migration_adapter(inventory=inventory_configuration_sources, cutover=migrate_configuration_source,
+        assert_quiescent=assert_configuration_quiescent)
+
+
+async def assert_configuration_quiescent(session, *, project_id):
+    from modules.agent.entrypoint import assert_agent_configuration_quiescent
+    from modules.network.entrypoint import assert_network_configuration_quiescent
+    from modules.package.entrypoint import assert_package_configuration_quiescent
+    await assert_agent_configuration_quiescent(session, project_id=project_id)
+    await assert_network_configuration_quiescent(session, project_id=project_id)
+    await assert_package_configuration_quiescent(session, project_id=project_id)
+
+
+async def target_inventory(session, *, project_id, environment, limit, cursor=None):
+    from modules.agent.entrypoint import configuration_targets as agents
+    from modules.network.entrypoint import configuration_targets as networks
+    from shared.contracts.configuration_cursor import decode_configuration_cursor, encode_configuration_cursor
+    after = decode_configuration_cursor(cursor, project_id=project_id, environment=environment)
+    agent_page = await agents(session, project_id=project_id, environment=environment, limit=limit, after_id=after['agent'])
+    network_page = await networks(session, project_id=project_id, environment=environment, limit=limit, after_id=after['network'])
+    complete = agent_page['complete'] and network_page['complete']
+    return {'targets': agent_page['targets'] + network_page['targets'],
+            'authorization_targets': agent_page['authorization_targets'] + network_page['authorization_targets'],
+            'complete': complete, 'next_cursor': None if complete else encode_configuration_cursor(
+                project_id=project_id, environment=environment, agent=agent_page['after_id'], network=network_page['after_id'])}

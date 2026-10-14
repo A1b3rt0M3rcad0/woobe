@@ -17,6 +17,7 @@ import {
   startMcpOAuth,
   updateMcpToolPermissions,
 } from '@/features/tools/api'
+import { testConfigurationConnection } from '@/features/projects/configuration'
 import { useUpdateTool } from '@/features/tools/hooks'
 import type {
   DiscoveredMcpTool,
@@ -286,7 +287,12 @@ export function McpProviderPanel({ tool, footerActions, summaryNote, onChanged, 
   const handleRefresh = async () => {
     try {
       setBusyKey('refresh')
-      await refreshMcpTools({ tool_id: tool.id })
+      if (mcpConfig(tool).authentication) {
+        const result = await testConfigurationConnection(tool.project_id, 'tool', tool.id, 'draft')
+        if (result.state !== 'ready') throw new Error('Connection is not ready. Review Draft values and destination approvals in Project → Environments.')
+      } else {
+        await refreshMcpTools({ tool_id: tool.id })
+      }
       await onChanged?.()
       toast.success('MCP tools updated')
     } catch (err) {

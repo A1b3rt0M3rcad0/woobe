@@ -49,6 +49,16 @@ def control_plane_permission(
         return None
 
     if path.startswith("/core/projects/"):
+        if "/configuration/" in path:
+            if method == "GET":
+                return "project:environment:read"
+            if "/use-policies" in path:
+                return "project:environment:use-policy:write"
+            if "/values/" in path:
+                return "project:environment:value:clear" if method == "DELETE" else "project:environment:value:write"
+            if path.endswith("/value-batches"):
+                return "project:environment:value:write"
+            return "project:environment:declare"
         if "/environment-keys" in path:
             return (
                 "project:environment:read"

@@ -35,6 +35,8 @@ def credential_to_response(credential: Any) -> ProviderCredentialResponse:
         status=_value(credential.status),
         created_at=credential.created_at,
         metadata=credential.metadata,
+        authentication=getattr(credential, "authentication", None),
+        binding_revision=getattr(credential, "binding_revision", 1),
     )
 
 

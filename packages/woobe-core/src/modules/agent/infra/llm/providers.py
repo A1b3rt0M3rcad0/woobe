@@ -6,6 +6,7 @@ from typing import Any, Protocol
 from langchain_openai import ChatOpenAI
 
 from modules.agent.infra.llm.anthropic_chat_model import AnthropicChatModel
+from modules.agent.infra.adapters.configuration_transport import configuration_client_options
 
 
 class LegacyChatProvider(Protocol):
@@ -86,7 +87,7 @@ class OpenAICompatibleChatProvider:
     ) -> Any:
         kwargs: dict[str, Any] = {
             "model": model,
-            "api_key": api_key,
+            **configuration_client_options(api_key),
             "temperature": temperature,
             "max_tokens": max_tokens,
         }

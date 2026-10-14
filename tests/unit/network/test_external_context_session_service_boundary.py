@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
@@ -54,7 +55,7 @@ class _SessionFactory:
 
 
 @pytest.mark.asyncio
-async def test_network_service_locks_session_and_rejects_fixed_external_context_field() -> None:
+async def test_network_service_locks_session_and_rejects_fixed_external_context_field(monkeypatch) -> None:
     project_id = uuid4()
     network_id = uuid4()
     session_id = uuid4()
@@ -88,6 +89,8 @@ async def test_network_service_locks_session_and_rejects_fixed_external_context_
     service._session_factory = _SessionFactory(db)
     service._run_storage_version = "legacy"
     service._definition = lambda _value: SimpleNamespace()
+    configuration_lock = AsyncMock()
+    monkeypatch.setattr("modules.network.application.configuration_acceptance.lock_configuration", configuration_lock)
 
     with pytest.raises(ConflictError) as exc_info:
         await service.submit_execution(
@@ -104,6 +107,7 @@ async def test_network_service_locks_session_and_rejects_fixed_external_context_
     assert error.fields == ["client_id"]
     assert error.scope == "session"
     assert error.reason == "already_set"
+    configuration_lock.assert_awaited_once_with(db, project_id=project_id)
 
     session_reads = [
         call for call in db.get_calls if call[0] is NetworkSessionModel

@@ -17,6 +17,7 @@ from shared.infra.errors import (
     ValidationError,
 )
 from shared.security.redaction import redact_text
+from shared.contracts.project_configuration import ConfigurationError
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +72,15 @@ async def rate_limit_handler(request: Request, exc: RateLimitError) -> JSONRespo
 
 
 async def domain_error_handler(request: Request, exc: DomainError) -> JSONResponse:
+    if isinstance(exc, ConfigurationError):
+        diagnostic = {"code": exc.code}
+        if exc.key is not None:
+            diagnostic["key"] = exc.key
+        if exc.environment is not None:
+            diagnostic["environment"] = exc.environment
+        return JSONResponse(status_code=exc.status_code, content={"success": False,
+            "message": str(exc), "data": {"configuration_schema_version": "project_configuration.v1",
+                "diagnostics": [diagnostic]}, "meta": {"complete": False}})
     return JSONResponse(
         status_code=400,
         content={"success": False, "message": str(exc), "data": None},
@@ -124,7 +134,9 @@ async def pydantic_validation_handler(
         content={
             "success": False,
             "message": "Validation error",
-            "data": exc.errors(),
+            # Pydantic input/ctx/message can contain credentials or an entire
+            # rejected object. A transport error never returns that material.
+            "data": {"diagnostics": [{"code": "REQUEST_SCHEMA_INVALID"}]},
         },
     )
 
@@ -133,6 +145,10 @@ async def request_validation_handler(
     request: Request,
     exc: RequestValidationError,
 ) -> JSONResponse:
+    if request.url.path.startswith("/core/projects/") and "/configuration/" in request.url.path:
+        return JSONResponse(status_code=422, content={"success": False,
+            "message": "Configuration request does not match its contract",
+            "data": {"diagnostics": [{"code": "CONFIG_DEFINITION_INVALID"}]}, "meta": {"complete": False}})
     if request.url.path.startswith("/projects/") and "/asac/" in request.url.path:
         # Strict ASaC requests contain free-form author messages. Rejection must
         # not echo those messages, unknown fields or Pydantic input snapshots.
@@ -145,7 +161,7 @@ async def request_validation_handler(
         content={
             "success": False,
             "message": "Request validation error",
-            "data": exc.errors(),
+            "data": {"diagnostics": [{"code": "REQUEST_SCHEMA_INVALID"}]},
         },
     )
 

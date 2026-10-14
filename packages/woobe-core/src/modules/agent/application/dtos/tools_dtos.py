@@ -4,7 +4,9 @@ from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, model_validator, field_serializer
+
+from modules.agent.domain.oauth_public_configuration import public_tool_configuration, reject_public_oauth_material
 
 from modules.agent.application.http_tool_contract import (
     compile_http_tool_group_contract,
@@ -43,6 +45,7 @@ class ToolPermissionConfig(BaseModel):
 
 
 class HttpRouteConfig(BaseModel):
+    authentication: dict[str, Any] | None = None
     id: str = Field(..., min_length=1)
     operation_id: str | None = None
     name: str = Field(..., min_length=1)
@@ -65,6 +68,7 @@ class HttpRouteConfig(BaseModel):
 
 
 class HttpToolConfig(BaseModel):
+    authentication: dict[str, Any] | None = None
     permission: ToolPermissionConfig | None = None
     protocol: Literal["http"] | None = None
     mode: Literal["single", "group"] = "single"
@@ -82,6 +86,10 @@ class HttpToolConfig(BaseModel):
 
     @model_validator(mode="after")
     def validate_target(self) -> "HttpToolConfig":
+        from modules.agent.domain.tool_configuration import validate_tool_authentication
+        # Private compatibility references are verified against the exact Tool
+        # owner by persistence; accepting their shape grants no use authority.
+        validate_tool_authentication(self.model_dump(exclude_none=True), allow_legacy=True)
         if self.mode == "group":
             if not self.base_url:
                 raise ValueError("HTTP API base_url is required for group mode")
@@ -112,6 +120,7 @@ class McpDiscoveredToolConfig(BaseModel):
 
 
 class McpToolConfig(BaseModel):
+    authentication: dict[str, Any] | None = None
     permission: ToolPermissionConfig | None = None
     protocol: Literal["mcp"] | None = None
     mode: Literal["tool", "server"] = "tool"
@@ -128,6 +137,8 @@ class McpToolConfig(BaseModel):
 
     @model_validator(mode="after")
     def validate_transport_target(self) -> "McpToolConfig":
+        from modules.agent.domain.tool_configuration import validate_tool_authentication
+        validate_tool_authentication(self.model_dump(exclude_none=True), allow_legacy=True)
         if not self.server.url:
             raise ValueError("MCP server.url is required for streamable_http transport")
         if self.mode != "server" and self.exposure != "all_discovered" and not self.tool_name:
@@ -198,6 +209,7 @@ class CreateToolInput(BaseModel):
 
     @model_validator(mode="after")
     def validate_protocol_config(self) -> "CreateToolInput":
+        reject_public_oauth_material(self.config)
         if self.config is None:
             return self
         if is_mcp_tool_type(self.type):
@@ -223,6 +235,10 @@ class CreateToolOutput(BaseModel):
     status: ToolStatus
     created_at: datetime | None = None
     updated_at: datetime | None = None
+
+    @field_serializer('config')
+    def public_config(self, config):
+        return public_tool_configuration(config, tool_type=self.type)
 
 
 class CreateSecretInput(BaseModel):

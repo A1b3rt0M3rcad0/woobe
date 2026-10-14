@@ -9,6 +9,7 @@ from typing import Protocol
 
 from modules.package.application.validation import validate_document
 from modules.package.domain.bundle import PackageGraph
+from modules.package.domain.configuration import package_requirements
 from modules.package.domain.errors import PackageError
 from modules.package.domain.operations import Effect, OperationState
 
@@ -109,7 +110,15 @@ class PlanPackageUseCase:
         reason=None,
         api_origin: str,
         candidate=None,
+        installation_mode="operational",
     ) -> ApprovedPlan:
+        structural = installation_mode == "structural"
+        if installation_mode not in {"structural", "operational"} or (structural and lifecycle != "draft"):
+            raise PackageError("PACKAGE_INSTALLATION_MODE_INVALID", "Structural installation only creates Draft resources")
+        if graph.manifest.get("schema_version", "1.0") == "2.0" and not structural and candidate is None:
+            raise PackageError("PACKAGE_INSTALLATION_MODE_REQUIRED", "Package 2.0 requires explicit structural installation")
+        if bindings.get("schema_version") != graph.manifest.get("schema_version", "1.0"):
+            raise PackageError("PACKAGE_SCHEMA_UNSUPPORTED", "Bindings must match the package schema version")
         if lifecycle not in {"draft", "staging", "release", "production"}:
             raise PackageError(
                 "PACKAGE_LIFECYCLE_INVALID", "Unknown requested lifecycle"
@@ -127,8 +136,10 @@ class PlanPackageUseCase:
                 "PACKAGE_PRODUCTION_REASON_REQUIRED",
                 "Production activation requires a reason",
             )
-        requirements = graph.manifest["spec"].get("requires", {})
+        requirements = package_requirements(graph.manifest)
         supplied = validate_binding_coverage(requirements, bindings)
+        if structural and any(item.get("protected_ref") for group in supplied.values() for item in group.values()):
+            raise PackageError("PACKAGE_BINDINGS_INVALID", "Structural installation does not accept protected local values")
         capability = await self._inspector.capabilities()
         resolutions = await self._inspector.inspect_bindings(
             project_id=project_id,
@@ -150,6 +161,16 @@ class PlanPackageUseCase:
                 Effect(key, owner, action, component, permission, state).public()
             )
 
+        if graph.manifest.get("schema_version", "1.0") == "2.0":
+            for group, permission, action, owner in (
+                ("project_environment", "project:environment:declare", "declare_configuration", "core"),
+                ("credentials", "provider:write", "create_reference_credential", "agent"),
+            ):
+                for alias in sorted(supplied.get(group, {})):
+                    if supplied[group][alias].get("create"):
+                        append(f"binding:{group}:{alias}", action, alias, permission, owner=owner)
+                        if group == "credentials":
+                            effects[-1]["required_permissions"] = ["provider:write", "project:environment:bind"]
         for group, permission, action in (
             ("credentials", "provider:write", "create_credential"),
             (
@@ -185,7 +206,7 @@ class PlanPackageUseCase:
                 append(f"model:{key}", "resolve_model", key, "model:write")
             elif kind == "Tool":
                 append(f"tool:{key}", "materialize_tool", key, "tool:write")
-                if document["spec"]["type"] == "mcp":
+                if document["spec"]["type"] == "mcp" and not structural:
                     append(f"mcp:{key}", "verify_mcp_discovery", key, "tool:write")
                     append(
                         f"mcp-ready:{key}", "verify_mcp_readiness", key, "tool:write"
@@ -201,13 +222,9 @@ class PlanPackageUseCase:
                         key,
                         "knowledge:write",
                     )
-                append(f"vector:{key}", "build_vector_snapshot", key, "knowledge:write")
-                append(
-                    f"vector-ready:{key}",
-                    "verify_vector_snapshot",
-                    key,
-                    "knowledge:read",
-                )
+                append(f"vector:{key}", "declare_vector_snapshot" if structural else "build_vector_snapshot", key, "knowledge:write")
+                if not structural:
+                    append(f"vector-ready:{key}", "verify_vector_snapshot", key, "knowledge:read")
             elif kind == "Agent":
                 append(f"agent:{key}", "prepare_inactive_agent", key, "agent:write")
                 for field, action, permission in (
@@ -234,7 +251,7 @@ class PlanPackageUseCase:
             elif kind == "Network":
                 selectors = {}
                 for node in document["spec"]["nodes"]:
-                    source = node.get("binding", {}).get("source", "draft")
+                    source = "draft" if structural else node.get("binding", {}).get("source", "draft")
                     previous = selectors.get(node["agent_ref"], "draft")
                     selectors[node["agent_ref"]] = (
                         "release"
@@ -341,7 +358,7 @@ class PlanPackageUseCase:
         now = datetime.now(UTC)
         expires_at = now + timedelta(seconds=self._lifetime)
         document = {
-            "package_schema_version": "1.0",
+            "package_schema_version": graph.manifest.get("schema_version", "1.0"),
             "api_origin": api_origin,
             "project_id": str(project_id),
             "upload_id": str(upload_id),
@@ -368,6 +385,9 @@ class PlanPackageUseCase:
             "created_at": now.isoformat(),
             "expires_at": expires_at.isoformat(),
         }
+        if structural:
+            document["installation_mode"] = "structural"
+            document["constituent_binding_policy"] = "imported_draft"
         if candidate is not None:
             from modules.package.application.candidate_planning import isolate_candidate_plan
             document = isolate_candidate_plan(document, **candidate)

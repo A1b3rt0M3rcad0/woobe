@@ -31,7 +31,7 @@ class ASaCRevision(StrictASaCRequest):
     artifact_digest: StrictStr = Field(pattern=DIGEST)
     author_artifact_digest: StrictStr | None = Field(default=None, pattern=DIGEST)
     definition_digest: StrictStr = Field(pattern=DIGEST)
-    definition_digest_scope: Literal["woobe-portable-definition@1.0"]
+    definition_digest_scope: Literal["woobe-portable-definition@1.0", "woobe-portable-definition@2.0"]
     component_digests: dict[StrictStr, StrictStr] = Field(max_length=1024)
     record_digest: StrictStr = Field(pattern=DIGEST)
 

@@ -33,6 +33,7 @@ from modules.agent.application.project_environment_references import (
 )
 from modules.agent.application.tool_context_bindings import merge_context_bindings_for_update
 from modules.agent.domain.entities import Secret, Tool
+from modules.agent.domain.oauth_public_configuration import merge_public_oauth_edit
 from modules.agent.domain.enums import ReleaseStatus, ToolStatus
 from modules.agent.domain.errors import ToolInUseError, ToolNotFoundError
 from modules.agent.domain.events import (
@@ -220,6 +221,7 @@ class UpdateToolUseCase:
                 tool.config,
                 input_dto.config,
             )
+            next_config = merge_public_oauth_edit(tool.config, next_config)
             if self._project_environment_key_validator is not None:
                 await self._project_environment_key_validator(
                     project_id=tool.project_id,

@@ -478,6 +478,63 @@ async def test_streaming_executes_release_tool_snapshot(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_retained_tool_snapshot_uses_accepted_secret_projection_without_rewriting_history(monkeypatch):
+    from copy import deepcopy
+    from modules.agent.application.tool_release_snapshots import (
+        tool_from_release_snapshot, tool_with_permission_overrides,
+    )
+    from modules.agent.infra.execution.runtime_preparation import prepare_tool_state
+
+    tool = _tool()
+    tool.config = {
+        "method": "GET", "url": "https://example.test/support",
+        "headers": [{"key": "X-Token", "value": "{{secret:shared}}"}],
+    }
+    snapshot = tool_to_release_snapshot(tool)
+    original = deepcopy(snapshot)
+    reference = {"source": "legacy_configuration", "key": "SHARED", "alias_id": str(uuid4())}
+    repositories = SimpleNamespace(
+        tools=SimpleNamespace(get_by_id=AsyncMock(side_effect=AssertionError("use retained snapshot"))),
+        tool_secrets=SimpleNamespace(get_by_name=AsyncMock(return_value=SimpleNamespace(
+            configuration_reference=reference, encrypted_value=None,
+        ))),
+    )
+    agent = SimpleNamespace(id=uuid4(), project_id=tool.project_id, settings={"runtime_config": {
+        "tools": {"tool_ids": [str(tool.id)], "snapshots": [snapshot]},
+    }})
+    context = new_execution_context()
+    context.tool_snapshots = {str(tool.id): snapshot}
+    token = current_execution.set(context)
+    registry = SimpleNamespace(execute=AsyncMock(return_value=SimpleNamespace(
+        success=True, output={"ok": True}, duration_ms=1, error=None,
+    )))
+    monkeypatch.setattr(
+        "modules.agent.infra.execution.agent_tool_runtime_gateway.build_tool_runtime_registry",
+        lambda **_kwargs: registry,
+    )
+    try:
+        prepared, material = await prepare_tool_state(
+            repositories, agent=agent, tool_from_snapshot=tool_from_release_snapshot,
+            tool_with_permissions=tool_with_permission_overrides,
+        )
+        context.prepared_tools = {str(tool.id): prepared[0]}
+        assert material == {}
+        assert context.prepared_tool_configuration_references == {str(tool.id): {"shared": reference}}
+        result = await AgentToolRuntimeGateway(
+            None, SimpleNamespace(encryption_key="test-encryption-key"), object(),
+        ).execute_tool(tool.id, {})
+    finally:
+        current_execution.reset(token)
+    assert result["success"]
+    executed = registry.execute.await_args.args[0]
+    assert executed.config["headers"] == []
+    assert executed.config["authentication"] == {"type": "headers", "fields": {"X-Token": reference}}
+    assert snapshot == original
+    repositories.tools.get_by_id.assert_not_awaited()
+    repositories.tool_secrets.get_by_name.assert_awaited_once_with(tool.project_id, "shared")
+
+
+@pytest.mark.asyncio
 async def test_tool_gateway_resolves_runtime_templates_without_mutating_snapshot(monkeypatch):
     tool = _tool()
     tool.config = {

@@ -75,6 +75,7 @@ class Secret:
     name: str
     type: Any
     encrypted_value: str
+    configuration_reference: dict[str, Any] | None
     data: dict[str, Any] | None
     created_at: datetime | None
     updated_at: datetime | None

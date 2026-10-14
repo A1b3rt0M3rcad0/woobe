@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class ImportedNetworkInput(BaseModel):
+    structural: bool = False
     model_config = ConfigDict(extra="forbid")
     project_id: UUID
     action: Literal[

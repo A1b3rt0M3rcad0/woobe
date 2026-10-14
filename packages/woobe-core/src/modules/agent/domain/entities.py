@@ -41,6 +41,8 @@ class ProviderCredential:
     provider: Provider = Provider.openai
     name: str = ""
     encrypted_secret: str = ""
+    authentication: dict[str, Any] | None = None
+    binding_revision: int = 1
     status: CredentialStatus = CredentialStatus.active
     last_validated_at: datetime | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -304,6 +306,7 @@ class Secret:
     name: str = ""
     type: SecretType = SecretType.CUSTOM
     encrypted_value: str = ""
+    configuration_reference: dict | None = None
     data: dict | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None

@@ -8,6 +8,7 @@ const fixture = vi.hoisted(() => ({
   reattach: vi.fn(), stream: vi.fn(), disconnect: vi.fn(), active: vi.fn(),
   toast: { error: vi.fn(), warning: vi.fn(), info: vi.fn() },
   queryClient: { invalidateQueries: vi.fn() },
+  configuration: vi.fn(),
   agent: { id: 'agent-1', name: 'Agent', project_id: 'project-1' },
   state: { externalContextContract: {}, sessionMode: 'stateful' },
   history: [{ role: 'user', content: 'Olá' }],
@@ -15,7 +16,7 @@ const fixture = vi.hoisted(() => ({
   releases: [], traces: [], sending: false,
 }))
 vi.mock('react-router-dom', () => ({ useParams: () => ({ projectId: 'project-1', agentId: 'agent-1' }), useNavigate: () => vi.fn() }))
-vi.mock('@tanstack/react-query', () => ({ useQueryClient: () => fixture.queryClient }))
+vi.mock('@tanstack/react-query', () => ({ useQueryClient: () => fixture.queryClient, useQuery: fixture.configuration }))
 vi.mock('@/features/asac/environmentSelection', () => ({ useSelectedAgentEnvironment: () => ({ state: 'empty', snapshot: null, snapshotId: null, detailState: 'loading' }), selectionMessage: () => 'No deployment' }))
 vi.mock('sonner', () => ({ toast: fixture.toast }))
 vi.mock('@/features/agents/hooks', () => ({
@@ -55,6 +56,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   localStorage.clear()
   setStoredPlaygroundSessionId('project-1', 'agent-1', 'draft', 'session-1')
+  fixture.configuration.mockReturnValue({ data: { state: 'ready', dependencies: [] }, isFetching: false, isError: false, refetch: vi.fn() })
   fixture.active.mockResolvedValue({ run_id: 'run-1' })
   container = document.createElement('div')
   root = createRoot(container)
@@ -75,6 +77,8 @@ describe('Standalone terminal Run discovery', () => {
       else callbacks.onCancelled?.({})
     })
     await renderAndRefresh()
+    expect(fixture.configuration).toHaveBeenCalledWith(expect.objectContaining({ queryKey: ['configuration-readiness', 'project-1', 'agent', 'agent-1', 'draft', undefined] }))
+    expect(container.textContent).not.toContain('Something went wrong')
     expect(fixture.reattach).toHaveBeenCalledTimes(1)
     expect(fixture.active.mock.calls.length).toBeLessThanOrEqual(2)
     expect(fixture.stream).not.toHaveBeenCalled()
@@ -85,6 +89,8 @@ describe('Standalone terminal Run discovery', () => {
   it('does not reset the stream client retry budget after transport exhaustion', async () => {
     fixture.reattach.mockRejectedValue(new Error('connection unavailable'))
     await renderAndRefresh()
+    expect(fixture.configuration).toHaveBeenCalledWith(expect.objectContaining({ queryKey: ['configuration-readiness', 'project-1', 'agent', 'agent-1', 'draft', undefined] }))
+    expect(container.textContent).not.toContain('Something went wrong')
     expect(fixture.reattach).toHaveBeenCalledTimes(1)
     expect(getStoredPlaygroundRunId('project-1', 'agent-1', 'draft')).toBe('run-1')
     expect(fixture.sending).toBe(false)

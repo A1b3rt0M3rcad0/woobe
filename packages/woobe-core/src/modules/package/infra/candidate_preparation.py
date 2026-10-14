@@ -5,6 +5,7 @@ from uuid import UUID, uuid4
 from sqlalchemy import select
 
 from modules.package.domain.errors import PackageError
+from modules.package.domain.configuration import package_requirements
 from modules.package.infra.models import PackageResourceBindingModel, PackageSnapshotArtifactModel, PackageUploadModel, PackageOperationModel, PackagePlanModel
 from modules.package.infra.snapshot_artifact_repository import PackageSnapshotArtifactRepository
 from shared.infra.admin_idempotency import principal_identity
@@ -21,6 +22,7 @@ class PackageCandidatePreparation:
         record = source["record"]
         if (evidence["artifact_digest"] != record["artifact_digest"]
             or evidence["definition_digest"] != record["definition_digest"]
+            or evidence.get("definition_digest_scope", "woobe-portable-definition@1.0") != record["definition_digest_scope"]
             or set(evidence["component_digests"]) != set(source["component_uids"])
             or any(record["component_digests"].get(uid) != evidence["component_digests"][key]
                    for key, uid in source["component_uids"].items())):
@@ -110,7 +112,7 @@ class PackageCandidatePreparation:
             document = plan.document
         actual = await self.service.plans._inspector.inspect_bindings(
             project_id=project_id, principal=principal,
-            requirements=document["source_definition"]["manifest"]["spec"].get("requires", {}),
+            requirements=package_requirements(document["source_definition"]["manifest"]),
             bindings=document["bindings"]["spec"])
         if actual != expected_fingerprints or actual != document["binding_resolutions"]:
             raise PackageError("ASAC_RUNTIME_BINDINGS_CHANGED", "Destination binding versions differ from the prepared candidate")

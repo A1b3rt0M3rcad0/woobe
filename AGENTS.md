@@ -23,6 +23,9 @@ Keep this file small. It is an index and routing guide, not a duplicate of produ
 
 ## Topic-specific documentation
 
+- Project configuration: [docs/PROJECT_CONFIGURATION.md](docs/PROJECT_CONFIGURATION.md)
+- Configuration authority: [docs/adr/0005-project-configuration-authority.md](docs/adr/0005-project-configuration-authority.md)
+
 - Unified CLI delivery: [docs/CLI_DEPLOYMENT.md](docs/CLI_DEPLOYMENT.md)
 
 - Control Plane authority: [docs/security/CONTROL_PLANE.md](docs/security/CONTROL_PLANE.md)

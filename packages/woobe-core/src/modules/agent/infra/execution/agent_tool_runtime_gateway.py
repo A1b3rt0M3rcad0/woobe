@@ -90,6 +90,16 @@ class AgentToolRuntimeGateway:
         )
         if snapshot is not None:
             tool = tool_from_release_snapshot(snapshot)
+            # The retained snapshot remains the definition authority. Its raw
+            # Secret templates predate centralization, so apply the same
+            # acceptance-time metadata projection without rewriting history or
+            # resolving a Secret by name at the transport boundary.
+            references = (context.prepared_tool_configuration_references or {}).get(
+                str(tool_id), {}
+            )
+            if references:
+                from modules.agent.domain.legacy_tool_configuration import bind_legacy_tool_headers
+                tool = bind_legacy_tool_headers(tool, references)
         else:
             prepared = context.prepared_tools if context else None
             tool = prepared.get(str(tool_id)) if prepared else None

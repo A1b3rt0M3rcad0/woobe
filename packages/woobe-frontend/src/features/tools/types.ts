@@ -33,6 +33,7 @@ export interface ToolChildPermission {
 export type McpToolPermission = ToolChildPermission
 
 export interface HttpRouteConfig {
+  authentication?: RemoteAuthentication
   id: string
   operation_id?: string
   name: string
@@ -54,7 +55,13 @@ export interface HttpRouteConfig {
   contract_hash?: string
 }
 
+export interface RemoteAuthentication {
+  type: "none" | "api_key" | "bearer" | "basic" | "headers"
+  fields: Record<string, { source: "project_environment"; key: string }>
+}
+
 export interface HttpToolConfig {
+  authentication?: RemoteAuthentication
   protocol?: 'http'
   mode?: 'single' | 'group'
   schema_version?: number
@@ -149,6 +156,7 @@ export interface DiscoveredMcpTool {
 }
 
 export interface McpToolConfig {
+  authentication?: RemoteAuthentication
   protocol?: 'mcp'
   mode?: 'tool' | 'server'
   exposure?: 'single' | 'all_discovered'

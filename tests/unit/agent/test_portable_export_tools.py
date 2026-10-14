@@ -159,3 +159,22 @@ def test_native_mcp_permission_risk_survives_export_schema_validation(mode, risk
     permission = validated.spec.permissions[0]
     assert permission.permission == mode
     assert permission.risk == native_permission.get("risk_level")
+
+
+def test_structural_configuration_projection_keeps_the_verified_author_snapshot_unchanged():
+    from copy import deepcopy
+    source = _tool({'url':'https://tools.example/api', 'method':'GET',
+        'headers':[{'key':'Authorization', 'value':'{{secret:old-name}}'}]}, ToolType.HTTP)
+    snapshot = tool_to_release_snapshot(source)
+    before = deepcopy(snapshot)
+    projected = {'url':'https://tools.example/api', 'method':'GET', 'headers':[],
+        'authentication': {'type':'headers', 'fields':{'Authorization':{'source':'project_environment', 'key':'DESTINATION_TOKEN'}}}}
+    portable = export_frozen_tool(snapshot, configuration_projection=projected)
+    assert snapshot == before
+    assert portable['config']['authentication'] == projected['authentication']
+    assert 'old-name' not in str(portable)
+    assert 'alias_id' not in str(portable)
+    # Providing a safe projection never bypasses verification of the old bytes.
+    snapshot['name'] = 'tampered'
+    with pytest.raises(ValidationError, match='hash is invalid'):
+        export_frozen_tool(snapshot, configuration_projection=projected)

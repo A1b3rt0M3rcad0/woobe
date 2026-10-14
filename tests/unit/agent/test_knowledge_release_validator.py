@@ -51,3 +51,16 @@ async def test_knowledge_release_validator_blocks_building_snapshot():
     release, validator = make_case(VECTOR_SNAPSHOT_BUILDING, None)
     with pytest.raises(ValidationError, match="READY"):
         await validator.validate(release)
+
+
+@pytest.mark.asyncio
+async def test_pending_knowledge_is_structural_only_and_never_release_ready():
+    release, validator = make_case("PENDING_PREPARATION", None)
+    with pytest.raises(ValidationError, match="READY"):
+        await validator.validate(release)
+    structural = KnowledgeReleaseValidator(validator._knowledge_version_repo, validator._vector_snapshot_repo, allow_pending=True)
+    await structural.validate(release)
+    snapshot = validator._vector_snapshot_repo.get_by_id.return_value
+    snapshot.project_id = uuid4()
+    with pytest.raises(ValidationError, match="Project"):
+        await structural.validate(release)

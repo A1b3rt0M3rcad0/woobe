@@ -191,10 +191,8 @@ class ProviderCredentialValidator:
                     metadata=metadata,
                 )
             )
-        except Exception as exc:
-            raise ValidationError(
-                f"Unable to verify the new provider API key: {exc}"
-            ) from exc
+        except Exception:
+            raise ValidationError("Unable to verify the new provider API key") from None
         if not models:
             raise ValidationError(
                 "Unable to verify the new provider API key: provider returned no models"

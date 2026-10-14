@@ -13,6 +13,14 @@ class ASaCEnvironmentBindingReader:
                 .with_for_update())
             if row is None:
                 raise ConflictError('ASAC_DEPLOYMENT_BINDINGS_CHANGED: Project Environment key unavailable')
+            if 'definition_revision' in evidence:
+                # Schema2 seals reference meaning. Value versions are selected
+                # and authorized separately for the actual runtime Environment.
+                actual={'id':str(row.id),'key':row.key,'kind':row.kind,
+                    'definition_revision':row.definition_revision,'existing':True}
+                if actual != evidence:
+                    raise ConflictError('ASAC_DEPLOYMENT_BINDINGS_CHANGED: configuration declaration differs')
+                continue
             values=(await session.scalars(select(ProjectEnvironmentValueModel).where(
                 ProjectEnvironmentValueModel.key_id==row.id).order_by(ProjectEnvironmentValueModel.environment)
                 .with_for_update(read=True))).all()

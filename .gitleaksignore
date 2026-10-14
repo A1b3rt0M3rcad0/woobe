@@ -5,3 +5,7 @@ fe7b0c1731a473da600c098a3ba1b9899dfb7e22:.github/workflows/acceptance.yml:generi
 
 # Public encryption fixture used only by the isolated in-memory ledger tests.
 d6ab8bd5b476f13b4cc7ca1d3a0ca3680a44ff4b:tests/unit/security/test_admin_idempotency.py:generic-api-key:14
+
+# Summary fixture declaration/consumer names only; no credential material.
+# The historical compressed dict matched across adjacent metadata fields.
+398e9d3c6f4d7fac521d51ab8a1713811af20fb1:tests/unit/core/test_configuration_summary.py:generic-api-key:10

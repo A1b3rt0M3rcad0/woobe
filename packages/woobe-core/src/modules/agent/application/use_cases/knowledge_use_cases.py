@@ -559,7 +559,9 @@ class CreateKnowledgeVersionUseCase:
         repo: KnowledgeVersionRepository,
         vector_snapshot_repo: Any | None = None,
         agent_repo: AgentRepository | None = None,
+        *, allow_pending: bool = False,
     ) -> None:
+        self._allow_pending = allow_pending
         self._repo = repo
         self._vector_snapshot_repo = vector_snapshot_repo
         self._agent_repo = agent_repo
@@ -583,7 +585,7 @@ class CreateKnowledgeVersionUseCase:
             snapshot = await self._vector_snapshot_repo.get_by_id(snapshot_id)
             if snapshot is None or snapshot.project_id != input_dto.project_id:
                 raise NotFoundError("Vector snapshot not found")
-            if snapshot.status != VECTOR_SNAPSHOT_READY:
+            if snapshot.status != VECTOR_SNAPSHOT_READY and not (self._allow_pending and snapshot.status == "PENDING_PREPARATION"):
                 raise ConflictError(
                     "Knowledge version requires a READY vector snapshot"
                 )
@@ -596,10 +598,16 @@ class CreateKnowledgeVersionUseCase:
                 is_archived = _as_value(existing.status) == _as_value(
                     KnowledgeVersionStatus.ARCHIVED
                 )
-                if same_snapshot and not is_archived:
+                completed_preparation = (existing_metadata.get("preparation_status") == "pending"
+                    and snapshot.status == VECTOR_SNAPSHOT_READY)
+                if same_snapshot and not is_archived and not completed_preparation:
                     return _knowledge_version_to_output(existing)
 
             collection_ids = [snapshot.collection_id]
+            if snapshot.status == "PENDING_PREPARATION":
+                snapshot_metadata["preparation_status"] = "pending"
+            else:
+                snapshot_metadata.pop("preparation_status", None)
             snapshot_metadata.update(
                 {
                     "vector_snapshot_id": str(snapshot.id),

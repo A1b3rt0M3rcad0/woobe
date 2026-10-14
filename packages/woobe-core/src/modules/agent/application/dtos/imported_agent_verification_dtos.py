@@ -10,3 +10,4 @@ class VerifyImportedAgentInput(BaseModel):
     draft_id: UUID
     lifecycle: Literal["draft", "staging", "release", "production"] = "draft"
     release_id: UUID | None = None
+    structural: bool = False

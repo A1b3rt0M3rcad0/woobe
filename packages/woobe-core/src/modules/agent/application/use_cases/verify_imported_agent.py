@@ -39,6 +39,9 @@ class VerifyImportedAgentUseCase:
         )
 
     async def execute(self, definition):
+        structural = getattr(definition, "structural", False)
+        if structural and definition.lifecycle != "draft":
+            raise ConflictError("Structural verification cannot qualify a deployment")
         agent = await self._agents.get_by_id(definition.agent_id)
         draft = await self._releases.get_by_id(definition.draft_id)
         if (
@@ -120,6 +123,7 @@ class VerifyImportedAgentUseCase:
                 raise ConflictError("Imported Tool changed after Draft capture")
             if (
                 is_mcp_tool_type(frozen.type)
+                and not structural
                 and not build_mcp_readiness(tool.config, tool.status)["mcp_ready"]
             ):
                 raise ConflictError("Imported MCP Tool is not ready")
@@ -146,9 +150,10 @@ class VerifyImportedAgentUseCase:
                     raise ConflictError("Imported Agent Release is not active")
             await self._knowledge.validate(snapshot)
         return {
+            **({"structural_complete": True} if structural else {}),
             "id": str(agent.id),
             "draft_id": str(draft.id),
-            "configuration_ready": True,
-            "execution_ready": True,
+            "configuration_ready": not structural,
+            "execution_ready": not structural,
             "lifecycle_state": definition.lifecycle,
         }

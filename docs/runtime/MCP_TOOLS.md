@@ -19,6 +19,19 @@ Currently out of scope: stdio MCP servers, marketplace/templates, per-end-user O
 
 OAuth belongs to the MCP provider, not to an Agent attachment. Woobe stores sensitive OAuth material encrypted on the provider configuration and retries authenticated discovery after successful connection.
 
+Start, completion and device flows perform remote I/O on a request-local Tool
+workset. SQL authorization closes before metadata discovery, registration or
+token exchange; persistence rechecks the caller and exact configuration revision.
+A concurrent edit or revoked grant rejects the commit. After a rejected exchange,
+inspect connection status and restart the connection if the remote code was
+already consumed; do not blindly replay it.
+
+OAuth protocol responses carry token material only to this private owner flow.
+Ordinary Tool results keep their redaction. Failed protocol responses and nested
+arbitrary bodies do not receive an exception. HTTP logs sanitize OAuth query
+parameters, including state, code and PKCE challenge. This detached boundary does
+not by itself certify migration of historical OAuth material to the central store.
+
 Endpoints:
 
 ```text

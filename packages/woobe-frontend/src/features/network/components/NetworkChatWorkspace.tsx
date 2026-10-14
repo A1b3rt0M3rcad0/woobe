@@ -1,3 +1,4 @@
+import { ConfigurationReadinessNotice } from '@/features/projects/components/ConfigurationReadinessNotice'
 import { isSkillOperation, operationLabel } from '@/features/skills/operations'
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
@@ -715,6 +716,7 @@ export function NetworkChatWorkspace({
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <ConfigurationReadinessNotice projectId={projectId} targetKind="network" targetId={networkId} environment={environment} unsaved={environment === 'draft'} versionId={environment === 'draft' ? undefined : currentVersionId ?? undefined} />
       <ChatCanvas
         entries={chatEntries}
         isSending={running}

@@ -11,7 +11,7 @@ class PortableEnvironmentReader:
     def __init__(self, sessions):
         self._sessions = sessions
 
-    async def capture(self, *, project_id, principal, keys):
+    async def capture(self, *, project_id, principal, keys, declarations=False):
         if not keys:
             return {}
         async with self._sessions.begin() as session:
@@ -41,13 +41,17 @@ class PortableEnvironmentReader:
                 raise AuthorizationError("Administrative authentication is required")
             result = await session.execute(
                 select(
-                    ProjectEnvironmentKeyModel.key, ProjectEnvironmentKeyModel.kind
+                    ProjectEnvironmentKeyModel.key, ProjectEnvironmentKeyModel.kind,
+                    ProjectEnvironmentKeyModel.description, ProjectEnvironmentKeyModel.value_format,
+                    ProjectEnvironmentKeyModel.validation_rules,
                 ).where(
                     ProjectEnvironmentKeyModel.project_id == project_id,
                     ProjectEnvironmentKeyModel.key.in_(keys),
                 )
             )
-            metadata = dict(result.all())
+            rows = result.all()
+            metadata = {row.key: ({"key": row.key, "kind": row.kind, "description": row.description,
+                "value_format": row.value_format, "validation_rules": row.validation_rules} if declarations else row.kind) for row in rows}
             if set(metadata) != set(keys):
                 raise ConflictError("Export environment requirement is unavailable")
             return metadata

@@ -1,5 +1,5 @@
 from __future__ import annotations
-from modules.agent.entrypoint import (PreviewVectorSnapshotInput, CreateVectorSnapshotInput)
+from modules.agent.entrypoint import (PreviewVectorSnapshotInput, CreateVectorSnapshotInput, PrepareVectorSnapshotInput)
 from woobe_api.http.shared.openapi_contracts import request_body_contract
 
 from uuid import UUID
@@ -47,3 +47,12 @@ async def get_vector_snapshot(
 ):
     return await handlers.get_vector_snapshot(request, snapshot_id, project_id)
 
+
+
+@router.post("/vector-snapshots/{snapshot_id}/prepare", status_code=202,
+    openapi_extra=request_body_contract(PrepareVectorSnapshotInput,
+        "/agent/knowledge/vector-snapshots/{snapshot_id}/prepare", "post", required=True, path_fields=("snapshot_id",)))
+async def prepare_vector_snapshot(request: Request, snapshot_id: UUID):
+    from modules.agent.entrypoint import prepare_vector_snapshot_composer
+    from woobe_api.http.shared.adapters import request_adapter, response_adapter
+    return response_adapter(await request_adapter(request, prepare_vector_snapshot_composer()))

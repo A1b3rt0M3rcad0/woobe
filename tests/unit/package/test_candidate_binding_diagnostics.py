@@ -21,6 +21,7 @@ async def test_missing_candidate_constituent_locates_author_component_without_ac
     record = {
         "artifact_digest": "artifact",
         "definition_digest": "definition",
+        "definition_digest_scope": "woobe-portable-definition@1.0",
         "resource_uid": root_uid,
         "component_digests": {uid: "child", root_uid: "root"},
     }

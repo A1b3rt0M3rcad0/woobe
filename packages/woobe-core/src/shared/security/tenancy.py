@@ -532,7 +532,9 @@ class TenantAuthorizer:
                 import json
 
                 grants = json.loads(grants)
-            if permission not in grants:
+            if permission not in grants and not await self._legacy_configuration_write(
+                project_id=project_id, subject_type="human", subject_id=user_id,
+                required_permission=permission, granted=set(grants), path_context=path_context):
                 raise AuthorizationError(
                     "Assigned authority does not allow this operation"
                 )
@@ -589,7 +591,9 @@ class TenantAuthorizer:
         if isinstance(conditions, str):
             conditions = json.loads(conditions)
         granted = {str(item) for item in (permissions or [])}
-        if permission not in granted:
+        if permission not in granted and not await self._legacy_configuration_write(
+            project_id=project_id, subject_type="control_key", subject_id=api_key_id,
+            required_permission=permission, granted=granted, path_context=path_context):
             raise AuthorizationError("Control key Project permission is not sufficient")
         if delegated_conditions is not None:
             if not conditions_are_subset(delegated_conditions, conditions or {}):
@@ -603,6 +607,29 @@ class TenantAuthorizer:
                 conditions or {}, permission, path_context
             ),
         )
+
+    async def _legacy_configuration_write(self, *, project_id, subject_type, subject_id,
+                                          required_permission, granted, path_context):
+        # The marker is injected only by exact reviewed legacy HTTP operations.
+        # It cannot authorize central value endpoints or a new category/key.
+        legacy = (path_context or {}).get("_configuration_legacy_permission")
+        legacy_write = (required_permission == 'project:environment:value:write'
+            and legacy in {'provider:write', 'provider:credential:rotate', 'secret:write',
+                           'tool:write', 'project:environment:write'})
+        legacy_refresh = (required_permission == 'project:environment:validate'
+            and legacy == 'tool:write'
+            and (path_context or {}).get('_configuration_legacy_operation') == 'mcp.refresh'
+            and (path_context or {}).get('environment') == 'draft'
+            and _uuid((path_context or {}).get('tool_id')) is not None)
+        if legacy not in granted or not (legacy_write or legacy_refresh):
+            return False
+        statement = text("""SELECT 1 FROM core.project_configuration_legacy_authorities
+            WHERE project_id=:project_id AND subject_type=:subject_type
+              AND subject_id=:subject_id AND permission=:permission
+              AND catalog_revision='pre-project_configuration.v1'""").bindparams(
+                bindparam("project_id", type_=Uuid()), bindparam("subject_id", type_=Uuid()))
+        return await self._session.scalar(statement, {"project_id": project_id,
+            "subject_type": subject_type, "subject_id": subject_id, "permission": legacy}) is not None
 
     async def _condition_path_context(
         self,

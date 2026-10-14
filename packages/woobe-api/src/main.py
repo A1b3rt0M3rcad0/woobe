@@ -88,6 +88,19 @@ def _csv_values(value: str) -> list[str]:
 
 
 def create_app() -> FastAPI:
+    from modules.agent.entrypoint import configure_project_configuration
+    from modules.core.entrypoint import build_project_configuration_runtime
+    configure_project_configuration(build_project_configuration_runtime)
+    from modules.agent.entrypoint import configure_runtime_configuration_resolver
+    from modules.core.entrypoint import build_configuration_runtime_resolver
+    from modules.agent.entrypoint import verify_configuration_consumer
+    configure_runtime_configuration_resolver(build_configuration_runtime_resolver(consumer_verifier=verify_configuration_consumer))
+    from modules.agent.entrypoint import collect_configuration_dependencies
+    from modules.core.entrypoint import build_configuration_acceptor
+    from modules.network.entrypoint import configure_configuration_acceptance
+    configure_configuration_acceptance(build_configuration_acceptor(collect_configuration_dependencies))
+    from woobe_api.configuration_composition import configure_target_readiness
+    configure_target_readiness()
     configure_provider_dependency_readers(
         network_consumers=build_network_dependency_impact_reader().consumers,
         surface_consumers=build_surface_dependency_impact_reader().consumers,
@@ -108,10 +121,14 @@ def create_app() -> FastAPI:
         engine = runtime_app.state.async_engine
         async with engine.begin() as conn:
             await conn.execute(text("SELECT 1"))
+        from modules.core.entrypoint import build_configuration_process_registration
+        registration = build_configuration_process_registration(create_session_factory(engine), role="api")
+        await registration.start()
         logger.info("Woobe API runtime started without background workers")
         try:
             yield
         finally:
+            await registration.stop()
             await close_http_tool_executor()
             await runtime_app.state.async_engine.dispose()
             logger.info("Woobe API runtime stopped")

@@ -1,3 +1,4 @@
+import { ConfigurationReadinessNotice } from '@/features/projects/components/ConfigurationReadinessNotice'
 import { useSelectedAgentEnvironment, selectionMessage } from '@/features/asac/environmentSelection'
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
@@ -794,6 +795,7 @@ function PlaygroundContent() {
           {!environmentReady && <span className="ml-2 text-amber-300 font-medium">· {environmentReadReason}</span>}
           <span className="ml-auto text-muted">{visibleProvider || '—'}/{visibleModel || '—'}</span>
         </div>
+        <ConfigurationReadinessNotice projectId={projectId!} targetKind="agent" targetId={agentId!} environment={environment} versionId={currentEnvironmentRelease?.id} workspaceId={workspaceId} unsaved={environment === 'draft' && isDirty} />
         <div className="flex flex-1 min-h-0 overflow-hidden">
           <OperationsRail
             activeTab={showLeftPanel ? leftPanelTab : null}

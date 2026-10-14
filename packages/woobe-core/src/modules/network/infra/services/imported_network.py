@@ -23,7 +23,13 @@ class ImportedNetworkHandler:
 
     async def handle(self, request):
         data = ImportedNetworkInput.model_validate(request.body)
+        if data.structural and (data.lifecycle != "draft" or data.action not in {
+            "prepare_network", "save_network_draft", "verify_materialized_package"
+        }):
+            raise ConflictError("Structural verification cannot qualify deployment")
         session = self._uow.session
+        from modules.network.application.configuration_acceptance import lock_configuration
+        await lock_configuration(session, project_id=data.project_id)
         actor = (
             request.principal.user_id
             if isinstance(request.principal, AuthenticatedPrincipal)
@@ -125,6 +131,9 @@ class ImportedNetworkHandler:
                             created_by=actor,
                         )
                     )
+                    from modules.network.application.configuration_acceptance import prepare_configuration
+                    await prepare_configuration(session, project_id=data.project_id, environment="production",
+                        bindings=version.resolved_bindings or {})
                     network.production_version_id = version.id
                 result = {
                     "id": str(version.id),
@@ -190,9 +199,10 @@ class ImportedNetworkHandler:
                     ):
                         raise ConflictError("Imported Network Release is not active")
                 result = {
+                    **({"structural_complete": True} if data.structural else {}),
                     "id": str(network.id),
-                    "configuration_ready": True,
-                    "execution_ready": True,
+                    "configuration_ready": not data.structural,
+                    "execution_ready": not data.structural,
                     "lifecycle_state": data.lifecycle,
                 }
         await session.flush()

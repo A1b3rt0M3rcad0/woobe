@@ -73,6 +73,8 @@ async def _promote_atomic_in_session(
     activate: bool = True,
     release_notes: str | None = None,
 ):
+    from modules.network.application.configuration_acceptance import lock_configuration
+    await lock_configuration(session, project_id=project_id)
     network = await session.get(NetworkModel, network_id, with_for_update=True)
     if network is None or network.project_id != project_id:
         raise NotFoundError("Network not found")
@@ -311,6 +313,9 @@ async def _promote_atomic_in_session(
             if not activate:
                 return equivalent
             previous_id = network.production_version_id
+            from modules.network.application.configuration_acceptance import prepare_configuration
+            await prepare_configuration(session, project_id=project_id, environment="production",
+                bindings=equivalent.resolved_bindings or {})
             network.production_version_id = equivalent.id
             if previous_id != equivalent.id:
                 session.add(
@@ -405,6 +410,9 @@ async def _promote_atomic_in_session(
         network.staging_version_id = version.id
     elif activate:
         previous_id = network.production_version_id
+        from modules.network.application.configuration_acceptance import prepare_configuration
+        await prepare_configuration(session, project_id=project_id, environment="production",
+            bindings=version.resolved_bindings or {})
         network.production_version_id = version.id
         session.add(
             NetworkProductionActivationModel(

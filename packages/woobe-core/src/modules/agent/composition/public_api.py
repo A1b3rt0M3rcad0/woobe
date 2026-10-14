@@ -553,3 +553,58 @@ from modules.agent.composition.composers.finalize_imported_agent_composer import
 from modules.agent.composition.composers.verify_imported_agent_composer import verify_development_agent_composer
 
 __all__.extend(['build_development_resource_reader', 'prepare_existing_agent_composer', 'reuse_development_resource_composer', 'reuse_frozen_agent_composer', 'materialize_development_prompt_composer', 'materialize_development_contract_composer', 'materialize_development_collection_composer', 'materialize_development_document_composer', 'create_development_vector_composer', 'find_development_document_composer', 'finalize_existing_agent_composer', 'verify_development_agent_composer'])
+
+from modules.agent.application.interfaces.project_configuration import configure_project_configuration
+__all__.append("configure_project_configuration")
+
+from modules.agent.composition.factories.configuration_readers import collect_configuration_dependencies
+__all__.append("collect_configuration_dependencies")
+
+from modules.agent.composition.factories.configuration_readers import read_configuration_target
+__all__.append("read_configuration_target")
+
+from modules.agent.composition.composers.list_available_provider_models_composer import list_available_provider_models_composer
+__all__.append("list_available_provider_models_composer")
+
+from modules.agent.application.interfaces.project_configuration import configure_runtime_configuration_resolver
+__all__.append("configure_runtime_configuration_resolver")
+
+from modules.agent.infra.database.configuration_binding_writer import configuration_binding
+__all__.append("configuration_binding")
+
+from modules.agent.composition.factories.configuration_tool_preparation import build_configuration_tool_preparation
+__all__.append("build_configuration_tool_preparation")
+
+from modules.agent.infra.database.configuration_consumer_guard import verify_configuration_consumer
+__all__.append("verify_configuration_consumer")
+from modules.agent.infra.database.configuration_provider_migration import inventory_provider_configuration, migrate_provider_configuration
+__all__ += ["inventory_provider_configuration", "migrate_provider_configuration"]
+from modules.agent.infra.database.configuration_package import inspect_configuration_provider_reuse
+__all__.append("inspect_configuration_provider_reuse")
+
+from modules.agent.composition.composers.create_knowledge_version_composer import create_knowledge_version_structural_composer
+__all__.append("create_knowledge_version_structural_composer")
+
+from modules.agent.composition.composers.imported_vector_composers import create_imported_vector_structural_composer
+__all__.append("create_imported_vector_structural_composer")
+
+from modules.agent.composition.composers.finalize_imported_agent_composer import finalize_imported_agent_structural_composer
+__all__.append("finalize_imported_agent_structural_composer")
+
+from modules.agent.composition.composers.verify_imported_agent_composer import verify_imported_agent_structural_composer
+__all__.append("verify_imported_agent_structural_composer")
+
+from modules.agent.composition.composers.prepare_vector_snapshot_composer import prepare_vector_snapshot_composer
+__all__.append("prepare_vector_snapshot_composer")
+
+from modules.agent.application.dtos.vector_preparation_dtos import PrepareVectorSnapshotInput
+__all__.append("PrepareVectorSnapshotInput")
+
+from modules.agent.infra.database.configuration_quiescence import assert_configuration_quiescent as assert_agent_configuration_quiescent
+__all__.append("assert_agent_configuration_quiescent")
+
+from modules.agent.infra.database.configuration_secret_migration import inventory_configuration_sources, migrate_configuration_source
+__all__ += ["inventory_configuration_sources", "migrate_configuration_source"]
+
+from modules.agent.infra.database.configuration_targets import configuration_targets
+__all__.append('configuration_targets')

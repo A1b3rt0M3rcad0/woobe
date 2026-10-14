@@ -321,3 +321,17 @@ async def test_staging_resolves_effective_selection_instead_of_legacy_status() -
     assert resolved.release_id == selected.id
     assert resolved.snapshot["model"] == "selected"
     repository.get_active_staging.assert_awaited_once_with(agent.id)
+
+
+@pytest.mark.asyncio
+async def test_inactive_agent_configuration_can_be_inspected_without_authorizing_execution():
+    from modules.agent.domain.enums import AgentStatus
+    project = uuid4()
+    agent = _agent(project); agent.status = AgentStatus.inactive
+    resolver = AgentExecutionSnapshotResolver(SimpleNamespace(get_by_id=AsyncMock(return_value=agent)))
+    args = dict(project_id=project, agent_id=agent.id, environment='draft', allow_legacy_draft=True)
+    observed = await resolver.resolve(**args, metadata_only=True)
+    assert observed.snapshot['provider_credential_id'] == str(agent.provider_credential_id)
+    with pytest.raises(ValidationError, match='not active'):
+        await resolver.resolve(**args)
+    assert agent.status == AgentStatus.inactive

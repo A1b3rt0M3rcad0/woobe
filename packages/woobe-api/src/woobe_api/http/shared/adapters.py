@@ -52,6 +52,9 @@ async def request_adapter(
         )
         if permission is not None:
             operation_metadata["required_permission"] = permission
+            from woobe_api.security.http_guard import _configuration_permissions
+            operation_metadata["configuration_permissions"] = _configuration_permissions(
+                fastapi_request.method, fastapi_request.url.path, body, dict(fastapi_request.path_params))
             operation_metadata["authorization_path_params"] = verified_query_context(
                 fastapi_request.method, fastapi_request.url.path,
                 HttpSecurityGuard._authorization_path_params(
