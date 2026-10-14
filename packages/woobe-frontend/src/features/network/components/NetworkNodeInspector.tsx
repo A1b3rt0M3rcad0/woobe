@@ -131,7 +131,7 @@ export function NetworkNodeInspector({
             <summary className="flex h-7 w-7 cursor-pointer list-none items-center justify-center rounded-control border border-border bg-background/45 text-muted-foreground [&::-webkit-details-marker]:hidden"><MoreHorizontal className="h-3.5 w-3.5" /></summary>
             <div className="absolute right-0 z-20 mt-ui-xs w-44 rounded-container border border-border bg-surface p-ui-xs shadow-xl">
               {onLocateOnCanvas ? <button type="button" onClick={onLocateOnCanvas} className="w-full rounded-control px-ui-sm py-ui-sm text-left font-sans text-system-label text-muted-foreground hover:bg-background/60 hover:text-foreground">Locate on Canvas</button> : null}
-              <button type="button" disabled={readOnly || rootMustBeReassigned} title={rootMustBeReassigned ? 'Choose another Entry Point first' : undefined} onClick={() => onChange({ type: 'remove-node', nodeId: node.id })} className="flex w-full items-center gap-ui-sm rounded-control px-ui-sm py-ui-sm text-left font-sans text-system-label text-red-300 disabled:opacity-45"><Trash2 className="h-3.5 w-3.5" />Remove from Network</button>
+              <button type="button" disabled={readOnly || rootMustBeReassigned} title={rootMustBeReassigned ? 'Choose another Entry Point first' : undefined} onClick={() => onChange({ type: 'remove-node', nodeId: node.id })} className="flex w-full items-center gap-ui-sm rounded-control px-ui-sm py-ui-sm text-left font-sans text-system-label text-error disabled:opacity-45"><Trash2 className="h-3.5 w-3.5" />Remove from Network</button>
             </div>
           </details>
         </div>

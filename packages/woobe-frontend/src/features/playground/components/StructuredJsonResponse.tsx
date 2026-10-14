@@ -130,7 +130,7 @@ export function StructuredJsonResponse({
   const actions = displayText ? (
     <>
       <IconButton label="Copy JSON" title={copied ? 'Copied!' : 'Copy'} onClick={handleCopy}>
-        {copied ? <Check className="h-icon-sm w-icon-sm text-emerald-300" /> : <Copy className="h-icon-sm w-icon-sm" />}
+        {copied ? <Check className="h-icon-sm w-icon-sm text-success" /> : <Copy className="h-icon-sm w-icon-sm" />}
       </IconButton>
       <IconButton label="Expand JSON" title="Expand JSON" onClick={() => setExpanded(true)}>
         <Maximize2 className="h-icon-sm w-icon-sm" />
@@ -184,7 +184,7 @@ export function StructuredJsonResponse({
               </div>
               <div className="flex items-center gap-ui-xs">
                 <IconButton label="Copy JSON" title={copied ? 'Copied!' : 'Copy'} onClick={handleCopy}>
-                  {copied ? <Check className="h-icon-sm w-icon-sm text-emerald-300" /> : <Copy className="h-icon-sm w-icon-sm" />}
+                  {copied ? <Check className="h-icon-sm w-icon-sm text-success" /> : <Copy className="h-icon-sm w-icon-sm" />}
                 </IconButton>
                 <IconButton label="Close" title="Close" onClick={() => setExpanded(false)}>
                   <X className="h-icon-sm w-icon-sm" />

@@ -88,7 +88,7 @@ export function DocumentsDrawer({ open, onClose, collectionId, collectionName }:
                         type="button"
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 text-muted hover:bg-red-500/10 hover:text-red-400"
+                        className="h-8 w-8 text-muted hover:bg-red-500/10 hover:text-error"
                         onClick={() => setDocumentToDelete(doc)}
                         aria-label={`Delete document ${doc.title || doc.file_name}`}
                       >
@@ -103,11 +103,11 @@ export function DocumentsDrawer({ open, onClose, collectionId, collectionName }:
                     {doc.chunk_count != null && <span>{doc.chunk_count} chunks</span>}
                   </div>
                   {doc.status === 'indexed' && doc.indexed_at && (
-                    <p className="text-xs text-emerald-400">Indexed: {new Date(doc.indexed_at).toLocaleString()}</p>
+                    <p className="text-xs text-success">Indexed: {new Date(doc.indexed_at).toLocaleString()}</p>
                   )}
                   {doc.status === 'failed' && doc.error && (
                     <div className="rounded bg-red-500/10 p-2">
-                      <p className="text-xs text-red-400">{doc.error}</p>
+                      <p className="text-xs text-error">{doc.error}</p>
                     </div>
                   )}
                 </div>
@@ -126,7 +126,7 @@ export function DocumentsDrawer({ open, onClose, collectionId, collectionName }:
         {documentToDelete && (
           <div className="space-y-5">
             <div className="flex gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-red-500/20 bg-red-500/10 text-red-400">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-red-500/20 bg-red-500/10 text-error">
                 <AlertTriangle className="h-5 w-5" />
               </div>
               <div className="min-w-0 space-y-1">

@@ -52,7 +52,7 @@ export function TraceList({ traces, selectedTraceId, onSelectTrace, isLoading, i
       <div className="p-ui-md">
         <EmptyStatePanel
           compact
-          icon={<AlertCircle className="h-icon-lg w-icon-lg text-red-300" />}
+          icon={<AlertCircle className="h-icon-lg w-icon-lg text-error" />}
           title="Failed to load Agent Runs"
           description={errorMessage || 'The Runs list could not be loaded.'}
           action={onRetry ? (

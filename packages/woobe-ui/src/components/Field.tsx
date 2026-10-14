@@ -29,7 +29,7 @@ const FieldLabel = forwardRef<HTMLLabelElement, LabelHTMLAttributes<HTMLLabelEle
       <label
         ref={ref}
         className={cn(
-          'font-mono font-medium uppercase tracking-ui-field-label text-muted',
+          'font-sans font-medium text-muted',
           density === 'technical' ? 'text-product-caption' : 'text-system-nano',
           className,
         )}

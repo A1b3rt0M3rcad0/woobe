@@ -34,7 +34,7 @@ export function Table<T>({
             {columns.map((column) => (
               <th
                 key={column.key}
-                className={cn('px-ui-lg py-ui-md text-left font-mono text-system-label font-semibold uppercase tracking-ui-label text-muted-foreground', column.className)}
+                className={cn('px-ui-lg py-ui-md text-left font-sans text-system-label font-semibold text-muted-foreground', column.className)}
               >
                 {column.header}
               </th>

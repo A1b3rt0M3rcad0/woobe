@@ -166,7 +166,7 @@ function normalizeOriginInput(value: string): { value?: string; error?: string }
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
   return (
-    <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-muted">
+    <span className="mb-1.5 block text-system-meta font-medium uppercase tracking-wider text-muted">
       {children}
     </span>
   )
@@ -175,7 +175,7 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
 function ReadOnlyField({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0 rounded-xl border border-border/80 bg-background/55 p-4">
-      <p className="text-[11px] uppercase tracking-wider text-muted">{label}</p>
+      <p className="text-system-meta uppercase tracking-wider text-muted">{label}</p>
       <p className="mt-1 break-words text-sm font-medium text-foreground">{value}</p>
     </div>
   )
@@ -183,7 +183,7 @@ function ReadOnlyField({ label, value }: { label: string; value: string }) {
 
 function SidebarSectionTitle({ children }: { children: string }) {
   return (
-    <p className="hidden px-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted/80 md:block">
+    <p className="hidden px-2 text-system-meta font-semibold uppercase tracking-[0.18em] text-muted/80 md:block">
       {children}
     </p>
   )
@@ -234,8 +234,8 @@ function AccessKeyReveal({
     <Dialog open onClose={onClose} title="ChatSurface Access Key" className="max-w-xl">
       <div className="space-y-4">
         <div className="rounded-xl border border-amber-500/25 bg-amber-500/10 p-4">
-          <p className="text-sm font-medium text-amber-100">Copy this secret now</p>
-          <p className="mt-1 text-xs leading-5 text-amber-100/75">
+          <p className="text-sm font-medium text-warning">Copy this secret now</p>
+          <p className="mt-1 text-xs leading-5 text-warning/75">
             The secret is shown only once. Store it in the integrator backend and never expose it in browser code.
           </p>
         </div>
@@ -586,7 +586,7 @@ export function ChatSurfaceDetailsModal({
               type="button"
               size="sm"
               variant="ghost"
-              className="text-red-300 hover:text-red-200"
+              className="text-error hover:text-error"
               onClick={() => {
                 if (!requireCleanForm()) return
                 setArchiveOpen(true)
@@ -652,7 +652,7 @@ export function ChatSurfaceDetailsModal({
             Add origin
           </Button>
         </div>
-        <p className="mt-2 text-[11px] leading-5 text-muted">
+        <p className="mt-2 text-system-meta leading-5 text-muted">
           HTTP origins require insecure origins to be enabled on the Woobe instance. HTTPS is recommended for production.
         </p>
       </section>
@@ -705,7 +705,7 @@ export function ChatSurfaceDetailsModal({
             disabled={archived}
             onChange={(event) => setForm({ ...form, requestsPerMinute: event.target.value })}
           />
-          <span className="mt-1 block text-[11px] text-muted">1–10000</span>
+          <span className="mt-1 block text-system-meta text-muted">1–10000</span>
         </label>
         <label className="block min-w-0">
           <FieldLabel>Concurrent Runs</FieldLabel>
@@ -717,7 +717,7 @@ export function ChatSurfaceDetailsModal({
             disabled={archived}
             onChange={(event) => setForm({ ...form, maxConcurrentRuns: event.target.value })}
           />
-          <span className="mt-1 block text-[11px] text-muted">1–100</span>
+          <span className="mt-1 block text-system-meta text-muted">1–100</span>
         </label>
         <label className="block min-w-0">
           <FieldLabel>Session token TTL</FieldLabel>
@@ -729,7 +729,7 @@ export function ChatSurfaceDetailsModal({
             disabled={archived}
             onChange={(event) => setForm({ ...form, sessionTokenTtlSeconds: event.target.value })}
           />
-          <span className="mt-1 block text-[11px] text-muted">60–3600 seconds</span>
+          <span className="mt-1 block text-system-meta text-muted">60–3600 seconds</span>
         </label>
       </div>
     </section>
@@ -820,7 +820,7 @@ export function ChatSurfaceDetailsModal({
                         <StatusBadge status={accessKey.status} size="compact" />
                       </div>
                       <p className="mt-1 truncate font-mono text-xs text-muted">{accessKey.prefix}</p>
-                      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted">
+                      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-system-meta text-muted">
                         <span>Created · {formatDate(accessKey.created_at)}</span>
                         <span>Last used · {formatDate(accessKey.last_used_at)}</span>
                         {accessKey.expires_at && <span>Expires · {formatDate(accessKey.expires_at)}</span>}
@@ -908,7 +908,7 @@ export function ChatSurfaceDetailsModal({
                     </p>
                     <button
                       type="button"
-                      className="mt-2 flex max-w-full items-center gap-1.5 font-mono text-[11px] text-muted hover:text-foreground"
+                      className="mt-2 flex max-w-full items-center gap-1.5 font-mono text-system-meta text-muted hover:text-foreground"
                       onClick={() => {
                         void navigator.clipboard.writeText(surface.public_id)
                         toast.success('Public ID copied')
@@ -919,7 +919,7 @@ export function ChatSurfaceDetailsModal({
                     </button>
                   </div>
                 </div>
-                <div className="mt-3 flex items-center justify-between border-t border-border/70 pt-3 text-[11px] text-muted">
+                <div className="mt-3 flex items-center justify-between border-t border-border/70 pt-3 text-system-meta text-muted">
                   <span>{form.allowedOrigins.length} origins</span>
                   <span className="font-mono" title={surface.target_release_id}>{shortId(surface.target_release_id)}</span>
                 </div>
@@ -975,7 +975,7 @@ export function ChatSurfaceDetailsModal({
                 {currentContent}
               </div>
               <div className="flex shrink-0 flex-col-reverse gap-2 border-t border-border bg-surface/95 px-4 py-3 backdrop-blur sm:flex-row sm:items-center sm:justify-between lg:px-6">
-                <p className="text-[11px] text-muted">
+                <p className="text-system-meta text-muted">
                   {archived ? 'Archived · configuration is read-only' : hasChanges ? 'Unsaved configuration changes' : `Updated · ${formatDate(surface.updated_at)}`}
                 </p>
                 <div className="flex flex-wrap justify-end gap-2">

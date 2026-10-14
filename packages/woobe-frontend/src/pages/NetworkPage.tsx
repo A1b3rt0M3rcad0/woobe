@@ -925,7 +925,7 @@ export default function NetworkPage() {
     <div className="flex min-w-0 flex-1 items-center justify-center p-6 text-center">
       <div className="max-w-sm rounded-2xl border border-border bg-surface/70 p-6">
         <p className="text-sm font-medium text-foreground">{environment === 'staging' ? 'Staging has not been created' : 'Production has not been published'}</p>
-        <p className="mt-2 text-[10px] leading-5 text-muted">{environment === 'staging' ? 'Return to Draft, save the composition and create an immutable Staging version.' : 'Validate the Network in Staging, then publish that exact snapshot.'}</p>
+        <p className="mt-2 text-system-meta leading-5 text-muted">{environment === 'staging' ? 'Return to Draft, save the composition and create an immutable Staging version.' : 'Validate the Network in Staging, then publish that exact snapshot.'}</p>
         <button type="button" onClick={() => changeEnvironment(environment === 'staging' ? 'draft' : 'staging')} className="mt-ui-lg rounded-control bg-primary px-ui-md py-ui-sm font-mono text-system-label font-medium text-primary-foreground transition-colors hover:bg-primary-hover">Go to {environment === 'staging' ? 'Draft' : 'Staging'}</button>
       </div>
     </div>
@@ -970,7 +970,7 @@ export default function NetworkPage() {
           <div className="flex items-center gap-ui-sm">
             <h1 className="text-sm font-semibold text-foreground">{currentProject?.name || 'Project'} Network</h1>
             <Badge>{networkQuery.isLoading ? 'Loading' : isInitialSetup ? 'Setup incomplete' : 'Runtime'}</Badge>
-            {!isInitialSetup ? <button type="button" onClick={() => openNetworkManager('production')} className={cn('rounded-technical border px-ui-sm py-ui-hairline font-mono text-system-label', productionVersion ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : 'border-border bg-background/45 text-muted-foreground')}>{productionVersion ? `Production · ${productionVersion.version}` : 'No Production release'}</button> : null}
+            {!isInitialSetup ? <button type="button" onClick={() => openNetworkManager('production')} className={cn('rounded-technical border px-ui-sm py-ui-hairline font-mono text-system-label', productionVersion ? 'border-emerald-500/30 bg-emerald-500/10 text-success' : 'border-border bg-background/45 text-muted-foreground')}>{productionVersion ? `Production · ${productionVersion.version}` : 'No Production release'}</button> : null}
           </div>
           <p className="font-mono text-system-micro text-muted-foreground">One Network per Project</p>
         </div>
@@ -980,7 +980,7 @@ export default function NetworkPage() {
           <div className="ml-auto flex items-center gap-ui-sm">
             <div role="tablist" aria-label="Network environment" className="flex rounded-container border border-border bg-background/35 p-ui-hairline">
               {(['draft', 'staging', 'production'] as Environment[]).map((item) => (
-                <button key={item} type="button" role="tab" aria-selected={item === environment} onClick={() => changeEnvironment(item)} title={item === 'draft' ? 'Editable working composition' : item === 'staging' ? 'Read-only validation snapshot' : 'Immutable released composition'} className={cn('rounded-control px-ui-md py-ui-xs font-mono text-system-micro capitalize transition-colors', item === environment ? item === 'production' ? 'bg-emerald-500/10 text-emerald-300' : item === 'staging' ? 'bg-indigo-500/10 text-indigo-300' : 'bg-primary/10 text-primary-light' : 'text-muted-foreground hover:text-foreground')}>{item}</button>
+                <button key={item} type="button" role="tab" aria-selected={item === environment} onClick={() => changeEnvironment(item)} title={item === 'draft' ? 'Editable working composition' : item === 'staging' ? 'Read-only validation snapshot' : 'Immutable released composition'} className={cn('rounded-control px-ui-md py-ui-xs font-mono text-system-micro capitalize transition-colors', item === environment ? item === 'production' ? 'bg-emerald-500/10 text-success' : item === 'staging' ? 'bg-indigo-500/10 text-indigo-300' : 'bg-primary/10 text-primary-light' : 'text-muted-foreground hover:text-foreground')}>{item}</button>
               ))}
             </div>
             {environment === 'draft' ? <button type="button" disabled={!workspaceDirty || draftSavePending || editorHasErrors || Boolean(snapshotInspection)} onClick={() => void saveDraft()} className={smallButton}>{draftSavePending ? 'Saving…' : workspaceDirty ? 'Save Draft' : `Draft saved · r${editorRevision}`}</button> : null}

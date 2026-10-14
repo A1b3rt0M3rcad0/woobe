@@ -57,7 +57,7 @@ const operateNavItems: NavItem[] = [
 
 function SidebarSectionTitle({ children }: { children: string }) {
   return (
-    <p className="mb-ui-sm px-ui-sm font-mono text-chrome-control font-semibold uppercase tracking-[0.15em] text-muted-foreground">
+    <p className="mb-ui-sm px-ui-sm font-sans text-chrome-meta font-medium tracking-wide text-muted-foreground">
       {children}
     </p>
   )
@@ -74,7 +74,7 @@ function SidebarNavLink({ item, href }: { item: NavItem; href: string }) {
         cn(
           'group flex h-control-nav items-center gap-ui-sm rounded-technical border px-ui-sm font-sans text-product-label font-medium transition-colors',
           isActive
-            ? 'border-primary/45 bg-primary/[0.12] text-slate-50'
+            ? 'border-border bg-accent text-slate-50'
             : 'border-transparent text-slate-300 hover:border-border hover:bg-accent/45 hover:text-slate-50',
         )
       }
@@ -295,19 +295,19 @@ export function Sidebar() {
 
   return (
     <>
-      <aside className="flex w-project-sidebar shrink-0 flex-col border-r border-border bg-surface">
+      <aside className="woobe-dark flex h-full w-project-sidebar shrink-0 flex-col border-r border-border bg-surface">
         <header className="flex h-project-sidebar-header shrink-0 items-center gap-ui-sm border-b border-border px-ui-xl">
           <div className="flex h-control-sm w-control-sm items-center justify-center text-slate-50" aria-hidden="true">
             <Orbit className="h-icon-brand w-icon-brand" strokeWidth={1.7} />
           </div>
           <div className="min-w-0">
-            <p className="font-mono text-heading-sm font-bold tracking-[0.02em] text-slate-50">WOOBE</p>
-            <p className="mt-ui-hairline font-mono text-chrome-control uppercase tracking-[0.12em] text-muted-foreground">control plane</p>
+            <p className="font-sans text-brand-title font-semibold tracking-tight text-slate-50">WOOBE</p>
+            <p className="mt-ui-hairline font-sans text-chrome-meta text-muted-foreground">control plane</p>
           </div>
         </header>
 
         <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin">
-          <nav className="space-y-ui-xl px-ui-md py-ui-lg">
+          <nav aria-label="Project navigation" className="space-y-ui-xl px-ui-md py-ui-lg">
             {isResolvingProjectContext ? (
               <ProjectContextSkeleton />
             ) : !workspaceId || !currentWorkspace ? (

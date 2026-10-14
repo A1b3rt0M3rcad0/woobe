@@ -219,7 +219,7 @@ export function AgentContextAssemblerField({ projectId, compact = false }: { pro
               <p className="min-w-0 truncate font-sans text-product-caption text-muted-foreground">{catalogBacked ? `${focused.name}${focused.is_default ? ' · system default' : ''}` : 'Registry metadata unavailable'}</p>
               <div className="flex shrink-0 items-center gap-ui-sm">
                 <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-                {incompatibleSkills && <p role="alert" className="max-w-xs font-sans text-product-caption text-amber-400">Disable installed Skills before selecting a manager without Skills support.</p>}
+                {incompatibleSkills && <p role="alert" className="max-w-xs font-sans text-product-caption text-warning">Disable installed Skills before selecting a manager without Skills support.</p>}
                 <Button onClick={applySelection} disabled={!canApplySelection}>{focusedIsCurrent ? 'Selected' : 'Select manager'}</Button>
               </div>
             </div>

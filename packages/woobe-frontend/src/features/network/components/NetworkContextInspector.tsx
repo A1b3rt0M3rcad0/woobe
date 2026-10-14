@@ -80,10 +80,10 @@ export function NetworkContextInspector({
   return (
     <aside className="absolute inset-y-0 right-0 z-40 flex min-h-0 w-[min(94vw,32.5rem)] max-w-[94vw] shrink-0 flex-col border-l border-border bg-surface/95 shadow-2xl shadow-black/30 xl:relative xl:z-auto xl:w-inspector-workspace xl:max-w-inspector-workspace xl:bg-surface/80 xl:shadow-none">
       {inspecting ? (
-        <div className="flex shrink-0 items-center gap-2 border-b border-border bg-background/35 px-3 py-2 text-[9px] text-muted">
+        <div className="flex shrink-0 items-center gap-2 border-b border-border bg-background/35 px-3 py-2 text-system-meta text-muted">
           <Lock className="h-3 w-3 shrink-0 text-primary-light" />
           <span className="truncate">{inspectionKind === 'run' ? 'Historical Run snapshot' : 'Immutable Network snapshot'} · {inspectionLabel}</span>
-          <span className="ml-auto shrink-0 text-[8px] uppercase tracking-wide text-slate-400">Read-only</span>
+          <span className="ml-auto shrink-0 text-system-meta uppercase tracking-wide text-slate-400">Read-only</span>
         </div>
       ) : null}
 
@@ -92,23 +92,23 @@ export function NetworkContextInspector({
           <div className={cn('absolute inset-0 flex min-h-0 flex-col', !showAgent && 'invisible pointer-events-none')} aria-hidden={!showAgent}>
             <header className="shrink-0 border-b border-border p-4">
               <div className="flex items-center gap-2">
-                <button type="button" onClick={() => onContext('network')} className="inline-flex items-center gap-1 text-[9px] font-medium text-muted hover:text-foreground">
+                <button type="button" onClick={() => onContext('network')} className="inline-flex items-center gap-1 text-system-meta font-medium text-muted hover:text-foreground">
                   <ArrowLeft className="h-3.5 w-3.5" />In Network
                 </button>
-                <span className="ml-auto rounded border border-border bg-background/45 px-1.5 py-0.5 text-[8px] uppercase tracking-wide text-muted">Shared Agent</span>
+                <span className="ml-auto rounded border border-border bg-background/45 px-1.5 py-0.5 text-system-meta uppercase tracking-wide text-muted">Shared Agent</span>
               </div>
               <div className="mt-3 flex min-w-0 items-start gap-3">
                 <div className="min-w-0 flex-1">
                   <h2 className="truncate text-sm font-semibold text-foreground">{selectedAgent?.name ?? selectedNode?.label}</h2>
-                  <p className="mt-1 truncate text-[9px] text-muted">Prompt, model, Tools, Knowledge and output contract</p>
-                  {selectedBinding ? <p className="mt-1 truncate font-mono text-[8px] text-slate-300">{selectedBinding.source} · {selectedBinding.version}</p> : null}
+                  <p className="mt-1 truncate text-system-meta text-muted">Prompt, model, Tools, Knowledge and output contract</p>
+                  {selectedBinding ? <p className="mt-1 truncate font-mono text-system-meta text-slate-300">{selectedBinding.source} · {selectedBinding.version}</p> : null}
                 </div>
                 {canLocate ? (
-                  <button type="button" onClick={onLocateOnCanvas} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border bg-background/45 px-2.5 py-2 text-[9px] font-medium text-muted hover:border-primary/30 hover:text-foreground">
+                  <button type="button" onClick={onLocateOnCanvas} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border bg-background/45 px-2.5 py-2 text-system-meta font-medium text-muted hover:border-primary/30 hover:text-foreground">
                     <LocateFixed className="h-3.5 w-3.5" />Locate
                   </button>
                 ) : null}
-                <button type="button" onClick={() => onContext('network')} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border bg-background/45 px-2.5 py-2 text-[9px] font-medium text-primary-light hover:border-primary/30 hover:text-foreground">
+                <button type="button" onClick={() => onContext('network')} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border bg-background/45 px-2.5 py-2 text-system-meta font-medium text-primary-light hover:border-primary/30 hover:text-foreground">
                   <ExternalLink className="h-3.5 w-3.5" />Node settings
                 </button>
               </div>

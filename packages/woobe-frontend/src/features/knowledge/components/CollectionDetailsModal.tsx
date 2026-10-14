@@ -132,8 +132,8 @@ export function CollectionDetailsModal({ open, onClose, collection, projectId }:
                   <h3 className="text-sm font-semibold text-foreground">Collection information</h3>
                   <p className="mt-1 text-xs text-muted">Edit the collection identity used across Knowledge.</p>
                   <div className="mt-4 space-y-4">
-                    <div><label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-muted">Name</label><Input value={name} onChange={(event) => setName(event.target.value)} /></div>
-                    <div><label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-muted">Description</label><Textarea value={description} onChange={(event) => setDescription(event.target.value)} className="min-h-[120px]" /></div>
+                    <div><label className="mb-1.5 block text-system-meta font-medium uppercase tracking-wider text-muted">Name</label><Input value={name} onChange={(event) => setName(event.target.value)} /></div>
+                    <div><label className="mb-1.5 block text-system-meta font-medium uppercase tracking-wider text-muted">Description</label><Textarea value={description} onChange={(event) => setDescription(event.target.value)} className="min-h-[120px]" /></div>
                   </div>
                 </section>
 
@@ -167,10 +167,10 @@ export function CollectionDetailsModal({ open, onClose, collection, projectId }:
                             <div className="min-w-0">
                               <div className="flex flex-wrap items-center gap-2"><p className="truncate text-sm font-medium text-foreground">{document.title}</p>{document.status && <StatusBadge status={document.status} />}</div>
                               <p className="mt-1 truncate text-xs text-muted">{documentMeta(document)}</p>
-                              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted"><span>Chunks: {document.chunk_count ?? 0}</span><span>Pages: {document.page_count ?? '-'}</span><span>Created: {document.created_at ? formatDate(document.created_at) : '-'}</span></div>
+                              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-system-meta text-muted"><span>Chunks: {document.chunk_count ?? 0}</span><span>Pages: {document.page_count ?? '-'}</span><span>Created: {document.created_at ? formatDate(document.created_at) : '-'}</span></div>
                             </div>
                           </div>
-                          <Button type="button" variant="ghost" size="icon" className="h-8 w-8 justify-self-end text-red-400 hover:text-red-300" disabled={deleteDocument.isPending} onClick={() => setDocumentToDelete(document)} aria-label={`Delete ${document.title}`}><Trash2 className="h-4 w-4" /></Button>
+                          <Button type="button" variant="ghost" size="icon" className="h-8 w-8 justify-self-end text-error hover:text-error" disabled={deleteDocument.isPending} onClick={() => setDocumentToDelete(document)} aria-label={`Delete ${document.title}`}><Trash2 className="h-4 w-4" /></Button>
                         </div>
                       ))}
                     </div>
@@ -196,7 +196,7 @@ export function CollectionDetailsModal({ open, onClose, collection, projectId }:
       />
 
       <Dialog open={Boolean(documentToDelete)} onClose={() => !deleteDocument.isPending && setDocumentToDelete(null)} title="Delete document" className="max-w-[460px]">
-        {documentToDelete && <div className="space-y-5"><div className="flex gap-3"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-red-500/20 bg-red-500/10 text-red-400"><AlertTriangle className="h-5 w-5" /></div><div><p className="text-sm font-medium text-foreground">Remove this document?</p><p className="text-sm leading-6 text-muted">This action deletes the document record, stored file and generated chunks. It cannot be undone.</p></div></div><div className="rounded-xl border border-border bg-background/70 p-3"><p className="truncate text-sm font-medium text-foreground">{documentToDelete.title}</p><p className="mt-1 truncate text-xs text-muted">{documentMeta(documentToDelete)}</p></div><div className="flex flex-col-reverse gap-2 border-t border-border pt-4 sm:flex-row sm:justify-end"><Button type="button" variant="outline" onClick={() => setDocumentToDelete(null)} disabled={deleteDocument.isPending}>Cancel</Button><Button type="button" variant="destructive" loading={deleteDocument.isPending} onClick={confirmDelete}>Delete document</Button></div></div>}
+        {documentToDelete && <div className="space-y-5"><div className="flex gap-3"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-red-500/20 bg-red-500/10 text-error"><AlertTriangle className="h-5 w-5" /></div><div><p className="text-sm font-medium text-foreground">Remove this document?</p><p className="text-sm leading-6 text-muted">This action deletes the document record, stored file and generated chunks. It cannot be undone.</p></div></div><div className="rounded-xl border border-border bg-background/70 p-3"><p className="truncate text-sm font-medium text-foreground">{documentToDelete.title}</p><p className="mt-1 truncate text-xs text-muted">{documentMeta(documentToDelete)}</p></div><div className="flex flex-col-reverse gap-2 border-t border-border pt-4 sm:flex-row sm:justify-end"><Button type="button" variant="outline" onClick={() => setDocumentToDelete(null)} disabled={deleteDocument.isPending}>Cancel</Button><Button type="button" variant="destructive" loading={deleteDocument.isPending} onClick={confirmDelete}>Delete document</Button></div></div>}
       </Dialog>
     </>
   )

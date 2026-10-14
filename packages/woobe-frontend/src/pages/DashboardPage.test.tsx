@@ -97,7 +97,7 @@ describe('DashboardPage states', () => {
     expect(markup).not.toContain('Production releases')
   })
 
-  it('keeps Recent Runs compact and removes guidance copy and token columns', () => {
+  it('keeps Recent Runs compact with section context and without token columns', () => {
     const model = adaptProjectOverview(cloneFixture())
     const markup = renderToStaticMarkup(<DashboardDataState model={model} onNavigate={vi.fn()} onOpenRun={vi.fn()} />)
 
@@ -106,7 +106,7 @@ describe('DashboardPage states', () => {
     expect(markup).toContain('Duration')
     expect(markup).toContain('Cost')
     expect(markup).not.toContain('The three latest primary executions')
-    expect(markup).not.toContain('Volume, reliability, performance, and cost in the selected period.')
+    expect(markup).toContain('Volume, reliability, performance, and cost in the selected period.')
     expect(markup).not.toContain('Tokens')
   })
 })

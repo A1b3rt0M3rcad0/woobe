@@ -22,12 +22,12 @@ export function AppProviders({ children }: { children: ReactNode }) {
           {children}
           <Toaster
             position="bottom-right"
-            theme="dark"
+            theme="light"
             toastOptions={{
               style: {
-                background: '#0f1729',
-                border: '1px solid #1e293b',
-                color: '#f8fafc',
+                background: 'rgb(var(--woobe-surface))',
+                border: '1px solid rgb(var(--woobe-border))',
+                color: 'rgb(var(--woobe-ink))',
               },
             }}
           />

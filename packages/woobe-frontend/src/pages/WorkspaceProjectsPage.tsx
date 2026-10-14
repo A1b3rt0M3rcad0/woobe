@@ -45,14 +45,14 @@ function SectionHeading({
     <div className="mb-3">
       <div className="flex items-center gap-2.5">
         <span className="h-[5px] w-[5px] shrink-0 bg-primary" aria-hidden="true" />
-        <h2 className="font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-slate-100">{title}</h2>
+        <h2 className="font-mono text-system-meta font-bold uppercase tracking-[0.12em] text-slate-100">{title}</h2>
         <span className="h-px min-w-6 flex-1 bg-border" />
         {count !== undefined && (
-          <span className="shrink-0 font-mono text-[9px] text-muted-foreground">{count}</span>
+          <span className="shrink-0 font-mono text-system-meta text-muted-foreground">{count}</span>
         )}
       </div>
       {description && (
-        <p className="mt-1.5 pl-[15px] font-mono text-[9px] leading-4 text-muted-foreground">{description}</p>
+        <p className="mt-1.5 pl-[15px] font-mono text-system-meta leading-4 text-muted-foreground">{description}</p>
       )}
     </div>
   )
@@ -74,7 +74,7 @@ function ProjectSearch({ value, onChange }: { value: string; onChange: (value: s
         }}
         placeholder="Search Projects..."
         aria-label="Search Projects"
-        className="pl-9 pr-9 font-mono text-[10px]"
+        className="pl-9 pr-9 font-mono text-system-meta"
       />
       {value && (
         <button
@@ -102,26 +102,26 @@ function ProjectCard({ project, onSelect }: { project: Project; onSelect: () => 
     >
       <span className="flex flex-1 items-start justify-between gap-4 p-4">
         <span className="flex min-w-0 items-start gap-3">
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-control border border-border bg-control font-mono text-[10px] font-bold text-primary-light">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-control border border-border bg-control font-mono text-system-meta font-bold text-primary-light">
             {getProjectInitial(project.name)}
           </span>
           <span className="min-w-0">
             <span className="block truncate font-mono text-xs font-bold tracking-[0.01em] text-slate-50">{project.name}</span>
-            <span className="mt-1 block truncate font-mono text-[9px] text-muted-foreground">/{project.slug}</span>
-            <span className="mt-3 block font-mono text-[8px] uppercase tracking-[0.08em] text-muted">
+            <span className="mt-1 block truncate font-mono text-system-meta text-muted-foreground">/{project.slug}</span>
+            <span className="mt-3 block font-mono text-system-meta uppercase tracking-[0.08em] text-muted">
               {accessLabel(project)}
             </span>
           </span>
         </span>
         <Badge
           variant={implicitAccess ? 'default' : 'outline'}
-          className="shrink-0 font-mono text-[8px] uppercase tracking-[0.08em]"
+          className="shrink-0 font-mono text-system-meta uppercase tracking-[0.08em]"
         >
           {implicitAccess ? 'implicit' : 'assigned'}
         </Badge>
       </span>
       <span className="flex w-full items-center justify-between gap-3 border-t border-border bg-control/35 px-4 py-2.5">
-        <span className="truncate font-mono text-[9px] text-muted-foreground">
+        <span className="truncate font-mono text-system-meta text-muted-foreground">
           Updated · {formatDate(project.updated_at || project.created_at)}
         </span>
         <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary-light" />
@@ -146,8 +146,8 @@ function EmptyState({
       <div className="mx-auto flex h-8 w-8 items-center justify-center rounded-control border border-border bg-control text-muted-foreground">
         {icon}
       </div>
-      <h3 className="mt-3 font-mono text-[11px] font-bold text-slate-100">{title}</h3>
-      <p className="mx-auto mt-1.5 max-w-lg font-mono text-[9px] leading-4 text-muted-foreground">{description}</p>
+      <h3 className="mt-3 font-mono text-system-meta font-bold text-slate-100">{title}</h3>
+      <p className="mx-auto mt-1.5 max-w-lg font-mono text-system-meta leading-4 text-muted-foreground">{description}</p>
       {action && <div className="mt-4 flex justify-center">{action}</div>}
     </Card>
   )
@@ -223,8 +223,8 @@ export default function WorkspaceProjectsPage() {
   if (!workspaceId) {
     return (
       <Card className="border-error/30 bg-error/[0.05] px-6 py-10 text-center">
-        <AlertCircle className="mx-auto h-5 w-5 text-red-300" />
-        <h3 className="mt-3 font-mono text-[11px] font-bold text-slate-100">Workspace not found</h3>
+        <AlertCircle className="mx-auto h-5 w-5 text-error" />
+        <h3 className="mt-3 font-mono text-system-meta font-bold text-slate-100">Workspace not found</h3>
       </Card>
     )
   }
@@ -232,8 +232,8 @@ export default function WorkspaceProjectsPage() {
   if (!workspace && !workspaceLoading) {
     return (
       <Card className="border-error/30 bg-error/[0.05] px-6 py-10 text-center">
-        <AlertCircle className="mx-auto h-5 w-5 text-red-300" />
-        <h3 className="mt-3 font-mono text-[11px] font-bold text-slate-100">Workspace not found</h3>
+        <AlertCircle className="mx-auto h-5 w-5 text-error" />
+        <h3 className="mt-3 font-mono text-system-meta font-bold text-slate-100">Workspace not found</h3>
       </Card>
     )
   }
@@ -252,7 +252,7 @@ export default function WorkspaceProjectsPage() {
           </div>
           <div className="min-w-0">
             <h1 className="font-mono text-base font-bold tracking-[0.01em] text-slate-50">Projects</h1>
-            <p className="mt-0.5 truncate font-mono text-[9px] text-muted-foreground">
+            <p className="mt-0.5 truncate font-mono text-system-meta text-muted-foreground">
               {workspace ? `Projects in ${workspace.name}.` : 'Select and operate a Project.'}
             </p>
           </div>
@@ -294,9 +294,9 @@ export default function WorkspaceProjectsPage() {
             <ProjectLoadingGrid />
           ) : isError ? (
             <Card className="border-error/30 bg-error/[0.05] px-6 py-10 text-center">
-              <AlertCircle className="mx-auto h-5 w-5 text-red-300" />
-              <h3 className="mt-3 font-mono text-[11px] font-bold text-slate-100">Unable to load Projects</h3>
-              <p className="mx-auto mt-1.5 max-w-lg font-mono text-[9px] leading-4 text-red-200/80">{errorMessage}</p>
+              <AlertCircle className="mx-auto h-5 w-5 text-error" />
+              <h3 className="mt-3 font-mono text-system-meta font-bold text-slate-100">Unable to load Projects</h3>
+              <p className="mx-auto mt-1.5 max-w-lg font-mono text-system-meta leading-4 text-error/80">{errorMessage}</p>
               <div className="mt-4 flex justify-center">
                 <Button type="button" size="sm" variant="outline" onClick={() => refetch()}>Try again</Button>
               </div>

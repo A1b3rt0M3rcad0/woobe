@@ -788,11 +788,11 @@ function PlaygroundContent() {
           visibleProvider={visibleProvider}
           visibleModel={visibleModel}
         />
-        <div className="h-6 shrink-0 flex items-center px-4 border-b border-border text-[10px] bg-surface/30">
+        <div className="h-6 shrink-0 flex items-center px-4 border-b border-border text-system-meta bg-surface/30">
           <span className="text-muted font-medium">{statusLabel}</span>
-          {environment === 'draft' && isDirty && <span className="ml-2 text-yellow-400 font-medium">· unsaved changes</span>}
-          {!runtimeEnabled && <span className="ml-2 text-red-400 font-medium">· {runtimeStateReason}</span>}
-          {!environmentReady && <span className="ml-2 text-amber-300 font-medium">· {environmentReadReason}</span>}
+          {environment === 'draft' && isDirty && <span className="ml-2 text-warning font-medium">· unsaved changes</span>}
+          {!runtimeEnabled && <span className="ml-2 text-error font-medium">· {runtimeStateReason}</span>}
+          {!environmentReady && <span className="ml-2 text-warning font-medium">· {environmentReadReason}</span>}
           <span className="ml-auto text-muted">{visibleProvider || '—'}/{visibleModel || '—'}</span>
         </div>
         <ConfigurationReadinessNotice projectId={projectId!} targetKind="agent" targetId={agentId!} environment={environment} versionId={currentEnvironmentRelease?.id} workspaceId={workspaceId} unsaved={environment === 'draft' && isDirty} />

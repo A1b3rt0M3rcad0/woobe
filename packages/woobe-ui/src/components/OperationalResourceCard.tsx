@@ -36,9 +36,9 @@ export function ResourceCard({
       )}
       {...props}
     >
-      <span className="flex items-start justify-between gap-ui-md px-ui-md py-ui-md">
+      <span className="flex items-start justify-between gap-ui-md px-ui-xl py-ui-xl">
         <span className="flex min-w-0 items-start gap-ui-sm">
-          <span className="flex h-control-segment w-control-segment shrink-0 items-center justify-center rounded-control border border-border bg-control text-primary-light">{icon}</span>
+          <span className="flex h-control w-control shrink-0 items-center justify-center rounded-control border border-border bg-control text-primary-light">{icon}</span>
           <span className="min-w-0 pt-ui-hairline">
             <span className="block truncate font-sans text-entity-title font-semibold text-accent-foreground">{title}</span>
             {subtitle ? <span className="mt-ui-xs block truncate font-sans text-product-caption text-muted-foreground">{subtitle}</span> : null}
@@ -50,8 +50,8 @@ export function ResourceCard({
         </span>
       </span>
 
-      {metadata ? <span className="flex flex-1 flex-wrap content-start items-start gap-ui-xs border-t border-border/70 px-ui-md py-ui-sm">{metadata}</span> : null}
-      {footer ? <span className="mt-auto block border-t border-border/70 bg-control/35 px-ui-md py-ui-sm font-mono text-system-meta text-muted-foreground">{footer}</span> : null}
+      {metadata ? <span className="flex flex-1 flex-wrap content-start items-start gap-ui-xs border-t border-border/70 px-ui-xl py-ui-md">{metadata}</span> : null}
+      {footer ? <span className="mt-auto block border-t border-border/70 bg-control/35 px-ui-xl py-ui-md font-sans text-system-meta text-muted-foreground">{footer}</span> : null}
     </button>
   )
 }

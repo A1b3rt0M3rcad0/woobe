@@ -370,9 +370,9 @@ function networkRunRow(run: ProjectOverviewNetworkRun): DashboardRunRow {
 
 function reliabilityTone(rate: number | null): string {
   if (rate === null) return 'bg-slate-500/10 text-slate-300'
-  if (rate >= 99) return 'bg-emerald-500/10 text-emerald-400'
-  if (rate >= 95) return 'bg-amber-500/10 text-amber-300'
-  return 'bg-red-500/10 text-red-300'
+  if (rate >= 99) return 'bg-emerald-500/10 text-success'
+  if (rate >= 95) return 'bg-amber-500/10 text-warning'
+  return 'bg-red-500/10 text-error'
 }
 
 function actionLabel(action: OverviewChangeAction): string {
@@ -407,7 +407,7 @@ export function adaptProjectOverview(overview: ProjectOverview): DashboardViewMo
       detail: `${formatInteger(summary.direct_agent_runs)} direct · ${formatInteger(summary.network_agent_runs)} from Networks${runChange.detail ? ` · ${runChange.detail}` : ''}`,
       direction: runChange.direction,
       icon: Activity,
-      tone: 'bg-blue-500/10 text-blue-400',
+      tone: 'bg-blue-500/10 text-primary-light',
     },
     {
       label: 'Network Runs',
@@ -415,7 +415,7 @@ export function adaptProjectOverview(overview: ProjectOverview): DashboardViewMo
       detail: `${formatInteger(summary.successful_network_runs)} completed · ${formatInteger(summary.running_network_runs)} running · ${formatInteger(totalNetworkErrors)} errors`,
       direction: totalNetworkErrors > 0 ? 'down' : 'neutral',
       icon: Workflow,
-      tone: 'bg-violet-500/10 text-violet-300',
+      tone: 'bg-violet-500/10 text-network',
     },
     {
       label: 'Runtime Cost',
@@ -431,7 +431,7 @@ export function adaptProjectOverview(overview: ProjectOverview): DashboardViewMo
       } : undefined,
       direction: 'neutral',
       icon: CircleDollarSign,
-      tone: summary.unknown_agent_run_cost_count > 0 ? 'bg-amber-500/10 text-amber-300' : 'bg-blue-500/10 text-blue-400',
+      tone: summary.unknown_agent_run_cost_count > 0 ? 'bg-amber-500/10 text-warning' : 'bg-blue-500/10 text-primary-light',
     },
     {
       label: 'Agent Run Success',
@@ -465,13 +465,13 @@ export function adaptProjectOverview(overview: ProjectOverview): DashboardViewMo
           label: 'Agent Run',
           value: formatLatency(summary.avg_agent_run_duration_ms),
           detail: `p95 ${formatLatency(summary.p95_agent_run_duration_ms)}`,
-          tone: 'text-blue-300',
+          tone: 'text-primary-light',
         },
         network: {
           label: 'Network Run',
           value: formatLatency(summary.avg_network_run_duration_ms),
           detail: `p95 ${formatLatency(summary.p95_network_run_duration_ms)}`,
-          tone: 'text-violet-300',
+          tone: 'text-network',
         },
       },
     },

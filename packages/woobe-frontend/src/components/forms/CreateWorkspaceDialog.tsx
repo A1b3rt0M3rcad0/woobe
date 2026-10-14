@@ -74,9 +74,9 @@ export function CreateWorkspaceDialog({ open, onClose, onSubmit, loading }: Crea
             readOnly
             aria-readonly="true"
             placeholder="workspace"
-            className="cursor-default font-mono text-[11px] text-muted-foreground"
+            className="cursor-default font-mono text-system-meta text-muted-foreground"
           />
-          <FieldDescription className="font-mono text-[9px] leading-4">
+          <FieldDescription className="font-mono text-system-meta leading-4">
             Generated from the name · globally unique
           </FieldDescription>
         </Field>

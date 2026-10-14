@@ -70,12 +70,12 @@ export function CopyButton({
         'font-mono text-system-label font-medium text-muted-foreground transition-colors',
         'hover:border-border hover:bg-accent hover:text-slate-100',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35',
-        status === 'error' ? 'text-red-300' : undefined,
+        status === 'error' ? 'text-error' : undefined,
         className,
       )}
     >
       {status === 'copied' ? (
-        <Check className="h-3.5 w-3.5 text-emerald-400" />
+        <Check className="h-3.5 w-3.5 text-success" />
       ) : status === 'error' ? (
         <AlertCircle className="h-3.5 w-3.5" />
       ) : (

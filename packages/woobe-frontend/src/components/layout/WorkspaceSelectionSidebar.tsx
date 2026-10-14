@@ -86,7 +86,7 @@ export function WorkspaceSelectionSidebar({ compact = false }: { compact?: boole
   }
 
   return (
-    <aside className="flex w-project-sidebar shrink-0 flex-col border-r border-border bg-surface">
+    <aside className="woobe-dark flex w-project-sidebar shrink-0 flex-col border-r border-border bg-surface">
       <header className="flex h-project-sidebar-header shrink-0 items-center gap-ui-sm border-b border-border px-ui-xl">
         <div className="flex h-control-sm w-control-sm items-center justify-center text-slate-50" aria-hidden="true">
           <Orbit className="h-icon-brand w-icon-brand" strokeWidth={1.7} />

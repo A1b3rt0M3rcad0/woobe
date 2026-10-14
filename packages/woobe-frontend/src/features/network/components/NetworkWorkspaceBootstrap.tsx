@@ -12,10 +12,10 @@ export function NetworkWorkspaceBootstrap({ networkName }: { networkName: string
     >
       <header className="flex h-[54px] shrink-0 items-center border-b border-border bg-surface/80 px-4">
         <div className="min-w-0">
-          <p className="truncate font-mono text-[11px] font-semibold text-slate-100">{networkName}</p>
-          <p className="mt-0.5 font-sans text-[10px] text-muted">Preparing the Project Network</p>
+          <p className="truncate font-mono text-system-meta font-semibold text-slate-100">{networkName}</p>
+          <p className="mt-0.5 font-sans text-system-meta text-muted">Preparing the Project Network</p>
         </div>
-        <span className="ml-auto rounded-technical border border-border bg-control px-2 py-1 font-mono text-[8px] font-semibold uppercase tracking-[0.12em] text-muted">
+        <span className="ml-auto rounded-technical border border-border bg-control px-2 py-1 font-mono text-system-meta font-semibold uppercase tracking-[0.12em] text-muted">
           Loading
         </span>
       </header>

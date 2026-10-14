@@ -9,7 +9,7 @@ export default function WorkspaceDetailPage() {
   if (!workspaceId) {
     return (
       <Card className="mx-auto max-w-lg border-error/30 bg-error/[0.05] px-6 py-10 text-center">
-        <p className="font-mono text-[10px] font-bold text-red-200">Workspace not found</p>
+        <p className="font-mono text-system-meta font-bold text-error">Workspace not found</p>
       </Card>
     )
   }

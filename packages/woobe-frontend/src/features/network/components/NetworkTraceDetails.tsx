@@ -97,25 +97,25 @@ function MetaItem({ label, value }: { label: string; value: string }) {
 }
 
 function outcomeMeta(outcome: ReturnType<typeof networkRunOutcome>) {
-  if (outcome === 'running') return { label: 'Running', icon: CircleDot, surface: 'border-blue-500/25 bg-blue-500/10', text: 'text-blue-300' }
-  if (outcome === 'failed') return { label: 'Failed', icon: XCircle, surface: 'border-red-500/25 bg-red-500/10', text: 'text-red-300' }
+  if (outcome === 'running') return { label: 'Running', icon: CircleDot, surface: 'border-blue-500/25 bg-blue-500/10', text: 'text-primary-light' }
+  if (outcome === 'failed') return { label: 'Failed', icon: XCircle, surface: 'border-red-500/25 bg-red-500/10', text: 'text-error' }
   if (outcome === 'cancelled') return { label: 'Cancelled', icon: XCircle, surface: 'border-slate-500/25 bg-slate-500/10', text: 'text-slate-300' }
-  if (outcome === 'completed_with_issues') return { label: 'Completed with issues', icon: AlertTriangle, surface: 'border-amber-500/25 bg-amber-500/10', text: 'text-amber-300' }
-  return { label: 'Completed', icon: CheckCircle2, surface: 'border-emerald-500/25 bg-emerald-500/10', text: 'text-emerald-300' }
+  if (outcome === 'completed_with_issues') return { label: 'Completed with issues', icon: AlertTriangle, surface: 'border-amber-500/25 bg-amber-500/10', text: 'text-warning' }
+  return { label: 'Completed', icon: CheckCircle2, surface: 'border-emerald-500/25 bg-emerald-500/10', text: 'text-success' }
 }
 
 function statusIcon(status: NetworkAgentInvocation['status']) {
-  if (status === 'error') return <XCircle className="h-4 w-4 text-red-400" />
+  if (status === 'error') return <XCircle className="h-4 w-4 text-error" />
   if (status === 'cancelled') return <XCircle className="h-4 w-4 text-slate-400" />
-  if (status === 'running' || status === 'pending') return <CircleDot className="h-4 w-4 animate-pulse text-blue-400" />
-  return <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+  if (status === 'running' || status === 'pending') return <CircleDot className="h-4 w-4 animate-pulse text-primary-light" />
+  return <CheckCircle2 className="h-4 w-4 text-success" />
 }
 
 function compactStatusIcon(status: NetworkAgentInvocation['status']) {
-  if (status === 'error') return <XCircle className="h-3.5 w-3.5 shrink-0 text-red-400" />
+  if (status === 'error') return <XCircle className="h-3.5 w-3.5 shrink-0 text-error" />
   if (status === 'cancelled') return <XCircle className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-  if (status === 'running' || status === 'pending') return <CircleDot className="h-3.5 w-3.5 shrink-0 animate-pulse text-blue-400" />
-  return <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-400" />
+  if (status === 'running' || status === 'pending') return <CircleDot className="h-3.5 w-3.5 shrink-0 animate-pulse text-primary-light" />
+  return <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-success" />
 }
 
 function delegationEvidence(root: NetworkAgentInvocation): DelegationEvidence[] {
@@ -206,9 +206,9 @@ function AgentRunDetail({ invocation, root, onBack, onOpenAgent, onNetworkEviden
 
             {invocation.failure ? (
               <section className="rounded-container border border-red-500/25 bg-red-500/5 p-ui-md">
-                <p className="font-sans text-product-caption font-medium text-red-300">{invocation.failure.message}</p>
+                <p className="font-sans text-product-caption font-medium text-error">{invocation.failure.message}</p>
                 <p className="mt-ui-xs font-mono text-system-meta text-muted-foreground">{invocation.failure.code} · {invocation.failure.stage}</p>
-                <button type="button" onClick={() => setDetailView('evidence')} className="mt-ui-sm font-mono text-system-micro font-medium text-red-200 transition-colors hover:text-foreground">Review Agent Run evidence</button>
+                <button type="button" onClick={() => setDetailView('evidence')} className="mt-ui-sm font-mono text-system-micro font-medium text-error transition-colors hover:text-foreground">Review Agent Run evidence</button>
               </section>
             ) : null}
 
@@ -217,7 +217,7 @@ function AgentRunDetail({ invocation, root, onBack, onOpenAgent, onNetworkEviden
             {invocation.sources.length ? (
               <CollapsibleSection title="Sources" badge={String(invocation.sources.length)}>
                 <div className="space-y-ui-sm">
-                  {invocation.sources.map((source, index) => <div key={source.chunk_id || `${source.document_id || 'source'}-${index}`} className="flex items-start gap-ui-sm rounded-control bg-background/40 px-ui-sm py-ui-sm"><Database className="mt-ui-hairline h-3.5 w-3.5 shrink-0 text-violet-300" /><div className="min-w-0"><p className="truncate font-sans text-product-caption text-foreground">{source.document_title || 'Untitled source'}</p>{source.content_preview ? <p className="mt-ui-xs line-clamp-2 font-sans text-product-caption leading-4 text-muted-foreground">{source.content_preview}</p> : null}</div></div>)}
+                  {invocation.sources.map((source, index) => <div key={source.chunk_id || `${source.document_id || 'source'}-${index}`} className="flex items-start gap-ui-sm rounded-control bg-background/40 px-ui-sm py-ui-sm"><Database className="mt-ui-hairline h-3.5 w-3.5 shrink-0 text-network" /><div className="min-w-0"><p className="truncate font-sans text-product-caption text-foreground">{source.document_title || 'Untitled source'}</p>{source.content_preview ? <p className="mt-ui-xs line-clamp-2 font-sans text-product-caption leading-4 text-muted-foreground">{source.content_preview}</p> : null}</div></div>)}
                 </div>
               </CollapsibleSection>
             ) : null}
@@ -309,14 +309,14 @@ export function NetworkTraceDetails({ trace, session, onViewCanvas, onOpenAgent 
 
             {trace.execution.root.failure ? (
               <section className="rounded-container border border-red-500/25 bg-red-500/5 p-ui-md">
-                <p className="font-sans text-product-caption font-medium text-red-300">{trace.execution.root.failure.message}</p>
+                <p className="font-sans text-product-caption font-medium text-error">{trace.execution.root.failure.message}</p>
                 {trace.execution.root.failure.partialResultAvailable || Boolean(trace.answer?.trim()) ? <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">A partial result and completed Agent/Tool evidence remain available.</p> : null}
-                <div className="mt-ui-sm flex gap-ui-md"><button type="button" onClick={() => setView('path')} className="font-mono text-system-micro font-medium text-red-200 transition-colors hover:text-foreground">Review execution path</button><button type="button" onClick={() => setView('evidence')} className="font-mono text-system-micro font-medium text-red-200 transition-colors hover:text-foreground">Review failure evidence</button></div>
+                <div className="mt-ui-sm flex gap-ui-md"><button type="button" onClick={() => setView('path')} className="font-mono text-system-micro font-medium text-error transition-colors hover:text-foreground">Review execution path</button><button type="button" onClick={() => setView('evidence')} className="font-mono text-system-micro font-medium text-error transition-colors hover:text-foreground">Review failure evidence</button></div>
               </section>
             ) : outcome === 'cancelled' ? (
               <section className="rounded-container border border-slate-500/25 bg-slate-500/5 p-ui-md"><p className="font-sans text-product-caption font-medium text-slate-200">The Network Run was cancelled. Partial output and completed execution evidence remain available.</p></section>
             ) : outcome === 'completed_with_issues' ? (
-              <section className="rounded-container border border-amber-500/25 bg-amber-500/5 p-ui-md"><p className="font-sans text-product-caption font-medium text-amber-200">The Network completed with a usable result, but at least one delegated Agent Run reported an issue.</p><button type="button" onClick={() => setView('path')} className="mt-ui-sm font-mono text-system-micro font-medium text-amber-100 transition-colors hover:text-foreground">Review execution path</button></section>
+              <section className="rounded-container border border-amber-500/25 bg-amber-500/5 p-ui-md"><p className="font-sans text-product-caption font-medium text-warning">The Network completed with a usable result, but at least one delegated Agent Run reported an issue.</p><button type="button" onClick={() => setView('path')} className="mt-ui-sm font-mono text-system-micro font-medium text-warning transition-colors hover:text-foreground">Review execution path</button></section>
             ) : null}
 
             <section><p className="font-mono text-system-meta font-semibold uppercase tracking-ui-label text-muted-foreground">Request</p><p className="mt-ui-xs line-clamp-2 font-sans text-product-caption leading-5 text-slate-300">{trace.userMessage}</p></section>
@@ -340,7 +340,7 @@ export function NetworkTraceDetails({ trace, session, onViewCanvas, onOpenAgent 
         {view === 'evidence' ? (
           <>
             <div><div className="flex items-center gap-ui-sm"><p className="font-mono text-system-label font-semibold uppercase tracking-ui-label text-muted-foreground">Evidence</p><Info className="h-3 w-3 text-muted-foreground" aria-label="Trace events, Session continuity and raw runtime data" /></div><p className="mt-ui-xs font-sans text-product-caption leading-4 text-muted-foreground">Technical and causal evidence is preserved here and stays out of the operational Execution view until needed.</p></div>
-            {trace.execution.root.failure ? <section className="rounded-container border border-red-500/25 bg-red-500/5 p-ui-md"><p className="font-sans text-product-caption font-medium text-red-300">{trace.execution.root.failure.message}</p><p className="mt-ui-xs font-mono text-system-meta text-muted-foreground">{trace.execution.root.failure.code} · {trace.execution.root.failure.stage}{trace.execution.root.failure.phase ? ` · ${trace.execution.root.failure.phase}` : ''}</p></section> : null}
+            {trace.execution.root.failure ? <section className="rounded-container border border-red-500/25 bg-red-500/5 p-ui-md"><p className="font-sans text-product-caption font-medium text-error">{trace.execution.root.failure.message}</p><p className="mt-ui-xs font-mono text-system-meta text-muted-foreground">{trace.execution.root.failure.code} · {trace.execution.root.failure.stage}{trace.execution.root.failure.phase ? ` · ${trace.execution.root.failure.phase}` : ''}</p></section> : null}
 
             <div className="rounded-container border border-border/75 bg-background/30 px-ui-md">
               <CollapsibleSection title="Execution evidence" badge={`${agentRuns} Agent Runs`}><NetworkTraceInvocation invocation={trace.execution.root} trace={trace} depth={0} onOpenAgent={onOpenAgent} /></CollapsibleSection>

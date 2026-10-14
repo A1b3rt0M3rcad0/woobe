@@ -78,7 +78,7 @@ export default function McpConnectCallbackPage() {
         eyebrow="MCP / OAuth callback"
         title={title}
         description={message}
-        actions={<Icon className={`h-4 w-4 ${status === 'loading' ? 'animate-spin text-primary-light' : status === 'success' ? 'text-emerald-400' : 'text-red-300'}`} />}
+        actions={<Icon className={`h-4 w-4 ${status === 'loading' ? 'animate-spin text-primary-light' : status === 'success' ? 'text-success' : 'text-error'}`} />}
       >
         <div className="flex justify-end border-t border-border pt-3">
           <Button onClick={() => navigate(returnTo)}>{status === 'success' ? 'Back to tools' : 'Return'}</Button>

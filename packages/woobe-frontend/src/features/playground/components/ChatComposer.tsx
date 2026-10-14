@@ -128,7 +128,7 @@ export function ChatComposer({
                 {externalContextFieldEntries.length} field{externalContextFieldEntries.length === 1 ? '' : 's'}
               </span>
               {missingRequiredExternalContextFields > 0 ? (
-                <span className="ml-auto rounded-technical border border-amber-400/25 bg-amber-400/[0.06] px-ui-xs font-mono text-system-meta text-amber-300">
+                <span className="ml-auto rounded-technical border border-amber-400/25 bg-amber-400/[0.06] px-ui-xs font-mono text-system-meta text-warning">
                   {missingRequiredExternalContextFields} required missing
                 </span>
               ) : (

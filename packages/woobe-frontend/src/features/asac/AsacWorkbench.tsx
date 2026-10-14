@@ -188,7 +188,7 @@ export function AsacWorkbench({ projectId, resourceId, kind }: { projectId: stri
     {packageSchema === '1.0' && <p className={label}>Legacy compatibility preserves the existing connection contract. Use remote references after reviewing the Project configuration mapping.</p>}
     {editor && <div className={`${box} space-y-ui-md`}>
       <div className="grid gap-ui-sm md:grid-cols-3"><span className={label}>Origin: {text(editor.draft.origin, 'environment')} / {text(editor.draft.origin, 'snapshot_id')}</span><span className={label}>Selected Draft: {editor.draft.name} · generation {editor.draft.generation}</span><span className={label}>Writes update this Draft. Stage and Production are separate.</span></div>
-      {stale && <p role="alert" className="text-amber-300">The remote generation changed. Your edits remain here; saving is blocked. Compare and resolve before refreshing.</p>}
+      {stale && <p role="alert" className="text-warning">The remote generation changed. Your edits remain here; saving is blocked. Compare and resolve before refreshing.</p>}
       {stale && <div className="flex flex-wrap gap-ui-sm"><Button disabled={blocked} onClick={() => void compareRemote()}>Compare remote files</Button><Button variant="outline" disabled={blocked} onClick={discardEditor}>Discard local edits</Button></div>}
       {field('Author file', <Select aria-label="Author file" value={file} onChange={event => setFile(event.target.value)} options={files.map(item => ({ value: item.path, label: item.path }))} />)}
       <textarea aria-label="Author YAML" value={values[file] ?? ''} onChange={event => setValues({ ...values, [file]: event.target.value })} disabled={blocked} spellCheck={false} className="min-h-[340px] w-full rounded-control border border-border bg-background p-ui-md font-mono text-xs leading-5" />
@@ -204,8 +204,8 @@ export function AsacWorkbench({ projectId, resourceId, kind }: { projectId: stri
   </div>
   return <div className="space-y-ui-md">
     <div role="tablist" aria-label={`${kind} ASaC lifecycle`} className="flex flex-wrap gap-ui-xs">{tabs.map(item => <button type="button" role="tab" aria-selected={item === tab} key={item} className={`${box} py-ui-xs capitalize ${item === tab ? 'text-primary-light' : 'text-muted-foreground'}`} onClick={() => setTab(item)}>{item}</button>)}</div>
-    {error && <p role="alert" className="text-sm text-amber-300">{error}</p>}
-    {notice && <p role="status" className="text-sm text-emerald-300">{notice}</p>}
+    {error && <p role="alert" className="text-sm text-warning">{error}</p>}
+    {notice && <p role="status" className="text-sm text-success">{notice}</p>}
     {pending && <div className={box}><p className={label}>Uncertain {pending.action} operation {pending.operation_id}. New writes are blocked.</p><Button disabled={busy} onClick={() => void reconcile()}>Reconcile original operation</Button></div>}
     {drafts.isError && <p role="alert">Drafts are unavailable under the current grants.</p>}
     {observed > 0 && <p className={label}>Observation age: {Math.floor((now - observed) / 1000)}s{now - observed > 60000 ? ' · refresh before relying on current selection' : ''}</p>}

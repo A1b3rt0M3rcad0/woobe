@@ -164,7 +164,7 @@ function EnvironmentKeyRow({ projectId, item }: EnvironmentKeyRowProps) {
                 {state.configured ? (
                   <button
                     type="button"
-                    className="font-mono text-[10px] text-muted-foreground hover:text-foreground"
+                    className="font-mono text-system-meta text-muted-foreground hover:text-foreground"
                     onClick={() => toggleClear(environment)}
                   >
                     {clearing ? 'keep value' : 'clear'}

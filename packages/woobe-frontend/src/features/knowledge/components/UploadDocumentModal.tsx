@@ -134,9 +134,9 @@ export function UploadDocumentModal({ open, onClose, projectId, collectionIds, d
         <div className="grid gap-5 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
           <section className="min-w-0 space-y-2">
             <div className="flex min-h-6 items-center justify-between gap-2">
-              <label className="text-[11px] font-medium uppercase tracking-wider text-muted">Destination collection</label>
+              <label className="text-system-meta font-medium uppercase tracking-wider text-muted">Destination collection</label>
               {selectedCollection && (
-                <span className="max-w-[180px] truncate rounded-full border border-border bg-background px-2 py-0.5 text-[10px] text-muted">
+                <span className="max-w-[180px] truncate rounded-full border border-border bg-background px-2 py-0.5 text-system-meta text-muted">
                   {selectedCollection.name || collectionFallbackName(selectedCollection.id)}
                 </span>
               )}
@@ -184,7 +184,7 @@ export function UploadDocumentModal({ open, onClose, projectId, collectionIds, d
                             </div>
                             <div className="min-w-0 flex-1">
                               <p className="truncate text-sm font-medium">{name}</p>
-                              <p className="truncate text-[11px] text-muted">{collection.id}</p>
+                              <p className="truncate text-system-meta text-muted">{collection.id}</p>
                             </div>
                             {selected && <CheckCircle2 className="h-4 w-4 shrink-0 text-primary" />}
                           </button>
@@ -198,7 +198,7 @@ export function UploadDocumentModal({ open, onClose, projectId, collectionIds, d
           </section>
 
           <section className="min-w-0 space-y-2">
-            <label className="flex min-h-6 items-center text-[11px] font-medium uppercase tracking-wider text-muted">File</label>
+            <label className="flex min-h-6 items-center text-system-meta font-medium uppercase tracking-wider text-muted">File</label>
             <input
               ref={fileInputRef}
               type="file"
@@ -259,7 +259,7 @@ export function UploadDocumentModal({ open, onClose, projectId, collectionIds, d
                       </button>
                     </div>
                   </div>
-                  <p className="text-[11px] text-muted">Click the area to replace the file.</p>
+                  <p className="text-system-meta text-muted">Click the area to replace the file.</p>
                 </div>
               ) : (
                 <>
@@ -270,12 +270,12 @@ export function UploadDocumentModal({ open, onClose, projectId, collectionIds, d
                   <p className="mt-1 text-xs text-muted">or click to browse from your computer</p>
                   <div className="mt-4 flex flex-wrap justify-center gap-1.5">
                     {ACCEPTED_DOCUMENT_EXTENSIONS.map((extension) => (
-                      <span key={extension} className="rounded-full border border-border bg-surface px-2 py-0.5 text-[11px] text-muted">
+                      <span key={extension} className="rounded-full border border-border bg-surface px-2 py-0.5 text-system-meta text-muted">
                         {extension.toUpperCase().replace('.', '')}
                       </span>
                     ))}
                   </div>
-                  <p className="mt-3 text-[11px] text-muted">Maximum {MAX_DOCUMENT_FILE_MB} MB</p>
+                  <p className="mt-3 text-system-meta text-muted">Maximum {MAX_DOCUMENT_FILE_MB} MB</p>
                 </>
               )}
             </div>
@@ -283,7 +283,7 @@ export function UploadDocumentModal({ open, onClose, projectId, collectionIds, d
         </div>
 
         <div>
-          <label className="mb-1 block text-[11px] font-medium uppercase tracking-wider text-muted">Document title</label>
+          <label className="mb-1 block text-system-meta font-medium uppercase tracking-wider text-muted">Document title</label>
           <Input
             value={title}
             onChange={(event) => setTitle(event.target.value)}

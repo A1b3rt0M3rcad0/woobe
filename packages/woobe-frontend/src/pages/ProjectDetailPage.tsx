@@ -11,8 +11,8 @@ import { workspaceProjectPath } from '@/lib/constants/routes'
 
 const quickLinks = [
   { label: 'Agents', icon: Bot, segment: 'agents', color: 'text-primary' },
-  { label: 'Knowledge', icon: BookOpen, segment: 'knowledge', color: 'text-emerald-400' },
-  { label: 'Tools', icon: Wrench, segment: 'tools', color: 'text-yellow-400' },
+  { label: 'Knowledge', icon: BookOpen, segment: 'knowledge', color: 'text-success' },
+  { label: 'Tools', icon: Wrench, segment: 'tools', color: 'text-warning' },
   { label: 'API Keys', icon: Key, segment: 'api-keys', color: 'text-purple-400' },
   { label: 'Usage', icon: BarChart3, segment: 'usage', color: 'text-orange-400' },
   { label: 'Traces', icon: Activity, segment: 'traces', color: 'text-cyan-400' },

@@ -45,7 +45,7 @@ function SecondaryTabs<T extends string>({
           type="button"
           onClick={() => onChange(id)}
           className={cn(
-            'flex flex-1 items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-[10px] font-medium',
+            'flex flex-1 items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-system-meta font-medium',
             value === id
               ? 'border-primary/30 bg-primary/10 text-primary-light'
               : 'border-transparent text-muted hover:border-border/70 hover:text-foreground',

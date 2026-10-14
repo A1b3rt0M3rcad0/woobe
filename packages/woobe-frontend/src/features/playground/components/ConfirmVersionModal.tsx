@@ -73,8 +73,8 @@ export function ConfirmVersionModal({ open, onClose, onConfirm, versionName, cur
         <div className="p-4 space-y-4">
           {hasUnsavedChanges && (
             <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/5 p-3">
-              <p className="text-xs text-yellow-300 font-medium">Draft has unsaved changes</p>
-              <p className="text-[11px] text-muted mt-1">These changes will be included in the version. Consider saving draft first.</p>
+              <p className="text-xs text-warning font-medium">Draft has unsaved changes</p>
+              <p className="text-system-meta text-muted mt-1">These changes will be included in the version. Consider saving draft first.</p>
             </div>
           )}
 
@@ -91,7 +91,7 @@ export function ConfirmVersionModal({ open, onClose, onConfirm, versionName, cur
               <p className="text-xs text-muted italic">No changes detected — snapshot will be identical to the latest version.</p>
             ) : (
               <div className="rounded-lg border border-border overflow-hidden">
-                <table className="w-full text-[11px]">
+                <table className="w-full text-system-meta">
                   <thead>
                     <tr className="border-b border-border bg-background/50">
                       <th className="text-left px-3 py-1.5 text-muted font-medium">Field</th>
@@ -108,7 +108,7 @@ export function ConfirmVersionModal({ open, onClose, onConfirm, versionName, cur
                           <td className="px-3 py-1.5 text-muted font-medium">{label}</td>
                           <td className="px-3 py-1.5 text-muted max-w-[120px] truncate">{formatValue(previous)}</td>
                           <td className="px-3 py-1.5 text-foreground max-w-[120px] truncate">
-                            <Badge variant="warning" className="text-[9px] mr-1">new</Badge>
+                            <Badge variant="warning" className="text-system-meta mr-1">new</Badge>
                             {formatValue(current)}
                           </td>
                         </tr>

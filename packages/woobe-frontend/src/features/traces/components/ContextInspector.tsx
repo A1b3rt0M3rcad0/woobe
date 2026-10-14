@@ -8,13 +8,13 @@ import type { ContextModelInvocation, ContextSnapshotEvidence } from '../types'
 function pressureClass(status: string | undefined): string {
   switch ((status ?? '').toUpperCase()) {
     case 'CRITICAL':
-      return 'border-red-500/25 bg-red-500/10 text-red-300'
+      return 'border-red-500/25 bg-red-500/10 text-error'
     case 'HIGH':
       return 'border-orange-500/25 bg-orange-500/10 text-orange-300'
     case 'MODERATE':
-      return 'border-yellow-500/25 bg-yellow-500/10 text-yellow-300'
+      return 'border-yellow-500/25 bg-yellow-500/10 text-warning'
     case 'LOW':
-      return 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300'
+      return 'border-emerald-500/25 bg-emerald-500/10 text-success'
     default:
       return 'border-border bg-background text-muted'
   }
@@ -23,11 +23,11 @@ function pressureClass(status: string | undefined): string {
 function fitClass(status: string | null | undefined): string {
   switch ((status ?? '').toUpperCase()) {
     case 'UNFIT':
-      return 'border-red-500/25 bg-red-500/10 text-red-300'
+      return 'border-red-500/25 bg-red-500/10 text-error'
     case 'DEGRADED':
-      return 'border-amber-500/25 bg-amber-500/10 text-amber-300'
+      return 'border-amber-500/25 bg-amber-500/10 text-warning'
     case 'FIT':
-      return 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300'
+      return 'border-emerald-500/25 bg-emerald-500/10 text-success'
     default:
       return 'border-border bg-background text-muted'
   }
@@ -123,18 +123,18 @@ function RunContextSummary({ invocations }: { invocations: ContextModelInvocatio
     <div className="rounded-lg border border-border bg-background px-2.5 py-2">
       <div className="flex items-end justify-between gap-3">
         <div>
-          <p className="text-[9px] uppercase tracking-wider text-muted">Model input</p>
+          <p className="text-system-meta uppercase tracking-wider text-muted">Model input</p>
           <p className="mt-0.5 text-sm font-mono text-foreground">{formatUnits(totalInput)}</p>
         </div>
-        <span className="text-[9px] text-muted">Across {invocations.length} invocation{invocations.length === 1 ? '' : 's'}</span>
+        <span className="text-system-meta text-muted">Across {invocations.length} invocation{invocations.length === 1 ? '' : 's'}</span>
       </div>
-      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[9px] text-muted">
+      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-system-meta text-muted">
         {utilizations.length ? <span>Median utilization {formatPercent(median(utilizations))}</span> : null}
-        {budgetUnknown ? <span className="text-amber-300">Budget unavailable for {budgetUnknown}</span> : null}
-        {degraded ? <span className="text-amber-300">{degraded} degraded</span> : null}
-        {blocked ? <span className="text-red-300">{blocked} unfit / blocked</span> : null}
+        {budgetUnknown ? <span className="text-warning">Budget unavailable for {budgetUnknown}</span> : null}
+        {degraded ? <span className="text-warning">{degraded} degraded</span> : null}
+        {blocked ? <span className="text-error">{blocked} unfit / blocked</span> : null}
         {compactionSaving > 0 ? <span>Compaction saved {formatUnits(compactionSaving)}</span> : null}
-        {truncationCount > 0 ? <span className="text-amber-300">{truncationCount} truncated</span> : null}
+        {truncationCount > 0 ? <span className="text-warning">{truncationCount} truncated</span> : null}
       </div>
     </div>
   )
@@ -197,7 +197,7 @@ function Composition({ snapshot }: { snapshot: ContextSnapshotEvidence }) {
   return (
     <div className="space-y-1">
       {rows.map((row) => (
-        <div key={row.key} className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 text-[10px]">
+        <div key={row.key} className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 text-system-meta">
           <span className="truncate text-slate-300">{row.label}{row.count > 1 ? ` · ${row.count}` : ''}</span>
           <span className="font-mono text-slate-200">{formatUnits(row.units)}</span>
           <span className="w-11 text-right text-muted">{formatPercent(total > 0 ? row.units / total : null)}</span>
@@ -216,25 +216,25 @@ function BlockedInvocationCard({ invocation }: { invocation: ContextModelInvocat
     <div className="space-y-2.5 rounded-lg border border-red-500/25 bg-red-500/5 p-2.5">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="truncate text-[11px] font-medium text-foreground">Invocation #{invocation.call_index ?? '—'} · {invocation.phase || 'model_invocation'}</p>
-          <p className="truncate font-mono text-[10px] text-muted">{invocation.provider || '—'}/{invocation.model || '—'}</p>
+          <p className="truncate text-system-meta font-medium text-foreground">Invocation #{invocation.call_index ?? '—'} · {invocation.phase || 'model_invocation'}</p>
+          <p className="truncate font-mono text-system-meta text-muted">{invocation.provider || '—'}/{invocation.model || '—'}</p>
         </div>
-        <span className={cn('shrink-0 rounded-full border px-1.5 py-0.5 text-[9px] font-medium', fitClass('UNFIT'))}>UNFIT</span>
+        <span className={cn('shrink-0 rounded-full border px-1.5 py-0.5 text-system-meta font-medium', fitClass('UNFIT'))}>UNFIT</span>
       </div>
-      <div className="grid grid-cols-2 gap-1.5 text-[10px]">
-        <div className="rounded border border-border px-2 py-1.5"><p className="text-[9px] uppercase tracking-wider text-muted">Effective budget</p><p className="font-mono text-foreground">{formatUnits(number('effective_budget_units'))}</p></div>
-        <div className="rounded border border-border px-2 py-1.5"><p className="text-[9px] uppercase tracking-wider text-muted">Mandatory context</p><p className="font-mono text-foreground">{formatUnits(number('mandatory_units'))}</p></div>
+      <div className="grid grid-cols-2 gap-1.5 text-system-meta">
+        <div className="rounded border border-border px-2 py-1.5"><p className="text-system-meta uppercase tracking-wider text-muted">Effective budget</p><p className="font-mono text-foreground">{formatUnits(number('effective_budget_units'))}</p></div>
+        <div className="rounded border border-border px-2 py-1.5"><p className="text-system-meta uppercase tracking-wider text-muted">Mandatory context</p><p className="font-mono text-foreground">{formatUnits(number('mandatory_units'))}</p></div>
       </div>
-      <div className="flex flex-wrap gap-x-3 gap-y-1 text-[9px] text-muted">
+      <div className="flex flex-wrap gap-x-3 gap-y-1 text-system-meta text-muted">
         <span>Capacity {formatUnits(number('model_capacity_units'))}</span>
         <span>Output reserve {formatUnits(number('reserved_output_units'))}</span>
         <span>Runtime reserve {formatUnits(number('runtime_reserve_units'))}</span>
       </div>
-      <div className="flex items-start gap-1.5 rounded border border-red-500/20 bg-red-500/5 px-2 py-1.5 text-[9px] text-red-200">
+      <div className="flex items-start gap-1.5 rounded border border-red-500/20 bg-red-500/5 px-2 py-1.5 text-system-meta text-error">
         <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
         Provider was not called because mandatory Context exceeded the invocation-specific budget.
       </div>
-      {invocation.error ? <p className="text-[9px] text-muted">{invocation.error}</p> : null}
+      {invocation.error ? <p className="text-system-meta text-muted">{invocation.error}</p> : null}
     </div>
   )
 }
@@ -267,57 +267,57 @@ function InvocationCard({ invocation }: { invocation: ContextModelInvocation }) 
     <div className="rounded-lg border border-border bg-background p-2.5 space-y-2.5">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="truncate text-[11px] font-medium text-foreground">
+          <p className="truncate text-system-meta font-medium text-foreground">
             Invocation #{invocation.call_index ?? '—'} · {invocation.phase || 'model_invocation'}
           </p>
-          <p className="truncate font-mono text-[10px] text-muted">
+          <p className="truncate font-mono text-system-meta text-muted">
             {invocation.provider || '—'}/{invocation.model || '—'}
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap justify-end gap-1">
-          <span className={cn('rounded-full border px-1.5 py-0.5 text-[9px] font-medium', fitClass(fitStatus))}>{fitStatus}</span>
+          <span className={cn('rounded-full border px-1.5 py-0.5 text-system-meta font-medium', fitClass(fitStatus))}>{fitStatus}</span>
           {pressureKnown ? (
-            <span className={cn('rounded-full border px-1.5 py-0.5 text-[9px] font-medium', pressureClass(snapshot.pressure_status))}>{snapshot.pressure_status} pressure</span>
+            <span className={cn('rounded-full border px-1.5 py-0.5 text-system-meta font-medium', pressureClass(snapshot.pressure_status))}>{snapshot.pressure_status} pressure</span>
           ) : (
-            <span className="rounded-full border border-amber-500/25 bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-medium text-amber-300">Budget unavailable</span>
+            <span className="rounded-full border border-amber-500/25 bg-amber-500/10 px-1.5 py-0.5 text-system-meta font-medium text-warning">Budget unavailable</span>
           )}
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-1.5">
         <div className="rounded border border-border px-2 py-1.5">
-          <p className="text-[9px] uppercase tracking-wider text-muted">Input</p>
+          <p className="text-system-meta uppercase tracking-wider text-muted">Input</p>
           <p className="text-[12px] font-mono text-foreground">{formatUnits(input)}</p>
-          <p className="text-[9px] text-muted">{providerReported != null ? 'Provider reported' : 'Woobe estimate'}</p>
+          <p className="text-system-meta text-muted">{providerReported != null ? 'Provider reported' : 'Woobe estimate'}</p>
         </div>
         <div className="rounded border border-border px-2 py-1.5">
-          <p className="text-[9px] uppercase tracking-wider text-muted">Effective budget</p>
+          <p className="text-system-meta uppercase tracking-wider text-muted">Effective budget</p>
           <p className="text-[12px] font-mono text-foreground">{budgetKnown ? formatUnits(snapshot.usable_input_budget) : 'Unavailable'}</p>
-          <p className="text-[9px] text-muted">{budgetKnown ? `${formatPercent(snapshot.utilization)} used` : 'Model capacity was not resolved'}</p>
+          <p className="text-system-meta text-muted">{budgetKnown ? `${formatPercent(snapshot.utilization)} used` : 'Model capacity was not resolved'}</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-x-3 gap-y-1 rounded border border-border/70 px-2 py-1.5 text-[9px] text-muted">
+      <div className="grid grid-cols-2 gap-x-3 gap-y-1 rounded border border-border/70 px-2 py-1.5 text-system-meta text-muted">
         <span>Configured <span className="font-mono text-slate-200">{configuredBudget == null ? 'Auto' : formatUnits(configuredBudget)}</span></span>
         <span>Model usable <span className="font-mono text-slate-200">{formatUnits(modelUsable)}</span></span>
         <span>Headroom <span className="font-mono text-slate-200">{formatUnits(headroom)} · {formatPercent(headroomRatio)}</span></span>
         <span>Preserved <span className="font-mono text-slate-200">{formatPercent(preservation)}</span></span>
         {preBudgetUnits != null ? <span>Before budget <span className="font-mono text-slate-200">{formatUnits(preBudgetUnits)}</span></span> : null}
-        {budgetReduction > 0 ? <span className="text-amber-300">Budget reduced <span className="font-mono">{formatUnits(budgetReduction)}</span></span> : null}
+        {budgetReduction > 0 ? <span className="text-warning">Budget reduced <span className="font-mono">{formatUnits(budgetReduction)}</span></span> : null}
       </div>
 
       <div>
         <div className="mb-1.5 flex items-center justify-between gap-2">
-          <p className="text-[9px] uppercase tracking-wider text-muted">Composition</p>
-          <span className="text-[9px] text-muted">estimated shares</span>
+          <p className="text-system-meta uppercase tracking-wider text-muted">Composition</p>
+          <span className="text-system-meta text-muted">estimated shares</span>
         </div>
         <Composition snapshot={snapshot} />
       </div>
 
-      <div className="flex flex-wrap gap-x-3 gap-y-1 text-[9px] text-muted">
+      <div className="flex flex-wrap gap-x-3 gap-y-1 text-system-meta text-muted">
         {selected != null && candidates != null ? <span>{selected}/{candidates} selected</span> : null}
         {compactionSaving > 0 ? <span>Saved {formatUnits(compactionSaving)} by compaction</span> : null}
-        {truncationCount > 0 ? <span className="text-amber-300">{truncationCount} truncated</span> : null}
+        {truncationCount > 0 ? <span className="text-warning">{truncationCount} truncated</span> : null}
         {providerReported != null ? <span>Pre-call estimate {formatUnits(snapshot.estimated_input_units)}</span> : null}
         {snapshot.model_capacity_units != null ? <span>Capacity {formatUnits(snapshot.model_capacity_units)}</span> : null}
         {snapshot.reserved_output_units != null ? <span>Output reserve {formatUnits(snapshot.reserved_output_units)}</span> : null}
@@ -325,7 +325,7 @@ function InvocationCard({ invocation }: { invocation: ContextModelInvocation }) 
       </div>
 
       {!aggregateComparable ? (
-        <div className="flex items-start gap-1.5 rounded border border-amber-500/20 bg-amber-500/5 px-2 py-1.5 text-[9px] text-amber-200">
+        <div className="flex items-start gap-1.5 rounded border border-amber-500/20 bg-amber-500/5 px-2 py-1.5 text-system-meta text-warning">
           <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
           Multimodal Context uses partial source-level accounting; values are not treated as exact text-token equivalents.
         </div>
@@ -334,7 +334,7 @@ function InvocationCard({ invocation }: { invocation: ContextModelInvocation }) 
       {snapshotWarnings.length > 0 ? (
         <div className="space-y-1">
           {snapshotWarnings.map((warning) => (
-            <p key={warning} className="flex items-center gap-1.5 text-[9px] text-amber-300">
+            <p key={warning} className="flex items-center gap-1.5 text-system-meta text-warning">
               <AlertTriangle className="h-3 w-3 shrink-0" />
               {warningLabel(warning)}
             </p>
@@ -343,19 +343,19 @@ function InvocationCard({ invocation }: { invocation: ContextModelInvocation }) 
       ) : null}
 
       <details className="group border-t border-border/70 pt-2">
-        <summary className="flex cursor-pointer list-none items-center gap-1 text-[9px] text-muted hover:text-foreground">
+        <summary className="flex cursor-pointer list-none items-center gap-1 text-system-meta text-muted hover:text-foreground">
           <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90" />
           Technical context evidence
         </summary>
         <div className="mt-2 space-y-1.5">
-          <div className="flex flex-wrap gap-x-3 gap-y-1 text-[9px] text-muted">
+          <div className="flex flex-wrap gap-x-3 gap-y-1 text-system-meta text-muted">
             <span>measurement {snapshot.measurement_status}</span>
             <span>retention {snapshot.retention_mode}</span>
             <span>reproduction {snapshot.reproduction_level}</span>
           </div>
           <JsonCodeBlock value={snapshot.manifest} maxHeight={180} />
           <JsonCodeBlock value={snapshot.contributions} maxHeight={180} />
-          <p className="break-all text-[9px] text-muted">policy {snapshot.policy_hash} · materialized {snapshot.materialized_hash}</p>
+          <p className="break-all text-system-meta text-muted">policy {snapshot.policy_hash} · materialized {snapshot.materialized_hash}</p>
         </div>
       </details>
     </div>
@@ -374,8 +374,8 @@ export function ContextInspector({ traceId, runId, finalizing = false }: { trace
       <div className="px-4 pb-4">
         <div className="space-y-1.5 rounded-lg border border-border bg-surface/30 p-3">
           <div className="flex items-center gap-2 text-xs text-muted"><Brain className="h-3.5 w-3.5" />Context evidence unavailable</div>
-          <p className="text-[10px] text-muted">{finalizing ? 'The Agent Run completed, but Context evidence has not been finalized yet.' : error instanceof Error ? error.message : 'Context evidence could not be loaded.'}</p>
-          <button onClick={() => refetch()} className="text-[10px] text-primary hover:underline">Retry</button>
+          <p className="text-system-meta text-muted">{finalizing ? 'The Agent Run completed, but Context evidence has not been finalized yet.' : error instanceof Error ? error.message : 'Context evidence could not be loaded.'}</p>
+          <button onClick={() => refetch()} className="text-system-meta text-primary hover:underline">Retry</button>
         </div>
       </div>
     )
@@ -387,7 +387,7 @@ export function ContextInspector({ traceId, runId, finalizing = false }: { trace
 
   return (
     <div className="space-y-2 px-4 pb-4">
-      <div className="flex items-center gap-2 border-t border-border pt-3"><Brain className="h-3.5 w-3.5 text-muted" /><span className="text-xs font-medium text-foreground">Context</span><span className="ml-auto text-[10px] text-muted">{data.length} model invocation{data.length === 1 ? '' : 's'}</span></div>
+      <div className="flex items-center gap-2 border-t border-border pt-3"><Brain className="h-3.5 w-3.5 text-muted" /><span className="text-xs font-medium text-foreground">Context</span><span className="ml-auto text-system-meta text-muted">{data.length} model invocation{data.length === 1 ? '' : 's'}</span></div>
       <RunContextSummary invocations={data} />
       {data.map((invocation, index) => <InvocationCard key={invocation.id ?? `${invocation.call_index ?? index}-${index}`} invocation={invocation} />)}
     </div>

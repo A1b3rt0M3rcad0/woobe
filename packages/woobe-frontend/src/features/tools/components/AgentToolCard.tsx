@@ -69,7 +69,7 @@ function ActionsMenu({ canEdit, editLabel, onEdit, onRemove }: { canEdit: boolea
             {editLabel}
           </button>
         ) : null}
-        <button type="button" onClick={onRemove} className="flex w-full items-center gap-ui-sm rounded-control px-ui-sm py-ui-sm text-left font-sans text-system-label text-red-200 hover:bg-red-500/10">
+        <button type="button" onClick={onRemove} className="flex w-full items-center gap-ui-sm rounded-control px-ui-sm py-ui-sm text-left font-sans text-system-label text-error hover:bg-red-500/10">
           <Trash2 className="h-3.5 w-3.5" />
           Remove from Agent
         </button>
@@ -98,7 +98,7 @@ export function AgentToolCard({
   const showReadOnlyStatus = context === 'playground' && !onToggleActive
 
   const actions = <ActionsMenu canEdit={!isRetired && isHttpProvider} editLabel={context === 'playground' ? 'Edit Project Tool' : 'Edit Tool'} onEdit={onEdit} onRemove={onRemove} />
-  const riskNotice = showRisk ? <div className="mt-ui-sm flex items-center gap-ui-xs pl-ui-lg font-sans text-product-small text-amber-200"><AlertTriangle className="h-3 w-3" />{risk} risk</div> : null
+  const riskNotice = showRisk ? <div className="mt-ui-sm flex items-center gap-ui-xs pl-ui-lg font-sans text-product-small text-warning"><AlertTriangle className="h-3 w-3" />{risk} risk</div> : null
 
   return (
     <article className={cn(
@@ -113,7 +113,7 @@ export function AgentToolCard({
           <div className="flex min-w-0 items-center gap-ui-sm">
             <h3 title={tool.name} className="truncate font-mono text-system-label font-semibold text-slate-100">{tool.name}</h3>
             {isRetired ? (
-              <span className="shrink-0 font-mono text-system-meta text-amber-200">Retired</span>
+              <span className="shrink-0 font-mono text-system-meta text-warning">Retired</span>
             ) : showReadOnlyStatus ? (
               <span className="shrink-0 font-mono text-system-meta capitalize text-muted-foreground">{tool.status}</span>
             ) : null}

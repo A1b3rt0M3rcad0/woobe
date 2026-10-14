@@ -137,12 +137,12 @@ function SuggestionMenu({
               {suggestion.kind === 'namespace' ? suggestion.detail : suggestion.label}
             </span>
             {suggestion.detail && suggestion.kind === 'symbol' ? (
-              <span className="mt-0.5 block truncate text-[10px] text-primary-light">
+              <span className="mt-0.5 block truncate text-system-meta text-primary-light">
                 {suggestion.detail}
               </span>
             ) : null}
             {suggestion.description ? (
-              <span className="mt-0.5 block text-[10px] leading-4 text-muted">
+              <span className="mt-0.5 block text-system-meta leading-4 text-muted">
                 {suggestion.description}
               </span>
             ) : null}

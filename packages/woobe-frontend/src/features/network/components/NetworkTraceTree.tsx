@@ -34,7 +34,7 @@ function SourcesList({ invocation }: { invocation: NetworkAgentInvocation }) {
       {invocation.sources.map((source, index) => (
         <div key={source.chunk_id || `${source.document_id || 'source'}-${index}`} className="rounded-control border border-border/70 bg-background/45 p-ui-sm">
           <div className="flex items-center gap-ui-sm">
-            <Database className="h-3.5 w-3.5 shrink-0 text-violet-300" />
+            <Database className="h-3.5 w-3.5 shrink-0 text-network" />
             <span className="min-w-0 flex-1 truncate font-sans text-product-small text-foreground">{source.document_title || 'Untitled source'}</span>
             {source.page_number != null ? <span className="font-mono text-system-meta text-muted-foreground">p. {source.page_number}</span> : null}
             {source.score != null ? <span className="font-mono text-system-meta text-muted-foreground">{formatNumber(source.score * 100, 0)}%</span> : null}
@@ -89,12 +89,12 @@ export function NetworkTraceInvocation({ invocation, trace, depth, onOpenAgent }
   const [open, setOpen] = useState(false)
   const routingEvent = trace.events.find((event) => event.type === 'network.route.selected' && event.spanId === invocation.spanId)
   const statusIcon = invocation.status === 'error'
-    ? <XCircle className="h-3.5 w-3.5 text-red-400" />
+    ? <XCircle className="h-3.5 w-3.5 text-error" />
     : invocation.status === 'cancelled'
       ? <XCircle className="h-3.5 w-3.5 text-slate-400" />
       : invocation.status === 'running'
-        ? <CircleDot className="h-3.5 w-3.5 animate-pulse text-blue-400" />
-        : <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+        ? <CircleDot className="h-3.5 w-3.5 animate-pulse text-primary-light" />
+        : <CheckCircle2 className="h-3.5 w-3.5 text-success" />
 
   return (
     <div className={cn(depth > 0 && 'border-l border-border/80 pl-ui-sm')}>
@@ -123,7 +123,7 @@ export function NetworkTraceInvocation({ invocation, trace, depth, onOpenAgent }
             <ContextSummary invocation={invocation} />
             {invocation.failure ? (
               <div className="rounded-control border border-red-500/30 bg-red-500/5 p-ui-sm">
-                <p className="font-sans text-product-caption font-medium text-red-300">{invocation.failure.message}</p>
+                <p className="font-sans text-product-caption font-medium text-error">{invocation.failure.message}</p>
                 <p className="mt-ui-xs font-mono text-system-meta text-muted-foreground">{invocation.failure.code} · {invocation.failure.stage}{invocation.failure.retryable ? ' · retryable' : ''}</p>
               </div>
             ) : null}

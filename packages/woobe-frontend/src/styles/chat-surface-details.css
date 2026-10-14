@@ -21,8 +21,8 @@
  * readable metadata tier used across the resource pages. */
 .dialog-scrollbars.max-w-7xl main > div:last-child > p {
   max-width: 28rem;
-  font-size: 0.5625rem !important;
-  line-height: 0.875rem !important;
+  font-size: 0.75rem !important;
+  line-height: 1.125rem !important;
 }
 
 /* Preserve words whenever the value has enough room. IDs may still wrap as a
@@ -101,7 +101,7 @@
     flex: 0 0 auto;
     padding: 0.3125rem 0.5rem !important;
     font-size: 0.625rem !important;
-    line-height: 0.875rem !important;
+    line-height: 1.125rem !important;
   }
 
   .dialog-scrollbars.max-w-7xl > div:nth-child(2) > .grid > aside nav button[class*='md:pl-5'] {

@@ -47,10 +47,10 @@ export function AgentResultViewer({
   return (
     <>
       <div>
-        <div className={cn('line-clamp-4 overflow-hidden font-sans text-slate-200', compact ? 'text-[10px] leading-5' : 'text-[12px] leading-5')}>
-          <MarkdownMessage content={text} className={compact ? 'space-y-1.5 text-[10px] leading-5' : 'space-y-2'} />
+        <div className={cn('line-clamp-4 overflow-hidden font-sans text-slate-200', compact ? 'text-system-meta leading-5' : 'text-[12px] leading-5')}>
+          <MarkdownMessage content={text} className={compact ? 'space-y-1.5 text-system-meta leading-5' : 'space-y-2'} />
         </div>
-        <button type="button" onClick={() => setOpen(true)} className={cn('mt-2 font-mono text-primary-light hover:text-foreground', compact ? 'text-[8px]' : 'text-[9px]')}>
+        <button type="button" onClick={() => setOpen(true)} className={cn('mt-2 font-mono text-primary-light hover:text-foreground', compact ? 'text-system-meta' : 'text-system-meta')}>
           View full result
         </button>
       </div>
@@ -66,8 +66,8 @@ export function AgentResultViewer({
         <div className="flex h-full min-h-0 flex-col">
           <div className="flex min-h-[46px] shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-2.5">
             <div className="min-w-0">
-              <div className="flex items-center gap-2 font-mono text-[9px] font-semibold text-slate-100"><FileText className="h-3.5 w-3.5 text-primary-light" />Markdown result</div>
-              {subtitle ? <p className="mt-0.5 truncate font-mono text-[8px] text-muted-foreground">{subtitle}</p> : null}
+              <div className="flex items-center gap-2 font-mono text-system-meta font-semibold text-slate-100"><FileText className="h-3.5 w-3.5 text-primary-light" />Markdown result</div>
+              {subtitle ? <p className="mt-0.5 truncate font-mono text-system-meta text-muted-foreground">{subtitle}</p> : null}
             </div>
             <div className="flex items-center gap-1.5">
               <div className="flex rounded-control border border-border bg-background/35 p-[2px]">
@@ -76,14 +76,14 @@ export function AgentResultViewer({
                     key={target}
                     type="button"
                     onClick={() => setView(target)}
-                    className={cn('h-[25px] rounded-technical px-2.5 font-mono text-[8px] capitalize transition-colors', view === target ? 'bg-primary/[0.10] text-primary-light' : 'text-muted-foreground hover:bg-control hover:text-slate-50')}
+                    className={cn('h-[25px] rounded-technical px-2.5 font-mono text-system-meta capitalize transition-colors', view === target ? 'bg-primary/[0.10] text-primary-light' : 'text-muted-foreground hover:bg-control hover:text-slate-50')}
                   >
                     {target}
                   </button>
                 ))}
               </div>
-              <button type="button" onClick={() => void copy()} className="inline-flex h-[29px] items-center gap-1 rounded-control border border-border bg-control/30 px-2 font-mono text-[8px] text-muted-foreground hover:bg-control hover:text-slate-50" title={copied ? 'Copied' : 'Copy result'}>
-                {copied ? <Check className="h-3 w-3 text-emerald-300" /> : <Copy className="h-3 w-3" />}
+              <button type="button" onClick={() => void copy()} className="inline-flex h-[29px] items-center gap-1 rounded-control border border-border bg-control/30 px-2 font-mono text-system-meta text-muted-foreground hover:bg-control hover:text-slate-50" title={copied ? 'Copied' : 'Copy result'}>
+                {copied ? <Check className="h-3 w-3 text-success" /> : <Copy className="h-3 w-3" />}
                 {copied ? 'Copied' : 'Copy'}
               </button>
             </div>
@@ -98,7 +98,7 @@ export function AgentResultViewer({
               </CodePanel>
             ) : (
               <CodePanel title="Raw response" badge="TEXT">
-                <pre className="scrollbar-thin max-h-[560px] overflow-auto whitespace-pre-wrap break-words p-4 font-mono text-[10px] leading-5 text-slate-200">{text}</pre>
+                <pre className="scrollbar-thin max-h-[560px] overflow-auto whitespace-pre-wrap break-words p-4 font-mono text-system-meta leading-5 text-slate-200">{text}</pre>
               </CodePanel>
             )}
           </div>

@@ -72,7 +72,7 @@ function AgentNode({ data, selected }: NodeProps<AgentFlowNode>) {
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-ui-sm">
             <p className="truncate font-sans text-product-small font-semibold text-foreground">{data.node.label}</p>
-            {issue ? <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-red-400" /> : null}
+            {issue ? <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-error" /> : null}
           </div>
           <p className="mt-ui-xs truncate font-mono text-system-meta text-muted-foreground">{data.agent ? `${data.agent.provider}/${data.agent.model}` : 'Agent unavailable'}</p>
           {data.node.capability_description ? <p className="mt-ui-sm line-clamp-2 font-sans text-product-caption leading-4 text-slate-400">{data.node.capability_description}</p> : null}
@@ -80,7 +80,7 @@ function AgentNode({ data, selected }: NodeProps<AgentFlowNode>) {
       </div>
       <div className="mt-ui-md space-y-ui-sm border-t border-border/70 pt-ui-sm">
         <div className="flex items-center justify-between gap-ui-sm">
-          <span className={cn('rounded-technical border px-ui-xs py-ui-hairline font-mono text-system-meta font-semibold uppercase', data.activeInRun ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : data.isRoot ? 'border-primary/30 bg-primary/10 text-primary-light' : 'border-border text-muted-foreground')}>
+          <span className={cn('rounded-technical border px-ui-xs py-ui-hairline font-mono text-system-meta font-semibold uppercase', data.activeInRun ? 'border-emerald-500/30 bg-emerald-500/10 text-success' : data.isRoot ? 'border-primary/30 bg-primary/10 text-primary-light' : 'border-border text-muted-foreground')}>
             {data.activeInRun ? 'Executed' : data.isRoot ? 'Entry point' : 'Agent'}
           </span>
           <span className={cn('h-2 w-2 shrink-0 rounded-full', data.agent?.status === 'active' ? 'bg-emerald-400' : 'bg-amber-400')} />
@@ -94,7 +94,7 @@ function AgentNode({ data, selected }: NodeProps<AgentFlowNode>) {
             title={`${data.binding.source === 'release' ? 'Agent Release' : data.binding.source === 'staging' ? 'Agent Staging snapshot' : 'Agent Draft'}: ${data.binding.version}${data.binding.dirty ? ' · unsaved changes' : ''}`}
           />
         ) : (
-          <span className="block rounded-technical border border-red-500/30 bg-red-500/10 px-ui-sm py-ui-xs text-center font-mono text-system-meta font-semibold text-red-300">Binding unavailable</span>
+          <span className="block rounded-technical border border-red-500/30 bg-red-500/10 px-ui-sm py-ui-xs text-center font-mono text-system-meta font-semibold text-error">Binding unavailable</span>
         )}
       </div>
     </article>

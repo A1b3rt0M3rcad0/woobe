@@ -198,7 +198,7 @@ function highestRouteRisk(routes: RouteDraft[]): string {
 }
 
 function FieldError({ message }: { message?: string }) {
-  return message ? <p className="mt-1 text-[11px] text-red-300">{message}</p> : null
+  return message ? <p className="mt-1 text-system-meta text-error">{message}</p> : null
 }
 
 function AdvancedSection({
@@ -224,7 +224,7 @@ function AdvancedSection({
       >
         <span className="min-w-0">
           <span className="block text-sm font-medium text-foreground">{label}</span>
-          {summary ? <span className="mt-0.5 block truncate text-[11px] text-muted">{summary}</span> : null}
+          {summary ? <span className="mt-0.5 block truncate text-system-meta text-muted">{summary}</span> : null}
         </span>
         <ChevronDown className={`h-4 w-4 shrink-0 text-muted transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
@@ -255,7 +255,7 @@ function HeaderRows({
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-xs font-medium text-foreground">Headers</p>
-          <p className="mt-0.5 text-[11px] text-muted">Use a Secret reference for sensitive values.</p>
+          <p className="mt-0.5 text-system-meta text-muted">Use a Secret reference for sensitive values.</p>
         </div>
         <Button type="button" size="sm" variant="ghost" onClick={addHeader}>
           <Plus className="mr-1 h-3.5 w-3.5" />
@@ -274,7 +274,7 @@ function HeaderRows({
             <button
               type="button"
               onClick={() => updateHeader(header.id, { mode: 'set', value: '' })}
-              className="h-9 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 text-left text-xs text-amber-200"
+              className="h-9 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 text-left text-xs text-warning"
             >
               Not sent by this route · Restore as override
             </button>
@@ -286,7 +286,7 @@ function HeaderRows({
               className="font-mono text-xs"
             />
           )}
-          <Button type="button" size="sm" variant="ghost" className="text-red-300" onClick={() => removeHeader(header.id)} aria-label="Remove header">
+          <Button type="button" size="sm" variant="ghost" className="text-error" onClick={() => removeHeader(header.id)} aria-label="Remove header">
             <Trash2 className="h-3.5 w-3.5" />
           </Button>
         </div>
@@ -343,9 +343,9 @@ function RouteHeadersEditor({
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-xs font-medium text-foreground">Inherited headers</p>
-            <p className="mt-0.5 text-[11px] text-muted">Shared by the API. Override only the exceptions.</p>
+            <p className="mt-0.5 text-system-meta text-muted">Shared by the API. Override only the exceptions.</p>
           </div>
-          <span className="text-[11px] text-muted">{shared.length} inherited</span>
+          <span className="text-system-meta text-muted">{shared.length} inherited</span>
         </div>
         {shared.length === 0 ? <p className="mt-2 text-xs text-muted">No shared headers.</p> : (
           <div className="mt-2 divide-y divide-border/70 rounded-lg border border-border/70">
@@ -355,15 +355,15 @@ function RouteHeadersEditor({
               return (
                 <div key={header.key.toLowerCase()} className="flex flex-wrap items-center gap-2 px-3 py-2.5">
                   <div className="min-w-0 flex-1">
-                    <p className="truncate font-mono text-[11px] text-foreground">{header.key}</p>
-                    <p className="mt-0.5 truncate text-[10px] text-muted">
+                    <p className="truncate font-mono text-system-meta text-foreground">{header.key}</p>
+                    <p className="mt-0.5 truncate text-system-meta text-muted">
                       {state === 'removed' ? 'Not sent by this route' : state === 'overridden' ? 'Overridden by this route' : 'Inherited from API'}
                     </p>
                   </div>
                   {state === 'inherited' ? (
                     <>
                       <Button type="button" size="sm" variant="ghost" onClick={() => override(header)}>Override</Button>
-                      <Button type="button" size="sm" variant="ghost" className="text-amber-200" onClick={() => removeInherited(header)}>Do not send</Button>
+                      <Button type="button" size="sm" variant="ghost" className="text-warning" onClick={() => removeInherited(header)}>Do not send</Button>
                     </>
                   ) : (
                     <Button type="button" size="sm" variant="ghost" onClick={() => replaceForKey(header.key, null)}>
@@ -388,12 +388,12 @@ function RouteHeadersEditor({
       {effective.length > 0 ? (
         <div className="rounded-lg border border-border/70 bg-background/35 px-3 py-2.5">
           <div className="flex items-center justify-between gap-3">
-            <p className="text-[11px] font-medium text-foreground">Effective request headers</p>
-            <span className="text-[10px] text-muted">{effective.length} sent</span>
+            <p className="text-system-meta font-medium text-foreground">Effective request headers</p>
+            <span className="text-system-meta text-muted">{effective.length} sent</span>
           </div>
           <div className="mt-2 flex flex-wrap gap-1.5">
             {effective.map((header) => (
-              <span key={header.key.toLowerCase()} className="rounded-md border border-border/70 bg-background px-2 py-1 font-mono text-[9px] text-muted">
+              <span key={header.key.toLowerCase()} className="rounded-md border border-border/70 bg-background px-2 py-1 font-mono text-system-meta text-muted">
                 {header.key} · {header.overridden ? 'override' : header.source}
               </span>
             ))}
@@ -773,7 +773,7 @@ export function ApiFirstToolForm({
                 <div>
                   <label className="mb-1 block text-xs font-medium text-muted">Base URL *</label>
                   <ToolTemplateInput autoFocus value={baseUrl} onValueChange={updateBaseUrl} placeholder="https://api.example.com/v1 or {{project_env.API_URL}}" className="font-mono text-xs" />
-                  <p className="mt-1 text-[11px] text-muted">All routes remain under this domain and base path.</p>
+                  <p className="mt-1 text-system-meta text-muted">All routes remain under this domain and base path.</p>
                   <FieldError message={errors.baseUrl} />
                 </div>
                 <div>
@@ -808,12 +808,12 @@ export function ApiFirstToolForm({
                     <div className="divide-y divide-border/70 rounded-xl border border-border/75 bg-background/20">
                       {routes.map((route) => (
                         <div key={route.id} className="flex items-center gap-3 px-3 py-3">
-                          <span className="shrink-0 rounded-md border border-border/80 bg-background px-2 py-1 font-mono text-[10px] font-semibold text-primary-light">{route.method}</span>
+                          <span className="shrink-0 rounded-md border border-border/80 bg-background px-2 py-1 font-mono text-system-meta font-semibold text-primary-light">{route.method}</span>
                           <button type="button" onClick={() => editRoute(route)} className="min-w-0 flex-1 text-left">
                             <p className="truncate text-sm font-medium text-foreground">{route.name}</p>
-                            <p className="mt-0.5 truncate font-mono text-[11px] text-muted">{route.path}</p>
+                            <p className="mt-0.5 truncate font-mono text-system-meta text-muted">{route.path}</p>
                           </button>
-                          <Button type="button" size="sm" variant="ghost" className="text-red-300" onClick={() => removeRoute(route.id)} aria-label={`Remove ${route.name}`}>
+                          <Button type="button" size="sm" variant="ghost" className="text-error" onClick={() => removeRoute(route.id)} aria-label={`Remove ${route.name}`}>
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
                         </div>
@@ -840,7 +840,7 @@ export function ApiFirstToolForm({
                 <div>
                   <label className="mb-1 block text-xs font-medium text-muted">MCP Server URL *</label>
                   <Input autoFocus value={mcpUrl} onChange={(event) => updateMcpUrl(event.target.value)} placeholder="https://mcp.example.com/mcp" className="font-mono text-xs" />
-                  <p className="mt-1 text-[11px] text-muted">Public tools are loaded automatically after creation.</p>
+                  <p className="mt-1 text-system-meta text-muted">Public tools are loaded automatically after creation.</p>
                   <FieldError message={errors.mcpUrl} />
                 </div>
                 <div>
@@ -877,7 +877,7 @@ export function ApiFirstToolForm({
               <div>
                 <h3 className="text-base font-semibold text-foreground">{routeEditor.isNew ? 'Add route' : 'Edit route'}</h3>
                 <p className="mt-1 text-sm text-muted">Define the request. Woobe creates and preserves the technical identifier automatically.</p>
-                {initialTool ? <p className="mt-1 text-[11px] text-muted">Apply the route here, then use Save changes to persist the Tool.</p> : null}
+                {initialTool ? <p className="mt-1 text-system-meta text-muted">Apply the route here, then use Save changes to persist the Tool.</p> : null}
               </div>
             </div>
 
@@ -918,12 +918,12 @@ export function ApiFirstToolForm({
               <div className="space-y-2">
                 <div>
                   <p className="text-xs font-medium text-foreground">Runtime inputs</p>
-                  <p className="mt-0.5 text-[11px] text-muted">
+                  <p className="mt-0.5 text-system-meta text-muted">
                     Derived from the request template. Edit the URL, headers or body to change these dependencies.
                   </p>
                 </div>
                 <div className="overflow-hidden rounded-lg border border-border/70 bg-background/25">
-                  <div className="grid grid-cols-[minmax(120px,1fr)_150px_minmax(150px,1.2fr)_minmax(150px,1fr)] gap-2 border-b border-border/70 px-3 py-2 font-mono text-[9px] uppercase tracking-wide text-muted">
+                  <div className="grid grid-cols-[minmax(120px,1fr)_150px_minmax(150px,1.2fr)_minmax(150px,1fr)] gap-2 border-b border-border/70 px-3 py-2 font-mono text-system-meta uppercase tracking-wide text-muted">
                     <span>Value</span>
                     <span>Source</span>
                     <span>Used in</span>
@@ -946,12 +946,12 @@ export function ApiFirstToolForm({
                           key={`${dependency.source}:${dependency.field}`}
                           className="grid min-h-[48px] grid-cols-[minmax(120px,1fr)_150px_minmax(150px,1.2fr)_minmax(150px,1fr)] items-center gap-2 px-3 py-2"
                         >
-                          <span className="truncate font-mono text-[11px] font-medium text-foreground">{dependency.field}</span>
-                          <span className="text-[10px] text-muted">{sourceLabel}</span>
-                          <span className="truncate text-[10px] text-muted" title={dependency.usages.join(', ')}>
+                          <span className="truncate font-mono text-system-meta font-medium text-foreground">{dependency.field}</span>
+                          <span className="text-system-meta text-muted">{sourceLabel}</span>
+                          <span className="truncate text-system-meta text-muted" title={dependency.usages.join(', ')}>
                             {dependency.usages.join(', ')}
                           </span>
-                          <span className="text-[10px] text-muted">
+                          <span className="text-system-meta text-muted">
                             {resolution}
                             {dependency.legacyBinding ? ' · legacy binding' : ''}
                           </span>
@@ -960,7 +960,7 @@ export function ApiFirstToolForm({
                     })}
                   </div>
                   <div className="border-t border-border/70 px-3 py-2">
-                    <p className="text-[10px] leading-4 text-muted">
+                    <p className="text-system-meta leading-4 text-muted">
                       {'{{name}}'} is model-provided. {'{{external_context.name}}'} comes from the Run snapshot. {'{{project_env.KEY}}'} comes from the selected execution environment.
                     </p>
                   </div>
@@ -992,7 +992,7 @@ export function ApiFirstToolForm({
                 <div>
                   <p className="text-xs font-medium text-muted">Technical identifier</p>
                   <code className="mt-1 block rounded-lg border border-border/70 bg-background px-3 py-2 text-xs text-foreground">{routeEditor.draft.operation_id}</code>
-                  <p className="mt-1 text-[11px] text-muted">Stable identifier generated when the route was created.</p>
+                  <p className="mt-1 text-system-meta text-muted">Stable identifier generated when the route was created.</p>
                   <FieldError message={routeErrors.operationId} />
                 </div>
               ) : null}

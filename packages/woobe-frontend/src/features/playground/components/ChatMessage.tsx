@@ -320,7 +320,7 @@ export function ChatMessage({
           {message.output_parse_error && (
             <div
               className={cn(
-                'flex items-start gap-ui-sm border border-amber-500/25 bg-amber-500/[0.07] text-amber-200',
+                'flex items-start gap-ui-sm border border-amber-500/25 bg-amber-500/[0.07] text-warning',
                 compact ? 'rounded-control px-ui-sm py-ui-xs font-sans text-product-caption' : 'rounded-container px-ui-sm py-ui-sm font-sans text-product-small',
               )}
             >
@@ -363,10 +363,10 @@ export function ChatMessage({
               {footerActions}
               {!compact && (
                 <>
-                  <Button type="button" variant="ghost" size="iconXs" className="text-muted-foreground hover:border-emerald-500/30 hover:bg-emerald-500/[0.07] hover:text-emerald-300" title="Good response">
+                  <Button type="button" variant="ghost" size="iconXs" className="text-muted-foreground hover:border-emerald-500/30 hover:bg-emerald-500/[0.07] hover:text-success" title="Good response">
                     <ThumbsUp className="h-icon-sm w-icon-sm" />
                   </Button>
-                  <Button type="button" variant="ghost" size="iconXs" className="text-muted-foreground hover:border-red-500/30 hover:bg-red-500/[0.07] hover:text-red-300" title="Bad response">
+                  <Button type="button" variant="ghost" size="iconXs" className="text-muted-foreground hover:border-red-500/30 hover:bg-red-500/[0.07] hover:text-error" title="Bad response">
                     <ThumbsDown className="h-icon-sm w-icon-sm" />
                   </Button>
                 </>

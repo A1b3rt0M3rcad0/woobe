@@ -163,12 +163,12 @@ export function HttpProviderPanel({ tool, footerActions, summaryNote, permission
                 <div key={route.id} className="grid gap-3 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
                   <div className="min-w-0">
                     <div className="flex min-w-0 items-center gap-2">
-                      <span className="shrink-0 rounded-md border border-border/80 bg-background px-2 py-1 font-mono text-[9px] font-semibold text-primary-light">{route.method}</span>
+                      <span className="shrink-0 rounded-md border border-border/80 bg-background px-2 py-1 font-mono text-system-meta font-semibold text-primary-light">{route.method}</span>
                       <p className="truncate text-xs font-medium text-foreground">{route.name}</p>
-                      {showRisk ? <span className="shrink-0 text-[9px] capitalize text-amber-200">{route.risk_level} risk</span> : null}
+                      {showRisk ? <span className="shrink-0 text-system-meta capitalize text-warning">{route.risk_level} risk</span> : null}
                     </div>
-                    <p className="mt-1 truncate font-mono text-[10px] text-muted">{route.path}</p>
-                    <p className="mt-1 line-clamp-2 text-[10px] leading-4 text-muted">{route.description}</p>
+                    <p className="mt-1 truncate font-mono text-system-meta text-muted">{route.path}</p>
+                    <p className="mt-1 line-clamp-2 text-system-meta leading-4 text-muted">{route.description}</p>
                   </div>
                   <PermissionControl
                     mode={permission.mode}

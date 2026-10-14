@@ -18,10 +18,10 @@ import {
 } from './networkRunInspector'
 
 function StatusIcon({ status }: { status: NetworkAgentInvocation['status'] }) {
-  if (status === 'error') return <XCircle className="h-3.5 w-3.5 text-red-400" />
+  if (status === 'error') return <XCircle className="h-3.5 w-3.5 text-error" />
   if (status === 'cancelled') return <XCircle className="h-3.5 w-3.5 text-slate-400" />
-  if (status === 'running' || status === 'pending') return <CircleDot className="h-3.5 w-3.5 animate-pulse text-blue-400" />
-  return <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+  if (status === 'running' || status === 'pending') return <CircleDot className="h-3.5 w-3.5 animate-pulse text-primary-light" />
+  return <CheckCircle2 className="h-3.5 w-3.5 text-success" />
 }
 
 function toolSummaryLabel(invocation: NetworkAgentInvocation) {
@@ -81,7 +81,7 @@ export function NetworkExecutionPath({
                   <span className="truncate">{invocation.source} · {invocation.version}</span>
                   {invocation.usage ? <span className="ml-auto shrink-0">{formatNumber(invocation.usage.input_tokens, 0)} / {formatNumber(invocation.usage.output_tokens, 0)} tokens</span> : null}
                 </div>
-                {toolSummary ? <p className={cn('mt-ui-xs inline-flex items-center gap-ui-xs font-mono text-system-meta', toolSummaryState.failed ? 'text-red-300' : toolSummaryState.running ? 'text-blue-300' : 'text-muted-foreground')}>{invocation.tools.some(isSkillOperation) ? <Puzzle className="h-3 w-3" /> : <Wrench className="h-3 w-3" />}{toolSummary}</p> : null}
+                {toolSummary ? <p className={cn('mt-ui-xs inline-flex items-center gap-ui-xs font-mono text-system-meta', toolSummaryState.failed ? 'text-error' : toolSummaryState.running ? 'text-primary-light' : 'text-muted-foreground')}>{invocation.tools.some(isSkillOperation) ? <Puzzle className="h-3 w-3" /> : <Wrench className="h-3 w-3" />}{toolSummary}</p> : null}
               </div>
             </div>
           </button>

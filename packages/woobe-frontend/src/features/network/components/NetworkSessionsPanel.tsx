@@ -132,7 +132,7 @@ export function NetworkSessionsPanel({
 
                 <div className="mt-ui-sm flex flex-wrap items-center gap-ui-sm font-mono text-system-meta text-muted-foreground">
                   <span className="text-indigo-300">{session.versionLabel}</span>
-                  {earlierSnapshot ? <span className="rounded-technical border border-amber-400/25 bg-amber-400/5 px-ui-xs py-ui-hairline text-amber-300">Earlier snapshot</span> : null}
+                  {earlierSnapshot ? <span className="rounded-technical border border-amber-400/25 bg-amber-400/5 px-ui-xs py-ui-hairline text-warning">Earlier snapshot</span> : null}
                 </div>
 
                 <div className="mt-ui-sm flex flex-wrap items-center gap-ui-md font-mono text-system-meta text-muted-foreground">

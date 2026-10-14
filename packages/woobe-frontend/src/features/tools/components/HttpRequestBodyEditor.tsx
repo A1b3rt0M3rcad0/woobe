@@ -186,7 +186,7 @@ export function HttpRequestBodyEditor({ value, onChange }: HttpRequestBodyEditor
                   className={field.type === 'json' ? 'font-mono text-xs' : undefined}
                 />
               )}
-              <Button type="button" size="sm" variant="ghost" className="text-red-300" onClick={() => removeField(index)} aria-label="Remove body field">
+              <Button type="button" size="sm" variant="ghost" className="text-error" onClick={() => removeField(index)} aria-label="Remove body field">
                 <X className="h-3.5 w-3.5" />
               </Button>
             </div>

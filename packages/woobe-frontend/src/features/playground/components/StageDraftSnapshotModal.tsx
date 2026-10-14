@@ -83,13 +83,13 @@ export function StageDraftSnapshotModal({ open, state, snapshot, currentStaging,
                 </span>
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold text-foreground">{state.name || 'Untitled agent'}</p>
-                  <p className="text-[11px] text-muted">Draft to Staging</p>
+                  <p className="text-system-meta text-muted">Draft to Staging</p>
                 </div>
               </div>
 
               {currentStaging ? (
-                <div className="mt-4 flex gap-2 rounded-xl border border-yellow-500/30 bg-yellow-500/[0.06] p-3 text-xs leading-5 text-yellow-100">
-                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-yellow-400" />
+                <div className="mt-4 flex gap-2 rounded-xl border border-yellow-500/30 bg-yellow-500/[0.06] p-3 text-xs leading-5 text-warning">
+                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
                   <p>This replaces the current Staging snapshot: {currentStaging.version}.</p>
                 </div>
               ) : null}

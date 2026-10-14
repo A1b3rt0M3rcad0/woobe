@@ -129,7 +129,7 @@ function HeaderEditor({
     <div className="min-w-0 space-y-2 rounded-xl border border-border/70 bg-background/60 p-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[10px] font-medium text-muted uppercase tracking-wider">{title}</p>
+          <p className="text-system-meta font-medium text-muted uppercase tracking-wider">{title}</p>
           {description && <p className="mt-1 text-xs text-muted break-words">{description}</p>}
         </div>
         <Button type="button" size="sm" variant="ghost" onClick={addHeader}>
@@ -145,7 +145,7 @@ function HeaderEditor({
             <div key={h.id} className="flex min-w-0 items-center gap-1.5">
               <Input value={h.key} onChange={e => updateHeaderKey(h.id, e.target.value)} placeholder="Header" className="min-w-0 flex-1" />
               <Input value={h.value} onChange={e => updateHeaderValue(h.id, e.target.value)} placeholder="Value" className="min-w-0 flex-1" />
-              <Button type="button" size="sm" variant="ghost" className="shrink-0 text-red-400 hover:text-red-300" onClick={() => removeHeader(h.id)}>
+              <Button type="button" size="sm" variant="ghost" className="shrink-0 text-error hover:text-error" onClick={() => removeHeader(h.id)}>
                 <X className="h-3 w-3" />
               </Button>
             </div>
@@ -497,7 +497,7 @@ export function ToolDiscoveryForm({ submitLabel = 'Create', cancelLabel = 'Cance
           </div>
           {urlVariables.length > 0 && (
             <div className="min-w-0 rounded-xl border border-border/70 bg-background/60 p-3 space-y-2">
-              <p className="text-[10px] font-medium text-muted uppercase tracking-wider">URL Variables</p>
+              <p className="text-system-meta font-medium text-muted uppercase tracking-wider">URL Variables</p>
               {urlVariables.map(v => (
                 <div key={v} className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
                   <span className="text-xs font-mono text-muted break-all sm:min-w-[120px]">{'{{'}{v}{'}}'}</span>
@@ -512,7 +512,7 @@ export function ToolDiscoveryForm({ submitLabel = 'Create', cancelLabel = 'Cance
       ) : (
         <div className="min-w-0 space-y-4 overflow-hidden rounded-2xl border border-border/80 bg-card/40 p-4">
           <div className="min-w-0 rounded-xl border border-blue-500/30 bg-blue-500/5 p-3">
-            <p className="text-sm font-medium text-blue-200 break-words">Connect MCP server</p>
+            <p className="text-sm font-medium text-primary-light break-words">Connect MCP server</p>
             <p className="mt-1 text-xs text-muted break-words">Connect once. Woobe will expose all discovered server tools to the agent and the model will decide which one to call.</p>
           </div>
           <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-end">
@@ -529,8 +529,8 @@ export function ToolDiscoveryForm({ submitLabel = 'Create', cancelLabel = 'Cance
           {mcpTools.length > 0 && (
             <div className="min-w-0 space-y-2">
               <div className="flex items-center justify-between gap-3">
-                <p className="text-[10px] font-medium text-muted uppercase tracking-wider">Available to agent</p>
-                {mcpTools.length > 2 && <p className="text-[10px] text-muted">Scroll to view all</p>}
+                <p className="text-system-meta font-medium text-muted uppercase tracking-wider">Available to agent</p>
+                {mcpTools.length > 2 && <p className="text-system-meta text-muted">Scroll to view all</p>}
               </div>
               <p className="text-xs text-muted">{mcpTools.length} tools discovered. The agent can choose any of them automatically.</p>
               <div className={`grid min-w-0 gap-2 pr-1 ${mcpTools.length > 2 ? 'max-h-64 overflow-y-auto overscroll-contain' : ''}`}>
@@ -539,7 +539,7 @@ export function ToolDiscoveryForm({ submitLabel = 'Create', cancelLabel = 'Cance
                     <div className="flex min-w-0 items-start justify-between gap-2">
                       <div className="min-w-0">
                         <p className="text-sm font-medium break-words text-foreground">{displayNameForTool(tool)}</p>
-                        <p className="mt-1 text-[11px] font-mono text-muted break-all">{tool.name}</p>
+                        <p className="mt-1 text-system-meta font-mono text-muted break-all">{tool.name}</p>
                       </div>
                       {onTest && (
                         <Button
@@ -613,8 +613,8 @@ export function ToolDiscoveryForm({ submitLabel = 'Create', cancelLabel = 'Cance
         <div className="min-w-0"><label className="block text-xs font-medium text-muted mb-1">Timeout (ms)</label><Input type="number" value={timeoutMs} onChange={e => setTimeoutMs(Number(e.target.value))} min={1000} max={120000} /></div>
       </div>
 
-      {testResult && <div className="min-w-0 rounded-lg border border-green-500/30 bg-green-500/5 p-3"><pre className="text-xs text-green-300 whitespace-pre-wrap break-words font-mono">{testResult}</pre></div>}
-      {testError && <div className="min-w-0 rounded-lg border border-red-500/30 bg-red-500/5 p-3"><pre className="text-xs text-red-300 whitespace-pre-wrap break-words font-mono">{testError}</pre></div>}
+      {testResult && <div className="min-w-0 rounded-lg border border-green-500/30 bg-green-500/5 p-3"><pre className="text-xs text-success whitespace-pre-wrap break-words font-mono">{testResult}</pre></div>}
+      {testError && <div className="min-w-0 rounded-lg border border-red-500/30 bg-red-500/5 p-3"><pre className="text-xs text-error whitespace-pre-wrap break-words font-mono">{testError}</pre></div>}
 
       <div className="flex flex-col justify-between gap-2 pt-2 border-t border-border sm:flex-row">
         {onTest ? <Button type="button" size="sm" variant="outline" onClick={handleTest} disabled={testLoading || (protocol === 'mcp' && !useManualMcpTool)}>{testLoading ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Play className="h-3 w-3 mr-1" />}Test</Button> : <span />}

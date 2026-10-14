@@ -51,15 +51,15 @@ function AgentStatusIcon({ status }: { status: NetworkAgentInvocation['status'] 
   if (status === 'running' || status === 'pending') {
     return <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-primary-light" />
   }
-  if (status === 'error') return <XCircle className="h-3.5 w-3.5 shrink-0 text-red-400" />
-  return <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-400" />
+  if (status === 'error') return <XCircle className="h-3.5 w-3.5 shrink-0 text-error" />
+  return <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-success" />
 }
 
 function DelegationStatusIcon({ status }: { status: LiveNetworkDelegation['status'] }) {
   if (status === 'running') return <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-primary-light" />
-  if (status === 'error') return <XCircle className="h-3.5 w-3.5 shrink-0 text-red-400" />
+  if (status === 'error') return <XCircle className="h-3.5 w-3.5 shrink-0 text-error" />
   if (status === 'cancelled' || status === 'skipped') return <XCircle className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-  return <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-400" />
+  return <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-success" />
 }
 
 function agentSummary(agents: Array<{ name: string; status: NetworkAgentInvocation['status'] | LiveNetworkAgent['status'] }>) {

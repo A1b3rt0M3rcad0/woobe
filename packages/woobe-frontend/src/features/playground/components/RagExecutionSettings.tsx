@@ -73,7 +73,7 @@ export function RagExecutionSettings({
           {current.description}
         </p>
         {!registered && strategies.length > 0 ? (
-          <p className="mt-ui-sm border-l-2 border-l-amber-400/70 pl-ui-sm font-sans text-product-caption text-amber-200/90">
+          <p className="mt-ui-sm border-l-2 border-l-amber-400/70 pl-ui-sm font-sans text-product-caption text-warning/90">
             Select a registered strategy before saving this Draft.
           </p>
         ) : null}

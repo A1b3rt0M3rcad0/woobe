@@ -130,7 +130,7 @@ export function SessionsPanel({
 
       {!isInitialLoading && isError ? (
         <EmptyStatePanel
-          icon={<AlertTriangle className="h-icon-lg w-icon-lg text-red-300" />}
+          icon={<AlertTriangle className="h-icon-lg w-icon-lg text-error" />}
           title="Couldn’t load Sessions"
           description={errorMessage || 'The Sessions list could not be loaded from the runtime.'}
           action={retryAction}
@@ -139,7 +139,7 @@ export function SessionsPanel({
 
       {!isInitialLoading && !isError && selectedSessionMissing && sessions.length === 0 ? (
         <EmptyStatePanel
-          icon={<AlertTriangle className="h-icon-lg w-icon-lg text-amber-300" />}
+          icon={<AlertTriangle className="h-icon-lg w-icon-lg text-warning" />}
           title="Session list is out of sync"
           description="The runtime returned a selected Session that is not present in the loaded environment list."
           action={onRetry ? (
@@ -163,7 +163,7 @@ export function SessionsPanel({
         <div className="space-y-ui-sm">
           {selectedSessionMissing && !isError ? (
             <div className="flex items-start gap-ui-sm rounded-container border border-amber-400/20 bg-background/25 px-ui-md py-ui-sm font-sans text-product-caption text-muted-foreground">
-              <AlertTriangle className="mt-ui-hairline h-icon-sm w-icon-sm shrink-0 text-amber-300" />
+              <AlertTriangle className="mt-ui-hairline h-icon-sm w-icon-sm shrink-0 text-warning" />
               <p>The selected Session is not present in the loaded page. Refresh before continuing it.</p>
             </div>
           ) : null}

@@ -126,13 +126,13 @@ function ContextComposition({ context }: { context: NetworkContextOverview }) {
       <div className="mt-ui-sm flex flex-wrap gap-x-ui-md gap-y-ui-xs font-mono text-system-meta text-muted-foreground">
         {context.median_utilization != null ? <span>Median utilization {formatPercent(context.median_utilization)}</span> : null}
         {context.peak_utilization != null ? <span>Peak {formatPercent(context.peak_utilization)}</span> : null}
-        {context.budget_unknown_count > 0 ? <span className="text-amber-300">Budget unavailable on {context.budget_unknown_count}</span> : null}
+        {context.budget_unknown_count > 0 ? <span className="text-warning">Budget unavailable on {context.budget_unknown_count}</span> : null}
         {(context.compaction_saving_units ?? 0) > 0 ? <span>Compaction saved {formatTokens(context.compaction_saving_units ?? 0)}</span> : null}
-        {context.truncation_count > 0 ? <span className="text-amber-300">{context.truncation_count} truncated</span> : null}
+        {context.truncation_count > 0 ? <span className="text-warning">{context.truncation_count} truncated</span> : null}
       </div>
 
       {context.budget_unknown_count > 0 ? (
-        <p className="mt-ui-sm font-sans text-system-meta leading-4 text-amber-300">
+        <p className="mt-ui-sm font-sans text-system-meta leading-4 text-warning">
           Input usage is still counted. For future Runs, configure the Context Window of each invoked Model or set a Custom input budget in Agent Context Configuration.
         </p>
       ) : null}
@@ -164,11 +164,11 @@ function invocationTotalTokens(invocation: NetworkAgentInvocation): number | nul
 }
 
 function statusMeta(status: NetworkAgentInvocation['status']) {
-  if (status === 'error') return { label: 'Failed', className: 'text-red-300' }
+  if (status === 'error') return { label: 'Failed', className: 'text-error' }
   if (status === 'cancelled') return { label: 'Cancelled', className: 'text-slate-300' }
-  if (status === 'running' || status === 'pending') return { label: 'Running', className: 'text-blue-300' }
-  if (status === 'skipped') return { label: 'Skipped', className: 'text-amber-300' }
-  return { label: 'Completed', className: 'text-emerald-300' }
+  if (status === 'running' || status === 'pending') return { label: 'Running', className: 'text-primary-light' }
+  if (status === 'skipped') return { label: 'Skipped', className: 'text-warning' }
+  return { label: 'Completed', className: 'text-success' }
 }
 
 function AgentRunDetails({
@@ -297,7 +297,7 @@ export function NetworkRunDiagnosticsPanel({
   if (isError || !data) {
     return (
       <section className="space-y-ui-sm rounded-control border border-border bg-background px-ui-md py-ui-md">
-        <div className="flex items-center gap-ui-xs text-amber-300"><AlertTriangle className="h-3.5 w-3.5" /><p className="font-sans text-product-caption font-medium">Network Run Analytics unavailable</p></div>
+        <div className="flex items-center gap-ui-xs text-warning"><AlertTriangle className="h-3.5 w-3.5" /><p className="font-sans text-product-caption font-medium">Network Run Analytics unavailable</p></div>
         <p className="font-sans text-product-caption text-muted-foreground">The Network Run remains inspectable through Path and Evidence.</p>
       </section>
     )
@@ -312,7 +312,7 @@ export function NetworkRunDiagnosticsPanel({
           <p className="font-mono text-system-heading font-medium text-foreground">Network Run Analytics</p>
           <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">Network-level totals first; individual Agent Runs remain available on demand.</p>
         </div>
-        {data.fallback_count > 0 ? <span className="rounded-technical border border-amber-500/25 bg-amber-500/10 px-ui-sm py-ui-hairline font-mono text-system-meta text-amber-300">{data.fallback_count} fallback{data.fallback_count === 1 ? '' : 's'}</span> : null}
+        {data.fallback_count > 0 ? <span className="rounded-technical border border-amber-500/25 bg-amber-500/10 px-ui-sm py-ui-hairline font-mono text-system-meta text-warning">{data.fallback_count} fallback{data.fallback_count === 1 ? '' : 's'}</span> : null}
       </div>
 
       <div className="grid grid-cols-3 gap-ui-xs">
@@ -330,8 +330,8 @@ export function NetworkRunDiagnosticsPanel({
         ) : <span>Token usage unavailable</span>}
         <span className="inline-flex items-center gap-ui-xs"><GitBranch className="h-3 w-3" />{data.delegation_count} delegation{data.delegation_count === 1 ? '' : 's'}</span>
         {data.source_count > 0 ? <span><Brain className="mr-ui-xs inline h-3 w-3" />{data.source_count} source{data.source_count === 1 ? '' : 's'}</span> : null}
-        <span className="inline-flex items-center gap-ui-xs text-emerald-400"><CheckCircle className="h-3 w-3" />{data.successful_tool_calls}</span>
-        {data.failed_tool_calls > 0 ? <span className="inline-flex items-center gap-ui-xs text-red-300"><XCircle className="h-3 w-3" />{data.failed_tool_calls}</span> : null}
+        <span className="inline-flex items-center gap-ui-xs text-success"><CheckCircle className="h-3 w-3" />{data.successful_tool_calls}</span>
+        {data.failed_tool_calls > 0 ? <span className="inline-flex items-center gap-ui-xs text-error"><XCircle className="h-3 w-3" />{data.failed_tool_calls}</span> : null}
         <span>Telemetry {telemetryLabel(data.telemetry_status)}</span>
         <span>Cost telemetry {data.cost_status}</span>
       </div>

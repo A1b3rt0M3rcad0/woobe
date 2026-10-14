@@ -215,7 +215,7 @@ export function RagRuntimeSettings({ open, value, onClose, onApply }: RagRuntime
             </div>
 
             {error ? (
-              <p className="mt-ui-md border-l-2 border-l-red-400 bg-red-500/[0.05] px-ui-md py-ui-sm font-sans text-product-small text-red-200">
+              <p className="mt-ui-md border-l-2 border-l-red-400 bg-red-500/[0.05] px-ui-md py-ui-sm font-sans text-product-small text-error">
                 {error}
               </p>
             ) : null}

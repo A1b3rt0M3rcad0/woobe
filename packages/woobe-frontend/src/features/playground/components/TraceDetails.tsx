@@ -41,7 +41,7 @@ function ClampedText({ text, lines = 2 }: { text: string; lines?: number }) {
       {overflows && (
         <button
           onClick={() => setExpanded(!expanded)}
-          className="text-xs text-blue-400 hover:text-blue-300 mt-0.5"
+          className="text-xs text-primary-light hover:text-primary-light mt-0.5"
         >
           {expanded ? 'Show less' : 'Show more'}
         </button>
@@ -63,8 +63,8 @@ function CopyableIdRow({ label, value }: { label: string; value: string }) {
 
   return (
     <div className="grid grid-cols-[60px_1fr_20px] items-center gap-2 rounded-md border border-border bg-background px-2.5 py-1.5">
-      <span className="text-[10px] text-muted uppercase leading-none">{label}</span>
-      <code className="text-[11px] text-foreground font-mono truncate">{truncated}</code>
+      <span className="text-system-meta text-muted uppercase leading-none">{label}</span>
+      <code className="text-system-meta text-foreground font-mono truncate">{truncated}</code>
       <button
         onClick={handleCopy}
         className="text-muted hover:text-foreground transition-colors justify-self-end"
@@ -96,7 +96,7 @@ function CollapsibleSection({
       >
         {open ? <ChevronDown className="h-3.5 w-3.5 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0" />}
         <span className="group-hover:text-foreground transition-colors">{title}</span>
-        {badge && <span className="text-[10px] text-muted ml-auto">{badge}</span>}
+        {badge && <span className="text-system-meta text-muted ml-auto">{badge}</span>}
       </button>
       {open && <div className="pb-2">{children}</div>}
     </div>
@@ -120,19 +120,19 @@ function UsageInline({
   if (totalTokens != null) parts.push(`Total ${formatTokens(totalTokens)}`)
   if (costUsd != null) parts.push(formatCurrency(costUsd))
   if (parts.length === 0) return null
-  return <p className="text-[11px] text-muted">{parts.join('  ·  ')}</p>
+  return <p className="text-system-meta text-muted">{parts.join('  ·  ')}</p>
 }
 
 const statusConfig: Record<string, { label: string; className: string; icon: typeof CheckCircle }> = {
-  completed: { label: 'Completed', className: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20', icon: CheckCircle },
-  success: { label: 'Completed', className: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20', icon: CheckCircle },
-  running: { label: 'Running', className: 'bg-blue-500/10 text-blue-400 border-blue-500/20', icon: AlertTriangle },
-  processing: { label: 'Processing', className: 'bg-blue-500/10 text-blue-400 border-blue-500/20', icon: AlertTriangle },
-  warning: { label: 'Warning', className: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20', icon: AlertTriangle },
-  failed: { label: 'Failed', className: 'bg-red-500/10 text-red-400 border-red-500/20', icon: XCircle },
-  error: { label: 'Failed', className: 'bg-red-500/10 text-red-400 border-red-500/20', icon: XCircle },
-  pending: { label: 'Queued', className: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20', icon: HelpCircle },
-  queued: { label: 'Queued', className: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20', icon: HelpCircle },
+  completed: { label: 'Completed', className: 'bg-emerald-500/10 text-success border-emerald-500/20', icon: CheckCircle },
+  success: { label: 'Completed', className: 'bg-emerald-500/10 text-success border-emerald-500/20', icon: CheckCircle },
+  running: { label: 'Running', className: 'bg-blue-500/10 text-primary-light border-blue-500/20', icon: AlertTriangle },
+  processing: { label: 'Processing', className: 'bg-blue-500/10 text-primary-light border-blue-500/20', icon: AlertTriangle },
+  warning: { label: 'Warning', className: 'bg-yellow-500/10 text-warning border-yellow-500/20', icon: AlertTriangle },
+  failed: { label: 'Failed', className: 'bg-red-500/10 text-error border-red-500/20', icon: XCircle },
+  error: { label: 'Failed', className: 'bg-red-500/10 text-error border-red-500/20', icon: XCircle },
+  pending: { label: 'Queued', className: 'bg-yellow-500/10 text-warning border-yellow-500/20', icon: HelpCircle },
+  queued: { label: 'Queued', className: 'bg-yellow-500/10 text-warning border-yellow-500/20', icon: HelpCircle },
   cancelled: { label: 'Cancelled', className: 'bg-gray-500/10 text-gray-400 border-gray-500/20', icon: XCircle },
 }
 
@@ -147,22 +147,22 @@ function StatusBadge({ status, latencyMs, model, provider, fallbackUsed }: {
   const Icon = cfg.icon
   return (
     <div className="flex items-center gap-1.5 flex-wrap">
-      <span className={cn('inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium border', cfg.className)}>
+      <span className={cn('inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-system-meta font-medium border', cfg.className)}>
         <Icon className="h-3 w-3" />
         {cfg.label}
       </span>
       {latencyMs != null && (
-        <span className="inline-flex items-center rounded-md px-1.5 py-0.5 text-[11px] text-muted font-mono bg-background border border-border">
+        <span className="inline-flex items-center rounded-md px-1.5 py-0.5 text-system-meta text-muted font-mono bg-background border border-border">
           {formatLatency(latencyMs)}
         </span>
       )}
       {(provider || model) && (
-        <span className="inline-flex items-center rounded-md px-1.5 py-0.5 text-[11px] text-muted font-mono bg-background border border-border">
+        <span className="inline-flex items-center rounded-md px-1.5 py-0.5 text-system-meta text-muted font-mono bg-background border border-border">
           {provider || '—'}/{model || '—'}
         </span>
       )}
       {fallbackUsed && (
-        <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium bg-yellow-500/10 text-yellow-400 border border-yellow-500/20">
+        <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-system-meta font-medium bg-yellow-500/10 text-warning border border-yellow-500/20">
           <AlertTriangle className="h-3 w-3" />
           Fallback
         </span>
@@ -185,9 +185,9 @@ function SourceList({ sources }: { sources: { document_title?: string | null; sc
       {sources.map((source, idx) => (
         <div key={idx} className="flex items-center gap-2 rounded-lg border border-border bg-background p-2">
           <span className={cn(
-            'inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium uppercase',
-            SourceBadge(source) === 'DB' ? 'bg-violet-500/10 text-violet-400' :
-            SourceBadge(source) === 'DOC' ? 'bg-blue-500/10 text-blue-400' :
+            'inline-flex items-center rounded px-1.5 py-0.5 text-system-meta font-medium uppercase',
+            SourceBadge(source) === 'DB' ? 'bg-violet-500/10 text-network' :
+            SourceBadge(source) === 'DOC' ? 'bg-blue-500/10 text-primary-light' :
             SourceBadge(source) === 'PDF' ? 'bg-orange-500/10 text-orange-400' :
             'bg-cyan-500/10 text-cyan-400',
           )}>
@@ -197,7 +197,7 @@ function SourceList({ sources }: { sources: { document_title?: string | null; sc
             {source.document_title || `Source ${idx + 1}`}
           </span>
           {source.score != null && (
-            <span className="text-[11px] text-muted font-mono">
+            <span className="text-system-meta text-muted font-mono">
               {(source.score * 100).toFixed(0)}%
             </span>
           )}
@@ -213,25 +213,25 @@ function ToolCallList({ toolCalls }: { toolCalls: { tool_name: string; status?: 
       {toolCalls.map((tc, idx) => (
         <div key={idx} className="flex items-center gap-2 rounded-lg border border-border bg-background p-2">
           {tc.status === 'success' ? (
-            <CheckCircle className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+            <CheckCircle className="h-3.5 w-3.5 text-success shrink-0" />
           ) : tc.status === 'failed' || tc.status === 'error' ? (
-            <XCircle className="h-3.5 w-3.5 text-red-400 shrink-0" />
+            <XCircle className="h-3.5 w-3.5 text-error shrink-0" />
           ) : (
             <HelpCircle className="h-3.5 w-3.5 text-muted shrink-0" />
           )}
           <span className="text-xs text-foreground flex-1 truncate">{operationLabel(tc)}</span>
           {tc.status && (
             <span className={cn(
-              'text-[10px] font-medium',
-              tc.status === 'success' ? 'text-emerald-400' :
-              tc.status === 'failed' || tc.status === 'error' ? 'text-red-400' :
+              'text-system-meta font-medium',
+              tc.status === 'success' ? 'text-success' :
+              tc.status === 'failed' || tc.status === 'error' ? 'text-error' :
               'text-muted',
             )}>
               {tc.status.charAt(0).toUpperCase() + tc.status.slice(1)}
             </span>
           )}
           {(tc.duration_ms || tc.latency_ms) && (
-            <span className="text-[11px] text-muted font-mono">
+            <span className="text-system-meta text-muted font-mono">
               {formatLatency(tc.duration_ms ?? tc.latency_ms)}
             </span>
           )}
@@ -247,8 +247,8 @@ function EventTimeline({ events }: { events: TraceEvent[] }) {
       {events.map((evt) => (
         <div key={evt.id} className="rounded-lg border border-border bg-background px-3 py-2">
           <div className="flex items-center justify-between">
-            <code className="text-[11px] text-foreground font-mono">{operationEventLabel(evt.event_type, evt.payload)}</code>
-            <span className="text-[10px] text-muted">{evt.created_at ? new Date(evt.created_at).toLocaleTimeString() : ''}</span>
+            <code className="text-system-meta text-foreground font-mono">{operationEventLabel(evt.event_type, evt.payload)}</code>
+            <span className="text-system-meta text-muted">{evt.created_at ? new Date(evt.created_at).toLocaleTimeString() : ''}</span>
           </div>
           {evt.payload && <JsonCodeBlock value={evt.payload} maxHeight={96} className="mt-1" />}
         </div>
@@ -302,8 +302,8 @@ function DetailView({ traceId, projectId, agentId, sessionId, messageId, status,
       {outputParseError && (
         <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-3 space-y-2">
           <div className="flex items-center gap-2">
-            <XCircle className="h-4 w-4 text-red-400 shrink-0" />
-            <span className="text-xs font-medium text-red-400">Output Parse Error</span>
+            <XCircle className="h-4 w-4 text-error shrink-0" />
+            <span className="text-xs font-medium text-error">Output Parse Error</span>
           </div>
           <p className="text-xs text-muted break-all">{outputParseError}</p>
         </div>
@@ -311,28 +311,28 @@ function DetailView({ traceId, projectId, agentId, sessionId, messageId, status,
 
       {fallbackInfo && (
         <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/5 p-2.5 space-y-1">
-          <p className="text-[10px] font-medium text-yellow-400 uppercase tracking-wider">Fallback Details</p>
-          <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px]">
+          <p className="text-system-meta font-medium text-warning uppercase tracking-wider">Fallback Details</p>
+          <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-system-meta">
             <span className="text-muted">Primary:</span>
             <span className="text-foreground font-mono text-right truncate">{fallbackInfo.primary_provider}/{fallbackInfo.primary_model}</span>
             <span className="text-muted">Fallback:</span>
             <span className="text-foreground font-mono text-right truncate">{fallbackInfo.fallback_provider}/{fallbackInfo.fallback_model}</span>
             <span className="text-muted col-span-2">Error:</span>
-            <span className="text-red-400 font-mono text-[10px] col-span-2 break-all">{fallbackInfo.primary_error}</span>
+            <span className="text-error font-mono text-system-meta col-span-2 break-all">{fallbackInfo.primary_error}</span>
           </div>
         </div>
       )}
 
       {userMessage && (
         <div className="rounded-lg border border-border bg-background p-2.5">
-          <p className="text-[10px] font-medium text-muted uppercase tracking-wider mb-1">User Message</p>
+          <p className="text-system-meta font-medium text-muted uppercase tracking-wider mb-1">User Message</p>
           <ClampedText text={userMessage} lines={2} />
         </div>
       )}
 
       {answerLength != null && (
         <div className="rounded-lg border border-border bg-background p-2.5">
-          <p className="text-[10px] font-medium text-muted uppercase tracking-wider mb-1">Response</p>
+          <p className="text-system-meta font-medium text-muted uppercase tracking-wider mb-1">Response</p>
           <p className="text-xs text-muted">{formatTokens(answerLength)} characters (stored in session messages)</p>
         </div>
       )}
@@ -402,8 +402,8 @@ function BackendTraceDetail({ traceId, onBack }: { traceId: string; onBack: () =
 
       {isError && (
         <div className="p-4 text-center">
-          <AlertTriangle className="h-5 w-5 text-red-400 mx-auto mb-2" />
-          <p className="text-sm text-red-400">Failed to load trace details</p>
+          <AlertTriangle className="h-5 w-5 text-error mx-auto mb-2" />
+          <p className="text-sm text-error">Failed to load trace details</p>
           {error instanceof Error && <p className="text-xs text-muted mt-1">{error.message}</p>}
           <button
             onClick={() => refetch()}
@@ -462,8 +462,8 @@ function LocalTraceDetail({ trace, onBack }: { trace: TraceItem; onBack: () => v
           <UsageInline inputTokens={trace.input_tokens} outputTokens={trace.output_tokens} totalTokens={trace.total_tokens} costUsd={trace.cost_usd} />
           <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-3 space-y-2">
             <div className="flex items-center gap-2">
-              <XCircle className="h-4 w-4 text-red-400 shrink-0" />
-              <span className="text-xs font-medium text-red-400">Parse Error</span>
+              <XCircle className="h-4 w-4 text-error shrink-0" />
+              <span className="text-xs font-medium text-error">Parse Error</span>
             </div>
             <p className="text-xs text-muted break-all">{response.output_parse_error}</p>
           </div>
@@ -489,21 +489,21 @@ function LocalTraceDetail({ trace, onBack }: { trace: TraceItem; onBack: () => v
 
         {trace.fallback_used && trace.fallback_info && (
           <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/5 p-2.5 space-y-1">
-            <p className="text-[10px] font-medium text-yellow-400 uppercase tracking-wider">Fallback Details</p>
-            <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px]">
+            <p className="text-system-meta font-medium text-warning uppercase tracking-wider">Fallback Details</p>
+            <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-system-meta">
               <span className="text-muted">Primary:</span>
               <span className="text-foreground font-mono text-right truncate">{trace.fallback_info.primary_provider}/{trace.fallback_info.primary_model}</span>
               <span className="text-muted">Fallback:</span>
               <span className="text-foreground font-mono text-right truncate">{trace.fallback_info.fallback_provider}/{trace.fallback_info.fallback_model}</span>
               <span className="text-muted col-span-2">Error:</span>
-              <span className="text-red-400 font-mono text-[10px] col-span-2 break-all">{trace.fallback_info.primary_error}</span>
+              <span className="text-error font-mono text-system-meta col-span-2 break-all">{trace.fallback_info.primary_error}</span>
             </div>
           </div>
         )}
 
         {response.answer && (
           <div className="rounded-lg border border-border bg-background p-2.5">
-            <p className="text-[10px] font-medium text-muted uppercase tracking-wider mb-1">Answer</p>
+            <p className="text-system-meta font-medium text-muted uppercase tracking-wider mb-1">Answer</p>
             <ClampedText text={response.answer} lines={2} />
           </div>
         )}

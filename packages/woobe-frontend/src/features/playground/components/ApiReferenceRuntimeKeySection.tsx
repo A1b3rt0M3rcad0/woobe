@@ -49,8 +49,8 @@ export function ApiReferenceRuntimeKeySection({
   return (
     <div>
       <div className="flex items-center justify-between gap-2">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">Runtime Key</p>
-        <button type="button" onClick={() => setShowCreate(true)} className="inline-flex items-center gap-1 text-[11px] font-medium text-primary-light hover:text-foreground">
+        <p className="text-system-meta font-semibold uppercase tracking-[0.16em] text-muted">Runtime Key</p>
+        <button type="button" onClick={() => setShowCreate(true)} className="inline-flex items-center gap-1 text-system-meta font-medium text-primary-light hover:text-foreground">
           <Plus className="h-3.5 w-3.5" /> Create
         </button>
       </div>
@@ -70,23 +70,23 @@ export function ApiReferenceRuntimeKeySection({
             <div className="rounded-lg border border-border/80 bg-background/45 p-2.5">
               <div className="flex items-center gap-2">
                 <Key className="h-3.5 w-3.5 text-primary-light" />
-                <code className="min-w-0 flex-1 truncate text-[11px] text-foreground">{selectedKey.key_prefix}...</code>
+                <code className="min-w-0 flex-1 truncate text-system-meta text-foreground">{selectedKey.key_prefix}...</code>
               </div>
-              <p className="mt-1 truncate text-[10px] text-muted">{selectedKey.interfaces.join(' · ')}</p>
+              <p className="mt-1 truncate text-system-meta text-muted">{selectedKey.interfaces.join(' · ')}</p>
             </div>
           )}
         </div>
       ) : (
         <div className="mt-2 rounded-xl border border-dashed border-border/80 bg-background/35 p-3">
           <p className="text-xs font-medium text-foreground">No Runtime Key for this environment</p>
-          <p className="mt-1 text-[11px] leading-4 text-muted">Create a key bound to {agentName} and {environment}.</p>
+          <p className="mt-1 text-system-meta leading-4 text-muted">Create a key bound to {agentName} and {environment}.</p>
           <Button className="mt-3 w-full" size="sm" onClick={() => setShowCreate(true)}>
             <Plus className="mr-2 h-3.5 w-3.5" /> Create Runtime Key
           </Button>
         </div>
       )}
 
-      <Link to={manageKeyPath} className="mt-2 inline-flex text-[11px] text-muted hover:text-foreground">
+      <Link to={manageKeyPath} className="mt-2 inline-flex text-system-meta text-muted hover:text-foreground">
         Manage this Agent&apos;s keys
       </Link>
 

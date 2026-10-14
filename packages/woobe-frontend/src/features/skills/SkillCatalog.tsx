@@ -98,7 +98,7 @@ export function SkillCatalog({ projectId, bindings = [], onInstall, managerName,
         <p className="text-sm text-muted">Create or import reusable procedures, review their versions and install them on Agents when needed.</p>
         {managerName && <p className="rounded-lg border border-border bg-background/40 p-3 text-xs text-muted">Installation updates the Agent draft and selects {managerName}. Use the editor’s Save action to persist it.</p>}
         {installDisabled && <p role="status" className="text-xs text-muted">Installation requires a compatible Context Manager. You can still create, import and review Skills.</p>}
-        {error && <p role="alert" className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400">{error}</p>}
+        {error && <p role="alert" className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-error">{error}</p>}
         {(selected || importing) && <Button variant="ghost" size="sm" disabled={busy} onClick={back}><ArrowLeft className="mr-2 h-4 w-4" />Project catalog</Button>}
         {importing ? (
           <div className="space-y-4">
@@ -136,7 +136,7 @@ export function SkillCatalog({ projectId, bindings = [], onInstall, managerName,
               {!!preview.package.required_tools.length && <p className="text-xs text-muted">Required Tools: {preview.package.required_tools.join(', ')}</p>}
               <pre className="max-h-72 overflow-auto whitespace-pre-wrap rounded-lg border border-border bg-background/50 p-4 font-mono text-xs leading-relaxed">{preview.package.skill_md}</pre>
               {Object.entries(preview.package.resources).map(([path, content]) => <details key={path} className="rounded-lg border border-border p-3 text-xs"><summary className="cursor-pointer break-all font-mono">{path}</summary><pre className="mt-3 max-h-48 overflow-auto whitespace-pre-wrap">{content}</pre></details>)}
-              <p className="break-all font-mono text-[10px] text-muted">SHA-256 {preview.package_hash}</p>
+              <p className="break-all font-mono text-system-meta text-muted">SHA-256 {preview.package_hash}</p>
               <Button disabled={busy || installDisabled || !onInstall || bindings.some(item => item.skill_version_id === preview.skill_version_id && item.enabled)} onClick={() => onInstall?.(preview)}><Download className="mr-2 h-4 w-4" />{bindings.some(item => item.skill_id === preview.skill_id) ? 'Use this version' : 'Install on Agent'}</Button>
             </div> : <p className="py-12 text-center text-sm text-muted">Select a version to review its instructions and resources.</p>}
           </div>

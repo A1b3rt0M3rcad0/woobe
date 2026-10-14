@@ -28,7 +28,7 @@ export function ConfirmDeleteModal({ open, onClose, onConfirm, versionName, isPe
 
         <div className="p-4">
           <div className="flex items-start gap-3 rounded-xl border border-red-500/30 bg-red-500/10 p-3">
-            <AlertTriangle className="h-5 w-5 text-red-300 shrink-0 mt-0.5" />
+            <AlertTriangle className="h-5 w-5 text-error shrink-0 mt-0.5" />
             <div>
               <p className="text-sm text-foreground font-medium">Delete {versionName}?</p>
               <p className="text-xs text-muted mt-1">This version will be permanently removed. This action cannot be undone.</p>
@@ -38,7 +38,7 @@ export function ConfirmDeleteModal({ open, onClose, onConfirm, versionName, isPe
 
         <div className="flex items-center justify-end gap-2 border-t border-border/90 bg-background/20 p-4">
           <Button size="sm" variant="outline" onClick={onClose}>Cancel</Button>
-          <Button size="sm" variant="ghost" className="border border-red-500/30 bg-red-500/10 text-red-200 hover:bg-red-500/15 hover:text-red-100" onClick={onConfirm} loading={isPending}>
+          <Button size="sm" variant="ghost" className="border border-red-500/30 bg-red-500/10 text-error hover:bg-red-500/15 hover:text-error" onClick={onConfirm} loading={isPending}>
             Delete
           </Button>
         </div>

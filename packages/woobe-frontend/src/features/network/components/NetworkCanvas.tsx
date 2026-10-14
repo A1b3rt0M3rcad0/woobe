@@ -6,9 +6,9 @@ import { cn } from '@/lib/utils'
 import type { AgentNodeId, Environment, NetworkBinding, NetworkRun, NodeId } from './networkWorkspaceTypes'
 
 const sourceTone = {
-  draft: 'border-blue-500/30 bg-blue-500/10 text-blue-300',
+  draft: 'border-blue-500/30 bg-blue-500/10 text-primary-light',
   staging: 'border-indigo-500/30 bg-indigo-500/10 text-indigo-300',
-  release: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300',
+  release: 'border-emerald-500/30 bg-emerald-500/10 text-success',
 } as const
 
 function NodeCard({ id, binding, active, selected, dirty, className, onSelect }: { id: NodeId; binding?: NetworkBinding; active: boolean; selected: boolean; dirty?: boolean; className: string; onSelect: () => void }) {

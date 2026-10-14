@@ -79,7 +79,7 @@ function VersionList({ versions, selectedId, activeId, onSelect }: { versions: N
         >
           <div className="flex items-center gap-ui-sm">
             <span className="truncate font-mono text-system-control text-foreground">{version.version}</span>
-            {version.id === activeId ? <span className="ml-auto rounded-technical border border-emerald-500/30 bg-emerald-500/10 px-ui-xs py-ui-hairline font-mono text-system-meta text-emerald-300">Active</span> : null}
+            {version.id === activeId ? <span className="ml-auto rounded-technical border border-emerald-500/30 bg-emerald-500/10 px-ui-xs py-ui-hairline font-mono text-system-meta text-success">Active</span> : null}
           </div>
           <p className="mt-ui-xs font-mono text-system-meta text-muted-foreground">{formatDate(version.created_at)} · {version.definition.nodes.length} Agents</p>
         </button>
@@ -123,7 +123,7 @@ function SnapshotDetails({ version, agents }: { version: NetworkVersion; agents:
           })}
         </div>
       </section>
-      {version.kind === 'release' ? <p className="rounded-container border border-emerald-500/20 bg-emerald-500/[0.04] p-ui-md font-sans text-product-caption leading-4 text-emerald-200">This Network Release uses exact Agent Release IDs. It does not depend on Agent Playground Production.</p> : null}
+      {version.kind === 'release' ? <p className="rounded-container border border-emerald-500/20 bg-emerald-500/[0.04] p-ui-md font-sans text-product-caption leading-4 text-success">This Network Release uses exact Agent Release IDs. It does not depend on Agent Playground Production.</p> : null}
     </div>
   )
 }
@@ -220,7 +220,7 @@ export function NetworkVersionsModal({ open, networkName, initialSection, initia
             <p className="truncate font-sans text-product-small font-semibold text-foreground">{networkName}</p>
             <p className="mt-ui-hairline font-sans text-product-caption text-muted-foreground">Draft, Staging, immutable Releases and Production activations.</p>
           </div>
-          <span className="ml-auto rounded-technical border border-emerald-500/25 bg-emerald-500/10 px-ui-sm py-ui-xs font-mono text-system-label text-emerald-300">{productionVersion ? `Production · ${productionVersion.version}` : 'No Production'}</span>
+          <span className="ml-auto rounded-technical border border-emerald-500/25 bg-emerald-500/10 px-ui-sm py-ui-xs font-mono text-system-label text-success">{productionVersion ? `Production · ${productionVersion.version}` : 'No Production'}</span>
         </header>
 
         <div className="grid min-h-0 overflow-hidden lg:grid-cols-[210px_260px_minmax(0,1fr)]">
@@ -246,7 +246,7 @@ export function NetworkVersionsModal({ open, networkName, initialSection, initia
             {activationTarget ? (
               <div className="space-y-ui-md p-ui-md">
                 <div>
-                  <p className="font-mono text-system-meta uppercase tracking-ui-label text-amber-300">{initialMode === 'rollback' ? 'Rollback target' : 'Production activation'}</p>
+                  <p className="font-mono text-system-meta uppercase tracking-ui-label text-warning">{initialMode === 'rollback' ? 'Rollback target' : 'Production activation'}</p>
                   <h3 className="mt-ui-xs font-mono text-heading-sm text-foreground">{activationTarget.version}</h3>
                   <p className="mt-ui-xs font-mono text-system-meta text-muted-foreground">Current: {productionVersion?.version ?? 'none'}</p>
                 </div>
@@ -271,7 +271,7 @@ export function NetworkVersionsModal({ open, networkName, initialSection, initia
           {activationTarget ? (
             <>
               <Button type="button" size="sm" variant="outline" onClick={initialMode === 'rollback' ? onClose : () => setActivationTargetId(null)}>Cancel</Button>
-              <Button type="button" size="sm" variant="outline" className="border-amber-500/40 bg-amber-500/10 text-amber-200 hover:border-amber-400/55 hover:bg-amber-500/15 hover:text-amber-100" disabled={pending || description.trim().length < 3} onClick={() => void confirmActivation()}>{pending ? 'Applying…' : initialMode === 'rollback' ? `Rollback to ${activationTarget.version}` : `Activate ${activationTarget.version}`}</Button>
+              <Button type="button" size="sm" variant="outline" className="border-amber-500/40 bg-amber-500/10 text-warning hover:border-amber-400/55 hover:bg-amber-500/15 hover:text-warning" disabled={pending || description.trim().length < 3} onClick={() => void confirmActivation()}>{pending ? 'Applying…' : initialMode === 'rollback' ? `Rollback to ${activationTarget.version}` : `Activate ${activationTarget.version}`}</Button>
             </>
           ) : (
             <>
@@ -279,7 +279,7 @@ export function NetworkVersionsModal({ open, networkName, initialSection, initia
               {selectedVersion ? <Button type="button" size="sm" variant="outline" onClick={() => onViewVersion(selectedVersion)}><Eye className="h-icon-sm w-icon-sm" />View on Canvas</Button> : null}
               {section === 'draft' ? <Button type="button" size="sm" disabled={pending} onClick={onStage}>Stage Network</Button> : null}
               {selectedVersion?.id === stagingVersion?.id ? <Button type="button" size="sm" disabled={pending} onClick={onPublish}>Publish Network Release</Button> : null}
-              {selectedVersion?.kind === 'release' && selectedVersion.id !== productionVersion?.id ? <Button type="button" size="sm" variant="outline" className="border-emerald-500/40 bg-emerald-500/10 text-emerald-300 hover:border-emerald-400/55 hover:bg-emerald-500/15 hover:text-emerald-200" disabled={pending} onClick={() => { setActivationTargetId(selectedVersion.id); setDescription(`Activate ${selectedVersion.version} in Network Production.`) }}>Set as Production</Button> : null}
+              {selectedVersion?.kind === 'release' && selectedVersion.id !== productionVersion?.id ? <Button type="button" size="sm" variant="outline" className="border-emerald-500/40 bg-emerald-500/10 text-success hover:border-emerald-400/55 hover:bg-emerald-500/15 hover:text-success" disabled={pending} onClick={() => { setActivationTargetId(selectedVersion.id); setDescription(`Activate ${selectedVersion.version} in Network Production.`) }}>Set as Production</Button> : null}
             </>
           )}
         </footer>
