@@ -479,3 +479,58 @@ async def test_cli_binds_exact_route_without_material_and_fences_other_route_edi
         f'/core/projects/{cli.project_id}/configuration/bindings/tool/{tool["id"]}')
     assert current['routes'][0]['authentication'] == binding['authentication']
     assert current['routes'][1]['authentication']['type'] == 'none'
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('flow', ['pkce', 'device'])
+async def test_detached_existing_oauth_protocol_and_discovery(cli, unused_tcp_port, flow):
+    import asyncio
+    import httpx
+    import uvicorn
+    from tests.fakes.mcp_oauth_provider import app, ACCESS, REFRESH, CLIENT_SECRET, DEVICE
+    origin = f'http://127.0.0.1:{unused_tcp_port}'
+    server = uvicorn.Server(uvicorn.Config(app, host='127.0.0.1', port=unused_tcp_port, log_level='error'))
+    peer = asyncio.create_task(server.serve())
+    try:
+        async with httpx.AsyncClient(trust_env=False) as client:
+            for _ in range(100):
+                try:
+                    if (await client.get(origin + '/health')).status_code == 200:
+                        break
+                except httpx.TransportError:
+                    pass
+                await asyncio.sleep(.025)
+            else:
+                pytest.fail('Native OAuth peer did not become ready')
+        project = await cli.data('project', 'create', body={
+            'workspace_id': cli.workspace_id, 'name': 'OAuth owner flow', 'slug': str(uuid4())})
+        cli.project_id = project['id']
+        cli.secret_values.update({ACCESS, REFRESH, CLIENT_SECRET, DEVICE, 'native-code'})
+        tool = await cli.data('request', 'POST', '/tools/tools', body={
+            'project_id': cli.project_id, 'name': 'Native OAuth', 'type': 'mcp',
+            'config': {'mode': 'server', 'exposure': 'all_discovered', 'server': {'url': origin + '/mcp'}}})
+        if flow == 'pkce':
+            started = await cli.data('request', 'POST', '/tools/mcp/oauth/start', body={
+                'tool_id': tool['id'], 'redirect_uri': origin + '/callback',
+                'authorization_endpoint': origin + '/authorize', 'token_endpoint': origin + '/token',
+                'registration_endpoint': origin + '/register', 'authorization_server_issuer': origin})
+            assert started['status'] == 'pending' and started['state']
+            completed = await cli.data('request', 'POST', '/tools/mcp/oauth/complete', body={
+                'tool_id': tool['id'], 'code': 'native-code', 'state': started['state']})
+        else:
+            started = await cli.data('request', 'POST', '/tools/mcp/oauth/device/start', body={
+                'tool_id': tool['id'], 'authorization_server_issuer': origin})
+            assert started['status'] == 'device_pending' and started['user_code'] == 'NATIVE-CODE'
+            completed = await cli.data('request', 'POST', '/tools/mcp/oauth/device/poll', body={'tool_id': tool['id']})
+        assert completed['connected'] and completed['status'] == 'connected'
+        listed = await cli.data('request', 'GET', '/tools/tools', '--query', 'project_id=' + cli.project_id)
+        owner = next(row for row in listed if row['id'] == tool['id'])
+        assert owner['config']['mcp_status'] == 'ready'
+        assert owner['config']['discovered_tools'][0]['name'] == 'read_status'
+        api_log = (cli.directory / 'api.log').read_text()
+        if flow == 'pkce':
+            assert started['state'] not in api_log
+        assert all(value not in api_log for value in (ACCESS, REFRESH, CLIENT_SECRET, DEVICE, 'native-code'))
+    finally:
+        server.should_exit = True
+        await asyncio.wait_for(peer, 10)

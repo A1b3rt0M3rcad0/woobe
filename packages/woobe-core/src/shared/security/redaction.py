@@ -31,6 +31,8 @@ PROJECT_API_KEY_PATTERN = re.compile(
 COMMON_PROVIDER_KEY_PATTERN = re.compile(
     r"\b(?:sk-[A-Za-z0-9_-]{16,}|AIza[A-Za-z0-9_-]{20,}|xox[baprs]-[A-Za-z0-9-]{10,})\b"
 )
+LOG_URL_PATTERN = re.compile(r'https?://[^\s"<>]+')
+SENSITIVE_OAUTH_URL_KEYS = {'state', 'code', 'device_code', 'user_code', 'code_verifier', 'code_challenge'}
 
 
 def is_sensitive_key(key: str) -> bool:
@@ -55,10 +57,13 @@ def redact_url(value: str) -> str:
         return redact_text(value)
     query = []
     for key, item in parse_qsl(parts.query, keep_blank_values=True):
-        query.append((key, REDACTED if is_sensitive_key(key) else redact_text(item)))
+        query.append((key, REDACTED if is_sensitive_key(key) or key.lower() in SENSITIVE_OAUTH_URL_KEYS else redact_text(item)))
     hostname = parts.hostname or ""
-    if parts.port is not None:
-        hostname = f"{hostname}:{parts.port}"
+    try:
+        if parts.port is not None:
+            hostname = f"{hostname}:{parts.port}"
+    except ValueError:
+        return '[REDACTED URL]'
     return urlunsplit((parts.scheme, hostname, parts.path, urlencode(query), ""))
 
 
@@ -79,11 +84,13 @@ def redact_sensitive_data(value: Any, *, key: str | None = None) -> Any:
 
 class SensitiveDataLoggingFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
-        if isinstance(record.msg, str):
-            record.msg = redact_text(record.msg)
         if record.args:
             if isinstance(record.args, Mapping):
                 record.args = redact_sensitive_data(record.args)
             elif isinstance(record.args, tuple):
                 record.args = tuple(redact_sensitive_data(item) for item in record.args)
+        # Format URL objects too: httpx supplies a URL instance as a log argument.
+        # Redacting only string arguments leaves OAuth query parameters visible.
+        record.msg = LOG_URL_PATTERN.sub(lambda match: redact_url(match.group()), redact_text(record.getMessage()))
+        record.args = ()
         return True

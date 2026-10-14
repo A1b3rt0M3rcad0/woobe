@@ -297,6 +297,21 @@ class HttpToolExecutor(ToolExecutionPort):
                     "body": output_body,
                 }
             )
+            from modules.agent.application.interfaces.oauth_protocol import private_oauth_protocol_response
+            if private_oauth_protocol_response.get() and response.is_success and isinstance(output_body, dict):
+                # Only the composed OAuth owner can receive protocol material.
+                # Normal Tool callers retain redaction; arbitrary nested bodies
+                # and unsuccessful responses never receive this exception.
+                for field in ('access_token', 'refresh_token', 'client_secret', 'device_code',
+                              'token_type', 'token_endpoint_auth_method', 'token_endpoint',
+                              'authorization_endpoint', 'device_authorization_endpoint'):
+                    material = output_body.get(field)
+                    if isinstance(material, str) and material:
+                        output['body'][field] = material
+                for field in ('token_endpoint_auth_methods_supported', 'authorization_servers'):
+                    methods = output_body.get(field)
+                    if isinstance(methods, list) and all(isinstance(item, str) for item in methods):
+                        output['body'][field] = methods
             if private_headers:
                 output = private_headers.scrub(output)
             return ExecutionResult(

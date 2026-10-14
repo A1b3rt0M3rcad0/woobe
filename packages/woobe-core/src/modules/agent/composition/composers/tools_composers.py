@@ -227,56 +227,24 @@ def bulk_update_mcp_tool_permissions_composer() -> TransactionalHandler:
     return TransactionalHandler(uow, controller.handle)
 
 
-def start_mcp_oauth_composer() -> TransactionalHandler:
-    uow = AgentUnitOfWork(DATABASE_ENGINE)
-    tool_repo = SQLAlchemyAgentToolRepository(uow)
-    use_case_cls = getattr(mcp_oauth_flows, "ProviderAwareMcpOAuthStartUseCase")
-    use_case = use_case_cls(
-        tool_repo=tool_repo,
-        executor=get_http_tool_executor(),
-        cipher=SecretCipherAdapter(SETTINGS.encryption_key),
-    )
-    controller = StartMcpConnectController(use_case)
-    return TransactionalHandler(uow, controller.handle)
+def start_mcp_oauth_composer() -> Callable:
+    from modules.agent.composition.factories.detached_mcp_oauth import build_mcp_oauth_start
+    return build_mcp_oauth_start()
 
 
-def complete_mcp_oauth_composer() -> TransactionalHandler:
-    uow = AgentUnitOfWork(DATABASE_ENGINE)
-    tool_repo = SQLAlchemyAgentToolRepository(uow)
-    use_case_cls = getattr(mcp_oauth, "McpOAuthCompleteUseCase")
-    use_case = use_case_cls(
-        tool_repo=tool_repo,
-        executor=get_http_tool_executor(),
-        cipher=SecretCipherAdapter(SETTINGS.encryption_key),
-    )
-    controller = CompleteMcpConnectController(use_case)
-    return TransactionalHandler(uow, controller.handle)
+def complete_mcp_oauth_composer() -> Callable:
+    from modules.agent.composition.factories.detached_mcp_oauth import build_mcp_oauth_complete
+    return build_mcp_oauth_complete()
 
 
-def start_mcp_oauth_device_composer() -> TransactionalHandler:
-    uow = AgentUnitOfWork(DATABASE_ENGINE)
-    tool_repo = SQLAlchemyAgentToolRepository(uow)
-    use_case_cls = getattr(mcp_oauth_flows, "McpOAuthDeviceStartUseCase")
-    use_case = use_case_cls(
-        tool_repo=tool_repo,
-        executor=get_http_tool_executor(),
-        cipher=SecretCipherAdapter(SETTINGS.encryption_key),
-    )
-    controller = StartMcpDeviceConnectController(use_case)
-    return TransactionalHandler(uow, controller.handle)
+def start_mcp_oauth_device_composer() -> Callable:
+    from modules.agent.composition.factories.detached_mcp_oauth import build_mcp_oauth_device_start
+    return build_mcp_oauth_device_start()
 
 
-def poll_mcp_oauth_device_composer() -> TransactionalHandler:
-    uow = AgentUnitOfWork(DATABASE_ENGINE)
-    tool_repo = SQLAlchemyAgentToolRepository(uow)
-    use_case_cls = getattr(mcp_oauth_flows, "McpOAuthDevicePollUseCase")
-    use_case = use_case_cls(
-        tool_repo=tool_repo,
-        executor=get_http_tool_executor(),
-        cipher=SecretCipherAdapter(SETTINGS.encryption_key),
-    )
-    controller = PollMcpDeviceConnectController(use_case)
-    return TransactionalHandler(uow, controller.handle)
+def poll_mcp_oauth_device_composer() -> Callable:
+    from modules.agent.composition.factories.detached_mcp_oauth import build_mcp_oauth_device_poll
+    return build_mcp_oauth_device_poll()
 
 
 def status_mcp_oauth_composer() -> TransactionalHandler:

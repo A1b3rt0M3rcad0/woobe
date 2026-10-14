@@ -39,6 +39,11 @@ long_lived_functions = [
   # Persisted Tool execution/discovery acquire authorization, then release SQL.
   "execute_tool_composer",
   "refresh_mcp_tools_composer",
+  # OAuth provider I/O owns short authorization and CAS transactions.
+  "start_mcp_oauth_composer",
+  "complete_mcp_oauth_composer",
+  "start_mcp_oauth_device_composer",
+  "poll_mcp_oauth_device_composer",
   "ask_agent_composer",
   "ask_agent_stream_composer",
   "public_run_composer",

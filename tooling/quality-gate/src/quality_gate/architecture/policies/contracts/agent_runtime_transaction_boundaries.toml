@@ -14,6 +14,11 @@ long_lived_composer_functions = [
   "public_run_composer",
   "execute_tool_composer",
   "refresh_mcp_tools_composer",
+  # OAuth provider I/O owns short authorization and CAS transactions.
+  "start_mcp_oauth_composer",
+  "complete_mcp_oauth_composer",
+  "start_mcp_oauth_device_composer",
+  "poll_mcp_oauth_device_composer",
 ]
 forbidden_database_types = ["AsyncEngine", "AsyncSession", "async_sessionmaker"]
 framework_forbidden_scopes = [

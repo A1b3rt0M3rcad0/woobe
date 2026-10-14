@@ -8,6 +8,7 @@ from modules.agent.composition.resources import SETTINGS
 from modules.agent.infra.adapters.http_tool_runtime import get_http_tool_executor
 from modules.agent.infra.adapters.runtime_secret_resolver import RuntimeToolSecretResolver
 from modules.agent.infra.adapters.secret_cipher import SecretCipherAdapter
+from modules.agent.infra.adapters.oauth_protocol_executor import OAuthProtocolExecutor
 from modules.agent.infra.adapters.secret_resolver import ToolSecretResolverAdapter
 from modules.agent.infra.database.project_environment_reader import SQLAlchemyProjectEnvironmentReader
 from modules.agent.infra.database.repositories import SQLAlchemyAgentToolRepository, SQLAlchemyAgentToolSecretRepository
@@ -33,7 +34,7 @@ def _legacy_refresh():
     use_case = RefreshMcpProviderToolsUseCase(
         tool_repo=SQLAlchemyAgentToolRepository(uow), executor=executor,
         secret_resolver=ToolSecretResolverAdapter(SQLAlchemyAgentToolSecretRepository(uow), cipher),
-        auth_header_provider=mcp_oauth.McpOAuthConfigTokenProvider(executor=executor, cipher=cipher),
+        auth_header_provider=mcp_oauth.McpOAuthConfigTokenProvider(executor=OAuthProtocolExecutor(executor), cipher=cipher),
         project_environment_resolver=SQLAlchemyProjectEnvironmentReader(uow, encryption_key=SETTINGS.encryption_key).resolve_values,
     )
     return TransactionalHandler(uow, RefreshMcpToolsController(use_case).handle)
