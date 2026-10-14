@@ -49,7 +49,9 @@ export function ProjectConfigurationNotice({ projectId, workspaceId, environment
       </select>
     </label>}
     <span role="status" className={`min-w-0 flex-1 basis-64 ${blocked ? 'text-warning' : 'text-muted-foreground'}`}>{message}</span>
-    {!forbidden && <a href={href} className={buttonClassName({ variant: blocked ? 'default' : 'outline', size: 'sm', className: 'ml-auto' })}>{blocked ? 'Configure now' : 'Review configuration'}</a>}
-    <Button variant="ghost" size="sm" disabled={query.isFetching} onClick={() => { void query.refetch() }}>Refresh status</Button>
+    <div className="ml-auto flex max-w-full flex-wrap justify-end gap-ui-sm">
+      {!forbidden && <a href={href} className={buttonClassName({ variant: blocked ? 'default' : 'outline', size: 'sm' })}>{blocked ? 'Configure now' : 'Review configuration'}</a>}
+      <Button variant="ghost" size="sm" disabled={query.isFetching} onClick={() => { void query.refetch() }}>Refresh status</Button>
+    </div>
   </aside>
 }

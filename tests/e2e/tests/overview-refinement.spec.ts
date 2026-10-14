@@ -12,7 +12,7 @@ async function openOverview(page: Page) {
   await expect(page.getByRole('heading', { name: 'Run Activity', exact: true })).toBeVisible()
 }
 
-for (const width of [1440, 1280, 768, 390, 320]) test(`overview hierarchy and accessibility at ${width}px`, async ({ page }) => {
+for (const width of [1440, 1280, 768, 390, 320]) test(`overview hierarchy and accessibility at ${width}px`, async ({ page }, testInfo) => {
   await page.setViewportSize({ width, height: 1100 })
   await openOverview(page)
   await expect(page.getByRole('button', { name: 'Agent Runs', exact: true })).toBeVisible()
@@ -29,6 +29,10 @@ for (const width of [1440, 1280, 768, 390, 320]) test(`overview hierarchy and ac
   expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1)
   const audit = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()
   expect(audit.violations).toEqual([])
+  for (const heading of ['Run Activity', 'Recent Runs', 'Current Project State']) {
+    await page.getByRole('heading', { name: heading, exact: true }).scrollIntoViewIfNeeded()
+    await page.screenshot({ path: testInfo.outputPath(`${heading.replaceAll(' ', '-').toLowerCase()}.png`), animations: 'disabled' })
+  }
 })
 
 test('activity uses real time positions and exposes sparse intervals by keyboard', async ({ page }) => {

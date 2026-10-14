@@ -81,7 +81,7 @@ export function RunActivityChart({ model }: { model: DashboardViewModel }) {
                 <rect data-series="network" x={center + 1} y={y(value.networkRuns)} width={barWidth} height={baseline - y(value.networkRuns)} rx="1" fill="currentColor" className={seriesStyles.network} />
                 {errors > 0 && <path data-series="errors" d={`M ${center} ${y(errors) - 4} l 4 4 l -4 4 l -4 -4 Z`} fill="currentColor" className={seriesStyles.errors} />}
               </>}
-              <title>{intervalLabel(bucket)} ({model.timezoneLabel}): {value ? `${value.agentRuns} Agent Runs; ${value.networkRuns} Network Runs; ${errors} errors` : 'Bucket data unavailable'}</title>
+              <title>{new Date(bucket.start).toISOString()} – {new Date(bucket.end).toISOString()}: {value ? `${value.agentRuns} Agent Runs; ${value.networkRuns} Network Runs; ${errors} errors` : 'Bucket data unavailable'}</title>
             </g>
           })}
           {ticks.map((tick, index) => <text key={tick} x={x(tick)} y={183} textAnchor={index === 0 ? 'start' : index === ticks.length - 1 ? 'end' : 'middle'} className="fill-current font-mono text-[11px] text-muted-foreground">{tickFormatter.format(tick)}</text>)}
@@ -99,6 +99,7 @@ export function RunActivityChart({ model }: { model: DashboardViewModel }) {
         </div>
         <div aria-label="Selected interval details" className="mt-ui-md space-y-ui-sm">
           <p className="font-mono text-product-caption text-muted-foreground">{active && intervalLabel(active)} · {model.timezoneLabel}</p>
+          {active && <p className="sr-only">Exact interval: {new Date(active.start).toISOString()} to {new Date(active.end).toISOString()}, end exclusive.</p>}
           {point ? <>
             <dl className="grid grid-cols-2 gap-ui-md sm:grid-cols-4">
               {[

@@ -363,12 +363,12 @@ function RecentRuns({ model, onOpen, onViewAll }: { model: DashboardViewModel; o
       <div className="px-5 pb-5">
         {model.runs.length === 0 ? <p className="py-6 text-center text-sm text-muted">No Runs in this interval.</p> : (
           <div className="space-y-2">
-            <div className="hidden grid-cols-[80px_minmax(120px,1fr)_80px_110px_140px_75px_100px] gap-3 px-3 text-system-meta font-medium uppercase tracking-wide text-muted xl:grid"><span>Type</span><span>Name</span><span>Environment</span><span>Status</span><span>Started</span><span className="text-right">Duration</span><span className="text-right">Cost</span></div>
+            <div className="hidden grid-cols-[104px_minmax(120px,1fr)_110px_110px_180px_75px_100px] gap-3 px-3 text-system-meta font-medium uppercase tracking-wide text-muted xl:grid"><span>Type</span><span>Name</span><span>Environment</span><span>Status</span><span>Started</span><span className="text-right">Duration</span><span className="text-right">Cost</span></div>
             {model.runs.map((run) => {
               const open = () => onOpen(run)
               return (
-                <div key={`${run.kind}-${run.id}`} role="link" tabIndex={0} onClick={open} onKeyDown={(event) => keyboardActivate(event, open)} className="grid cursor-pointer gap-3 rounded-xl border border-border/80 bg-background/45 p-3 outline-none transition-colors hover:border-primary/25 hover:bg-background/75 focus:ring-1 focus:ring-primary/60 xl:grid-cols-[80px_minmax(120px,1fr)_80px_110px_140px_75px_100px] xl:items-center">
-                  <div><span className="rounded-md border border-border bg-surface px-2 py-0.5 text-xs font-medium text-slate-200">{run.typeLabel}</span></div>
+                <div key={`${run.kind}-${run.id}`} role="link" tabIndex={0} onClick={open} onKeyDown={(event) => keyboardActivate(event, open)} className="grid cursor-pointer gap-3 rounded-xl border border-border/80 bg-background/45 p-3 outline-none transition-colors hover:border-primary/25 hover:bg-background/75 focus:ring-1 focus:ring-primary/60 xl:grid-cols-[104px_minmax(120px,1fr)_110px_110px_180px_75px_100px] xl:items-center">
+                  <div><span className="inline-flex whitespace-nowrap rounded-md border border-border bg-surface px-2 py-0.5 text-xs font-medium text-slate-200">{run.typeLabel}</span></div>
                   <div className="min-w-0"><p className="font-mono truncate text-sm font-medium text-foreground">{run.title}</p><p className="mt-1 truncate text-xs text-muted">{run.sourceLabel}</p></div>
                   <div><EnvironmentBadge value={run.environmentLabel} /></div>
                   <div><StatusBadge value={run.statusLabel} /></div>
@@ -444,7 +444,7 @@ export default function DashboardPage() {
               <div className="flex items-center gap-2"><h1 className="font-serif text-page-title font-normal text-foreground">Project Overview</h1>{isUpdating && <span className="rounded-full border border-primary/20 bg-primary/5 px-2 py-0.5 text-system-meta text-primary-light">Updating {environmentLabel(environment)} overview…</span>}</div>
               {model && <p className="mt-ui-sm text-product-caption text-muted">Interval: {model.intervalLabel} · {model.timezoneLabel} · Last refreshed {model.generatedAtLabel}</p>}
             </div>
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center xl:justify-end">
+            <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center xl:flex-nowrap xl:justify-end">
               <label className="sr-only" htmlFor="dashboard-range">Dashboard range</label>
               <select id="dashboard-range" value={range} onChange={(event: ChangeEvent<HTMLSelectElement>) => setRange(event.target.value as DashboardRangePreset)} className="h-9 rounded-lg border border-border bg-background/70 px-3 text-sm text-slate-300 outline-none transition-colors focus:ring-1 focus:ring-primary/60">{RANGES.map((item) => <option key={item} value={item}>{rangeLabel(item)}</option>)}</select>
               <div className="flex max-w-full overflow-x-auto rounded-lg border border-border bg-background/50 p-1 scrollbar-thin">{ENVIRONMENTS.map((item) => <button type="button" key={item.value} onClick={() => setEnvironment(item.value)} aria-pressed={environment === item.value} className={`flex h-7 items-center gap-1.5 whitespace-nowrap rounded-md border px-3 text-xs font-medium transition-colors ${environment === item.value ? item.tone : 'border-transparent text-muted hover:bg-surface hover:text-foreground'}`}><span className={`h-1.5 w-1.5 rounded-full ${item.dot}`} />{item.label}</button>)}</div>
