@@ -17,7 +17,7 @@ class ConfigurationToolPreparation:
     def __init__(self, uow_factory, preparer):
         self.uow_factory, self.preparer = uow_factory, preparer
 
-    async def __call__(self, request):
+    async def __call__(self, request, *, timeout_ms=None):
         project_id, target_id = UUID(str(request.path_params["project_id"])), UUID(str(request.path_params["target_id"]))
         environment = normalize_runtime_environment((request.body or {}).get("environment") or "draft")
         operation_id = uuid4()
@@ -45,7 +45,7 @@ class ConfigurationToolPreparation:
                 dependencies=tool_dependencies(tool))
         token = current_tool_configuration.set((project_id, operation_id, target_id, auth))
         try:
-            result = await self.preparer.bootstrap(tool)
+            result = await self.preparer.bootstrap(tool, timeout_ms=timeout_ms)
         finally:
             current_tool_configuration.reset(token)
         if result is None:

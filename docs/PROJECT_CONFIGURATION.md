@@ -227,3 +227,16 @@ only the Project-scoped references captured during Acceptance; the transport
 still checks the Tool, field, destination and Run lease before resolving material.
 MCP creation with a Secret template reports `configuration_required` and defers
 discovery to explicit connection preparation, after use approval and outside SQL.
+
+The existing persisted-Tool execute and MCP refresh routes also support these
+central references. They retain their response contracts and use Draft, as their
+legacy inputs have no Environment selector. Execution requires Tool execute
+authority; central MCP refresh additionally requires configuration validation
+authority. Both acquire the current destination grant before external I/O and
+fail on revocation. Use the configuration preparation route for an explicit
+Staging/Production check. Invocation-local headers cannot spill into another Tool.
+
+These two composers expose detached callable boundaries, covered by the
+architecture gate: they own no global UnitOfWork. Legacy compatibility handlers
+are created lazily only for definitions that have not been converted. A central
+failure never falls back to that path.

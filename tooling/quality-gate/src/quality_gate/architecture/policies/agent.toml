@@ -36,6 +36,9 @@ long_lived_handler = "Callable"
 long_lived_functions = [
   # Provider I/O must occur outside the short authorization/pinning transaction.
   "list_available_provider_models_composer",
+  # Persisted Tool execution/discovery acquire authorization, then release SQL.
+  "execute_tool_composer",
+  "refresh_mcp_tools_composer",
   "ask_agent_composer",
   "ask_agent_stream_composer",
   "public_run_composer",

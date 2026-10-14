@@ -227,3 +227,42 @@ async def test_fresh_secret_api_requires_authorized_tool_use_and_preserves_revoc
     readiness=await cli.data('request','GET',base+'/readiness/tool/'+tool['id'],'--query','environment=production')
     assert readiness['state']=='blocked'
     assert readiness['dependencies'][0]['code']=='CONFIG_USAGE_NOT_AUTHORIZED'
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('protocol', ['http', 'mcp'])
+async def test_existing_tool_operations_use_central_material_and_preserve_revocations(cli, protocol):
+    project = await cli.data('project', 'create', body={
+        'workspace_id': cli.workspace_id, 'name': 'Detached Tool operation', 'slug': str(uuid4()),
+    })
+    cli.project_id = project['id']
+    for name, value in [('auth', 'Bearer ephemeral-native-environment-token'),
+                        ('token', 'ephemeral-native-tool-token')]:
+        cli.secret_values.add(value)
+        await cli.data('request', 'POST', '/tools/secrets', body={
+            'project_id': cli.project_id, 'name': name, 'type': 'api_key', 'value': value,
+        })
+    headers = [{'key': 'Authorization', 'value': '{{secret:auth}}'},
+               {'key': 'X-Tool-Token', 'value': '{{secret:token}}'}]
+    endpoint = os.environ['WOOBE_TEST_FAKE_MCP_URL']
+    config = ({'method': 'GET', 'url': endpoint.removesuffix('/mcp') + '/http-protected', 'headers': headers}
+              if protocol == 'http' else {'mode': 'server', 'exposure': 'all_discovered',
+                  'server': {'url': endpoint, 'transport': 'streamable_http', 'headers': headers}})
+    tool = await cli.data('request', 'POST', '/tools/tools', body={
+        'project_id': cli.project_id, 'name': 'Configured Tool', 'type': protocol,
+        'config': config, 'input_schema': {'type': 'object', 'properties': {}},
+    })
+    route = '/tools/tools/execute' if protocol == 'http' else '/tools/mcp/refresh'
+    result = await cli.data('request', 'POST', route, body={'tool_id': tool['id']})
+    if protocol == 'http':
+        assert result['success'] and result['output']['body']['authenticated'], result
+    else:
+        assert tool['config']['mcp_status'] == 'configuration_required'
+        assert result['initialized'] and result['discovered_count'] == 1 and result['status'] == 'ready', result
+    base = f'/core/projects/{cli.project_id}/configuration'
+    key = (await cli.data('request', 'GET', base + '/keys'))['items'][0]
+    policy = (await cli.data('request', 'GET', base + '/keys/' + key['id'] + '/use-policies'))['items'][0]
+    await cli.data('request', 'DELETE', base + '/use-policies/' + policy['id'],
+        '--query', 'expected_revision=' + str(policy['revision']))
+    denied = await cli.run('request', 'POST', route, body={'tool_id': tool['id']}, expected=4)
+    assert 'CONFIG_USAGE_NOT_AUTHORIZED' in str(denied)

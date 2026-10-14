@@ -14,6 +14,18 @@ def configuration_bound_tool(function):
     async def execute(self, tool, *args, **kwargs):
         auth = tool_authentication(getattr(tool, "config", None) or {}, allow_legacy=True)
         if auth is None or not auth["fields"]:
+            token = current_tool_configuration.set(None)
+            try:
+                return await function(self, tool, *args, **kwargs)
+            finally:
+                current_tool_configuration.reset(token)
+        prepared = current_tool_configuration.get()
+        if prepared is not None:
+            # A persisted Tool can also be invoked by an explicitly authorized
+            # administrative operation. Its central lease is checked per send;
+            # never reuse an enclosing operation for a different Tool/binding.
+            if prepared[0] != tool.project_id or prepared[2] != tool.id or prepared[3] != auth:
+                raise ConfigurationError("CONFIG_USAGE_NOT_AUTHORIZED")
             return await function(self, tool, *args, **kwargs)
         context = current_execution.get()
         if context is None or context.run_id is None or context.project_id != tool.project_id:
