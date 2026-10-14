@@ -17,6 +17,19 @@ from shared.security.principal import ControlPlanePrincipal
 
 
 @pytest.mark.asyncio
+async def test_mcp_creation_defers_secret_templates_until_explicit_authorized_preparation():
+    tool = SimpleNamespace(id=uuid4(), project_id=uuid4(), type='mcp', config={
+        'server': {'url': 'https://approved.example/mcp',
+                   'headers': [{'key': 'Authorization', 'value': '{{secret:stored}}'}]},
+    })
+    executor = SimpleNamespace(execute=AsyncMock(side_effect=AssertionError('no pre-approval I/O')))
+    result = await McpToolBootstrapper(executor).bootstrap(tool)
+    assert result.status == 'configuration_required'
+    assert tool.config['server']['headers'][0]['value'] == '{{secret:stored}}'
+    executor.execute.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize('legacy', [False, True])
 @pytest.mark.parametrize('failure', [None, 'missing', 'concurrent', 'revoked'])
 async def test_mcp_preparation_authorizes_each_send_and_saves_only_matching_revision(monkeypatch, failure, legacy):

@@ -7,8 +7,15 @@ from modules.core.infra.services.configuration_summary import configuration_summ
 
 
 def dependency(*, required=True, material='missing', code='CONFIG_VALUE_MISSING'):
-    return dict(key='API_KEY',consumer_kind='provider_credential',consumer_id='provider',
-        field_path='/authentication/fields/api_key',required=required,material=material,code=code)
+    return dict(
+        key='CONNECTION',
+        consumer_kind='provider_credential',
+        consumer_id='provider',
+        field_path='/authentication/fields/api_key',
+        required=required,
+        material=material,
+        code=code,
+    )
 
 
 def setup(*, complete=True):

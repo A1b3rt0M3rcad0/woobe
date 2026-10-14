@@ -1730,6 +1730,8 @@ class SQLAlchemyAgentToolSecretRepository(SecretRepository):
         return self._session_or_uow
 
     async def create(self, secret: Secret) -> Secret:
+        from modules.agent.infra.database.configuration_secret_writer import centralize_new_secret
+        await centralize_new_secret(self._session, secret)
         model = secret_to_model(secret)
         await self._base._add_model(model)
         await self._base._flush()

@@ -211,3 +211,19 @@ New Web isolated Drafts default to **Remote references** (Package 2.0). Existing
 unmigrated connections can be captured by explicitly choosing **Legacy
 compatibility**; a failed remote-reference capture never silently retries under
 a different contract. Retained edits preserve their original package version.
+
+New legacy Secret API writes also create their central alias in the same first
+transaction, retaining the Secret ID/name while clearing entity ciphertext.
+This does not grant every Tool access. An old Tool write which introduces a new
+recognized Secret-header consumer requires current `secret:read` and
+`project:environment:use-policy:write` authority for all compatibility routes.
+Without that authority the Tool write rolls back; use the reference-only workflow
+or ask an authorized configuration operator to establish the connection. Existing
+captured routes survive metadata edits, including their deliberate revocations;
+a Tool edit cannot implicitly re-grant a revoked central policy.
+
+Retained Tool snapshots keep their original bytes and hashes. Execution reapplies
+only the Project-scoped references captured during Acceptance; the transport
+still checks the Tool, field, destination and Run lease before resolving material.
+MCP creation with a Secret template reports `configuration_required` and defers
+discovery to explicit connection preparation, after use approval and outside SQL.

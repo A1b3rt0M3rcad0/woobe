@@ -83,6 +83,7 @@ from modules.agent.presentation.controllers.update_tool_status_controller import
     UpdateToolStatusController,
 )
 from shared.infra.transactional_handler import TransactionalHandler
+from modules.agent.infra.handlers.legacy_tool_configuration import LegacyToolConfigurationHandler
 
 
 def _project_environment(
@@ -117,7 +118,7 @@ def create_tool_composer() -> TransactionalHandler:
         project_environment_key_validator=_project_environment(uow).require_keys,
     )
     controller = CreateToolController(use_case)
-    return TransactionalHandler(uow, controller.handle, additional_permissions=tool_binding_permissions)
+    return TransactionalHandler(uow, LegacyToolConfigurationHandler(uow, controller.handle), additional_permissions=tool_binding_permissions)
 
 
 
@@ -129,7 +130,7 @@ def materialize_imported_tool_composer() -> TransactionalHandler:
         SQLAlchemyAgentOutboxEventWriter(uow),
         project_environment_key_validator=_project_environment(uow).require_keys,
     )
-    return TransactionalHandler(uow, CreateToolController(use_case).handle)
+    return TransactionalHandler(uow, LegacyToolConfigurationHandler(uow, CreateToolController(use_case).handle))
 
 def update_tool_composer() -> TransactionalHandler:
     uow = AgentUnitOfWork(DATABASE_ENGINE)
@@ -141,7 +142,7 @@ def update_tool_composer() -> TransactionalHandler:
         project_environment_key_validator=_project_environment(uow).require_keys,
     )
     controller = UpdateToolController(use_case)
-    return TransactionalHandler(uow, controller.handle, additional_permissions=tool_binding_permissions)
+    return TransactionalHandler(uow, LegacyToolConfigurationHandler(uow, controller.handle), additional_permissions=tool_binding_permissions)
 
 
 def delete_tool_composer() -> TransactionalHandler:

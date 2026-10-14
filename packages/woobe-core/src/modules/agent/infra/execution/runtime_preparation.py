@@ -186,6 +186,16 @@ async def prepare_tool_state(
             references[name] = reference
         else:
             encrypted_by_name[name] = secret.encrypted_value
+    context = current_execution.get()
+    if context is not None:
+        context.prepared_tool_configuration_references = {
+            str(tool.id): {
+                name: deepcopy(references[name])
+                for name in collect_secret_names(tool.config or {})
+                if name in references
+            }
+            for tool in tools
+        }
     if references:
         from modules.agent.domain.legacy_tool_configuration import bind_legacy_tool_headers
         tools = [bind_legacy_tool_headers(tool, references) for tool in tools]

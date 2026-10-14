@@ -1168,3 +1168,55 @@ async def test_activation_evidence_is_metadata_only_and_fences_material_versions
     # Draft values never satisfy Staging/Production, even with an existing policy.
     with pytest.raises(ConfigurationError):
         await store.activation_evidence(project_id=project, environment="production", dependencies=[dep])
+
+
+@pytest.mark.asyncio
+async def test_new_secret_is_central_and_new_tool_use_requires_explicit_authority(configuration, monkeypatch):
+    from unittest.mock import AsyncMock
+    from modules.agent.application.interfaces import project_configuration as port
+    from modules.agent.domain.entities import Secret, Tool
+    from modules.agent.infra.database.models import AgentToolSecretModel
+    from modules.agent.infra.database.repositories import SQLAlchemyAgentToolSecretRepository
+    from modules.agent.infra.database.configuration_secret_projection import project_secret_headers
+    from modules.agent.domain.tool_configuration import tool_dependencies
+    from modules.core.infra.database.configuration_legacy import LegacyConfigurationStore
+    from modules.core.infra.database.configuration_models import LegacyConfigurationValueModel, ConfigurationUsePolicyModel
+    from shared.contracts.errors import AuthorizationError
+    from shared.infra.crypto import encrypt_secret
+    original,project,_=configuration
+    store=LegacyConfigurationStore(original.session,encryption_key=original.encryption_key)
+    monkeypatch.setattr(port,'_factory',lambda session:store)
+    cipher=encrypt_secret(CANARY,store.encryption_key)
+    secret=await SQLAlchemyAgentToolSecretRepository(store.session).create(Secret(project_id=project,name='new-secret',encrypted_value=cipher))
+    row=await store.session.get(AgentToolSecretModel,secret.id)
+    assert row.encrypted_value is None and secret.encrypted_value==''
+    alias=UUID(secret.configuration_reference['alias_id'])
+    assert (await store.session.scalar(select(LegacyConfigurationValueModel).where(LegacyConfigurationValueModel.alias_id==alias))).stored_value==cipher
+    tool=Tool(project_id=project,name='Secret header',config={'url':'https://approved.example/api','headers':[{'key':'Authorization','value':'{{secret:new-secret}}'}]})
+    projected=(await project_secret_headers(store.session,project_id=project,tools=[tool]))[0]
+    dependencies=tool_dependencies(projected)
+    denied=AsyncMock(side_effect=AuthorizationError('not granted'))
+    with pytest.raises(AuthorizationError):
+        await store.approve_legacy_consumers(project_id=project,dependencies=dependencies,authorize=denied,actor='test')
+    with pytest.raises(ConfigurationError) as blocked:
+        await store.acquire(project_id=project,run_id=uuid4(),environment='draft',dependencies=dependencies)
+    assert blocked.value.code=='CONFIG_USAGE_NOT_AUTHORIZED'
+    approval=AsyncMock()
+    await store.approve_legacy_consumers(project_id=project,dependencies=dependencies,authorize=approval,actor='test')
+    approval.assert_awaited_once()
+    assert approval.call_args.args[1]==secret.id
+    run=uuid4()
+    await store.acquire(project_id=project,run_id=run,environment='draft',dependencies=dependencies)
+    assert await resolve(store,project,run,dependencies[0])==CANARY
+    # Another Tool cannot acquire the same material just by copying the name.
+    tool.id=uuid4()
+    copied=tool_dependencies((await project_secret_headers(store.session,project_id=project,tools=[tool]))[0])
+    with pytest.raises(ConfigurationError):
+        await store.acquire(project_id=project,run_id=uuid4(),environment='draft',dependencies=copied)
+    policy=await store.session.scalar(select(ConfigurationUsePolicyModel).where(ConfigurationUsePolicyModel.project_id==project))
+    await store.revoke_use(project_id=project,policy_id=policy.id,expected_revision=policy.revision,actor='test')
+    # Re-saving the old definition preserves a deliberate revocation, rather
+    # than implicitly re-granting the route with the editor's admin authority.
+    await store.approve_legacy_consumers(project_id=project,dependencies=dependencies,authorize=denied,actor='test')
+    with pytest.raises(ConfigurationError):
+        await store.acquire(project_id=project,run_id=uuid4(),environment='draft',dependencies=dependencies)

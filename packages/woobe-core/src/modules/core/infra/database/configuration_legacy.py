@@ -195,3 +195,7 @@ class LegacyConfigurationStore(ConfigurationResolution):
         alias.revision += 1
         await self.session.flush()
         await self.audit(project_id, "legacy.rotated", actor, alias_id=str(alias.id), revision=alias.revision)
+
+    async def approve_legacy_consumers(self, **arguments):
+        from modules.core.infra.database.configuration_legacy_consumers import approve_legacy_consumers
+        return await approve_legacy_consumers(self, **arguments)

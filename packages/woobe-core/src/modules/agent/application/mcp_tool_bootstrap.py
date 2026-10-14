@@ -169,21 +169,35 @@ class McpToolBootstrapper:
         self._default_timeout_ms = default_timeout_ms
         self._project_environment_resolver = project_environment_resolver
 
+    @staticmethod
+    def _configuration_required(tool: Tool, config: dict[str, Any]) -> McpToolBootstrapResult:
+        config["mcp_status"] = "configuration_required"
+        config["mcp_discovery"] = {
+            "status": "configuration_required", "phase": "configuration", "initialized": False,
+        }
+        tool.config = config
+        return McpToolBootstrapResult(
+            tool_id=tool.id, discovered_count=0, initialized=False,
+            status="configuration_required", phase="configuration",
+        )
+
     async def bootstrap(self, tool: Tool, *, timeout_ms: int | None = None) -> McpToolBootstrapResult | None:
         if not is_mcp_tool_type(tool.type):
             return None
 
         config = dict(tool.config or {})
+        from modules.agent.domain.legacy_tool_configuration import legacy_tool_secret_names
+        if legacy_tool_secret_names(config):
+            # Creation precedes the transaction-current use-policy approval.
+            # Explicit preparation projects recognized Secret references and
+            # performs discovery outside SQL after authorizing every send.
+            return self._configuration_required(tool, config)
         if config.get("authentication") is not None:
             from modules.agent.application.interfaces.project_configuration import current_tool_configuration
             from modules.agent.domain.tool_configuration import tool_authentication
             auth = tool_authentication(config, allow_legacy=True)
             if current_tool_configuration.get() is None:
-                config["mcp_status"] = "configuration_required"
-                config["mcp_discovery"] = {"status": "configuration_required", "phase": "configuration", "initialized": False}
-                tool.config = config
-                return McpToolBootstrapResult(tool_id=tool.id, discovered_count=0, initialized=False,
-                    status="configuration_required", error=None, http_status=None, phase="configuration")
+                return self._configuration_required(tool, config)
         existing_tools = normalize_discovered_tools(config.get("discovered_tools"))
 
         try:

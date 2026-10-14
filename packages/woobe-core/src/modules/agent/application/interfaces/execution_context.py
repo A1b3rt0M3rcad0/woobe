@@ -100,6 +100,10 @@ class RequestExecutionContext:
     # this section may be serialized to Redis or durable snapshots.
     prepared_fallback: dict[str, Any] | None = None
     prepared_tools: dict[str, Any] | None = None
+    # Project-scoped metadata captured during Acceptance, keyed by Tool then
+    # legacy Secret name. Reapply only to verified retained Tool snapshots;
+    # central destination policies and Run leases still authorize material use.
+    prepared_tool_configuration_references: dict[str, dict[str, Any]] | None = None
     prepared_tool_secrets: dict[str, str] | None = None
     prepared_project_environment: dict[str, Any] | None = None
     prepared_rag: RAGBinding | None = None

@@ -194,3 +194,36 @@ async def test_legacy_provider_can_be_edited_by_new_cli_and_web(cli, tmp_path):
         await asyncio.sleep(.25)
     assert operation['state']=='succeeded', operation
     assert operation['configuration_ready'] is True, operation
+
+
+@pytest.mark.asyncio
+async def test_fresh_secret_api_requires_authorized_tool_use_and_preserves_revocation(cli):
+    project = await cli.data('project','create',body={'workspace_id':cli.workspace_id,'name':'Central Secret writer','slug':str(uuid4())})
+    cli.project_id=project['id']
+    canary='fresh-secret-fixture-canary'
+    cli.secret_values.add(canary)
+    await cli.data('request','POST','/tools/secrets',body={'project_id':cli.project_id,'name':'tool-key','type':'api_key','value':canary})
+    base=f'/core/projects/{cli.project_id}/configuration'
+    keys=await cli.data('request','GET',base+'/keys')
+    assert len(keys['items'])==1
+    aliases=await cli.data('request','GET',base+'/legacy-bindings')
+    assert len(aliases['items'])==1 and aliases['items'][0]['source_kind']=='secret'
+    _,restricted=await cli.issue('workspace','control-key','create',body={
+        'name':'Legacy Tool author without secret use approval','expires_at':(datetime.now(UTC)+timedelta(minutes=30)).isoformat(),
+        'on_project_create_permissions':[], 'project_grants':[{'project_id':cli.project_id,
+            'permissions':['project:read','tool:read','tool:write','secret:read','project:environment:read']}]})
+    body={'project_id':cli.project_id,'name':'Secret consumer','type':'http','config':{
+        'url':os.environ['WOOBE_TEST_FAKE_PROVIDER_URL'],'method':'GET','headers':[{'key':'Authorization','value':'{{secret:tool-key}}'}]},
+        'input_schema':{'type':'object','properties':{}}}
+    await cli.run('request','POST','/tools/tools',body=body,key=restricted,expected=4)
+    # The rejected write must not leave an unauthorized Tool or central grant.
+    assert (await cli.data('request','GET','/tools/tools','--query','project_id='+cli.project_id))==[]
+    tool=await cli.data('request','POST','/tools/tools',body=body)
+    readiness=await cli.data('request','GET',base+'/readiness/tool/'+tool['id'],'--query','environment=production')
+    assert readiness['state']=='ready_with_notices'
+    policy=(await cli.data('request','GET',base+'/keys/'+keys['items'][0]['id']+'/use-policies'))['items'][0]
+    await cli.data('request','DELETE',base+'/use-policies/'+policy['id'],'--query','expected_revision='+str(policy['revision']))
+    await cli.data('request','PATCH','/tools/tools/'+tool['id'],body={'name':'Renamed after revocation'})
+    readiness=await cli.data('request','GET',base+'/readiness/tool/'+tool['id'],'--query','environment=production')
+    assert readiness['state']=='blocked'
+    assert readiness['dependencies'][0]['code']=='CONFIG_USAGE_NOT_AUTHORIZED'

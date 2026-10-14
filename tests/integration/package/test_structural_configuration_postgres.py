@@ -98,9 +98,22 @@ async def test_structural_package_installs_before_remote_values_exist(cli, tmp_p
         if legacy_secret:
             from copy import deepcopy
             canary = "legacy-export-synthetic-canary"
-            response = await client.post("/tools/secrets", json={"project_id":cli.project_id,
-                "name":"legacy-header", "type":"api_key", "value":canary})
-            assert response.is_success, response.status_code
+            # Seed a pre-bridge row deliberately: current Secret API creates
+            # central aliases immediately, so it cannot produce migration input.
+            from uuid import UUID
+            from modules.agent.infra.database.models import AgentToolSecretModel
+            from shared.infra.crypto import encrypt_secret
+            from shared.infra.config import Settings
+            from shared.infra.database.session import create_engine, create_session_factory
+            settings = Settings.model_validate({})
+            engine = create_engine(settings)
+            try:
+                async with create_session_factory(engine).begin() as session:
+                    session.add(AgentToolSecretModel(id=uuid4(), project_id=UUID(cli.project_id),
+                        name="legacy-header", type="api_key", data={},
+                        encrypted_value=encrypt_secret(canary, settings.encryption_key)))
+            finally:
+                await engine.dispose()
             response = await client.post("/tools/tools", json={"project_id":cli.project_id,
                 "agent_id":target, "name":"Legacy HTTP", "type":"http", "config":{
                     "url":"https://approved.example/api", "method":"GET", "headers":[
