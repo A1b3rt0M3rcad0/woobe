@@ -23,9 +23,20 @@ it('selects exact environment/release and displays bounded missing configuration
   expect(useQuery.mock.calls[0][0].queryKey).toEqual(['configuration-readiness', 'project', 'agent', 'agent', 'production', 'release-a'])
   expect(container.textContent).toContain('1 missing keys · 2 affected connections')
   expect(container.querySelector('details')).not.toBeNull()
+  expect(container.querySelector('a')?.textContent).toBe('Configure to run')
+  expect(useQuery.mock.calls[0][0].refetchInterval).toBe(30_000)
   expect(container.querySelector('a')?.href).toContain('/workspaces/workspace/projects/project/environments?environment=production')
   await act(async () => container.querySelector('button')!.click())
   expect(query.refetch).toHaveBeenCalledOnce()
+})
+it('distinguishes revoked authority from a missing value without invoking a Run', async () => {
+  query.data = { state: 'blocked', missing_key_count: 0, affected_consumer_count: 1,
+    dependencies: [{ key: 'SUPPORT', code: 'CONFIG_USAGE_NOT_AUTHORIZED', material: 'present' }] }
+  await render()
+  expect(container.textContent).toContain('Configuration required · 1 blocked connections')
+  expect(container.textContent).not.toContain('0 missing keys')
+  expect(container.querySelector('a')?.textContent).toBe('Configure to run')
+  expect(query.refetch).not.toHaveBeenCalled()
 })
 it('does not turn unreadable or stale status into ready or echo errors', async () => {
   query.data = { state: 'ready', dependencies: [] }; query.isError = true
