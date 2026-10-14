@@ -39,10 +39,15 @@ async def assert_configuration_quiescent(session, *, project_id):
     await assert_package_configuration_quiescent(session, project_id=project_id)
 
 
-async def target_inventory(session, *, project_id, environment, limit):
+async def target_inventory(session, *, project_id, environment, limit, cursor=None):
     from modules.agent.entrypoint import configuration_targets as agents
     from modules.network.entrypoint import configuration_targets as networks
-    agent_page = await agents(session, project_id=project_id, environment=environment, limit=limit)
-    network_page = await networks(session, project_id=project_id, environment=environment, limit=limit)
+    from shared.contracts.configuration_cursor import decode_configuration_cursor, encode_configuration_cursor
+    after = decode_configuration_cursor(cursor, project_id=project_id, environment=environment)
+    agent_page = await agents(session, project_id=project_id, environment=environment, limit=limit, after_id=after['agent'])
+    network_page = await networks(session, project_id=project_id, environment=environment, limit=limit, after_id=after['network'])
+    complete = agent_page['complete'] and network_page['complete']
     return {'targets': agent_page['targets'] + network_page['targets'],
-            'complete': agent_page['complete'] and network_page['complete']}
+            'authorization_targets': agent_page['authorization_targets'] + network_page['authorization_targets'],
+            'complete': complete, 'next_cursor': None if complete else encode_configuration_cursor(
+                project_id=project_id, environment=environment, agent=agent_page['after_id'], network=network_page['after_id'])}

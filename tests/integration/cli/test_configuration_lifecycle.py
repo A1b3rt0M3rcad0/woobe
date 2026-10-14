@@ -23,6 +23,33 @@ def configuration_binary(monkeypatch):
         monkeypatch.setenv("WOOBE_CLI_BINARY", os.environ["WOOBE_CONFIGURATION_CLI_BINARY"])
         monkeypatch.setenv("WOOBE_TEST_CLI_SHA", os.environ["WOOBE_CONFIGURATION_CLI_SHA"])
 
+
+@pytest.mark.asyncio
+async def test_project_summary_cursor_is_page_evidence_not_global_readiness(cli):
+    project = await cli.data('project', 'create', body={
+        'workspace_id': cli.workspace_id, 'name': 'Paged configuration', 'slug': str(uuid4())})
+    cli.project_id = project['id']
+    for i in range(3):
+        await cli.data('project', 'network', 'create', body={'name': f'Unselected Network {i}'})
+    cursor, counts = None, []
+    while True:
+        args = ['project', 'configuration', 'summary', '--env', 'staging', '--limit', '1']
+        if cursor:
+            args += ['--cursor', cursor]
+        payload = await cli.run(*args, expected=9)
+        page = payload['data']
+        assert page['scope'] == 'current_selections_page' and not page['complete']
+        assert page['page_state'] == 'ready' and page['unselected_target_count'] == 1
+        counts.append(page['inspected_target_count'])
+        if not page['has_next']:
+            assert page['next_cursor'] is None
+            break
+        cursor = page['next_cursor']
+        assert len(counts) < 4
+    assert counts == [1, 1, 1]
+    full = (await cli.run('project', 'configuration', 'summary', '--env', 'staging'))['data']
+    assert full['scope'] == 'current_selections' and full['complete'] and full['inspected_target_count'] == 3
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize("kind", ["agent", "network"])
 async def test_remote_configuration_development_and_activation(cli, tmp_path, kind):

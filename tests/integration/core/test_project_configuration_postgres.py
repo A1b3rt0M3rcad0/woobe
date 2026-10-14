@@ -17,6 +17,34 @@ CANARY = "configuration-private-canary-7c2f"
 
 
 @pytest.mark.asyncio
+async def test_project_inventory_pages_both_domains_without_repeating_exhausted_owner(configuration):
+    from woobe_api.configuration_composition import target_inventory
+    from modules.agent.infra.database.models import AgentModel
+    from modules.network.infra.database.models import NetworkModel
+    store, project, _ = configuration
+    agents = [AgentModel(project_id=project, name=f'Paged Agent {i}', type='chat', provider='custom', model='fixture') for i in range(6)]
+    networks = [NetworkModel(project_id=project, name=f'Paged Network {i}') for i in range(2)]
+    store.session.add_all(agents + networks)
+    await store.session.flush()
+    cursor, seen, pages = None, set(), []
+    while True:
+        page = await target_inventory(store.session, project_id=project, environment='staging', limit=2, cursor=cursor)
+        identities = {(target['kind'], target['id']) for target in page['targets']}
+        assert not (seen & identities)
+        assert not any(target['selected'] for target in page['targets'])
+        seen.update(identities)
+        pages.append(page)
+        if page['complete']:
+            assert page['next_cursor'] is None
+            break
+        cursor = page['next_cursor']
+        assert cursor and len(pages) < 5
+    assert len(pages) == 3
+    assert seen == {('agent', row.id) for row in agents} | {('network', row.id) for row in networks}
+    assert len(pages[0]['targets']) == 4 and len(pages[1]['targets']) == 2
+
+
+@pytest.mark.asyncio
 async def test_legacy_revoke_invalidates_current_and_archived_leases_without_new_authority(configuration):
     from modules.core.infra.database.configuration_legacy import LegacyConfigurationStore
     from modules.core.infra.database.configuration_models import LegacyConfigurationValueModel, ConfigurationValueVersionModel

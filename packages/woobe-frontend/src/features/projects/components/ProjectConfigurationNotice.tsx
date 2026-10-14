@@ -25,6 +25,7 @@ export function ProjectConfigurationNotice({ projectId, workspaceId, environment
   const data = query.isError ? undefined : query.data
   const message = query.isFetching ? 'Checking configuration…'
     : forbidden ? 'Configuration status requires permission.'
+    : data?.state === 'unknown' && data.has_next ? `Partial configuration check · ${data.inspected_target_count} targets inspected`
     : !data || data.state === 'unknown' ? 'Configuration status is incomplete. Review the exact target before execution.'
     : data.state === 'blocked' ? `${data.blocked_key_count} keys need attention · ${data.affected_target_count} affected targets`
     : data.inspected_target_count === data.unselected_target_count ? 'No active selections in this environment.'

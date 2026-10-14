@@ -90,8 +90,9 @@ async def capabilities(request: Request, project_id: UUID, environment: Environm
 
 
 @router.get("/summary")
-async def summary(request: Request, project_id: UUID, environment: Environment = "draft"):
-    return await execute(request, project_id, "summary", environment=environment)
+async def summary(request: Request, project_id: UUID, environment: Environment = "draft",
+                  limit: int = Query(default=50, ge=1, le=200), cursor: str | None = Query(default=None, max_length=1024)):
+    return await execute(request, project_id, "summary", environment=environment, limit=limit, cursor=cursor)
 
 
 @router.post("/migrations/preview")

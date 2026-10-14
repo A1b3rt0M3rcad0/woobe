@@ -140,6 +140,7 @@ class ProjectConfigurationService:
                         "typed_remote_bindings": True, "binding_updates": _binding_adapter is not None, "external_validation": True, "metadata_only_reads": True,
                         "target_readiness": _target_reader is not None,
                         "project_summary": _target_inventory is not None,
+                        "project_summary_pagination": _target_inventory is not None,
                         "route_authentication_bindings": _binding_adapter is not None,
                         "migration_source_kinds": ["provider_credential", "secret", "tool"] if _migration_inventory is not None else [],
                         "secret_reveal": False, "environment_fallback": False}
@@ -166,7 +167,8 @@ class ProjectConfigurationService:
                             project_id=project_id, permission=required, path_context=context)
                 return await configuration_summary(session, project_id=project_id, environment=arguments['environment'],
                     inventory=_target_inventory, reader=_target_reader, authorize=authorize_target,
-                    inspect_many=ConfigurationResolution(session, encryption_key=self.encryption_key).inspect_many)
+                    inspect_many=ConfigurationResolution(session, encryption_key=self.encryption_key).inspect_many,
+                    limit=arguments.get('limit', 50), cursor=arguments.get('cursor'))
             if action == "readiness":
                 from shared.contracts.project_configuration import ConfigurationError
                 if _target_reader is None:

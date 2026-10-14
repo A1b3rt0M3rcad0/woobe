@@ -138,7 +138,12 @@ export interface ConfigurationSummary {
   environment: ProjectEnvironment
   state: ConfigurationReadiness['state']
   complete: boolean
-  scope: 'current_selections'
+  scope: 'current_selections' | 'current_selections_page'
+  page_state?: ConfigurationReadiness['state']
+  page_complete?: boolean
+  has_next?: boolean
+  next_cursor?: string | null
+  limit?: number
   checked_at: string
   inspected_target_count: number
   unselected_target_count: number

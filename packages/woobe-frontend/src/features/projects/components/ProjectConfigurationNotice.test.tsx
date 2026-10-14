@@ -45,3 +45,9 @@ it('keeps incomplete checks distinct from readiness and refreshes only metadata'
   expect(query.refetch).toHaveBeenCalledOnce()
   expect(useQuery.mock.calls[useQuery.mock.calls.length-1]?.[0].refetchInterval).toBe(30_000)
 })
+it('identifies a bounded page without treating its counts as the whole Project', async () => {
+  query.data={state:'unknown',has_next:true,inspected_target_count:100,blocked_key_count:0,page_state:'ready'}
+  await render('draft')
+  expect(container.textContent).toContain('Partial configuration check · 100 targets inspected')
+  expect(container.textContent).not.toContain('Required configuration is ready')
+})

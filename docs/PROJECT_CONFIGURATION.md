@@ -203,10 +203,22 @@ for the browser session. It refreshes on focus, every 30 seconds and after centr
 configuration writes. Permission loss or failed refresh hides prior counts. The
 link returns to the same Project after editing, without rerunning any operation.
 
-The summary inspects at most 50 Agents and 50 Networks per request. A larger or
-unresolved closure reports `unknown` / `complete: false`, never a partial green
-status. Use exact target readiness for execution decisions. CLI clients discover
-the optional `project_summary` capability before requesting this projection.
+The summary defaults to 50 Agents and 50 Networks per request. `limit=1..200`
+controls the independent owner page sizes; follow `next_cursor` with `cursor` to
+continue. The cursor is bound to this Project and Environment, and exhausted
+owners do not repeat on later pages. No material or connection data is encoded.
+All inspected owners, including the bounded lookahead used by `has_next`, are
+authorized before any counts or cursor are returned. A partially authorized
+operator should use exact target readiness rather than the Project aggregate.
+
+Counts on a `current_selections_page` response belong only to that page. Such a
+response always reports `unknown` / `complete: false`, even when the last page's
+`page_state` is ready. `has_next` describes enumeration, while `page_complete`
+describes whether the page's closures were resolved. Pages are observations at
+their respective `checked_at` times, not a cross-request snapshot; shared keys
+must not be double-counted by adding page totals. Use exact target readiness for
+execution decisions. CLI clients negotiate `project_summary`, and additionally
+`project_summary_pagination` before sending explicit pagination selectors.
 
 The central metadata inspection is batched across the authorized target closures:
 keys, Environment slots, policies and validation evidence are read once per
