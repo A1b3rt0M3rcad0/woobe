@@ -278,3 +278,9 @@ retained Agent snapshot. It does not widen a route grant. OAuth and retained inl
 snapshots still need owner-specific migration and historical evidence handling
 before storage contraction is qualified. Debug SQL logging hides bound parameters,
 including encrypted values; invocation responses strip private header fragments.
+
+A legacy value write without an Environment changes one shared compatibility
+slot. It requires value-write authority for Draft, Staging and Production. An
+Environment-limited key must use a native central value operation for that
+Environment; an ignored `environment` field on an old Provider/Tool request
+cannot narrow the write. HTTP and owner transactions both enforce this scope.

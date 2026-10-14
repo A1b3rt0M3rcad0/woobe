@@ -16,6 +16,23 @@ Environment = Literal["draft", "staging", "production"]
 SENSITIVE_AUTHENTICATION_HEADERS = frozenset({'authorization', 'proxy-authorization', 'x-api-key', 'api-key', 'cookie'})
 
 
+def configuration_permission_contexts(permission, legacy, path_context):
+    """A compatibility value has one global slot, never an inferred Environment.
+
+    Check every affected Environment even when the original request has none or
+    carries an ignored selector. Reference-only and native Environment writes
+    keep their exact existing context. This is shared by HTTP and owner guards.
+    """
+    context = dict(path_context or {})
+    if legacy:
+        context['_configuration_legacy_permission'] = legacy
+    if permission == 'project:environment:value:write' and legacy in {
+        'provider:write', 'provider:credential:rotate', 'secret:write', 'tool:write', 'project:environment:write',
+    }:
+        return [{**context, 'environment': environment} for environment in ('draft', 'staging', 'production')]
+    return [context]
+
+
 def tool_configuration_permissions(config, *, compatibility_update=False):
     """Authority hints for authenticated owner writes; never value resolution."""
     if not isinstance(config, dict):

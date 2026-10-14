@@ -81,20 +81,20 @@ class TransactionalHandler(Generic[RequestT, ResponseT]):
                     raise AuthorizationError("Configuration requires authoritative transaction authorization")
                 authorizer = TenantAuthorizer(session)
                 for permission, legacy in dict.fromkeys(tuple(item) for item in configuration_permissions):
-                    context = dict(request.metadata.get("authorization_path_params", request.path_params))
-                    if legacy:
-                        context["_configuration_legacy_permission"] = legacy
-                    if isinstance(request.principal, ControlPlanePrincipal):
-                        await authorizer.authorize_control_key(api_key_id=request.principal.api_key_id,
-                            workspace_id=request.principal.workspace_id, workspace_permissions=request.principal.permissions,
-                            required_permission=permission, path_params=context, query_params=request.query_params,
-                            body=request.body)
-                    elif isinstance(request.principal, AuthenticatedPrincipal):
-                        await authorizer.require_active_human(request.principal)
-                        await authorizer.authorize(user_id=request.principal.user_id, path_params=context,
-                            query_params=request.query_params, body=request.body, required_permission=permission, mutation=True)
-                    else:
-                        raise AuthorizationError("Configuration requires administrative authentication")
+                    from shared.contracts.project_configuration import configuration_permission_contexts
+                    for context in configuration_permission_contexts(permission, legacy,
+                            request.metadata.get("authorization_path_params", request.path_params)):
+                        if isinstance(request.principal, ControlPlanePrincipal):
+                            await authorizer.authorize_control_key(api_key_id=request.principal.api_key_id,
+                                workspace_id=request.principal.workspace_id, workspace_permissions=request.principal.permissions,
+                                required_permission=permission, path_params=context, query_params=request.query_params,
+                                body=request.body)
+                        elif isinstance(request.principal, AuthenticatedPrincipal):
+                            await authorizer.require_active_human(request.principal)
+                            await authorizer.authorize(user_id=request.principal.user_id, path_params=context,
+                                query_params=request.query_params, body=request.body, required_permission=permission, mutation=True)
+                        else:
+                            raise AuthorizationError("Configuration requires administrative authentication")
             if isinstance(request, OperationRequest) and request.metadata.get(
                 "idempotency_key"
             ):

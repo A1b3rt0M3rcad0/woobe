@@ -534,3 +534,26 @@ async def test_detached_existing_oauth_protocol_and_discovery(cli, unused_tcp_po
     finally:
         server.should_exit = True
         await asyncio.wait_for(peer, 10)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('kind', ['provider', 'tool'])
+async def test_environment_limited_value_writer_cannot_change_global_legacy_material(cli, kind):
+    project = await cli.data('project', 'create', body={
+        'workspace_id': cli.workspace_id, 'name': 'Global source scope', 'slug': str(uuid4())})
+    cli.project_id = project['id']
+    permissions = ['project:read', 'project:environment:value:write',
+        'provider:write' if kind == 'provider' else 'tool:write']
+    _, restricted = await cli.issue('workspace', 'control-key', 'create', body={
+        'name': 'Staging values only', 'expires_at': (datetime.now(UTC) + timedelta(minutes=30)).isoformat(),
+        'on_project_create_permissions': [], 'project_grants': [{'project_id': cli.project_id,
+            'permissions': permissions, 'conditions': {'environments': ['staging']}}]})
+    material = 'global-scope-native-canary'; cli.secret_values.add(material)
+    if kind == 'provider':
+        await cli.run('project', 'provider-credential', 'create', key=restricted,
+            body={'project_id': cli.project_id, 'provider': 'openai', 'name': 'Global Provider',
+                  'secret': material, 'environment': 'staging'}, expected=4)
+    else:
+        await cli.run('request', 'POST', '/tools/tools', key=restricted, body={
+            'project_id': cli.project_id, 'name': 'Global Tool', 'type': 'http', 'environment': 'staging', 'config': {
+                'url': 'https://approved.example/api', 'headers': [{'key': 'Authorization', 'value': material}]}}, expected=4)

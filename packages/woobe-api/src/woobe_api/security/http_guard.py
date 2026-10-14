@@ -273,13 +273,12 @@ class HttpSecurityGuard:
                     path_params=authorization_path_params,
                 )
                 for permission, legacy in configuration_permissions:
-                    context = {**authorization_path_params}
-                    if legacy:
-                        context["_configuration_legacy_permission"] = legacy
-                    await self._authenticator.authenticate_api_key(credentials=credentials,
-                        required_scope=_required_api_key_scope(request.method, request.url.path),
-                        runtime_interface=public_runtime_interface(request.method, request.url.path),
-                        path_params=context, query_params=query_params, body=body, control_permission=permission)
+                    from shared.contracts.project_configuration import configuration_permission_contexts
+                    for context in configuration_permission_contexts(permission, legacy, authorization_path_params):
+                        await self._authenticator.authenticate_api_key(credentials=credentials,
+                            required_scope=_required_api_key_scope(request.method, request.url.path),
+                            runtime_interface=public_runtime_interface(request.method, request.url.path),
+                            path_params=context, query_params=query_params, body=body, control_permission=permission)
                 return principal
             access_token = credentials
             token_source = "header"
@@ -303,12 +302,11 @@ class HttpSecurityGuard:
             self._validate_csrf(request)
 
         for permission, legacy in configuration_permissions:
-            context = {**authorization_path_params}
-            if legacy:
-                context["_configuration_legacy_permission"] = legacy
-            await self._authenticator.authenticate_user(access_token=access_token,
-                path_params=context, query_params=query_params, body=body,
-                required_permission=permission, mutation=True)
+            from shared.contracts.project_configuration import configuration_permission_contexts
+            for context in configuration_permission_contexts(permission, legacy, authorization_path_params):
+                await self._authenticator.authenticate_user(access_token=access_token,
+                    path_params=context, query_params=query_params, body=body,
+                    required_permission=permission, mutation=True)
 
         return principal
 
