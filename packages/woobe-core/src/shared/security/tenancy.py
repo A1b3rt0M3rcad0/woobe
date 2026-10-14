@@ -613,12 +613,20 @@ class TenantAuthorizer:
         # The marker is injected only by exact reviewed legacy HTTP operations.
         # It cannot authorize central value endpoints or a new category/key.
         legacy = (path_context or {}).get("_configuration_legacy_permission")
-        if (required_permission != "project:environment:value:write" or legacy not in granted
-                or legacy not in {"provider:write", "provider:credential:rotate", "secret:write", "tool:write", "project:environment:write"}):
+        legacy_write = (required_permission == 'project:environment:value:write'
+            and legacy in {'provider:write', 'provider:credential:rotate', 'secret:write',
+                           'tool:write', 'project:environment:write'})
+        legacy_refresh = (required_permission == 'project:environment:validate'
+            and legacy == 'tool:write'
+            and (path_context or {}).get('_configuration_legacy_operation') == 'mcp.refresh'
+            and (path_context or {}).get('environment') == 'draft'
+            and _uuid((path_context or {}).get('tool_id')) is not None)
+        if legacy not in granted or not (legacy_write or legacy_refresh):
             return False
         statement = text("""SELECT 1 FROM core.project_configuration_legacy_authorities
             WHERE project_id=:project_id AND subject_type=:subject_type
-              AND subject_id=:subject_id AND permission=:permission""").bindparams(
+              AND subject_id=:subject_id AND permission=:permission
+              AND catalog_revision='pre-project_configuration.v1'""").bindparams(
                 bindparam("project_id", type_=Uuid()), bindparam("subject_id", type_=Uuid()))
         return await self._session.scalar(statement, {"project_id": project_id,
             "subject_type": subject_type, "subject_id": subject_id, "permission": legacy}) is not None

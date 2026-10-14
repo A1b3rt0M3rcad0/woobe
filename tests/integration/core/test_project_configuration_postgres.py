@@ -1398,3 +1398,27 @@ async def test_tool_migration_does_not_certify_retained_inline_or_broaden_routes
     assert blocked.value.code == 'LEGACY_FORMAT_UNSUPPORTED'
     assert release.runtime_config['tools']['snapshots'][0]['config'] == config
     assert rows[0].config == config
+
+
+@pytest.mark.asyncio
+async def test_legacy_mcp_refresh_translation_requires_pre_v1_and_current_grant(configuration):
+    from modules.core.infra.database.configuration_models import ConfigurationLegacyAuthorityModel
+    from shared.security.tenancy import TenantAuthorizer
+    store, project, _ = configuration
+    subject = uuid4()
+    row = ConfigurationLegacyAuthorityModel(project_id=project, subject_type='control_key', subject_id=subject,
+        permission='tool:write', catalog_revision='different-catalog')
+    store.session.add(row); await store.session.flush()
+    authorizer = TenantAuthorizer(store.session)
+    args = dict(project_id=project, subject_type='control_key', subject_id=subject,
+        required_permission='project:environment:validate', granted={'tool:write'}, path_context={
+            'tool_id': uuid4(), 'environment': 'draft', '_configuration_legacy_permission': 'tool:write',
+            '_configuration_legacy_operation': 'mcp.refresh'})
+    assert not await authorizer._legacy_configuration_write(**args)
+    row.catalog_revision = 'pre-project_configuration.v1'; await store.session.flush()
+    assert await authorizer._legacy_configuration_write(**args)
+    assert not await authorizer._legacy_configuration_write(**{**args, 'granted': set()})
+    assert not await authorizer._legacy_configuration_write(**{**args, 'path_context': {
+        **args['path_context'], 'environment': 'production'}})
+    assert not await authorizer._legacy_configuration_write(**{**args, 'path_context': {
+        'tool_id': args['path_context']['tool_id'], 'environment': 'draft'}})

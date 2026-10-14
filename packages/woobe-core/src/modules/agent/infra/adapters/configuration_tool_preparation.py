@@ -17,13 +17,16 @@ class ConfigurationToolPreparation:
     def __init__(self, uow_factory, preparer):
         self.uow_factory, self.preparer = uow_factory, preparer
 
-    async def __call__(self, request, *, timeout_ms=None):
+    async def __call__(self, request, *, timeout_ms=None, legacy_refresh=False):
         project_id, target_id = UUID(str(request.path_params["project_id"])), UUID(str(request.path_params["target_id"]))
         environment = normalize_runtime_environment((request.body or {}).get("environment") or "draft")
+        if legacy_refresh and environment != 'draft':
+            raise ConfigurationError('CONFIG_USAGE_NOT_AUTHORIZED')
         operation_id = uuid4()
         principal = request.principal
         async with self.uow_factory() as uow:
-            await self._authorize(uow.session, principal, project_id, target_id, environment)
+            await self._authorize(uow.session, principal, project_id, target_id, environment,
+                                  legacy_refresh=legacy_refresh)
             configuration = configuration_for_session(uow.session)
             if configuration is None:
                 raise ConfigurationError("CONFIG_STORE_UNAVAILABLE")
@@ -51,7 +54,8 @@ class ConfigurationToolPreparation:
         if result is None:
             raise ConfigurationError("CONFIG_BINDING_INVALID")
         async with self.uow_factory() as uow:
-            await self._authorize(uow.session, principal, project_id, target_id, environment)
+            await self._authorize(uow.session, principal, project_id, target_id, environment,
+                                  legacy_refresh=legacy_refresh)
             repository = SQLAlchemyAgentToolRepository(uow.session)
             current = await repository.lock_by_id(target_id)
             if current.config != original or current.updated_at != original_updated_at:
@@ -81,9 +85,15 @@ class ConfigurationToolPreparation:
             "state": result.status, "initialized": result.initialized, "discovered_count": result.discovered_count}})
 
     @staticmethod
-    async def _authorize(session, principal, project_id, target_id, environment):
+    async def _authorize(session, principal, project_id, target_id, environment, *, legacy_refresh=False):
         authorizer = TenantAuthorizer(session)
         context = {"project_id": project_id, "tool_id": target_id, "environment": environment}
+        if legacy_refresh:
+            # An internal compatibility call, never a body/query flag. Tenancy
+            # additionally requires the exact pre-v1 captured authority and the
+            # current Tool-write grant. Central endpoints receive no marker.
+            context.update(_configuration_legacy_permission='tool:write',
+                           _configuration_legacy_operation='mcp.refresh')
         for permission in ["tool:write", "project:environment:validate"]:
             if isinstance(principal, ControlPlanePrincipal):
                 await authorizer.require_active_control(principal)

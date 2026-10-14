@@ -237,8 +237,11 @@ discovery to explicit connection preparation, after use approval and outside SQL
 The existing persisted-Tool execute and MCP refresh routes also support these
 central references. They retain their response contracts and use Draft, as their
 legacy inputs have no Environment selector. Execution requires Tool execute
-authority; central MCP refresh additionally requires configuration validation
-authority. Both acquire the current destination grant before external I/O and
+authority; central MCP refresh requires configuration validation authority. An
+exact pre-v1 captured Tool-write grant can preserve only the old Draft refresh
+operation while that grant is still current. It does not authorize the central
+test endpoint, other Environments or changed destinations. A request flag cannot
+create this provenance. Both acquire the current destination grant before external I/O and
 fail on revocation. Use the configuration preparation route for an explicit
 Staging/Production check. Invocation-local headers cannot spill into another Tool.
 

@@ -276,3 +276,52 @@ async def test_existing_tool_operations_use_central_material_and_preserve_revoca
         '--query', 'expected_revision=' + str(policy['revision']))
     denied = await cli.run('request', 'POST', route, body={'tool_id': tool['id']}, expected=4)
     assert 'CONFIG_USAGE_NOT_AUTHORIZED' in str(denied)
+
+
+@pytest.mark.asyncio
+async def test_pre_v1_mcp_author_can_refresh_without_granting_new_validation_authority(cli):
+    from uuid import UUID
+    from modules.core.infra.database.configuration_models import ConfigurationLegacyAuthorityModel
+    from shared.infra.config import Settings
+    from shared.infra.database.session import create_engine, create_session_factory
+    project = await cli.data('project', 'create', body={
+        'workspace_id': cli.workspace_id, 'name': 'Pre-v1 MCP authority', 'slug': str(uuid4()),
+    })
+    cli.project_id = project['id']
+    for value in ('Bearer ephemeral-native-environment-token', 'ephemeral-native-tool-token'):
+        cli.secret_values.add(value)
+    tool = await cli.data('request', 'POST', '/tools/tools', body={
+        'project_id': cli.project_id, 'name': 'Old MCP author Tool', 'type': 'mcp', 'config': {
+            'mode': 'server', 'exposure': 'all_discovered', 'server': {
+                'url': os.environ['WOOBE_TEST_FAKE_MCP_URL'], 'transport': 'streamable_http',
+                'headers': [{'key': 'Authorization', 'value': 'Bearer ephemeral-native-environment-token'},
+                            {'key': 'X-Tool-Token', 'value': 'ephemeral-native-tool-token', 'sensitive': True}],
+            }}, 'input_schema': {'type': 'object', 'properties': {}},
+    })
+    issued, restricted = await cli.issue('workspace', 'control-key', 'create', body={
+        'name': 'Old MCP author', 'expires_at': (datetime.now(UTC) + timedelta(minutes=30)).isoformat(),
+        'on_project_create_permissions': [], 'project_grants': [{'project_id': cli.project_id,
+            'permissions': ['project:read', 'tool:read', 'tool:write', 'project:environment:read']}],
+    })
+    # A new Tool-write grant alone does not inherit validation permission.
+    await cli.run('request', 'POST', '/tools/mcp/refresh', body={'tool_id': tool['id']}, key=restricted, expected=4)
+    engine = create_engine(Settings())
+    try:
+        async with create_session_factory(engine)() as session, session.begin():
+            session.add(ConfigurationLegacyAuthorityModel(project_id=UUID(cli.project_id), subject_type='control_key',
+                subject_id=UUID(issued['id']), permission='tool:write', catalog_revision='pre-project_configuration.v1'))
+        refreshed = await cli.data('request', 'POST', '/tools/mcp/refresh', body={'tool_id': tool['id']}, key=restricted)
+        assert refreshed['initialized'] and refreshed['status'] == 'ready'
+        # The provenance applies only to the old Draft operation, not to the
+        # new configuration test route or a different Environment.
+        await cli.run('request', 'POST', f'/core/projects/{cli.project_id}/configuration/tests/tool/{tool["id"]}',
+            body={'environment': 'draft'}, key=restricted, expected=4)
+        base = f'/core/projects/{cli.project_id}/configuration'
+        key = (await cli.data('request', 'GET', base + '/keys'))['items'][0]
+        policy = (await cli.data('request', 'GET', base + '/keys/' + key['id'] + '/use-policies'))['items'][0]
+        await cli.data('request', 'DELETE', base + '/use-policies/' + policy['id'],
+            '--query', 'expected_revision=' + str(policy['revision']))
+        denied = await cli.run('request', 'POST', '/tools/mcp/refresh', body={'tool_id': tool['id']}, key=restricted, expected=4)
+        assert 'CONFIG_USAGE_NOT_AUTHORIZED' in str(denied)
+    finally:
+        await engine.dispose()

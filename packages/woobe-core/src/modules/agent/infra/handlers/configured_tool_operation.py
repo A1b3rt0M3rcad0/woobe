@@ -58,7 +58,7 @@ class ConfiguredToolOperation:
                 "path_params": {"project_id": tool.project_id, "target_id": tool.id},
                 "body": {"environment": "draft"},
             })
-            result = await self.preparation(translated, timeout_ms=dto.timeout_ms)
+            result = await self.preparation(translated, timeout_ms=dto.timeout_ms, legacy_refresh=True)
             data = result.body["data"]
             return OperationResult(body={"success": True, "message": "ok", "data": {
                 "tool_id": str(tool.id), "discovered_count": data["discovered_count"],
