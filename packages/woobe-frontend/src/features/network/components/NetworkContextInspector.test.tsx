@@ -66,7 +66,7 @@ describe('Network context inspector bootstrap', () => {
     )
 
     expect(markup).toContain('xl:w-inspector-workspace')
-    expect(markup).toContain('w-[min(94vw,32.5rem)]')
+    expect(markup).toContain('aria-label="Network inspector"')
     expect(markup).not.toContain('w-[400px]')
     expect(markup).not.toContain('w-[520px]')
   })

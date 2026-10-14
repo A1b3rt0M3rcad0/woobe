@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { Workflow } from 'lucide-react'
 import { toast } from 'sonner'
-import { Button, EmptyStatePanel, Field, FieldLabel, Input, MetricTile, PanelHeader, SectionBlock, Select, Textarea } from '@woobe/ui'
+import { Button, EmptyStatePanel, Field, FieldLabel, Input, ReadOnlyField, PanelHeader, SectionBlock, Select, Textarea } from '@woobe/ui'
 
 import type { Agent } from '@/features/agents/types'
 import { previewNetworkDraftExternalContextContract } from '@/features/network/externalContextContractPreview'
@@ -118,10 +118,10 @@ export function NetworkOverviewInspector({
 
         <SectionBlock density="compact" title="Composition">
           <div className="grid gap-ui-sm sm:grid-cols-2">
-            <MetricTile label="Entry point" value={entryPoint} />
-            <MetricTile label="Agents" value={definition.nodes.length} />
-            <MetricTile label="Delegations" value={definition.edges.length} />
-            <MetricTile label="Mode" value={definition.settings.session_mode} />
+            <ReadOnlyField label="Entry point" value={entryPoint} />
+            <ReadOnlyField label="Agents" value={definition.nodes.length} />
+            <ReadOnlyField label="Delegations" value={definition.edges.length} />
+            <ReadOnlyField label="Mode" value={definition.settings.session_mode} />
           </div>
         </SectionBlock>
 

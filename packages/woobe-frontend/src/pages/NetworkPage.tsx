@@ -969,7 +969,7 @@ export default function NetworkPage() {
       <header className="flex min-h-14 shrink-0 flex-wrap items-center gap-ui-md border-b border-border bg-surface px-ui-md py-ui-sm">
         <button type="button" aria-label={networkIdentity ? "Back to Networks" : "Back to Project"} onClick={() => navigate(`/workspaces/${workspaceId}/projects/${projectId}${networkIdentity ? "/networks" : ""}`)} className="flex h-8 w-8 items-center justify-center rounded-control border border-border text-muted-foreground transition-colors hover:text-foreground"><ChevronLeft className="h-4 w-4" /></button>
         <div>
-          <div className="flex items-center gap-ui-sm">
+          <div className="flex flex-wrap items-center gap-ui-sm">
             <h1 className="text-sm font-medium text-foreground">{networkIdentity || `${currentProject?.name || 'Project'} Network`}</h1>
             <Badge>{networkQuery.isLoading ? 'Loading' : isInitialSetup ? 'Setup incomplete' : 'Runtime'}</Badge>
             {!isInitialSetup ? <button type="button" onClick={() => openNetworkManager('production')} className={cn('rounded-technical border px-ui-sm py-ui-hairline font-mono text-system-label', productionVersion ? 'border-emerald-500/30 bg-emerald-500/10 text-success' : 'border-border bg-background/45 text-muted-foreground')}>{productionVersion ? `Production · ${productionVersion.version}` : 'No Production release'}</button> : null}
@@ -979,7 +979,7 @@ export default function NetworkPage() {
         {isInitialSetup ? (
           <div className="ml-auto flex items-center gap-ui-sm"><span className="rounded-control border border-primary/25 bg-primary/5 px-ui-md py-ui-xs font-mono text-system-micro font-medium text-primary-light">Draft · initial setup</span></div>
         ) : (
-          <div className="ml-auto flex items-center gap-ui-sm">
+          <div className="ml-auto flex w-full min-w-0 flex-wrap items-center gap-ui-sm xl:w-auto">
             <div role="tablist" aria-label="Network environment" className="flex rounded-container border border-border bg-background/35 p-ui-hairline">
               {(['draft', 'staging', 'production'] as Environment[]).map((item) => (
                 <button key={item} type="button" role="tab" aria-selected={item === environment} onClick={() => changeEnvironment(item)} title={item === 'draft' ? 'Editable working composition' : item === 'staging' ? 'Read-only validation snapshot' : 'Immutable released composition'} className={cn('rounded-control px-ui-md py-ui-xs font-mono text-system-micro capitalize transition-colors', item === environment ? item === 'production' ? 'bg-emerald-500/10 text-success' : item === 'staging' ? 'bg-indigo-500/10 text-indigo-300' : 'bg-primary/10 text-primary-light' : 'text-muted-foreground hover:text-foreground')}>{item}</button>
@@ -997,7 +997,7 @@ export default function NetworkPage() {
           </div>
         )}
       </header>
-      <div className="relative flex h-8 shrink-0 items-center border-b border-border bg-surface/35 px-ui-md font-mono text-system-micro text-muted-foreground">
+      <div className="relative flex min-h-8 shrink-0 flex-wrap items-center gap-ui-sm border-b border-border bg-surface/35 px-ui-md py-ui-xs font-mono text-system-micro text-muted-foreground">
         {isInitialSetup ? (
           <>
             <span className="inline-flex items-center gap-ui-xs"><PencilLine className="h-3 w-3 text-primary-light" />Draft setup · choose the Agent that receives Network requests</span>
@@ -1006,10 +1006,10 @@ export default function NetworkPage() {
         ) : (
           <>
             <span className="inline-flex items-center gap-ui-xs">{snapshotInspection || environment !== 'draft' ? <Lock className="h-3 w-3 text-muted-foreground" /> : <PencilLine className="h-3 w-3 text-primary-light" />}Viewing: <b className="text-slate-300">{contextVersionLabel}</b> · {snapshotInspection ? 'Exact read-only snapshot' : environment === 'draft' ? workspaceDirty ? 'Unsaved Draft changes' : 'Draft saved' : environmentReady ? 'Read-only composition · Chat and Runs available' : 'Environment not created'}</span>
-            <div className="absolute left-1/2 flex -translate-x-1/2 rounded-control border border-border bg-background/45 p-ui-hairline">
-              {([['canvas', Workflow], ['chat', MessageSquare]] as Array<['canvas' | 'chat', LucideIcon]>).map(([mode, Icon]) => <button key={mode} type="button" onClick={() => changeCenter(mode)} className={cn('flex items-center gap-ui-xs rounded-technical px-ui-sm py-ui-xs capitalize transition-colors', centerMode === mode ? 'bg-primary/10 text-primary-light' : 'text-muted-foreground hover:text-foreground')}><Icon className="h-3 w-3" />{mode}</button>)}
+            <div className="flex rounded-control xl:absolute xl:left-1/2 xl:-translate-x-1/2 border border-border bg-background/45 p-ui-hairline">
+              {([['canvas', Workflow], ['chat', MessageSquare]] as Array<['canvas' | 'chat', LucideIcon]>).map(([mode, Icon]) => <button key={mode} type="button" aria-pressed={centerMode === mode} onClick={() => changeCenter(mode)} className={cn('flex items-center gap-ui-xs rounded-technical px-ui-sm py-ui-xs capitalize transition-colors', centerMode === mode ? 'bg-primary/10 text-primary-light' : 'text-muted-foreground hover:text-foreground')}><Icon className="h-3 w-3" />{mode}</button>)}
             </div>
-            <span className="ml-auto truncate">{activeSession ? `Session: ${activeSession.title}` : 'New conversation'} · Max depth {workspaceDefinition.settings.max_depth} · Timeout {workspaceDefinition.settings.timeout_seconds}s</span>
+            <span className="ml-auto min-w-0 break-words">{activeSession ? `Session: ${activeSession.title}` : 'New conversation'} · Max depth {workspaceDefinition.settings.max_depth} · Timeout {workspaceDefinition.settings.timeout_seconds}s</span>
           </>
         )}
       </div>
@@ -1040,13 +1040,15 @@ export default function NetworkPage() {
             onOpenAgent={selectNode}
           />
         ) : null}
-        <div className="relative flex min-w-0 flex-1 overflow-hidden">
+        <div data-network-panes className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto xl:flex-row xl:overflow-hidden">
+        <div className="relative flex min-h-[36rem] min-w-0 flex-1 shrink-0 overflow-hidden xl:min-h-0">
           <div className={cn('absolute inset-0 flex min-w-0', effectiveCenterMode !== 'canvas' && 'invisible pointer-events-none')} aria-hidden={effectiveCenterMode !== 'canvas'}>{canvasContent}</div>
           <div className={cn('absolute inset-0 flex min-w-0', effectiveCenterMode !== 'chat' && 'invisible pointer-events-none')} aria-hidden={effectiveCenterMode !== 'chat'}>{chatContent}</div>
           {isReadyUntested && effectiveCenterMode === 'canvas' ? <NetworkReadyToTest pending={draftSavePending || createNetworkSessionMutation.isPending} onTest={() => { void startFirstTest() }} onAddSpecialist={() => openCatalog('add-specialist')} /> : null}
           {snapshotLoadingId ? <div className="pointer-events-none absolute inset-x-0 top-3 z-20 flex justify-center"><div className="rounded-control border border-border bg-surface/95 px-ui-md py-ui-sm font-mono text-system-label text-muted-foreground shadow-xl">Loading exact Run snapshot…</div></div> : null}
         </div>
         {isInitialSetup ? <NetworkInitialSetupInspector /> : <NetworkContextInspector context={inspectorContext} centerMode={centerMode} inspectionScope={inspectionScope} inspectionLabel={snapshotInspection?.title ?? null} inspectionKind={snapshotInspection?.kind ?? null} definition={workspaceDefinition} agents={projectAgents} bindings={workspaceBindings} liveDraftContractsByAgentId={draftExternalContextContractsByAgentId} issues={workspaceIssues} selection={selection} readOnly={inspectorReadOnly} name={snapshotInspection ? `${editorName} · ${snapshotInspection.snapshot.version_label ?? 'snapshot'}` : editorName} description={editorDescription} agentWorkspace={agentWorkspace} onContext={(context) => dispatchWorkspace({ type: 'context', context })} onLocateOnCanvas={() => changeCenter('canvas')} onSelect={selectWorkspace} onMetadata={updateEditorMetadata} onChange={changeEditor} />}
+        </div>
         <NetworkAgentCatalogDrawer open={catalogOpen} mode={catalogMode} agents={projectAgents} addedAgentIds={new Set(editorDefinition.nodes.map((node) => node.agent_id))} onClose={() => setCatalogOpen(false)} onAdd={(agent) => { void addAgentToNetwork(agent) }} onCreate={() => openCreateAgent(true)} />
       </div>
       <CreateAgentFlowModal

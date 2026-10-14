@@ -2,9 +2,10 @@ import { test, expect } from '@playwright/test'
 import { mkdir } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { readFile } from 'node:fs/promises'
-import { installApi, login, respond, workspace, project } from '../fixtures/control-plane'
+import { installApi, login, respond, workspace, project, networks, productionAgent } from '../fixtures/control-plane'
 import { emptyUsage } from '../fixtures/design-gallery'
 import { projectOverviewFixture } from '../../../packages/woobe-frontend/src/features/dashboard/fixtures'
+import { captureScrollSequence } from '../review/capture'
 import { installResources } from '../fixtures/resource-api'
 
 const root=`/workspaces/${workspace.id}/projects/${project.id}`
@@ -68,6 +69,30 @@ test('populated resource catalogs, cost attribution and the Run ledger',async({p
         await scroller.evaluate((el,y)=>{el.scrollTop=y},top)
         await page.screenshot({path:resolve(directory,`populated-content-${index}.png`),animations:'disabled'})
       }
+    }
+  }
+  const composed={...networks[0],agent_count:1,draft_revision:1,draft_definition:{...networks[0].draft_definition,root_node_id:'node-support',nodes:[{id:'node-support',agent_id:productionAgent.id,label:'Support entry',capability_description:'Resolve the incoming support request.',position:{x:200,y:180},binding:{source:'draft',release_id:null}}]}}
+  await page.route('**/network/projects/project-a/networks/network-support',route=>respond(route,composed))
+  await page.route('**/network/projects/project-a/networks',route=>respond(route,[composed,networks[1]]))
+  for(const width of [1440,768,390]) {
+    await page.setViewportSize({width,height:1100})
+    await page.goto(`${root}/networks/network-support`)
+    await expect(page.locator('.react-flow__node').first()).toBeVisible()
+    if(width<1280) {
+      const canvas=await page.locator('.network-flow').boundingBox()
+      const inspector=await page.getByRole('complementary',{name:'Network inspector'}).boundingBox()
+      expect(inspector!.y).toBeGreaterThanOrEqual(canvas!.y+canvas!.height-1)
+    }
+    await page.evaluate(()=>document.fonts.ready);await page.waitForTimeout(400)
+    if(width<640) {
+      const node=await page.locator('.react-flow__node').first().boundingBox()
+      const overview=await page.locator('.react-flow__minimap').boundingBox()
+      expect(overview!.y).toBeGreaterThanOrEqual(node!.y+node!.height)
+    }
+    if(process.env.WOOBE_CAPTURE_DOCS==='1') {
+      const directory=resolve(process.cwd(),'../../docs/screenshots/v2/pages/network-workspace');await mkdir(directory,{recursive:true})
+      await page.screenshot({path:resolve(directory,`populated-${width}px.png`),animations:'disabled'})
+      await captureScrollSequence(page,page.locator('body'),directory,`populated-${width}px`)
     }
   }
   expect(errors).toEqual([])

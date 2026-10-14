@@ -299,8 +299,8 @@ export function NetworkGraphEditor({
           bgColor="var(--g-canvas)"
           nodeStrokeColor="#8c867d"
           nodeColor={(node) => activePathSet.has(node.id) ? '#197542' : node.id === definition.root_node_id ? '#7c3aed' : '#e3e1dd'}
-          maskColor="rgba(2,8,23,.52)"
-          maskStrokeColor="rgba(96,165,250,.9)"
+          maskColor="rgba(36,35,33,.10)"
+          maskStrokeColor="#8c867d"
           maskStrokeWidth={1.5}
           ariaLabel="Network overview. Drag to navigate and scroll to zoom."
         />
@@ -314,7 +314,7 @@ export function NetworkGraphEditor({
         </div>
       ) : null}
       {!readOnly ? (
-        <Button type="button" size="sm" onClick={onAddAgent} className="absolute right-ui-md top-ui-md z-10">
+        <Button type="button" size="sm" onClick={onAddAgent} className="absolute right-ui-md top-16 z-10 sm:top-ui-md">
           <Plus className="h-icon-sm w-icon-sm" />Add Agent
         </Button>
       ) : null}

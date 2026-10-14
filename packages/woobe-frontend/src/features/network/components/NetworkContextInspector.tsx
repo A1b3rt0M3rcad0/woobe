@@ -78,7 +78,7 @@ export function NetworkContextInspector({
   }
 
   return (
-    <aside className="absolute inset-y-0 right-0 z-40 flex min-h-0 w-[min(94vw,32.5rem)] max-w-[94vw] shrink-0 flex-col border-l border-border bg-surface/95 shadow-2xl shadow-black/30 xl:relative xl:z-auto xl:w-inspector-workspace xl:max-w-inspector-workspace xl:bg-surface/80 xl:shadow-none">
+    <aside aria-label="Network inspector" className="relative flex h-[36rem] min-h-0 w-full max-w-full shrink-0 flex-col border-t border-border bg-surface xl:h-auto xl:w-inspector-workspace xl:max-w-inspector-workspace xl:border-l xl:border-t-0">
       {inspecting ? (
         <div className="flex shrink-0 items-center gap-2 border-b border-border bg-background/35 px-3 py-2 text-system-meta text-muted">
           <Lock className="h-3 w-3 shrink-0 text-primary-light" />
