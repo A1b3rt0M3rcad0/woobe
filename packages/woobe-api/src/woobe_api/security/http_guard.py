@@ -53,8 +53,10 @@ def _configuration_permissions(method, path, body, path_params):
         method == "PATCH" and credential is not None and path == f"/ai/credentials/{credential}")
     provider_rotate = method == "POST" and credential is not None and path == f"/ai/credentials/{credential}/rotate"
     permissions = []
-    if method in {"POST", "PUT", "PATCH"} and ("/tools" in path) and isinstance(body.get("config"), dict) and "authentication" in body["config"]:
-        permissions.append(("project:environment:bind", None))
+    if method in {'POST', 'PUT', 'PATCH'} and '/tools' in path:
+        from shared.contracts.project_configuration import tool_configuration_permissions
+        permissions.extend(tool_configuration_permissions(body.get('config'),
+            compatibility_update=method == 'PATCH' and path_params.get('tool_id') is not None))
     if provider_write and "authentication" in body:
         permissions.append(("project:environment:bind", None))
     if (provider_write or provider_rotate) and "secret" in body:

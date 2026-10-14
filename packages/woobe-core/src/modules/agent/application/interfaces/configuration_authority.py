@@ -15,8 +15,7 @@ def provider_rotation_permissions(request):
 
 
 def tool_binding_permissions(request):
+    from shared.contracts.project_configuration import tool_configuration_permissions
     body = request.body if isinstance(request.body, dict) else {}
-    config = body.get("config")
-    if isinstance(config, dict) and "authentication" in config:
-        return [("project:environment:bind", None)]
-    return []
+    return tool_configuration_permissions(body.get('config'),
+        compatibility_update=request.path_params.get('tool_id') is not None)

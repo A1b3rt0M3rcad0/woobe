@@ -187,7 +187,8 @@ class HttpToolExecutor(ToolExecutionPort):
         # A remote reference still must pass its exact destination grant before
         # bytes are sent; explicit approvals may include internal endpoints.
         configuration_scope = current_tool_configuration.get()
-        approved_configuration_path = bool(configuration_scope and configuration_scope[3]["fields"])
+        approved_configuration_path = bool(configuration_scope and (
+            configuration_scope[3]['fields'] or configuration_scope[3].get('bindings')))
         validator = (
             _validated_local_addresses
             if self._allow_local_networks or approved_configuration_path
@@ -225,6 +226,13 @@ class HttpToolExecutor(ToolExecutionPort):
                 content=body.encode("utf-8") if body else None,
                 timeout=httpx.Timeout(effective_timeout / 1000),
             )
+            # A shared HTTP client's defaults and cookie jar are not a Tool's
+            # authority. Only its explicit legacy headers or the per-send
+            # configuration resolver may supply authentication.
+            explicit_names = {name.lower() for name in (headers or {})}
+            for name in ('cookie', 'authorization', 'proxy-authorization'):
+                if name not in explicit_names:
+                    request.headers.pop(name, None)
             from modules.agent.infra.adapters.tool_configuration_transport import configuration_headers
             private_headers = await configuration_headers(str(request.url)) if current_tool_configuration.get() is not None else {}
             if private_headers:
@@ -233,6 +241,7 @@ class HttpToolExecutor(ToolExecutionPort):
                 request,
                 stream=True,
                 follow_redirects=False,
+                auth=None,
             )
             duration_ms = round((time.monotonic() - started_at) * 1000)
 

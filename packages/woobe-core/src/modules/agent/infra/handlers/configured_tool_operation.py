@@ -12,7 +12,8 @@ from modules.agent.application.interfaces.project_configuration import (
 )
 from modules.agent.domain.enums import ToolStatus
 from modules.agent.domain.errors import ToolNotFoundError
-from modules.agent.domain.tool_configuration import tool_authentication, tool_dependencies
+from modules.agent.domain.tool_configuration import invocation_authentication, tool_dependencies
+from modules.agent.application.interfaces.tool_runtime import MCP_REMOTE_TOOL_INPUT_KEY
 from modules.agent.infra.database.configuration_secret_projection import project_secret_headers
 from modules.agent.infra.database.repositories import SQLAlchemyAgentToolRepository
 from shared.contracts.errors import AuthorizationError
@@ -43,7 +44,8 @@ class ConfiguredToolOperation:
             # source between classification and acquisition.
             tool = await SQLAlchemyAgentToolRepository(uow.session).lock_by_id(dto.tool_id)
             tool = (await project_secret_headers(uow.session, project_id=tool.project_id, tools=[tool]))[0]
-            auth = tool_authentication(tool.config, allow_legacy=True)
+            auth = invocation_authentication(tool.config,
+                (getattr(dto, 'input_data', None) or {}).get(MCP_REMOTE_TOOL_INPUT_KEY))
             if auth is not None and not refresh:
                 if tool.status != ToolStatus.ACTIVE:
                     raise ToolNotFoundError(dto.tool_id)

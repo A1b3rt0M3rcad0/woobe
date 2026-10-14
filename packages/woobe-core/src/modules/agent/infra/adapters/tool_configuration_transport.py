@@ -1,10 +1,11 @@
 """Invocation-local references, resolved immediately before the HTTP send."""
-from base64 import b64encode
+from base64 import b64encode, b64decode
 from functools import wraps
 
 from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.application.interfaces.project_configuration import resolve_runtime_configuration, current_tool_configuration
-from modules.agent.domain.tool_configuration import tool_authentication
+from modules.agent.domain.tool_configuration import invocation_authentication
+from modules.agent.application.interfaces.tool_runtime import MCP_REMOTE_TOOL_INPUT_KEY
 from shared.contracts.project_configuration import ConfigurationError
 
 
@@ -12,8 +13,10 @@ from shared.contracts.project_configuration import ConfigurationError
 def configuration_bound_tool(function):
     @wraps(function)
     async def execute(self, tool, *args, **kwargs):
-        auth = tool_authentication(getattr(tool, "config", None) or {}, allow_legacy=True)
-        if auth is None or not auth["fields"]:
+        input_data = args[0] if args else kwargs.get('input_data')
+        route_id = (input_data or {}).get(MCP_REMOTE_TOOL_INPUT_KEY)
+        auth = invocation_authentication(getattr(tool, "config", None) or {}, route_id)
+        if auth is None or (not auth["fields"] and not auth.get('bindings')):
             token = current_tool_configuration.set(None)
             try:
                 return await function(self, tool, *args, **kwargs)
@@ -41,7 +44,20 @@ def configuration_bound_tool(function):
 class PrivateHeaders(dict):
     def __init__(self, headers, values):
         super().__init__(headers)
-        self.fragments = tuple(sorted(set([*headers.values(), *values]), key=len, reverse=True))
+        fragments = [*headers.values(), *values]
+        for name, value in headers.items():
+            if name.lower() == 'authorization' and ' ' in value:
+                scheme, material = value.split(' ', 1)
+                fragments.append(material)
+                if scheme.lower() == 'basic':
+                    try:
+                        decoded = b64decode(material, validate=True).decode('utf-8')
+                        fragments.extend([decoded, *decoded.split(':', 1)])
+                    except (ValueError, UnicodeError):
+                        pass
+            if name.lower() == 'cookie':
+                fragments.extend(pair.split('=', 1)[1].strip() for pair in value.split(';') if '=' in pair)
+        self.fragments = tuple(sorted({fragment for fragment in fragments if fragment}, key=len, reverse=True))
 
     def __repr__(self):
         return "<private configuration headers>"
@@ -67,11 +83,29 @@ async def configuration_headers(destination):
     if binding is None:
         return {}
     project_id, run_id, tool_id, auth = binding
+    if auth['type'] == 'composite':
+        headers, fragments = {}, []
+        for scoped in auth['bindings']:
+            resolved = await _authentication_headers(project_id, run_id, tool_id,
+                scoped['authentication'], scoped['field_prefix'], destination)
+            fragments.extend(resolved.fragments)
+            for name, value in resolved.items():
+                previous = next((key for key in headers if key.lower() == name.lower()), None)
+                if previous is not None:
+                    del headers[previous]
+                headers[name] = value
+            resolved.clear()
+        return PrivateHeaders(headers, fragments)
+    return await _authentication_headers(project_id, run_id, tool_id, auth,
+        '/config/authentication/fields/', destination)
+
+
+async def _authentication_headers(project_id, run_id, tool_id, auth, prefix, destination):
     values = {}
     for field in auth["fields"]:
         value = await resolve_runtime_configuration(project_id=project_id, run_id=run_id,
             consumer_kind="tool", consumer_id=tool_id,
-            field_path="/config/authentication/fields/" + field, destination=destination)
+            field_path=prefix + field, destination=destination)
         if not isinstance(value, str) or not value or any(c in value for c in "\r\n\x00"):
             raise ConfigurationError("CONFIG_VALUE_INVALID")
         values[field] = value

@@ -13,6 +13,42 @@ from shared.contracts.errors import DomainError
 
 CONFIGURATION_SCHEMA_VERSION = "project_configuration.v1"
 Environment = Literal["draft", "staging", "production"]
+SENSITIVE_AUTHENTICATION_HEADERS = frozenset({'authorization', 'proxy-authorization', 'x-api-key', 'api-key', 'cookie'})
+
+
+def tool_configuration_permissions(config, *, compatibility_update=False):
+    """Authority hints for authenticated owner writes; never value resolution."""
+    if not isinstance(config, dict):
+        return []
+    routes = config.get('routes') if isinstance(config.get('routes'), list) else []
+    scopes = [config.get('authentication'), *(route.get('authentication') for route in routes if isinstance(route, dict))]
+    scopes = [scope for scope in scopes if scope is not None and scope != {'type': 'none'}
+              and scope != {'type': 'none', 'fields': {}}]
+    # Updates compare the current owner definition inside its locked transaction;
+    # presence alone cannot distinguish a metadata round-trip from rebinding.
+    permissions = [('project:environment:bind', None)] if scopes and not compatibility_update else []
+    server = config.get('server') if isinstance(config.get('server'), dict) else {}
+    headers = []
+    for raw in [config.get('headers'), config.get('server_headers'), server.get('headers'),
+                *(route.get('headers') for route in routes if isinstance(route, dict))]:
+        if isinstance(raw, list):
+            headers.extend(raw)
+    inline = any(isinstance(row, dict) and row.get('mode') != 'remove'
+        and (row.get('sensitive') is True or str(row.get('key', '')).lower() in SENSITIVE_AUTHENTICATION_HEADERS)
+        and isinstance(row.get('value'), str) and bool(row['value']) and '{{' not in row['value']
+        for row in headers)
+    if inline:
+        permissions.append(('project:environment:value:write', 'tool:write'))
+    return permissions
+
+
+def valid_tool_authentication_field(path):
+    """Only explicit parent/route authentication fields can consume aliases."""
+    import re
+    return isinstance(path, str) and len(path) <= 512 and re.fullmatch(
+        r"/config/(?:routes/(?:[^~/\r\n\x00]|~[01])+/)?authentication/fields/[!#$%&'*+.^_`|~0-9A-Za-z-]+",
+        path,
+    ) is not None
 MaterialState = Literal["missing", "present", "invalid_format", "revoked", "unavailable"]
 
 

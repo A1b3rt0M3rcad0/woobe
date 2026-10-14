@@ -3266,9 +3266,20 @@
         "title": "HttpHeaderConfig",
         "type": "object"
       },
-      "HttpRouteConfig": {
+      "HttpRouteConfigV2": {
         "additionalProperties": false,
         "properties": {
+          "authentication": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ToolAuthentication"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
           "bindings": {
             "additionalProperties": {
               "$ref": "#/$defs/ToolInputBinding"
@@ -3466,7 +3477,7 @@
           "description",
           "path"
         ],
-        "title": "HttpRouteConfig",
+        "title": "HttpRouteConfigV2",
         "type": "object"
       },
       "HttpToolConfigV2": {
@@ -3574,7 +3585,7 @@
           },
           "routes": {
             "items": {
-              "$ref": "#/$defs/HttpRouteConfig"
+              "$ref": "#/$defs/HttpRouteConfigV2"
             },
             "title": "Routes",
             "type": "array"

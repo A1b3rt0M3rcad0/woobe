@@ -124,7 +124,8 @@ def materialize_imported_tool_composer() -> TransactionalHandler:
         SQLAlchemyAgentOutboxEventWriter(uow),
         project_environment_key_validator=_project_environment(uow).require_keys,
     )
-    return TransactionalHandler(uow, LegacyToolConfigurationHandler(uow, CreateToolController(use_case).handle))
+    return TransactionalHandler(uow, LegacyToolConfigurationHandler(uow, CreateToolController(use_case).handle),
+        additional_permissions=tool_binding_permissions)
 
 def update_tool_composer() -> TransactionalHandler:
     uow = AgentUnitOfWork(DATABASE_ENGINE)

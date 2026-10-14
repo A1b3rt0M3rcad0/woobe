@@ -31,6 +31,7 @@ woobe project configuration bind provider CREDENTIAL_UUID --key PRIMARY_API_KEY
 woobe project configuration list --env staging
 woobe project configuration check agent AGENT_UUID --env staging
 woobe project configuration check tool TOOL_UUID --env draft
+woobe project configuration bind tool TOOL_UUID --route orders --type bearer --field token=ORDERS_TOKEN
 woobe project configuration test provider CREDENTIAL_UUID --env staging
 woobe project configuration test tool MCP_TOOL_UUID --env draft
 ```
@@ -250,7 +251,7 @@ architecture gate: they own no global UnitOfWork. Legacy compatibility handlers
 are created lazily only for definitions that have not been converted. A central
 failure never falls back to that path.
 
-New legacy HTTP/MCP Tool writes move explicitly sensitive global header literals
+New legacy HTTP/MCP Tool writes move explicitly sensitive header literals
 (and standard authorization/API-key headers) into central storage before the
 first commit. Tool definitions and responses retain only the owner's reference;
 MCP discovery waits for explicit preparation. A legacy replacement rotates the
@@ -259,6 +260,21 @@ choose an Environment after that alias was split. Metadata-only edits retain the
 reference. Clients must use the configuration binding operation to change a
 reference; they cannot submit another Tool's private compatibility alias.
 
-This writer does not migrate retained inline snapshots or promote route-local
-headers to global authority. Those sources still need owner-specific migration
-and historical evidence handling before storage contraction is qualified.
+HTTP group routes retain their own authentication references and fixed destination.
+An omitted route definition inherits the parent; explicit `none` suppresses its
+private headers. Route IDs are stable identities, not list positions. `bind --route`
+checks a revision covering all route definitions and the connection. A concurrent
+edit rejects the write. Package 2.0 includes route references and matching key
+declarations; Package 1.0 export rejects a protected typed route.
+
+Existing clients may roundtrip their own sanitized compatibility references when
+editing metadata. Changing or removing an association requires binding authority;
+new literal material requires value-write authority. Captured pre-v1 Tool-write
+grants preserve only the exact compatibility operations, not central endpoints or
+new destinations. Another Tool's private alias is never accepted as ownership.
+
+The administrative Tool adapter includes global and route-local literals with no
+retained Agent snapshot. It does not widen a route grant. OAuth and retained inline
+snapshots still need owner-specific migration and historical evidence handling
+before storage contraction is qualified. Debug SQL logging hides bound parameters,
+including encrypted values; invocation responses strip private header fragments.

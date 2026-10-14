@@ -7,7 +7,7 @@ from modules.package.application.dtos import (
     DOCUMENT_MODELS, StrictDTO, PackageManifestV1, PackageSpec, Ref,
     ImportBindingsV1, KnowledgeBinding, PortableCredentialMetadata, ToolSpecV1, ToolDocument,
 )
-from modules.agent.contract_boundary import HttpToolConfig, McpToolConfig
+from modules.agent.contract_boundary import HttpToolConfig, HttpRouteConfig, McpToolConfig
 from shared.contracts.project_configuration import compile_authentication
 
 
@@ -44,9 +44,14 @@ class ToolAuthentication(StrictDTO):
         return self
 
 
+class HttpRouteConfigV2(HttpRouteConfig):
+    authentication: ToolAuthentication | None = None
+
+
 class HttpToolConfigV2(HttpToolConfig):
     authentication: ToolAuthentication
     auth: None = None
+    routes: list[HttpRouteConfigV2] = Field(default_factory=list)
 
 
 class McpToolConfigV2(McpToolConfig):

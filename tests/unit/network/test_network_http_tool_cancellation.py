@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import httpx
 from uuid import uuid4
 
 import pytest
@@ -20,7 +21,8 @@ class _BlockingHttpClient:
         self.is_closed = False
 
     def build_request(self, **kwargs):
-        return kwargs
+        return httpx.Request(kwargs['method'], kwargs['url'],
+            headers=kwargs.get('headers'), content=kwargs.get('content'))
 
     async def send(self, _request, **_kwargs):
         self.started.set()

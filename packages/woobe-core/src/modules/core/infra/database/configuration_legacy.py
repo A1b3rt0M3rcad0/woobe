@@ -12,7 +12,7 @@ from modules.core.infra.database.configuration_models import (
 from modules.core.infra.database.configuration_resolution import ConfigurationResolution
 from modules.core.infra.database.models import ProjectEnvironmentKeyModel as Key, ProjectEnvironmentValueModel as Value
 from modules.core.domain.project_configuration import validate_material
-from shared.contracts.project_configuration import ConfigurationDependency, ConfigurationError
+from shared.contracts.project_configuration import ConfigurationDependency, ConfigurationError, valid_tool_authentication_field
 from shared.infra.crypto import decrypt_secret
 from shared.runtime_environment import normalize_runtime_environment
 
@@ -71,7 +71,7 @@ class LegacyConfigurationStore(ConfigurationResolution):
             same_owner = (dependency.consumer_id == source_id and dependency.consumer_kind == source_kind
                 and dependency.field_path == field_path)
             shared_secret_consumer = (source_kind == "secret" and dependency.consumer_kind == "tool"
-                and dependency.field_path.startswith("/config/authentication/fields/"))
+                and valid_tool_authentication_field(dependency.field_path))
             if dependency.project_id != project_id or not (same_owner or shared_secret_consumer):
                 raise ConfigurationError("CONFIG_USAGE_NOT_AUTHORIZED")
         await self.lock_project(project_id)

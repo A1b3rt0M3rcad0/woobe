@@ -43,6 +43,7 @@ class ToolPermissionConfig(BaseModel):
 
 
 class HttpRouteConfig(BaseModel):
+    authentication: dict[str, Any] | None = None
     id: str = Field(..., min_length=1)
     operation_id: str | None = None
     name: str = Field(..., min_length=1)
@@ -84,7 +85,9 @@ class HttpToolConfig(BaseModel):
     @model_validator(mode="after")
     def validate_target(self) -> "HttpToolConfig":
         from modules.agent.domain.tool_configuration import validate_tool_authentication
-        validate_tool_authentication(self.model_dump(exclude_none=True))
+        # Private compatibility references are verified against the exact Tool
+        # owner by persistence; accepting their shape grants no use authority.
+        validate_tool_authentication(self.model_dump(exclude_none=True), allow_legacy=True)
         if self.mode == "group":
             if not self.base_url:
                 raise ValueError("HTTP API base_url is required for group mode")
@@ -133,7 +136,7 @@ class McpToolConfig(BaseModel):
     @model_validator(mode="after")
     def validate_transport_target(self) -> "McpToolConfig":
         from modules.agent.domain.tool_configuration import validate_tool_authentication
-        validate_tool_authentication(self.model_dump(exclude_none=True))
+        validate_tool_authentication(self.model_dump(exclude_none=True), allow_legacy=True)
         if not self.server.url:
             raise ValueError("MCP server.url is required for streamable_http transport")
         if self.mode != "server" and self.exposure != "all_discovered" and not self.tool_name:

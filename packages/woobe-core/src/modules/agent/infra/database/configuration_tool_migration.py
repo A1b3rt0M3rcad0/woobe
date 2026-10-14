@@ -6,7 +6,7 @@ from sqlalchemy import select, update
 from modules.agent.application.interfaces.project_configuration import configuration_for_session
 from modules.agent.application.interfaces.tool_types import HTTP_COMPATIBLE_TYPES, MCP_COMPATIBLE_TYPES
 from modules.agent.domain.tool_configuration import tool_dependencies, validate_tool_authentication
-from modules.agent.domain.tool_inline_configuration import extract_inline_tool_headers
+from modules.agent.domain.tool_inline_configuration import extract_inline_tool_authentication
 from modules.agent.infra.database.configuration_quiescence import assert_configuration_quiescent
 from modules.agent.infra.database.configuration_tool_writer import centralize_tool_headers
 from modules.agent.infra.database.mappers import model_to_tool
@@ -15,16 +15,15 @@ from shared.contracts.project_configuration import ConfigurationError
 
 
 def _source(row, project_id):
-    config, material = extract_inline_tool_headers(row.config or {})
-    # OAuth and route-local material require different authority boundaries.
-    if config.get('oauth') or any(extract_inline_tool_headers(route)[1] for route in config.get('routes', [])):
+    config, material, _ = extract_inline_tool_authentication(row.config or {})
+    if config.get('oauth'):
         raise ConfigurationError('LEGACY_FORMAT_UNSUPPORTED')
     if not material:
         return []
-    config['authentication'] = {'type': 'headers', 'fields': {
-        field: {'source': 'project_environment', 'key': 'PENDING'} for field in material}}
-    validate_tool_authentication(config)
-    return tool_dependencies(SimpleNamespace(id=row.id, project_id=project_id, config=config))
+    validate_tool_authentication(config, allow_legacy=True)
+    return [dep for dep in tool_dependencies(SimpleNamespace(id=row.id, project_id=project_id, config=config))
+            if dep.field_path in material]
+
 
 
 async def _require_no_retained_source(session, *, project_id, tool_id):
@@ -76,12 +75,11 @@ async def migrate_tool_configuration(session, *, project_id, tool_id, expected_r
     dependencies = _source(row, project_id)
     if not dependencies:
         await centralize_tool_headers(session, model_to_tool(row), actor=actor)
-        authentication = (row.config or {}).get('authentication') or {}
-        fields = authentication.get('fields') or {}
-        if not fields or any(ref.get('source') != 'legacy_configuration' for ref in fields.values()):
+        captured = tool_dependencies(model_to_tool(row))
+        if not captured or any(dep.legacy_alias_id is None for dep in captured):
             raise ConfigurationError('CONFIG_REVISION_CONFLICT')
         states = [await store.legacy_source_state(project_id=project_id, source_kind='tool', source_id=row.id,
-            field_path='/config/authentication/fields/' + field) for field in fields]
+            field_path=dep.field_path) for dep in captured]
         return {'id': str(row.id), 'state': 'completed', 'material': 'unchanged', 'unchanged': True} if all(
             state['material'] == 'present' for state in states) else {'id': str(row.id), 'state': 'cutover', 'material': 'unavailable'}
     if row.updated_at.isoformat() != expected_revision or sorted({dep.destination for dep in dependencies}) != sorted(destinations):

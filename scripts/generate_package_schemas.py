@@ -37,8 +37,9 @@ def main():
             if version == "v1":
                 # Native Tool DTOs evolve, but Package 1.0 is an immutable wire
                 # contract. Typed authentication is introduced only in 2.0.
-                for name in ("HttpToolConfig", "McpToolConfig"):
+                for name in ("HttpToolConfig", "McpToolConfig", "HttpRouteConfig"):
                     schema.get("$defs", {}).get(name, {}).get("properties", {}).pop("authentication", None)
+            # Optional new fields must not enter old catalogs as defaults.
             schema["$schema"] = "https://json-schema.org/draft/2020-12/schema"
             strict_objects(schema)
             catalog[kind] = schema

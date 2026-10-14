@@ -33,3 +33,18 @@ def test_compiler_does_not_broaden_route_or_transport_authority(config):
 def test_unrelated_migrated_secret_does_not_rewrite_an_existing_bearer_tool():
     source = SimpleNamespace(config={"authentication":{"type":"bearer", "fields":{"token":{"source":"project_environment", "key":"TOKEN"}}}})
     assert bind_legacy_tool_headers(source, {"shared":reference()}) is source
+
+
+def test_route_secret_projection_preserves_boundary_author_snapshot_and_static_destination():
+    from modules.agent.domain.tool_configuration import tool_dependencies
+    source = SimpleNamespace(id=uuid4(), project_id=uuid4(), config={'base_url': 'https://approved.example/api',
+        'routes': [{'id': 'read', 'path': '/read', 'headers': [{'key': 'Authorization', 'value': '{{secret:shared}}'}]},
+                   {'id': 'other', 'path': '/other', 'headers': []}]})
+    result = bind_legacy_tool_headers(source, {'shared': reference()})
+    assert 'authentication' not in result.config
+    assert result.config['routes'][0]['headers'] == []
+    assert source.config['routes'][0]['headers'][0]['value'] == '{{secret:shared}}'
+    assert 'authentication' not in result.config['routes'][1]
+    dependency, = tool_dependencies(result)
+    assert dependency.field_path == '/config/routes/read/authentication/fields/Authorization'
+    assert dependency.destination == 'https://approved.example/api/read'

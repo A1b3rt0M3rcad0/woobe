@@ -527,6 +527,10 @@ export function ApiFirstToolForm({
     else if (/^https?:\/\//i.test(route.path.trim())) nextErrors.path = 'Use a path relative to the Base URL.'
     if (!route.name.trim()) nextErrors.name = 'Route name is required.'
     if (!route.description.trim()) nextErrors.description = 'Describe when the Agent should use this route.'
+    if (route.authentication && (Object.values(route.authentication.fields).some(ref => !ref.key)
+      || (route.authentication.type === 'headers' && !Object.keys(route.authentication.fields).length))) {
+      nextErrors.authentication = 'Select a declared key for every route authentication field.'
+    }
     if (route.operation_id) {
       if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(route.operation_id)) nextErrors.operationId = 'Technical identifier is invalid.'
       const duplicate = routes.some((item) => item.id !== route.id && item.operation_id === route.operation_id)
@@ -586,6 +590,7 @@ export function ApiFirstToolForm({
       description: route.description.trim(),
       method: route.method,
       path: route.path.trim(),
+      ...(route.authentication ? { authentication: route.authentication } : {}),
       headers: routeHeaders,
       body: canHaveBody && route.body.trim() ? route.body.trim() : undefined,
       variables: route.variables || {},
@@ -969,6 +974,20 @@ export function ApiFirstToolForm({
               onToggle={() => setRouteAdvancedOpen((current) => !current)}
               summary={`${sharedHeaders.length} inherited headers · ${routeEditor.draft.headers.length} route rules`}
             >
+              {projectId && <div className="space-y-ui-md">
+                <div className="grid items-start gap-ui-md sm:grid-cols-2">
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-muted">Route authentication</label>
+                    <Select value={routeEditor.draft.authentication ? 'route' : 'inherit'}
+                      onChange={event => updateRouteDraft({ authentication: event.target.value === 'inherit' ? undefined : { type: 'none', fields: {} } })}
+                      options={[{ value: 'inherit', label: 'Use connection authentication' }, { value: 'route', label: 'Set authentication for this route' }]} />
+                  </div>
+                  <p className="text-xs text-muted">Route keys are authorized for this path. No authentication sends this route without the connection’s private headers.</p>
+                </div>
+                {routeEditor.draft.authentication && <ConfigurationAuthenticationEditor projectId={projectId}
+                  value={routeEditor.draft.authentication} onChange={authentication => updateRouteDraft({ authentication })} />}
+                <FieldError message={routeErrors.authentication} />
+              </div>}
               {!routeEditor.isNew && routeEditor.draft.operation_id ? (
                 <div>
                   <p className="text-xs font-medium text-muted">Technical identifier</p>

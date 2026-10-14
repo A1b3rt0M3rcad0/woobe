@@ -50,13 +50,17 @@ def bind_legacy_tool_headers(tool, references):
             if not isinstance(owner[field], list):
                 raise ConfigurationError("LEGACY_FORMAT_UNSUPPORTED")
             owner[field] = project(owner[field])
-    # Route-specific authority cannot be broadened to every operation in a group.
-    for route in config.get("routes", []):
-        for row in route.get("headers", []):
-            value = row.get("value", "")
-            match = _REFERENCE.fullmatch(value) if isinstance(value, str) else None
-            if match and match[1].strip() in references:
-                raise ConfigurationError("LEGACY_FORMAT_UNSUPPORTED")
+    for index, route in enumerate(config.get('routes', [])):
+        route_names = legacy_tool_secret_names(route) & references.keys()
+        if route_names:
+            if not config.get('base_url') or not route.get('id') or not route.get('path'):
+                raise ConfigurationError('LEGACY_FORMAT_UNSUPPORTED')
+            # The route's base URL/path remains with the parent. This recursive
+            # pass changes only its header authority, never promotes it globally.
+            scoped = deepcopy(tool)
+            scoped.config = route
+            config['routes'][index] = bind_legacy_tool_headers(scoped, {name: references[name] for name in route_names}).config
+            migrated = True
     if legacy_tool_secret_names(config) & references.keys():
         raise ConfigurationError("LEGACY_FORMAT_UNSUPPORTED")
     if not migrated:

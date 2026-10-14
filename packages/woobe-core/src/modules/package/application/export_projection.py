@@ -239,12 +239,22 @@ class ExportProjection:
                 )
             }
             authentication = spec["config"].get("authentication")
+            if self.schema_version == '1.0':
+                for route in spec['config'].get('routes', []):
+                    scoped = route.get('authentication')
+                    if scoped is not None and scoped.get('type') != 'none':
+                        raise PackageError('PACKAGE_SCHEMA_UNSUPPORTED', 'Route authentication requires Package 2.0 export')
+                    route.pop('authentication', None)
             if self.schema_version == "1.0" and authentication is not None:
                 if authentication.get("type") != "none":
                     raise PackageError("PACKAGE_SCHEMA_UNSUPPORTED", "Typed Tool authentication requires Package 2.0 export")
                 spec["config"].pop("authentication")
             elif self.schema_version == "2.0" and authentication is None:
-                if secrets or spec["config"].get("auth") not in (None, {"type": "none"}):
+                hint = spec['config'].get('auth')
+                public_hint = hint is None or (isinstance(hint, dict)
+                    and set(hint) <= {'type', 'credentials'} and hint.get('type') == 'none'
+                    and hint.get('credentials') in (None, []))
+                if secrets or not public_hint:
                     raise PackageError("PACKAGE_SCHEMA_UNSUPPORTED", "Migrate legacy Tool authentication before Package 2.0 export")
                 spec["config"].pop("auth", None)
                 spec["config"]["authentication"] = {"type": "none"}

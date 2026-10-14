@@ -33,6 +33,7 @@ export interface ToolChildPermission {
 export type McpToolPermission = ToolChildPermission
 
 export interface HttpRouteConfig {
+  authentication?: RemoteAuthentication
   id: string
   operation_id?: string
   name: string

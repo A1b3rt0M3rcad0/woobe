@@ -192,6 +192,8 @@ def resolve_graph(manifest: dict, documents: dict[str, dict]) -> PackageGraph:
         credential_requirements = {alias: item["provider"] for alias, item in connections.items()}
         authentications = [item["authentication"] for item in connections.values()]
         authentications += [item["spec"]["config"]["authentication"] for item in index.values() if item["kind"] == "Tool"]
+        authentications += [route['authentication'] for item in index.values() if item['kind'] == 'Tool'
+            for route in item['spec']['config'].get('routes', []) if route.get('authentication') is not None]
         for authentication in authentications:
             for reference in authentication.get("fields", {}).values():
                 declaration = keys.get(reference["key"])

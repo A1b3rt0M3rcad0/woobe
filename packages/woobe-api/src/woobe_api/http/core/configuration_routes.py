@@ -206,11 +206,13 @@ async def revoke(request: Request, project_id: UUID, policy_id: UUID, expected_r
 class BindConfiguration(StrictBody):
     expected_revision: StrictStr = Field(min_length=1, max_length=128)
     authentication: dict
+    route_id: str | None = Field(default=None, min_length=1, max_length=128)
 
 
 @router.get("/bindings/{target_kind}/{target_id}")
-async def binding(request: Request, project_id: UUID, target_kind: Literal["provider_credential", "tool"], target_id: UUID):
-    return await execute(request, project_id, "binding", target_kind=target_kind, target_id=target_id)
+async def binding(request: Request, project_id: UUID, target_kind: Literal["provider_credential", "tool"], target_id: UUID,
+                  route_id: str | None = Query(default=None, min_length=1, max_length=128)):
+    return await execute(request, project_id, "binding", target_kind=target_kind, target_id=target_id, route_id=route_id)
 
 
 @router.put("/bindings/{target_kind}/{target_id}")

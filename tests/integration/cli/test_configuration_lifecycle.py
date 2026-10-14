@@ -325,3 +325,157 @@ async def test_pre_v1_mcp_author_can_refresh_without_granting_new_validation_aut
         assert 'CONFIG_USAGE_NOT_AUTHORIZED' in str(denied)
     finally:
         await engine.dispose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('source', ['inline', 'secret'])
+async def test_route_authentication_native_peer_and_anonymous_sibling(cli, unused_tcp_port, source):
+    import asyncio
+    import httpx
+    import uvicorn
+    from tests.fakes.mcp_provider import app
+    server = uvicorn.Server(uvicorn.Config(app, host='127.0.0.1', port=unused_tcp_port, log_level='warning'))
+    serving = asyncio.create_task(server.serve())
+    origin = f'http://127.0.0.1:{unused_tcp_port}'
+    try:
+        async with httpx.AsyncClient(trust_env=False) as peer:
+            for _ in range(60):
+                try:
+                    if (await peer.get(origin + '/health')).status_code == 200:
+                        break
+                except httpx.HTTPError:
+                    pass
+                await asyncio.sleep(.05)
+            else:
+                pytest.fail('Ephemeral native route peer did not start')
+        project = await cli.data('project', 'create', body={
+            'workspace_id': cli.workspace_id, 'name': 'Route-scoped authentication', 'slug': str(uuid4()),
+        })
+        cli.project_id = project['id']
+        values = {'auth': 'Bearer ephemeral-native-environment-token', 'token': 'ephemeral-native-tool-token'}
+        cli.secret_values.update(values.values())
+        if source == 'secret':
+            for name, value in values.items():
+                await cli.data('request', 'POST', '/tools/secrets', body={
+                    'project_id': cli.project_id, 'name': name, 'type': 'api_key', 'value': value,
+                })
+        headers = [{'key': 'Authorization', 'value': values['auth'] if source == 'inline' else '{{secret:auth}}'},
+            {'key': 'X-Tool-Token', 'value': values['token'] if source == 'inline' else '{{secret:token}}', 'sensitive': True}]
+        tool = await cli.data('request', 'POST', '/tools/tools', body={
+            'project_id': cli.project_id, 'name': 'Scoped HTTP group', 'type': 'http', 'config': {
+                'mode': 'group', 'base_url': origin, 'routes': [
+                    {'id': 'protected/route', 'name': 'Protected', 'description': 'Protected read', 'path': '/http-protected',
+                     'method': 'GET', 'headers': headers, 'default_permission': 'allow'},
+                    {'id': 'anonymous', 'name': 'Anonymous', 'description': 'Anonymous read', 'path': '/http-anonymous',
+                     'method': 'GET', 'headers': [], 'default_permission': 'allow'}]},
+        })
+        first = await cli.data('request', 'POST', '/tools/tools/execute', body={
+            'tool_id': tool['id'], 'input_data': {'__mcp_tool_name': 'protected/route'}})
+        assert first['success'] and first['output']['body']['authenticated']
+        second = await cli.data('request', 'POST', '/tools/tools/execute', body={
+            'tool_id': tool['id'], 'input_data': {'__mcp_tool_name': 'anonymous'}})
+        assert second['success'] and second['output']['body']['anonymous']
+        base = f'/core/projects/{cli.project_id}/configuration'
+        readiness = await cli.data('request', 'GET', base + '/readiness/tool/' + tool['id'])
+        assert len(readiness['dependencies']) == 2
+        assert all('/routes/protected~1route/' in item['field_path'] for item in readiness['dependencies'])
+        key = (await cli.data('request', 'GET', base + '/keys'))['items'][0]
+        policy = (await cli.data('request', 'GET', base + '/keys/' + key['id'] + '/use-policies'))['items'][0]
+        assert policy['destination'].endswith('/http-protected')
+        await cli.data('request', 'DELETE', base + '/use-policies/' + policy['id'],
+            '--query', 'expected_revision=' + str(policy['revision']))
+        denied = await cli.run('request', 'POST', '/tools/tools/execute', body={
+            'tool_id': tool['id'], 'input_data': {'__mcp_tool_name': 'protected/route'}}, expected=4)
+        assert 'CONFIG_USAGE_NOT_AUTHORIZED' in str(denied)
+        # Revoking protected-route use does not attach its material to a sibling.
+        second = await cli.data('request', 'POST', '/tools/tools/execute', body={
+            'tool_id': tool['id'], 'input_data': {'__mcp_tool_name': 'anonymous'}})
+        assert second['success']
+    finally:
+        server.should_exit = True
+        await asyncio.wait_for(serving, 10)
+
+
+@pytest.mark.asyncio
+async def test_tool_author_can_roundtrip_metadata_but_not_rebind_clear_or_write_new_material(cli):
+    from copy import deepcopy
+    from uuid import UUID
+    from modules.core.infra.database.configuration_models import ConfigurationLegacyAuthorityModel
+    from shared.infra.config import Settings
+    from shared.infra.database.session import create_engine, create_session_factory
+    project = await cli.data('project', 'create', body={
+        'workspace_id': cli.workspace_id, 'name': 'Tool authority boundary', 'slug': str(uuid4()),
+    })
+    cli.project_id = project['id']
+    for name in ('FIRST_KEY', 'SECOND_KEY'):
+        await cli.run('project', 'configuration', 'declare', name)
+    tool = await cli.data('request', 'POST', '/tools/tools', body={
+        'project_id': cli.project_id, 'name': 'Public reference owner', 'type': 'http', 'config': {
+            'url': 'https://approved.example/api', 'method': 'GET', 'authentication': {
+                'type': 'bearer', 'fields': {'token': {'source': 'project_environment', 'key': 'FIRST_KEY'}}}},
+    })
+    issued, restricted = await cli.issue('workspace', 'control-key', 'create', body={
+        'name': 'Tool metadata author', 'expires_at': (datetime.now(UTC) + timedelta(minutes=30)).isoformat(),
+        'on_project_create_permissions': [], 'project_grants': [{'project_id': cli.project_id,
+            'permissions': ['project:read', 'tool:read', 'tool:write', 'project:environment:read']}],
+    })
+    assert tool['config']['authentication']['fields']['token'] == {'source': 'project_environment', 'key': 'FIRST_KEY'}, tool['config']['authentication']
+    edited = await cli.data('request', 'PATCH', '/tools/tools/' + tool['id'], key=restricted,
+        body={'name': 'Metadata edit', 'config': tool['config']})
+    assert edited['config']['authentication'] == tool['config']['authentication']
+    altered = deepcopy(tool['config']); altered['authentication']['fields']['token']['key'] = 'SECOND_KEY'
+    await cli.run('request', 'PATCH', '/tools/tools/' + tool['id'], key=restricted, body={'config': altered}, expected=4)
+    await cli.run('request', 'PATCH', '/tools/tools/' + tool['id'], key=restricted,
+        body={'config': {'url': 'https://approved.example/api', 'method': 'GET'}}, expected=4)
+    value = 'fresh-inline-authority-canary'; cli.secret_values.add(value)
+    create = {'project_id': cli.project_id, 'name': 'Inline compatibility', 'type': 'http', 'config': {
+        'url': 'https://approved.example/api', 'headers': [{'key': 'Authorization', 'value': value}]}}
+    await cli.run('request', 'POST', '/tools/tools', key=restricted, body=create, expected=4)
+    engine = create_engine(Settings())
+    try:
+        async with create_session_factory(engine)() as session, session.begin():
+            session.add(ConfigurationLegacyAuthorityModel(project_id=UUID(cli.project_id), subject_type='control_key',
+                subject_id=UUID(issued['id']), permission='tool:write', catalog_revision='pre-project_configuration.v1'))
+        compatibility = await cli.data('request', 'POST', '/tools/tools', key=restricted, body=create)
+        assert value not in str(compatibility)
+        roundtrip = await cli.data('request', 'PATCH', '/tools/tools/' + compatibility['id'], key=restricted,
+            body={'name': 'Private owner metadata', 'config': compatibility['config']})
+        assert roundtrip['config']['authentication'] == compatibility['config']['authentication']
+        await cli.run('request', 'POST', '/tools/tools', body={**create, 'config': compatibility['config']}, expected=4)
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_cli_binds_exact_route_without_material_and_fences_other_route_edits(cli):
+    project = await cli.data('project', 'create', body={
+        'workspace_id': cli.workspace_id, 'name': 'Route reference editing', 'slug': str(uuid4()),
+    })
+    cli.project_id = project['id']
+    await cli.run('project', 'configuration', 'declare', 'ORDERS_TOKEN')
+    tool = await cli.data('request', 'POST', '/tools/tools', body={
+        'project_id': cli.project_id, 'name': 'Two routes', 'type': 'http', 'config': {
+            'mode': 'group', 'base_url': 'https://approved.example', 'routes': [
+                {'id': 'orders/active', 'name': 'Orders', 'description': 'Read orders', 'path': '/orders'},
+                {'id': 'public', 'name': 'Public', 'description': 'Public read', 'path': '/public'},
+            ]},
+    })
+    result = await cli.run('project', 'configuration', 'bind', 'tool', tool['id'],
+        '--route', 'orders/active', '--type', 'bearer', '--field', 'token=ORDERS_TOKEN')
+    binding = result['data']
+    assert binding['route_id'] == 'orders/active'
+    assert binding['authentication'] == {'type': 'bearer', 'fields': {
+        'token': {'source': 'project_environment', 'key': 'ORDERS_TOKEN'}}}
+    readiness = (await cli.run('project', 'configuration', 'check', 'tool', tool['id'], expected=6))['data']
+    assert len(readiness['dependencies']) == 1
+    assert readiness['dependencies'][0]['field_path'] == '/config/routes/orders~1active/authentication/fields/token'
+    await cli.run('project', 'configuration', 'bind', 'tool', tool['id'], '--route', 'public', '--type', 'none')
+    stale = await cli.run('request', 'PUT',
+        f'/core/projects/{cli.project_id}/configuration/bindings/tool/{tool["id"]}',
+        body={'expected_revision': binding['revision'], 'route_id': 'orders/active',
+              'authentication': {'type': 'none'}}, expected=6)
+    assert stale['error']['domain_code'] == 'CONFIG_REVISION_CONFLICT'
+    current = await cli.data('request', 'GET',
+        f'/core/projects/{cli.project_id}/configuration/bindings/tool/{tool["id"]}')
+    assert current['routes'][0]['authentication'] == binding['authentication']
+    assert current['routes'][1]['authentication']['type'] == 'none'

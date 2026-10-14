@@ -93,7 +93,8 @@ async def test_structural_plan_declares_before_consumers_and_never_activates(tmp
             await PlanPackageUseCase(Inspector()).execute(**arguments, installation_mode="structural", lifecycle="production")
 
 
-def test_export_v2_declares_only_public_intent_and_preserves_v1(tmp_path):
+@pytest.mark.parametrize('route_authentication', [False, True])
+def test_export_v2_declares_only_public_intent_and_preserves_v1(tmp_path, route_authentication):
     from modules.package.application.export_projection import ExportProjection
     from modules.package.domain.parsing import decode_document
     credential = str(uuid4())
@@ -106,8 +107,17 @@ def test_export_v2_declares_only_public_intent_and_preserves_v1(tmp_path):
             "runtime_config": {}, "system_prompt": "Help", "session_mode": "stateless"},
         "credentials": {credential: {"provider": "openai", "name": "Main", "metadata": {}, "authentication": authentication}},
         "tools": [], "skills": [], "artifacts": {}, "knowledge": None}
+    route = {'id': 'orders', 'name': 'Orders', 'description': 'Read orders', 'path': '/orders'}
+    if route_authentication:
+        route['authentication'] = {'type': 'bearer', 'fields': {'token': {
+            'source': 'project_environment', 'key': 'PRIMARY_KEY'}}}
+    captured['tools'] = [{'id': str(uuid4()), 'name': 'Routes', 'type': 'http', 'description': '',
+        'timeout_ms': 10000, 'input_schema': {}, 'output_schema': {}, 'permission': 'allow', 'risk': 'safe',
+        'permissions': [], 'config': {'mode': 'group', 'base_url': 'https://approved.example',
+            'auth': {'type': 'none', 'credentials': []}, 'routes': [route]}}]
+    original_tools = deepcopy(captured['tools'])
     declaration = {"key": "PRIMARY_KEY", "kind": "secret", "value_format": "token"}
-    projection = ExportProjection(knowledge_mode="binding", environment_kinds={}, schema_version="2.0", declarations={"PRIMARY_KEY": declaration})
+    projection = ExportProjection(knowledge_mode="binding", environment_kinds={'PRIMARY_KEY': 'secret'}, schema_version="2.0", declarations={"PRIMARY_KEY": declaration})
     projection.finish(kind="Agent", captured=captured, name="Support", version="1.0.0")
     for path, content in projection.files.items():
         (tmp_path / path).write_bytes(content)
@@ -116,6 +126,13 @@ def test_export_v2_declares_only_public_intent_and_preserves_v1(tmp_path):
         assert alias_id not in repr(bundle.graph.manifest)
         assert "legacy_configuration" not in repr(bundle.graph.manifest)
     assert captured["credentials"][credential]["authentication"] == authentication
+    assert captured['tools'] == original_tools
+    if route_authentication:
+        with pytest.raises(PackageError) as error:
+            ExportProjection(knowledge_mode='binding', environment_kinds={}).finish(
+                kind='Agent', captured=captured, name='Support', version='1.0.0')
+        assert error.value.code == 'PACKAGE_SCHEMA_UNSUPPORTED'
+        return
     legacy = ExportProjection(knowledge_mode="binding", environment_kinds={}).finish(kind="Agent", captured=captured, name="Support", version="1.0.0")
     manifest = decode_document(legacy.files["woobe.yaml"], "woobe.yaml")
     validate_document(manifest)

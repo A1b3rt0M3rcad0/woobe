@@ -140,6 +140,7 @@ class ProjectConfigurationService:
                         "typed_remote_bindings": True, "binding_updates": _binding_adapter is not None, "external_validation": True, "metadata_only_reads": True,
                         "target_readiness": _target_reader is not None,
                         "project_summary": _target_inventory is not None,
+                        "route_authentication_bindings": _binding_adapter is not None,
                         "migration_source_kinds": ["provider_credential", "secret", "tool"] if _migration_inventory is not None else [],
                         "secret_reveal": False, "environment_fallback": False}
             if action in {"binding", "bind"}:

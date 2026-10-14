@@ -98,11 +98,13 @@ async def collect_configuration_dependencies(session, *, project_id, bindings, i
     tool_rows = []
     if live_agents or tool_ids:
         from sqlalchemy import or_
+        from modules.agent.infra.database.configuration_tool_metadata import route_configuration_metadata
         tool_rows = (await session.execute(select(AgentToolModel.id, AgentToolModel.agent_id, AgentToolModel.status,
             AgentToolModel.config["authentication"].label("authentication"),
             AgentToolModel.config["url"].astext.label("url"),
             AgentToolModel.config["base_url"].astext.label("base_url"),
             AgentToolModel.config["server"]["url"].astext.label("server_url"),
+            route_configuration_metadata(),
             func.jsonb_path_query_array(AgentToolModel.config, cast('$.headers[*] ? (@.value starts with "{{secret:")', JSONPATH)).label("secret_headers"),
             func.jsonb_path_query_array(AgentToolModel.config, cast('$.server_headers[*] ? (@.value starts with "{{secret:")', JSONPATH)).label("secret_server_headers"),
             func.jsonb_path_query_array(AgentToolModel.config, cast('$.server.headers[*] ? (@.value starts with "{{secret:")', JSONPATH)).label("secret_nested_headers")
@@ -111,7 +113,8 @@ async def collect_configuration_dependencies(session, *, project_id, bindings, i
     available_tools = {str(row.id): SimpleNamespace(id=row.id, project_id=project_id, agent_id=row.agent_id,
         status=row.status, config={"authentication": row.authentication, "url": row.url,
         "base_url": row.base_url, "headers": row.secret_headers, "server_headers": row.secret_server_headers,
-        "server": {"url": row.server_url, "headers": row.secret_nested_headers}}) for row in tool_rows}
+        "server": {"url": row.server_url, "headers": row.secret_nested_headers},
+        'routes': row.routes}) for row in tool_rows}
 
     from modules.agent.infra.database.configuration_secret_projection import project_secret_headers
     projected = await project_secret_headers(session, project_id=project_id, tools=list(available_tools.values()))
@@ -153,10 +156,11 @@ async def collect_configuration_dependencies(session, *, project_id, bindings, i
                 tool = available_tools.get(str(identifier))
             if tool is None or tool.status != "active":
                 raise ConfigurationError("CONFIG_REFERENCE_NOT_FOUND")
-            if tool.config.get("authentication") is None:
+            dependencies = tool_dependencies(tool, impact=(("agent", node_id),))
+            if tool.config.get("authentication") is None and not dependencies:
                 notices.append({"code": "LEGACY_CONFIGURATION_REVIEW_REQUIRED", "consumer_kind": "tool", "consumer_id": str(tool.id)})
             else:
-                result.extend(tool_dependencies(tool, impact=(("agent", node_id),)))
+                result.extend(dependencies)
         if snapshot.get("knowledge_version_id"):
             knowledge = knowledge_bindings.get(str(snapshot["knowledge_version_id"]))
             if knowledge is None:

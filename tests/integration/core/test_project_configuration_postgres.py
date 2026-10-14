@@ -112,8 +112,8 @@ async def test_provider_migration_job_is_metadata_only_resumable_and_revision_gu
 
 
 @pytest.fixture
-async def configuration():
-    engine = create_engine(Settings.model_validate({}))
+async def configuration(request):
+    engine = create_engine(Settings.model_validate({'debug': getattr(request, 'param', False)}))
     factory = create_session_factory(engine)
     async with factory() as session, session.begin() as transaction:
         workspace, project = uuid4(), uuid4()
@@ -1387,7 +1387,11 @@ async def test_tool_migration_does_not_certify_retained_inline_or_broaden_routes
             {'id': str(rows[0].id), 'config': config}]}})
     store.session.add(release); await store.session.flush()
     result = await inventory_tool_configuration(store.session, project_id=project)
-    assert len(result['items']) == 3 and all(item['state'] == 'blocked' for item in result['items'])
+    assert len(result['items']) == 3
+    states = {item['id']: item for item in result['items']}
+    assert states[str(rows[0].id)]['state'] == states[str(rows[2].id)]['state'] == 'blocked'
+    assert states[str(rows[1].id)]['state'] == 'eligible'
+    assert states[str(rows[1].id)]['destinations'] == ['https://approved.example/one']
     assert CANARY not in json.dumps(result) and 'historical-ciphertext-placeholder' not in json.dumps(result)
     process = 'retention-tool-bridge-' + str(uuid4())
     await register_configuration_process(store.session, identity=process, capabilities=[BRIDGE_CAPABILITY])
@@ -1422,3 +1426,97 @@ async def test_legacy_mcp_refresh_translation_requires_pre_v1_and_current_grant(
         **args['path_context'], 'environment': 'production'}})
     assert not await authorizer._legacy_configuration_write(**{**args, 'path_context': {
         'tool_id': args['path_context']['tool_id'], 'environment': 'draft'}})
+
+
+@pytest.mark.asyncio
+async def test_route_material_is_central_with_exact_destination_and_sibling_isolation(configuration, monkeypatch):
+    import json
+    from copy import deepcopy
+    from modules.agent.application.interfaces import project_configuration as port
+    from modules.agent.domain.entities import Tool
+    from modules.agent.domain.enums import ToolType
+    from modules.agent.domain.tool_configuration import tool_dependencies
+    from modules.agent.infra.database.repositories import SQLAlchemyAgentToolRepository
+    from modules.agent.infra.database import configuration_tool_writer as writer
+    from modules.agent.infra.adapters.secret_cipher import SecretCipherAdapter
+    from modules.core.infra.database.configuration_legacy import LegacyConfigurationStore
+    original, project, _ = configuration
+    store = LegacyConfigurationStore(original.session, encryption_key=original.encryption_key)
+    monkeypatch.setattr(port, '_factory', lambda session: store)
+    monkeypatch.setattr(writer, 'SecretCipherAdapter', lambda: SecretCipherAdapter(store.encryption_key))
+    repo = SQLAlchemyAgentToolRepository(store.session)
+    config = {'mode': 'group', 'base_url': 'https://approved.example', 'routes': [
+        {'id': 'one/route', 'path': '/one', 'headers': [{'key': 'Authorization', 'value': CANARY}]},
+        {'id': 'two', 'path': '/two', 'headers': [{'key': 'Authorization', 'value': 'second-route-canary'}]}]}
+    target = await repo.create(Tool(project_id=project, type=ToolType.HTTP, name='Scoped routes', config=config))
+    assert CANARY not in json.dumps(target.config) and 'second-route-canary' not in json.dumps(target.config)
+    dependencies = tool_dependencies(target)
+    assert len(dependencies) == 2 and dependencies[0].key != dependencies[1].key
+    run = uuid4()
+    await store.acquire(project_id=project, run_id=run, environment='draft', dependencies=dependencies)
+    for dep in dependencies:
+        expected = CANARY if dep.destination.endswith('/one') else 'second-route-canary'
+        assert await resolve(store, project, run, dep) == expected
+        with pytest.raises(ConfigurationError) as denied:
+            await resolve(store, project, run, dep, destination='https://approved.example/other')
+        assert denied.value.code == 'CONFIG_DESTINATION_CHANGED'
+    copied = deepcopy(target); copied.id = uuid4()
+    with pytest.raises(ConfigurationError):
+        await repo.create(copied)
+    # Changing a route URL leaves its old grant intact and blocks the new use.
+    target.config['routes'][0]['path'] = '/changed'
+    target = await repo.update(target)
+    with pytest.raises(ConfigurationError) as denied:
+        await store.acquire(project_id=project, run_id=uuid4(), environment='draft', dependencies=tool_dependencies(target))
+    assert denied.value.code == 'CONFIG_USAGE_NOT_AUTHORIZED'
+
+
+@pytest.mark.asyncio
+async def test_route_metadata_projection_matches_owner_dependencies_without_literal_values(configuration, monkeypatch):
+    from types import SimpleNamespace
+    from modules.agent.application.interfaces import project_configuration as port
+    from modules.agent.domain.entities import Tool
+    from modules.agent.domain.enums import ToolType
+    from modules.agent.domain.tool_configuration import tool_dependencies
+    from modules.agent.infra.database.repositories import SQLAlchemyAgentToolRepository
+    from modules.agent.infra.database import configuration_tool_writer as writer
+    from modules.agent.infra.database.configuration_tool_metadata import route_configuration_metadata
+    from modules.agent.infra.database.configuration_dependency_reader import collect_configuration_dependencies
+    from modules.agent.infra.database.models import AgentToolModel
+    from modules.agent.infra.adapters.secret_cipher import SecretCipherAdapter
+    from modules.core.infra.database.configuration_legacy import LegacyConfigurationStore
+    original, project, _ = configuration
+    store = LegacyConfigurationStore(original.session, encryption_key=original.encryption_key)
+    monkeypatch.setattr(port, '_factory', lambda session: store)
+    monkeypatch.setattr(writer, 'SecretCipherAdapter', lambda: SecretCipherAdapter(store.encryption_key))
+    target = await SQLAlchemyAgentToolRepository(store.session).create(Tool(project_id=project, type=ToolType.HTTP,
+        name='Metadata route', config={'mode': 'group', 'base_url': 'https://approved.example', 'routes': [
+            {'id': 'one', 'path': '/one', 'headers': [{'key': 'Authorization', 'value': CANARY}]},
+            {'id': 'public', 'path': '/public', 'headers': []}]}))
+    rows = await store.session.scalar(select(route_configuration_metadata()).select_from(AgentToolModel).where(AgentToolModel.id == target.id))
+    assert rows[0]['id'] == 'one' and rows[0]['path'] == '/one', rows
+    projected = SimpleNamespace(project_id=project, id=target.id, config={'base_url': 'https://approved.example', 'routes': rows})
+    assert tool_dependencies(projected) == tool_dependencies(target)
+    result = await collect_configuration_dependencies(store.session, project_id=project,
+        bindings={'one': {'snapshot_override': {'runtime_config': {'tools': {'tool_ids': [str(target.id)]}}}}},
+        include_notices=True, snapshot_builder=None)
+    assert len(result['dependencies']) == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('configuration', [True], indirect=True)
+async def test_debug_sql_logging_omits_configuration_material_parameters(configuration, caplog):
+    import logging
+    from modules.core.infra.database.models import ProjectEnvironmentValueModel
+    store, project, engine = configuration
+    assert engine.sync_engine.hide_parameters is True
+    caplog.set_level(logging.INFO, logger='sqlalchemy.engine.Engine')
+    declaration = await store.declare(project_id=project, key='DEBUG_PRIVATE')
+    await store.write_value(project_id=project, key_id=UUID(declaration['id']), environment='draft',
+        expected_revision=0, value=CANARY)
+    row = await store.session.scalar(select(ProjectEnvironmentValueModel).where(
+        ProjectEnvironmentValueModel.key_id == UUID(declaration['id'])))
+    ciphertext = row.stored_value
+    assert ciphertext and ciphertext != CANARY
+    assert CANARY not in caplog.text and ciphertext not in caplog.text
+    assert 'parameters hidden' in caplog.text

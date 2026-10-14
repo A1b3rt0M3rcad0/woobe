@@ -19,8 +19,13 @@ async def project_secret_headers(session, *, project_id, tools, portable=False):
 
 def _portable(tool):
     result = deepcopy(tool)
-    authentication = (result.config or {}).get("authentication")
-    if authentication:
+    # Normalize only references in declared authentication fields, including
+    # route-local scopes. No private alias authority enters the portable file.
+    configs = [result.config or {}, *((result.config or {}).get('routes') or [])]
+    for config in configs:
+        authentication = config.get('authentication')
+        if not authentication:
+            continue
         for field, reference in authentication.get("fields", {}).items():
             if reference.get("source") == "legacy_configuration":
                 authentication["fields"][field] = {"source": "project_environment", "key": reference["key"]}

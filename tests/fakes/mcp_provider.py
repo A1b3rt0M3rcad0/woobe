@@ -85,3 +85,10 @@ async def protected_lookup(request: Request):
             {"error": "Destination authentication is required"}, status_code=403
         )
     return {"tenant": "portable-tenant", "authenticated": True}
+
+
+@app.get('/http-anonymous')
+async def anonymous_lookup(request: Request):
+    if request.headers.get('authorization') or request.headers.get('x-tool-token'):
+        return JSONResponse({'error': 'Private headers reached an anonymous route'}, status_code=403)
+    return {'anonymous': True}

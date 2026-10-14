@@ -1,10 +1,10 @@
 """Recognize explicit legacy header material without guessing ordinary headers."""
 from copy import deepcopy
 
-from shared.contracts.project_configuration import ConfigurationError
+from shared.contracts.project_configuration import ConfigurationError, SENSITIVE_AUTHENTICATION_HEADERS
 
 
-SENSITIVE_HEADERS = frozenset({'authorization', 'proxy-authorization', 'x-api-key', 'api-key'})
+SENSITIVE_HEADERS = SENSITIVE_AUTHENTICATION_HEADERS
 
 
 def extract_inline_tool_headers(config):
@@ -50,3 +50,31 @@ def extract_inline_tool_headers(config):
         # Old auth is a display hint; the actual header value is the authority.
         result.pop('auth', None)
     return result, material
+
+
+def extract_inline_tool_authentication(config):
+    """Compile header scopes privately; return config, material and field owners."""
+    config, global_material = extract_inline_tool_headers(config)
+    materials = {'/config/authentication/fields/' + field: value for field, value in global_material.items()}
+    owners = {}
+    if global_material:
+        config['authentication'] = {'type': 'headers', 'fields': {
+            field: {'source': 'project_environment', 'key': 'PENDING'} for field in global_material}}
+        owners.update({path: config['authentication']['fields'] for path in materials})
+    routes = []
+    for route in config.get('routes', []):
+        projected_route, route_material = extract_inline_tool_headers(route)
+        if route_material:
+            token = str(route.get('id') or '').strip().replace('~', '~0').replace('/', '~1')
+            if not token:
+                raise ConfigurationError('CONFIG_BINDING_INVALID')
+            projected_route['authentication'] = {'type': 'headers', 'fields': {
+                field: {'source': 'project_environment', 'key': 'PENDING'} for field in route_material}}
+            for field, value in route_material.items():
+                path = '/config/routes/' + token + '/authentication/fields/' + field
+                materials[path] = value
+                owners[path] = projected_route['authentication']['fields']
+        routes.append(projected_route)
+    if 'routes' in config:
+        config['routes'] = routes
+    return config, materials, owners

@@ -1,7 +1,7 @@
 """Explicit compatibility use approvals; no public name-to-value lookup."""
 from hashlib import sha256
 from sqlalchemy import select
-from shared.contracts.project_configuration import ConfigurationError
+from shared.contracts.project_configuration import ConfigurationError, valid_tool_authentication_field
 from modules.core.domain.project_configuration import canonical_destination
 from modules.core.infra.database.configuration_models import (
     LegacyConfigurationAliasModel as Alias, LegacyConfigurationConsumerModel as Consumer,
@@ -21,7 +21,7 @@ async def approve_legacy_consumers(store, *, project_id, dependencies, authorize
         alias=await store.session.get(Alias, dep.legacy_alias_id)
         if (alias is None or alias.project_id!=project_id or alias.source_kind!='secret'
                 or dep.project_id!=project_id or dep.consumer_kind!='tool'
-                or not dep.field_path.startswith('/config/authentication/fields/')):
+                or not valid_tool_authentication_field(dep.field_path)):
             raise ConfigurationError('CONFIG_USAGE_NOT_AUTHORIZED')
         key=await store.key(project_id,alias.key_id)
         if key.key!=dep.key:
