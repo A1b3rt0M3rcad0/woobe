@@ -127,7 +127,7 @@ function MetricCard({ metric, onReviewPricing }: { metric: DashboardMetric; onRe
 }
 
 function SkeletonPanel({ className = '' }: { className?: string }) {
-  return <Panel className={`animate-pulse p-5 ${className}`}><div className="h-3 w-28 rounded-full bg-white/[0.07]" /><div className="mt-5 h-20 rounded-xl bg-white/[0.05]" /></Panel>
+  return <Panel className={`animate-pulse p-5 ${className}`}><div className="h-3 w-28 rounded-full bg-muted/15" /><div className="mt-5 h-20 rounded-xl bg-muted/15" /></Panel>
 }
 
 export function DashboardLoadingState() {

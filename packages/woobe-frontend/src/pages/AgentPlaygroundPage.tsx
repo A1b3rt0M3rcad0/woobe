@@ -57,7 +57,7 @@ function upsertToolCall(existing: ToolCallInfo[] | null | undefined, next: ToolC
 }
 
 function SkeletonLine({ className = '' }: { className?: string }) {
-  return <div className={`animate-pulse rounded-full bg-white/[0.07] ${className}`} />
+  return <div className={`animate-pulse rounded-full bg-muted/15 ${className}`} />
 }
 
 function AgentPlaygroundSkeleton() {
@@ -86,8 +86,8 @@ function AgentPlaygroundSkeleton() {
         <div className="w-[52px] shrink-0 border-r border-border bg-surface/75 p-2">
           <div className="space-y-2">
             <div className="h-10 animate-pulse rounded-lg border border-primary/15 bg-primary/5" />
-            <div className="h-10 animate-pulse rounded-lg bg-white/[0.035]" />
-            <div className="h-10 animate-pulse rounded-lg bg-white/[0.035]" />
+            <div className="h-10 animate-pulse rounded-lg bg-muted/15" />
+            <div className="h-10 animate-pulse rounded-lg bg-muted/15" />
           </div>
         </div>
         <div className="w-[400px] shrink-0 border-r border-border bg-surface/70 p-4">

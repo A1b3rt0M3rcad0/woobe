@@ -88,9 +88,9 @@ export function NetworkSessionsPanel({
           {loading && sessions.length === 0 ? (
             Array.from({ length: 5 }).map((_, index) => (
               <div key={index} className="rounded-container border border-border/70 bg-background/35 p-ui-md">
-                <div className="h-3 w-32 animate-pulse rounded-full bg-white/[0.07]" />
-                <div className="mt-ui-md h-2.5 w-24 animate-pulse rounded-full bg-white/[0.07]" />
-                <div className="mt-ui-sm h-2.5 w-40 animate-pulse rounded-full bg-white/[0.07]" />
+                <div className="h-3 w-32 animate-pulse rounded-full bg-muted/15" />
+                <div className="mt-ui-md h-2.5 w-24 animate-pulse rounded-full bg-muted/15" />
+                <div className="mt-ui-sm h-2.5 w-40 animate-pulse rounded-full bg-muted/15" />
               </div>
             ))
           ) : null}

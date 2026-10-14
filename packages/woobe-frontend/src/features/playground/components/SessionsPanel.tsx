@@ -44,10 +44,10 @@ function SessionSkeleton() {
   return (
     <div className="rounded-container border border-border/70 bg-background/20 px-ui-md py-ui-sm">
       <div className="flex items-center justify-between gap-ui-sm">
-        <div className="h-2.5 w-24 animate-pulse rounded-technical bg-white/[0.06]" />
-        <div className="h-2 w-9 animate-pulse rounded-technical bg-white/[0.06]" />
+        <div className="h-2.5 w-24 animate-pulse rounded-technical bg-muted/15" />
+        <div className="h-2 w-9 animate-pulse rounded-technical bg-muted/15" />
       </div>
-      <div className="mt-ui-sm h-2 w-32 animate-pulse rounded-technical bg-white/[0.06]" />
+      <div className="mt-ui-sm h-2 w-32 animate-pulse rounded-technical bg-muted/15" />
     </div>
   )
 }

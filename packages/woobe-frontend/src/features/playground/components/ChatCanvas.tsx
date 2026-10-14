@@ -92,17 +92,17 @@ function SessionMessagesLoading({ compact = false }: { compact?: boolean }) {
           <div className={compact
             ? 'w-[82%] space-y-ui-sm rounded-control border border-border bg-surface/60 px-ui-sm py-ui-sm'
             : 'w-[72%] space-y-ui-sm rounded-container border border-border bg-surface/60 px-ui-md py-ui-sm'}>
-            <div className="h-2.5 w-1/2 animate-pulse rounded-technical bg-white/[0.07]" />
-            <div className="h-2.5 w-full animate-pulse rounded-technical bg-white/[0.07]" />
-            <div className="h-2.5 w-2/3 animate-pulse rounded-technical bg-white/[0.07]" />
+            <div className="h-2.5 w-1/2 animate-pulse rounded-technical bg-muted/15" />
+            <div className="h-2.5 w-full animate-pulse rounded-technical bg-muted/15" />
+            <div className="h-2.5 w-2/3 animate-pulse rounded-technical bg-muted/15" />
           </div>
         </div>
         <div className="flex justify-end gap-ui-sm">
           <div className={compact
             ? 'w-[68%] space-y-ui-sm rounded-control border border-primary/20 bg-primary/[0.08] px-ui-sm py-ui-sm'
             : 'w-[52%] space-y-ui-sm rounded-container border border-primary/20 bg-primary/[0.08] px-ui-md py-ui-sm'}>
-            <div className="ml-auto h-2.5 w-full animate-pulse rounded-technical bg-white/[0.08]" />
-            <div className="ml-auto h-2.5 w-2/3 animate-pulse rounded-technical bg-white/[0.08]" />
+            <div className="ml-auto h-2.5 w-full animate-pulse rounded-technical bg-muted/15" />
+            <div className="ml-auto h-2.5 w-2/3 animate-pulse rounded-technical bg-muted/15" />
           </div>
           <div className="h-control-segment w-control-segment shrink-0 animate-pulse rounded-control border border-primary/25 bg-primary/[0.08]" />
         </div>

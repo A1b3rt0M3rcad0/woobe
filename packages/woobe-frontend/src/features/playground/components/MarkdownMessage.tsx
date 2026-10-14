@@ -33,7 +33,7 @@ function inlineCodeClass(context: InlineRenderContext): string {
     return 'rounded-technical border border-border/80 bg-surface/70 px-ui-sm py-ui-hairline font-mono text-[0.82em] font-medium leading-none text-slate-100'
   }
 
-  return 'rounded-technical border border-white/10 bg-white/[0.06] px-ui-xs py-ui-hairline font-mono text-[0.86em] font-medium leading-none text-slate-100'
+  return 'rounded-technical border border-border bg-muted/15 px-ui-xs py-ui-hairline font-mono text-[0.86em] font-medium leading-none text-slate-100'
 }
 
 function isEscaped(value: string, index: number): boolean {
