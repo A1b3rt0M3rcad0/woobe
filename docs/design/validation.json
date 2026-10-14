@@ -1,7 +1,7 @@
 {
-  "recorded_at": "2026-10-14T18:29:15.569054-03:00",
+  "recorded_at": "2026-10-14T18:51:30.715986-03:00",
   "timezone": "America/Sao_Paulo",
-  "implementation_commit": "3b82c793e1669b8afa1abb27eb6cd36321c7b8db",
+  "implementation_commit": "007d5e7c8c210a717ebadd971186c1d7136250d3",
   "pr": "https://github.com/A1b3rt0M3rcad0/woobe/pull/217",
   "browser": "154.0.8037.57",
   "browser_configuration": "System Chromium via PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/chromium; PLAYWRIGHT_BROWSERS_PATH=/workspace/.playwright; DPR 1.",
@@ -15,66 +15,35 @@
       "tests": 645
     },
     {
-      "name": "Narrative Markdown final recheck",
-      "command": "VITE_API_URL=http://127.0.0.1:8000 VITE_CHAT_EMBED_URL=http://127.0.0.1:4181 npm --prefix packages/woobe-frontend run test:run -- src/features/playground/components/MarkdownMessage.test.tsx",
-      "result": "passed",
-      "tests": 13
-    },
-    {
       "name": "Production browser suite",
       "command": "cd tests/e2e && WOOBE_CAPTURE_DOCS=1 WOOBE_REQUIRE_GEORGIA=1 npx playwright test --config playwright.config.ts",
       "result": "passed",
-      "tests": 109,
-      "final_workspaces_and_embed_recheck": {
-        "tests": 7,
-        "result": "passed",
-        "command": "cd tests/e2e && WOOBE_CAPTURE_DOCS=1 WOOBE_REQUIRE_GEORGIA=1 npx playwright test --config playwright.config.ts tests/surface-coverage.spec.ts tests/embed-design.spec.ts --grep 'complete surface (playground|network-workspace)|ChatSurface preserves'"
-      }
+      "tests": 111,
+      "includes": "Desktop/mobile navigation contrast and portal isolation; responsive product pages; ChatSurface iframe; actual rendered fonts."
     },
     {
-      "name": "Production shared components and overlays",
+      "name": "Shared components and overlays browser suite",
       "command": "cd tests/e2e && WOOBE_CAPTURE_DOCS=1 WOOBE_REQUIRE_GEORGIA=1 npx playwright test --config review.config.ts --workers=2",
-      "result": "passed with focused font-probe recheck",
-      "unique_cases": 252,
-      "broad_run": {
-        "passed": 251,
-        "failed": 1,
-        "failure": "The new font probe queried the native textarea element, whose painted text lives in a user-agent shadow descendant. No rendered font was returned for that element."
-      },
-      "correction": "The CDP probe now scrolls the real control into view and inspects its actual painted text owner, including native shadow descendants and CodeMirror token spans. Font assertions are retained.",
-      "focused_recheck": {
-        "command": "cd tests/e2e && WOOBE_CAPTURE_DOCS=1 WOOBE_REQUIRE_GEORGIA=1 npx playwright test --config review.config.ts --workers=1 --grep 'production primitives, variants and actual rendered fonts'",
-        "passed": 1
-      }
+      "result": "passed",
+      "tests": 252,
+      "execution": "Real shared components in the Vite review entry, with the independently built embed iframe."
     },
     {
       "name": "Frontend TypeScript and production build",
-      "result": "passed",
       "command": "npm --prefix packages/woobe-frontend run build",
-      "execution": "Rebuilt by the final production-browser workspace recheck; existing large-chunk warning remains."
+      "result": "passed",
+      "execution": "Also rebuilt by the final production-browser run. Existing large-chunk warning remains."
     },
     {
-      "name": "Independent embed unit suite",
+      "name": "Independent embed production build",
+      "command": "npm --prefix packages/woobe-embed run build",
       "result": "passed",
-      "command": "npm --prefix packages/woobe-embed test",
-      "tests": 25
-    },
-    {
-      "name": "Independent embed typecheck and build",
-      "result": "passed",
-      "command": "npm --prefix packages/woobe-embed run typecheck; npm --prefix packages/woobe-embed run build",
-      "execution": "Typecheck run directly; production build also run by the final browser workspace/ChatSurface recheck."
-    },
-    {
-      "name": "Frontend UUID architecture policy",
-      "result": "passed",
-      "command": ".venv/bin/python -m pytest -q tests/architecture/test_frontend_uuid_policy.py",
-      "tests": 1
+      "execution": "Built and exercised by the production browser suite; the review suite separately builds its embed output."
     },
     {
       "name": "Main-page inventory and screenshot dimensions",
-      "result": "passed",
       "command": "python3 scripts/frontend_visual_inventory.py",
+      "result": "passed",
       "pages": 18,
       "screenshots": 54,
       "route_declarations": 53,
@@ -90,13 +59,13 @@
     },
     {
       "name": "Patch whitespace",
-      "result": "passed",
-      "command": "git diff --check"
+      "command": "git diff --check",
+      "result": "passed"
     },
     {
       "name": "Code graph",
-      "result": "updated",
-      "command": "graphify update ."
+      "command": "graphify update .",
+      "result": "updated"
     }
   ],
   "screenshots": {
@@ -117,11 +86,12 @@
       ]
     ],
     "file_capture_window": [
-      "2026-10-14T18:19:32.789452-03:00",
-      "2026-10-14T18:25:32.486934-03:00"
+      "2026-10-14T18:44:58.767817-03:00",
+      "2026-10-14T18:48:13.723945-03:00"
     ],
     "scope": "Only freshly captured main pages. Previous component, modal, state and scroll-sequence documentation images removed at owner request.",
-    "visual_review": "All three main-page contact sheets inspected; full-size Overview, authentication, workspace/project selection and resource/workspace samples checked against the editorial/technical reference hierarchy."
+    "visual_review": "All three main-page contact sheets inspected, with full-size Overview desktop/tablet/mobile and representative catalog/project pages checked for contrast, typography, wrapping and clipping.",
+    "delivery_commit": "0b2e27ec1ef599e6cc4db69a4c230c77369e5a44"
   },
   "rendered_font_evidence": [
     "fonts/typography-1440px.json",
@@ -144,5 +114,48 @@
     "publication": "Pending user review/save/publish in environment settings; Georgia is installed and verified in the current machine."
   },
   "remote_ci": "Not inspected: api.github.com is outside the current cloud HTTP allowlist.",
-  "merged_by_this_task": false
+  "merged_by_this_task": false,
+  "preceding_typography_validation": {
+    "recorded_at": "2026-10-14T18:29:15.569054-03:00",
+    "implementation_commit": "3b82c793e1669b8afa1abb27eb6cd36321c7b8db",
+    "delivered_commit": "e353daa296597919842f939913723c53977b5f73",
+    "checks": [
+      {
+        "name": "Narrative Markdown final recheck",
+        "command": "VITE_API_URL=http://127.0.0.1:8000 VITE_CHAT_EMBED_URL=http://127.0.0.1:4181 npm --prefix packages/woobe-frontend run test:run -- src/features/playground/components/MarkdownMessage.test.tsx",
+        "result": "passed",
+        "tests": 13
+      },
+      {
+        "name": "Independent embed unit suite",
+        "result": "passed",
+        "command": "npm --prefix packages/woobe-embed test",
+        "tests": 25
+      },
+      {
+        "name": "Independent embed typecheck and build",
+        "result": "passed",
+        "command": "npm --prefix packages/woobe-embed run typecheck; npm --prefix packages/woobe-embed run build",
+        "execution": "Typecheck run directly; production build also run by the final browser workspace/ChatSurface recheck."
+      },
+      {
+        "name": "Frontend UUID architecture policy",
+        "result": "passed",
+        "command": ".venv/bin/python -m pytest -q tests/architecture/test_frontend_uuid_policy.py",
+        "tests": 1
+      }
+    ]
+  },
+  "contrast_review": {
+    "navigation": "Same charcoal surface for Workspace/Projects and selected-project rail/drawer; current item is identified by light text, boundary and orange inset.",
+    "surface_mapping": "Canvas #f3f1ed, white panel #fffefd, band #f6f4f0, separator #d4d0c8; original Guild skill files unchanged.",
+    "primary_actions": "Pending Configure now uses the canonical charcoal button; primary catalog selections and Overview All use light labels/counts on charcoal.",
+    "focused_validation": {
+      "tests": 3,
+      "result": "passed",
+      "command": "cd tests/e2e && WOOBE_REQUIRE_GEORGIA=1 npx playwright test --config playwright.config.ts tests/navigation-contrast.spec.ts tests/design-system.spec.ts --grep 'navigation keeps|editorial console'"
+    },
+    "initial_audit_correction": "The first desktop Account settings axe audit exposed warning-description opacity reducing contrast. Removed that opacity; both viewport audits and final suites pass.",
+    "thresholds": "Current navigation text >=4.5:1, focus outline >=3:1, plus selected axe WCAG A/AA checks. Not a full accessibility certification."
+  }
 }

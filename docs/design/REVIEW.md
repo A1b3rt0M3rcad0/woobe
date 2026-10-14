@@ -1,4 +1,8 @@
-# Guild v2 interface and typography review
+# Guild v2 interface, typography and contrast review
+
+Workspace selection and selected-project navigation now share the same charcoal surface on desktop and in the mobile drawer. Active navigation combines a bordered charcoal control, orange inset marker and light text. A peach keyboard outline remains visible on the dark rail, including account actions after a dialog closes. Dialogs opened from the rail retain their light surface through the existing portal. The operational reference is `05-mint-ui-overlap.png`, with `13-usage-cap-overlap-user.png` for panel bands and the owner's existing Projects rail for the dark navigation treatment.
+
+The main canvas is warmer and more distinct from white panels, separators are stronger, and shared panel headers and footers have a restrained cream band. These are application token mappings in `woobe-ui`; the supplied Guild skill files and short panel shadow are unchanged. The existing charcoal primary button is also used for a pending configuration action. Primary catalog selections and the Overview All filter use light labels/counts on charcoal; refresh and other secondary actions keep less visual weight. Warning descriptions retain full semantic ink opacity for readable contrast.
 
 The typography correction restores three distinct roles: Inter is the interface default, Georgia regular carries editorial page titles and Overview sections, and JetBrains Mono remains explicit on technical panel headers, numerical metrics, resource identifiers, code, schemas, versions, timestamps and execution evidence. The primary reference is the supplied `12-home-hero-user.png`, with the operational microinterface anatomy retained from Guild v2. The original skill files are unchanged.
 
@@ -16,7 +20,9 @@ The source inventory still covers routes, shared components, overlay sources and
 
 ## Validation
 
-Exact commands, totals, implementation commit and capture metadata are recorded in [validation.json](validation.json). Verification includes frontend unit tests; the rebuilt production frontend with API-fixture browser tests; production shared-component and overlay browser tests at desktop/tablet/mobile widths; independent embed tests, typecheck and build; rendered-font probes; the screenshot inventory; and patch whitespace checks.
+Exact commands, totals, implementation commit and capture metadata are recorded in [validation.json](validation.json). Current verification includes frontend unit tests; the rebuilt production frontend with API-fixture browser tests; shared-component and overlay browser tests at desktop/tablet/mobile widths; rendered-font probes; the screenshot inventory; and patch whitespace checks. The production suite also rebuilds and exercises the actual ChatSurface iframe. Independent embed unit/typecheck evidence from the preceding typography revision is recorded separately from checks rerun for contrast.
+
+New navigation checks compare the rendered Workspace and Project rail backgrounds at desktop/mobile widths, verify active-text and keyboard-focus contrast, open the real Account settings portal, run selected axe rules, and verify Escape restores focus. An initial desktop audit found warning-description opacity reducing text contrast; removing that opacity fixed the issue, and both viewport checks passed on the final source.
 
 The font probes inspect declared family, weight and size alongside `CSS.getPlatformFontsForNode`, with actual glyph counts and custom/system origin. The production probes distinguish page/section headlines, navigation, breadcrumbs, filters, form controls, technical panels and numerical values. Shared-component probes include CodeMirror, technical tables and Portuguese text. The local strict run requires Georgia; CI may record its system-serif fallback while still requiring real Inter and JetBrains Mono webfonts.
 
