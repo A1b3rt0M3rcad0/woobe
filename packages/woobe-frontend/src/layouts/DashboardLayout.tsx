@@ -45,7 +45,7 @@ export function DashboardLayout() {
           </ErrorBoundary>
         </main>
       </div>
-      {!hideSidebar && <Drawer open={navigationOpen} onClose={closeNavigation} title="Navigation" className="max-w-xs [&>div:last-child]:p-0">
+      {!hideSidebar && <Drawer open={navigationOpen} onClose={closeNavigation} title="Navigation" className="woobe-navigation max-w-xs [&>div:last-child]:p-0">
         {isWorkspaceSelection ? <WorkspaceSelectionSidebar /> : <Sidebar />}
       </Drawer>}
     </div>

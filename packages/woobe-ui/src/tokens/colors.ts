@@ -1,10 +1,11 @@
 export const woobeColors = {
-  background: 'rgb(var(--woobe-canvas, 248 247 245) / <alpha-value>)',
+  background: 'rgb(var(--woobe-canvas, 243 241 237) / <alpha-value>)',
   foreground: 'rgb(var(--woobe-ink, 36 35 33) / <alpha-value>)',
   'primary-foreground': '#fffefd',
   surface: 'rgb(var(--woobe-surface, 255 254 253) / <alpha-value>)',
+  'panel-band': 'rgb(var(--woobe-panel-band, 246 244 240) / <alpha-value>)',
   control: 'rgb(var(--woobe-control, 239 238 235) / <alpha-value>)',
-  border: 'rgb(var(--woobe-border, 227 225 221) / <alpha-value>)',
+  border: 'rgb(var(--woobe-border, 212 208 200) / <alpha-value>)',
   'control-border': 'rgb(var(--woobe-control-border, 140 134 125) / <alpha-value>)',
   'brand-mark': '#ff5500',
   primary: {

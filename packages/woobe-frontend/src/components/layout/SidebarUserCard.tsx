@@ -36,7 +36,7 @@ export function SidebarUserCard({ variant = 'default' }: { variant?: 'default' |
               onClick={() => setShowAccount(true)}
               aria-label="Open account settings"
             >
-              <div className="flex h-control-sm w-control-sm shrink-0 items-center justify-center rounded-control border border-primary/30 bg-control font-sans text-chrome-label font-medium text-slate-100">
+              <div className="flex h-control-sm w-control-sm shrink-0 items-center justify-center rounded-control border border-border bg-control font-sans text-chrome-label font-medium text-slate-100">
                 {getInitials(user?.email)}
               </div>
               <div className="min-w-0 flex-1">
@@ -70,7 +70,7 @@ export function SidebarUserCard({ variant = 'default' }: { variant?: 'default' |
             onClick={() => setShowAccount(true)}
             aria-label="Open account settings"
           >
-            <div className="flex h-control w-control shrink-0 items-center justify-center rounded-control border border-primary/25 bg-control font-sans text-chrome-label font-medium text-primary-light">
+            <div className="flex h-control w-control shrink-0 items-center justify-center rounded-control border border-border bg-control font-sans text-chrome-label font-medium text-primary-light">
               {getInitials(user?.email)}
             </div>
             <div className="min-w-0 flex-1">

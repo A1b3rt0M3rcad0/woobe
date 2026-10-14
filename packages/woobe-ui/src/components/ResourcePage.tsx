@@ -114,10 +114,11 @@ export interface ResourceTab<T extends string> {
   count?: number
 }
 
-function ResourceCount({ children, compact = false }: { children: ReactNode; compact?: boolean }) {
+function ResourceCount({ children, compact = false, active = false }: { children: ReactNode; compact?: boolean; active?: boolean }) {
   return (
     <span className={cn(
-      'shrink-0 font-mono font-normal tabular-nums text-muted-foreground',
+      'shrink-0 font-mono font-normal tabular-nums',
+      active ? 'text-primary-foreground/80' : 'text-muted-foreground',
       compact ? 'text-system-meta' : 'text-system-meta',
     )}>
       {children}
@@ -143,13 +144,14 @@ export function ResourceTabs<T extends string>({
         value={value}
         onValueChange={(next) => onChange(next as T)}
         size="technical"
+        emphasis="strong"
         className="p-ui-hairline [&>button]:!h-control-xs [&>button]:!px-[7px] [&>button]:!text-system-control"
         items={tabs.map((tab) => ({
           value: tab.value,
           label: (
             <span className="flex min-w-0 items-center gap-ui-xs">
               <span className="truncate">{tab.label}</span>
-              {tab.count !== undefined ? <ResourceCount compact>{tab.count}</ResourceCount> : null}
+              {tab.count !== undefined ? <ResourceCount compact active={tab.value === value}>{tab.count}</ResourceCount> : null}
             </span>
           ),
         }))}

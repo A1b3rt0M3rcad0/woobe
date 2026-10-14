@@ -1,23 +1,25 @@
 @import './fonts.css';
 @import './guild-tokens.css';
-/* Guild v2 operational mapping. Values match the supplied reconstruction contract. */
+/* Guild v2 operational mapping, with the owner's stronger shell/panel contrast. */
 :root {
   color-scheme: light;
-  --woobe-canvas: 248 247 245;
+  --woobe-canvas: 243 241 237;
   --woobe-surface: 255 254 253;
+  --woobe-panel-band: 246 244 240;
   --woobe-control: 239 238 235;
-  --woobe-border: 227 225 221;
+  --woobe-border: 212 208 200;
   --woobe-control-border: 140 134 125;
   --woobe-ink: 36 35 33;
   --woobe-secondary: 70 67 63;
   --woobe-muted: 107 104 99;
   --woobe-link: 173 57 0;
 }
-/* Explicit alternate theme for consumers that opt in; the console is operational light. */
-.woobe-dark {
+/* Dark navigation is scoped to the rail/drawer; product panels remain light. */
+.woobe-dark, .woobe-navigation {
   color-scheme: dark;
   --woobe-canvas: 24 23 21;
   --woobe-surface: 36 35 33;
+  --woobe-panel-band: 48 46 43;
   --woobe-control: 48 46 43;
   --woobe-border: 82 78 72;
   --woobe-control-border: 160 156 149;
@@ -26,8 +28,35 @@
   --woobe-muted: 192 187 179;
   --woobe-link: 255 174 133;
 }
+.woobe-navigation {
+  --woobe-focus: #ffae85;
+  color: rgb(var(--woobe-ink));
+}
+.woobe-navigation :is(button,a,input,select,summary,[tabindex]):focus-visible {
+  outline: 2px solid var(--woobe-focus);
+  outline-offset: 3px;
+}
+.woobe-navigation-item {
+  border-color: transparent;
+  background-color: transparent;
+  color: rgb(var(--woobe-secondary));
+}
+.woobe-navigation-item:not(:disabled):hover {
+  border-color: rgb(var(--woobe-border));
+  background-color: rgb(var(--woobe-control));
+  color: rgb(var(--woobe-ink));
+}
+.woobe-navigation-item[aria-current="page"] {
+  border-color: rgb(var(--woobe-control-border) / .55);
+  background-color: rgb(var(--woobe-control));
+  color: rgb(var(--woobe-ink));
+  box-shadow: inset 2px 0 var(--g-accent);
+}
+.woobe-navigation-item[aria-current="page"] > svg {
+  color: rgb(var(--woobe-link));
+}
 :where(button,a,input,textarea,select,summary,[tabindex]):focus-visible {
-  outline: 2px solid var(--g-accent-ink);
+  outline: 2px solid var(--woobe-focus, var(--g-accent-ink));
   outline-offset: 3px;
 }
 :where(button,a,input,select,textarea) { touch-action: manipulation; }

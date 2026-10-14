@@ -40,7 +40,7 @@ AlertTitle.displayName = 'AlertTitle'
 
 const AlertDescription = forwardRef<HTMLParagraphElement, HTMLAttributes<HTMLParagraphElement>>(
   ({ className, ...props }, ref) => (
-    <p ref={ref} className={cn('font-sans text-product-caption opacity-90', className)} {...props} />
+    <p ref={ref} className={cn('font-sans text-product-caption', className)} {...props} />
   ),
 )
 AlertDescription.displayName = 'AlertDescription'

@@ -54,7 +54,7 @@ export function ResourceCard({
 
       {description ? <span className="block px-ui-panel-inset pb-ui-lg font-sans text-product-small text-muted-foreground">{description}</span> : null}
       {metadata ? <span className="flex flex-1 flex-wrap content-start items-start gap-ui-xs border-t border-border/70 px-ui-panel-inset py-ui-md">{metadata}</span> : null}
-      {footer ? <span className="mt-auto block border-t border-border/70 bg-surface px-ui-panel-inset py-ui-md font-mono text-system-meta text-muted-foreground">{footer}</span> : null}
+      {footer ? <span className="mt-auto block border-t border-border bg-panel-band/70 px-ui-panel-inset py-ui-md font-mono text-system-meta text-muted-foreground">{footer}</span> : null}
     </button>
   )
 }

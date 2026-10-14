@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Button } from '@woobe/ui'
+import { Button, buttonClassName } from '@woobe/ui'
 import { ApiError } from '@/lib/api/errors'
 import { workspaceProjectPath } from '@/lib/constants/routes'
 import { getConfigurationSummary } from '../configuration'
@@ -34,6 +34,7 @@ export function ProjectConfigurationNotice({ projectId, workspaceId, environment
   const params = new URLSearchParams({ environment })
   params.set('returnTo', window.location.pathname + window.location.search)
   const href = workspaceProjectPath(workspaceId, projectId, 'environments') + '?' + params
+  const needsConfiguration = !data || data.state === 'unknown' || data.state === 'blocked'
   return <aside aria-label="Project configuration" className="flex flex-wrap items-center gap-ui-sm rounded-md border border-border bg-surface px-ui-md py-ui-sm text-product-small">
     <span className="font-medium">Configuration</span>
     {selected ? <span className="capitalize">{environment}</span> : <label className="flex items-center gap-ui-xs">
@@ -44,7 +45,7 @@ export function ProjectConfigurationNotice({ projectId, workspaceId, environment
       </select>
     </label>}
     <span role="status" className="text-muted-foreground">{message}</span>
-    {!forbidden && <a href={href} className="ml-auto text-primary underline underline-offset-2">Configure now</a>}
+    {!forbidden && <a href={href} className={buttonClassName({ variant: needsConfiguration ? 'default' : 'outline', size: 'sm', className: 'ml-auto' })}>Configure now</a>}
     <Button variant="ghost" size="sm" disabled={query.isFetching} onClick={() => { void query.refetch() }}>Refresh status</Button>
   </aside>
 }

@@ -37,7 +37,7 @@ export function PanelHeader({
   return (
     <div
       className={cn(
-        'flex items-start justify-between gap-ui-md border-b border-border',
+        'flex items-start justify-between gap-ui-md rounded-t-container border-b border-border bg-panel-band',
         compact ? 'px-ui-md py-ui-sm' : 'px-ui-md py-ui-md',
         className,
       )}

@@ -23,12 +23,10 @@ function FlowItem({ title, description, icon: Icon, active, disabled, compact, o
       type="button"
       disabled={disabled}
       onClick={onClick}
+      aria-current={active ? 'page' : undefined}
       title={description}
       className={cn(
-        'group flex h-control-nav w-full items-center gap-ui-sm rounded-technical border px-ui-sm text-left font-sans text-product-small transition-colors',
-        active
-          ? 'border-primary/40 bg-primary/[0.12] text-slate-50'
-          : 'border-transparent text-slate-300 hover:border-border hover:bg-accent/40 hover:text-slate-50',
+        'woobe-navigation-item group flex h-control-nav w-full items-center gap-ui-sm rounded-technical border px-ui-sm text-left font-sans text-product-small transition-colors',
         disabled && 'cursor-not-allowed opacity-40 hover:border-transparent hover:bg-transparent hover:text-slate-300',
         compact && 'justify-center px-ui-md sm:justify-start',
       )}
@@ -79,21 +77,21 @@ export function WorkspaceSelectionSidebar({ compact = false }: { compact?: boole
 
   if (compact) {
     return (
-      <div className="border-b border-border bg-surface lg:hidden">
+      <div className="woobe-navigation border-b border-border bg-surface lg:hidden">
         <div className="grid grid-cols-2 gap-ui-xs p-ui-sm">{flowItems}</div>
       </div>
     )
   }
 
   return (
-    <aside className="woobe-dark flex w-project-sidebar shrink-0 flex-col border-r border-border bg-surface">
+    <aside className="woobe-navigation flex w-project-sidebar shrink-0 flex-col border-r border-border bg-surface">
       <header className="flex h-project-sidebar-header shrink-0 items-center gap-ui-sm border-b border-border px-ui-xl">
         <div className="flex h-control-sm w-control-sm items-center justify-center text-slate-50" aria-hidden="true">
           <Orbit className="h-icon-brand w-icon-brand" strokeWidth={1.7} />
         </div>
         <div className="min-w-0">
-          <p className="font-sans text-heading-sm font-medium tracking-[0.02em] text-slate-50">WOOBE</p>
-          <p className="mt-ui-hairline font-sans text-system-label uppercase tracking-[0.12em] text-muted-foreground">control plane</p>
+          <p className="font-sans text-brand-title font-medium tracking-tight text-slate-50">WOOBE</p>
+          <p className="mt-ui-hairline font-sans text-chrome-meta text-muted-foreground">control plane</p>
         </div>
       </header>
 

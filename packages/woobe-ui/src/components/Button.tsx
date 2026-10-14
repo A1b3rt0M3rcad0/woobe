@@ -30,20 +30,25 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   loading?: boolean
 }
 
+/** The same button presentation for native links that navigate instead of acting. */
+export function buttonClassName({ className, variant = 'default', size = 'default' }: Pick<ButtonProps, 'className' | 'variant' | 'size'> = {}) {
+  return cn(
+    'inline-flex items-center justify-center gap-ui-sm whitespace-nowrap rounded-control font-sans transition-colors [&>svg]:!m-0 [&>svg]:shrink-0',
+    'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary focus-visible:ring-offset-1 focus-visible:ring-offset-background',
+    'disabled:pointer-events-none disabled:opacity-50',
+    variantClasses[variant],
+    sizeClasses[size],
+    className,
+  )
+}
+
 const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant = 'default', size = 'default', loading = false, disabled, children, ...props }, ref) => (
     <button
       ref={ref}
       disabled={disabled || loading}
       aria-busy={loading || undefined}
-      className={cn(
-        'inline-flex items-center justify-center gap-ui-sm whitespace-nowrap rounded-control font-sans transition-colors [&>svg]:!m-0 [&>svg]:shrink-0',
-        'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary focus-visible:ring-offset-1 focus-visible:ring-offset-background',
-        'disabled:pointer-events-none disabled:opacity-50',
-        variantClasses[variant],
-        sizeClasses[size],
-        className,
-      )}
+      className={buttonClassName({ className, variant, size })}
       {...props}
     >
       {loading && (

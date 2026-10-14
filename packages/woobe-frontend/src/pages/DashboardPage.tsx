@@ -42,7 +42,7 @@ import type { DashboardEnvironment, DashboardRangePreset } from '@/features/dash
 import { workspaceProjectPath } from '@/lib/constants/routes'
 
 const ENVIRONMENTS: Array<{ value: DashboardEnvironment; label: string; tone: string; dot: string }> = [
-  { value: 'all', label: 'All', tone: 'border-slate-600/70 bg-slate-800/60 text-slate-100', dot: 'bg-slate-300' },
+  { value: 'all', label: 'All', tone: 'border-primary bg-primary text-primary-foreground', dot: 'bg-current' },
   { value: 'draft', label: 'Draft', tone: 'border-border bg-control text-foreground', dot: 'bg-slate-500' },
   { value: 'staging', label: 'Staging', tone: 'border-primary/30 bg-primary/10 text-primary-light', dot: 'bg-primary' },
   { value: 'production', label: 'Production', tone: 'border-emerald-500/35 bg-emerald-500/10 text-success', dot: 'bg-emerald-400' },
@@ -83,7 +83,7 @@ function MetricCard({ metric, onReviewPricing }: { metric: DashboardMetric; onRe
   const Icon = metric.icon
   const detailTone = metric.direction === 'up' ? 'text-success' : metric.direction === 'down' ? 'text-error' : 'text-muted'
   return <Panel className="flex min-w-0 flex-col">
-    <div className="flex min-h-panel-header items-center justify-between gap-ui-sm border-b border-border px-ui-panel-inset py-ui-sm">
+    <div className="flex min-h-panel-header items-center justify-between gap-ui-sm rounded-t-container border-b border-border bg-panel-band px-ui-panel-inset py-ui-sm">
       <h2 className="font-mono text-product-label font-medium text-foreground">{metric.label}</h2>
       {metric.costHelp
         ? <button type="button" aria-label="Runtime cost details" onClick={() => setHelpOpen(true)} className="flex h-control-xs w-control-xs shrink-0 items-center justify-center rounded-technical text-muted hover:text-foreground"><AlertCircle className="h-icon w-icon" aria-hidden="true" /></button>
@@ -98,7 +98,7 @@ function MetricCard({ metric, onReviewPricing }: { metric: DashboardMetric; onRe
         </div>)}
       </div> : <p className="break-words font-mono text-metric font-normal tabular-nums text-foreground">{metric.value}</p>}
     </div>
-    <p className={`min-h-control border-t border-border px-ui-panel-inset py-ui-sm font-sans text-product-caption ${detailTone}`}>{metric.detail ?? 'No terminal Runs in this interval'}</p>
+    <p className={`min-h-control rounded-b-container border-t border-border bg-panel-band/70 px-ui-panel-inset py-ui-sm font-sans text-product-caption ${detailTone}`}>{metric.detail ?? 'No terminal Runs in this interval'}</p>
     {metric.costHelp && <Dialog open={helpOpen} onClose={() => setHelpOpen(false)} title="Runtime cost coverage" className="max-w-md">
       <p className="font-sans text-sm leading-6 text-muted-foreground">{metric.costHelp.description}</p>
       {metric.costHelp.reviewPricing && <div className="mt-4 space-y-3">

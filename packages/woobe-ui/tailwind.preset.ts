@@ -31,10 +31,10 @@ const woobeTailwindPreset = {
           300: 'rgb(var(--woobe-secondary, 70 67 63) / <alpha-value>)',
           400: 'rgb(var(--woobe-muted, 107 104 99) / <alpha-value>)',
           500: '#6b6863', 600: '#8c867d',
-          700: 'rgb(var(--woobe-border, 227 225 221) / <alpha-value>)',
+          700: 'rgb(var(--woobe-border, 212 208 200) / <alpha-value>)',
           800: 'rgb(var(--woobe-control, 239 238 235) / <alpha-value>)',
           900: 'rgb(var(--woobe-control, 239 238 235) / <alpha-value>)',
-          950: 'rgb(var(--woobe-canvas, 248 247 245) / <alpha-value>)',
+          950: 'rgb(var(--woobe-canvas, 243 241 237) / <alpha-value>)',
         },
       },
       fontFamily: {

@@ -10,7 +10,7 @@ Card.displayName = 'Card'
 
 const CardHeader = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn('flex flex-col gap-ui-sm border-b border-border p-ui-panel-inset', className)} {...props} />
+    <div ref={ref} className={cn('flex flex-col gap-ui-sm rounded-t-container border-b border-border bg-panel-band p-ui-panel-inset', className)} {...props} />
   ),
 )
 CardHeader.displayName = 'CardHeader'
@@ -38,7 +38,7 @@ CardContent.displayName = 'CardContent'
 
 const CardFooter = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn('flex items-center border-t border-border px-ui-panel-inset py-ui-md', className)} {...props} />
+    <div ref={ref} className={cn('flex items-center rounded-b-container border-t border-border bg-panel-band/70 px-ui-panel-inset py-ui-md', className)} {...props} />
   ),
 )
 CardFooter.displayName = 'CardFooter'

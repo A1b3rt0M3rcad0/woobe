@@ -16,6 +16,7 @@ export interface SegmentedControlProps {
   className?: string
   stretch?: boolean
   size?: 'technical' | 'segment' | 'compact'
+  emphasis?: 'subtle' | 'strong'
 }
 
 export function SegmentedControl({
@@ -26,6 +27,7 @@ export function SegmentedControl({
   className,
   stretch = false,
   size = 'segment',
+  emphasis = 'subtle',
 }: SegmentedControlProps) {
   const sizeClass = size === 'technical'
     ? 'h-control-xs text-chrome-meta'
@@ -57,7 +59,9 @@ export function SegmentedControl({
               sizeClass,
               stretch && 'min-w-max flex-1',
               active
-                ? 'border-border bg-accent text-accent-foreground'
+                ? emphasis === 'strong'
+                  ? 'border-primary bg-primary text-primary-foreground'
+                  : 'border-border bg-accent text-accent-foreground'
                 : 'border-transparent text-muted-foreground hover:text-accent-foreground',
             )}
           >

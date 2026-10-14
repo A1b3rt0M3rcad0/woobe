@@ -70,14 +70,7 @@ function SidebarNavLink({ item, href }: { item: NavItem; href: string }) {
     <NavLink
       to={href}
       end={item.end}
-      className={({ isActive }) =>
-        cn(
-          'group flex h-control-nav items-center gap-ui-sm rounded-technical border px-ui-sm font-sans text-product-label font-medium transition-colors',
-          isActive
-            ? 'border-border bg-accent text-slate-50'
-            : 'border-transparent text-slate-300 hover:border-border hover:bg-accent/45 hover:text-slate-50',
-        )
-      }
+      className="woobe-navigation-item group flex h-control-nav items-center gap-ui-sm rounded-technical border px-ui-sm font-sans text-product-label font-medium transition-colors"
     >
       <Icon className="h-icon w-icon shrink-0 text-muted-foreground transition-colors group-hover:text-slate-200" />
       <span className="truncate">{item.label}</span>
@@ -107,7 +100,7 @@ function ContextMenuItem({ icon: Icon, title, description, active, onClick }: { 
       className={cn(
         'flex w-full items-start gap-ui-sm rounded-control border px-ui-sm py-ui-sm text-left transition-colors',
         active
-          ? 'border-primary/35 bg-primary/[0.1] text-slate-50'
+          ? 'border-control-border/55 bg-control text-slate-50'
           : 'border-transparent text-slate-300 hover:border-border hover:bg-control hover:text-slate-50',
       )}
     >
@@ -177,7 +170,7 @@ function ProjectContextCard({
         }}
         className={cn(
           'group w-full rounded-container border bg-control/45 px-ui-md py-ui-sm text-left transition-colors',
-          open ? 'border-primary/40 bg-primary/[0.08]' : 'border-border hover:border-slate-600 hover:bg-control',
+          open ? 'border-control-border/70 bg-control' : 'border-border hover:border-control-border hover:bg-control',
         )}
       >
         <span className="flex items-center justify-between gap-ui-sm">
@@ -250,7 +243,7 @@ function ConfigButton({ icon: Icon, label, description, onClick }: { icon: Lucid
     <button
       type="button"
       onClick={onClick}
-      className="group flex min-h-control-nav min-w-0 w-full items-center gap-ui-sm rounded-technical border border-transparent px-ui-sm py-ui-sm text-left transition-colors hover:border-border hover:bg-accent/45"
+      className="woobe-navigation-item group flex min-h-control-nav min-w-0 w-full items-center gap-ui-sm rounded-technical border px-ui-sm py-ui-sm text-left transition-colors"
     >
       <Icon className="h-icon w-icon shrink-0 text-muted-foreground transition-colors group-hover:text-slate-200" />
       <span className="min-w-0 flex-1">
@@ -309,7 +302,7 @@ export function Sidebar() {
 
   return (
     <>
-      <aside className="flex h-full w-project-sidebar shrink-0 flex-col overflow-hidden border-r border-border bg-surface">
+      <aside className="woobe-navigation flex h-full w-project-sidebar shrink-0 flex-col overflow-hidden border-r border-border bg-surface">
         <header className="flex h-project-sidebar-header shrink-0 items-center gap-ui-sm border-b border-border px-ui-xl">
           <div className="flex h-control-sm w-control-sm items-center justify-center text-slate-50" aria-hidden="true">
             <Orbit className="h-icon-brand w-icon-brand" strokeWidth={1.7} />
