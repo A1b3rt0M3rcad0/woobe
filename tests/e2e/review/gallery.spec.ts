@@ -5,6 +5,7 @@ import cases from './overlay-cases.json'
 import { captureScrollSequence, resetCaptures } from './capture'
 import { installApi, respond, productionAgent, selectedRelease, project, workspace, now } from '../fixtures/control-plane'
 import { DEFAULT_CHAT_SURFACE_APPEARANCE } from '../../../packages/woobe-frontend/src/features/chat-surfaces/appearance'
+import { hasRenderedFont, platformFontFamily } from '../support/font-evidence'
 
 const captures = resolve(process.cwd(), 'review-results/captures')
 
@@ -134,9 +135,9 @@ test('production primitives, variants and actual rendered fonts', async ({ page 
     const {nodeId}=await client.send('DOM.querySelector',{nodeId:root.nodeId,selector})
     const result=await paintedFonts(client,nodeId)
     if(family==='serif') {
-      expect(result.fonts.some(font=>font.glyphCount>0 && !['Inter','JetBrains Mono'].includes(font.familyName))).toBeTruthy()
-      if(process.env.WOOBE_REQUIRE_GEORGIA==='1')expect(result.fonts.some(font=>font.familyName==='Georgia' && font.glyphCount>0)).toBeTruthy()
-    } else expect(result.fonts.some(font=>font.familyName===family && font.isCustomFont && font.glyphCount>0),JSON.stringify({selector,family,fonts:result.fonts})).toBeTruthy()
+      expect(result.fonts.some(font=>font.glyphCount>0 && !['Inter','JetBrains Mono'].includes(platformFontFamily(font.familyName)))).toBeTruthy()
+      if(process.env.WOOBE_REQUIRE_GEORGIA==='1')expect(hasRenderedFont(result.fonts,'Georgia','system')).toBeTruthy()
+    } else expect(hasRenderedFont(result.fonts,family,'web'),JSON.stringify({selector,family,fonts:result.fonts})).toBeTruthy()
     const computed=await page.locator(selector).first().evaluate(el=>{const style=getComputedStyle(el);return {family:style.fontFamily,weight:style.fontWeight,size:style.fontSize}})
     evidence.push({selector,expected:family,fonts:result.fonts,computed,probeSource:result.probeSource})
   }

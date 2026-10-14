@@ -119,7 +119,7 @@
     "start_skill": "saved",
     "publication": "Pending user review/save/publish in environment settings; Georgia is installed and verified in the current machine."
   },
-  "remote_ci": "Not inspected: api.github.com is outside the current cloud HTTP allowlist.",
+  "remote_ci": "Check states, failure annotations and step outcomes inspected through the GitHub web UI. REST API access remains blocked by current environment network policy.",
   "merged_by_this_task": false,
   "overview_data_contract": {
     "source": "ActiveDocumentProjectOverviewReader; contextual Overview composition; PROJECT_CONFIGURATION.md",
@@ -189,5 +189,97 @@
     "implementation_commit": "a1251f7bed90262b5c2bed09d2b782fa06730c9c",
     "screenshots_and_review_commit": "3066e7ba283c92345a0524a6b8c453ad9102e239",
     "authentication": "The automatic Git credential path returned HTTP 401. Push succeeded using the existing GitHub CLI credential through a command-scoped Git credential helper; no credential values were exposed or changed."
+  },
+  "ci_failure_followup": {
+    "recorded_at": "2026-10-14T20:01:26.937223-03:00",
+    "original_failed_head": "10da7352987f15d72d7da46934091bc4fc869d8f",
+    "original_failed_runs": {
+      "frontend": "https://github.com/A1b3rt0M3rcad0/woobe/actions/runs/38647531589",
+      "acceptance": "https://github.com/A1b3rt0M3rcad0/woobe/actions/runs/38647531550",
+      "containers": "https://github.com/A1b3rt0M3rcad0/woobe/actions/runs/38647531562"
+    },
+    "annotated_font_failure_run": "https://github.com/A1b3rt0M3rcad0/woobe/actions/runs/38650527750",
+    "annotated_font_failure_counts": {
+      "passed": 118,
+      "failed": 4
+    },
+    "root_causes": {
+      "embed_image": "Missing shared UI source inputs for font/token CSS imports. Fixed in 4ad45596.",
+      "typography": "Chromium 136 reports Inter (Fontations), but probes required literal Inter. Shared normalization retains expected family, rendered glyph count and web/system origin checks."
+    },
+    "diagnostics_commit": "c4cb5702",
+    "checks": [
+      {
+        "name": "Isolated Embed build using Docker source inputs",
+        "result": "failed before, passed after",
+        "failure": "ENOENT ../../woobe-ui/src/styles/fonts.css",
+        "scope": "Sources copied exactly as in the Embed builder, with host npm dependencies reused; separate native Docker check below."
+      },
+      {
+        "name": "Native Embed Docker builder stage",
+        "result": "passed",
+        "command": "BUILDX_CONFIG=/workspace/.local/share/woobe-buildx docker build --target builder --secret id=proxy_ca,src=\"$CODEX_PROXY_CERT\" --file /tmp/woobe-embed-ci.Dockerfile --tag woobe-embed:pr217-builder .",
+        "scope": "Same source COPY/build instructions as the product Dockerfile; temporary helper adds only a BuildKit CA secret and npm trust setting required by the managed proxy. Runtime stage not rebuilt locally."
+      },
+      {
+        "name": "Release-unit architecture checks",
+        "result": "passed",
+        "command": ".venv/bin/python -m pytest -q tests/architecture/test_primary_release_units.py",
+        "tests": 17
+      },
+      {
+        "name": "Frontend workflow lint",
+        "result": "passed",
+        "command": "/workspace/.local/bin/actionlint -shellcheck= .github/workflows/frontend.yml",
+        "tool": "actionlint 1.7.7, official release archive verified against its published SHA256 checksums"
+      },
+      {
+        "name": "Production browser fallback-font reproduction",
+        "result": "passed",
+        "tests": 122,
+        "command": "CI=true FONTCONFIG_FILE=/tmp/woobe-ci-fontconfig.conf PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/chromium PLAYWRIGHT_BROWSERS_PATH=/workspace/.playwright npx playwright test --config playwright.config.ts"
+      },
+      {
+        "name": "Shared components/overlays fallback-font reproduction",
+        "result": "passed",
+        "tests": 252,
+        "command": "CI=true FONTCONFIG_FILE=/tmp/woobe-ci-fontconfig.conf PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/chromium PLAYWRIGHT_BROWSERS_PATH=/workspace/.playwright npx playwright test --config review.config.ts --workers=2"
+      },
+      {
+        "name": "Actual CI font metadata regression cases",
+        "result": "passed",
+        "tests": 5,
+        "command": "CI=true PLAYWRIGHT_BASE_URL=http://127.0.0.1:4173 npx playwright test --config playwright.config.ts tests/font-evidence.spec.ts",
+        "scope": "Pure metadata tests; no browser launched."
+      },
+      {
+        "name": "Final production font probes",
+        "result": "passed",
+        "tests": 4,
+        "command": "CI=true FONTCONFIG_FILE=/tmp/woobe-ci-fontconfig.conf PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/chromium PLAYWRIGHT_BROWSERS_PATH=/workspace/.playwright npx playwright test --config playwright.config.ts tests/typography.spec.ts"
+      },
+      {
+        "name": "Final shared-primitives font probe with local Georgia required",
+        "result": "passed",
+        "tests": 1,
+        "command": "CI=true PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/chromium PLAYWRIGHT_BROWSERS_PATH=/workspace/.playwright WOOBE_REQUIRE_GEORGIA=1 npx playwright test --config review.config.ts review/gallery.spec.ts --grep \"production primitives\""
+      },
+      {
+        "name": "Embed unit tests and typecheck",
+        "result": "passed",
+        "tests": 25,
+        "commands": [
+          "npm --prefix packages/woobe-embed test",
+          "npm --prefix packages/woobe-embed run typecheck"
+        ]
+      }
+    ],
+    "remote_acceptance_after_image_fix": {
+      "result": "success",
+      "run": "https://github.com/A1b3rt0M3rcad0/woobe/actions/runs/38650527813",
+      "head": "c4cb5702"
+    },
+    "final_pinned_browser_validation": "Pending at recording; the font fix and this evidence are published together for the next GitHub check.",
+    "environment_limits": "Pinned Chromium download and REST job logs are blocked in the current runtime. Required network domains and startup guidance are saved in the environment draft, not applied. Local fallback uses system Chromium 154, system FFmpeg and a Fontconfig profile rejecting Georgia; final font primitives also checked with local system Georgia."
   }
 }

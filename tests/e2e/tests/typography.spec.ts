@@ -3,6 +3,7 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { installApi, login, respond, workspace, project } from '../fixtures/control-plane'
 import { projectOverviewFixture } from '../../../packages/woobe-frontend/src/features/dashboard/fixtures'
+import { hasRenderedFont, platformFontFamily } from '../support/font-evidence'
 
 const root = `/workspaces/${workspace.id}/projects/${project.id}`
 
@@ -26,10 +27,10 @@ async function renderedFont(page: Page, locator: Locator, role: string, expected
     expect(computed.family).toContain('Georgia')
     expect(computed.weight).toBe('400')
     // Georgia is a system preference, not a bundled webfont. Record the actual fallback.
-    expect(used.every(font => !['Inter', 'JetBrains Mono'].includes(font.familyName))).toBeTruthy()
-    if (process.env.WOOBE_REQUIRE_GEORGIA === '1') expect(used.some(font => font.familyName === 'Georgia' && !font.isCustomFont), `${role}: ${JSON.stringify(fonts)}`).toBeTruthy()
+    expect(used.every(font => !['Inter', 'JetBrains Mono'].includes(platformFontFamily(font.familyName)))).toBeTruthy()
+    if (process.env.WOOBE_REQUIRE_GEORGIA === '1') expect(hasRenderedFont(fonts, 'Georgia', 'system'), `${role}: ${JSON.stringify(fonts)}`).toBeTruthy()
   } else {
-    expect(used.some(font => font.familyName === expected && font.isCustomFont), `${role}: ${JSON.stringify(fonts)}`).toBeTruthy()
+    expect(hasRenderedFont(fonts, expected, 'web'), `${role}: ${JSON.stringify(fonts)}`).toBeTruthy()
   }
   return { role, expected, computed, fonts }
 }
