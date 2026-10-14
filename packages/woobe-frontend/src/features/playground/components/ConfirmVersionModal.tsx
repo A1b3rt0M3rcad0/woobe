@@ -61,8 +61,8 @@ export function ConfirmVersionModal({ open, onClose, onConfirm, versionName, cur
         <div className="p-4 space-y-4">
           {hasUnsavedChanges && (
             <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/5 p-3">
-              <p className="font-mono text-xs text-warning font-medium">Draft has unsaved changes</p>
-              <p className="font-mono text-system-meta text-muted mt-1">These changes will be included in the version. Consider saving draft first.</p>
+              <p className="font-sans text-xs text-warning font-medium">Draft has unsaved changes</p>
+              <p className="font-sans text-system-meta text-muted mt-1">These changes will be included in the version. Consider saving draft first.</p>
             </div>
           )}
 

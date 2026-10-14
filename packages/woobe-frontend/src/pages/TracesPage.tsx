@@ -389,7 +389,7 @@ function Timeline({ items }: { items: TimelineItem[] }) {
     return (
       <div className="flex min-h-[40px] items-center gap-2.5 border border-dashed border-border bg-control/15 px-3 py-2">
         <Clock3 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-        <p className="font-mono text-system-meta text-muted-foreground"><span className="text-slate-300">Timeline unavailable</span> · detailed execution events were not recorded for this Run.</p>
+        <p className="font-sans text-system-meta text-muted-foreground"><span className="text-slate-300">Timeline unavailable</span> · detailed execution events were not recorded for this Run.</p>
       </div>
     )
   }
@@ -426,7 +426,7 @@ function InspectorSection({ title, description, children, tone = 'default' }: { 
         {tone === 'focus' ? <span className="mt-1 h-1.5 w-1.5 shrink-0 bg-primary" /> : null}
         <div className="min-w-0">
           <h3 className="font-mono text-system-meta font-medium text-slate-50">{title}</h3>
-          {description ? <p className="mt-1 font-mono text-system-meta leading-4 text-muted-foreground">{description}</p> : null}
+          {description ? <p className="mt-1 font-sans text-system-meta leading-4 text-muted-foreground">{description}</p> : null}
         </div>
       </div>
       {children}
@@ -495,7 +495,7 @@ function AgentRunInspector({ trace, detail, agentName, networkName }: { trace: T
         ]}
       />
 
-      {source.error ? <section className="rounded-container border border-red-500/25 border-l-2 border-l-red-400 bg-surface/[0.86] p-3"><div className="flex items-center gap-2 text-error"><TriangleAlert className="h-3.5 w-3.5" /><h3 className="font-mono text-system-meta font-medium">Run failure</h3></div><p className="mt-1.5 font-mono text-system-meta leading-5 text-error">{source.error}</p></section> : null}
+      {source.error ? <section className="rounded-container border border-red-500/25 border-l-2 border-l-red-400 bg-surface/[0.86] p-3"><div className="flex items-center gap-2 text-error"><TriangleAlert className="h-3.5 w-3.5" /><h3 className="font-sans text-system-meta font-medium">Run failure</h3></div><p className="mt-1.5 font-sans text-system-meta leading-5 text-error">{source.error}</p></section> : null}
 
       <InspectorSection title="Execution timeline" description="What happened, in execution order." tone="focus"><Timeline items={timeline} /></InspectorSection>
 
@@ -520,7 +520,7 @@ function AgentRunInspector({ trace, detail, agentName, networkName }: { trace: T
             {sources.length ? (
               <div>
                 <div className="mb-1.5 flex items-center gap-2 font-mono text-system-meta font-medium text-slate-300"><Database className="h-3.5 w-3.5 text-network" />Knowledge sources <span className="text-muted-foreground">{sources.length}</span></div>
-                <div className="divide-y divide-border/60 border border-border bg-background/20">{sources.map((item, index) => <div key={asString(item.chunk_id) ?? asString(item.document_id) ?? `${index}`} className="px-3 py-2"><p className="truncate font-mono text-system-meta font-medium text-slate-100">{asString(item.document_title) ?? 'Knowledge source'}</p><p className="mt-0.5 line-clamp-2 font-mono text-system-meta leading-4 text-muted-foreground">{asString(item.content_preview) ?? 'No content preview recorded.'}</p></div>)}</div>
+                <div className="divide-y divide-border/60 border border-border bg-background/20">{sources.map((item, index) => <div key={asString(item.chunk_id) ?? asString(item.document_id) ?? `${index}`} className="px-3 py-2"><p className="truncate font-sans text-system-meta font-medium text-slate-100">{asString(item.document_title) ?? 'Knowledge source'}</p><p className="mt-0.5 line-clamp-2 font-sans text-system-meta leading-4 text-muted-foreground">{asString(item.content_preview) ?? 'No content preview recorded.'}</p></div>)}</div>
               </div>
             ) : null}
           </div>
@@ -576,7 +576,7 @@ function NetworkRunInspector({ group, agentNames, onSelectAgent }: { group: Netw
         ]}
       />
 
-      {failed.length ? <section className="rounded-container border border-amber-500/25 border-l-2 border-l-amber-400 bg-surface/[0.86] p-3"><div className="flex items-center gap-2 text-warning"><TriangleAlert className="h-3.5 w-3.5" /><h3 className="font-mono text-system-meta font-medium">{failed.length} Agent Run failure{failed.length === 1 ? '' : 's'} inside this Network Run</h3></div><p className="mt-1.5 font-mono text-system-meta leading-4 text-warning">Inspect the execution path to distinguish handled child failures from the root cause.</p></section> : null}
+      {failed.length ? <section className="rounded-container border border-amber-500/25 border-l-2 border-l-amber-400 bg-surface/[0.86] p-3"><div className="flex items-center gap-2 text-warning"><TriangleAlert className="h-3.5 w-3.5" /><h3 className="font-sans text-system-meta font-medium">{failed.length} Agent Run failure{failed.length === 1 ? '' : 's'} inside this Network Run</h3></div><p className="mt-1.5 font-sans text-system-meta leading-4 text-warning">Inspect the execution path to distinguish handled child failures from the root cause.</p></section> : null}
 
       <InspectorSection title="Execution path" description="Agent Runs in execution order. Open a row to inspect that Agent Run." tone="focus">
         <div className="divide-y divide-border/60 border border-border bg-background/20">
@@ -870,7 +870,7 @@ export default function TracesPage() {
             </div>
             <aside className={cn('min-w-0 max-h-[calc(100vh-170px)] overflow-y-auto pr-1 xl:sticky xl:top-4 xl:self-start', panelScrollClass)}>
               {selectedNetwork ? <NetworkRunInspector group={selectedNetwork} agentNames={agentNames} onSelectAgent={(trace) => setSelectedKey(`agent:${trace.id}`)} /> : selectedAgent ? (detailLoading ? <LoadingState message="Loading Agent Run" variant="panel" /> : <AgentRunInspector trace={selectedAgent} detail={selectedAgentDetail} agentName={selectedAgent.agent_id ? agentNames.get(selectedAgent.agent_id) ?? `Agent ${compactId(selectedAgent.agent_id)}` : 'Agent Run'} networkName={selectedAgent.network_id ? networkNames.get(selectedAgent.network_id) : null} />) : (
-                <div className="flex min-h-[320px] items-center justify-center rounded-container border border-dashed border-border bg-surface/[0.45] p-8 text-center"><div><Activity className="mx-auto h-6 w-6 text-muted-foreground" /><h3 className="mt-3 font-mono text-system-meta font-medium text-slate-50">Select a Run</h3><p className="mt-2 max-w-sm font-mono text-system-meta leading-5 text-muted-foreground">Choose a Run on the left. The inspector prioritizes status, execution timeline and operations before raw evidence.</p></div></div>
+                <div className="flex min-h-[320px] items-center justify-center rounded-container border border-dashed border-border bg-surface/[0.45] p-8 text-center"><div><Activity className="mx-auto h-6 w-6 text-muted-foreground" /><h3 className="mt-3 font-sans text-system-meta font-medium text-slate-50">Select a Run</h3><p className="mt-2 max-w-sm font-sans text-system-meta leading-5 text-muted-foreground">Choose a Run on the left. The inspector prioritizes status, execution timeline and operations before raw evidence.</p></div></div>
               )}
             </aside>
           </div>

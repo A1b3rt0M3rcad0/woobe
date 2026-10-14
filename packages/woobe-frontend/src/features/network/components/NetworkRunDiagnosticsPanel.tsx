@@ -132,11 +132,11 @@ function ContextComposition({ context }: { context: NetworkContextOverview }) {
       </div>
 
       {context.budget_unknown_count > 0 ? (
-        <p className="mt-ui-sm font-mono text-system-meta leading-4 text-warning">
+        <p className="mt-ui-sm font-sans text-system-meta leading-4 text-warning">
           Input usage is still counted. For future Runs, configure the Context Window of each invoked Model or set a Custom input budget in Agent Context Configuration.
         </p>
       ) : null}
-      <p className="mt-ui-sm font-mono text-system-meta leading-4 text-muted-foreground">Source shares use persisted Context units aggregated from child Model Invocations. They are not a proportional allocation of USD cost.</p>
+      <p className="mt-ui-sm font-sans text-system-meta leading-4 text-muted-foreground">Source shares use persisted Context units aggregated from child Model Invocations. They are not a proportional allocation of USD cost.</p>
     </section>
   )
 }
@@ -339,7 +339,7 @@ export function NetworkRunDiagnosticsPanel({
       <ContextComposition context={data.context} />
 
       <details className="group rounded-control border border-border/80 bg-background/30 px-ui-sm">
-        <summary className="flex cursor-pointer list-none items-center gap-ui-sm py-ui-sm font-mono text-system-micro font-medium text-muted-foreground transition-colors hover:text-foreground">
+        <summary className="flex cursor-pointer list-none items-center gap-ui-sm py-ui-sm font-sans text-system-micro font-medium text-muted-foreground transition-colors hover:text-foreground">
           <ChevronRight className="h-3.5 w-3.5 transition-transform group-open:rotate-90" />
           More details
           <span className="ml-auto text-system-meta font-normal text-muted-foreground">{data.agent_run_count} Agent Run{data.agent_run_count === 1 ? '' : 's'} · {data.llm_call_count} Model Invocation{data.llm_call_count === 1 ? '' : 's'}</span>

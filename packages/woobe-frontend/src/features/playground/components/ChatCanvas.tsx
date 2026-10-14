@@ -106,7 +106,7 @@ function SessionMessagesLoading({ compact = false }: { compact?: boolean }) {
           </div>
           <div className="h-control-segment w-control-segment shrink-0 animate-pulse rounded-control border border-primary/25 bg-primary/[0.08]" />
         </div>
-        <p className="pt-ui-xs text-center font-mono text-system-meta text-muted-foreground">Loading session messages...</p>
+        <p className="pt-ui-xs text-center font-sans text-system-meta text-muted-foreground">Loading session messages...</p>
       </div>
     </div>
   )
@@ -244,7 +244,7 @@ export function ChatCanvas({
             <div className="mb-ui-md flex h-control-nav w-control-nav items-center justify-center rounded-control border border-border bg-control text-primary-light">
               <EmptyIcon className="h-icon-lg w-icon-lg" />
             </div>
-            <h2 className="font-mono text-system-heading font-medium text-slate-50">{emptyTitle}</h2>
+            <h2 className="font-sans text-system-heading font-medium text-slate-50">{emptyTitle}</h2>
             <p className="mt-ui-sm max-w-md font-sans text-product-small text-muted-foreground">
               {runtimeBlocked ? runtimeBlockReason : emptyDescription}
             </p>
@@ -258,8 +258,8 @@ export function ChatCanvas({
                     type="button"
                     onClick={() => handleSend(suggestion)}
                     className={compact
-                      ? 'group flex min-h-control w-full items-center justify-between gap-ui-sm px-ui-sm py-ui-sm font-mono text-product-caption text-muted-foreground transition-colors hover:bg-control/45 hover:text-slate-100'
-                      : 'group flex min-h-control-row w-full items-center justify-between gap-ui-md px-ui-md py-ui-sm font-mono text-product-small text-muted-foreground transition-colors hover:bg-control/45 hover:text-slate-100'}
+                      ? 'group flex min-h-control w-full items-center justify-between gap-ui-sm px-ui-sm py-ui-sm font-sans text-product-caption text-muted-foreground transition-colors hover:bg-control/45 hover:text-slate-100'
+                      : 'group flex min-h-control-row w-full items-center justify-between gap-ui-md px-ui-md py-ui-sm font-sans text-product-small text-muted-foreground transition-colors hover:bg-control/45 hover:text-slate-100'}
                   >
                     <span className="min-w-0">{suggestion}</span>
                     <ArrowRight className="h-icon w-icon shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary-light" />
@@ -297,7 +297,7 @@ export function ChatCanvas({
                 : 'mx-auto flex max-w-2xl items-start gap-ui-sm border-l-2 border-l-primary bg-primary/[0.045] px-ui-md py-ui-sm text-left'}>
                 <CheckCircle2 className="mt-ui-hairline h-icon w-icon shrink-0 text-primary-light" />
                 <div>
-                  <p className="font-mono text-system-label font-medium text-slate-100">First test completed</p>
+                  <p className="font-sans text-system-label font-medium text-slate-100">First test completed</p>
                   <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">Your Agent Draft responded successfully. Continue testing or configure Versions when you are ready.</p>
                 </div>
               </div>

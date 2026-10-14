@@ -129,7 +129,7 @@ function HeaderEditor({
     <div className="min-w-0 space-y-2 rounded-xl border border-border/70 bg-background/60 p-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="font-mono text-system-meta font-medium text-muted uppercase tracking-wider">{title}</p>
+          <p className="font-sans text-system-meta font-medium text-muted uppercase tracking-wider">{title}</p>
           {description && <p className="mt-1 text-xs text-muted break-words">{description}</p>}
         </div>
         <Button type="button" size="sm" variant="ghost" onClick={addHeader}>
@@ -512,7 +512,7 @@ export function ToolDiscoveryForm({ submitLabel = 'Create', cancelLabel = 'Cance
       ) : (
         <div className="min-w-0 space-y-4 overflow-hidden rounded-2xl border border-border/80 bg-card/40 p-4">
           <div className="min-w-0 rounded-xl border border-blue-500/30 bg-blue-500/5 p-3">
-            <p className="font-mono text-sm font-medium text-primary-light break-words">Connect MCP server</p>
+            <p className="font-sans text-sm font-medium text-primary-light break-words">Connect MCP server</p>
             <p className="mt-1 text-xs text-muted break-words">Connect once. Woobe will expose all discovered server tools to the agent and the model will decide which one to call.</p>
           </div>
           <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-end">
@@ -530,7 +530,7 @@ export function ToolDiscoveryForm({ submitLabel = 'Create', cancelLabel = 'Cance
             <div className="min-w-0 space-y-2">
               <div className="flex items-center justify-between gap-3">
                 <p className="font-mono text-system-meta font-medium text-muted uppercase tracking-wider">Available to agent</p>
-                {mcpTools.length > 2 && <p className="font-mono text-system-meta text-muted">Scroll to view all</p>}
+                {mcpTools.length > 2 && <p className="font-sans text-system-meta text-muted">Scroll to view all</p>}
               </div>
               <p className="text-xs text-muted">{mcpTools.length} tools discovered. The agent can choose any of them automatically.</p>
               <div className={`grid min-w-0 gap-2 pr-1 ${mcpTools.length > 2 ? 'max-h-64 overflow-y-auto overscroll-contain' : ''}`}>

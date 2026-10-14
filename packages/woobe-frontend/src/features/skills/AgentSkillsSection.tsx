@@ -69,8 +69,8 @@ export function AgentSkillsSection({ projectId }: { projectId: string }) {
           <summary className="cursor-pointer font-mono text-system-meta text-slate-300">Context budget</summary>
           <div className="mt-ui-md space-y-ui-md border-t border-border/60 pt-ui-md">
             <p>Estimated input units, including the catalog. Instructions are preserved in full. If the budget is exhausted, another activation is declined.</p>
-            <label className="block font-mono text-system-meta">Total Skills budget<SkillBudgetInput min={256} max={1000000} value={Number(policy.max_units ?? 8000)} onCommit={value => updateBudget('max_units', value)} /></label>
-            <label className="block font-mono text-system-meta">Catalog and search budget<SkillBudgetInput min={128} max={100000} value={Number(policy.catalog_max_units ?? 2000)} onCommit={value => updateBudget('catalog_max_units', value)} /></label>
+            <label className="block font-sans text-system-meta">Total Skills budget<SkillBudgetInput min={256} max={1000000} value={Number(policy.max_units ?? 8000)} onCommit={value => updateBudget('max_units', value)} /></label>
+            <label className="block font-sans text-system-meta">Catalog and search budget<SkillBudgetInput min={128} max={100000} value={Number(policy.catalog_max_units ?? 2000)} onCommit={value => updateBudget('catalog_max_units', value)} /></label>
           </div>
         </details> : null}
       </div>

@@ -165,7 +165,7 @@ export function ToolInputBindingsEditor({
       </div>
 
       <div className="border-t border-border/70 px-3 py-2">
-        <p className="font-mono text-system-meta leading-4 text-muted">
+        <p className="font-sans text-system-meta leading-4 text-muted">
           Runtime bindings are removed from the model-visible Tool schema. External Context comes from the immutable Run snapshot; Project Environment comes from the selected draft/staging/production execution environment and is never exposed to the model.
         </p>
       </div>

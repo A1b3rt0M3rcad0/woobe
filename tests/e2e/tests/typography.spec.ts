@@ -27,6 +27,7 @@ async function renderedFont(page: Page, locator: Locator, role: string, expected
     expect(computed.weight).toBe('400')
     // Georgia is a system preference, not a bundled webfont. Record the actual fallback.
     expect(used.every(font => !['Inter', 'JetBrains Mono'].includes(font.familyName))).toBeTruthy()
+    if (process.env.WOOBE_REQUIRE_GEORGIA === '1') expect(used.some(font => font.familyName === 'Georgia' && !font.isCustomFont), `${role}: ${JSON.stringify(fonts)}`).toBeTruthy()
   } else {
     expect(used.some(font => font.familyName === expected && font.isCustomFont), `${role}: ${JSON.stringify(fonts)}`).toBeTruthy()
   }
@@ -58,8 +59,21 @@ for (const width of [1440, 768, 390]) test(`editorial, interface and technical f
   if (width < 1024) await page.keyboard.press('Escape')
   expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1)
   if (process.env.WOOBE_CAPTURE_DOCS === '1') {
-    const directory = resolve(process.cwd(), '../../docs/screenshots/v2')
+    const directory = resolve(process.cwd(), '../../docs/design/fonts')
     await mkdir(directory, { recursive: true })
     await writeFile(resolve(directory, `typography-${width}px.json`), JSON.stringify({ browser: page.context().browser()?.version(), viewport: { width, height: 1100 }, evidence }, null, 2) + '\n')
   }
+})
+
+test('authentication uses editorial serif titles and Inter form controls', async ({ page }) => {
+  await installApi(page)
+  await page.goto('/login')
+  await page.evaluate(async () => { await document.fonts.ready })
+  const evidence = []
+  evidence.push(await renderedFont(page, page.getByRole('heading', { name: 'Sign in to Woobe' }), 'sign-in-title', 'serif'))
+  evidence.push(await renderedFont(page, page.getByRole('heading', { name: 'From a first draft to production.' }), 'product-headline', 'serif'))
+  await page.getByLabel('Email', { exact: true }).fill('owner@example.test')
+  evidence.push(await renderedFont(page, page.getByLabel('Email', { exact: true }), 'email', 'Inter'))
+  evidence.push(await renderedFont(page, page.getByRole('button', { name: 'Sign in', exact: true }), 'sign-in-action', 'Inter'))
+  if (process.env.WOOBE_CAPTURE_DOCS === '1') await writeFile(resolve(process.cwd(), '../../docs/design/fonts/typography-auth.json'), JSON.stringify({ browser: page.context().browser()?.version(), evidence }, null, 2) + '\n')
 })

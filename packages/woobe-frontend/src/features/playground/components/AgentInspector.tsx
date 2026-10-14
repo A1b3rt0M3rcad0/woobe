@@ -51,7 +51,7 @@ function EnvironmentSnapshotContent({
       </div>
       <ScrollArea className="min-h-0 flex-1">
         {loading && !release ? (
-          <div className="p-ui-lg font-mono text-chrome-label text-muted-foreground">Loading {label} snapshot…</div>
+          <div className="p-ui-lg font-sans text-chrome-label text-muted-foreground">Loading {label} snapshot…</div>
         ) : release ? (
           <div className="p-ui-md"><ReleaseDetailsView release={release} /></div>
         ) : (

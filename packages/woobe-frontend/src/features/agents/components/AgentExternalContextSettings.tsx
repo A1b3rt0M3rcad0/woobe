@@ -24,7 +24,7 @@ export function AgentExternalContextSettings() {
           title="External Context"
           description="Declare typed values applications may supply per Run or once per Session."
           actions={(
-            <label className="flex items-center gap-ui-sm font-mono text-system-label text-muted-foreground">
+            <label className="flex items-center gap-ui-sm font-sans text-system-label text-muted-foreground">
               {enabled ? 'Enabled' : 'Disabled'}
               <Checkbox checked={enabled} onChange={(event) => toggle(event.target.checked)} />
             </label>

@@ -29,7 +29,7 @@ export function AgentBehaviorFields({ behavior, onChange, agentName = 'Agent' }:
             <div key={field.key} className="flex min-h-panel-header items-center justify-between gap-ui-md px-ui-md py-ui-sm">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-ui-xs"><span className="truncate font-mono text-system-label font-medium text-slate-100">{field.label}</span><span tabIndex={0} title={field.help} aria-label={`${field.label}: ${field.help}`} className="inline-flex shrink-0 cursor-help text-muted-foreground hover:text-primary-light"><CircleHelp className="h-3 w-3" aria-hidden="true" /></span></div>
-                <p className="mt-ui-xs truncate font-mono text-product-caption text-muted-foreground">{summary}</p>
+                <p className="mt-ui-xs truncate font-sans text-product-caption text-muted-foreground">{summary}</p>
               </div>
               <Button type="button" size="sm" variant="ghost" className="shrink-0 text-primary-light" aria-label={`${action} ${field.label}`} onClick={() => setEditing(field)}>{action}</Button>
             </div>

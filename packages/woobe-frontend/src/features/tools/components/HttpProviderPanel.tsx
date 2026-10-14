@@ -78,7 +78,7 @@ function PermissionControl({
           key={value}
           type="button"
           onClick={() => onChange(value)}
-          className={`rounded-technical px-ui-sm py-ui-xs font-mono text-system-micro font-medium transition-colors ${mode === value ? 'bg-accent text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+          className={`rounded-technical px-ui-sm py-ui-xs font-sans text-system-micro font-medium transition-colors ${mode === value ? 'bg-accent text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
         >
           {value === 'deny' ? 'Block' : value[0].toUpperCase() + value.slice(1)}
         </button>
@@ -168,7 +168,7 @@ export function HttpProviderPanel({ tool, footerActions, summaryNote, permission
                       {showRisk ? <span className="shrink-0 text-system-meta capitalize text-warning">{route.risk_level} risk</span> : null}
                     </div>
                     <p className="mt-1 truncate font-mono text-system-meta text-muted">{route.path}</p>
-                    <p className="font-mono mt-1 line-clamp-2 text-system-meta leading-4 text-muted">{route.description}</p>
+                    <p className="font-sans mt-1 line-clamp-2 text-system-meta leading-4 text-muted">{route.description}</p>
                   </div>
                   <PermissionControl
                     mode={permission.mode}

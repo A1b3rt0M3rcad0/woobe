@@ -198,7 +198,7 @@ export function ProjectSettingsDialog({ open, onClose, workspaceId, projectId }:
                 </SectionBlock>
 
                 <div className="flex flex-col gap-ui-sm border-t border-border pt-ui-md sm:flex-row sm:items-center sm:justify-between">
-                  <p className="font-mono text-system-meta text-muted-foreground">
+                  <p className="font-sans text-system-meta text-muted-foreground">
                     {savedAt ? `Last saved at ${savedAt}` : form.formState.isDirty ? 'Unsaved project changes' : 'Project configuration is up to date'}
                   </p>
                   <Button type="submit" size="sm" loading={updateProject.isPending} disabled={!form.formState.isDirty && !updateProject.isPending}>

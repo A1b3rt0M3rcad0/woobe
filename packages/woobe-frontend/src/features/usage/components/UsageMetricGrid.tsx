@@ -49,8 +49,8 @@ function MetricCard({ label, value, description, icon: Icon, warning }: MetricCa
           <p className="font-mono text-system-meta font-medium uppercase tracking-[0.11em] text-muted-foreground">{label}</p>
           <p className="mt-1.5 truncate font-mono text-metric font-normal tabular-nums tracking-tight text-slate-50" title={value}>{value}</p>
           <div className={warning
-            ? 'mt-1 font-mono text-system-meta leading-4 text-warning'
-            : 'mt-1 font-mono text-system-meta leading-4 text-muted-foreground'}
+            ? 'mt-1 font-sans text-system-meta leading-4 text-warning'
+            : 'mt-1 font-sans text-system-meta leading-4 text-muted-foreground'}
           >
             {description}
           </div>
@@ -78,7 +78,7 @@ function SupportingMetric({ label, value, detail, icon: Icon }: {
       <div className="min-w-0">
         <p className="font-mono text-system-meta font-medium uppercase tracking-[0.1em] text-muted-foreground">{label}</p>
         <p className="mt-0.5 font-mono text-system-meta font-medium tabular-nums text-slate-100">{value}</p>
-        <p className="mt-0.5 truncate font-mono text-system-meta leading-4 text-muted-foreground" title={detail}>{detail}</p>
+        <p className="mt-0.5 truncate font-sans text-system-meta leading-4 text-muted-foreground" title={detail}>{detail}</p>
       </div>
     </div>
   )

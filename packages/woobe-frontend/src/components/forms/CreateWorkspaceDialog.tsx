@@ -76,7 +76,7 @@ export function CreateWorkspaceDialog({ open, onClose, onSubmit, loading }: Crea
             placeholder="workspace"
             className="cursor-default font-mono text-system-meta text-muted-foreground"
           />
-          <FieldDescription className="font-mono text-system-meta leading-4">
+          <FieldDescription className="font-sans text-system-meta leading-4">
             Generated from the name · globally unique
           </FieldDescription>
         </Field>

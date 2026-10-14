@@ -88,7 +88,7 @@ export function NetworkExecutionPath({
         )
       })}
       {hiddenCount > 0 && onViewAll ? (
-        <button type="button" onClick={onViewAll} className="w-full rounded-control border border-dashed border-border/80 px-ui-md py-ui-sm font-mono text-system-micro text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground">
+        <button type="button" onClick={onViewAll} className="w-full rounded-control border border-dashed border-border/80 px-ui-md py-ui-sm font-sans text-system-micro text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground">
           View {hiddenCount} more Agent Run{hiddenCount === 1 ? '' : 's'}
         </button>
       ) : null}

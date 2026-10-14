@@ -76,7 +76,7 @@ export function TraceDiagnosticsPanel({ traceId, runId }: { traceId?: string | n
       <div className="flex items-center justify-between">
         <div>
           <p className="font-mono text-xs font-medium text-foreground">Execution diagnostics</p>
-          <p className="font-mono text-system-meta text-muted">Wall-clock and cumulative work are shown separately</p>
+          <p className="font-sans text-system-meta text-muted">Wall-clock and cumulative work are shown separately</p>
         </div>
         {toolShare != null && (
           <span className="rounded-full border border-border bg-background px-2 py-0.5 text-system-meta font-mono text-muted">

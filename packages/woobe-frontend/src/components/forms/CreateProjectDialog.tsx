@@ -78,7 +78,7 @@ export function CreateProjectDialog({
             <FieldError id="project-name-error">{form.formState.errors.name.message}</FieldError>
           )}
           {firstProject && (
-            <FieldDescription className="font-mono text-system-meta leading-4">
+            <FieldDescription className="font-sans text-system-meta leading-4">
               Projects isolate Agents, Knowledge, Tools, credentials, runtime and observability.
             </FieldDescription>
           )}
@@ -95,7 +95,7 @@ export function CreateProjectDialog({
               placeholder="project"
               className="cursor-default font-mono text-system-meta text-muted-foreground"
             />
-            <FieldDescription className="font-mono text-system-meta leading-4">
+            <FieldDescription className="font-sans text-system-meta leading-4">
               Generated from the name · unique inside this Workspace
             </FieldDescription>
           </Field>

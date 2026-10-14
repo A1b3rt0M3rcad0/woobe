@@ -146,13 +146,13 @@ export function UsageOperations({
           <div className="flex flex-col gap-2 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="font-mono text-system-meta font-medium text-slate-50">Operational cost by {labels.singular}</h2>
-              <p className="mt-1 font-mono text-system-meta leading-4 text-muted-foreground">{contextLabel} Cost is attributed from Agent Runs; Network rows aggregate their internal Agent Runs.</p>
+              <p className="mt-1 font-sans text-system-meta leading-4 text-muted-foreground">{contextLabel} Cost is attributed from Agent Runs; Network rows aggregate their internal Agent Runs.</p>
             </div>
             <span className="w-fit rounded-technical border border-border bg-control/50 px-2 py-1 font-mono text-system-meta font-medium uppercase tracking-[0.11em] text-muted-foreground">{labels.singular}</span>
           </div>
 
           {driverRows.length === 0 ? (
-            <div className="px-4 py-10 text-center font-mono text-system-meta text-muted-foreground">No attributed run cost for this scope.</div>
+            <div className="px-4 py-10 text-center font-sans text-system-meta text-muted-foreground">No attributed run cost for this scope.</div>
           ) : (
             <div className="divide-y divide-border/70">
               {driverRows.map((row, index) => {
@@ -213,7 +213,7 @@ export function UsageOperations({
               <Database className="h-3.5 w-3.5 text-primary-light" />
               <div>
                 <h2 className="font-mono text-system-meta font-medium text-slate-50">Cost coverage</h2>
-                <p className="mt-0.5 font-mono text-system-meta text-muted-foreground">Share of Runs with complete pricing data.</p>
+                <p className="mt-0.5 font-sans text-system-meta text-muted-foreground">Share of Runs with complete pricing data.</p>
               </div>
             </div>
             <div className="divide-y divide-border/70 px-4 py-3">
@@ -221,7 +221,7 @@ export function UsageOperations({
               <CoverageRow label="Network Runs" value={networkCoverage} partial={quality.partial_network_runs} unpriced={quality.unpriced_network_runs} />
             </div>
             {incompleteCoverage ? (
-              <div className="flex items-start gap-2 border-t border-border px-4 py-2.5 font-mono text-system-meta leading-4 text-muted-foreground">
+              <div className="flex items-start gap-2 border-t border-border px-4 py-2.5 font-sans text-system-meta leading-4 text-muted-foreground">
                 <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
                 <span><span className="text-warning">Known cost is a subtotal</span> when pricing is partial. Missing cost is never converted to zero.</span>
               </div>
@@ -234,13 +234,13 @@ export function UsageOperations({
         <div className="flex flex-col gap-2 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="font-mono text-system-meta font-medium text-slate-50">Most expensive Runs</h2>
-            <p className="mt-1 font-mono text-system-meta leading-4 text-muted-foreground">Direct Agent Runs and Network Runs. Internal Agent Runs are represented inside their Network Run to avoid duplicate operational rows.</p>
+            <p className="mt-1 font-sans text-system-meta leading-4 text-muted-foreground">Direct Agent Runs and Network Runs. Internal Agent Runs are represented inside their Network Run to avoid duplicate operational rows.</p>
           </div>
           <Link to={`/workspaces/${workspaceId}/projects/${projectId}/traces`} className="inline-flex w-fit items-center gap-1 font-mono text-system-meta font-medium text-primary-light hover:text-slate-50">Open diagnostics <ExternalLink className="h-3 w-3" /></Link>
         </div>
 
         {executions.length === 0 ? (
-          <div className="px-4 py-10 text-center font-mono text-system-meta text-muted-foreground">No terminal Runs in this scope.</div>
+          <div className="px-4 py-10 text-center font-sans text-system-meta text-muted-foreground">No terminal Runs in this scope.</div>
         ) : (
           <div className="divide-y divide-border/70">
             {executions.slice(0, 8).map((execution) => {

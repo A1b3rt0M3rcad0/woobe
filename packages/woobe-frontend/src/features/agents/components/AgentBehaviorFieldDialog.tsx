@@ -146,7 +146,7 @@ export function AgentBehaviorFieldDialog({ field, value, agentName, onApply, onC
                     value={item ? item.text : draft as string}
                     onChange={(event) => item ? setItem({ ...item, text: event.target.value }) : setDraft(event.target.value)}
                     placeholder={item ? 'Describe this item...' : field.help}
-                    className="scrollbar-thin h-full min-h-0 resize-none overflow-y-auto overscroll-contain bg-background/25 font-mono text-product-body leading-5"
+                    className="scrollbar-thin h-full min-h-0 resize-none overflow-y-auto overscroll-contain bg-background/25 font-sans text-product-body leading-5"
                   />
                 </div>
               )}

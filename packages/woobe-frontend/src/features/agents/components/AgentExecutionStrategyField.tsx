@@ -33,7 +33,7 @@ function DetailList({ items }: { items: string[] }) {
   return (
     <div className="space-y-ui-sm">
       {items.map((item) => (
-        <div key={item} className="flex gap-ui-sm font-mono text-product-small text-slate-300">
+        <div key={item} className="flex gap-ui-sm font-sans text-product-small text-slate-300">
           <span className="mt-[0.4rem] h-1 w-1 shrink-0 rounded-full bg-primary" />
           <span>{item}</span>
         </div>

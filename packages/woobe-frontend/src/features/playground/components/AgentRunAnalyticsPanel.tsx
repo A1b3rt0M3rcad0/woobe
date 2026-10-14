@@ -98,7 +98,7 @@ function invocationComposition(invocation: ContextModelInvocation): CompositionR
 
 function CompositionRows({ rows }: { rows: CompositionRow[] }) {
   const total = rows.reduce((sum, row) => sum + row.units, 0)
-  if (!rows.length) return <p className="font-mono text-system-meta leading-4 text-muted-foreground">No source-level Context composition was persisted for this Run.</p>
+  if (!rows.length) return <p className="font-sans text-system-meta leading-4 text-muted-foreground">No source-level Context composition was persisted for this Run.</p>
 
   return (
     <div className="space-y-2">
@@ -144,7 +144,7 @@ function InvocationDetails({ invocation, index }: { invocation: ContextModelInvo
       </summary>
 
       <div className="space-y-3 px-2 pb-3 pl-7">
-        {blocked ? <div className="flex items-start gap-1.5 rounded-container border border-red-500/20 bg-background/25 px-2.5 py-2 font-mono text-system-meta leading-4 text-error"><AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />Provider call was blocked because mandatory Context exceeded the invocation budget.</div> : null}
+        {blocked ? <div className="flex items-start gap-1.5 rounded-container border border-red-500/20 bg-background/25 px-2.5 py-2 font-sans text-system-meta leading-4 text-error"><AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />Provider call was blocked because mandatory Context exceeded the invocation budget.</div> : null}
 
         <div className="grid grid-cols-2 gap-px overflow-hidden rounded-container border border-border/70 bg-border/70">
           {[
@@ -203,7 +203,7 @@ export function AgentRunAnalyticsPanel({ traceId, runId, finalizing = false }: {
   return (
     <div className="space-y-3 border-b border-border p-3">
       <div className="flex items-start justify-between gap-3">
-        <div><p className="font-mono text-system-meta font-medium text-slate-50">Run Analytics</p><p className="mt-0.5 font-mono text-system-meta leading-4 text-muted-foreground">Run totals first; invocation detail remains available on demand.</p></div>
+        <div><p className="font-sans text-system-meta font-medium text-slate-50">Run Analytics</p><p className="mt-0.5 font-sans text-system-meta leading-4 text-muted-foreground">Run totals first; invocation detail remains available on demand.</p></div>
         {fallbackUsed ? <span className="rounded-technical border border-amber-500/25 bg-amber-500/[0.07] px-1.5 py-0.5 font-mono text-system-meta text-warning">Fallback used</span> : null}
       </div>
 
@@ -224,8 +224,8 @@ export function AgentRunAnalyticsPanel({ traceId, runId, finalizing = false }: {
       </div>
 
       <SectionBlock density="compact" eyebrow="Context" title="Input composition" description={`Cumulative across ${invocations.length} Model Invocation${invocations.length === 1 ? '' : 's'}`} actions={<div className="text-right"><p className="font-mono text-system-meta text-slate-50">{trackedContextUnits ? formatTokens(trackedContextUnits) : '—'}</p><p className="font-mono text-system-meta text-muted-foreground">{contextMeasurement}</p></div>} className="bg-background/20">
-        {context.isLoading ? <div className="flex items-center gap-2 font-mono text-system-meta text-muted-foreground"><RefreshCw className="h-3 w-3 animate-spin" />Loading Context composition…</div> : context.isError ? <div className="flex items-start gap-1.5 font-mono text-system-meta text-warning"><AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />Context composition is unavailable for this Run.</div> : !invocations.length && finalizing ? <div className="flex items-center gap-2 font-mono text-system-meta text-muted-foreground"><RefreshCw className="h-3 w-3 animate-spin" />Finalizing Context evidence…</div> : <CompositionRows rows={rows} />}
-        <p className="mt-2 font-mono text-system-meta leading-3.5 text-muted-foreground">Source shares use persisted Context contribution units. They are not a proportional allocation of USD cost.</p>
+        {context.isLoading ? <div className="flex items-center gap-2 font-sans text-system-meta text-muted-foreground"><RefreshCw className="h-3 w-3 animate-spin" />Loading Context composition…</div> : context.isError ? <div className="flex items-start gap-1.5 font-sans text-system-meta text-warning"><AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />Context composition is unavailable for this Run.</div> : !invocations.length && finalizing ? <div className="flex items-center gap-2 font-sans text-system-meta text-muted-foreground"><RefreshCw className="h-3 w-3 animate-spin" />Finalizing Context evidence…</div> : <CompositionRows rows={rows} />}
+        <p className="mt-2 font-sans text-system-meta leading-3.5 text-muted-foreground">Source shares use persisted Context contribution units. They are not a proportional allocation of USD cost.</p>
       </SectionBlock>
 
       {invocations.length ? <details className="group overflow-hidden rounded-container border border-border/80 bg-background/20"><summary className="flex cursor-pointer list-none items-center gap-2 px-2.5 py-2.5 font-mono text-system-meta text-muted-foreground hover:text-slate-50"><ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90" />Invocation details<span className="ml-auto">{invocations.length} call{invocations.length === 1 ? '' : 's'}</span></summary><div className="border-t border-border/60">{invocations.map((invocation, index) => <InvocationDetails key={invocation.id ?? `${invocation.call_index ?? index}-${index}`} invocation={invocation} index={index} />)}</div></details> : null}

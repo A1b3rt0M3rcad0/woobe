@@ -151,8 +151,8 @@ export function RagRuntimeSettings({ open, value, onClose, onApply }: RagRuntime
                 <label className="mt-ui-md flex items-start gap-ui-sm rounded-container border border-border bg-background/20 p-ui-md">
                   <Checkbox checked={minScoreEnabled} onChange={(event) => setMinScoreEnabled(event.target.checked)} className="mt-0.5" />
                   <span>
-                    <span className="block font-mono text-product-small font-medium text-slate-100">Enable minimum similarity</span>
-                    <span className="mt-ui-xs block font-mono text-product-caption leading-5 text-muted-foreground">Discard candidates below the configured score before context selection.</span>
+                    <span className="block font-sans text-product-small font-medium text-slate-100">Enable minimum similarity</span>
+                    <span className="mt-ui-xs block font-sans text-product-caption leading-5 text-muted-foreground">Discard candidates below the configured score before context selection.</span>
                   </span>
                 </label>
               </section>

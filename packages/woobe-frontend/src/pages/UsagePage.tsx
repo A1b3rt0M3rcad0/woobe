@@ -317,7 +317,7 @@ export default function UsagePage() {
               className="min-w-[190px]"
               options={lensOptions}
             />
-            <p className="font-mono text-system-control leading-4 text-muted-foreground">
+            <p className="font-sans text-system-control leading-4 text-muted-foreground">
               Runs define the operation. Provider and Model only explain where the Run cost came from.
             </p>
           </div>

@@ -464,7 +464,7 @@ export function MarkdownMessage({ content, isStreaming, className }: MarkdownMes
         <HeadingTag
           key={`h-${currentKey}`}
           className={cn(
-            'mt-ui-xs font-mono font-medium text-slate-50',
+            'mt-ui-xs font-sans font-medium text-slate-50',
             level === 1 && 'text-heading-lg',
             level === 2 && 'text-heading',
             level === 3 && 'text-heading-sm',
@@ -484,7 +484,7 @@ export function MarkdownMessage({ content, isStreaming, className }: MarkdownMes
       blocks.push(
         <blockquote
           key={`quote-${currentKey}`}
-          className="border-l-2 border-primary/60 pl-ui-md font-mono text-muted-foreground"
+          className="border-l-2 border-primary/60 pl-ui-md font-sans text-muted-foreground"
         >
           {renderInline(quoteMatch[1], `quote-${currentKey}`)}
         </blockquote>,

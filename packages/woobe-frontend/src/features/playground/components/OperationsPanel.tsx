@@ -85,7 +85,7 @@ export function OperationsPanel(props: OperationsPanelProps) {
               <div className="flex min-h-panel-header items-center justify-between border-b border-border bg-background/20 px-ui-md py-ui-sm">
                 <div className="min-w-0">
                   <h3 className="font-mono text-system-label font-medium text-slate-50">Agent Run detail</h3>
-                  <p className="mt-ui-xs truncate font-mono text-product-caption text-muted-foreground">Execution first; raw evidence remains separate.</p>
+                  <p className="mt-ui-xs truncate font-sans text-product-caption text-muted-foreground">Execution first; raw evidence remains separate.</p>
                 </div>
                 <button type="button" onClick={() => onSelectTrace(null)} className="flex h-control-segment w-control-segment items-center justify-center rounded-control border border-transparent text-muted-foreground transition-colors hover:border-border hover:bg-control hover:text-slate-50" aria-label="Close Agent Run details"><X className="h-3.5 w-3.5" /></button>
               </div>
@@ -117,7 +117,7 @@ export function OperationsPanel(props: OperationsPanelProps) {
 
   return (
     <div className="flex h-full min-h-0 w-operations-panel shrink-0 flex-col overflow-hidden border-r border-border bg-surface/[0.74]">
-      {sessionInteractionBlocked ? <div className="shrink-0 border-b border-border bg-background/25 px-ui-md py-ui-sm font-mono text-product-caption text-muted-foreground">{streamState === 'stopping' ? 'Stopping the active Agent Run. Session changes unlock after terminal finalization.' : 'An Agent Run is active. Session changes unlock after the Run reaches a terminal state.'}</div> : null}
+      {sessionInteractionBlocked ? <div className="shrink-0 border-b border-border bg-background/25 px-ui-md py-ui-sm font-sans text-product-caption text-muted-foreground">{streamState === 'stopping' ? 'Stopping the active Agent Run. Session changes unlock after terminal finalization.' : 'An Agent Run is active. Session changes unlock after the Run reaches a terminal state.'}</div> : null}
       <ScrollArea className={cn('min-h-0 flex-1', sessionInteractionBlocked && 'pointer-events-none opacity-60')}>
         <SessionsPanel
           sessions={sessions}

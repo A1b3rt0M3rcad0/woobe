@@ -159,7 +159,7 @@ function ProjectSkills({ workspaceId, projectId }: { workspaceId?: string; proje
         </div>
         {(offset > 0 || items.length >= 20) && <div className="mt-ui-md flex items-center justify-end gap-ui-sm">
           <Button size="sm" variant="ghost" disabled={!offset || skills.isFetching} onClick={() => setOffset(current => Math.max(0, current - 20))}>Previous</Button>
-          <span className="font-mono text-system-meta text-muted-foreground">Page {offset / 20 + 1}</span>
+          <span className="font-sans text-system-meta text-muted-foreground">Page {offset / 20 + 1}</span>
           <Button size="sm" variant="ghost" disabled={items.length < 20 || skills.isFetching} onClick={() => setOffset(current => current + 20)}>Next</Button>
         </div>}
       </> : <ResourceEmptyState
@@ -228,7 +228,7 @@ function ProjectSkills({ workspaceId, projectId }: { workspaceId?: string; proje
               </button>
             ))}
           </div>
-        ) : <p className="font-mono text-system-meta text-muted-foreground">{agentQuery ? 'No matching Agents.' : 'Create an Agent before installing this Skill.'}</p>}
+        ) : <p className="font-sans text-system-meta text-muted-foreground">{agentQuery ? 'No matching Agents.' : 'Create an Agent before installing this Skill.'}</p>}
       </div>
     </Dialog>}
   </ResourcePage>

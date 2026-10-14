@@ -259,14 +259,14 @@ export function UploadDocumentModal({ open, onClose, projectId, collectionIds, d
                       </button>
                     </div>
                   </div>
-                  <p className="font-mono text-system-meta text-muted">Click the area to replace the file.</p>
+                  <p className="font-sans text-system-meta text-muted">Click the area to replace the file.</p>
                 </div>
               ) : (
                 <>
                   <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-surface">
                     <UploadCloud className="h-5 w-5 text-primary" />
                   </div>
-                  <p className="font-mono text-sm font-medium text-foreground">Drop file here</p>
+                  <p className="font-sans text-sm font-medium text-foreground">Drop file here</p>
                   <p className="mt-1 text-xs text-muted">or click to browse from your computer</p>
                   <div className="mt-4 flex flex-wrap justify-center gap-1.5">
                     {ACCEPTED_DOCUMENT_EXTENSIONS.map((extension) => (
@@ -275,7 +275,7 @@ export function UploadDocumentModal({ open, onClose, projectId, collectionIds, d
                       </span>
                     ))}
                   </div>
-                  <p className="font-mono mt-3 text-system-meta text-muted">Maximum {MAX_DOCUMENT_FILE_MB} MB</p>
+                  <p className="font-sans mt-3 text-system-meta text-muted">Maximum {MAX_DOCUMENT_FILE_MB} MB</p>
                 </>
               )}
             </div>

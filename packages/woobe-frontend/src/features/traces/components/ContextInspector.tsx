@@ -234,7 +234,7 @@ function BlockedInvocationCard({ invocation }: { invocation: ContextModelInvocat
         <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
         Provider was not called because mandatory Context exceeded the invocation-specific budget.
       </div>
-      {invocation.error ? <p className="font-mono text-system-meta text-muted">{invocation.error}</p> : null}
+      {invocation.error ? <p className="font-sans text-system-meta text-muted">{invocation.error}</p> : null}
     </div>
   )
 }
@@ -374,7 +374,7 @@ export function ContextInspector({ traceId, runId, finalizing = false }: { trace
       <div className="px-4 pb-4">
         <div className="space-y-1.5 rounded-lg border border-border bg-surface/30 p-3">
           <div className="flex items-center gap-2 text-xs text-muted"><Brain className="h-3.5 w-3.5" />Context evidence unavailable</div>
-          <p className="font-mono text-system-meta text-muted">{finalizing ? 'The Agent Run completed, but Context evidence has not been finalized yet.' : error instanceof Error ? error.message : 'Context evidence could not be loaded.'}</p>
+          <p className="font-sans text-system-meta text-muted">{finalizing ? 'The Agent Run completed, but Context evidence has not been finalized yet.' : error instanceof Error ? error.message : 'Context evidence could not be loaded.'}</p>
           <button onClick={() => refetch()} className="text-system-meta text-primary hover:underline">Retry</button>
         </div>
       </div>

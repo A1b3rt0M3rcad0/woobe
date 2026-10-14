@@ -85,7 +85,7 @@ export function RotateApiKeyDialog({
             <div className="flex items-start gap-3">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
               <div>
-                <p className="font-mono text-sm font-medium text-warning">The current key stops working immediately</p>
+                <p className="font-sans text-sm font-medium text-warning">The current key stops working immediately</p>
                 <p className="mt-1 text-xs leading-5 text-warning">Name, purpose, {targetLabel} binding, environment and interfaces remain unchanged. Only the secret changes.</p>
               </div>
             </div>

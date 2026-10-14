@@ -78,7 +78,7 @@ export function NetworkTracePanel({ traces, session, selectedTraceId, onSelectTr
       <div className="flex h-full items-center justify-center p-ui-xl text-center">
         <div>
           <Activity className="mx-auto h-8 w-8 text-muted-foreground" />
-          <p className="mt-ui-md font-mono text-product-small font-medium text-foreground">No Network Session selected</p>
+          <p className="mt-ui-md font-sans text-product-small font-medium text-foreground">No Network Session selected</p>
           <p className="mt-ui-xs max-w-[260px] font-sans text-product-caption leading-5 text-muted-foreground">Select or create a session in Network Chat to view its Runs.</p>
         </div>
       </div>
@@ -92,7 +92,7 @@ export function NetworkTracePanel({ traces, session, selectedTraceId, onSelectTr
           <div className="min-w-0">
             <h2 className="font-mono text-system-heading font-medium text-foreground">Network Runs</h2>
             <p className="mt-ui-xs truncate font-mono text-product-small text-slate-300">{session.title}</p>
-            <p className="mt-ui-hairline font-mono text-system-meta text-muted-foreground">{session.versionLabel} · select a Run to inspect its path</p>
+            <p className="mt-ui-hairline font-sans text-system-meta text-muted-foreground">{session.versionLabel} · select a Run to inspect its path</p>
           </div>
           <div className="flex items-center gap-ui-xs font-mono text-system-meta text-muted-foreground"><Filter className="h-3.5 w-3.5" />{filtered.length}</div>
         </div>

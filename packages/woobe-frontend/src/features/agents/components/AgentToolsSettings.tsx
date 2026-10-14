@@ -102,7 +102,7 @@ export function AgentToolsSettings({ projectId, agentId }: { projectId: string; 
           </div>
           <p className="mb-ui-sm mt-ui-lg font-mono text-system-meta font-medium uppercase tracking-[0.1em] text-muted-foreground">Bound tools</p>
           {toolsQuery.isLoading ? (
-            <p role="status" className="font-mono text-system-meta text-muted-foreground">Loading Tools...</p>
+            <p role="status" className="font-sans text-system-meta text-muted-foreground">Loading Tools...</p>
           ) : selected.length === 0 ? (
             <EmptyStatePanel compact title="No Tools selected" description="Create or import Tools for this Agent Draft." />
           ) : (

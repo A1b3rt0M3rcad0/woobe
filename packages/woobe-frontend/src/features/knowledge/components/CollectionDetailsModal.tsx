@@ -154,7 +154,7 @@ export function CollectionDetailsModal({ open, onClose, collection, projectId }:
                   ) : items.length === 0 ? (
                     <div className="flex min-h-[220px] flex-col items-center justify-center rounded-xl border border-dashed border-border/80 bg-background/50 p-6 text-center">
                       <FileText className="h-5 w-5 text-muted" />
-                      <p className="font-mono mt-4 text-sm font-medium text-foreground">No documents in this collection.</p>
+                      <p className="font-sans mt-4 text-sm font-medium text-foreground">No documents in this collection.</p>
                       <p className="mt-2 max-w-sm text-sm leading-6 text-muted">Upload source material to make it available for retrieval.</p>
                       <Button type="button" onClick={openUploadModal} className="mt-5"><Upload className="mr-2 h-4 w-4" />Upload document</Button>
                     </div>
@@ -196,7 +196,7 @@ export function CollectionDetailsModal({ open, onClose, collection, projectId }:
       />
 
       <Dialog open={Boolean(documentToDelete)} onClose={() => !deleteDocument.isPending && setDocumentToDelete(null)} title="Delete document" className="max-w-[460px]">
-        {documentToDelete && <div className="space-y-5"><div className="flex gap-3"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-red-500/20 bg-red-500/10 text-error"><AlertTriangle className="h-5 w-5" /></div><div><p className="font-mono text-sm font-medium text-foreground">Remove this document?</p><p className="text-sm leading-6 text-muted">This action deletes the document record, stored file and generated chunks. It cannot be undone.</p></div></div><div className="rounded-xl border border-border bg-background/70 p-3"><p className="font-mono truncate text-sm font-medium text-foreground">{documentToDelete.title}</p><p className="font-mono mt-1 truncate text-xs text-muted">{documentMeta(documentToDelete)}</p></div><div className="flex flex-col-reverse gap-2 border-t border-border pt-4 sm:flex-row sm:justify-end"><Button type="button" variant="outline" onClick={() => setDocumentToDelete(null)} disabled={deleteDocument.isPending}>Cancel</Button><Button type="button" variant="destructive" loading={deleteDocument.isPending} onClick={confirmDelete}>Delete document</Button></div></div>}
+        {documentToDelete && <div className="space-y-5"><div className="flex gap-3"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-red-500/20 bg-red-500/10 text-error"><AlertTriangle className="h-5 w-5" /></div><div><p className="font-sans text-sm font-medium text-foreground">Remove this document?</p><p className="text-sm leading-6 text-muted">This action deletes the document record, stored file and generated chunks. It cannot be undone.</p></div></div><div className="rounded-xl border border-border bg-background/70 p-3"><p className="font-sans truncate text-sm font-medium text-foreground">{documentToDelete.title}</p><p className="font-sans mt-1 truncate text-xs text-muted">{documentMeta(documentToDelete)}</p></div><div className="flex flex-col-reverse gap-2 border-t border-border pt-4 sm:flex-row sm:justify-end"><Button type="button" variant="outline" onClick={() => setDocumentToDelete(null)} disabled={deleteDocument.isPending}>Cancel</Button><Button type="button" variant="destructive" loading={deleteDocument.isPending} onClick={confirmDelete}>Delete document</Button></div></div>}
       </Dialog>
     </>
   )

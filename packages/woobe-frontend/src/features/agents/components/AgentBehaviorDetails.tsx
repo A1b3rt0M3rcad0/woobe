@@ -30,7 +30,7 @@ export function AgentBehaviorDetails({ behavior, legacyPrompt }: { behavior?: Be
           })}
         </dl>
       ) : (
-        <p className="scrollbar-thin max-h-56 overflow-y-auto whitespace-pre-wrap break-words border-t border-border/60 pt-2.5 font-mono text-system-meta leading-4 text-slate-200">{legacyPrompt || 'No instructions stored.'}</p>
+        <p className="scrollbar-thin max-h-56 overflow-y-auto whitespace-pre-wrap break-words border-t border-border/60 pt-2.5 font-sans text-system-meta leading-4 text-slate-200">{legacyPrompt || 'No instructions stored.'}</p>
       )}
     </SectionBlock>
   )

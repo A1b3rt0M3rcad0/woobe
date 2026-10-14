@@ -78,8 +78,8 @@ export function ApiReferenceRuntimeKeySection({
         </div>
       ) : (
         <div className="mt-2 rounded-xl border border-dashed border-border/80 bg-background/35 p-3">
-          <p className="font-mono text-xs font-medium text-foreground">No Runtime Key for this environment</p>
-          <p className="font-mono mt-1 text-system-meta leading-4 text-muted">Create a key bound to {agentName} and {environment}.</p>
+          <p className="font-sans text-xs font-medium text-foreground">No Runtime Key for this environment</p>
+          <p className="font-sans mt-1 text-system-meta leading-4 text-muted">Create a key bound to {agentName} and {environment}.</p>
           <Button className="mt-3 w-full" size="sm" onClick={() => setShowCreate(true)}>
             <Plus className="mr-2 h-3.5 w-3.5" /> Create Runtime Key
           </Button>

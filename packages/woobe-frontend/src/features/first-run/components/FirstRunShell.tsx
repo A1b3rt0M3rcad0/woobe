@@ -28,7 +28,7 @@ export function FirstRunShell({ workspaceName, projectName, activeStage, onExit,
         <div className="mx-auto flex h-[58px] w-full max-w-[1320px] items-center justify-between gap-4 px-5 sm:px-8">
           <div className="min-w-0">
             <p className="font-mono text-system-meta uppercase tracking-[0.18em] text-primary-light">WOOBE / first run</p>
-            <p className="mt-0.5 truncate font-mono text-[12px] font-medium text-slate-100">Launch your first Agent</p>
+            <h1 className="mt-1 font-serif text-editorial-section font-normal text-slate-100">Launch your first Agent</h1>
           </div>
           <Button type="button" size="sm" variant="outline" onClick={onExit}>
             <ArrowLeft className="mr-1.5 h-3.5 w-3.5" />Exit setup
@@ -49,8 +49,8 @@ export function FirstRunShell({ workspaceName, projectName, activeStage, onExit,
                       {completed ? <Check className="h-3 w-3" /> : index + 1}
                     </span>
                     <div className="min-w-0">
-                      <p className={`font-mono text-system-meta font-medium ${active ? 'text-slate-100' : 'text-muted'}`}>{stage.label}</p>
-                      {active ? <p className="mt-0.5 font-mono text-system-meta leading-4 text-muted">{stage.description}</p> : null}
+                      <p className={`font-sans text-system-meta font-medium ${active ? 'text-slate-100' : 'text-muted'}`}>{stage.label}</p>
+                      {active ? <p className="mt-0.5 font-sans text-system-meta leading-4 text-muted">{stage.description}</p> : null}
                     </div>
                   </div>
                 )
@@ -59,7 +59,7 @@ export function FirstRunShell({ workspaceName, projectName, activeStage, onExit,
           </SectionBlock>
 
           <SectionBlock title="Context" density="compact">
-            <dl className="space-y-2 font-mono text-system-meta">
+            <dl className="space-y-2 font-sans text-system-meta">
               <div><dt className="text-muted">Workspace</dt><dd className="mt-0.5 truncate text-slate-200" title={workspaceName}>{workspaceName}</dd></div>
               <div className="border-t border-border pt-2"><dt className="text-muted">Project</dt><dd className="mt-0.5 truncate text-slate-200" title={projectName || 'Not created yet'}>{projectName || 'Not created yet'}</dd></div>
             </dl>

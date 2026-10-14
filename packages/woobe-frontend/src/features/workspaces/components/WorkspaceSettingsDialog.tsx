@@ -71,7 +71,7 @@ function badgeVariant(status?: string): BadgeVariant {
 
 function PersonGlyph({ email, invite = false }: { email: string; invite?: boolean }) {
   return (
-    <span className="flex h-control-sm w-control-sm items-center justify-center rounded-control border border-border bg-control font-mono text-system-label font-medium text-primary-light">
+    <span className="flex h-control-sm w-control-sm items-center justify-center rounded-control border border-border bg-control font-sans text-system-label font-medium text-primary-light">
       {invite ? <Mail className="h-icon w-icon" /> : initials(email)}
     </span>
   )
@@ -313,7 +313,7 @@ export function WorkspaceSettingsDialog({ open, onClose, workspaceId }: Workspac
 
       {inviteHistory.length > 0 ? (
         <details className="group mt-ui-md overflow-hidden rounded-container border border-border bg-background/20">
-          <summary className="cursor-pointer px-ui-md py-ui-sm font-mono text-system-label text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40">
+          <summary className="cursor-pointer px-ui-md py-ui-sm font-sans text-system-label text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40">
             Invitation history · {inviteHistory.length}
           </summary>
           <div className="grid gap-ui-xs border-t border-border p-ui-sm">
@@ -339,7 +339,7 @@ export function WorkspaceSettingsDialog({ open, onClose, workspaceId }: Workspac
     <div className="overflow-hidden rounded-container border border-border bg-surface lg:flex">
       <aside className="shrink-0 border-b border-border bg-background/20 p-ui-md lg:w-dialog-sidebar lg:border-b-0 lg:border-r">
         <div className="mb-ui-md">
-          <h3 className="font-mono text-system-control font-medium text-accent-foreground">Projects</h3>
+          <h3 className="font-sans text-system-control font-medium text-accent-foreground">Projects</h3>
           <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">Choose a Project to manage full access.</p>
         </div>
         <div className="grid gap-ui-xs">
@@ -358,7 +358,7 @@ export function WorkspaceSettingsDialog({ open, onClose, workspaceId }: Workspac
 
       <section className="min-w-0 flex-1 p-ui-md">
         <div className="mb-ui-md border-b border-border pb-ui-md">
-          <h3 className="font-mono text-system-control font-medium text-accent-foreground">
+          <h3 className="font-sans text-system-control font-medium text-accent-foreground">
             {selectedProject ? `Access to ${selectedProject.name}` : 'Select a Project'}
           </h3>
           <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">

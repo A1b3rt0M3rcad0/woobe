@@ -32,7 +32,7 @@ function DetailList({ items }: { items: string[] }) {
   return (
     <div className="space-y-ui-sm">
       {items.map((item) => (
-        <div key={item} className="flex gap-ui-sm font-mono text-product-small text-slate-300">
+        <div key={item} className="flex gap-ui-sm font-sans text-product-small text-slate-300">
           <span className="mt-[0.4rem] h-1 w-1 shrink-0 rounded-full bg-primary" />
           <span>{item}</span>
         </div>
@@ -205,7 +205,7 @@ export function AgentContextAssemblerField({ projectId, compact = false }: { pro
                       <div><p className="font-mono text-system-meta font-medium uppercase tracking-[0.12em] text-muted-foreground">Limitations</p><div className="mt-ui-sm"><DetailList items={focused.limitations} /></div></div>
                     </div>
 
-                    <div className="mt-ui-lg rounded-container border border-border/75 bg-background/30 px-ui-md py-ui-md font-mono text-product-small text-muted-foreground">
+                    <div className="mt-ui-lg rounded-container border border-border/75 bg-background/30 px-ui-md py-ui-md font-sans text-product-small text-muted-foreground">
                       The Agent snapshot stores the selected Context Manager name: <span className="font-mono text-slate-200">{focused.name}</span>.
                     </div>
                   </>

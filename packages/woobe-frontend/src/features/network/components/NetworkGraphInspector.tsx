@@ -91,7 +91,7 @@ export function NetworkGraphInspector({
         {errors.length ? (
           <Alert variant="destructive" className="m-ui-md">
             <AlertDescription>
-              <div className="flex items-center gap-ui-sm font-mono text-system-label font-medium">
+              <div className="flex items-center gap-ui-sm font-sans text-system-label font-medium">
                 <AlertTriangle className="h-icon w-icon" />
                 {errors.length} issue{errors.length === 1 ? '' : 's'} block this composition
               </div>

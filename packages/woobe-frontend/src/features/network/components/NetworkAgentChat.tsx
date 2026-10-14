@@ -568,7 +568,7 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
 
             <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto p-ui-sm">
               {sessionsQuery.isLoading && sessions.length === 0 ? (
-                <div className="flex items-center justify-center gap-ui-sm py-ui-xl font-mono text-system-label text-muted-foreground">
+                <div className="flex items-center justify-center gap-ui-sm py-ui-xl font-sans text-system-label text-muted-foreground">
                   <Loader2 className="h-icon w-icon animate-spin" />
                   Loading sessions…
                 </div>
@@ -634,7 +634,7 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
       {historicalSessionPending ? (
         <div className="flex shrink-0 flex-wrap items-center gap-ui-sm border-t border-primary/20 bg-primary/[0.055] px-ui-sm py-ui-sm">
           <History className="h-icon w-icon shrink-0 text-primary-light" />
-          <span className="min-w-0 flex-1 font-mono text-product-caption text-primary-light">Historical session loaded. Continuing uses the current Agent Draft.</span>
+          <span className="min-w-0 flex-1 font-sans text-product-caption text-primary-light">Historical session loaded. Continuing uses the current Agent Draft.</span>
           <Button type="button" variant="ghost" size="xs" onClick={startNewChat}>Start new</Button>
           <Button type="button" size="xs" onClick={continueHistoricalSession}>Continue</Button>
         </div>
@@ -642,14 +642,14 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
 
       {configurationBlocked ? (
         <div className="flex shrink-0 flex-wrap items-center gap-ui-sm border-t border-warning/20 bg-warning/[0.055] px-ui-sm py-ui-sm">
-          <span className="min-w-0 flex-1 font-mono text-product-caption text-warning">Draft changed during this Chat.</span>
+          <span className="min-w-0 flex-1 font-sans text-product-caption text-warning">Draft changed during this Chat.</span>
           <Button type="button" variant="ghost" size="xs" onClick={() => setPinnedPreviousSnapshot(true)}>Keep snapshot</Button>
           <Button type="button" size="xs" onClick={startNewChat}>New Chat</Button>
         </div>
       ) : null}
 
       {pinnedPreviousSnapshot ? (
-        <div className="shrink-0 border-t border-border bg-background/35 px-ui-sm py-ui-xs font-mono text-system-meta text-muted-foreground">
+        <div className="shrink-0 border-t border-border bg-background/35 px-ui-sm py-ui-xs font-sans text-system-meta text-muted-foreground">
           This Chat remains pinned to its previous Draft snapshot.
         </div>
       ) : null}

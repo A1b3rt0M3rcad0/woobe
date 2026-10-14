@@ -67,7 +67,7 @@ export function CopyButton({
       title={title}
       className={cn(
         'inline-flex h-7 items-center justify-center gap-ui-xs rounded-control border border-transparent px-ui-sm',
-        'font-mono text-system-label font-medium text-muted-foreground transition-colors',
+        'font-sans text-system-label font-medium text-muted-foreground transition-colors',
         'hover:border-border hover:bg-accent hover:text-slate-100',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35',
         status === 'error' ? 'text-error' : undefined,

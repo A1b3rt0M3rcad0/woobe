@@ -68,7 +68,7 @@ function PermissionChoices({
   return (
     <div className="grid min-w-0 gap-ui-sm">
       <div className="flex flex-wrap items-center justify-between gap-ui-xs">
-        <p className="font-mono text-system-label text-muted-foreground">
+        <p className="font-sans text-system-label text-muted-foreground">
           {title}
         </p>
         <Badge variant="outline" size="compact">
@@ -104,7 +104,7 @@ function PermissionChoices({
       <div className="scrollbar-thin grid max-h-60 gap-ui-md overflow-y-auto pr-ui-xs">
         {[...groups].map(([family, items]) => (
           <div key={family} className="grid gap-ui-xs">
-            <p className="font-mono text-system-meta uppercase tracking-ui-eyebrow text-muted-foreground">
+            <p className="font-sans text-system-meta uppercase tracking-ui-eyebrow text-muted-foreground">
               {permissionName(family)}
             </p>
             <div className="grid gap-ui-xs sm:grid-cols-2">
@@ -231,7 +231,7 @@ function ProjectPermissions({
         />
       )}
       {Object.keys(access.data.conditions).length ? (
-        <p className="font-mono text-system-meta text-muted-foreground">
+        <p className="font-sans text-system-meta text-muted-foreground">
           Your existing access restrictions also apply.
         </p>
       ) : null}
@@ -485,7 +485,7 @@ export function WorkspaceCliKeys({
           >
             <pre className="overflow-x-auto p-ui-md font-mono text-system-label">{`woobe context create woobe --api-url ${API_BASE_URL}\nwoobe context use woobe\nwoobe auth login --cli-key`}</pre>
           </CodePanel>
-          <p className="font-mono mt-ui-sm text-system-label text-muted-foreground">
+          <p className="font-sans mt-ui-sm text-system-label text-muted-foreground">
             One granted Project is selected automatically. With several Projects,
             choose one by name. To switch later, run{' '}
             <code>woobe context project select</code>. Works on Windows, Linux and
@@ -502,7 +502,7 @@ export function WorkspaceCliKeys({
     <div className="grid gap-ui-md">
       {creating ? (
         <div className="flex items-center justify-between gap-ui-sm">
-          <h3 className="font-mono text-section-title font-medium">
+          <h3 className="font-sans text-section-title font-medium">
             Create CLI key
           </h3>
           <Badge variant="outline" size="compact">
@@ -807,7 +807,7 @@ export function WorkspaceCliKeys({
                     setExpirationPreset('custom')
                   }}
                 />
-                <p className="font-mono text-system-meta text-muted-foreground">
+                <p className="font-sans text-system-meta text-muted-foreground">
                   {expirationDate
                     ? `Valid through ${formatWoobeDate(expirationDate)}. The entire selected day is included.`
                     : 'Active until revoked. Choose a calendar day to set an expiration.'}

@@ -122,8 +122,8 @@ export function AgentControlsPopover({
             })}
           </div>
 
-          {!statesKnown && !statesQuery.isLoading ? <button type="button" onClick={() => void statesQuery.refetch()} className="px-ui-md py-ui-sm font-mono text-system-meta text-primary-light hover:underline">Retry runtime state</button> : null}
-          <p className="border-t border-border px-ui-md py-ui-sm font-mono text-system-micro leading-4 text-muted-foreground">
+          {!statesKnown && !statesQuery.isLoading ? <button type="button" onClick={() => void statesQuery.refetch()} className="px-ui-md py-ui-sm font-sans text-system-meta text-primary-light hover:underline">Retry runtime state</button> : null}
+          <p className="border-t border-border px-ui-md py-ui-sm font-sans text-system-micro leading-4 text-muted-foreground">
             Existing Runs continue. Network executions use the Network runtime.
           </p>
         </div>

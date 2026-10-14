@@ -239,7 +239,7 @@ export function NetworkOpenRunAction({ execution, onOpenTrace }: {
   onOpenTrace: (execution: NetworkExecution) => void
 }) {
   return (
-    <button type="button" onClick={() => onOpenTrace(execution)} className="h-control-segment rounded-control px-ui-sm font-mono text-system-micro font-medium text-primary-light transition-colors hover:bg-background/70 hover:text-foreground">
+    <button type="button" onClick={() => onOpenTrace(execution)} className="h-control-segment rounded-control px-ui-sm font-sans text-system-micro font-medium text-primary-light transition-colors hover:bg-background/70 hover:text-foreground">
       Open Run
     </button>
   )

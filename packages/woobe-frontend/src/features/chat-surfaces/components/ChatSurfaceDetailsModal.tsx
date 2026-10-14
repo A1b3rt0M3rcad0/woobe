@@ -234,7 +234,7 @@ function AccessKeyReveal({
     <Dialog open onClose={onClose} title="ChatSurface Access Key" className="max-w-xl">
       <div className="space-y-4">
         <div className="rounded-xl border border-amber-500/25 bg-amber-500/10 p-4">
-          <p className="font-mono text-sm font-medium text-warning">Copy this secret now</p>
+          <p className="font-sans text-sm font-medium text-warning">Copy this secret now</p>
           <p className="mt-1 text-xs leading-5 text-warning">
             The secret is shown only once. Store it in the integrator backend and never expose it in browser code.
           </p>
@@ -652,7 +652,7 @@ export function ChatSurfaceDetailsModal({
             Add origin
           </Button>
         </div>
-        <p className="font-mono mt-2 text-system-meta leading-5 text-muted">
+        <p className="font-sans mt-2 text-system-meta leading-5 text-muted">
           HTTP origins require insecure origins to be enabled on the Woobe instance. HTTPS is recommended for production.
         </p>
       </section>
@@ -805,7 +805,7 @@ export function ChatSurfaceDetailsModal({
           ) : accessKeys.length === 0 ? (
             <div className="rounded-xl border border-dashed border-border bg-background/45 px-4 py-10 text-center">
               <KeyRound className="mx-auto h-5 w-5 text-muted" />
-              <p className="font-mono mt-3 text-sm font-medium text-foreground">No Access Keys</p>
+              <p className="font-sans mt-3 text-sm font-medium text-foreground">No Access Keys</p>
               <p className="mt-1 text-xs text-muted">Create a backend credential when the integrator is ready.</p>
             </div>
           ) : (
@@ -975,7 +975,7 @@ export function ChatSurfaceDetailsModal({
                 {currentContent}
               </div>
               <div className="flex shrink-0 flex-col-reverse gap-2 border-t border-border bg-surface/95 px-4 py-3 backdrop-blur sm:flex-row sm:items-center sm:justify-between lg:px-6">
-                <p className="font-mono text-system-meta text-muted">
+                <p className="font-sans text-system-meta text-muted">
                   {archived ? 'Archived · configuration is read-only' : hasChanges ? 'Unsaved configuration changes' : `Updated · ${formatDate(surface.updated_at)}`}
                 </p>
                 <div className="flex flex-wrap justify-end gap-2">

@@ -61,7 +61,7 @@ import type { NetworkDefinitionChange, NetworkEditorSelection } from '@/features
 import { useWorkspace } from '@/features/workspace/WorkspaceProvider'
 import { cn } from '@/lib/utils'
 
-const smallButton = 'rounded-control border border-border/80 bg-background/40 px-ui-sm py-ui-xs font-mono text-system-micro font-medium text-muted-foreground hover:border-primary/30 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-45'
+const smallButton = 'rounded-control border border-border/80 bg-background/40 px-ui-sm py-ui-xs font-sans text-system-micro font-medium text-muted-foreground hover:border-primary/30 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-45'
 const genericSessionTitle = /^new(?:\s+(?:network|draft|staging|production))?\s+session$/i
 
 type SnapshotInspection = {
@@ -926,9 +926,9 @@ export default function NetworkPage() {
   ) : !environmentReady && !snapshotInspection ? (
     <div className="flex min-w-0 flex-1 items-center justify-center p-6 text-center">
       <div className="max-w-sm rounded-2xl border border-border bg-surface/70 p-6">
-        <p className="font-mono text-sm font-medium text-foreground">{environment === 'staging' ? 'Staging has not been created' : 'Production has not been published'}</p>
-        <p className="font-mono mt-2 text-system-meta leading-5 text-muted">{environment === 'staging' ? 'Return to Draft, save the composition and create an immutable Staging version.' : 'Validate the Network in Staging, then publish that exact snapshot.'}</p>
-        <button type="button" onClick={() => changeEnvironment(environment === 'staging' ? 'draft' : 'staging')} className="mt-ui-lg rounded-control bg-primary px-ui-md py-ui-sm font-mono text-system-label font-medium text-primary-foreground transition-colors hover:bg-primary-hover">Go to {environment === 'staging' ? 'Draft' : 'Staging'}</button>
+        <p className="font-sans text-sm font-medium text-foreground">{environment === 'staging' ? 'Staging has not been created' : 'Production has not been published'}</p>
+        <p className="font-sans mt-2 text-system-meta leading-5 text-muted">{environment === 'staging' ? 'Return to Draft, save the composition and create an immutable Staging version.' : 'Validate the Network in Staging, then publish that exact snapshot.'}</p>
+        <button type="button" onClick={() => changeEnvironment(environment === 'staging' ? 'draft' : 'staging')} className="mt-ui-lg rounded-control bg-primary px-ui-md py-ui-sm font-sans text-system-label font-medium text-primary-foreground transition-colors hover:bg-primary-hover">Go to {environment === 'staging' ? 'Draft' : 'Staging'}</button>
       </div>
     </div>
   ) : (
@@ -974,7 +974,7 @@ export default function NetworkPage() {
             <Badge>{networkQuery.isLoading ? 'Loading' : isInitialSetup ? 'Setup incomplete' : 'Runtime'}</Badge>
             {!isInitialSetup ? <button type="button" onClick={() => openNetworkManager('production')} className={cn('rounded-technical border px-ui-sm py-ui-hairline font-mono text-system-label', productionVersion ? 'border-emerald-500/30 bg-emerald-500/10 text-success' : 'border-border bg-background/45 text-muted-foreground')}>{productionVersion ? `Production · ${productionVersion.version}` : 'No Production release'}</button> : null}
           </div>
-          <p className="font-mono text-system-micro text-muted-foreground">Network workspace · isolated within this Project</p>
+          <p className="font-sans text-system-micro text-muted-foreground">Network workspace · isolated within this Project</p>
         </div>
         {isInitialSetup ? (
           <div className="ml-auto flex items-center gap-ui-sm"><span className="rounded-control border border-primary/25 bg-primary/5 px-ui-md py-ui-xs font-mono text-system-micro font-medium text-primary-light">Draft · initial setup</span></div>
@@ -982,7 +982,7 @@ export default function NetworkPage() {
           <div className="ml-auto flex w-full min-w-0 flex-wrap items-center gap-ui-sm xl:w-auto">
             <div role="tablist" aria-label="Network environment" className="flex rounded-container border border-border bg-background/35 p-ui-hairline">
               {(['draft', 'staging', 'production'] as Environment[]).map((item) => (
-                <button key={item} type="button" role="tab" aria-selected={item === environment} onClick={() => changeEnvironment(item)} title={item === 'draft' ? 'Editable working composition' : item === 'staging' ? 'Read-only validation snapshot' : 'Immutable released composition'} className={cn('rounded-control px-ui-md py-ui-xs font-mono text-system-micro capitalize transition-colors', item === environment ? item === 'production' ? 'bg-emerald-500/10 text-success' : item === 'staging' ? 'bg-indigo-500/10 text-indigo-300' : 'bg-primary/10 text-primary-light' : 'text-muted-foreground hover:text-foreground')}>{item}</button>
+                <button key={item} type="button" role="tab" aria-selected={item === environment} onClick={() => changeEnvironment(item)} title={item === 'draft' ? 'Editable working composition' : item === 'staging' ? 'Read-only validation snapshot' : 'Immutable released composition'} className={cn('rounded-control px-ui-md py-ui-xs font-sans text-system-micro capitalize transition-colors', item === environment ? item === 'production' ? 'bg-emerald-500/10 text-success' : item === 'staging' ? 'bg-indigo-500/10 text-indigo-300' : 'bg-primary/10 text-primary-light' : 'text-muted-foreground hover:text-foreground')}>{item}</button>
               ))}
             </div>
             {environment === 'draft' ? <button type="button" disabled={!workspaceDirty || draftSavePending || editorHasErrors || Boolean(snapshotInspection)} onClick={() => void saveDraft()} className={smallButton}>{draftSavePending ? 'Saving…' : workspaceDirty ? 'Save Draft' : `Draft saved · r${editorRevision}`}</button> : null}
@@ -990,9 +990,9 @@ export default function NetworkPage() {
             <button type="button" onClick={() => setShowAsac(true)} className={smallButton}>History & lifecycle</button>
             <button type="button" onClick={() => setShowApi(true)} className={smallButton}><Code2 className="mr-ui-xs inline h-3.5 w-3.5" />API Reference</button>
             {environment === 'production' ? (
-              <button type="button" disabled={!rollbackAvailable} onClick={() => openNetworkManager('production', 'rollback')} title={rollbackAvailable ? 'Choose a historical Release to reactivate' : 'No previous Production Release is available'} className="inline-flex items-center gap-ui-xs rounded-control bg-primary px-ui-md py-ui-sm font-mono text-system-label font-medium text-primary-foreground transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-45"><RotateCcw className="h-3.5 w-3.5" />Rollback</button>
+              <button type="button" disabled={!rollbackAvailable} onClick={() => openNetworkManager('production', 'rollback')} title={rollbackAvailable ? 'Choose a historical Release to reactivate' : 'No previous Production Release is available'} className="inline-flex items-center gap-ui-xs rounded-control bg-primary px-ui-md py-ui-sm font-sans text-system-label font-medium text-primary-foreground transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-45"><RotateCcw className="h-3.5 w-3.5" />Rollback</button>
             ) : (
-              <button type="button" disabled={releaseActionBlocked} onClick={() => void openReleaseAction(environment === 'draft' ? 'stage' : 'publish')} className="rounded-control bg-primary px-ui-md py-ui-sm font-mono text-system-label font-medium text-primary-foreground transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-45">{environment === 'draft' ? 'Stage Network' : 'Publish Release'}</button>
+              <button type="button" disabled={releaseActionBlocked} onClick={() => void openReleaseAction(environment === 'draft' ? 'stage' : 'publish')} className="rounded-control bg-primary px-ui-md py-ui-sm font-sans text-system-label font-medium text-primary-foreground transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-45">{environment === 'draft' ? 'Stage Network' : 'Publish Release'}</button>
             )}
           </div>
         )}
@@ -1045,7 +1045,7 @@ export default function NetworkPage() {
           <div className={cn('absolute inset-0 flex min-w-0', effectiveCenterMode !== 'canvas' && 'invisible pointer-events-none')} aria-hidden={effectiveCenterMode !== 'canvas'}>{canvasContent}</div>
           <div className={cn('absolute inset-0 flex min-w-0', effectiveCenterMode !== 'chat' && 'invisible pointer-events-none')} aria-hidden={effectiveCenterMode !== 'chat'}>{chatContent}</div>
           {isReadyUntested && effectiveCenterMode === 'canvas' ? <NetworkReadyToTest pending={draftSavePending || createNetworkSessionMutation.isPending} onTest={() => { void startFirstTest() }} onAddSpecialist={() => openCatalog('add-specialist')} /> : null}
-          {snapshotLoadingId ? <div className="pointer-events-none absolute inset-x-0 top-3 z-20 flex justify-center"><div className="rounded-control border border-border bg-surface/95 px-ui-md py-ui-sm font-mono text-system-label text-muted-foreground shadow-xl">Loading exact Run snapshot…</div></div> : null}
+          {snapshotLoadingId ? <div className="pointer-events-none absolute inset-x-0 top-3 z-20 flex justify-center"><div className="rounded-control border border-border bg-surface/95 px-ui-md py-ui-sm font-sans text-system-label text-muted-foreground shadow-xl">Loading exact Run snapshot…</div></div> : null}
         </div>
         {isInitialSetup ? <NetworkInitialSetupInspector /> : <NetworkContextInspector context={inspectorContext} centerMode={centerMode} inspectionScope={inspectionScope} inspectionLabel={snapshotInspection?.title ?? null} inspectionKind={snapshotInspection?.kind ?? null} definition={workspaceDefinition} agents={projectAgents} bindings={workspaceBindings} liveDraftContractsByAgentId={draftExternalContextContractsByAgentId} issues={workspaceIssues} selection={selection} readOnly={inspectorReadOnly} name={snapshotInspection ? `${editorName} · ${snapshotInspection.snapshot.version_label ?? 'snapshot'}` : editorName} description={editorDescription} agentWorkspace={agentWorkspace} onContext={(context) => dispatchWorkspace({ type: 'context', context })} onLocateOnCanvas={() => changeCenter('canvas')} onSelect={selectWorkspace} onMetadata={updateEditorMetadata} onChange={changeEditor} />}
         </div>

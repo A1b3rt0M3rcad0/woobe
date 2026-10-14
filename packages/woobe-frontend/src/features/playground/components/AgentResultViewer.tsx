@@ -50,7 +50,7 @@ export function AgentResultViewer({
         <div className={cn('line-clamp-4 overflow-hidden font-sans text-slate-200', compact ? 'text-system-meta leading-5' : 'text-product-body leading-6')}>
           <MarkdownMessage content={text} className={compact ? 'space-y-1.5 text-system-meta leading-5' : 'space-y-2'} />
         </div>
-        <button type="button" onClick={() => setOpen(true)} className={cn('mt-2 font-mono text-primary-light hover:text-foreground', compact ? 'text-system-meta' : 'text-system-meta')}>
+        <button type="button" onClick={() => setOpen(true)} className={cn('mt-2 font-sans text-primary-light hover:text-foreground', compact ? 'text-system-meta' : 'text-system-meta')}>
           View full result
         </button>
       </div>
@@ -76,13 +76,13 @@ export function AgentResultViewer({
                     key={target}
                     type="button"
                     onClick={() => setView(target)}
-                    className={cn('h-[25px] rounded-technical px-2.5 font-mono text-system-meta capitalize transition-colors', view === target ? 'bg-primary/[0.10] text-primary-light' : 'text-muted-foreground hover:bg-control hover:text-slate-50')}
+                    className={cn('h-[25px] rounded-technical px-2.5 font-sans text-system-meta capitalize transition-colors', view === target ? 'bg-primary/[0.10] text-primary-light' : 'text-muted-foreground hover:bg-control hover:text-slate-50')}
                   >
                     {target}
                   </button>
                 ))}
               </div>
-              <button type="button" onClick={() => void copy()} className="inline-flex h-[29px] items-center gap-1 rounded-control border border-border bg-control/30 px-2 font-mono text-system-meta text-muted-foreground hover:bg-control hover:text-slate-50" title={copied ? 'Copied' : 'Copy result'}>
+              <button type="button" onClick={() => void copy()} className="inline-flex h-[29px] items-center gap-1 rounded-control border border-border bg-control/30 px-2 font-sans text-system-meta text-muted-foreground hover:bg-control hover:text-slate-50" title={copied ? 'Copied' : 'Copy result'}>
                 {copied ? <Check className="h-3 w-3 text-success" /> : <Copy className="h-3 w-3" />}
                 {copied ? 'Copied' : 'Copy'}
               </button>

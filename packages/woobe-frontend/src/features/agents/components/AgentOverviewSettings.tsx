@@ -27,11 +27,11 @@ export function AgentOverviewSettings({ onOpenBehavior }: AgentOverviewSettingsP
         <PanelHeader hierarchy="section" icon={<Bot className="h-icon w-icon" />} title="Agent identity" description="Name, role and specialization used to identify this Agent." />
         <div className="space-y-ui-md p-ui-md">
           <div className="space-y-ui-sm">
-            <label className="block font-mono text-chrome-label font-medium uppercase tracking-ui-label text-muted-foreground" htmlFor={`${id}-name`}>Name</label>
+            <label className="block font-sans text-chrome-label font-medium uppercase tracking-ui-label text-muted-foreground" htmlFor={`${id}-name`}>Name</label>
             <Input id={`${id}-name`} value={state.name} onChange={event => setField('name', event.target.value)} />
           </div>
           <div className="space-y-ui-sm">
-            <label className="block font-mono text-chrome-label font-medium uppercase tracking-ui-label text-muted-foreground" htmlFor={`${id}-description`}>Description</label>
+            <label className="block font-sans text-chrome-label font-medium uppercase tracking-ui-label text-muted-foreground" htmlFor={`${id}-description`}>Description</label>
             <Textarea id={`${id}-description`} rows={2} className="min-h-textarea-compact resize-y" value={state.description} onChange={event => setField('description', event.target.value)} placeholder="Role and specialization" />
           </div>
         </div>

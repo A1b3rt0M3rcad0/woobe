@@ -39,7 +39,7 @@ export function OperationsRail({
         disabled={newSessionDisabled || newSessionPending}
         title={newSessionDisabledReason ?? 'New Session'}
         aria-label="New Session"
-        className="mb-ui-xs flex h-control-nav w-control-nav flex-col items-center justify-center gap-ui-hairline rounded-control border border-primary/35 bg-primary/[0.08] font-mono text-chrome-nano text-primary-light transition-colors hover:bg-primary/[0.13] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-45"
+        className="mb-ui-xs flex h-control-nav w-control-nav flex-col items-center justify-center gap-ui-hairline rounded-control border border-primary/35 bg-primary/[0.08] font-sans text-chrome-nano text-primary-light transition-colors hover:bg-primary/[0.13] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-45"
       >
         {newSessionPending ? <Loader2 className="h-icon-sm w-icon-sm animate-spin" /> : <MessageSquarePlus className="h-icon-sm w-icon-sm" />}
         <span>New</span>
@@ -56,7 +56,7 @@ export function OperationsRail({
             key={item.id}
             onClick={() => onTabChange(item.id)}
             className={cn(
-              'flex h-control-nav w-control-nav flex-col items-center justify-center gap-ui-hairline rounded-control border font-mono text-chrome-nano transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40',
+              'flex h-control-nav w-control-nav flex-col items-center justify-center gap-ui-hairline rounded-control border font-sans text-chrome-nano transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40',
               isActive
                 ? 'border-primary/35 bg-primary/[0.10] text-primary-light'
                 : 'border-transparent text-muted-foreground hover:border-border hover:bg-control/60 hover:text-slate-50',

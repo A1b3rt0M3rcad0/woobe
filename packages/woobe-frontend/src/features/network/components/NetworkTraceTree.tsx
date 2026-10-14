@@ -123,7 +123,7 @@ export function NetworkTraceInvocation({ invocation, trace, depth, onOpenAgent }
             <ContextSummary invocation={invocation} />
             {invocation.failure ? (
               <div className="rounded-control border border-red-500/30 bg-red-500/5 p-ui-sm">
-                <p className="font-mono text-product-caption font-medium text-error">{invocation.failure.message}</p>
+                <p className="font-sans text-product-caption font-medium text-error">{invocation.failure.message}</p>
                 <p className="mt-ui-xs font-mono text-system-meta text-muted-foreground">{invocation.failure.code} · {invocation.failure.stage}{invocation.failure.retryable ? ' · retryable' : ''}</p>
               </div>
             ) : null}

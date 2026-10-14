@@ -250,11 +250,11 @@ export function NetworkVersionsModal({ open, networkName, initialSection, initia
                   <h3 className="mt-ui-xs font-mono text-heading-sm text-foreground">{activationTarget.version}</h3>
                   <p className="mt-ui-xs font-mono text-system-meta text-muted-foreground">Current: {productionVersion?.version ?? 'none'}</p>
                 </div>
-                <label className="block font-mono text-system-label text-muted-foreground">
+                <label className="block font-sans text-system-label text-muted-foreground">
                   Reason / audit note
                   <Textarea value={description} onChange={(event) => setDescription(event.target.value)} className="mt-ui-sm min-h-24" />
                 </label>
-                <p className="font-mono text-system-meta text-muted-foreground">Required for Production audit. The Network pointer changes; Agent Playground Productions do not.</p>
+                <p className="font-sans text-system-meta text-muted-foreground">Required for Production audit. The Network pointer changes; Agent Playground Productions do not.</p>
               </div>
             ) : section === 'draft' ? (
               <DraftDetails definition={draftDefinition} revision={draftRevision} dirty={draftDirty} agents={agents} />
@@ -267,7 +267,7 @@ export function NetworkVersionsModal({ open, networkName, initialSection, initia
         </div>
 
         <footer className="flex flex-wrap items-center gap-ui-sm border-t border-border bg-background/30 px-ui-md py-ui-md">
-          <p className="min-w-0 flex-1 basis-full font-mono text-product-caption sm:basis-auto text-muted-foreground">{activationTarget ? `${initialMode === 'rollback' ? 'Rollback' : 'Activation'} changes only Network Production.` : 'Network and Agent Playground Production remain independent.'}</p>
+          <p className="min-w-0 flex-1 basis-full font-sans text-product-caption sm:basis-auto text-muted-foreground">{activationTarget ? `${initialMode === 'rollback' ? 'Rollback' : 'Activation'} changes only Network Production.` : 'Network and Agent Playground Production remain independent.'}</p>
           {activationTarget ? (
             <>
               <Button type="button" size="sm" variant="outline" onClick={initialMode === 'rollback' ? onClose : () => setActivationTargetId(null)}>Cancel</Button>

@@ -81,7 +81,7 @@ export function PlaygroundHeader({
         <div className="flex min-w-0 flex-1 items-center gap-ui-sm">
           <button
             onClick={handleBack}
-            className="flex h-control-sm shrink-0 items-center gap-ui-xs rounded-control border border-transparent px-ui-sm font-mono text-chrome-meta text-muted-foreground transition-colors hover:border-border hover:bg-control hover:text-slate-50"
+            className="flex h-control-sm shrink-0 items-center gap-ui-xs rounded-control border border-transparent px-ui-sm font-sans text-chrome-meta text-muted-foreground transition-colors hover:border-border hover:bg-control hover:text-slate-50"
             title="Back"
           >
             <ArrowLeft className="h-icon-sm w-icon-sm" />

@@ -38,7 +38,7 @@ export function AccountSettingsDialog({ open, onClose }: AccountSettingsDialogPr
           <div className="grid gap-ui-md">
             <Field>
               <FieldLabel htmlFor="account-email">Email</FieldLabel>
-              <Input id="account-email" value={user?.email || ''} disabled className="font-mono" />
+              <Input id="account-email" value={user?.email || ''} disabled className="font-sans" />
             </Field>
 
             <Field>

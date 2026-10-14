@@ -221,7 +221,7 @@ function PermissionControl({
           type="button"
           disabled={busyKey === `${itemName}:${value}`}
           onClick={() => onChange(value)}
-          className={`rounded-technical px-ui-sm py-ui-xs font-mono text-system-micro font-medium transition-colors disabled:opacity-50 ${mode === value ? 'bg-accent text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+          className={`rounded-technical px-ui-sm py-ui-xs font-sans text-system-micro font-medium transition-colors disabled:opacity-50 ${mode === value ? 'bg-accent text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
         >
           {value === 'deny' ? 'Block' : value[0].toUpperCase() + value.slice(1)}
         </button>
@@ -425,9 +425,9 @@ export function McpProviderPanel({ tool, footerActions, summaryNote, onChanged, 
         {footerActions}
       </div>
 
-      {diagnostic ? <p className="mt-ui-xs line-clamp-2 px-ui-xs font-mono text-system-meta leading-4 text-warning">{state.message}</p> : null}
+      {diagnostic ? <p className="mt-ui-xs line-clamp-2 px-ui-xs font-sans text-system-meta leading-4 text-warning">{state.message}</p> : null}
       {state.oauth_connected ? (
-        <button type="button" onClick={() => void handleDisconnect()} className="mt-ui-xs px-ui-xs font-mono text-system-micro text-muted-foreground hover:text-foreground">Disconnect</button>
+        <button type="button" onClick={() => void handleDisconnect()} className="mt-ui-xs px-ui-xs font-sans text-system-micro text-muted-foreground hover:text-foreground">Disconnect</button>
       ) : null}
 
       <Dialog open={manageOpen} onClose={() => setManageOpen(false)} title={`Manage MCP tools: ${tool.name}`} className="max-w-3xl" scrollMode="content">
@@ -461,7 +461,7 @@ export function McpProviderPanel({ tool, footerActions, summaryNote, onChanged, 
                     <div className="min-w-0">
                       <p className="font-mono truncate text-xs font-medium text-foreground">{item.title || item.name}</p>
                       <p className="mt-0.5 truncate font-mono text-system-meta text-muted">{item.name}</p>
-                      {item.description ? <p className="font-mono mt-1 line-clamp-2 text-system-meta leading-4 text-muted">{item.description}</p> : null}
+                      {item.description ? <p className="font-sans mt-1 line-clamp-2 text-system-meta leading-4 text-muted">{item.description}</p> : null}
                       {Object.keys(item.bindings || {}).length ? (
                         <p className="mt-1 font-mono text-system-meta text-primary-light">
                           {Object.keys(item.bindings || {}).length} context binding{Object.keys(item.bindings || {}).length === 1 ? '' : 's'}

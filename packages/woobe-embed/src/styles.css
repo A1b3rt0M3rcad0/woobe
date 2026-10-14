@@ -1,7 +1,8 @@
 @import '../../woobe-ui/src/styles/fonts.css';
+@import '../../woobe-ui/src/styles/guild-tokens.css';
 :root {
   color-scheme: light dark;
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: var(--g-font-sans);
 }
 
 * {
@@ -129,7 +130,7 @@ body {
   justify-content: var(--woobe-header-alignment);
   overflow: hidden;
   color: var(--woobe-header-text-custom, var(--woobe-text));
-  font-family: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-family: var(--g-font-sans);
   font-size: 13px;
   font-weight: 500;
   letter-spacing: 0.01em;
@@ -171,7 +172,7 @@ body {
 
 .message {
   position: relative;
-  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--g-font-sans);
   font-size: 14px;
   line-height: 1.5;
   white-space: pre-wrap;
@@ -207,7 +208,7 @@ body {
   align-items: center;
   justify-items: center;
   vertical-align: middle;
-  font-family: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+  font-family: var(--g-font-sans);
   font-size: 12px;
   font-weight: 500;
   border: 1px solid currentColor;
@@ -249,7 +250,7 @@ body {
 .message__content h1,
 .message__content h2,
 .message__content h3 {
-  font-family: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+  font-family: var(--g-font-mono);
   line-height: 1.25;
 }
 
@@ -276,7 +277,7 @@ body {
 
 .message__content code {
   padding: 0.12em 0.34em;
-  font-family: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-family: var(--g-font-mono);
   font-size: 0.88em;
   background: color-mix(in srgb, currentColor 7%, transparent);
   border: 1px solid color-mix(in srgb, currentColor 12%, transparent);
@@ -335,7 +336,7 @@ body {
 
 .message-table th {
   color: var(--woobe-subtle-text);
-  font-family: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+  font-family: var(--g-font-mono);
   font-size: 0.88em;
   font-weight: 650;
   background: var(--woobe-control);
@@ -381,7 +382,7 @@ body {
   align-items: center;
   gap: 7px;
   color: var(--woobe-subtle-text);
-  font-family: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+  font-family: var(--g-font-sans);
   font-size: 12px;
   line-height: 1.35;
 }
@@ -421,7 +422,7 @@ body {
 }
 
 .message--system strong {
-  font-family: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+  font-family: var(--g-font-sans);
   font-size: 13px;
 }
 
@@ -457,7 +458,7 @@ textarea {
   max-height: 120px;
   padding: var(--woobe-input-padding-y) var(--woobe-input-padding-x);
   color: var(--woobe-input-text-custom, var(--woobe-text));
-  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--g-font-sans);
   font-size: var(--woobe-input-font-size);
   line-height: 1.35;
   resize: none;
@@ -497,7 +498,7 @@ button:focus-visible {
   justify-content: center;
   gap: 6px;
   color: var(--woobe-send-text-custom, #fffefd);
-  font-family: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-family: var(--g-font-sans);
   font-size: 12px;
   font-weight: 600;
   background: var(--woobe-send-background-custom, var(--woobe-primary));
@@ -599,7 +600,7 @@ textarea:disabled {
   margin-top: 8px;
   padding-top: 6px;
   color: var(--woobe-subtle-text);
-  font-family: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+  font-family: var(--g-font-mono);
   font-size: 12px;
   border-top: 1px solid var(--woobe-muted-border);
 }
