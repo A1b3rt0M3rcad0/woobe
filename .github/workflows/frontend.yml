@@ -57,13 +57,13 @@ jobs:
         working-directory: tests/e2e
         run: npx playwright install --with-deps chromium
 
-      - name: Qualify built frontend with browser API fixtures
-        working-directory: tests/e2e
-        run: npx playwright test --config playwright.config.ts
-
       - name: Install Chat Embed dependencies
         working-directory: packages/woobe-embed
         run: npm ci
+
+      - name: Qualify built frontend with browser API fixtures
+        working-directory: tests/e2e
+        run: npx playwright test --config playwright.config.ts
 
       - name: Run Chat Embed tests
         working-directory: packages/woobe-embed
