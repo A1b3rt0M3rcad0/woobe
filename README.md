@@ -85,6 +85,13 @@ woobe auth credential import --name runtime --stdin < runtime.key
 woobe context runtime-credential attach local --runtime-credential runtime
 ```
 
+The input redirection above is for Bash-compatible shells. In Windows PowerShell, import the same private file with:
+
+```powershell
+Get-Content -Raw -LiteralPath ./runtime.key | woobe auth credential import --name runtime --stdin
+woobe context runtime-credential attach local --runtime-credential runtime
+```
+
 Save this request as `run.yaml`:
 
 ```yaml
@@ -117,6 +124,8 @@ woobe resources list
 ```
 
 Initialization prepares `.woobe-config`, embedded assistant skills and managed host instructions. Pull registers the Agent and its dependency closure under `.woobe/`. The CLI supports Codex, Claude Code, Copilot, Cursor and other Agent Skills-compatible hosts; see [project setup](https://github.com/A1b3rt0M3rcad0/woobe-cli/blob/master/docs/PROJECT_SETUP.md).
+
+Keep `.woobe-config` and author YAML in version control. Initialization adds exclusions for private `.state/` and `.woobe-lab/`; it preserves existing configuration and resource mappings when repeated. Do not delete the registry to resolve a failed pull. Use `woobe doctor` and review the error before changing local state.
 
 A complete minimal Agent author file uses the supported `woobe-package` schema:
 

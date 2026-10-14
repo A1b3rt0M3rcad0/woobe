@@ -30,6 +30,17 @@ use `Get-FileHash -Algorithm SHA256`, extract the ZIP and run `.\woobe.exe versi
 Place `woobe` or `woobe.exe` in a directory on `PATH` to run it from any directory.
 The native binaries require no Go, Node.js or npm installation.
 
+Alternatively, with Node.js 22 or newer:
+
+```sh
+npm install --global woobe-cli
+woobe version
+```
+
+For reproducible automation, install a reviewed published version with
+`npm install --global woobe-cli@VERSION`. Check `woobe version` after updating;
+the installed client must support the backend capabilities you intend to use.
+
 The public GHCR package supports Linux amd64 and arm64:
 
 ```bash
@@ -37,9 +48,10 @@ docker run --rm ghcr.io/a1b3rt0m3rcad0/woobe-cli:latest version
 docker run --rm ghcr.io/a1b3rt0m3rcad0/woobe-cli:latest help
 ```
 
-Pin a version such as `:0.1.4` for automation. The image runs as UID 10001; a
+Pin a published version for automation. The image runs as UID 10001; a
 persistent configuration directory mounted at `/data` must be writable by that
-UID. See the client's [installation guide](https://github.com/A1b3rt0M3rcad0/woobe-cli/blob/v0.1.4/docs/INSTALLATION.md).
+UID. See the client's [installation guide](https://github.com/A1b3rt0M3rcad0/woobe-cli/blob/master/docs/INSTALLATION.md)
+or the documentation at the tag of your installed version.
 
 ## Create a Workspace CLI Key
 
@@ -127,8 +139,10 @@ woobe runtime target run TARGET --target-kind agent --file run.json --yes
 ```
 
 Keep `runtime.key` private. Use `--target-kind network` for a Network target.
+In PowerShell, replace Bash input redirection with
+`Get-Content -Raw -LiteralPath ./runtime.key | woobe auth credential import --name runtime --stdin`.
 The CLI never falls back to a Control Key for runtime execution. See the client's
-[usage guide](https://github.com/A1b3rt0M3rcad0/woobe-cli/blob/v0.1.4/docs/USAGE.md)
+[usage guide](https://github.com/A1b3rt0M3rcad0/woobe-cli/blob/master/docs/USAGE.md)
 for run input, streaming, checkpoints and output contracts.
 
 ## Updates and release ownership
@@ -141,16 +155,26 @@ The current client implements the reviewed operation catalog, with remaining
 design work recorded in its status documentation. A published CLI release does
 not imply completion of every planned client feature.
 
-Before deploying the platform's Control Key support, follow [UPGRADING.md](UPGRADING.md)
-and apply migrations through `0077`. Existing human credentials and Project
+Before upgrading the platform, follow [UPGRADING.md](UPGRADING.md)
+and apply every migration required by the selected platform release. Migration
+`0077` introduced Control Keys; it is not the current schema upgrade target.
+Existing human credentials and Project
 Runtime Keys remain separate from the new Workspace Control Keys.
 
 ## Managed YAML development
 
 A matching development-capable CLI and backend support an optional local
-`.woobe-config`. `woobe init --context local` initializes a registry rooted at
+`.woobe-config`. `woobe init --context local --agents codex` initializes a registry rooted at
 `.woobe/`; ordinary auth, runtime, API and standalone package commands remain
 independent of that file.
+
+Use `--agents claude` for Claude Code, `--agents codex-legacy` for the legacy
+Codex skill directory, or `--agents codex,claude` for both. Initialization installs
+the bundled skill, maintains assistant instructions and excludes private local
+state and `.woobe-lab/` from Git. Existing registry mappings are preserved;
+do not recreate the registry after deleting or moving an individual artifact.
+See [project setup](https://github.com/A1b3rt0M3rcad0/woobe-cli/blob/master/docs/PROJECT_SETUP.md)
+for file ownership, repeatability and recovery.
 
 ```sh
 woobe agent UUID pull --alias support
