@@ -21,7 +21,7 @@ export const woobeColors = {
   success: '#18734a',
   warning: '#946000',
   error: '#b92f3c',
-  network: '#8b5cf6',
+  network: '#7041cc',
 } as const
 
 /**

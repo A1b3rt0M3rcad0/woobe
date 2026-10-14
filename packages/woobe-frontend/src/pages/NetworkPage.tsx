@@ -1,3 +1,4 @@
+import { useNetworkIdentity } from '@/features/network/NetworkIdentityContext'
 import { AsacWorkbench } from '@/features/asac/AsacWorkbench'
 import { Dialog } from '@/components/ui/Dialog'
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
@@ -171,6 +172,7 @@ function traceNewestFirst(left: NetworkTraceRecord, right: NetworkTraceRecord) {
 export default function NetworkPage() {
   const { workspaceId, projectId } = useParams<{ workspaceId: string; projectId: string }>()
   const navigate = useNavigate()
+  const networkIdentity = useNetworkIdentity()
   const queryClient = useQueryClient()
   const { currentProject } = useWorkspace()
   const networkQuery = useNetwork(projectId, currentProject?.name || 'Project')
@@ -963,16 +965,16 @@ export default function NetworkPage() {
   )
 
   return (
-    <div className="flex h-screen min-w-0 flex-col overflow-hidden bg-background">
-      <header className="flex h-14 shrink-0 items-center gap-ui-md border-b border-border bg-surface/80 px-ui-md">
-        <button type="button" onClick={() => navigate(`/workspaces/${workspaceId}/projects/${projectId}`)} className="flex h-8 w-8 items-center justify-center rounded-control border border-border text-muted-foreground transition-colors hover:text-foreground"><ChevronLeft className="h-4 w-4" /></button>
+    <div className="flex h-svh min-w-0 flex-col overflow-hidden bg-background">
+      <header className="flex min-h-14 shrink-0 flex-wrap items-center gap-ui-md border-b border-border bg-surface px-ui-md py-ui-sm">
+        <button type="button" aria-label={networkIdentity ? "Back to Networks" : "Back to Project"} onClick={() => navigate(`/workspaces/${workspaceId}/projects/${projectId}${networkIdentity ? "/networks" : ""}`)} className="flex h-8 w-8 items-center justify-center rounded-control border border-border text-muted-foreground transition-colors hover:text-foreground"><ChevronLeft className="h-4 w-4" /></button>
         <div>
           <div className="flex items-center gap-ui-sm">
-            <h1 className="text-sm font-semibold text-foreground">{currentProject?.name || 'Project'} Network</h1>
+            <h1 className="text-sm font-semibold text-foreground">{networkIdentity || `${currentProject?.name || 'Project'} Network`}</h1>
             <Badge>{networkQuery.isLoading ? 'Loading' : isInitialSetup ? 'Setup incomplete' : 'Runtime'}</Badge>
             {!isInitialSetup ? <button type="button" onClick={() => openNetworkManager('production')} className={cn('rounded-technical border px-ui-sm py-ui-hairline font-mono text-system-label', productionVersion ? 'border-emerald-500/30 bg-emerald-500/10 text-success' : 'border-border bg-background/45 text-muted-foreground')}>{productionVersion ? `Production · ${productionVersion.version}` : 'No Production release'}</button> : null}
           </div>
-          <p className="font-mono text-system-micro text-muted-foreground">One Network per Project</p>
+          <p className="font-mono text-system-micro text-muted-foreground">Network workspace · isolated within this Project</p>
         </div>
         {isInitialSetup ? (
           <div className="ml-auto flex items-center gap-ui-sm"><span className="rounded-control border border-primary/25 bg-primary/5 px-ui-md py-ui-xs font-mono text-system-micro font-medium text-primary-light">Draft · initial setup</span></div>

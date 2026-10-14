@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { useLocation, useNavigate, NavLink } from 'react-router-dom'
 import {
   LayoutDashboard,
@@ -89,7 +89,7 @@ function ProjectNavGroup({ title, items, workspaceId, projId }: { title: string;
   return (
     <section>
       <SidebarSectionTitle>{title}</SidebarSectionTitle>
-      <div className="grid gap-ui-hairline">
+      <div className="grid min-w-0 grid-cols-1 gap-ui-hairline">
         {items.map((item) => {
           const href = typeof item.href === 'function' ? item.href(workspaceId, projId) : item.href
           return <SidebarNavLink key={item.label} item={item} href={href} />
@@ -136,6 +136,7 @@ function ProjectContextCard({
   selectProject: (project: ProjectShape) => void
 }) {
   const [open, setOpen] = useState(false)
+  const menuId = useId()
   const ref = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
 
@@ -169,6 +170,11 @@ function ProjectContextCard({
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+        aria-controls={menuId}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') setOpen(false)
+        }}
         className={cn(
           'group w-full rounded-container border bg-control/45 px-ui-md py-ui-sm text-left transition-colors',
           open ? 'border-primary/40 bg-primary/[0.08]' : 'border-border hover:border-slate-600 hover:bg-control',
@@ -184,7 +190,15 @@ function ProjectContextCard({
       </button>
 
       <div
+        id={menuId}
         aria-hidden={!open}
+        inert={!open}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') {
+            setOpen(false)
+            ref.current?.querySelector('button')?.focus()
+          }
+        }}
         className={cn(
           'absolute left-0 right-0 top-full z-popover mt-ui-xs origin-top rounded-container border border-border bg-surface p-ui-xs shadow-popup transition-[opacity,transform] duration-150',
           open ? 'pointer-events-auto translate-y-0 opacity-100' : 'pointer-events-none -translate-y-1 opacity-0',
@@ -192,7 +206,7 @@ function ProjectContextCard({
       >
         <div className="max-h-sidebar-context overflow-y-auto scrollbar-thin">
           <p className="px-ui-sm pb-ui-xs pt-ui-xs font-mono text-chrome-meta font-semibold uppercase tracking-[0.14em] text-muted-foreground">Switch project</p>
-          <div className="grid gap-ui-hairline">
+          <div className="grid min-w-0 grid-cols-1 gap-ui-hairline">
             {projects.length === 0 ? (
               <p className="px-ui-sm py-ui-sm font-mono text-chrome-label text-muted-foreground">No projects available</p>
             ) : projects.map((project) => (
@@ -236,7 +250,7 @@ function ConfigButton({ icon: Icon, label, description, onClick }: { icon: Lucid
     <button
       type="button"
       onClick={onClick}
-      className="group flex min-h-control-nav w-full items-center gap-ui-sm rounded-technical border border-transparent px-ui-sm py-ui-sm text-left transition-colors hover:border-border hover:bg-accent/45"
+      className="group flex min-h-control-nav min-w-0 w-full items-center gap-ui-sm rounded-technical border border-transparent px-ui-sm py-ui-sm text-left transition-colors hover:border-border hover:bg-accent/45"
     >
       <Icon className="h-icon w-icon shrink-0 text-muted-foreground transition-colors group-hover:text-slate-200" />
       <span className="min-w-0 flex-1">
@@ -295,7 +309,7 @@ export function Sidebar() {
 
   return (
     <>
-      <aside className="woobe-dark flex h-full w-project-sidebar shrink-0 flex-col border-r border-border bg-surface">
+      <aside className="woobe-dark flex h-full w-project-sidebar shrink-0 flex-col overflow-hidden border-r border-border bg-surface">
         <header className="flex h-project-sidebar-header shrink-0 items-center gap-ui-sm border-b border-border px-ui-xl">
           <div className="flex h-control-sm w-control-sm items-center justify-center text-slate-50" aria-hidden="true">
             <Orbit className="h-icon-brand w-icon-brand" strokeWidth={1.7} />
@@ -336,7 +350,7 @@ export function Sidebar() {
         {workspaceId && (
           <section className="border-t border-border px-ui-md py-ui-md">
             <SidebarSectionTitle>Config</SidebarSectionTitle>
-            <div className="grid gap-ui-hairline">
+            <div className="grid min-w-0 grid-cols-1 gap-ui-hairline">
               {projId && (
                 <ConfigButton
                   icon={Settings}

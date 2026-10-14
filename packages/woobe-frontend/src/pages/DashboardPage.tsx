@@ -94,29 +94,26 @@ function MetricCard({ metric, onReviewPricing }: { metric: DashboardMetric; onRe
   const Icon = metric.icon
   const detailTone = metric.direction === 'up' ? 'text-success' : metric.direction === 'down' ? 'text-error' : 'text-muted'
   return (
-    <Panel className="min-h-[144px] p-ui-xl">
-      <div className="flex h-full flex-col justify-between gap-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <p className="text-product-caption font-medium text-muted">{metric.label}</p>
-              {metric.costHelp && <button type="button" aria-label="Runtime cost details" title="Runtime cost details" onClick={() => setHelpOpen(true)} className="shrink-0 text-muted transition-colors hover:text-foreground focus-visible:outline focus-visible:outline-primary-light"><AlertCircle className="h-3.5 w-3.5" /></button>}
-            </div>
-            {metric.comparison ? (
-              <div className="mt-3 grid grid-cols-2 gap-3">
-                {[metric.comparison.agent, metric.comparison.network].map((item) => (
-                  <div key={item.label} className="min-w-0 border-l border-border/80 pl-2 first:border-l-0 first:pl-0">
-                    <p className={`truncate text-system-meta font-medium uppercase tracking-wide ${item.tone}`}>{item.label}</p>
-                    <p className="mt-1 truncate text-metric tabular-nums font-medium text-foreground">{item.value}</p>
-                    <p className="mt-1 text-system-meta text-muted">{item.detail}</p>
-                  </div>
-                ))}
-              </div>
-            ) : <p className="mt-3 text-metric-lg tabular-nums font-medium leading-none tracking-tight text-foreground">{metric.value}</p>}
-          </div>
-          <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-border bg-background/70 ${metric.tone}`}><Icon className="h-5 w-5" /></div>
+    <Panel className="flex min-h-[168px] flex-col p-ui-xl">
+      <div className="flex h-full flex-1 flex-col gap-ui-md">
+        <div className="flex items-start justify-between gap-ui-sm">
+          <p className="text-product-caption font-medium text-muted-foreground">{metric.label}</p>
+          {metric.costHelp
+            ? <button type="button" aria-label="Runtime cost details" onClick={() => setHelpOpen(true)} className="shrink-0 text-muted hover:text-foreground"><AlertCircle className="h-icon w-icon" aria-hidden="true" /></button>
+            : <Icon className={`h-icon w-icon shrink-0 ${metric.tone}`} aria-hidden="true" />}
         </div>
-        <p className={`min-h-4 text-system-meta leading-4 ${detailTone}`} title={metric.comparison ? metric.detail ?? undefined : undefined}>{metric.detail ?? 'No terminal Runs in this interval'}</p>
+        {metric.comparison ? (
+          <div className="grid grid-cols-2 gap-ui-md">
+            {[metric.comparison.agent, metric.comparison.network].map((item) => (
+              <div key={item.label} className="min-w-0">
+                <p className={`text-product-caption ${item.tone}`}>{item.label}</p>
+                <p className="mt-ui-xs break-words text-product-label font-semibold tabular-nums text-foreground">{item.value}</p>
+                <p className="mt-ui-xs text-product-caption text-muted">{item.detail}</p>
+              </div>
+            ))}
+          </div>
+        ) : <p className="break-words text-metric-lg font-medium leading-none tracking-tight tabular-nums text-foreground">{metric.value}</p>}
+        <p className={`mt-auto text-product-caption ${detailTone}`}>{metric.detail ?? 'No terminal Runs in this interval'}</p>
       </div>
       {metric.costHelp && <Dialog open={helpOpen} onClose={() => setHelpOpen(false)} title="Runtime cost coverage" className="max-w-md">
         <p className="text-sm leading-6 text-muted-foreground">{metric.costHelp.description}</p>

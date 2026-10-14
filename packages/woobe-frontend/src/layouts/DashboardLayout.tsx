@@ -14,10 +14,11 @@ export function DashboardLayout() {
   const isWorkspaceSelection = pathname === '/workspaces' || /^\/workspaces\/[^/]+\/projects$/.test(pathname)
   const isSetupFlow = /\/setup\/?$/.test(pathname)
   const isNetworkWorkspace = /\/projects\/[^/]+\/networks\/[^/]+\/?$/.test(pathname)
-  const hideSidebar = pathname.includes('/playground') || isSetupFlow || isNetworkWorkspace
+  const isPlayground = pathname.includes('/playground')
+  const hideSidebar = isPlayground || isSetupFlow || isNetworkWorkspace || isPlayground
   const isProjectOverview = /^\/workspaces\/[^/]+\/projects\/[^/]+\/?$/.test(pathname)
   const isProjectResource = /^\/workspaces\/[^/]+\/projects\/[^/]+\/(?:network|networks|agents|knowledge|tools|skills|models|credentials|api-keys|chat-surfaces|usage|traces)\/?$/.test(pathname)
-  const mainClassName = isSetupFlow || isNetworkWorkspace
+  const mainClassName = isSetupFlow || isNetworkWorkspace || isPlayground
     ? 'min-h-0 min-w-0 flex-1 overflow-hidden'
     : isProjectOverview
       ? 'project-overview-main min-h-0 min-w-0 flex-1 overflow-y-auto p-ui-lg sm:p-ui-xxl'

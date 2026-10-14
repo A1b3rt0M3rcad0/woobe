@@ -19,7 +19,7 @@ export const woobeTypography = {
 } as const
 
 export const woobeRadius = {
-  technical: '0.125rem',
-  control: '0.1875rem',
-  container: '0.25rem',
+  technical: '0.25rem',
+  control: '0.375rem',
+  container: '0.5rem',
 } as const

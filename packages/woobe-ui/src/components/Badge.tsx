@@ -28,7 +28,7 @@ function Badge({ className, variant = 'default', size = 'default', ...props }: B
   return (
     <span
       className={cn(
-        'inline-flex items-center rounded-technical border font-mono font-normal leading-none',
+        'inline-flex items-center rounded-technical border font-sans font-medium leading-none',
         variantClasses[variant],
         sizeClasses[size],
         className,

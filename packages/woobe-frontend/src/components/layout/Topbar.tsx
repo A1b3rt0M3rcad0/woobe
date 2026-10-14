@@ -7,7 +7,7 @@ import { useWorkspace } from '@/features/workspace/WorkspaceProvider'
 export function Topbar({ onOpenNavigation }: { onOpenNavigation: () => void }) {
   const { currentWorkspace, currentProject } = useWorkspace()
   return (
-    <header className="flex min-h-workspace-header shrink-0 items-center justify-between gap-ui-md border-b border-border bg-surface px-ui-lg sm:px-ui-xxl">
+    <header className="flex h-workspace-header shrink-0 items-center justify-between gap-ui-md border-b border-border bg-surface px-ui-lg sm:px-ui-xxl">
       <div className="flex min-w-0 items-center gap-ui-sm text-product-small">
         <Button variant="ghost" size="iconSm" onClick={onOpenNavigation} aria-label="Open navigation" className="shrink-0 lg:hidden">
           <Menu className="h-icon-lg w-icon-lg" aria-hidden="true" />

@@ -14,7 +14,7 @@ const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
       aria-invalid={invalid || props['aria-invalid'] || undefined}
       className={cn(
         density === 'compact' ? 'min-h-textarea-compact' : 'min-h-textarea',
-        'w-full resize-y rounded-control border border-border bg-control px-ui-md py-ui-sm font-sans text-system-control text-accent-foreground',
+        'w-full resize-y rounded-control border border-muted/60 bg-surface px-ui-md py-ui-sm font-sans text-system-control text-accent-foreground',
         'placeholder:text-muted-foreground/70 transition-[border-color,box-shadow,background-color]',
         'hover:border-muted focus-visible:border-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/30',
         'aria-[invalid=true]:border-error/70 aria-[invalid=true]:focus-visible:ring-error/30',

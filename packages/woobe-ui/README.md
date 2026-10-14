@@ -122,17 +122,15 @@ The canonical workspace width is `68.75rem` maximum. Height defaults to content-
 
 ### Configuration hierarchy
 
-The ChatSurface Details reference defines the Create Agent contract:
+Shared semantic type tokens own the hierarchy: 28px page titles, 15px section
+headings, 14–16px product copy, 13px controls and 12px supporting metadata.
+Technical microcopy has an 11px floor. Code, identifiers and structured evidence
+use the mono family; ordinary labels and navigation use Inter.
 
-- Dialog identity: Inter 13px/18px, semibold.
-- Primary `SectionBlock`: mono 12px/16px; secondary titles 10px/14px; descriptions and eyebrows 9px/12px.
-- `Field density="technical"`: mono uppercase labels 9px/14px, 0.1em tracking, muted color and 6px control gap; Inter helpers/errors 9px/14px. This density must not use the 7px tiny tier.
-- `TechnicalListItem density="technical"`: 10px operational labels and 9px supporting metadata.
-- `ReadOnlyField`: muted uppercase label 9px/14px, Inter value 11px/16px, 4px label/value gap, 12px padding, background/55 and a 4px radius. Use for review summaries and immutable settings values; long values wrap.
-- Normal controls/actions: 34px high with 10px text. Secondary actions use `Button size="sm"` (30px/9px), not the 26px technical size.
-- `Stepper` descriptions/status: 9px; `SegmentedControl size="segment"`: 26px inner control inside a 34px shell, without stretching unless the composition requires it.
-
-These values belong to shared components and tokens. Features select the appropriate variants and compose them without local typography overrides.
+Default controls are 40px high, compact controls 36px. Technical variants remain
+available for dense workspaces. Touch layouts must keep primary actions reachable.
+Use `Field`, `SectionBlock`, `ReadOnlyField`, `Stepper` and shared dialog layouts
+without feature-local typography overrides.
 
 Internal navigation remains feature-dependent. A settings surface may use a sidebar, while a creation workflow may use a stepper. The reusable contract is the density, hierarchy, spacing, typography and control language, not forcing unrelated workflows into the same geometry or navigation structure.
 
@@ -211,28 +209,41 @@ On workstation and ultrawide layouts, extra width should improve composition: pe
 
 ## Visual foundations
 
-- Canvas: `#020817`
-- Surface: `#0f1729`
-- Control surface: `#0b1220`
-- Border: `#1e293b`
-- Primary: `#3b82f6`
-- Product typography: Inter
-- Technical typography: JetBrains Mono, with Fira Code/monospace fallback
-- Section title tier: `12px`
-- Shared control tier: `10px`
-- Caption/description tier: `9px`
-- Nano/status metadata tier: `8px`
-- Technical/small radius: `2px`
-- Common controls: `3px`
-- Cards and larger containers: `4px`
-- Default control height: `34px`
-- Compact control height: `30px`
-- Segmented control inner height: `26px` inside the `34px` segmented shell
-- Common panel/dialog inset: approximately `15px`
+The console uses a light editorial canvas and a dark navigation rail. The orbital
+Woobe symbol and blue actions remain the product identity. The Guild-inspired
+reference informs hierarchy and composition; no third-party branding or screenshots
+are used in the distributed interface.
 
-The visual hierarchy is border-driven rather than shadow-driven. Blue is reserved for primary actions, focus, selection and operationally meaningful state. Technical typography is intentionally prominent in navigation, labels, controls, metadata, IDs, metrics and operational UI, while Inter remains the default for longer product copy and user-entered content.
+| Role | Value |
+| --- | --- |
+| Canvas | `#f7f7f4` |
+| Surface | `#ffffff` |
+| Control | `#f2f3f0` |
+| Text | `#19231f` |
+| Secondary text | `#626d68` |
+| Border | `#d9deda` |
+| Primary action | `#2459d3`, white label |
+| Navigation | `#19231e`, light text |
+| Success / warning / error | `#18734a` / `#946000` / `#b92f3c` |
+| Network | `#7041cc` |
 
-Subtle grid/ASCII influence may appear as secondary identity, but it must not turn product surfaces into terminal emulation or decorative marketing layouts.
+`src/styles/theme.css` owns the browser CSS variables and accessibility defaults.
+`src/tokens/colors.ts` and the Tailwind preset expose their semantic roles. The
+`.woobe-dark` scope is for navigation and editorial context, not a separate product
+or a user theme setting. Existing slate utility aliases resolve through these
+roles while features migrate to semantic names. `foreground` means readable text;
+`primary-foreground` is the white label on a filled action.
+
+Use 4px technical corners, 6px controls and 8px containers. Borders separate
+ordinary surfaces; shadows belong to floating menus and dialogs. Technical grids
+are secondary texture and must never reduce content contrast. Metrics retain
+units, period, attribution and unknown states from API data.
+
+ChatSurface remains in `woobe-embed` with its independent appearance configuration.
+Console tokens must not override a customer's configured embed theme or sizing.
+
+See [browser screenshots](../../docs/screenshots/README.md) for rendered examples
+and the repeatable capture command.
 
 ## Review checklist
 

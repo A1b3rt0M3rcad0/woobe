@@ -53,6 +53,14 @@ export function Table<T>({
               <tr
                 key={keyExtractor(item)}
                 onClick={() => onRowClick?.(item)}
+                tabIndex={onRowClick ? 0 : undefined}
+                onKeyDown={onRowClick ? (event) => {
+                  if (event.target !== event.currentTarget) return
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault()
+                    onRowClick(item)
+                  }
+                } : undefined}
                 className={cn(
                   'border-b border-border/70 transition-colors last:border-b-0',
                   onRowClick && 'cursor-pointer hover:bg-accent/35',

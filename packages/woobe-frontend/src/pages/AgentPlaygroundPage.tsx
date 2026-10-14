@@ -62,7 +62,7 @@ function SkeletonLine({ className = '' }: { className?: string }) {
 
 function AgentPlaygroundSkeleton() {
   return (
-    <div className="-m-6 h-[calc(100vh-3.5rem)] overflow-hidden flex flex-col bg-background">
+    <div className="h-svh overflow-hidden flex flex-col bg-background">
       <div className="h-12 shrink-0 border-b border-border bg-surface/60 px-3">
         <div className="flex h-full items-center gap-3">
           <SkeletonLine className="h-3 w-16" />
@@ -771,7 +771,7 @@ function PlaygroundContent() {
 
   return (
     <ErrorBoundary>
-      <div className="-m-6 h-[calc(100vh-3.5rem)] overflow-hidden flex flex-col bg-background">
+      <div className="h-svh overflow-hidden flex flex-col bg-background">
         <PlaygroundHeader
           agent={agent}
           projectId={projectId!}

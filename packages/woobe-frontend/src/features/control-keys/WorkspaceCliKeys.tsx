@@ -815,7 +815,7 @@ export function WorkspaceCliKeys({
               </div>
             </SectionBlock>
           </div>
-          <div className="flex flex-wrap items-center justify-between gap-ui-sm border-t border-border pt-ui-md">
+          <div className="sticky bottom-0 z-sticky flex flex-wrap items-center justify-between gap-ui-sm border-t border-border bg-surface py-ui-md">
             <p className="text-system-label text-muted-foreground">
               {workspacePermissions.length} Workspace permissions ·{' '}
               {grants.filter((grant) => grant.permissions.length > 0).length}{' '}
