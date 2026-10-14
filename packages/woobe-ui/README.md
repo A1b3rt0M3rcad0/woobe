@@ -118,16 +118,16 @@ Use the variants by intent:
 - `standard`: confirmations, small forms, secret reveals and bounded actions. It remains compact, but uses the same typography, borders, controls and footer grammar as larger dialogs.
 - `workspace`: configuration flows, inspectors and multi-step operational surfaces. It uses `max-w-dialog-wide` and `max-h-dialog`, while the content determines the actual height. Use `DialogContextBar`, `DialogBody` and `DialogFooter` when the feature needs fixed chrome with an independently scrolling body.
 
-The canonical workspace width is `68.75rem` maximum. Height defaults to content-driven and is capped by `max-h-dialog`. Use `height="workspace"` when the design calls for a stable workspace across steps: `min(900px, calc(100svh - 32px))`, with a 16px viewport inset. Compose a flex child with `min-h-0 flex-1`, then `DialogContextBar`, `DialogBody` and `DialogFooter` to keep the context and actions outside the scrolling body. `DialogBody spacing="workspace"` follows the ChatSurface Details content insets (15px in constrained dialogs, up to 24px on desktop).
+The canonical workspace width is `68.75rem` maximum. Height defaults to content-driven and is capped by `max-h-dialog`. Use `height="workspace"` when the design calls for a stable workspace across steps: `min(900px, calc(100svh - 32px))`, with a 16px viewport inset. Compose a flex child with `min-h-0 flex-1`, then `DialogContextBar`, `DialogBody` and `DialogFooter` to keep the context and actions outside the scrolling body. `DialogBody spacing="workspace"` follows the ChatSurface Details content insets (18px in constrained dialogs, up to 24px on desktop).
 
 ### Configuration hierarchy
 
-Shared semantic type tokens own the hierarchy: 28px page titles, 15px section
-headings, 14–16px product copy, 13px controls and 12px supporting metadata.
-Technical microcopy has an 11px floor. Code, identifiers and structured evidence
-use the mono family; ordinary labels and navigation use Inter.
+Shared semantic type tokens own the hierarchy: 28px page titles, 16px section
+headings, 14px operational body/controls and 12px supporting metadata. Technical
+titles, values, labels, navigation and structured evidence use self-hosted JetBrains
+Mono. Inter is reserved for prose and conversation. Metrics use regular weight.
 
-Default controls are 40px high, compact controls 36px. Technical variants remain
+Default controls are 44px high, compact controls 36px. Technical variants remain
 available for dense workspaces. Touch layouts must keep primary actions reachable.
 Use `Field`, `SectionBlock`, `ReadOnlyField`, `Stepper` and shared dialog layouts
 without feature-local typography overrides.
@@ -209,35 +209,31 @@ On workstation and ultrawide layouts, extra width should improve composition: pe
 
 ## Visual foundations
 
-The console uses a light editorial canvas and a dark navigation rail. The orbital
-Woobe symbol and blue actions remain the product identity. The Guild-inspired
-reference informs hierarchy and composition; no third-party branding or screenshots
-are used in the distributed interface.
+The console implements the supplied Guild-inspired v2 operational contract. The
+canvas and navigation are warm/light, panels use mono titles, regular numerical
+values, narrow separators and short shadows. External reference images are review
+inputs and are never distributed as Woobe screenshots.
 
 | Role | Value |
 | --- | --- |
-| Canvas | `#f7f7f4` |
-| Surface | `#ffffff` |
-| Control | `#f2f3f0` |
-| Text | `#19231f` |
-| Secondary text | `#626d68` |
-| Border | `#d9deda` |
-| Primary action | `#2459d3`, white label |
-| Navigation | `#19231e`, light text |
-| Success / warning / error | `#18734a` / `#946000` / `#b92f3c` |
-| Network | `#7041cc` |
+| Canvas / surface | `#f8f7f5` / `#fffefd` |
+| Ink / muted | `#242321` / `#6b6863` |
+| Decorative line / control boundary | `#e3e1dd` / `#8c867d` |
+| Graphic accent / small accent text | `#ff5500` / `#ad3900` |
+| Primary action | `#242321`, near-white label |
+| Success / warning / error | `#197542` / `#9b5700` / `#b42318` |
 
-`src/styles/theme.css` owns the browser CSS variables and accessibility defaults.
-`src/tokens/colors.ts` and the Tailwind preset expose their semantic roles. The
-`.woobe-dark` scope is for navigation and editorial context, not a separate product
-or a user theme setting. Existing slate utility aliases resolve through these
-roles while features migrate to semantic names. `foreground` means readable text;
-`primary-foreground` is the white label on a filled action.
+`src/styles/guild-tokens.css` preserves the supplied reconstruction values;
+`theme.css`, `colors.ts` and the Tailwind preset map them to existing semantic
+utilities. `fonts.css` provisions real variable Inter and JetBrains Mono files
+with Latin Extended support and their OFL notices. `mergeWoobeClasses` registers
+semantic sizes, dialog widths and radii so feature overrides replace defaults.
 
-Use 4px technical corners, 6px controls and 8px containers. Borders separate
-ordinary surfaces; shadows belong to floating menus and dialogs. Technical grids
-are secondary texture and must never reduce content contrast. Metrics retain
-units, period, attribution and unknown states from API data.
+Use 4px badges, 6px controls and 10px panels, with 18px comfortable panel insets.
+The explicit `.woobe-dark` scope is an alternate neutral theme for consumers; it
+is not the console navigation default. `DotMeter` communicates a named percentage
+without inventing limits; unknown and zero remain distinct and only the graphic
+is clamped. See the [visual contract](../../docs/design/README.md).
 
 ChatSurface remains in `woobe-embed` with its independent appearance configuration.
 Console tokens must not override a customer's configured embed theme or sizing.

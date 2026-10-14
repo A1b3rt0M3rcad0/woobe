@@ -27,7 +27,8 @@ export function NetworkRuntimeControlsPopover({ networkId, projectId }: { networ
   const statesQuery = useNetworkRuntimeEnvironments(networkId, projectId)
   const updateRuntime = useUpdateNetworkRuntimeEnvironment(networkId, projectId)
 
-  const enabledCount = environments.filter((environment) => statesQuery.data?.[environment]?.enabled ?? true).length
+  const statesKnown = !statesQuery.isError && environments.every(environment => typeof statesQuery.data?.[environment]?.enabled === 'boolean')
+  const enabledCount = environments.filter(environment => statesKnown && statesQuery.data?.[environment]?.enabled === true).length
 
   function openMenu() {
     const button = buttonRef.current
@@ -86,21 +87,21 @@ export function NetworkRuntimeControlsPopover({ networkId, projectId }: { networ
 
       <div className="divide-y divide-border/70">
         {environments.map((environment) => {
-          const enabled = statesQuery.data?.[environment]?.enabled ?? true
+          const enabled = statesKnown && statesQuery.data?.[environment]?.enabled === true
           return (
             <div key={environment} className="flex items-center justify-between gap-ui-md px-ui-md py-ui-sm">
               <div className="flex min-w-0 items-center gap-ui-sm">
                 <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', enabled ? 'bg-success' : 'bg-muted')} />
                 <div className="min-w-0">
                   <p className="font-mono text-system-control font-medium text-accent-foreground">{titleCase(environment)}</p>
-                  <p className="font-sans text-product-caption text-muted-foreground">{enabled ? 'Runs allowed' : 'Runs blocked'}</p>
+                  <p className="font-sans text-product-caption text-muted-foreground">{!statesKnown ? statesQuery.isLoading ? 'Loading state' : 'State unavailable' : enabled ? 'Runs allowed' : 'Runs blocked'}</p>
                 </div>
               </div>
 
               <button
                 type="button"
                 aria-pressed={enabled}
-                disabled={updateRuntime.isPending || statesQuery.isLoading}
+                disabled={updateRuntime.isPending || !statesKnown}
                 onClick={() => void updateEnabled(environment, !enabled)}
                 className={cn(
                   'relative h-5 w-9 shrink-0 rounded-full border transition-colors disabled:cursor-not-allowed disabled:opacity-60',
@@ -131,9 +132,9 @@ export function NetworkRuntimeControlsPopover({ networkId, projectId }: { networ
         onClick={() => open ? setOpen(false) : openMenu()}
         title="Network runtime environments"
       >
-        <span className={cn('mr-ui-xs h-1.5 w-1.5 rounded-full', enabledCount === environments.length ? 'bg-success' : enabledCount === 0 ? 'bg-muted' : 'bg-warning')} />
+        <span className={cn('mr-ui-xs h-1.5 w-1.5 rounded-full', !statesKnown ? 'bg-muted' : enabledCount === environments.length ? 'bg-success' : enabledCount === 0 ? 'bg-muted' : 'bg-warning')} />
         <span>Runtime</span>
-        <span className="ml-ui-xs text-muted-foreground">{enabledCount}/{environments.length}</span>
+        <span className="ml-ui-xs text-muted-foreground">{statesKnown ? `${enabledCount}/${environments.length}` : statesQuery.isLoading ? 'Loading' : 'Unknown'}</span>
         <ChevronDown className={cn('ml-ui-xs h-icon-sm w-icon-sm text-muted-foreground transition-transform', open && 'rotate-180')} />
       </Button>
       {typeof document !== 'undefined' && menu ? createPortal(menu, document.body) : null}

@@ -79,7 +79,7 @@ type RunEntry =
   | { key: string; kind: 'agent'; trace: Trace; sortAt: number }
 
 const panelScrollClass = 'scrollbar-thin scrollbar-track-transparent scrollbar-thumb-border hover:scrollbar-thumb-muted [scrollbar-color:rgb(51_65_85)_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-sm [&::-webkit-scrollbar-thumb]:border-2 [&::-webkit-scrollbar-thumb]:border-transparent [&::-webkit-scrollbar-thumb]:bg-border/70 [&::-webkit-scrollbar-thumb]:bg-clip-padding hover:[&::-webkit-scrollbar-thumb]:bg-muted'
-const runRowGridClass = 'xl:grid-cols-[32px_minmax(0,1.45fr)_minmax(0,.9fr)_140px_145px_20px]'
+const runRowGridClass = 'run-stream-row'
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
@@ -237,7 +237,8 @@ function knownCostSum(traces: Trace[]): number | null {
 }
 
 function statusMeta(status: RunStatus) {
-  if (status === 'running' || status === 'pending') return { label: status === 'pending' ? 'Queued' : 'Running', className: 'border-blue-500/30 bg-blue-500/[0.08] text-primary-light', dot: 'bg-blue-400 animate-pulse', accent: 'border-l-blue-400' }
+  if (status === 'running') return { label: 'Running', className: 'border-success/30 bg-success/10 text-success', dot: 'bg-success animate-pulse', accent: 'border-l-success' }
+  if (status === 'pending') return { label: 'Queued', className: 'border-warning/30 bg-warning/10 text-warning', dot: 'bg-warning', accent: 'border-l-warning' }
   if (status === 'failed') return { label: 'Failed', className: 'border-red-500/25 bg-red-500/[0.06] text-error', dot: 'bg-red-400', accent: 'border-l-red-400' }
   if (status === 'completed_with_issues') return { label: 'Completed with issues', className: 'border-amber-500/25 bg-amber-500/[0.06] text-warning', dot: 'bg-amber-400', accent: 'border-l-amber-400' }
   if (status === 'cancelled') return { label: 'Cancelled', className: 'border-border bg-control/60 text-muted-foreground', dot: 'bg-slate-400', accent: 'border-l-slate-500' }
@@ -864,7 +865,7 @@ export default function TracesPage() {
         <ResourceSectionHeader title="Operational run stream" description="Select a Run to see what happened. Network Runs can be expanded into their Agent Runs." count={visibleEntries.length} />
         {isLoading ? <LoadingState message="Loading Runs" variant="panel" layout="resource-list" /> : isError ? <ErrorState error={error} onRetry={refetch} className="rounded-container border border-border bg-surface/70 py-10" /> : visibleEntries.length ? (
           <div className="grid min-h-[620px] gap-4 xl:grid-cols-[minmax(0,1.12fr)_minmax(440px,.88fr)]">
-            <div className="min-w-0 overflow-hidden rounded-container border border-border bg-surface/[0.9]">
+            <div className="run-stream-list min-w-0 overflow-hidden rounded-container border border-border bg-surface/[0.9]">
               {visibleEntries.map((entry) => entry.kind === 'network' ? <NetworkRunRow key={entry.key} group={entry.group} agentNames={agentNames} selectedKey={selectedKey} expanded={expandedNetworkIds.has(entry.group.id)} onToggle={() => toggleNetwork(entry.group.id)} onSelectNetwork={() => setSelectedKey(entry.key)} onSelectAgent={(trace) => setSelectedKey(`agent:${trace.id}`)} /> : <AgentRunRow key={entry.key} trace={entry.trace} agentName={entry.trace.agent_id ? agentNames.get(entry.trace.agent_id) ?? `Agent ${compactId(entry.trace.agent_id)}` : 'Agent Run'} networkName={entry.trace.network_id ? networkNames.get(entry.trace.network_id) : null} selected={selectedKey === entry.key} onSelect={() => setSelectedKey(entry.key)} />)}
             </div>
             <aside className={cn('min-w-0 max-h-[calc(100vh-170px)] overflow-y-auto pr-1 xl:sticky xl:top-4 xl:self-start', panelScrollClass)}>
@@ -878,3 +879,4 @@ export default function TracesPage() {
     </ResourcePage>
   )
 }
+import '@/features/traces/styles.css'

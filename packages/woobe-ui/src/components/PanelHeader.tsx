@@ -50,7 +50,7 @@ export function PanelHeader({
           </span>
         ) : null}
         <div className="min-w-0">
-          <div className={cn(titleClasses[hierarchy], 'text-accent-foreground')}>{title}</div>
+          <h2 className={cn(titleClasses[hierarchy], 'text-accent-foreground')}>{title}</h2>
           {description ? <div className={cn('mt-ui-xs text-muted-foreground', descriptionClasses[hierarchy])}>{description}</div> : null}
         </div>
       </div>

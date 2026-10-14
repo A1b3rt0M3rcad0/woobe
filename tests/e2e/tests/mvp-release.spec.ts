@@ -1,7 +1,16 @@
 import { installApi, login, respond, workspace, project, user, now, productionAgent, selectedRelease } from '../fixtures/control-plane'
 import { expect, test } from '@playwright/test'
 import authorityFixture from '../fixtures/authority-categories.json'
+import { mkdir } from 'node:fs/promises'
+import { resolve } from 'node:path'
 import { projectOverviewFixture } from '../../../packages/woobe-frontend/src/features/dashboard/fixtures'
+
+async function captureCli(page: import('@playwright/test').Page, name: string) {
+  if(process.env.WOOBE_CAPTURE_DOCS!=='1') return
+  const directory=resolve(process.cwd(),'../../docs/screenshots/v2/flows/cli-keys')
+  await mkdir(directory,{recursive:true})
+  await page.screenshot({path:resolve(directory,`${name}.png`),animations:'disabled'})
+}
 
 test.use({ timezoneId: 'America/Sao_Paulo', locale: 'en-US' })
 
@@ -157,9 +166,11 @@ test('owner creates, copies, rotates and revokes a CLI key in Workspace settings
   expect(descriptionBox!.x).toBeGreaterThan(nameBox!.x + 200)
   expect(Math.abs(descriptionBox!.y - nameBox!.y)).toBeLessThan(5)
   await page.screenshot({ path: test.info().outputPath('workspace-cli-keys.png') })
+  await captureCli(page,'create')
   await expect(dialog.getByRole('button', { name: 'Create key', exact: true })).toBeInViewport({ ratio: 1 })
   await dialog.getByRole('button', { name: 'Create key', exact: true }).click()
   await expect(dialog.getByText(secret, { exact: true })).toBeVisible()
+  await captureCli(page,'synthetic-secret')
   await expect(dialog.getByRole('button', { name: 'Copy Control Key' })).toBeVisible()
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: new URL(page.url()).origin })
   await dialog.getByRole('button', { name: 'Copy Control Key' }).click()
@@ -167,12 +178,15 @@ test('owner creates, copies, rotates and revokes a CLI key in Workspace settings
   await dialog.getByRole('button', { name: 'I saved the key' }).click()
   await expect(dialog.getByText(secret, { exact: true })).toHaveCount(0)
   await dialog.getByRole('button', { name: 'Rotate My workstation' }).click()
+  await captureCli(page,'rotation-confirmation')
   await dialog.getByRole('button', { name: 'Confirm rotation' }).click()
   await expect(dialog.getByText(`${secret}_rotated`, { exact: true })).toBeVisible()
+  await captureCli(page,'rotation-synthetic-secret')
   await dialog.getByRole('button', { name: 'Overview', exact: true }).click()
   await dialog.getByRole('button', { name: 'CLI Keys', exact: true }).click()
   await expect(dialog.getByText(`${secret}_rotated`, { exact: true })).toHaveCount(0)
   await dialog.getByRole('button', { name: 'Revoke My workstation' }).click()
+  await captureCli(page,'revocation-confirmation')
   await dialog.getByRole('button', { name: 'Confirm revocation' }).click()
   await expect(dialog.getByRole('button', { name: 'Revoke My workstation' })).toHaveCount(0)
   expect(creations[0]['expires_at']).toBe('2027-02-11T03:00:00.000Z')
@@ -190,7 +204,7 @@ test('ASaC selection drives cards, playground, history, API and Runtime Key crea
   page.on('request', request => { if (new URL(request.url()).pathname.endsWith('/releases')) catalogReads.push(request.url()) })
   await login(page)
   await page.goto(`/workspaces/${workspace.id}/projects/${project.id}/agents`)
-  await expect(page.getByLabel('Production Live', { exact: true })).toBeVisible()
+  await expect(page.getByLabel('Production Enabled', { exact: true })).toBeVisible()
   expect(catalogReads).toHaveLength(0) // Cards don't fetch full snapshot catalogs.
   await page.getByRole('button', { name: `Open Agent playground for ${productionAgent.name}` }).click()
   await page.getByRole('group', { name: 'Agent environment' }).getByRole('button', { name: 'PRODUCTION', exact: true }).click()
@@ -220,7 +234,7 @@ test('ASaC selection drives cards, playground, history, API and Runtime Key crea
 for (const scenario of [
   { title: 'failed selection', options: { productionError: true }, pill: 'Production Unknown', message: 'selection unavailable' },
   { title: 'disabled runtime', options: { runtimeEnabled: false }, pill: 'Production Off', message: 'runtime is off' },
-  { title: 'forbidden details', options: { detailsError: true }, pill: 'Production Live', message: 'details unavailable' },
+  { title: 'forbidden details', options: { detailsError: true }, pill: 'Production Enabled', message: 'details unavailable' },
 ]) {
   test(`ASaC ${scenario.title} never becomes No Production`, async ({ page }) => {
     await installApi(page, { asacAgent: true, ...scenario.options }); await login(page)

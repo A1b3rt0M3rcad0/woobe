@@ -36,7 +36,8 @@ import SettingsPage from '@/pages/SettingsPage'
 import NotFoundPage from '@/pages/NotFoundPage'
 
 function RootRedirect() {
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, isInitializing, isLoading } = useAuth()
+  if (isInitializing || isLoading) return <LoadingState variant="fullscreen" layout="auth" message="Checking authentication..." />
   return <Navigate to={isAuthenticated ? '/dashboard' : '/login'} replace />
 }
 

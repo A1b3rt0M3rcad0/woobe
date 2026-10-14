@@ -119,12 +119,12 @@ export function StageDraftSnapshotModal({ open, state, snapshot, currentStaging,
 
               <section className="space-y-2 rounded-xl border border-border/80 bg-background/45 p-4">
                 <p className="font-mono text-xs font-medium uppercase tracking-wide text-slate-300">Output / schema</p>
-                <pre className="max-h-56 overflow-auto whitespace-pre-wrap rounded-lg border border-border/60 bg-black/20 p-3 text-xs text-slate-200">{formatJson(outputSchema ?? snapshot.response_format)}</pre>
+                <pre className="max-h-56 overflow-auto whitespace-pre-wrap rounded-lg border border-border/60 bg-control p-3 text-xs text-slate-200">{formatJson(outputSchema ?? snapshot.response_format)}</pre>
               </section>
 
               <section className="space-y-2 rounded-xl border border-border/80 bg-background/45 p-4">
                 <p className="font-mono text-xs font-medium uppercase tracking-wide text-slate-300">Runtime config / knowledge</p>
-                <pre className="max-h-56 overflow-auto whitespace-pre-wrap rounded-lg border border-border/60 bg-black/20 p-3 text-xs text-slate-200">{formatJson(runtimeConfig)}</pre>
+                <pre className="max-h-56 overflow-auto whitespace-pre-wrap rounded-lg border border-border/60 bg-control p-3 text-xs text-slate-200">{formatJson(runtimeConfig)}</pre>
               </section>
             </div>
           </ScrollArea>

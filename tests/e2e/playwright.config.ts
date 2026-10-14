@@ -42,7 +42,7 @@ export default defineConfig({
           VITE_WOOBE_EDITION: 'core',
         },
       }, {
-        command: 'npm --prefix ../../packages/woobe-embed run build && python3 -m http.server 4181 --bind 127.0.0.1 --directory ../../packages/woobe-embed/dist',
+        command: 'npm --prefix ../../packages/woobe-embed run build && python3 support/serve_embed.py --port 4181 --directory ../../packages/woobe-embed/dist',
         url: 'http://127.0.0.1:4181/preview.html',
         reuseExistingServer: !process.env.CI,
         timeout: 60_000,

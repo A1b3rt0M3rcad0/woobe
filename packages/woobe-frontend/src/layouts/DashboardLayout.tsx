@@ -23,10 +23,10 @@ export function DashboardLayout() {
     : isProjectOverview
       ? 'project-overview-main min-h-0 min-w-0 flex-1 overflow-y-auto p-ui-lg sm:p-ui-xxl'
       : isProjectResource
-        ? 'scrollbar-thin min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden bg-background bg-technical-grid'
+        ? 'scrollbar-thin min-h-0 min-w-0 flex-1 overflow-y-auto bg-background bg-technical-grid'
         : isWorkspaceSelection
-          ? 'scrollbar-thin min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-5 lg:p-5 2xl:p-6 bg-technical-grid'
-          : 'scrollbar-thin min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6'
+          ? 'scrollbar-thin min-h-0 min-w-0 flex-1 overflow-y-auto p-4 sm:p-5 lg:p-5 2xl:p-6 bg-technical-grid'
+          : 'scrollbar-thin min-h-0 min-w-0 flex-1 overflow-y-auto p-4 sm:p-6'
 
   return (
     <div className="flex h-svh min-w-0 overflow-hidden bg-background">

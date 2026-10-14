@@ -6,6 +6,7 @@ on:
     types: [opened, reopened, synchronize, ready_for_review]
     paths:
       - "packages/woobe-frontend/**"
+      - "packages/woobe-ui/**"
       - "packages/woobe-embed/**"
       - "packages/woobe-runtime-client/**"
       - "tests/e2e/**"
@@ -68,6 +69,10 @@ jobs:
       - name: Run Chat Embed tests
         working-directory: packages/woobe-embed
         run: npm test
+
+      - name: Qualify shared components, overlays and responsive states
+        working-directory: tests/e2e
+        run: npx playwright test --config review.config.ts --workers=2
 
       - name: Typecheck Chat Embed
         working-directory: packages/woobe-embed

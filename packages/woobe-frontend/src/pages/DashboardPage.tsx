@@ -82,37 +82,31 @@ function MetricCard({ metric, onReviewPricing }: { metric: DashboardMetric; onRe
   const [helpOpen, setHelpOpen] = useState(false)
   const Icon = metric.icon
   const detailTone = metric.direction === 'up' ? 'text-success' : metric.direction === 'down' ? 'text-error' : 'text-muted'
-  return (
-    <Panel className="flex min-h-[168px] flex-col p-ui-xl">
-      <div className="flex h-full flex-1 flex-col gap-ui-md">
-        <div className="flex items-start justify-between gap-ui-sm">
-          <p className="font-mono text-product-caption font-medium text-muted-foreground">{metric.label}</p>
-          {metric.costHelp
-            ? <button type="button" aria-label="Runtime cost details" onClick={() => setHelpOpen(true)} className="shrink-0 text-muted hover:text-foreground"><AlertCircle className="h-icon w-icon" aria-hidden="true" /></button>
-            : <Icon className={`h-icon w-icon shrink-0 ${metric.tone}`} aria-hidden="true" />}
-        </div>
-        {metric.comparison ? (
-          <div className="grid grid-cols-2 gap-ui-md">
-            {[metric.comparison.agent, metric.comparison.network].map((item) => (
-              <div key={item.label} className="min-w-0">
-                <p className={`text-product-caption ${item.tone}`}>{item.label}</p>
-                <p className="font-mono mt-ui-xs break-words text-product-label font-medium tabular-nums text-foreground">{item.value}</p>
-                <p className="mt-ui-xs text-product-caption text-muted">{item.detail}</p>
-              </div>
-            ))}
-          </div>
-        ) : <p className="font-mono break-words font-mono text-metric-lg font-normal leading-none tracking-tight tabular-nums text-foreground">{metric.value}</p>}
-        <p className={`mt-auto text-product-caption ${detailTone}`}>{metric.detail ?? 'No terminal Runs in this interval'}</p>
-      </div>
-      {metric.costHelp && <Dialog open={helpOpen} onClose={() => setHelpOpen(false)} title="Runtime cost coverage" className="max-w-md">
-        <p className="text-sm leading-6 text-muted-foreground">{metric.costHelp.description}</p>
-        {metric.costHelp.reviewPricing && <div className="mt-4 space-y-3">
-          <p className="text-xs leading-5 text-muted-foreground">For future Runs, configure both USD rates in Models, save the Agent Draft, then capture and deploy a new Candidate/Release for Staging or Production.</p>
-          <MiniLink label="Review Model pricing" onClick={() => { setHelpOpen(false); onReviewPricing() }} />
-        </div>}
-      </Dialog>}
-    </Panel>
-  )
+  return <Panel className="flex min-w-0 flex-col">
+    <div className="flex min-h-panel-header items-center justify-between gap-ui-sm border-b border-border px-ui-panel-inset py-ui-sm">
+      <h2 className="font-mono text-product-label font-medium text-foreground">{metric.label}</h2>
+      {metric.costHelp
+        ? <button type="button" aria-label="Runtime cost details" onClick={() => setHelpOpen(true)} className="flex h-control-xs w-control-xs shrink-0 items-center justify-center rounded-technical text-muted hover:text-foreground"><AlertCircle className="h-icon w-icon" aria-hidden="true" /></button>
+        : <Icon className={`h-icon w-icon shrink-0 ${metric.tone}`} aria-hidden="true" />}
+    </div>
+    <div className="min-w-0 flex-1 px-ui-panel-inset py-ui-lg">
+      {metric.comparison ? <div className="grid grid-cols-2 gap-ui-md">
+        {[metric.comparison.agent, metric.comparison.network].map(item=><div key={item.label} className="min-w-0">
+          <p className={`font-mono text-product-caption ${item.tone}`}>{item.label}</p>
+          <p className="mt-ui-xs break-words font-mono text-product-label font-normal tabular-nums text-foreground">{item.value}</p>
+          <p className="mt-ui-xs font-mono text-product-caption text-muted">{item.detail}</p>
+        </div>)}
+      </div> : <p className="break-words font-mono text-metric font-normal tabular-nums text-foreground">{metric.value}</p>}
+    </div>
+    <p className={`min-h-control border-t border-border px-ui-panel-inset py-ui-sm font-mono text-product-caption ${detailTone}`}>{metric.detail ?? 'No terminal Runs in this interval'}</p>
+    {metric.costHelp && <Dialog open={helpOpen} onClose={() => setHelpOpen(false)} title="Runtime cost coverage" className="max-w-md">
+      <p className="font-sans text-sm leading-6 text-muted-foreground">{metric.costHelp.description}</p>
+      {metric.costHelp.reviewPricing && <div className="mt-4 space-y-3">
+        <p className="font-sans text-xs leading-5 text-muted-foreground">For future Runs, configure both USD rates in Models, save the Agent Draft, then capture and deploy a new Candidate/Release for Staging or Production.</p>
+        <MiniLink label="Review Model pricing" onClick={() => { setHelpOpen(false); onReviewPricing() }} />
+      </div>}
+    </Dialog>}
+  </Panel>
 }
 
 function SkeletonPanel({ className = '' }: { className?: string }) {
