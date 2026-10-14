@@ -25,8 +25,8 @@ for (const width of [1440, 768, 390]) test(`page-owned cost coverage and Skill i
     const bounds = await dialog.boundingBox()
     expect(bounds!.x).toBeGreaterThanOrEqual(0)
     expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width + 1)
-    const directory = resolve(process.cwd(), '../../docs/screenshots/v2/overlays', name)
-    if (process.env.WOOBE_CAPTURE_DOCS === '1') {
+    const directory = resolve(process.cwd(), 'review-results/captures/overlays', name)
+    if (process.env.WOOBE_CAPTURE_AUXILIARY === '1') {
       await mkdir(directory, { recursive: true }); await resetCaptures(directory, `${width}px`)
       await page.screenshot({ path: resolve(directory, `${width}px.png`), animations: 'disabled' })
       await captureScrollSequence(page, dialog, directory, `${width}px`)

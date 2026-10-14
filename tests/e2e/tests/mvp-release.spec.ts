@@ -6,8 +6,8 @@ import { resolve } from 'node:path'
 import { projectOverviewFixture } from '../../../packages/woobe-frontend/src/features/dashboard/fixtures'
 
 async function captureCli(page: import('@playwright/test').Page, name: string) {
-  if(process.env.WOOBE_CAPTURE_DOCS!=='1') return
-  const directory=resolve(process.cwd(),'../../docs/screenshots/v2/flows/cli-keys')
+  if(process.env.WOOBE_CAPTURE_AUXILIARY!=='1') return
+  const directory=resolve(process.cwd(),'review-results/captures/flows/cli-keys')
   await mkdir(directory,{recursive:true})
   await page.screenshot({path:resolve(directory,`${name}.png`),animations:'disabled'})
 }

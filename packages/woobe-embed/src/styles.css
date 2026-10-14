@@ -336,7 +336,7 @@ body {
 
 .message-table th {
   color: var(--woobe-subtle-text);
-  font-family: var(--g-font-mono);
+  font-family: var(--g-font-sans);
   font-size: 0.88em;
   font-weight: 650;
   background: var(--woobe-control);

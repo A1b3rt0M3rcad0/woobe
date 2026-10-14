@@ -62,8 +62,8 @@ test('ChatSurface preserves its independent theme and completes a keyboard submi
   await expect(composer).toBeEnabled()
   const accessibility = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()
   expect(accessibility.violations).toEqual([])
-  if (process.env.WOOBE_CAPTURE_DOCS === '1') {
-    const directory = resolve(process.cwd(), '../../docs/screenshots')
+  if (process.env.WOOBE_CAPTURE_AUXILIARY === '1') {
+    const directory = resolve(process.cwd(), 'review-results/captures')
     await mkdir(directory, { recursive: true })
     await page.screenshot({ path: resolve(directory, 'chat-surface.png'), animations: 'disabled' })
   }

@@ -28,8 +28,8 @@ for(const width of [1440,768,390])for(const [name,trigger] of hosts)test(`${name
     await expect(page.getByRole('dialog').getByRole('button',{name:'Selected',exact:true})).toBeInViewport({ratio:1})
   }
   await page.evaluate(()=>document.fonts.ready)
-  if(process.env.WOOBE_CAPTURE_DOCS==='1'){
-    const directory=resolve(process.cwd(),'../../docs/screenshots/v2/overlays',name);await mkdir(directory,{recursive:true})
+  if(process.env.WOOBE_CAPTURE_AUXILIARY==='1'){
+    const directory=resolve(process.cwd(),'review-results/captures/overlays',name);await mkdir(directory,{recursive:true})
     await resetCaptures(directory,`${width}px`)
     await page.screenshot({path:resolve(directory,`${width}px.png`),animations:'disabled'})
     await captureScrollSequence(page,page.getByRole('dialog').last(),directory,`${width}px`)
@@ -53,8 +53,8 @@ for(const width of [1440,768,390])test(`secondary confirmations and input bindin
     await page.evaluate(()=>document.fonts.ready)
     const dialog=page.getByRole('dialog').last()
     const bounds=await dialog.boundingBox();expect(bounds!.x).toBeGreaterThanOrEqual(0);expect(bounds!.x+bounds!.width).toBeLessThanOrEqual(width+1)
-    if(process.env.WOOBE_CAPTURE_DOCS!=='1')return
-    const directory=resolve(process.cwd(),'../../docs/screenshots/v2/overlays',name);await mkdir(directory,{recursive:true})
+    if(process.env.WOOBE_CAPTURE_AUXILIARY!=='1')return
+    const directory=resolve(process.cwd(),'review-results/captures/overlays',name);await mkdir(directory,{recursive:true})
     await resetCaptures(directory,`${width}px`)
     await page.screenshot({path:resolve(directory,`${width}px.png`),animations:'disabled'})
   }

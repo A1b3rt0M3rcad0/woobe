@@ -8,8 +8,8 @@ export function Primitives() {
   const [date, setDate] = useState(new Date('2026-10-20T12:00:00Z'))
   return <div className="review-grid">
     <section className="review-sample review-wide" data-sample="fonts"><h2>Self-hosted typefaces</h2>
-      <p data-font-probe="mono" style={{fontFamily:'JetBrains Mono',fontWeight:500}}>Usage Cap · PR Reviewer · $312.40 / $380 · 0123456789 · I l 1 O 0 · ação conexão utilização</p>
-      <p data-font-probe="sans" style={{fontFamily:'Inter',fontWeight:400}}>Informação, configuração e observação: texto explicativo em Inter.</p>
+      <p data-font-probe="mono" className="font-mono font-medium">Usage Cap · PR Reviewer · $312.40 / $380 · 0123456789 · I l 1 O 0 · ação conexão utilização</p>
+      <p data-font-probe="sans" className="font-sans font-normal">Informação, configuração e observação: texto explicativo em Inter.</p>
     </section>
     <section className="review-sample" data-sample="buttons"><h2>Buttons and states</h2><div className="review-stack">
       {(['default','secondary','outline','ghost','destructive','link'] as const).map(variant => <UI.Button key={variant} variant={variant}>{variant}</UI.Button>)}

@@ -3,14 +3,14 @@ import { mkdir, readdir, unlink } from 'node:fs/promises'
 import { resolve } from 'node:path'
 
 export async function resetCaptures(directory: string, prefix: string) {
-  if(process.env.WOOBE_CAPTURE_DOCS!=='1')return
+  if(process.env.WOOBE_CAPTURE_AUXILIARY!=='1')return
   await mkdir(directory,{recursive:true})
   for(const file of await readdir(directory))if(file===`${prefix}.png` || (file.startsWith(`${prefix}-`) && file.endsWith('.png')))await unlink(resolve(directory,file))
 }
 
 /** Record the real scrolling regions, including a standard dialog's outer overlay. */
 export async function captureScrollSequence(page: Page, overlay: Locator, directory: string, prefix: string) {
-  if (process.env.WOOBE_CAPTURE_DOCS !== '1') return
+  if (process.env.WOOBE_CAPTURE_AUXILIARY !== '1') return
   await mkdir(directory, { recursive: true })
   await page.locator('[data-review-scroll],[data-review-horizontal]').evaluateAll(nodes=>nodes.forEach(node=>{node.removeAttribute('data-review-scroll');node.removeAttribute('data-review-horizontal')}))
   const save = (suffix: string) => page.screenshot({ path: resolve(directory, `${prefix}-${suffix}.png`), animations: 'disabled', fullPage: true })

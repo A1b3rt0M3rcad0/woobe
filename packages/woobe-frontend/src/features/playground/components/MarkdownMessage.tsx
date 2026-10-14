@@ -364,8 +364,8 @@ export function MarkdownMessage({ content, isStreaming, className }: MarkdownMes
     const currentKey = key++
     blocks.push(
       <div key={`table-${currentKey}`} className="my-ui-md overflow-x-auto rounded-container border border-border bg-background/35">
-        <table className="min-w-full border-collapse font-mono text-product-small">
-          <thead className="bg-surface/70 font-mono text-system-label text-muted-foreground">
+        <table className="min-w-full border-collapse font-sans text-product-small">
+          <thead className="bg-surface/70 font-sans text-system-label text-muted-foreground">
             <tr>
               {table.headers.map((header, headerIndex) => (
                 <th

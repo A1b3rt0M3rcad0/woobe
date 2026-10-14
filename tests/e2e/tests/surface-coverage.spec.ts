@@ -7,6 +7,8 @@ import { emptyUsage } from '../fixtures/design-gallery'
 import { projectOverviewFixture } from '../../../packages/woobe-frontend/src/features/dashboard/fixtures'
 import { captureScrollSequence } from '../review/capture'
 import { installResources } from '../fixtures/resource-api'
+import { captureMainPage } from '../support/main-page-capture'
+import mainPages from '../fixtures/main-pages.json'
 
 const root=`/workspaces/${workspace.id}/projects/${project.id}`
 const surfaces=[
@@ -27,6 +29,11 @@ for(const width of [1440,768,390]) for(const [name,url] of surfaces) test(`compl
   await page.route('**/metering/projects/project-a/usage*',route=>respond(route,emptyUsage))
   await page.route('**/core/projects/project-a/configuration/keys*',route=>respond(route,{items:[],total:0,offset:0,limit:50,permissions:{declare:true,'value:write':true}}))
   await page.route('**/core/projects/project-a/runs*',route=>respond(route,{summary:{agent_runs:0,direct_agent_runs:0,network_agent_runs:0,network_runs:0,active_top_level_runs:0,failed_top_level_runs:0,top_level_runs:0,failure_rate_percent:0,p95_top_level_latency_ms:null,avg_agent_runs_per_network_run:null},direct_agent_runs:[],network_runs:[]}))
+  if(mainPages.some(item=>item.surface===name)) await installResources(page)
+  if(name==='network-workspace') {
+    const composed={...networks[0],agent_count:1,draft_revision:1,draft_definition:{...networks[0].draft_definition,root_node_id:'node-support',nodes:[{id:'node-support',agent_id:productionAgent.id,label:'Support entry',capability_description:'Resolve the incoming support request.',position:{x:200,y:180},binding:{source:'draft',release_id:null}}]}}
+    await page.route('**/network/projects/project-a/networks/network-support',route=>respond(route,composed))
+  }
   await login(page); await page.goto(url)
   if(name.endsWith('settings')) await expect(page.getByRole('dialog').first()).toBeVisible()
   else await expect(page.locator('#main-content')).not.toBeEmpty()
@@ -34,8 +41,9 @@ for(const width of [1440,768,390]) for(const [name,url] of surfaces) test(`compl
   await page.evaluate(()=>document.fonts.ready)
   await page.waitForTimeout(250)
   expect(errors).toEqual([])
-  const directory=resolve(process.cwd(),'../../docs/screenshots/v2/pages',name)
-  if(process.env.WOOBE_CAPTURE_DOCS==='1') {
+  await captureMainPage(page,name,width)
+  const directory=resolve(process.cwd(),'review-results/captures/pages',name)
+  if(process.env.WOOBE_CAPTURE_AUXILIARY==='1') {
     await mkdir(directory,{recursive:true})
     await page.screenshot({path:resolve(directory,`${width}px.png`),animations:'disabled'})
     const scroller=page.locator('#main-content')
@@ -60,8 +68,8 @@ test('populated resource catalogs, cost attribution and the Run ledger',async({p
     await expect(page.locator('#main-content h1')).toBeVisible()
     await expect(page.getByText('Something went wrong',{exact:true})).toHaveCount(0)
     await page.waitForTimeout(200);await page.evaluate(()=>document.fonts.ready)
-    if(process.env.WOOBE_CAPTURE_DOCS==='1') {
-      const directory=resolve(process.cwd(),'../../docs/screenshots/v2/pages',segment);await mkdir(directory,{recursive:true})
+    if(process.env.WOOBE_CAPTURE_AUXILIARY==='1') {
+      const directory=resolve(process.cwd(),'review-results/captures/pages',segment);await mkdir(directory,{recursive:true})
       await page.screenshot({path:resolve(directory,'populated.png'),animations:'disabled'})
       const scroller=page.locator('#main-content')
       const total=await scroller.evaluate(el=>el.scrollHeight)
@@ -89,8 +97,8 @@ test('populated resource catalogs, cost attribution and the Run ledger',async({p
       const overview=await page.locator('.react-flow__minimap').boundingBox()
       expect(overview!.y).toBeGreaterThanOrEqual(node!.y+node!.height)
     }
-    if(process.env.WOOBE_CAPTURE_DOCS==='1') {
-      const directory=resolve(process.cwd(),'../../docs/screenshots/v2/pages/network-workspace');await mkdir(directory,{recursive:true})
+    if(process.env.WOOBE_CAPTURE_AUXILIARY==='1') {
+      const directory=resolve(process.cwd(),'review-results/captures/pages/network-workspace');await mkdir(directory,{recursive:true})
       await page.screenshot({path:resolve(directory,`populated-${width}px.png`),animations:'disabled'})
       await captureScrollSequence(page,page.locator('body'),directory,`populated-${width}px`)
       if(width<1280) {
@@ -127,8 +135,12 @@ for(const [name,url,fresh] of [['sign-in','/login',false],['register','/register
   await page.setViewportSize({width:1440,height:1100});await page.goto(url)
   await expect(page.locator('h1,h2').first()).toBeVisible()
   await page.evaluate(()=>document.fonts.ready)
-  if(process.env.WOOBE_CAPTURE_DOCS==='1') {
-    const directory=resolve(process.cwd(),'../../docs/screenshots/v2/pages',name);await mkdir(directory,{recursive:true})
+  if(name==='sign-in') for(const width of [1440,768,390]) {
+    await page.setViewportSize({width,height:1100})
+    await captureMainPage(page,name,width)
+  }
+  if(process.env.WOOBE_CAPTURE_AUXILIARY==='1') {
+    const directory=resolve(process.cwd(),'review-results/captures/pages',name);await mkdir(directory,{recursive:true})
     await page.screenshot({path:resolve(directory,'desktop.png'),animations:'disabled'})
     await page.setViewportSize({width:390,height:844})
     await page.screenshot({path:resolve(directory,'mobile.png'),fullPage:true,animations:'disabled'})
@@ -143,8 +155,8 @@ test('compact viewport and enlarged text preserve essential controls',async({pag
     if(width===640)await page.addStyleTag({content:'html { font-size: 200% !important; }'})
     await expect(page.getByRole('button',{name:/Create Agent/}).first()).toBeVisible()
     expect(await page.evaluate(()=>document.documentElement.scrollWidth-innerWidth)).toBeLessThanOrEqual(1)
-    if(process.env.WOOBE_CAPTURE_DOCS==='1') {
-      const directory=resolve(process.cwd(),'../../docs/screenshots/v2/states');await mkdir(directory,{recursive:true})
+    if(process.env.WOOBE_CAPTURE_AUXILIARY==='1') {
+      const directory=resolve(process.cwd(),'review-results/captures/states');await mkdir(directory,{recursive:true})
       await page.screenshot({path:resolve(directory,width===320?'agents-320px.png':'agents-enlarged-root-text.png'),animations:'disabled',fullPage:true})
     }
   }

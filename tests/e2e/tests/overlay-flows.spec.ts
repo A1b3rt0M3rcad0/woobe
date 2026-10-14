@@ -9,8 +9,8 @@ const root=`/workspaces/${workspace.id}/projects/${project.id}`
 async function setup(page:Page) {await installApi(page,{asacAgent:true});await installResources(page);await login(page)}
 async function shot(page:Page,name:string) {
   await page.evaluate(()=>document.fonts.ready)
-  if(process.env.WOOBE_CAPTURE_DOCS!=='1')return
-  const directory=resolve(process.cwd(),'../../docs/screenshots/v2/flows');await mkdir(directory,{recursive:true})
+  if(process.env.WOOBE_CAPTURE_AUXILIARY!=='1')return
+  const directory=resolve(process.cwd(),'review-results/captures/flows');await mkdir(directory,{recursive:true})
   await page.screenshot({path:resolve(directory,`${name}.png`),animations:'disabled'})
 }
 

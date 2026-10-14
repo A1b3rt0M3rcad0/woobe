@@ -9,8 +9,8 @@ import { projectOverviewFixture } from '../../../packages/woobe-frontend/src/fea
 const root = `/workspaces/${workspace.id}/projects/${project.id}`
 
 async function capture(page: Page, name: string) {
-  if (process.env.WOOBE_CAPTURE_DOCS !== '1') return
-  const directory = resolve(process.cwd(), '../../docs/screenshots')
+  if (process.env.WOOBE_CAPTURE_AUXILIARY !== '1') return
+  const directory = resolve(process.cwd(), 'review-results/captures')
   await mkdir(directory, { recursive: true })
   await page.screenshot({ path: resolve(directory, `${name}.png`), animations: 'disabled' })
 }

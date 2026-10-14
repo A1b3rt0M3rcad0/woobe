@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test'
+import { test, expect, type CDPSession, type Page } from '@playwright/test'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import cases from './overlay-cases.json'
@@ -6,7 +6,7 @@ import { captureScrollSequence, resetCaptures } from './capture'
 import { installApi, respond, productionAgent, selectedRelease, project, workspace, now } from '../fixtures/control-plane'
 import { DEFAULT_CHAT_SURFACE_APPEARANCE } from '../../../packages/woobe-frontend/src/features/chat-surfaces/appearance'
 
-const captures = resolve(process.cwd(), '../../docs/screenshots/v2')
+const captures = resolve(process.cwd(), 'review-results/captures')
 
 async function prepare(page: Page) {
   await page.clock.setFixedTime(new Date('2026-10-14T12:00:00Z'))
@@ -37,8 +37,26 @@ async function fonts(page: Page) {
   })
 }
 
+async function paintedFonts(client: CDPSession, nodeId: number) {
+  const result = await client.send('CSS.getPlatformFontsForNode', { nodeId })
+  if (result.fonts.some(font => font.glyphCount > 0)) return { ...result, probeSource: 'element' }
+  // Native textareas paint inside a user-agent shadow root; CodeMirror paints token spans.
+  const { node } = await client.send('DOM.describeNode', { nodeId, depth: -1, pierce: true })
+  const pending = [...(node.shadowRoots ?? []), ...(node.children ?? [])]
+  while (pending.length) {
+    const child = pending.shift()!
+    if (child.nodeType === 1 && child.children?.some(text => text.nodeType === 3 && text.nodeValue.trim())) {
+      const { nodeIds } = await client.send('DOM.pushNodesByBackendIdsToFrontend', { backendNodeIds: [child.backendNodeId] })
+      const painted = await client.send('CSS.getPlatformFontsForNode', { nodeId: nodeIds[0] })
+      if (painted.fonts.some(font => font.glyphCount > 0)) return { ...painted, probeSource: 'painted descendant or native shadow text' }
+    }
+    pending.push(...(child.shadowRoots ?? []), ...(child.children ?? []))
+  }
+  return { ...result, probeSource: 'no painted glyphs' }
+}
+
 async function capture(page: Page, folder: string, name: string) {
-  if (process.env.WOOBE_CAPTURE_DOCS !== '1') return
+  if (process.env.WOOBE_CAPTURE_AUXILIARY !== '1') return
   await mkdir(resolve(captures,folder),{recursive:true})
   await page.screenshot({path:resolve(captures,folder,`${name}.png`),animations:'disabled',fullPage:true})
 }
@@ -96,16 +114,35 @@ test('production primitives, variants and actual rendered fonts', async ({ page 
   await client.send('DOM.enable'); await client.send('CSS.enable')
   const {root}=await client.send('DOM.getDocument')
   const evidence=[]
-  for (const [selector,family] of [['[data-sample=panels] h3','JetBrains Mono'],['[data-sample=panels] p','Inter'],['[data-sample=panels] .text-metric','JetBrains Mono'],['[data-font-probe=mono]','JetBrains Mono'],['[data-font-probe=sans]','Inter']] as const) {
+  for (const [selector,family] of [
+    ['[data-sample=panels] h3','JetBrains Mono'],
+    ['[data-sample=panels] p','Inter'],
+    ['[data-sample=panels] .text-metric','JetBrains Mono'],
+    ['[data-font-probe=mono]','JetBrains Mono'],
+    ['[data-font-probe=sans]','Inter'],
+    ['[data-sample=fields] label[for=review-name]','Inter'],
+    ['#review-name','Inter'],
+    ['[data-sample=fields] textarea','Inter'],
+    ['[data-sample=buttons] button','Inter'],
+    ['[data-sample=code] .cm-line','JetBrains Mono'],
+    ['[data-sample=tables] th','JetBrains Mono'],
+    ['[data-sample=tables] h1','serif'],
+  ] as const) {
+    // CDP reports painted glyphs; native textarea text below the viewport may have none yet.
+    await page.locator(selector).first().scrollIntoViewIfNeeded()
+    await page.evaluate(()=>new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve()))))
     const {nodeId}=await client.send('DOM.querySelector',{nodeId:root.nodeId,selector})
-    const result=await client.send('CSS.getPlatformFontsForNode',{nodeId})
-    expect(result.fonts.some(font=>font.familyName===family && font.isCustomFont && font.glyphCount>0),JSON.stringify({selector,family,fonts:result.fonts})).toBeTruthy()
+    const result=await paintedFonts(client,nodeId)
+    if(family==='serif') {
+      expect(result.fonts.some(font=>font.glyphCount>0 && !['Inter','JetBrains Mono'].includes(font.familyName))).toBeTruthy()
+      if(process.env.WOOBE_REQUIRE_GEORGIA==='1')expect(result.fonts.some(font=>font.familyName==='Georgia' && font.glyphCount>0)).toBeTruthy()
+    } else expect(result.fonts.some(font=>font.familyName===family && font.isCustomFont && font.glyphCount>0),JSON.stringify({selector,family,fonts:result.fonts})).toBeTruthy()
     const computed=await page.locator(selector).first().evaluate(el=>{const style=getComputedStyle(el);return {family:style.fontFamily,weight:style.fontWeight,size:style.fontSize}})
-    evidence.push({selector,expected:family,fonts:result.fonts,computed})
+    evidence.push({selector,expected:family,fonts:result.fonts,computed,probeSource:result.probeSource})
   }
   for (const sample of await page.locator('[data-sample]').all()) {
     const name=(await sample.getAttribute('data-sample'))!
-    if(process.env.WOOBE_CAPTURE_DOCS==='1') {
+    if(process.env.WOOBE_CAPTURE_AUXILIARY==='1') {
       await mkdir(resolve(captures,'components'),{recursive:true})
       await sample.screenshot({path:resolve(captures,'components',`${name}.png`),animations:'disabled'})
     }
@@ -113,7 +150,11 @@ test('production primitives, variants and actual rendered fonts', async ({ page 
   await page.getByRole('button',{name:'Open actions',exact:true}).click()
   await expect(page.getByRole('button',{name:'Inspect release',exact:true})).toBeVisible()
   await capture(page,'overlays/Dropdown','open')
-  if(process.env.WOOBE_CAPTURE_DOCS==='1') await writeFile(resolve(captures,'fonts.json'),JSON.stringify({browser:page.context().browser()?.version(),evidence},null,2))
+  if(process.env.WOOBE_CAPTURE_DOCS==='1') {
+    const directory=resolve(process.cwd(),'../../docs/design/fonts')
+    await mkdir(directory,{recursive:true})
+    await writeFile(resolve(directory,'primitives.json'),JSON.stringify({browser:page.context().browser()?.version(),evidence},null,2)+'\n')
+  }
 })
 
 for (const width of [1440,768,390]) for (const item of cases) test(`overlay ${item.id} at ${width}px`, async ({page})=>{
