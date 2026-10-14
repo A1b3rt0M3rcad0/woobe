@@ -11,6 +11,7 @@ RUN --mount=type=cache,target=/root/.npm npm ci
 
 COPY packages/woobe-embed ./
 COPY packages/woobe-runtime-client ../woobe-runtime-client
+COPY packages/woobe-ui ../woobe-ui
 # Tests and typechecking run on native CI runners before release.
 # Keep the multi-architecture production build limited to artifact construction.
 RUN npm run build
