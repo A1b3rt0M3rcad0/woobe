@@ -2,7 +2,8 @@ from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, ConfigDict, model_validator
+from pydantic import BaseModel, Field, ConfigDict, model_validator, field_serializer
+from modules.agent.domain.oauth_public_configuration import public_runtime_configuration
 
 from modules.agent.application.dtos.behavior_dtos import BehaviorSpecification
 from shared.contracts.project_configuration import compile_authentication, ConfigurationError
@@ -505,6 +506,10 @@ class CreateReleaseOutput(BaseModel):
     promoted_at: datetime | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
+
+    @field_serializer('runtime_config')
+    def public_runtime_config(self, config):
+        return public_runtime_configuration(config)
 
 
 class ListReleasesOutput(CreateReleaseOutput):

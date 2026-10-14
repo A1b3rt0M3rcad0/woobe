@@ -13,6 +13,7 @@ CLIENT_SECRET = 'native-oauth-client-canary'
 DEVICE = 'native-oauth-device-canary'
 challenge = None
 device_polls = 0
+registrations = 0
 
 
 @app.get('/health')
@@ -40,6 +41,8 @@ async def authorization_metadata(request: Request):
 
 @app.post('/register')
 async def register(request: Request):
+    global registrations
+    registrations += 1
     body = await request.json()
     assert body['client_name'] == 'Woobe'
     return {'client_id': 'native-client', 'client_secret': CLIENT_SECRET, 'token_endpoint_auth_method': 'client_secret_post'}

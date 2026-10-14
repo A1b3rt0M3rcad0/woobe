@@ -4,7 +4,9 @@ from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, model_validator, field_serializer
+
+from modules.agent.domain.oauth_public_configuration import public_tool_configuration, reject_public_oauth_material
 
 from modules.agent.application.http_tool_contract import (
     compile_http_tool_group_contract,
@@ -207,6 +209,7 @@ class CreateToolInput(BaseModel):
 
     @model_validator(mode="after")
     def validate_protocol_config(self) -> "CreateToolInput":
+        reject_public_oauth_material(self.config)
         if self.config is None:
             return self
         if is_mcp_tool_type(self.type):
@@ -232,6 +235,10 @@ class CreateToolOutput(BaseModel):
     status: ToolStatus
     created_at: datetime | None = None
     updated_at: datetime | None = None
+
+    @field_serializer('config')
+    def public_config(self, config):
+        return public_tool_configuration(config, tool_type=self.type)
 
 
 class CreateSecretInput(BaseModel):

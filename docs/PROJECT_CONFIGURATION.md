@@ -304,6 +304,25 @@ descriptions are discarded because they can echo credentials. The private OAuth
 transport preserves a validated public `resource_metadata` challenge for MCP
 discovery without exempting arbitrary Bearer headers from redaction.
 
+Normal Tool responses omit private OAuth ciphertext, PKCE/device material and
+flow state. The explicit start response still returns the state or user code
+needed by the initiating operator. Public metadata edits preserve opaque fields
+without resubmitting them; they cannot change the MCP destination or OAuth
+identity while reusing that material. Disconnect and reconnect explicitly to
+change the connection. Public Tool creation cannot inject private protocol fields.
+Administrative Agent Release views also omit private OAuth fields in retained
+Tool snapshots. A changed view is marked `configuration_view: redacted_metadata`;
+the displayed hash remains the source identity, not a signature of the redacted
+content. This read projection does not rewrite or qualify historical cutover.
+
+The current compatibility OAuth source is shared across Environments, so start,
+complete and device operations require value-write authority in all three
+Environments in addition to Tool-write authority. Captured pre-v1 authority uses
+the same narrow translation as other legacy source writes. Each protocol request
+rechecks caller authority and the unchanged Tool source in a short transaction;
+the network request starts only after that transaction closes. Permissions or
+configuration revoked between requests prevent the next request and final save.
+
 The central OAuth field codec and owner-checked compatibility revocation are
 implemented as migration building blocks. Revocation invalidates every retained
 material version; a later replacement cannot resurrect revoked Run pins. These

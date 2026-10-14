@@ -2,7 +2,7 @@
 from dataclasses import replace
 import json
 
-from modules.agent.application.interfaces.oauth_protocol import private_oauth_protocol_response
+from modules.agent.application.interfaces.oauth_protocol import private_oauth_protocol_response, current_oauth_operation_authorizer
 from modules.agent.application.interfaces.project_configuration import current_tool_configuration
 
 OAUTH_ERROR_CODES = frozenset({'authorization_pending', 'slow_down', 'expired_token', 'access_denied',
@@ -15,6 +15,9 @@ class OAuthProtocolExecutor:
         self.executor = executor
 
     async def execute(self, *args, **kwargs):
+        authorize = current_oauth_operation_authorizer.get()
+        if authorize is not None:
+            await authorize()
         private = private_oauth_protocol_response.set(True)
         parent = current_tool_configuration.set(None)
         try:

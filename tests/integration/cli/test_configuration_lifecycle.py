@@ -536,22 +536,50 @@ async def test_detached_existing_oauth_protocol_and_discovery(cli, unused_tcp_po
         tool = await cli.data('request', 'POST', '/tools/tools', body={
             'project_id': cli.project_id, 'name': 'Native OAuth', 'type': 'mcp',
             'config': {'mode': 'server', 'exposure': 'all_discovered', 'server': {'url': origin + '/mcp'}}})
+        async with httpx.AsyncClient(base_url=cli.origin, trust_env=False,
+            headers={'Authorization': 'Bearer ' + cli.credential}) as http:
+            invalid = await http.post('/tools/mcp/oauth/start', json={
+                'tool_id': tool['id'], 'client_secret': CLIENT_SECRET})
+        assert invalid.status_code == 400 and CLIENT_SECRET not in invalid.text
+        async def assert_private_protocol_fields_absent_from_raw_api():
+            async with httpx.AsyncClient(base_url=cli.origin, trust_env=False,
+                headers={'Authorization': 'Bearer ' + cli.credential}) as http:
+                response = await http.get('/tools/tools', params={'project_id': cli.project_id})
+            assert response.status_code == 200
+            row = next(item for item in response.json()['data'] if item['id'] == tool['id'])
+            oauth = row['config'].get('oauth') or {}
+            exposed = {name for name in oauth if name.endswith('_encrypted') or name in {'code_verifier', 'device_code', 'client_secret', 'access_token', 'refresh_token', 'state'}}
+            assert not exposed, 'Private OAuth source fields returned by raw API: ' + ','.join(sorted(exposed))
+            return row['config']
         if flow == 'pkce':
             started = await cli.data('request', 'POST', '/tools/mcp/oauth/start', body={
                 'tool_id': tool['id'], 'redirect_uri': origin + '/callback',
                 'authorization_endpoint': origin + '/authorize', 'token_endpoint': origin + '/token',
                 'registration_endpoint': origin + '/register', 'authorization_server_issuer': origin})
             assert started['status'] == 'pending' and started['state']
+            public_config = await assert_private_protocol_fields_absent_from_raw_api()
+            await cli.data('request', 'PATCH', '/tools/tools/' + tool['id'], body={
+                'name': 'Renamed while OAuth pending', 'config': public_config})
             completed = await cli.data('request', 'POST', '/tools/mcp/oauth/complete', body={
                 'tool_id': tool['id'], 'code': 'native-code', 'state': started['state']})
         else:
             started = await cli.data('request', 'POST', '/tools/mcp/oauth/device/start', body={
                 'tool_id': tool['id'], 'authorization_server_issuer': origin})
             assert started['status'] == 'device_pending' and started['user_code'] == 'NATIVE-CODE'
+            public_config = await assert_private_protocol_fields_absent_from_raw_api()
+            await cli.data('request', 'PATCH', '/tools/tools/' + tool['id'], body={
+                'name': 'Renamed while device pending', 'config': public_config})
             pending = await cli.data('request', 'POST', '/tools/mcp/oauth/device/poll', body={'tool_id': tool['id']})
             assert pending['status'] == 'authorization_pending' and not pending['connected']
             completed = await cli.data('request', 'POST', '/tools/mcp/oauth/device/poll', body={'tool_id': tool['id']})
         assert completed['connected'] and completed['status'] == 'connected'
+        public_config = await assert_private_protocol_fields_absent_from_raw_api()
+        await cli.data('request', 'PATCH', '/tools/tools/' + tool['id'], body={
+            'name': 'Renamed connected OAuth', 'config': public_config})
+        retargeted = json.loads(json.dumps(public_config))
+        retargeted['server']['url'] = origin + '/other-mcp'
+        denied = await cli.run('request', 'PATCH', '/tools/tools/' + tool['id'], body={'config': retargeted}, expected=6)
+        assert denied['error']['domain_code'] == 'CONFIG_DESTINATION_CHANGED'
         listed = await cli.data('request', 'GET', '/tools/tools', '--query', 'project_id=' + cli.project_id)
         owner = next(row for row in listed if row['id'] == tool['id'])
         assert owner['config']['mcp_status'] == 'ready'
@@ -561,6 +589,51 @@ async def test_detached_existing_oauth_protocol_and_discovery(cli, unused_tcp_po
         if flow == 'pkce':
             assert started['state'] not in api_log
         assert all(value not in api_log for value in (ACCESS, REFRESH, CLIENT_SECRET, DEVICE, 'native-code'))
+    finally:
+        server.should_exit = True
+        await asyncio.wait_for(peer, 10)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('flow', ['pkce', 'device'])
+async def test_environment_limited_operator_cannot_issue_global_oauth_material(cli, unused_tcp_port, flow):
+    import asyncio
+    import httpx
+    import uvicorn
+    from tests.fakes import mcp_oauth_provider as fake
+    fake.registrations = 0
+    origin = f'http://127.0.0.1:{unused_tcp_port}'
+    server = uvicorn.Server(uvicorn.Config(fake.app, host='127.0.0.1', port=unused_tcp_port, log_level='error'))
+    peer = asyncio.create_task(server.serve())
+    try:
+        async with httpx.AsyncClient(trust_env=False) as http:
+            for _ in range(100):
+                try:
+                    if (await http.get(origin + '/health')).status_code == 200:
+                        break
+                except httpx.TransportError:
+                    pass
+                await asyncio.sleep(.025)
+            else:
+                pytest.fail('Native OAuth peer did not become ready')
+        project = await cli.data('project', 'create', body={
+            'workspace_id': cli.workspace_id, 'name': 'Scoped OAuth material', 'slug': str(uuid4())})
+        cli.project_id = project['id']
+        tool = await cli.data('request', 'POST', '/tools/tools', body={
+            'project_id': cli.project_id, 'name': 'Unconnected OAuth', 'type': 'mcp',
+            'config': {'mode': 'server', 'server': {'url': origin + '/mcp'}}})
+        _, restricted = await cli.issue('workspace', 'control-key', 'create', body={
+            'name': 'Draft OAuth operator', 'expires_at': (datetime.now(UTC) + timedelta(minutes=30)).isoformat(),
+            'on_project_create_permissions': [], 'project_grants': [{'project_id': cli.project_id,
+                'permissions': ['project:read', 'tool:write', 'project:environment:value:write'],
+                'conditions': {'environments': ['draft']}}]})
+        path = '/tools/mcp/oauth/start' if flow == 'pkce' else '/tools/mcp/oauth/device/start'
+        body = {'tool_id': tool['id'], 'authorization_server_issuer': origin}
+        if flow == 'pkce': body['redirect_uri'] = origin + '/callback'
+        await cli.run('request', 'POST', path, body=body, key=restricted, expected=4)
+        assert fake.registrations == 0
+        listed = await cli.data('request', 'GET', '/tools/tools', '--query', 'project_id=' + cli.project_id)
+        assert not next(item for item in listed if item['id'] == tool['id'])['config'].get('oauth')
     finally:
         server.should_exit = True
         await asyncio.wait_for(peer, 10)

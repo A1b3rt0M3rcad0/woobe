@@ -2,7 +2,8 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_serializer
+from modules.agent.domain.oauth_public_configuration import public_tool_configuration, public_runtime_configuration
 
 from modules.agent.application.dtos.behavior_dtos import BehaviorSpecification
 from modules.agent.domain.enums import (
@@ -306,6 +307,10 @@ class ReleaseResponse(BaseModel):
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
+    @field_serializer('runtime_config')
+    def public_runtime_config(self, config):
+        return public_runtime_configuration(config)
+
 
 class ListReleasesResponse(BaseModel):
     id: UUID
@@ -606,6 +611,10 @@ class ToolResponse(BaseModel):
     status: ToolStatus
     created_at: datetime | None = None
     updated_at: datetime | None = None
+
+    @field_serializer('config')
+    def public_config(self, config):
+        return public_tool_configuration(config, tool_type=self.type)
 
 
 class UpdateToolRequest(BaseModel):

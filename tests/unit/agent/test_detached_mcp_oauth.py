@@ -7,6 +7,9 @@ from uuid import uuid4
 import pytest
 
 from modules.agent.infra.handlers import detached_mcp_oauth as boundary
+from modules.agent.infra.adapters.oauth_protocol_executor import OAuthProtocolExecutor
+from modules.agent.application.interfaces.ports import ExecutionResult
+from modules.agent.application.interfaces.oauth_protocol import current_oauth_operation_authorizer
 from shared.contracts.errors import AuthorizationError
 from shared.contracts.project_configuration import ConfigurationError
 
@@ -41,7 +44,7 @@ async def test_outbound_flow_releases_sql_and_fences_commit(monkeypatch, concurr
         lock_by_id=AsyncMock(side_effect=lambda _: deepcopy(target)), update=write)
     monkeypatch.setattr(boundary, 'SQLAlchemyAgentToolRepository', lambda _: repo)
     monkeypatch.setattr(boundary, 'configuration_for_session', lambda _: SimpleNamespace(lock_project=AsyncMock()))
-    monkeypatch.setattr(boundary.ConfiguredToolOperation, 'authorize', staticmethod(authorize))
+    monkeypatch.setattr(boundary.DetachedMcpOAuthOperation, 'authorize', staticmethod(authorize))
 
     def controller(workset):
         async def handle(request):
@@ -49,6 +52,10 @@ async def test_outbound_flow_releases_sql_and_fences_commit(monkeypatch, concurr
             began.set()
             await finish.wait()
             assert state['active'] == 0
+            async def outbound(*args, **kwargs):
+                assert state['active'] == 0
+                return ExecutionResult(success=True, output={'body': {}})
+            await OAuthProtocolExecutor(SimpleNamespace(execute=outbound)).execute('GET', 'https://approved.example/metadata')
             detached = await workset.get_by_id(target.id)
             detached.config['oauth'] = {'status': 'pending'}
             await workset.update(detached)
@@ -83,5 +90,6 @@ async def test_outbound_flow_releases_sql_and_fences_commit(monkeypatch, concurr
         assert (await task).body['data']['status'] == 'pending'
         assert len(writes) == 1 and writes[0].config['oauth']['status'] == 'pending'
     assert state['active'] == 0
+    assert current_oauth_operation_authorizer.get() is None
     if concurrent != 'none':
         assert not writes

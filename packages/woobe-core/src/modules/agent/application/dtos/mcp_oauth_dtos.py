@@ -1,10 +1,13 @@
-from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
-class McpOAuthStartInput(BaseModel):
+class McpOAuthInput(BaseModel):
+    model_config = ConfigDict(hide_input_in_errors=True)
+
+
+class McpOAuthStartInput(McpOAuthInput):
     tool_id: UUID
     redirect_uri: str = Field(..., min_length=1)
     scopes: list[str] = Field(default_factory=list)
@@ -13,7 +16,7 @@ class McpOAuthStartInput(BaseModel):
     registration_endpoint: str | None = None
     authorization_server_issuer: str | None = None
     client_id: str | None = None
-    client_secret: str | None = None
+    client_secret: str | None = Field(default=None, repr=False, json_schema_extra={'writeOnly': True})
     timeout_ms: int = Field(default=30000, ge=1)
 
 
@@ -23,14 +26,14 @@ class McpOAuthStartOutput(BaseModel):
     status: str = "pending"
 
 
-class McpOAuthCompleteInput(BaseModel):
+class McpOAuthCompleteInput(McpOAuthInput):
     tool_id: UUID
-    code: str = Field(..., min_length=1)
-    state: str = Field(..., min_length=1)
+    code: str = Field(..., min_length=1, repr=False, json_schema_extra={'writeOnly': True})
+    state: str = Field(..., min_length=1, repr=False, json_schema_extra={'writeOnly': True})
     timeout_ms: int = Field(default=30000, ge=1)
 
 
-class McpOAuthStatusInput(BaseModel):
+class McpOAuthStatusInput(McpOAuthInput):
     tool_id: UUID
 
 
@@ -42,7 +45,7 @@ class McpOAuthStatusOutput(BaseModel):
     expires_at: str | None = None
 
 
-class McpOAuthDisconnectInput(BaseModel):
+class McpOAuthDisconnectInput(McpOAuthInput):
     tool_id: UUID
 
 
@@ -50,12 +53,12 @@ class McpOAuthDisconnectOutput(BaseModel):
     status: str = "disconnected"
 
 
-class McpOAuthDeviceStartInput(BaseModel):
-    tool_id: Any
+class McpOAuthDeviceStartInput(McpOAuthInput):
+    tool_id: UUID
     scopes: list[str] = Field(default_factory=list)
     authorization_server_issuer: str | None = None
     client_id: str | None = None
-    client_secret: str | None = None
+    client_secret: str | None = Field(default=None, repr=False, json_schema_extra={'writeOnly': True})
     timeout_ms: int = Field(default=30000, ge=1)
 
 
@@ -70,8 +73,8 @@ class McpOAuthDeviceStartOutput(BaseModel):
     scopes: list[str] = Field(default_factory=list)
 
 
-class McpOAuthDevicePollInput(BaseModel):
-    tool_id: Any
+class McpOAuthDevicePollInput(McpOAuthInput):
+    tool_id: UUID
     timeout_ms: int = Field(default=30000, ge=1)
 
 

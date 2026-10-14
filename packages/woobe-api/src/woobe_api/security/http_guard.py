@@ -53,6 +53,11 @@ def _configuration_permissions(method, path, body, path_params):
         method == "PATCH" and credential is not None and path == f"/ai/credentials/{credential}")
     provider_rotate = method == "POST" and credential is not None and path == f"/ai/credentials/{credential}/rotate"
     permissions = []
+    if method == 'POST' and path in {
+        '/tools/mcp/oauth/start', '/tools/mcp/oauth/complete',
+        '/tools/mcp/oauth/device/start', '/tools/mcp/oauth/device/poll',
+    }:
+        permissions.append(('project:environment:value:write', 'tool:write'))
     if method in {'POST', 'PUT', 'PATCH'} and '/tools' in path:
         from shared.contracts.project_configuration import tool_configuration_permissions
         permissions.extend(tool_configuration_permissions(body.get('config'),

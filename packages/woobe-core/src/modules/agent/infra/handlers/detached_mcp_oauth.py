@@ -4,10 +4,14 @@ from uuid import UUID
 
 from modules.agent.application.interfaces.project_configuration import configuration_for_session
 from modules.agent.application.interfaces.tool_types import is_mcp_tool_type
+from modules.agent.application.interfaces.oauth_protocol import current_oauth_operation_authorizer
 from modules.agent.domain.errors import ToolNotFoundError
 from modules.agent.infra.database.repositories import SQLAlchemyAgentToolRepository
 from modules.agent.infra.handlers.configured_tool_operation import ConfiguredToolOperation
-from shared.contracts.project_configuration import ConfigurationError
+from shared.contracts.project_configuration import ConfigurationError, configuration_permission_contexts
+from shared.contracts.errors import AuthorizationError
+from shared.security.principal import AuthenticatedPrincipal, ControlPlanePrincipal
+from shared.security.tenancy import TenantAuthorizer
 
 
 class DetachedOAuthToolRepository:
@@ -37,7 +41,7 @@ class DetachedMcpOAuthOperation:
     async def __call__(self, request):
         tool_id = UUID(str((request.body or {}).get('tool_id')))
         async with self.uow_factory() as uow:
-            await ConfiguredToolOperation.authorize(uow.session, request.principal, tool_id, 'tool:write')
+            await self.authorize(uow.session, request.principal, tool_id)
             repository = SQLAlchemyAgentToolRepository(uow.session)
             tool = await repository.get_by_id(tool_id)
             configuration = configuration_for_session(uow.session)
@@ -51,11 +55,21 @@ class DetachedMcpOAuthOperation:
             workset = DetachedOAuthToolRepository(tool)
         # Metadata discovery, client registration, token exchange and MCP
         # discovery all run after the authorization transaction has closed.
-        result = await self.controller_factory(workset).handle(request)
+        async def authorize_outbound():
+            async with self.uow_factory() as uow:
+                await self.authorize(uow.session, request.principal, tool_id)
+                current = await SQLAlchemyAgentToolRepository(uow.session).get_by_id(tool_id)
+                if current.config != original_config or current.updated_at != original_updated_at:
+                    raise ConfigurationError('CONFIG_REVISION_CONFLICT')
+        authority = current_oauth_operation_authorizer.set(authorize_outbound)
+        try:
+            result = await self.controller_factory(workset).handle(request)
+        finally:
+            current_oauth_operation_authorizer.reset(authority)
         if not workset.changed:
             return result
         async with self.uow_factory() as uow:
-            await ConfiguredToolOperation.authorize(uow.session, request.principal, tool_id, 'tool:write')
+            await self.authorize(uow.session, request.principal, tool_id)
             configuration = configuration_for_session(uow.session)
             if configuration is None:
                 raise ConfigurationError('CONFIG_STORE_UNAVAILABLE')
@@ -69,3 +83,19 @@ class DetachedMcpOAuthOperation:
             current.config = deepcopy(workset.tool.config)
             await repository.update(current)
         return result
+
+    @staticmethod
+    async def authorize(session, principal, tool_id):
+        await ConfiguredToolOperation.authorize(session, principal, tool_id, 'tool:write')
+        authorizer = TenantAuthorizer(session)
+        permission = 'project:environment:value:write'
+        for context in configuration_permission_contexts(permission, 'tool:write', {'tool_id': tool_id}):
+            if isinstance(principal, ControlPlanePrincipal):
+                await authorizer.authorize_control_key(api_key_id=principal.api_key_id,
+                    workspace_id=principal.workspace_id, workspace_permissions=principal.permissions,
+                    required_permission=permission, path_params=context, query_params={}, body=None)
+            elif isinstance(principal, AuthenticatedPrincipal):
+                await authorizer.authorize(user_id=principal.user_id, required_permission=permission,
+                    path_params=context, query_params={}, body=None, mutation=True)
+            else:
+                raise AuthorizationError('Administrative authentication is required')
