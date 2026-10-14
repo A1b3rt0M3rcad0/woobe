@@ -470,17 +470,23 @@ jobs:
           set -euo pipefail
           compose=(docker compose -f compose.yaml -f docker/ci/compose.release-images.yml)
           "${compose[@]}" stop --timeout 45 web chat-embed api workers
-          # Restart the existing instances, not the dependency graph. `up`
-          # reruns the completed migration service and can observe the stopped
-          # API as an exited dependency while starting Web concurrently.
-          "${compose[@]}" start api workers chat-embed
+          # Both `up` and `start` traverse dependencies and replay the migration
+          # service. Restart the existing instances without that dependency graph.
+          "${compose[@]}" restart --no-deps api workers chat-embed
           for attempt in $(seq 1 30); do
             if curl --fail --silent "$WOOBE_API_BASE_URL/ready" >/dev/null \
               && curl --fail --silent "$WOOBE_CHAT_EMBED_BASE_URL/chat/v1/health" >/dev/null \
-              && "${compose[@]}" exec -T workers sh -c 'test -s "${WOOBE_WORKER_HEALTH_FILE:-/tmp/woobe/worker-health.json}"'; then
-              "${compose[@]}" start web
-              curl --fail --silent --retry 10 --retry-connrefused --retry-delay 1 "$WOOBE_WEB_BASE_URL" >/dev/null
-              exit 0
+              && "${compose[@]}" exec -T workers sh -c 'python -m woobe_workers.runtime.health check "${WOOBE_WORKER_HEALTH_FILE:-/tmp/woobe/worker-health.json}" "${WOOBE_WORKER_HEALTH_MAX_AGE_SECONDS:-45}"'; then
+              "${compose[@]}" restart --no-deps web
+              # A port may accept TCP and reset before Nginx has loaded its
+              # generated configuration. Require an actual successful response.
+              for web_attempt in $(seq 1 30); do
+                if curl --fail --silent --max-time 3 "$WOOBE_WEB_BASE_URL" >/dev/null; then
+                  exit 0
+                fi
+                sleep 1
+              done
+              exit 1
             fi
             sleep 2
           done
