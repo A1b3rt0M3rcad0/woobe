@@ -11,7 +11,7 @@ export default defineConfig({
   retries: 0,
   workers: 1,
   reporter: process.env.CI
-    ? [['line'], ['html', { outputFolder: 'playwright-report', open: 'never' }]]
+    ? [['github'], ['line'], ['html', { outputFolder: 'playwright-report', open: 'never' }]]
     : 'list',
   use: {
     baseURL: externalBaseURL ?? 'http://127.0.0.1:4173',

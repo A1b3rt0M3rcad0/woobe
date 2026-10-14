@@ -84,3 +84,15 @@ jobs:
       - name: Typecheck Chat Embed
         working-directory: packages/woobe-embed
         run: npm run typecheck
+
+      - name: Upload browser failure evidence
+        if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: frontend-browser-failure-evidence
+          path: |
+            tests/e2e/playwright-report
+            tests/e2e/test-results
+            tests/e2e/review-results
+          if-no-files-found: ignore
+          retention-days: 7
