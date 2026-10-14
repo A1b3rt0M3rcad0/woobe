@@ -130,7 +130,7 @@ export function DocumentsDrawer({ open, onClose, collectionId, collectionName }:
                 <AlertTriangle className="h-5 w-5" />
               </div>
               <div className="min-w-0 space-y-1">
-                <p className="text-sm font-medium text-white">Remove this document from the collection?</p>
+                <p className="text-sm font-medium text-foreground">Remove this document from the collection?</p>
                 <p className="text-sm leading-6 text-muted">
                   This action deletes the document record and its stored file. It cannot be undone.
                 </p>
@@ -138,7 +138,7 @@ export function DocumentsDrawer({ open, onClose, collectionId, collectionName }:
             </div>
 
             <div className="rounded-xl border border-border bg-background/70 p-3">
-              <p className="truncate text-sm font-medium text-white">{documentToDelete.title}</p>
+              <p className="truncate text-sm font-medium text-foreground">{documentToDelete.title}</p>
               <p className="mt-1 truncate text-xs text-muted">{documentToDelete.file_name}</p>
               <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
                 <span>{formatBytes(documentToDelete.size_bytes)}</span>

@@ -74,7 +74,7 @@ function AgentBindingPicker({ node, agent, resolvedVersion, readOnly, onChange }
           ) : (
             <>
               <button type="button" onClick={() => setOpen(false)} className={networkInspectorAction}>Cancel</button>
-              <button type="button" onClick={apply} className="rounded-control bg-primary px-ui-md py-ui-sm font-mono text-system-micro font-semibold text-white transition-colors hover:bg-primary-hover">Apply</button>
+              <button type="button" onClick={apply} className="rounded-control bg-primary px-ui-md py-ui-sm font-mono text-system-micro font-semibold text-primary-foreground transition-colors hover:bg-primary-hover">Apply</button>
             </>
           )}
         >
@@ -121,7 +121,7 @@ export function NetworkNodeInspector({
           <div className="min-w-0 flex-1">
             <p className="font-mono text-system-micro font-semibold uppercase tracking-ui-label text-primary-light">Agent in Network</p>
             <div className="mt-ui-xs flex min-w-0 items-center gap-ui-sm">
-              <h2 className="truncate text-sm font-semibold text-white">{node.label}</h2>
+              <h2 className="truncate text-sm font-semibold text-foreground">{node.label}</h2>
               {definition.root_node_id === node.id ? <span className="shrink-0 rounded-technical border border-primary/25 bg-primary/5 px-ui-xs py-ui-hairline font-mono text-system-micro uppercase text-primary-light">Entry point</span> : null}
             </div>
             <p className="mt-ui-xs truncate font-mono text-system-label text-muted-foreground">{binding ? `${binding.source} · ${binding.version}` : agent ? `${agent.provider}/${agent.model}` : node.agent_id}</p>
@@ -130,7 +130,7 @@ export function NetworkNodeInspector({
           <details className="relative">
             <summary className="flex h-7 w-7 cursor-pointer list-none items-center justify-center rounded-control border border-border bg-background/45 text-muted-foreground [&::-webkit-details-marker]:hidden"><MoreHorizontal className="h-3.5 w-3.5" /></summary>
             <div className="absolute right-0 z-20 mt-ui-xs w-44 rounded-container border border-border bg-surface p-ui-xs shadow-xl">
-              {onLocateOnCanvas ? <button type="button" onClick={onLocateOnCanvas} className="w-full rounded-control px-ui-sm py-ui-sm text-left font-sans text-system-label text-muted-foreground hover:bg-background/60 hover:text-white">Locate on Canvas</button> : null}
+              {onLocateOnCanvas ? <button type="button" onClick={onLocateOnCanvas} className="w-full rounded-control px-ui-sm py-ui-sm text-left font-sans text-system-label text-muted-foreground hover:bg-background/60 hover:text-foreground">Locate on Canvas</button> : null}
               <button type="button" disabled={readOnly || rootMustBeReassigned} title={rootMustBeReassigned ? 'Choose another Entry Point first' : undefined} onClick={() => onChange({ type: 'remove-node', nodeId: node.id })} className="flex w-full items-center gap-ui-sm rounded-control px-ui-sm py-ui-sm text-left font-sans text-system-label text-red-300 disabled:opacity-45"><Trash2 className="h-3.5 w-3.5" />Remove from Network</button>
             </div>
           </details>

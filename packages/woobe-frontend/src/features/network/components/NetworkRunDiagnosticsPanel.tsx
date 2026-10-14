@@ -40,7 +40,7 @@ function MetricCard({
         <Icon className="h-3.5 w-3.5" />
         <span className="font-mono text-system-meta uppercase tracking-ui-label">{label}</span>
       </div>
-      <p className="mt-ui-xs truncate font-mono text-system-heading text-white">{value}</p>
+      <p className="mt-ui-xs truncate font-mono text-system-heading text-foreground">{value}</p>
     </div>
   )
 }
@@ -94,7 +94,7 @@ function ContextComposition({ context }: { context: NetworkContextOverview }) {
           <p className="mt-ui-hairline font-sans text-product-caption text-slate-300">Cumulative across {context.model_invocation_count} Model Invocation{context.model_invocation_count === 1 ? '' : 's'}</p>
         </div>
         <div className="text-right">
-          <p className="font-mono text-product-small text-white">{trackedUnits > 0 ? formatTokens(trackedUnits) : '—'}</p>
+          <p className="font-mono text-product-small text-foreground">{trackedUnits > 0 ? formatTokens(trackedUnits) : '—'}</p>
           <p className="font-mono text-system-meta text-muted-foreground">{context.input_measurement}</p>
         </div>
       </div>
@@ -288,7 +288,7 @@ export function NetworkRunDiagnosticsPanel({
   if (isLoading) {
     return (
       <section className="space-y-ui-sm">
-        <p className="font-mono text-system-heading font-medium text-white">Network Run Analytics</p>
+        <p className="font-mono text-system-heading font-medium text-foreground">Network Run Analytics</p>
         <p className="font-sans text-product-caption text-muted-foreground">Loading Network Run metrics…</p>
       </section>
     )
@@ -309,7 +309,7 @@ export function NetworkRunDiagnosticsPanel({
     <section className="space-y-ui-md">
       <div className="flex items-start justify-between gap-ui-md">
         <div>
-          <p className="font-mono text-system-heading font-medium text-white">Network Run Analytics</p>
+          <p className="font-mono text-system-heading font-medium text-foreground">Network Run Analytics</p>
           <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">Network-level totals first; individual Agent Runs remain available on demand.</p>
         </div>
         {data.fallback_count > 0 ? <span className="rounded-technical border border-amber-500/25 bg-amber-500/10 px-ui-sm py-ui-hairline font-mono text-system-meta text-amber-300">{data.fallback_count} fallback{data.fallback_count === 1 ? '' : 's'}</span> : null}
@@ -339,7 +339,7 @@ export function NetworkRunDiagnosticsPanel({
       <ContextComposition context={data.context} />
 
       <details className="group rounded-control border border-border/80 bg-background/30 px-ui-sm">
-        <summary className="flex cursor-pointer list-none items-center gap-ui-sm py-ui-sm font-mono text-system-micro font-medium text-muted-foreground transition-colors hover:text-white">
+        <summary className="flex cursor-pointer list-none items-center gap-ui-sm py-ui-sm font-mono text-system-micro font-medium text-muted-foreground transition-colors hover:text-foreground">
           <ChevronRight className="h-3.5 w-3.5 transition-transform group-open:rotate-90" />
           More details
           <span className="ml-auto text-system-meta font-normal text-muted-foreground">{data.agent_run_count} Agent Run{data.agent_run_count === 1 ? '' : 's'} · {data.llm_call_count} Model Invocation{data.llm_call_count === 1 ? '' : 's'}</span>

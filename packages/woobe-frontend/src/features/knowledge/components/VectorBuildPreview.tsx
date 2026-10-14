@@ -14,7 +14,7 @@ export function VectorBuildPreview({ preview, loading, error, onPreview }: Vecto
     <section className="rounded-xl border border-border bg-background/60 p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-medium text-white">Estimated result</p>
+          <p className="text-sm font-medium text-foreground">Estimated result</p>
           <p className="mt-1 text-xs leading-5 text-muted">Runs parsing and chunking only. No embeddings are created.</p>
         </div>
         <Button type="button" size="sm" variant="outline" loading={loading} onClick={onPreview}>
@@ -27,9 +27,9 @@ export function VectorBuildPreview({ preview, loading, error, onPreview }: Vecto
       {preview ? (
         <>
           <div className="mt-4 grid grid-cols-3 gap-3">
-            <div className="rounded-lg border border-border/70 bg-surface/60 p-3"><p className="text-[11px] uppercase tracking-wider text-muted">Documents</p><p className="mt-1 text-sm font-medium text-white">{preview.document_count.toLocaleString()}</p></div>
-            <div className="rounded-lg border border-border/70 bg-surface/60 p-3"><p className="text-[11px] uppercase tracking-wider text-muted">Chunks</p><p className="mt-1 text-sm font-medium text-white">~{preview.estimated_chunk_count.toLocaleString()}</p></div>
-            <div className="rounded-lg border border-border/70 bg-surface/60 p-3"><p className="text-[11px] uppercase tracking-wider text-muted">Vectors</p><p className="mt-1 text-sm font-medium text-white">~{preview.estimated_vector_count.toLocaleString()}</p></div>
+            <div className="rounded-lg border border-border/70 bg-surface/60 p-3"><p className="text-[11px] uppercase tracking-wider text-muted">Documents</p><p className="mt-1 text-sm font-medium text-foreground">{preview.document_count.toLocaleString()}</p></div>
+            <div className="rounded-lg border border-border/70 bg-surface/60 p-3"><p className="text-[11px] uppercase tracking-wider text-muted">Chunks</p><p className="mt-1 text-sm font-medium text-foreground">~{preview.estimated_chunk_count.toLocaleString()}</p></div>
+            <div className="rounded-lg border border-border/70 bg-surface/60 p-3"><p className="text-[11px] uppercase tracking-wider text-muted">Vectors</p><p className="mt-1 text-sm font-medium text-foreground">~{preview.estimated_vector_count.toLocaleString()}</p></div>
           </div>
 
           {preview.sample_chunks.length > 0 && (
@@ -41,7 +41,7 @@ export function VectorBuildPreview({ preview, loading, error, onPreview }: Vecto
                     <span className="truncate">{chunk.document_title} · Chunk {chunk.chunk_index + 1}</span>
                     <span className="shrink-0">{chunk.character_count.toLocaleString()} chars</span>
                   </div>
-                  <p className="mt-2 line-clamp-3 whitespace-pre-wrap text-xs leading-5 text-white/75">{chunk.preview}</p>
+                  <p className="mt-2 line-clamp-3 whitespace-pre-wrap text-xs leading-5 text-foreground/75">{chunk.preview}</p>
                 </div>
               ))}
             </div>

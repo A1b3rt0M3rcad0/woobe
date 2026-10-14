@@ -133,7 +133,7 @@ function SuggestionMenu({
           }}
         >
           <span className="min-w-0 flex-1">
-            <span className="block truncate font-mono text-xs text-white">
+            <span className="block truncate font-mono text-xs text-foreground">
               {suggestion.kind === 'namespace' ? suggestion.detail : suggestion.label}
             </span>
             {suggestion.detail && suggestion.kind === 'symbol' ? (

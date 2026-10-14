@@ -62,7 +62,7 @@ function PanelHeader({ title, subtitle: _subtitle, action }: { title: string; su
     <div className="flex items-start justify-between gap-3 px-5 pb-3 pt-4">
       <div className="min-w-0">
         <div className="flex items-center gap-1.5">
-          <h2 className="truncate text-sm font-semibold text-white">{title}</h2>
+          <h2 className="truncate text-sm font-semibold text-foreground">{title}</h2>
           <AlertCircle className="h-3.5 w-3.5 shrink-0 text-muted" />
         </div>
       </div>
@@ -74,14 +74,14 @@ function PanelHeader({ title, subtitle: _subtitle, action }: { title: string; su
 function StorySectionHeader({ title, description: _description }: { title: string; description: string }) {
   return (
     <div className="pt-2">
-      <h2 className="text-sm font-semibold text-white">{title}</h2>
+      <h2 className="text-sm font-semibold text-foreground">{title}</h2>
     </div>
   )
 }
 
 function MiniLink({ label, onClick }: { label: string; onClick?: () => void }) {
   return (
-    <button type="button" onClick={onClick} className="inline-flex items-center gap-1 text-xs font-medium text-primary-light transition-colors hover:text-white">
+    <button type="button" onClick={onClick} className="inline-flex items-center gap-1 text-xs font-medium text-primary-light transition-colors hover:text-foreground">
       {label}<ArrowRight className="h-3 w-3" />
     </button>
   )
@@ -98,19 +98,19 @@ function MetricCard({ metric, onReviewPricing }: { metric: DashboardMetric; onRe
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <p className="truncate text-xs font-medium uppercase tracking-[0.14em] text-muted">{metric.label}</p>
-              {metric.costHelp && <button type="button" aria-label="Runtime cost details" title="Runtime cost details" onClick={() => setHelpOpen(true)} className="shrink-0 text-muted transition-colors hover:text-white focus-visible:outline focus-visible:outline-primary-light"><AlertCircle className="h-3.5 w-3.5" /></button>}
+              {metric.costHelp && <button type="button" aria-label="Runtime cost details" title="Runtime cost details" onClick={() => setHelpOpen(true)} className="shrink-0 text-muted transition-colors hover:text-foreground focus-visible:outline focus-visible:outline-primary-light"><AlertCircle className="h-3.5 w-3.5" /></button>}
             </div>
             {metric.comparison ? (
               <div className="mt-3 grid grid-cols-2 gap-3">
                 {[metric.comparison.agent, metric.comparison.network].map((item) => (
                   <div key={item.label} className="min-w-0 border-l border-border/80 pl-2 first:border-l-0 first:pl-0">
                     <p className={`truncate text-[10px] font-medium uppercase tracking-wide ${item.tone}`}>{item.label}</p>
-                    <p className="mt-1 truncate text-lg font-semibold text-white">{item.value}</p>
+                    <p className="mt-1 truncate text-lg font-semibold text-foreground">{item.value}</p>
                     <p className="mt-1 text-[10px] text-muted">{item.detail}</p>
                   </div>
                 ))}
               </div>
-            ) : <p className="mt-3 text-2xl font-semibold leading-none tracking-tight text-white">{metric.value}</p>}
+            ) : <p className="mt-3 text-2xl font-semibold leading-none tracking-tight text-foreground">{metric.value}</p>}
           </div>
           <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border bg-background/70 ${metric.tone}`}><Icon className="h-5 w-5" /></div>
         </div>
@@ -146,9 +146,9 @@ export function DashboardErrorState({ message, onRetry }: { message: string; onR
   return (
     <Panel className="flex min-h-[280px] flex-col items-center justify-center p-8 text-center">
       <XCircle className="h-10 w-10 text-red-300" />
-      <h2 className="mt-3 text-base font-semibold text-white">Overview unavailable</h2>
+      <h2 className="mt-3 text-base font-semibold text-foreground">Overview unavailable</h2>
       <p className="mt-1 max-w-lg text-sm text-muted">{message}</p>
-      <button type="button" onClick={onRetry} className="mt-5 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-dark"><RefreshCw className="h-4 w-4" />Retry</button>
+      <button type="button" onClick={onRetry} className="mt-5 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary-dark"><RefreshCw className="h-4 w-4" />Retry</button>
     </Panel>
   )
 }
@@ -157,7 +157,7 @@ function EmptyExecutionState() {
   return (
     <Panel className="flex min-h-[180px] flex-col items-center justify-center p-7 text-center">
       <Activity className="h-9 w-9 text-muted" />
-      <h2 className="mt-3 text-sm font-semibold text-white">No Agent Runs or Network Runs in this interval</h2>
+      <h2 className="mt-3 text-sm font-semibold text-foreground">No Agent Runs or Network Runs in this interval</h2>
       <p className="mt-1 max-w-lg text-xs leading-5 text-muted">The selected environment and time range returned no runtime activity.</p>
     </Panel>
   )
@@ -358,13 +358,13 @@ function RunActivityChart({ model }: { model: DashboardViewModel }) {
         </div>
         {activePoint && (
           <div className="flex flex-col gap-3 rounded-md border border-border/80 bg-background/45 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="min-w-[150px]"><p className="font-mono text-[9px] font-medium uppercase tracking-[0.08em] text-muted">Selected interval</p><p className="mt-1 font-mono text-[10px] font-medium text-white">{activePoint.label}</p></div>
+            <div className="min-w-[150px]"><p className="font-mono text-[9px] font-medium uppercase tracking-[0.08em] text-muted">Selected interval</p><p className="mt-1 font-mono text-[10px] font-medium text-foreground">{activePoint.label}</p></div>
             <div className="grid flex-1 grid-cols-2 gap-3 sm:grid-cols-5">
               <div><p className="font-mono text-[9px] text-muted">Agent Runs</p><p className="mt-1 font-mono text-sm font-semibold text-blue-300">{activePoint.agentRuns}</p></div>
               <div><p className="font-mono text-[9px] text-muted">Network Runs</p><p className="mt-1 font-mono text-sm font-semibold text-violet-300">{activePoint.networkRuns}</p></div>
               <div><p className="font-mono text-[9px] text-muted">Successful</p><p className="mt-1 font-mono text-sm font-semibold text-emerald-300">{activePoint.agentSuccess + activePoint.networkSuccess}</p></div>
               <div><p className="font-mono text-[9px] text-muted">Errors</p><p className="mt-1 font-mono text-sm font-semibold text-red-300">{activePoint.agentErrors + activePoint.networkErrors}</p></div>
-              <div><p className="font-mono text-[9px] text-muted">Runtime cost</p><p className="mt-1 font-mono text-sm font-semibold text-white">{formatCost(activePoint.costUsd, activePoint.costUsd !== null)}</p></div>
+              <div><p className="font-mono text-[9px] text-muted">Runtime cost</p><p className="mt-1 font-mono text-sm font-semibold text-foreground">{formatCost(activePoint.costUsd, activePoint.costUsd !== null)}</p></div>
             </div>
           </div>
         )}
@@ -398,14 +398,14 @@ function ReliabilityGroupView({ group }: { group: DashboardReliabilityGroup }) {
   return (
     <div className="rounded-xl border border-border/80 bg-background/45 p-3">
       <div className="flex items-start justify-between gap-3">
-        <div><p className="text-xs font-semibold text-white">{group.label}</p><p className="mt-1 text-[11px] text-slate-400">{group.successful} successful · {errors} errors · {group.running} running</p></div>
-        <div className="text-right"><p className={`text-lg font-semibold ${group.successRate !== null && group.successRate >= 99 ? 'text-emerald-300' : errors > 0 ? 'text-amber-300' : 'text-white'}`}>{formatPercent(group.successRate)}</p><p className="text-[10px] text-muted">success</p></div>
+        <div><p className="text-xs font-semibold text-foreground">{group.label}</p><p className="mt-1 text-[11px] text-slate-400">{group.successful} successful · {errors} errors · {group.running} running</p></div>
+        <div className="text-right"><p className={`text-lg font-semibold ${group.successRate !== null && group.successRate >= 99 ? 'text-emerald-300' : errors > 0 ? 'text-amber-300' : 'text-foreground'}`}>{formatPercent(group.successRate)}</p><p className="text-[10px] text-muted">success</p></div>
       </div>
       <div className="mt-3"><ReliabilityDistribution group={group} /></div>
       <div className="mt-3 grid grid-cols-3 gap-x-3 text-xs">
-        <span className="text-muted">Error rate <b className="mt-1 block text-white">{formatPercent(group.errorRate)}</b></span>
-        <span className="text-muted">Average <b className="mt-1 block text-white">{group.averageDurationLabel}</b></span>
-        <span className="text-muted" title="95% of terminal Runs completed within this duration">p95 <b className="mt-1 block text-white">{group.p95DurationLabel}</b></span>
+        <span className="text-muted">Error rate <b className="mt-1 block text-foreground">{formatPercent(group.errorRate)}</b></span>
+        <span className="text-muted">Average <b className="mt-1 block text-foreground">{group.averageDurationLabel}</b></span>
+        <span className="text-muted" title="95% of terminal Runs completed within this duration">p95 <b className="mt-1 block text-foreground">{group.p95DurationLabel}</b></span>
       </div>
     </div>
   )
@@ -430,8 +430,8 @@ function OperationalIssues({ model }: { model: DashboardViewModel }) {
     return (
       <Panel className="border-red-500/15 bg-red-500/[0.018] px-4 py-3">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-start gap-3"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-300" /><div><p className="text-sm font-semibold text-white">{totalIssues} operational {totalIssues === 1 ? 'issue' : 'issues'} in this period</p><p className="mt-1 text-xs text-slate-400">{model.issues.summary.join(' · ')}</p></div></div>
-          <div className="flex flex-wrap gap-x-6 gap-y-2 text-xs"><span className="text-muted">Affected <b className="ml-1 text-white">{firstEntity?.name ?? 'Unknown'}</b></span><span className="text-muted">Failure code <b className="ml-1 font-mono text-red-200">{firstCode?.code ?? 'unknown'}</b></span>{model.issues.peakLabel && <span className="text-muted">Occurred <b className="ml-1 text-white">{model.issues.peakLabel}</b></span>}</div>
+          <div className="flex items-start gap-3"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-300" /><div><p className="text-sm font-semibold text-foreground">{totalIssues} operational {totalIssues === 1 ? 'issue' : 'issues'} in this period</p><p className="mt-1 text-xs text-slate-400">{model.issues.summary.join(' · ')}</p></div></div>
+          <div className="flex flex-wrap gap-x-6 gap-y-2 text-xs"><span className="text-muted">Affected <b className="ml-1 text-foreground">{firstEntity?.name ?? 'Unknown'}</b></span><span className="text-muted">Failure code <b className="ml-1 font-mono text-red-200">{firstCode?.code ?? 'unknown'}</b></span>{model.issues.peakLabel && <span className="text-muted">Occurred <b className="ml-1 text-foreground">{model.issues.peakLabel}</b></span>}</div>
         </div>
       </Panel>
     )
@@ -441,7 +441,7 @@ function OperationalIssues({ model }: { model: DashboardViewModel }) {
     <Panel className="border-red-500/20 bg-red-500/[0.025]">
       <PanelHeader title="Operational Issues" action={<AlertTriangle className="h-4 w-4 text-red-300" />} />
       <div className="grid gap-4 px-5 pb-5 xl:grid-cols-12">
-        <div className="xl:col-span-4"><p className="text-[10px] font-medium uppercase tracking-wide text-muted">What happened</p><div className="mt-2 space-y-2">{model.issues.summary.map((item) => <div key={item} className="rounded-lg border border-red-500/15 bg-background/45 px-3 py-2 text-xs text-red-200">{item}</div>)}</div>{model.issues.peakLabel && <p className="mt-3 text-xs text-muted">Failure peak: <span className="font-medium text-white">{model.issues.peakLabel}</span> · {model.issues.peakCount} errors</p>}</div>
+        <div className="xl:col-span-4"><p className="text-[10px] font-medium uppercase tracking-wide text-muted">What happened</p><div className="mt-2 space-y-2">{model.issues.summary.map((item) => <div key={item} className="rounded-lg border border-red-500/15 bg-background/45 px-3 py-2 text-xs text-red-200">{item}</div>)}</div>{model.issues.peakLabel && <p className="mt-3 text-xs text-muted">Failure peak: <span className="font-medium text-foreground">{model.issues.peakLabel}</span> · {model.issues.peakCount} errors</p>}</div>
         <div className="xl:col-span-3"><p className="text-[10px] font-medium uppercase tracking-wide text-muted">Most affected Agents</p><div className="mt-2 space-y-2">{model.issues.topAgents.length === 0 ? <p className="text-xs text-muted">No Agent failures.</p> : model.issues.topAgents.map((item) => <div key={`${item.entity_id}-${item.name}`} className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-background/45 px-3 py-2 text-xs"><span className="truncate text-slate-200">{item.name}</span><b className="text-red-300">{item.failure_count}</b></div>)}</div></div>
         <div className="xl:col-span-3"><p className="text-[10px] font-medium uppercase tracking-wide text-muted">Most affected Networks</p><div className="mt-2 space-y-2">{model.issues.topNetworks.length === 0 ? <p className="text-xs text-muted">No Network failures.</p> : model.issues.topNetworks.map((item) => <div key={`${item.entity_id}-${item.name}`} className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-background/45 px-3 py-2 text-xs"><span className="truncate text-slate-200">{item.name}</span><b className="text-red-300">{item.failure_count}</b></div>)}</div></div>
         <div className="xl:col-span-2"><p className="text-[10px] font-medium uppercase tracking-wide text-muted">Failure codes</p><div className="mt-2 space-y-2">{model.issues.topCodes.map((item) => <div key={item.code} className="rounded-lg border border-border/70 bg-background/45 px-3 py-2"><p className="truncate font-mono text-[10px] text-slate-200">{item.code}</p><p className="mt-1 text-xs font-semibold text-red-300">{item.failure_count}</p></div>)}</div></div>
@@ -473,7 +473,7 @@ function ChangeItem({ change, onOpen }: { change: DashboardChangeRow; onOpen: ()
   return (
     <button type="button" onClick={onOpen} className="grid w-full gap-3 rounded-xl border border-border/80 bg-background/45 p-3 text-left transition-colors hover:border-primary/25 hover:bg-background/75 md:grid-cols-[40px_minmax(0,1fr)_auto] md:items-center">
       <span className={`flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-surface ${change.resourceType === 'agent' ? 'text-blue-300' : 'text-violet-300'}`}><Icon className="h-4 w-4" /></span>
-      <span className="min-w-0"><span className="flex flex-wrap items-center gap-2"><b className="truncate text-sm text-white">{change.resourceName}</b><span className="rounded-md border border-border bg-surface px-2 py-0.5 text-[10px] text-slate-300">{change.resourceLabel}</span><EnvironmentBadge value={change.environmentLabel} /></span><span className="mt-1 block text-xs text-slate-300">{change.actionLabel}{change.versionLabel ? ` · ${change.versionLabel}` : ''}</span><span className="mt-1 block truncate text-xs text-muted">{change.description}</span></span>
+      <span className="min-w-0"><span className="flex flex-wrap items-center gap-2"><b className="truncate text-sm text-foreground">{change.resourceName}</b><span className="rounded-md border border-border bg-surface px-2 py-0.5 text-[10px] text-slate-300">{change.resourceLabel}</span><EnvironmentBadge value={change.environmentLabel} /></span><span className="mt-1 block text-xs text-slate-300">{change.actionLabel}{change.versionLabel ? ` · ${change.versionLabel}` : ''}</span><span className="mt-1 block truncate text-xs text-muted">{change.description}</span></span>
       <span className="text-xs text-muted md:text-right">{change.occurredLabel}</span>
     </button>
   )
@@ -604,12 +604,12 @@ function RecentRuns({ model, onOpen, onViewAll }: { model: DashboardViewModel; o
               return (
                 <div key={`${run.kind}-${run.id}`} role="link" tabIndex={0} onClick={open} onKeyDown={(event) => keyboardActivate(event, open)} className="grid cursor-pointer gap-3 rounded-xl border border-border/80 bg-background/45 p-3 outline-none transition-colors hover:border-primary/25 hover:bg-background/75 focus:ring-1 focus:ring-primary/60 xl:grid-cols-[110px_minmax(220px,1fr)_100px_125px_165px_90px_155px] xl:items-center">
                   <div><span className="rounded-md border border-border bg-surface px-2 py-0.5 text-xs font-medium text-slate-200">{run.typeLabel}</span></div>
-                  <div className="min-w-0"><p className="truncate text-sm font-semibold text-white">{run.title}</p><p className="mt-1 truncate text-xs text-muted">{run.sourceLabel}</p></div>
+                  <div className="min-w-0"><p className="truncate text-sm font-semibold text-foreground">{run.title}</p><p className="mt-1 truncate text-xs text-muted">{run.sourceLabel}</p></div>
                   <div><EnvironmentBadge value={run.environmentLabel} /></div>
                   <div><StatusBadge value={run.statusLabel} /></div>
                   <p className="text-xs text-muted">{run.timeLabel}</p>
-                  <p className="text-xs font-medium text-white xl:text-right">{run.durationLabel}</p>
-                  <div className="min-w-0 xl:text-right"><p className="truncate text-xs font-medium text-white">{run.costLabel}</p>{run.costDetail && <p className="mt-1 truncate text-[10px] text-amber-300" title={run.costDetail}>{run.costDetail}</p>}</div>
+                  <p className="text-xs font-medium text-foreground xl:text-right">{run.durationLabel}</p>
+                  <div className="min-w-0 xl:text-right"><p className="truncate text-xs font-medium text-foreground">{run.costLabel}</p>{run.costDetail && <p className="mt-1 truncate text-[10px] text-amber-300" title={run.costDetail}>{run.costDetail}</p>}</div>
                 </div>
               )
             })}
@@ -677,14 +677,14 @@ export default function DashboardPage() {
           {isUpdating && <div className="absolute inset-x-0 top-0 h-0.5 animate-pulse bg-primary/70" />}
           <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
             <div className="min-w-0">
-              <div className="flex items-center gap-2"><GitBranch className="h-4 w-4 text-primary-light" /><h1 className="text-2xl font-semibold tracking-tight text-white">Project Overview</h1>{isUpdating && <span className="rounded-full border border-primary/20 bg-primary/5 px-2 py-0.5 text-[10px] text-primary-light">Updating {environmentLabel(environment)} overview…</span>}</div>
+              <div className="flex items-center gap-2"><GitBranch className="h-4 w-4 text-primary-light" /><h1 className="text-2xl font-semibold tracking-tight text-foreground">Project Overview</h1>{isUpdating && <span className="rounded-full border border-primary/20 bg-primary/5 px-2 py-0.5 text-[10px] text-primary-light">Updating {environmentLabel(environment)} overview…</span>}</div>
               {model && <p className="mt-2 text-xs text-muted">Interval: {model.intervalLabel} · {model.timezoneLabel} · Last refreshed {model.generatedAtLabel}</p>}
             </div>
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center xl:justify-end">
               <label className="sr-only" htmlFor="dashboard-range">Dashboard range</label>
               <select id="dashboard-range" value={range} onChange={(event: ChangeEvent<HTMLSelectElement>) => setRange(event.target.value as DashboardRangePreset)} className="h-9 rounded-lg border border-border bg-background/70 px-3 text-sm text-slate-300 outline-none transition-colors focus:ring-1 focus:ring-primary/60">{RANGES.map((item) => <option key={item} value={item}>{rangeLabel(item)}</option>)}</select>
-              <div className="flex max-w-full overflow-x-auto rounded-lg border border-border bg-background/50 p-1 scrollbar-thin">{ENVIRONMENTS.map((item) => <button type="button" key={item.value} onClick={() => setEnvironment(item.value)} aria-pressed={environment === item.value} className={`flex h-7 items-center gap-1.5 whitespace-nowrap rounded-md border px-3 text-xs font-medium transition-colors ${environment === item.value ? item.tone : 'border-transparent text-muted hover:bg-surface hover:text-white'}`}><span className={`h-1.5 w-1.5 rounded-full ${item.dot}`} />{item.label}</button>)}</div>
-              <button type="button" onClick={() => void query.refetch()} disabled={query.isFetching} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-border bg-background/70 px-3 text-sm font-medium text-slate-300 transition-colors hover:border-primary/35 hover:text-white disabled:opacity-50"><RefreshCw className={`h-3.5 w-3.5 ${query.isFetching ? 'animate-spin' : ''}`} />Refresh</button>
+              <div className="flex max-w-full overflow-x-auto rounded-lg border border-border bg-background/50 p-1 scrollbar-thin">{ENVIRONMENTS.map((item) => <button type="button" key={item.value} onClick={() => setEnvironment(item.value)} aria-pressed={environment === item.value} className={`flex h-7 items-center gap-1.5 whitespace-nowrap rounded-md border px-3 text-xs font-medium transition-colors ${environment === item.value ? item.tone : 'border-transparent text-muted hover:bg-surface hover:text-foreground'}`}><span className={`h-1.5 w-1.5 rounded-full ${item.dot}`} />{item.label}</button>)}</div>
+              <button type="button" onClick={() => void query.refetch()} disabled={query.isFetching} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-border bg-background/70 px-3 text-sm font-medium text-slate-300 transition-colors hover:border-primary/35 hover:text-foreground disabled:opacity-50"><RefreshCw className={`h-3.5 w-3.5 ${query.isFetching ? 'animate-spin' : ''}`} />Refresh</button>
             </div>
           </div>
         </header>

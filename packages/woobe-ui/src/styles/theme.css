@@ -1,0 +1,39 @@
+/* Woobe editorial console. Shared appearance only; no product behavior. */
+:root {
+  color-scheme: light;
+  --woobe-canvas: 247 247 244;
+  --woobe-surface: 255 255 255;
+  --woobe-control: 242 243 240;
+  --woobe-border: 217 222 218;
+  --woobe-ink: 25 35 31;
+  --woobe-secondary: 54 66 60;
+  --woobe-muted: 98 109 104;
+  --woobe-link: 36 89 211;
+}
+.woobe-dark {
+  color-scheme: dark;
+  --woobe-canvas: 21 29 25;
+  --woobe-surface: 25 35 30;
+  --woobe-control: 32 43 36;
+  --woobe-border: 55 68 59;
+  --woobe-ink: 247 248 245;
+  --woobe-secondary: 218 225 218;
+  --woobe-muted: 160 176 163;
+  --woobe-link: 161 190 255;
+}
+:where(button, a, input, textarea, select, summary, [tabindex]):focus-visible {
+  outline: 2px solid #2459d3;
+  outline-offset: 3px;
+}
+:where(button, a, input, select, textarea) { touch-action: manipulation; }
+:where(h1,h2,h3) { text-wrap: balance; scroll-margin-top: 1rem; }
+:where(td,th) { font-variant-numeric: tabular-nums; }
+:where(pre,code) { tab-size: 2; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

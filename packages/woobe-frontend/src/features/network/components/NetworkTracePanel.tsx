@@ -41,7 +41,7 @@ function TraceListItem({ trace, selected, onSelect }: { trace: NetworkTraceRecor
       <div className="flex items-start gap-ui-sm">
         <span className={cn('mt-1.5 h-2 w-2 shrink-0 rounded-full', statusTone(trace.status))} />
         <div className="min-w-0 flex-1">
-          <p className={cn('truncate font-sans text-product-small', selected ? 'font-medium text-white' : 'text-slate-300')}>{trace.title}</p>
+          <p className={cn('truncate font-sans text-product-small', selected ? 'font-medium text-foreground' : 'text-slate-300')}>{trace.title}</p>
           <div className="mt-ui-xs flex flex-wrap items-center gap-x-ui-sm gap-y-ui-xs font-mono text-system-meta text-muted-foreground">
             <span>{formatTraceTime(trace.startedAt)}</span>
             <span>{formatLatency(trace.durationMs)}</span>
@@ -78,7 +78,7 @@ export function NetworkTracePanel({ traces, session, selectedTraceId, onSelectTr
       <div className="flex h-full items-center justify-center p-ui-xl text-center">
         <div>
           <Activity className="mx-auto h-8 w-8 text-muted-foreground/40" />
-          <p className="mt-ui-md font-sans text-product-small font-medium text-white">No Network Session selected</p>
+          <p className="mt-ui-md font-sans text-product-small font-medium text-foreground">No Network Session selected</p>
           <p className="mt-ui-xs max-w-[260px] font-sans text-product-caption leading-5 text-muted-foreground">Select or create a session in Network Chat to view its Runs.</p>
         </div>
       </div>
@@ -90,7 +90,7 @@ export function NetworkTracePanel({ traces, session, selectedTraceId, onSelectTr
       <div className="shrink-0 border-b border-border/80 p-ui-md">
         <div className="flex items-start justify-between gap-ui-md">
           <div className="min-w-0">
-            <h2 className="font-mono text-system-heading font-semibold text-white">Network Runs</h2>
+            <h2 className="font-mono text-system-heading font-semibold text-foreground">Network Runs</h2>
             <p className="mt-ui-xs truncate font-sans text-product-small text-slate-300">{session.title}</p>
             <p className="mt-ui-hairline font-mono text-system-meta text-muted-foreground">{session.versionLabel} · select a Run to inspect its path</p>
           </div>

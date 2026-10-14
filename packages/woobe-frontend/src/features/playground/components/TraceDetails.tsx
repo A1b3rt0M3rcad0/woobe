@@ -31,7 +31,7 @@ function ClampedText({ text, lines = 2 }: { text: string; lines?: number }) {
     <div className="relative">
       <p
         ref={ref}
-        className={`text-xs text-white whitespace-pre-wrap break-words leading-relaxed ${expanded ? '' : `line-clamp-${lines}`}`}
+        className={`text-xs text-foreground whitespace-pre-wrap break-words leading-relaxed ${expanded ? '' : `line-clamp-${lines}`}`}
       >
         {text}
       </p>
@@ -64,10 +64,10 @@ function CopyableIdRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="grid grid-cols-[60px_1fr_20px] items-center gap-2 rounded-md border border-border bg-background px-2.5 py-1.5">
       <span className="text-[10px] text-muted uppercase leading-none">{label}</span>
-      <code className="text-[11px] text-white font-mono truncate">{truncated}</code>
+      <code className="text-[11px] text-foreground font-mono truncate">{truncated}</code>
       <button
         onClick={handleCopy}
-        className="text-muted hover:text-white transition-colors justify-self-end"
+        className="text-muted hover:text-foreground transition-colors justify-self-end"
         title={copied ? 'Copied!' : 'Copy'}
       >
         <Copy className="h-3 w-3" />
@@ -92,10 +92,10 @@ function CollapsibleSection({
     <div>
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-1.5 w-full py-1.5 text-xs font-medium text-muted hover:text-white transition-colors group"
+        className="flex items-center gap-1.5 w-full py-1.5 text-xs font-medium text-muted hover:text-foreground transition-colors group"
       >
         {open ? <ChevronDown className="h-3.5 w-3.5 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0" />}
-        <span className="group-hover:text-white transition-colors">{title}</span>
+        <span className="group-hover:text-foreground transition-colors">{title}</span>
         {badge && <span className="text-[10px] text-muted ml-auto">{badge}</span>}
       </button>
       {open && <div className="pb-2">{children}</div>}
@@ -219,7 +219,7 @@ function ToolCallList({ toolCalls }: { toolCalls: { tool_name: string; status?: 
           ) : (
             <HelpCircle className="h-3.5 w-3.5 text-muted shrink-0" />
           )}
-          <span className="text-xs text-white flex-1 truncate">{operationLabel(tc)}</span>
+          <span className="text-xs text-foreground flex-1 truncate">{operationLabel(tc)}</span>
           {tc.status && (
             <span className={cn(
               'text-[10px] font-medium',
@@ -247,7 +247,7 @@ function EventTimeline({ events }: { events: TraceEvent[] }) {
       {events.map((evt) => (
         <div key={evt.id} className="rounded-lg border border-border bg-background px-3 py-2">
           <div className="flex items-center justify-between">
-            <code className="text-[11px] text-white font-mono">{operationEventLabel(evt.event_type, evt.payload)}</code>
+            <code className="text-[11px] text-foreground font-mono">{operationEventLabel(evt.event_type, evt.payload)}</code>
             <span className="text-[10px] text-muted">{evt.created_at ? new Date(evt.created_at).toLocaleTimeString() : ''}</span>
           </div>
           {evt.payload && <JsonCodeBlock value={evt.payload} maxHeight={96} className="mt-1" />}
@@ -314,9 +314,9 @@ function DetailView({ traceId, projectId, agentId, sessionId, messageId, status,
           <p className="text-[10px] font-medium text-yellow-400 uppercase tracking-wider">Fallback Details</p>
           <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px]">
             <span className="text-muted">Primary:</span>
-            <span className="text-white font-mono text-right truncate">{fallbackInfo.primary_provider}/{fallbackInfo.primary_model}</span>
+            <span className="text-foreground font-mono text-right truncate">{fallbackInfo.primary_provider}/{fallbackInfo.primary_model}</span>
             <span className="text-muted">Fallback:</span>
-            <span className="text-white font-mono text-right truncate">{fallbackInfo.fallback_provider}/{fallbackInfo.fallback_model}</span>
+            <span className="text-foreground font-mono text-right truncate">{fallbackInfo.fallback_provider}/{fallbackInfo.fallback_model}</span>
             <span className="text-muted col-span-2">Error:</span>
             <span className="text-red-400 font-mono text-[10px] col-span-2 break-all">{fallbackInfo.primary_error}</span>
           </div>
@@ -384,10 +384,10 @@ function BackendTraceDetail({ traceId, onBack }: { traceId: string; onBack: () =
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between px-4 pt-4">
-        <h3 className="text-sm font-medium text-white">Trace Detail</h3>
+        <h3 className="text-sm font-medium text-foreground">Trace Detail</h3>
         <button
           onClick={onBack}
-          className="rounded-lg p-1 text-muted hover:text-white hover:bg-accent transition-colors"
+          className="rounded-lg p-1 text-muted hover:text-foreground hover:bg-accent transition-colors"
         >
           <X className="h-4 w-4" />
         </button>
@@ -452,8 +452,8 @@ function LocalTraceDetail({ trace, onBack }: { trace: TraceItem; onBack: () => v
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between px-4 pt-4">
-          <h3 className="text-sm font-medium text-white">Trace Detail</h3>
-          <button onClick={onBack} className="rounded-lg p-1 text-muted hover:text-white hover:bg-accent transition-colors">
+          <h3 className="text-sm font-medium text-foreground">Trace Detail</h3>
+          <button onClick={onBack} className="rounded-lg p-1 text-muted hover:text-foreground hover:bg-accent transition-colors">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -478,8 +478,8 @@ function LocalTraceDetail({ trace, onBack }: { trace: TraceItem; onBack: () => v
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between px-4 pt-4">
-        <h3 className="text-sm font-medium text-white">Trace Detail</h3>
-        <button onClick={onBack} className="rounded-lg p-1 text-muted hover:text-white hover:bg-accent transition-colors">
+        <h3 className="text-sm font-medium text-foreground">Trace Detail</h3>
+        <button onClick={onBack} className="rounded-lg p-1 text-muted hover:text-foreground hover:bg-accent transition-colors">
           <X className="h-4 w-4" />
         </button>
       </div>
@@ -492,9 +492,9 @@ function LocalTraceDetail({ trace, onBack }: { trace: TraceItem; onBack: () => v
             <p className="text-[10px] font-medium text-yellow-400 uppercase tracking-wider">Fallback Details</p>
             <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px]">
               <span className="text-muted">Primary:</span>
-              <span className="text-white font-mono text-right truncate">{trace.fallback_info.primary_provider}/{trace.fallback_info.primary_model}</span>
+              <span className="text-foreground font-mono text-right truncate">{trace.fallback_info.primary_provider}/{trace.fallback_info.primary_model}</span>
               <span className="text-muted">Fallback:</span>
-              <span className="text-white font-mono text-right truncate">{trace.fallback_info.fallback_provider}/{trace.fallback_info.fallback_model}</span>
+              <span className="text-foreground font-mono text-right truncate">{trace.fallback_info.fallback_provider}/{trace.fallback_info.fallback_model}</span>
               <span className="text-muted col-span-2">Error:</span>
               <span className="text-red-400 font-mono text-[10px] col-span-2 break-all">{trace.fallback_info.primary_error}</span>
             </div>

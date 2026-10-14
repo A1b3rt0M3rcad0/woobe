@@ -50,7 +50,7 @@ function SectionButton({ active, icon: Icon, label, detail, onClick }: { active:
       onClick={onClick}
       className={cn(
         'flex min-w-[170px] items-center gap-ui-sm rounded-control border px-ui-md py-ui-sm text-left transition-colors lg:min-w-0',
-        active ? 'border-primary/35 bg-primary/10 text-white' : 'border-transparent text-muted-foreground hover:border-border hover:text-white',
+        active ? 'border-primary/35 bg-primary/10 text-foreground' : 'border-transparent text-muted-foreground hover:border-border hover:text-foreground',
       )}
     >
       <Icon className="h-3.5 w-3.5 shrink-0" />
@@ -78,7 +78,7 @@ function VersionList({ versions, selectedId, activeId, onSelect }: { versions: N
           )}
         >
           <div className="flex items-center gap-ui-sm">
-            <span className="truncate font-mono text-system-control text-white">{version.version}</span>
+            <span className="truncate font-mono text-system-control text-foreground">{version.version}</span>
             {version.id === activeId ? <span className="ml-auto rounded-technical border border-emerald-500/30 bg-emerald-500/10 px-ui-xs py-ui-hairline font-mono text-system-meta text-emerald-300">Active</span> : null}
           </div>
           <p className="mt-ui-xs font-mono text-system-meta text-muted-foreground">{formatDate(version.created_at)} · {version.definition.nodes.length} Agents</p>
@@ -94,14 +94,14 @@ function SnapshotDetails({ version, agents }: { version: NetworkVersion; agents:
     <div className="space-y-ui-md p-ui-md">
       <div>
         <p className="font-mono text-system-meta uppercase tracking-ui-label text-primary-light">{version.kind === 'release' ? 'Network Release' : 'Network Staging'}</p>
-        <h3 className="mt-ui-xs font-mono text-heading-sm font-semibold text-white">{version.version}</h3>
+        <h3 className="mt-ui-xs font-mono text-heading-sm font-semibold text-foreground">{version.version}</h3>
         <p className="mt-ui-xs font-mono text-system-meta text-muted-foreground">Immutable snapshot · {formatDate(version.created_at)}</p>
       </div>
       <section className="rounded-container border border-border bg-background/30 p-ui-md">
         <div className="grid grid-cols-3 gap-ui-md">
-          <div><p className="font-mono text-system-meta text-muted-foreground">Agents</p><p className="mt-ui-xs font-mono text-system-control text-white">{version.definition.nodes.length}</p></div>
-          <div><p className="font-mono text-system-meta text-muted-foreground">Delegations</p><p className="mt-ui-xs font-mono text-system-control text-white">{version.definition.edges.length}</p></div>
-          <div><p className="font-mono text-system-meta text-muted-foreground">Mode</p><p className="mt-ui-xs font-mono text-system-control capitalize text-white">{version.definition.settings.session_mode}</p></div>
+          <div><p className="font-mono text-system-meta text-muted-foreground">Agents</p><p className="mt-ui-xs font-mono text-system-control text-foreground">{version.definition.nodes.length}</p></div>
+          <div><p className="font-mono text-system-meta text-muted-foreground">Delegations</p><p className="mt-ui-xs font-mono text-system-control text-foreground">{version.definition.edges.length}</p></div>
+          <div><p className="font-mono text-system-meta text-muted-foreground">Mode</p><p className="mt-ui-xs font-mono text-system-control capitalize text-foreground">{version.definition.settings.session_mode}</p></div>
         </div>
       </section>
       <section>
@@ -114,7 +114,7 @@ function SnapshotDetails({ version, agents }: { version: NetworkVersion; agents:
             return (
               <div key={node.id} className="flex items-center gap-ui-md rounded-container border border-border bg-background/30 p-ui-md">
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-sans text-product-small text-white">{label}</p>
+                  <p className="truncate font-sans text-product-small text-foreground">{label}</p>
                   <p className="mt-ui-xs font-mono text-system-meta text-muted-foreground">{node.id === version.definition.root_node_id ? 'Entry Agent' : 'Specialist'}</p>
                 </div>
                 <div className="w-44"><NetworkBindingBadge source={source} version={resolved?.release_version ?? 'pinned'} /></div>
@@ -134,14 +134,14 @@ function DraftDetails({ definition, revision, dirty, agents }: { definition: Net
     <div className="space-y-ui-md p-ui-md">
       <div>
         <p className="font-mono text-system-meta uppercase tracking-ui-label text-primary-light">Editable Network Draft</p>
-        <h3 className="mt-ui-xs font-sans text-heading-sm font-semibold text-white">Revision {revision}</h3>
+        <h3 className="mt-ui-xs font-sans text-heading-sm font-semibold text-foreground">Revision {revision}</h3>
         <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">{dirty ? 'Unsaved changes' : 'Saved'} · Draft bindings remain unchanged after promotion.</p>
       </div>
       <div className="space-y-ui-sm">
         {definition.nodes.map((node) => (
           <div key={node.id} className="flex items-center gap-ui-md rounded-container border border-border bg-background/30 p-ui-md">
             <div className="min-w-0 flex-1">
-              <p className="truncate font-sans text-product-small text-white">{agentsById.get(node.agent_id)?.name ?? node.label}</p>
+              <p className="truncate font-sans text-product-small text-foreground">{agentsById.get(node.agent_id)?.name ?? node.label}</p>
               <p className="mt-ui-xs font-mono text-system-meta text-muted-foreground">{node.id === definition.root_node_id ? 'Entry Agent' : 'Specialist'}</p>
             </div>
             <div className="w-44"><NetworkBindingBadge source={node.binding.source} version={node.binding.source === 'draft' ? 'current' : 'pinned'} /></div>
@@ -161,7 +161,7 @@ function ActivityList({ activations, versions }: { activations: NetworkProductio
         return (
           <article key={activation.id} className="rounded-container border border-border bg-background/30 p-ui-md">
             <div className="flex items-center gap-ui-sm">
-              <span className="font-mono text-system-control text-white">{version?.version ?? activation.version_id.slice(0, 8)}</span>
+              <span className="font-mono text-system-control text-foreground">{version?.version ?? activation.version_id.slice(0, 8)}</span>
               <span className="ml-auto rounded-technical border border-border px-ui-xs py-ui-hairline font-mono text-system-meta capitalize text-muted-foreground">{activation.activation_kind}</span>
             </div>
             <p className="mt-ui-sm font-sans text-product-caption leading-4 text-slate-300">{activation.change_description}</p>
@@ -217,7 +217,7 @@ export function NetworkVersionsModal({ open, networkName, initialSection, initia
         <header className="flex items-center gap-ui-md border-b border-border bg-background/25 px-ui-md py-ui-md">
           <div className="flex h-control w-control items-center justify-center rounded-control border border-primary/25 bg-primary/10 text-primary-light"><History className="h-icon w-icon" /></div>
           <div className="min-w-0">
-            <p className="truncate font-sans text-product-small font-semibold text-white">{networkName}</p>
+            <p className="truncate font-sans text-product-small font-semibold text-foreground">{networkName}</p>
             <p className="mt-ui-hairline font-sans text-product-caption text-muted-foreground">Draft, Staging, immutable Releases and Production activations.</p>
           </div>
           <span className="ml-auto rounded-technical border border-emerald-500/25 bg-emerald-500/10 px-ui-sm py-ui-xs font-mono text-system-label text-emerald-300">{productionVersion ? `Production · ${productionVersion.version}` : 'No Production'}</span>
@@ -247,7 +247,7 @@ export function NetworkVersionsModal({ open, networkName, initialSection, initia
               <div className="space-y-ui-md p-ui-md">
                 <div>
                   <p className="font-mono text-system-meta uppercase tracking-ui-label text-amber-300">{initialMode === 'rollback' ? 'Rollback target' : 'Production activation'}</p>
-                  <h3 className="mt-ui-xs font-mono text-heading-sm text-white">{activationTarget.version}</h3>
+                  <h3 className="mt-ui-xs font-mono text-heading-sm text-foreground">{activationTarget.version}</h3>
                   <p className="mt-ui-xs font-mono text-system-meta text-muted-foreground">Current: {productionVersion?.version ?? 'none'}</p>
                 </div>
                 <label className="block font-mono text-system-label text-muted-foreground">

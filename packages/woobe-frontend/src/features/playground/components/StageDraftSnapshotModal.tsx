@@ -82,7 +82,7 @@ export function StageDraftSnapshotModal({ open, state, snapshot, currentStaging,
                   <Package className="h-4 w-4" />
                 </span>
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-white">{state.name || 'Untitled agent'}</p>
+                  <p className="truncate text-sm font-semibold text-foreground">{state.name || 'Untitled agent'}</p>
                   <p className="text-[11px] text-muted">Draft to Staging</p>
                 </div>
               </div>

@@ -387,7 +387,7 @@ export function MarkdownMessage({ content, isStreaming, className }: MarkdownMes
                   <td
                     key={`table-${currentKey}-r-${rowIndex}-c-${cellIndex}`}
                     className={cn(
-                      'min-w-content-table-cell px-ui-md py-ui-sm align-top text-white/90',
+                      'min-w-content-table-cell px-ui-md py-ui-sm align-top text-foreground/90',
                       alignmentClass(table.alignments[cellIndex] ?? 'left'),
                     )}
                   >

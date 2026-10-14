@@ -32,8 +32,8 @@
 :where([role='dialog'], [class~='fixed'][class~='inset-0'] > [class*='bg-surface']) textarea:not(.font-mono),
 :where([role='dialog'], [class~='fixed'][class~='inset-0'] > [class*='bg-surface']) [contenteditable='true']:not(.font-mono) {
   font-family: 'Inter', system-ui, sans-serif;
-  font-size: 0.625rem !important;
-  line-height: 0.875rem !important;
+  font-size: 0.75rem !important;
+  line-height: 1.125rem !important;
 }
 
 /* Native select popups can ignore descendant utility classes on Chromium/Windows.
@@ -42,8 +42,8 @@
 :where([role='dialog'], [class~='fixed'][class~='inset-0'] > [class*='bg-surface']) select,
 :where([role='dialog'], [class~='fixed'][class~='inset-0'] > [class*='bg-surface']) select option {
   font-family: 'JetBrains Mono', 'Fira Code', monospace !important;
-  font-size: 0.625rem !important;
-  line-height: 0.875rem !important;
+  font-size: 0.75rem !important;
+  line-height: 1.125rem !important;
   font-weight: 400 !important;
 }
 
@@ -90,28 +90,28 @@
 /* Older explicit 11px heading utilities are lifted to the compact 10px control
  * tier rather than collapsing to metadata. */
 :where([role='dialog'], [class~='fixed'][class~='inset-0'] > [class*='bg-surface']) :is(h3.text-\[11px\], h4.text-\[11px\]) {
-  font-size: 0.625rem !important;
-  line-height: 0.875rem !important;
+  font-size: 0.75rem !important;
+  line-height: 1.125rem !important;
 }
 
 /* Ordinary compact copy resolves to the 9px caption tier. */
 :where([role='dialog'], [class~='fixed'][class~='inset-0'] > [class*='bg-surface']) :is(p.text-xs, span.text-xs, code.text-xs) {
-  font-size: 0.5625rem !important;
-  line-height: 0.875rem !important;
+  font-size: 0.75rem !important;
+  line-height: 1.125rem !important;
 }
 
 /* Legacy 11px uppercase labels resolve to the approved 9px metadata tier. */
 :where([role='dialog'], [class~='fixed'][class~='inset-0'] > [class*='bg-surface']) .text-\[11px\].font-medium,
 :where([role='dialog'], [class~='fixed'][class~='inset-0'] > [class*='bg-surface']) .text-\[11px\].uppercase {
-  font-size: 0.5625rem !important;
-  line-height: 0.875rem !important;
+  font-size: 0.75rem !important;
+  line-height: 1.125rem !important;
   letter-spacing: 0.1em !important;
 }
 
 /* Raw 8px feature metadata is lifted to the readable 9px metadata tier. */
 :where([role='dialog'], [class~='fixed'][class~='inset-0'] > [class*='bg-surface']) [class~='text-[8px]'] {
-  font-size: 0.5625rem !important;
-  line-height: 0.875rem !important;
+  font-size: 0.75rem !important;
+  line-height: 1.125rem !important;
 }
 
 /* Settings navigation is operational chrome, not microcopy. Keep it aligned to
@@ -119,28 +119,28 @@
 :where([role='dialog'], [class~='fixed'][class~='inset-0'] > [class*='bg-surface']) aside nav button {
   min-height: 1.875rem;
   border-radius: 3px !important;
-  font-size: 0.625rem !important;
-  line-height: 0.875rem !important;
+  font-size: 0.75rem !important;
+  line-height: 1.125rem !important;
 }
 
 :where([role='dialog'], [class~='fixed'][class~='inset-0'] > [class*='bg-surface']) aside nav :is(.uppercase, [class*='tracking-']) {
-  font-size: 0.5625rem !important;
+  font-size: 0.75rem !important;
   letter-spacing: 0.12em !important;
 }
 
 :where([role='dialog'], [class~='fixed'][class~='inset-0'] > [class*='bg-surface']) aside h3.text-sm {
-  font-size: 0.6875rem !important;
+  font-size: 0.75rem !important;
   line-height: 1rem !important;
 }
 
 :where([role='dialog'], [class~='fixed'][class~='inset-0'] > [class*='bg-surface']) aside p.text-xs {
-  font-size: 0.5625rem !important;
-  line-height: 0.875rem !important;
+  font-size: 0.75rem !important;
+  line-height: 1.125rem !important;
 }
 
 :where([role='dialog'], [class~='fixed'][class~='inset-0'] > [class*='bg-surface']) aside .text-\[11px\] {
-  font-size: 0.5625rem !important;
-  line-height: 0.875rem !important;
+  font-size: 0.75rem !important;
+  line-height: 1.125rem !important;
 }
 
 :where([role='dialog'], [class~='fixed'][class~='inset-0'] > [class*='bg-surface']) :is(.p-6.rounded-xl, .p-5.rounded-xl, .p-4.rounded-xl, .p-4.rounded-lg) {

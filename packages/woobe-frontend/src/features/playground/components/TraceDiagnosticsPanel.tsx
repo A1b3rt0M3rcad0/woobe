@@ -35,7 +35,7 @@ function Metric({ label, value, icon: Icon, hint }: {
         <Icon className="h-3.5 w-3.5" />
         <span className="text-[10px] uppercase tracking-wide">{label}</span>
       </div>
-      <p className="mt-1 text-sm font-mono text-white">{value}</p>
+      <p className="mt-1 text-sm font-mono text-foreground">{value}</p>
     </div>
   )
 }
@@ -75,7 +75,7 @@ export function TraceDiagnosticsPanel({ traceId, runId }: { traceId?: string | n
     <div className="border-b border-border px-4 py-3 space-y-2">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-xs font-medium text-white">Execution diagnostics</p>
+          <p className="text-xs font-medium text-foreground">Execution diagnostics</p>
           <p className="text-[10px] text-muted">Wall-clock and cumulative work are shown separately</p>
         </div>
         {toolShare != null && (

@@ -20,8 +20,8 @@ export function ConfirmDeleteModal({ open, onClose, onConfirm, versionName, isPe
     >
       <div role="dialog" aria-modal="true" aria-label="Delete version" className={`${dialogTypographyClass} w-full max-w-md overflow-hidden rounded-2xl border border-border/90 bg-surface/95 shadow-2xl shadow-black/40`}>
         <div className="flex items-center justify-between border-b border-border/90 bg-background/20 p-4">
-          <h2 className="text-sm font-semibold text-white">Delete version</h2>
-          <button onClick={onClose} className="rounded-lg border border-transparent p-1 text-muted transition-colors hover:border-border/80 hover:bg-background/60 hover:text-white">
+          <h2 className="text-sm font-semibold text-foreground">Delete version</h2>
+          <button onClick={onClose} className="rounded-lg border border-transparent p-1 text-muted transition-colors hover:border-border/80 hover:bg-background/60 hover:text-foreground">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -30,7 +30,7 @@ export function ConfirmDeleteModal({ open, onClose, onConfirm, versionName, isPe
           <div className="flex items-start gap-3 rounded-xl border border-red-500/30 bg-red-500/10 p-3">
             <AlertTriangle className="h-5 w-5 text-red-300 shrink-0 mt-0.5" />
             <div>
-              <p className="text-sm text-white font-medium">Delete {versionName}?</p>
+              <p className="text-sm text-foreground font-medium">Delete {versionName}?</p>
               <p className="text-xs text-muted mt-1">This version will be permanently removed. This action cannot be undone.</p>
             </div>
           </div>

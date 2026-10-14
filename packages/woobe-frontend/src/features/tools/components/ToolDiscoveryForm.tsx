@@ -455,11 +455,11 @@ export function ToolDiscoveryForm({ submitLabel = 'Create', cancelLabel = 'Cance
           </div>
         </div>
         <div className="grid gap-3 md:grid-cols-2">
-          <button type="button" onClick={() => setProtocol('http')} className={`min-w-0 rounded-xl border p-3 text-left transition ${protocol === 'http' ? 'border-primary/60 bg-primary/10 text-white' : 'border-border bg-card/60 text-muted hover:border-border-light'}`}>
+          <button type="button" onClick={() => setProtocol('http')} className={`min-w-0 rounded-xl border p-3 text-left transition ${protocol === 'http' ? 'border-primary/60 bg-primary/10 text-foreground' : 'border-border bg-card/60 text-muted hover:border-border-light'}`}>
             <p className="text-sm font-medium break-words">HTTP API</p>
             <p className="mt-1 text-xs text-muted break-words">Call a REST-style endpoint directly.</p>
           </button>
-          <button type="button" onClick={() => setProtocol('mcp')} className={`min-w-0 rounded-xl border p-3 text-left transition ${protocol === 'mcp' ? 'border-primary/60 bg-primary/10 text-white' : 'border-border bg-card/60 text-muted hover:border-border-light'}`}>
+          <button type="button" onClick={() => setProtocol('mcp')} className={`min-w-0 rounded-xl border p-3 text-left transition ${protocol === 'mcp' ? 'border-primary/60 bg-primary/10 text-foreground' : 'border-border bg-card/60 text-muted hover:border-border-light'}`}>
             <p className="text-sm font-medium break-words">MCP Server</p>
             <p className="mt-1 text-xs text-muted break-words">Connect a server and let the agent choose any discovered tool.</p>
           </button>
@@ -486,7 +486,7 @@ export function ToolDiscoveryForm({ submitLabel = 'Create', cancelLabel = 'Cance
         <div className="min-w-0 space-y-4 overflow-hidden rounded-2xl border border-border/80 bg-card/40 p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
-              <p className="text-sm font-medium text-white">HTTP request</p>
+              <p className="text-sm font-medium text-foreground">HTTP request</p>
               <p className="mt-1 text-xs text-muted break-words">Use template variables like {'{{customerId}}'} in the URL.</p>
             </div>
             <div className="w-full sm:w-32"><Select value={method} onChange={e => setMethod(e.target.value)} options={HTTP_METHODS} /></div>
@@ -538,7 +538,7 @@ export function ToolDiscoveryForm({ submitLabel = 'Create', cancelLabel = 'Cance
                   <div key={tool.name} className="w-full min-w-0 overflow-hidden rounded-xl border border-border bg-background/60 p-3 text-left">
                     <div className="flex min-w-0 items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <p className="text-sm font-medium break-words text-white">{displayNameForTool(tool)}</p>
+                        <p className="text-sm font-medium break-words text-foreground">{displayNameForTool(tool)}</p>
                         <p className="mt-1 text-[11px] font-mono text-muted break-all">{tool.name}</p>
                       </div>
                       {onTest && (

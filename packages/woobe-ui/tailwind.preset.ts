@@ -16,7 +16,21 @@ import {
 const woobeTailwindPreset = {
   theme: {
     extend: {
-      colors: woobeColors,
+      colors: {
+        ...woobeColors,
+        slate: {
+          50: 'rgb(var(--woobe-ink, 25 35 31) / <alpha-value>)',
+          100: 'rgb(var(--woobe-ink, 25 35 31) / <alpha-value>)',
+          200: 'rgb(var(--woobe-secondary, 54 66 60) / <alpha-value>)',
+          300: 'rgb(var(--woobe-secondary, 54 66 60) / <alpha-value>)',
+          400: 'rgb(var(--woobe-muted, 98 109 104) / <alpha-value>)',
+          500: '#6b776f', 600: '#8b958f',
+          700: 'rgb(var(--woobe-border, 217 222 218) / <alpha-value>)',
+          800: 'rgb(var(--woobe-control, 242 243 240) / <alpha-value>)',
+          900: 'rgb(var(--woobe-control, 242 243 240) / <alpha-value>)',
+          950: 'rgb(var(--woobe-canvas, 247 247 244) / <alpha-value>)',
+        },
+      },
       fontFamily: {
         sans: [...woobeTypography.sans],
         mono: [...woobeTypography.mono],

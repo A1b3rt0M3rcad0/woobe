@@ -73,7 +73,7 @@ export function NetworkExecutionPath({
               <span className="mt-ui-hairline shrink-0"><StatusIcon status={invocation.status} /></span>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-ui-sm">
-                  <p className="truncate font-sans text-product-small font-medium text-white">{invocation.agentName}</p>
+                  <p className="truncate font-sans text-product-small font-medium text-foreground">{invocation.agentName}</p>
                   <span className="shrink-0 font-mono text-system-meta uppercase tracking-ui-label text-muted-foreground">{role === 'entry' ? 'Entry' : 'Delegated'}</span>
                   {invocation.durationMs != null ? <span className="ml-auto shrink-0 font-mono text-system-meta text-muted-foreground">{formatLatency(invocation.durationMs)}</span> : null}
                 </div>
@@ -88,7 +88,7 @@ export function NetworkExecutionPath({
         )
       })}
       {hiddenCount > 0 && onViewAll ? (
-        <button type="button" onClick={onViewAll} className="w-full rounded-control border border-dashed border-border/80 px-ui-md py-ui-sm font-mono text-system-micro text-muted-foreground transition-colors hover:border-primary/30 hover:text-white">
+        <button type="button" onClick={onViewAll} className="w-full rounded-control border border-dashed border-border/80 px-ui-md py-ui-sm font-mono text-system-micro text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground">
           View {hiddenCount} more Agent Run{hiddenCount === 1 ? '' : 's'}
         </button>
       ) : null}

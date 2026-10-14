@@ -223,7 +223,7 @@ function AdvancedSection({
         aria-expanded={open}
       >
         <span className="min-w-0">
-          <span className="block text-sm font-medium text-white">{label}</span>
+          <span className="block text-sm font-medium text-foreground">{label}</span>
           {summary ? <span className="mt-0.5 block truncate text-[11px] text-muted">{summary}</span> : null}
         </span>
         <ChevronDown className={`h-4 w-4 shrink-0 text-muted transition-transform ${open ? 'rotate-180' : ''}`} />
@@ -254,7 +254,7 @@ function HeaderRows({
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-xs font-medium text-white">Headers</p>
+          <p className="text-xs font-medium text-foreground">Headers</p>
           <p className="mt-0.5 text-[11px] text-muted">Use a Secret reference for sensitive values.</p>
         </div>
         <Button type="button" size="sm" variant="ghost" onClick={addHeader}>
@@ -342,7 +342,7 @@ function RouteHeadersEditor({
       <div>
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-xs font-medium text-white">Inherited headers</p>
+            <p className="text-xs font-medium text-foreground">Inherited headers</p>
             <p className="mt-0.5 text-[11px] text-muted">Shared by the API. Override only the exceptions.</p>
           </div>
           <span className="text-[11px] text-muted">{shared.length} inherited</span>
@@ -355,7 +355,7 @@ function RouteHeadersEditor({
               return (
                 <div key={header.key.toLowerCase()} className="flex flex-wrap items-center gap-2 px-3 py-2.5">
                   <div className="min-w-0 flex-1">
-                    <p className="truncate font-mono text-[11px] text-white">{header.key}</p>
+                    <p className="truncate font-mono text-[11px] text-foreground">{header.key}</p>
                     <p className="mt-0.5 truncate text-[10px] text-muted">
                       {state === 'removed' ? 'Not sent by this route' : state === 'overridden' ? 'Overridden by this route' : 'Inherited from API'}
                     </p>
@@ -388,7 +388,7 @@ function RouteHeadersEditor({
       {effective.length > 0 ? (
         <div className="rounded-lg border border-border/70 bg-background/35 px-3 py-2.5">
           <div className="flex items-center justify-between gap-3">
-            <p className="text-[11px] font-medium text-white">Effective request headers</p>
+            <p className="text-[11px] font-medium text-foreground">Effective request headers</p>
             <span className="text-[10px] text-muted">{effective.length} sent</span>
           </div>
           <div className="mt-2 flex flex-wrap gap-1.5">
@@ -733,18 +733,18 @@ export function ApiFirstToolForm({
         {step === 'type' ? (
           <div className="space-y-4">
             <div>
-              <h3 className="text-base font-semibold text-white">What are you connecting?</h3>
+              <h3 className="text-base font-semibold text-foreground">What are you connecting?</h3>
               <p className="mt-1 text-sm text-muted">Choose a provider type. Configuration appears only after selection.</p>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <button type="button" onClick={() => selectProtocol('http')} className="rounded-xl border border-border/80 bg-background/35 p-4 text-left transition-colors hover:border-primary/45 hover:bg-primary/5">
                 <Globe2 className="h-4 w-4 text-primary-light" />
-                <p className="mt-3 text-sm font-semibold text-white">HTTP API</p>
+                <p className="mt-3 text-sm font-semibold text-foreground">HTTP API</p>
                 <p className="mt-1 text-xs leading-5 text-muted">Connect one API domain and expose its routes.</p>
               </button>
               <button type="button" onClick={() => selectProtocol('mcp')} className="rounded-xl border border-border/80 bg-background/35 p-4 text-left transition-colors hover:border-primary/45 hover:bg-primary/5">
                 <Server className="h-4 w-4 text-primary-light" />
-                <p className="mt-3 text-sm font-semibold text-white">MCP Server</p>
+                <p className="mt-3 text-sm font-semibold text-foreground">MCP Server</p>
                 <p className="mt-1 text-xs leading-5 text-muted">Connect a remote server and discover its tools.</p>
               </button>
             </div>
@@ -763,7 +763,7 @@ export function ApiFirstToolForm({
                 </Button>
               ) : null}
               <div>
-                <h3 className="text-base font-semibold text-white">{protocol === 'http' ? (initialTool ? 'Edit HTTP API' : 'Create HTTP API') : 'Connect MCP Server'}</h3>
+                <h3 className="text-base font-semibold text-foreground">{protocol === 'http' ? (initialTool ? 'Edit HTTP API' : 'Create HTTP API') : 'Connect MCP Server'}</h3>
                 <p className="mt-1 text-sm text-muted">{protocol === 'http' ? 'Connect the API first, then add only the routes the Agent needs.' : 'Tools are discovered automatically after creation.'}</p>
               </div>
             </div>
@@ -790,7 +790,7 @@ export function ApiFirstToolForm({
                 <div className="space-y-3 border-t border-border/70 pt-5">
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <p className="text-sm font-medium text-white">Routes</p>
+                      <p className="text-sm font-medium text-foreground">Routes</p>
                       <p className="mt-0.5 text-xs text-muted">Each route becomes an independent capability for the Agent.</p>
                     </div>
                     <Button type="button" size="sm" variant="outline" onClick={addRoute}>
@@ -801,7 +801,7 @@ export function ApiFirstToolForm({
                   {routes.length === 0 ? (
                     <button type="button" onClick={addRoute} className="w-full rounded-xl border border-dashed border-border/80 px-4 py-7 text-center transition-colors hover:border-primary/40 hover:bg-primary/5">
                       <Route className="mx-auto h-5 w-5 text-primary-light" />
-                      <p className="mt-2 text-sm font-medium text-white">Add the first route</p>
+                      <p className="mt-2 text-sm font-medium text-foreground">Add the first route</p>
                       <p className="mt-1 text-xs text-muted">Start with the endpoint the Agent needs most.</p>
                     </button>
                   ) : (
@@ -810,7 +810,7 @@ export function ApiFirstToolForm({
                         <div key={route.id} className="flex items-center gap-3 px-3 py-3">
                           <span className="shrink-0 rounded-md border border-border/80 bg-background px-2 py-1 font-mono text-[10px] font-semibold text-primary-light">{route.method}</span>
                           <button type="button" onClick={() => editRoute(route)} className="min-w-0 flex-1 text-left">
-                            <p className="truncate text-sm font-medium text-white">{route.name}</p>
+                            <p className="truncate text-sm font-medium text-foreground">{route.name}</p>
                             <p className="mt-0.5 truncate font-mono text-[11px] text-muted">{route.path}</p>
                           </button>
                           <Button type="button" size="sm" variant="ghost" className="text-red-300" onClick={() => removeRoute(route.id)} aria-label={`Remove ${route.name}`}>
@@ -875,7 +875,7 @@ export function ApiFirstToolForm({
                 <ArrowLeft className="h-4 w-4" />
               </Button>
               <div>
-                <h3 className="text-base font-semibold text-white">{routeEditor.isNew ? 'Add route' : 'Edit route'}</h3>
+                <h3 className="text-base font-semibold text-foreground">{routeEditor.isNew ? 'Add route' : 'Edit route'}</h3>
                 <p className="mt-1 text-sm text-muted">Define the request. Woobe creates and preserves the technical identifier automatically.</p>
                 {initialTool ? <p className="mt-1 text-[11px] text-muted">Apply the route here, then use Save changes to persist the Tool.</p> : null}
               </div>
@@ -917,7 +917,7 @@ export function ApiFirstToolForm({
             {routeDependencies.length ? (
               <div className="space-y-2">
                 <div>
-                  <p className="text-xs font-medium text-white">Runtime inputs</p>
+                  <p className="text-xs font-medium text-foreground">Runtime inputs</p>
                   <p className="mt-0.5 text-[11px] text-muted">
                     Derived from the request template. Edit the URL, headers or body to change these dependencies.
                   </p>
@@ -946,7 +946,7 @@ export function ApiFirstToolForm({
                           key={`${dependency.source}:${dependency.field}`}
                           className="grid min-h-[48px] grid-cols-[minmax(120px,1fr)_150px_minmax(150px,1.2fr)_minmax(150px,1fr)] items-center gap-2 px-3 py-2"
                         >
-                          <span className="truncate font-mono text-[11px] font-medium text-white">{dependency.field}</span>
+                          <span className="truncate font-mono text-[11px] font-medium text-foreground">{dependency.field}</span>
                           <span className="text-[10px] text-muted">{sourceLabel}</span>
                           <span className="truncate text-[10px] text-muted" title={dependency.usages.join(', ')}>
                             {dependency.usages.join(', ')}
@@ -991,7 +991,7 @@ export function ApiFirstToolForm({
               {!routeEditor.isNew && routeEditor.draft.operation_id ? (
                 <div>
                   <p className="text-xs font-medium text-muted">Technical identifier</p>
-                  <code className="mt-1 block rounded-lg border border-border/70 bg-background px-3 py-2 text-xs text-white">{routeEditor.draft.operation_id}</code>
+                  <code className="mt-1 block rounded-lg border border-border/70 bg-background px-3 py-2 text-xs text-foreground">{routeEditor.draft.operation_id}</code>
                   <p className="mt-1 text-[11px] text-muted">Stable identifier generated when the route was created.</p>
                   <FieldError message={routeErrors.operationId} />
                 </div>

@@ -221,7 +221,7 @@ function PermissionControl({
           type="button"
           disabled={busyKey === `${itemName}:${value}`}
           onClick={() => onChange(value)}
-          className={`rounded-technical px-ui-sm py-ui-xs font-mono text-system-micro font-medium transition-colors disabled:opacity-50 ${mode === value ? 'bg-accent text-white' : 'text-muted-foreground hover:text-white'}`}
+          className={`rounded-technical px-ui-sm py-ui-xs font-mono text-system-micro font-medium transition-colors disabled:opacity-50 ${mode === value ? 'bg-accent text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
         >
           {value === 'deny' ? 'Block' : value[0].toUpperCase() + value.slice(1)}
         </button>
@@ -427,14 +427,14 @@ export function McpProviderPanel({ tool, footerActions, summaryNote, onChanged, 
 
       {diagnostic ? <p className="mt-ui-xs line-clamp-2 px-ui-xs font-mono text-system-meta leading-4 text-amber-200">{state.message}</p> : null}
       {state.oauth_connected ? (
-        <button type="button" onClick={() => void handleDisconnect()} className="mt-ui-xs px-ui-xs font-mono text-system-micro text-muted-foreground hover:text-white">Disconnect</button>
+        <button type="button" onClick={() => void handleDisconnect()} className="mt-ui-xs px-ui-xs font-mono text-system-micro text-muted-foreground hover:text-foreground">Disconnect</button>
       ) : null}
 
       <Dialog open={manageOpen} onClose={() => setManageOpen(false)} title={`Manage MCP tools: ${tool.name}`} className="max-w-3xl" scrollMode="content">
         <div className="space-y-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <p className="text-sm font-medium text-white">{counts.allow} allowed · {counts.review} review · {counts.deny} blocked</p>
+              <p className="text-sm font-medium text-foreground">{counts.allow} allowed · {counts.review} review · {counts.deny} blocked</p>
               <p className="mt-1 text-xs text-muted">Each allowed MCP tool is exposed independently to this Agent.</p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -459,7 +459,7 @@ export function McpProviderPanel({ tool, footerActions, summaryNote, onChanged, 
                 return (
                   <div key={item.name} className="grid gap-3 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
                     <div className="min-w-0">
-                      <p className="truncate text-xs font-medium text-white">{item.title || item.name}</p>
+                      <p className="truncate text-xs font-medium text-foreground">{item.title || item.name}</p>
                       <p className="mt-0.5 truncate font-mono text-[10px] text-muted">{item.name}</p>
                       {item.description ? <p className="mt-1 line-clamp-2 text-[10px] leading-4 text-muted">{item.description}</p> : null}
                       {Object.keys(item.bindings || {}).length ? (
@@ -502,7 +502,7 @@ export function McpProviderPanel({ tool, footerActions, summaryNote, onChanged, 
         {bindingTool ? (
           <div className="space-y-4">
             <div>
-              <p className="text-sm font-medium text-white">Input sources</p>
+              <p className="text-sm font-medium text-foreground">Input sources</p>
               <p className="mt-1 text-xs text-muted">
                 Agent inputs remain model-provided. External Context inputs are injected from the immutable Run snapshot.
               </p>

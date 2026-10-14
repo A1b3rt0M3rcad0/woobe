@@ -60,7 +60,7 @@ import type { NetworkDefinitionChange, NetworkEditorSelection } from '@/features
 import { useWorkspace } from '@/features/workspace/WorkspaceProvider'
 import { cn } from '@/lib/utils'
 
-const smallButton = 'rounded-control border border-border/80 bg-background/40 px-ui-sm py-ui-xs font-mono text-system-micro font-medium text-muted-foreground hover:border-primary/30 hover:text-white disabled:cursor-not-allowed disabled:opacity-45'
+const smallButton = 'rounded-control border border-border/80 bg-background/40 px-ui-sm py-ui-xs font-mono text-system-micro font-medium text-muted-foreground hover:border-primary/30 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-45'
 const genericSessionTitle = /^new(?:\s+(?:network|draft|staging|production))?\s+session$/i
 
 type SnapshotInspection = {
@@ -924,9 +924,9 @@ export default function NetworkPage() {
   ) : !environmentReady && !snapshotInspection ? (
     <div className="flex min-w-0 flex-1 items-center justify-center p-6 text-center">
       <div className="max-w-sm rounded-2xl border border-border bg-surface/70 p-6">
-        <p className="text-sm font-medium text-white">{environment === 'staging' ? 'Staging has not been created' : 'Production has not been published'}</p>
+        <p className="text-sm font-medium text-foreground">{environment === 'staging' ? 'Staging has not been created' : 'Production has not been published'}</p>
         <p className="mt-2 text-[10px] leading-5 text-muted">{environment === 'staging' ? 'Return to Draft, save the composition and create an immutable Staging version.' : 'Validate the Network in Staging, then publish that exact snapshot.'}</p>
-        <button type="button" onClick={() => changeEnvironment(environment === 'staging' ? 'draft' : 'staging')} className="mt-ui-lg rounded-control bg-primary px-ui-md py-ui-sm font-mono text-system-label font-medium text-white transition-colors hover:bg-primary-hover">Go to {environment === 'staging' ? 'Draft' : 'Staging'}</button>
+        <button type="button" onClick={() => changeEnvironment(environment === 'staging' ? 'draft' : 'staging')} className="mt-ui-lg rounded-control bg-primary px-ui-md py-ui-sm font-mono text-system-label font-medium text-primary-foreground transition-colors hover:bg-primary-hover">Go to {environment === 'staging' ? 'Draft' : 'Staging'}</button>
       </div>
     </div>
   ) : (
@@ -965,10 +965,10 @@ export default function NetworkPage() {
   return (
     <div className="flex h-screen min-w-0 flex-col overflow-hidden bg-background">
       <header className="flex h-14 shrink-0 items-center gap-ui-md border-b border-border bg-surface/80 px-ui-md">
-        <button type="button" onClick={() => navigate(`/workspaces/${workspaceId}/projects/${projectId}`)} className="flex h-8 w-8 items-center justify-center rounded-control border border-border text-muted-foreground transition-colors hover:text-white"><ChevronLeft className="h-4 w-4" /></button>
+        <button type="button" onClick={() => navigate(`/workspaces/${workspaceId}/projects/${projectId}`)} className="flex h-8 w-8 items-center justify-center rounded-control border border-border text-muted-foreground transition-colors hover:text-foreground"><ChevronLeft className="h-4 w-4" /></button>
         <div>
           <div className="flex items-center gap-ui-sm">
-            <h1 className="text-sm font-semibold text-white">{currentProject?.name || 'Project'} Network</h1>
+            <h1 className="text-sm font-semibold text-foreground">{currentProject?.name || 'Project'} Network</h1>
             <Badge>{networkQuery.isLoading ? 'Loading' : isInitialSetup ? 'Setup incomplete' : 'Runtime'}</Badge>
             {!isInitialSetup ? <button type="button" onClick={() => openNetworkManager('production')} className={cn('rounded-technical border px-ui-sm py-ui-hairline font-mono text-system-label', productionVersion ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : 'border-border bg-background/45 text-muted-foreground')}>{productionVersion ? `Production · ${productionVersion.version}` : 'No Production release'}</button> : null}
           </div>
@@ -980,7 +980,7 @@ export default function NetworkPage() {
           <div className="ml-auto flex items-center gap-ui-sm">
             <div role="tablist" aria-label="Network environment" className="flex rounded-container border border-border bg-background/35 p-ui-hairline">
               {(['draft', 'staging', 'production'] as Environment[]).map((item) => (
-                <button key={item} type="button" role="tab" aria-selected={item === environment} onClick={() => changeEnvironment(item)} title={item === 'draft' ? 'Editable working composition' : item === 'staging' ? 'Read-only validation snapshot' : 'Immutable released composition'} className={cn('rounded-control px-ui-md py-ui-xs font-mono text-system-micro capitalize transition-colors', item === environment ? item === 'production' ? 'bg-emerald-500/10 text-emerald-300' : item === 'staging' ? 'bg-indigo-500/10 text-indigo-300' : 'bg-primary/10 text-primary-light' : 'text-muted-foreground hover:text-white')}>{item}</button>
+                <button key={item} type="button" role="tab" aria-selected={item === environment} onClick={() => changeEnvironment(item)} title={item === 'draft' ? 'Editable working composition' : item === 'staging' ? 'Read-only validation snapshot' : 'Immutable released composition'} className={cn('rounded-control px-ui-md py-ui-xs font-mono text-system-micro capitalize transition-colors', item === environment ? item === 'production' ? 'bg-emerald-500/10 text-emerald-300' : item === 'staging' ? 'bg-indigo-500/10 text-indigo-300' : 'bg-primary/10 text-primary-light' : 'text-muted-foreground hover:text-foreground')}>{item}</button>
               ))}
             </div>
             {environment === 'draft' ? <button type="button" disabled={!workspaceDirty || draftSavePending || editorHasErrors || Boolean(snapshotInspection)} onClick={() => void saveDraft()} className={smallButton}>{draftSavePending ? 'Saving…' : workspaceDirty ? 'Save Draft' : `Draft saved · r${editorRevision}`}</button> : null}
@@ -988,9 +988,9 @@ export default function NetworkPage() {
             <button type="button" onClick={() => setShowAsac(true)} className={smallButton}>History & lifecycle</button>
             <button type="button" onClick={() => setShowApi(true)} className={smallButton}><Code2 className="mr-ui-xs inline h-3.5 w-3.5" />API Reference</button>
             {environment === 'production' ? (
-              <button type="button" disabled={!rollbackAvailable} onClick={() => openNetworkManager('production', 'rollback')} title={rollbackAvailable ? 'Choose a historical Release to reactivate' : 'No previous Production Release is available'} className="inline-flex items-center gap-ui-xs rounded-control bg-primary px-ui-md py-ui-sm font-mono text-system-label font-semibold text-white transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-45"><RotateCcw className="h-3.5 w-3.5" />Rollback</button>
+              <button type="button" disabled={!rollbackAvailable} onClick={() => openNetworkManager('production', 'rollback')} title={rollbackAvailable ? 'Choose a historical Release to reactivate' : 'No previous Production Release is available'} className="inline-flex items-center gap-ui-xs rounded-control bg-primary px-ui-md py-ui-sm font-mono text-system-label font-semibold text-primary-foreground transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-45"><RotateCcw className="h-3.5 w-3.5" />Rollback</button>
             ) : (
-              <button type="button" disabled={releaseActionBlocked} onClick={() => void openReleaseAction(environment === 'draft' ? 'stage' : 'publish')} className="rounded-control bg-primary px-ui-md py-ui-sm font-mono text-system-label font-semibold text-white transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-45">{environment === 'draft' ? 'Stage Network' : 'Publish Release'}</button>
+              <button type="button" disabled={releaseActionBlocked} onClick={() => void openReleaseAction(environment === 'draft' ? 'stage' : 'publish')} className="rounded-control bg-primary px-ui-md py-ui-sm font-mono text-system-label font-semibold text-primary-foreground transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-45">{environment === 'draft' ? 'Stage Network' : 'Publish Release'}</button>
             )}
           </div>
         )}
@@ -1005,7 +1005,7 @@ export default function NetworkPage() {
           <>
             <span className="inline-flex items-center gap-ui-xs">{snapshotInspection || environment !== 'draft' ? <Lock className="h-3 w-3 text-muted-foreground" /> : <PencilLine className="h-3 w-3 text-primary-light" />}Viewing: <b className="text-slate-300">{contextVersionLabel}</b> · {snapshotInspection ? 'Exact read-only snapshot' : environment === 'draft' ? workspaceDirty ? 'Unsaved Draft changes' : 'Draft saved' : environmentReady ? 'Read-only composition · Chat and Runs available' : 'Environment not created'}</span>
             <div className="absolute left-1/2 flex -translate-x-1/2 rounded-control border border-border bg-background/45 p-ui-hairline">
-              {([['canvas', Workflow], ['chat', MessageSquare]] as Array<['canvas' | 'chat', LucideIcon]>).map(([mode, Icon]) => <button key={mode} type="button" onClick={() => changeCenter(mode)} className={cn('flex items-center gap-ui-xs rounded-technical px-ui-sm py-ui-xs capitalize transition-colors', centerMode === mode ? 'bg-primary/10 text-primary-light' : 'text-muted-foreground hover:text-white')}><Icon className="h-3 w-3" />{mode}</button>)}
+              {([['canvas', Workflow], ['chat', MessageSquare]] as Array<['canvas' | 'chat', LucideIcon]>).map(([mode, Icon]) => <button key={mode} type="button" onClick={() => changeCenter(mode)} className={cn('flex items-center gap-ui-xs rounded-technical px-ui-sm py-ui-xs capitalize transition-colors', centerMode === mode ? 'bg-primary/10 text-primary-light' : 'text-muted-foreground hover:text-foreground')}><Icon className="h-3 w-3" />{mode}</button>)}
             </div>
             <span className="ml-auto truncate">{activeSession ? `Session: ${activeSession.title}` : 'New conversation'} · Max depth {workspaceDefinition.settings.max_depth} · Timeout {workspaceDefinition.settings.timeout_seconds}s</span>
           </>

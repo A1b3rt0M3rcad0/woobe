@@ -35,7 +35,7 @@ function SourcesList({ invocation }: { invocation: NetworkAgentInvocation }) {
         <div key={source.chunk_id || `${source.document_id || 'source'}-${index}`} className="rounded-control border border-border/70 bg-background/45 p-ui-sm">
           <div className="flex items-center gap-ui-sm">
             <Database className="h-3.5 w-3.5 shrink-0 text-violet-300" />
-            <span className="min-w-0 flex-1 truncate font-sans text-product-small text-white">{source.document_title || 'Untitled source'}</span>
+            <span className="min-w-0 flex-1 truncate font-sans text-product-small text-foreground">{source.document_title || 'Untitled source'}</span>
             {source.page_number != null ? <span className="font-mono text-system-meta text-muted-foreground">p. {source.page_number}</span> : null}
             {source.score != null ? <span className="font-mono text-system-meta text-muted-foreground">{formatNumber(source.score * 100, 0)}%</span> : null}
           </div>
@@ -74,8 +74,8 @@ function ContextSummary({ invocation }: { invocation: NetworkAgentInvocation }) 
         <span className={cn('h-2 w-2 rounded-full', invocation.contextState === 'stateless' ? 'bg-slate-400' : invocation.contextState === 'created' ? 'bg-blue-400' : 'bg-emerald-400')} />
         <p className="min-w-0 flex-1 font-sans text-product-caption text-slate-200">{label}</p>
       </div>
-      {invocation.agentSessionId ? <div className="mt-ui-sm flex items-center gap-ui-sm"><code className="min-w-0 flex-1 truncate font-mono text-system-meta text-primary-light">agent session {invocation.agentSessionId}</code><button type="button" onClick={() => copyText(invocation.agentSessionId!)} className="text-muted-foreground transition-colors hover:text-white" aria-label="Copy Agent Session ID"><Copy className="h-3 w-3" /></button></div> : null}
-      {invocation.childTraceId ? <div className="mt-ui-xs flex items-center gap-ui-sm"><code className="min-w-0 flex-1 truncate font-mono text-system-meta text-muted-foreground">child trace {invocation.childTraceId}</code><button type="button" onClick={() => copyText(invocation.childTraceId!)} className="text-muted-foreground transition-colors hover:text-white" aria-label="Copy child trace ID"><Copy className="h-3 w-3" /></button></div> : null}
+      {invocation.agentSessionId ? <div className="mt-ui-sm flex items-center gap-ui-sm"><code className="min-w-0 flex-1 truncate font-mono text-system-meta text-primary-light">agent session {invocation.agentSessionId}</code><button type="button" onClick={() => copyText(invocation.agentSessionId!)} className="text-muted-foreground transition-colors hover:text-foreground" aria-label="Copy Agent Session ID"><Copy className="h-3 w-3" /></button></div> : null}
+      {invocation.childTraceId ? <div className="mt-ui-xs flex items-center gap-ui-sm"><code className="min-w-0 flex-1 truncate font-mono text-system-meta text-muted-foreground">child trace {invocation.childTraceId}</code><button type="button" onClick={() => copyText(invocation.childTraceId!)} className="text-muted-foreground transition-colors hover:text-foreground" aria-label="Copy child trace ID"><Copy className="h-3 w-3" /></button></div> : null}
     </div>
   )
 }
@@ -103,7 +103,7 @@ export function NetworkTraceInvocation({ invocation, trace, depth, onOpenAgent }
           <div className="mt-ui-hairline flex h-control-sm w-control-sm shrink-0 items-center justify-center rounded-control border border-border bg-surface">{statusIcon}</div>
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 flex-wrap items-center gap-ui-xs">
-              <p className="truncate font-sans text-product-small font-medium text-white">{invocation.agentName}</p>
+              <p className="truncate font-sans text-product-small font-medium text-foreground">{invocation.agentName}</p>
               <Badge tone={invocation.source === 'release' ? 'production' : invocation.source}>{invocation.source}</Badge>
             </div>
             <p className="mt-ui-xs truncate font-mono text-system-meta text-muted-foreground">{invocation.provider || '—'}/{invocation.model || '—'} · {invocation.version}</p>
@@ -113,8 +113,8 @@ export function NetworkTraceInvocation({ invocation, trace, depth, onOpenAgent }
               {invocation.costUsd != null ? <span>${invocation.costUsd.toFixed(3)}</span> : null}
             </div>
           </div>
-          {invocation.nodeId ? <button type="button" onClick={() => onOpenAgent(invocation.nodeId!)} className="h-control-segment rounded-control border border-border/80 px-ui-sm font-mono text-system-micro text-muted-foreground transition-colors hover:border-primary/30 hover:text-white">Open Agent</button> : null}
-          <button type="button" onClick={() => setOpen((value) => !value)} className="flex h-control-segment w-control-segment shrink-0 items-center justify-center rounded-control text-muted-foreground transition-colors hover:bg-surface hover:text-white" aria-label={open ? 'Collapse invocation' : 'Expand invocation'} aria-expanded={open}>
+          {invocation.nodeId ? <button type="button" onClick={() => onOpenAgent(invocation.nodeId!)} className="h-control-segment rounded-control border border-border/80 px-ui-sm font-mono text-system-micro text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground">Open Agent</button> : null}
+          <button type="button" onClick={() => setOpen((value) => !value)} className="flex h-control-segment w-control-segment shrink-0 items-center justify-center rounded-control text-muted-foreground transition-colors hover:bg-surface hover:text-foreground" aria-label={open ? 'Collapse invocation' : 'Expand invocation'} aria-expanded={open}>
             {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
           </button>
         </div>

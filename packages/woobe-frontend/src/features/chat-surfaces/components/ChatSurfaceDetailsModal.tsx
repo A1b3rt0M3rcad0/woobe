@@ -176,7 +176,7 @@ function ReadOnlyField({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0 rounded-xl border border-border/80 bg-background/55 p-4">
       <p className="text-[11px] uppercase tracking-wider text-muted">{label}</p>
-      <p className="mt-1 break-words text-sm font-medium text-white">{value}</p>
+      <p className="mt-1 break-words text-sm font-medium text-foreground">{value}</p>
     </div>
   )
 }
@@ -209,7 +209,7 @@ function SidebarNavButton({
         item.indent && 'md:pl-5',
         active
           ? 'border-primary/35 bg-primary/10 text-primary-light'
-          : 'border-transparent text-muted hover:border-primary/20 hover:bg-background/70 hover:text-white',
+          : 'border-transparent text-muted hover:border-primary/20 hover:bg-background/70 hover:text-foreground',
       )}
     >
       <Icon className="h-3.5 w-3.5 shrink-0" />
@@ -522,7 +522,7 @@ export function ChatSurfaceDetailsModal({
   const overviewContent = surface && form ? (
     <div className="space-y-5">
       <section className="rounded-xl border border-border/80 bg-surface/65 p-5">
-        <h3 className="text-sm font-semibold text-white">General</h3>
+        <h3 className="text-sm font-semibold text-foreground">General</h3>
         <p className="mt-1 text-xs text-muted">Identity and description shown to operators managing this Surface.</p>
         <div className="mt-5 space-y-4">
           <label className="block">
@@ -548,7 +548,7 @@ export function ChatSurfaceDetailsModal({
       </section>
 
       <section className="rounded-xl border border-border/80 bg-surface/65 p-5">
-        <h3 className="text-sm font-semibold text-white">Immutable binding</h3>
+        <h3 className="text-sm font-semibold text-foreground">Immutable binding</h3>
         <p className="mt-1 text-xs text-muted">These fields define the published boundary and are not editable after creation.</p>
         <div className="mt-4 grid min-w-0 gap-3 sm:grid-cols-2">
           <ReadOnlyField label="Target" value={`${surface.target_type === 'agent' ? 'Agent' : 'Network'} · ${targetName}`} />
@@ -561,7 +561,7 @@ export function ChatSurfaceDetailsModal({
       <section className="rounded-xl border border-border/80 bg-surface/65 p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h3 className="text-sm font-semibold text-white">Lifecycle</h3>
+            <h3 className="text-sm font-semibold text-foreground">Lifecycle</h3>
             <p className="mt-1 max-w-xl text-xs leading-5 text-muted">
               Activate or disable the public ChatSurface without changing its immutable target binding.
             </p>
@@ -604,7 +604,7 @@ export function ChatSurfaceDetailsModal({
   const originsContent = surface && form ? (
     <div className="space-y-5">
       <section className="rounded-xl border border-border/80 bg-surface/65 p-5">
-        <h3 className="text-sm font-semibold text-white">Allowed origins</h3>
+        <h3 className="text-sm font-semibold text-foreground">Allowed origins</h3>
         <p className="mt-1 text-xs leading-5 text-muted">
           Session tokens are issued for exact host origins. Wildcards, paths, queries and fragments are rejected by the API.
         </p>
@@ -692,7 +692,7 @@ export function ChatSurfaceDetailsModal({
 
   const runtimeContent = form ? (
     <section className="rounded-xl border border-border/80 bg-surface/65 p-5">
-      <h3 className="text-sm font-semibold text-white">Runtime limits</h3>
+      <h3 className="text-sm font-semibold text-foreground">Runtime limits</h3>
       <p className="mt-1 text-xs text-muted">Operational limits enforced for this ChatSurface.</p>
       <div className="mt-5 grid gap-4 sm:grid-cols-3">
         <label className="block min-w-0">
@@ -740,7 +740,7 @@ export function ChatSurfaceDetailsModal({
       <section className="rounded-xl border border-border/80 bg-surface/65 p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h3 className="text-sm font-semibold text-white">Production binding</h3>
+            <h3 className="text-sm font-semibold text-foreground">Production binding</h3>
             <p className="mt-1 max-w-xl text-xs leading-5 text-muted">
               New Sessions use the immutable Release pinned here. Existing Sessions keep the Release captured when they were created.
             </p>
@@ -770,7 +770,7 @@ export function ChatSurfaceDetailsModal({
       <section className="rounded-xl border border-border/80 bg-surface/65 p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h3 className="text-sm font-semibold text-white">Access Keys</h3>
+            <h3 className="text-sm font-semibold text-foreground">Access Keys</h3>
             <p className="mt-1 max-w-xl text-xs leading-5 text-muted">
               Backend-only credentials used by the integrator to create Sessions and issue browser Session tokens.
             </p>
@@ -805,7 +805,7 @@ export function ChatSurfaceDetailsModal({
           ) : accessKeys.length === 0 ? (
             <div className="rounded-xl border border-dashed border-border bg-background/45 px-4 py-10 text-center">
               <KeyRound className="mx-auto h-5 w-5 text-muted" />
-              <p className="mt-3 text-sm font-medium text-white">No Access Keys</p>
+              <p className="mt-3 text-sm font-medium text-foreground">No Access Keys</p>
               <p className="mt-1 text-xs text-muted">Create a backend credential when the integrator is ready.</p>
             </div>
           ) : (
@@ -816,7 +816,7 @@ export function ChatSurfaceDetailsModal({
                   <div key={accessKey.id} className="grid min-w-0 gap-3 rounded-xl border border-border/70 bg-background/55 p-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <p className="truncate text-sm font-medium text-white">{accessKey.name}</p>
+                        <p className="truncate text-sm font-medium text-foreground">{accessKey.name}</p>
                         <StatusBadge status={accessKey.status} size="compact" />
                       </div>
                       <p className="mt-1 truncate font-mono text-xs text-muted">{accessKey.prefix}</p>
@@ -900,7 +900,7 @@ export function ChatSurfaceDetailsModal({
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex min-w-0 items-center gap-2">
-                      <h3 className="min-w-0 flex-1 truncate text-sm font-semibold text-white">{surface.name}</h3>
+                      <h3 className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">{surface.name}</h3>
                       <StatusBadge status={surface.status} size="compact" />
                     </div>
                     <p className="mt-1 truncate text-xs text-muted" title={targetName}>
@@ -908,7 +908,7 @@ export function ChatSurfaceDetailsModal({
                     </p>
                     <button
                       type="button"
-                      className="mt-2 flex max-w-full items-center gap-1.5 font-mono text-[11px] text-muted hover:text-white"
+                      className="mt-2 flex max-w-full items-center gap-1.5 font-mono text-[11px] text-muted hover:text-foreground"
                       onClick={() => {
                         void navigator.clipboard.writeText(surface.public_id)
                         toast.success('Public ID copied')
@@ -1022,7 +1022,7 @@ export function ChatSurfaceDetailsModal({
         {revokeCandidate && (
           <div className="space-y-5">
             <div className="rounded-xl border border-border bg-background/55 p-4">
-              <p className="text-sm font-medium text-white">{revokeCandidate.name}</p>
+              <p className="text-sm font-medium text-foreground">{revokeCandidate.name}</p>
               <p className="mt-1 font-mono text-xs text-muted">{revokeCandidate.prefix}</p>
             </div>
             <p className="text-sm leading-6 text-muted">Requests using this credential will stop authenticating immediately.</p>

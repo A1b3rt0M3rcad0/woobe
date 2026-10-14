@@ -71,7 +71,7 @@ function AgentNode({ data, selected }: NodeProps<AgentFlowNode>) {
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-ui-sm">
-            <p className="truncate font-sans text-product-small font-semibold text-white">{data.node.label}</p>
+            <p className="truncate font-sans text-product-small font-semibold text-foreground">{data.node.label}</p>
             {issue ? <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-red-400" /> : null}
           </div>
           <p className="mt-ui-xs truncate font-mono text-system-meta text-muted-foreground">{data.agent ? `${data.agent.provider}/${data.agent.model}` : 'Agent unavailable'}</p>
@@ -310,7 +310,7 @@ export function NetworkGraphEditor({
         <div className="absolute left-1/2 top-ui-md z-10 flex -translate-x-1/2 items-center gap-ui-sm rounded-control border border-border/80 bg-surface/95 px-ui-md py-ui-sm font-mono text-system-meta text-slate-300">
           <Lock className="h-3 w-3 text-primary-light" />
           <span>Snapshot: {inspectionLabel}</span>
-          {onClearInspection ? <button type="button" onClick={onClearInspection} className="rounded-technical p-ui-xs text-muted-foreground transition-colors hover:bg-background/60 hover:text-white" aria-label="Return to current composition"><X className="h-3 w-3" /></button> : null}
+          {onClearInspection ? <button type="button" onClick={onClearInspection} className="rounded-technical p-ui-xs text-muted-foreground transition-colors hover:bg-background/60 hover:text-foreground" aria-label="Return to current composition"><X className="h-3 w-3" /></button> : null}
         </div>
       ) : null}
       {!readOnly ? (
@@ -322,7 +322,7 @@ export function NetworkGraphEditor({
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-ui-xl">
           <div className="pointer-events-auto max-w-sm rounded-container border border-border bg-surface/95 p-ui-xl text-center">
             <div className="mx-auto flex h-control-lg w-control-lg items-center justify-center rounded-control border border-primary/25 bg-primary/10 text-primary-light"><Plus className="h-icon-lg w-icon-lg" /></div>
-            <h2 className="mt-ui-lg font-sans text-heading-sm font-semibold text-white">Build your Network</h2>
+            <h2 className="mt-ui-lg font-sans text-heading-sm font-semibold text-foreground">Build your Network</h2>
             <p className="mt-ui-sm font-sans text-product-caption leading-5 text-muted-foreground">Add an Agent, make it the entry point, then connect the Agents it may delegate work to.</p>
             {!readOnly ? <Button type="button" size="sm" onClick={onAddAgent} className="mt-ui-lg">Add first Agent</Button> : null}
           </div>

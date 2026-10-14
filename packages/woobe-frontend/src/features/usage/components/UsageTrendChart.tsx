@@ -161,7 +161,7 @@ export function UsageTrendChart({
     <section className="overflow-hidden rounded-xl border border-border/90 bg-surface/70">
       <div className="flex flex-col gap-4 border-b border-border px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h2 className="text-sm font-semibold text-white">Cost and run volume over time</h2>
+          <h2 className="text-sm font-semibold text-foreground">Cost and run volume over time</h2>
           <p className="mt-1 text-xs text-muted">{contextLabel} Network cost is contained in Agent Run cost and is not additive.</p>
         </div>
         <div className="inline-flex w-fit rounded-lg border border-border/80 bg-background/45 p-1">
@@ -172,7 +172,7 @@ export function UsageTrendChart({
               onClick={() => onModeChange(item.value)}
               className={cn(
                 'rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
-                item.value === mode ? 'bg-primary/15 text-primary-light' : 'text-muted hover:text-white',
+                item.value === mode ? 'bg-primary/15 text-primary-light' : 'text-muted hover:text-foreground',
               )}
             >
               {item.label}
@@ -260,28 +260,28 @@ export function UsageTrendChart({
               <CalendarRange className="h-4 w-4 text-primary-light" />
               <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-primary-light">Selected period</p>
             </div>
-            <p className="mt-2 text-sm font-semibold text-white">
+            <p className="mt-2 text-sm font-semibold text-foreground">
               {selectedPoint ? formatBucket(selectedPoint.bucket_start, bucket, true) : 'No period selected'}
             </p>
             {selectedPoint && selectedSeries && (
               <div className="mt-3 grid grid-cols-2 gap-2">
                 <div className="rounded-md border border-border/60 bg-background/25 p-2.5">
                   <p className="text-[9px] uppercase tracking-wider text-muted">{selectedSeries.primaryLabel}</p>
-                  <p className="mt-1 text-sm font-semibold text-white">{formatValue(selectedSeries.primary, mode)}</p>
+                  <p className="mt-1 text-sm font-semibold text-foreground">{formatValue(selectedSeries.primary, mode)}</p>
                 </div>
                 <div className="rounded-md border border-border/60 bg-background/25 p-2.5">
                   <p className="text-[9px] uppercase tracking-wider text-muted">{selectedSeries.secondaryLabel || 'LLM calls'}</p>
-                  <p className="mt-1 text-sm font-semibold text-white">
+                  <p className="mt-1 text-sm font-semibold text-foreground">
                     {selectedSeries.secondaryLabel ? formatValue(selectedSeries.secondary, mode) : selectedPoint.llm_calls}
                   </p>
                 </div>
                 <div className="rounded-md border border-border/60 bg-background/25 p-2.5">
                   <p className="text-[9px] uppercase tracking-wider text-muted">Agent success</p>
-                  <p className="mt-1 text-sm font-semibold text-white">{agentSuccess === null ? '—' : `${agentSuccess.toFixed(1)}%`}</p>
+                  <p className="mt-1 text-sm font-semibold text-foreground">{agentSuccess === null ? '—' : `${agentSuccess.toFixed(1)}%`}</p>
                 </div>
                 <div className="rounded-md border border-border/60 bg-background/25 p-2.5">
                   <p className="text-[9px] uppercase tracking-wider text-muted">Network success</p>
-                  <p className="mt-1 text-sm font-semibold text-white">{networkSuccess === null ? '—' : `${networkSuccess.toFixed(1)}%`}</p>
+                  <p className="mt-1 text-sm font-semibold text-foreground">{networkSuccess === null ? '—' : `${networkSuccess.toFixed(1)}%`}</p>
                 </div>
               </div>
             )}
@@ -296,10 +296,10 @@ export function UsageTrendChart({
               {highlights.map((highlight) => (
                 <div key={highlight.label} className="flex items-center justify-between gap-3 text-xs">
                   <div className="min-w-0">
-                    <p className="truncate text-white">{highlight.label}</p>
+                    <p className="truncate text-foreground">{highlight.label}</p>
                     <p className="mt-0.5 text-[10px] text-muted">{highlight.period}</p>
                   </div>
-                  <span className="shrink-0 font-medium text-white">{highlight.value}</span>
+                  <span className="shrink-0 font-medium text-foreground">{highlight.value}</span>
                 </div>
               ))}
             </div>
@@ -308,12 +308,12 @@ export function UsageTrendChart({
           <div className="rounded-lg border border-border/70 bg-background/25 p-3 text-xs">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2 text-muted"><CircleGauge className="h-4 w-4 text-primary-light" />Primary total</div>
-              <span className="font-semibold text-white">{formatValue(totals.primary, mode)}</span>
+              <span className="font-semibold text-foreground">{formatValue(totals.primary, mode)}</span>
             </div>
             {series[0]?.secondaryLabel && (
               <div className="mt-2 flex items-center justify-between gap-3 border-t border-border/60 pt-2">
                 <span className="text-muted">Secondary total</span>
-                <span className="font-semibold text-white">{formatValue(totals.secondary, mode)}</span>
+                <span className="font-semibold text-foreground">{formatValue(totals.secondary, mode)}</span>
               </div>
             )}
           </div>

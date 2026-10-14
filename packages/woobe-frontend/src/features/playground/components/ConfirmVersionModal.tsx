@@ -64,8 +64,8 @@ export function ConfirmVersionModal({ open, onClose, onConfirm, versionName, cur
     >
       <div role="dialog" aria-modal="true" aria-label="New Version" className={`${dialogTypographyClass} w-full max-w-lg rounded-xl border border-border bg-surface shadow-xl`}>
         <div className="flex items-center justify-between p-4 border-b border-border">
-          <h2 className="text-sm font-semibold text-white">New Version</h2>
-          <button onClick={onClose} className="p-1 rounded-md text-muted hover:text-white hover:bg-accent transition-colors">
+          <h2 className="text-sm font-semibold text-foreground">New Version</h2>
+          <button onClick={onClose} className="p-1 rounded-md text-muted hover:text-foreground hover:bg-accent transition-colors">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -107,7 +107,7 @@ export function ConfirmVersionModal({ open, onClose, onConfirm, versionName, cur
                         <tr key={key} className="border-b border-border/50 last:border-b-0">
                           <td className="px-3 py-1.5 text-muted font-medium">{label}</td>
                           <td className="px-3 py-1.5 text-muted max-w-[120px] truncate">{formatValue(previous)}</td>
-                          <td className="px-3 py-1.5 text-white max-w-[120px] truncate">
+                          <td className="px-3 py-1.5 text-foreground max-w-[120px] truncate">
                             <Badge variant="warning" className="text-[9px] mr-1">new</Badge>
                             {formatValue(current)}
                           </td>

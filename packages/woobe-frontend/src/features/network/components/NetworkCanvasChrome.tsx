@@ -180,7 +180,7 @@ export function NetworkCanvasChrome({ nodeCount, edgeCount, fitKey, viewportTouc
             viewportTouchedRef.current = true
             void zoomIn()
           }}
-          className="flex h-control-sm w-control-sm items-center justify-center border-b border-border bg-control/55 text-muted-foreground transition-colors hover:bg-accent hover:text-white"
+          className="flex h-control-sm w-control-sm items-center justify-center border-b border-border bg-control/55 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
         >
           <Plus className="h-icon w-icon" />
         </button>
@@ -192,7 +192,7 @@ export function NetworkCanvasChrome({ nodeCount, edgeCount, fitKey, viewportTouc
             viewportTouchedRef.current = true
             void zoomOut()
           }}
-          className="flex h-control-sm w-control-sm items-center justify-center border-b border-border bg-control/55 text-muted-foreground transition-colors hover:bg-accent hover:text-white"
+          className="flex h-control-sm w-control-sm items-center justify-center border-b border-border bg-control/55 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
         >
           <Minus className="h-icon w-icon" />
         </button>
@@ -204,7 +204,7 @@ export function NetworkCanvasChrome({ nodeCount, edgeCount, fitKey, viewportTouc
             viewportTouchedRef.current = false
             void fitVisibleArea(180)
           }}
-          className="flex h-control-sm w-control-sm items-center justify-center bg-control/55 text-muted-foreground transition-colors hover:bg-accent hover:text-white"
+          className="flex h-control-sm w-control-sm items-center justify-center bg-control/55 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
         >
           <Maximize2 className="h-icon w-icon" />
         </button>
@@ -215,7 +215,7 @@ export function NetworkCanvasChrome({ nodeCount, edgeCount, fitKey, viewportTouc
         style={{ left: leftInset + 16 }}
       >
         <Workflow className="h-3.5 w-3.5 text-primary-light" />
-        <span><b className="text-white">{nodeCount}</b> Agents · <b className="text-white">{edgeCount}</b> delegations</span>
+        <span><b className="text-foreground">{nodeCount}</b> Agents · <b className="text-foreground">{edgeCount}</b> delegations</span>
       </div>
     </>
   )

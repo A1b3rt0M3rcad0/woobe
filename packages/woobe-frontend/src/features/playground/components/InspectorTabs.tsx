@@ -44,7 +44,7 @@ export function InspectorTabs({ tabs, defaultTab, onTabChange }: InspectorTabsPr
               'flex-1 flex items-center justify-center gap-1.5 px-2 py-2.5 text-xs font-medium transition-colors border-b-2 -mb-[1px]',
               active === tab.id
                 ? 'border-primary text-primary'
-                : 'border-transparent text-muted hover:text-white',
+                : 'border-transparent text-muted hover:text-foreground',
             )}
           >
             {tab.icon && <span className="shrink-0">{tab.icon}</span>}

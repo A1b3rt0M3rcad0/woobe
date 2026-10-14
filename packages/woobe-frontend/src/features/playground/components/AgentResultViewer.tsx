@@ -50,7 +50,7 @@ export function AgentResultViewer({
         <div className={cn('line-clamp-4 overflow-hidden font-sans text-slate-200', compact ? 'text-[10px] leading-5' : 'text-[12px] leading-5')}>
           <MarkdownMessage content={text} className={compact ? 'space-y-1.5 text-[10px] leading-5' : 'space-y-2'} />
         </div>
-        <button type="button" onClick={() => setOpen(true)} className={cn('mt-2 font-mono text-primary-light hover:text-white', compact ? 'text-[8px]' : 'text-[9px]')}>
+        <button type="button" onClick={() => setOpen(true)} className={cn('mt-2 font-mono text-primary-light hover:text-foreground', compact ? 'text-[8px]' : 'text-[9px]')}>
           View full result
         </button>
       </div>

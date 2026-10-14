@@ -114,7 +114,7 @@ export function AgentSnapshotDetails({ release }: { release: AgentRelease }) {
       </div>
 
       <details className="group overflow-hidden rounded-xl border border-border/75 bg-background/25">
-        <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 text-[10px] font-medium text-muted hover:text-white">
+        <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 text-[10px] font-medium text-muted hover:text-foreground">
           <ChevronDown className="h-3.5 w-3.5 transition-transform group-open:rotate-180" />
           Advanced technical details
         </summary>

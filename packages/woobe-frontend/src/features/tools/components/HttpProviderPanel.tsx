@@ -78,7 +78,7 @@ function PermissionControl({
           key={value}
           type="button"
           onClick={() => onChange(value)}
-          className={`rounded-technical px-ui-sm py-ui-xs font-mono text-system-micro font-medium transition-colors ${mode === value ? 'bg-accent text-white' : 'text-muted-foreground hover:text-white'}`}
+          className={`rounded-technical px-ui-sm py-ui-xs font-mono text-system-micro font-medium transition-colors ${mode === value ? 'bg-accent text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
         >
           {value === 'deny' ? 'Block' : value[0].toUpperCase() + value.slice(1)}
         </button>
@@ -136,7 +136,7 @@ export function HttpProviderPanel({ tool, footerActions, summaryNote, permission
         <div className="space-y-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <p className="text-sm font-medium text-white">{counts.allow} allowed · {counts.review} review · {counts.deny} blocked</p>
+              <p className="text-sm font-medium text-foreground">{counts.allow} allowed · {counts.review} review · {counts.deny} blocked</p>
               <p className="mt-1 text-xs text-muted">Each allowed route is exposed independently to this Agent.</p>
             </div>
             {canEditPermissions ? (
@@ -164,7 +164,7 @@ export function HttpProviderPanel({ tool, footerActions, summaryNote, permission
                   <div className="min-w-0">
                     <div className="flex min-w-0 items-center gap-2">
                       <span className="shrink-0 rounded-md border border-border/80 bg-background px-2 py-1 font-mono text-[9px] font-semibold text-primary-light">{route.method}</span>
-                      <p className="truncate text-xs font-medium text-white">{route.name}</p>
+                      <p className="truncate text-xs font-medium text-foreground">{route.name}</p>
                       {showRisk ? <span className="shrink-0 text-[9px] capitalize text-amber-200">{route.risk_level} risk</span> : null}
                     </div>
                     <p className="mt-1 truncate font-mono text-[10px] text-muted">{route.path}</p>

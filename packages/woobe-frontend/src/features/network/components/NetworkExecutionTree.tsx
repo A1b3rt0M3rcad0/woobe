@@ -94,14 +94,14 @@ function AgentsCalled({ root, onSelectAgent }: { root: NetworkAgentInvocation; o
 
   return (
     <div className="pl-16">
-      <button type="button" onClick={() => setOpen((value) => !value)} className="flex max-w-full items-center gap-ui-xs font-mono text-system-micro text-primary-light transition-colors hover:text-white">
+      <button type="button" onClick={() => setOpen((value) => !value)} className="flex max-w-full items-center gap-ui-xs font-mono text-system-micro text-primary-light transition-colors hover:text-foreground">
         {open ? <ChevronDown className="h-3.5 w-3.5 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0" />}
         <span className="truncate">{agentSummary(agents)}</span>
       </button>
       {open ? (
         <div className="mt-ui-xs space-y-ui-xs border-l border-border/70 pl-ui-sm">
           {agents.map((agent, index) => agent.id ? (
-            <button key={`${agent.id}-${index}`} type="button" onClick={() => onSelectAgent(agent.id!)} className="flex max-w-full items-center gap-ui-xs text-left font-mono text-system-micro text-muted-foreground hover:text-white" style={{ paddingLeft: `${Math.max(0, Math.min(agent.depth - 1, 3)) * 10}px` }}>
+            <button key={`${agent.id}-${index}`} type="button" onClick={() => onSelectAgent(agent.id!)} className="flex max-w-full items-center gap-ui-xs text-left font-mono text-system-micro text-muted-foreground hover:text-foreground" style={{ paddingLeft: `${Math.max(0, Math.min(agent.depth - 1, 3)) * 10}px` }}>
               <AgentStatusIcon status={agent.status} />
               <span className="truncate">{agent.name}</span>
             </button>
@@ -127,14 +127,14 @@ export function NetworkLiveAgents({ agents, onSelectAgent }: {
 
   return (
     <div className="pl-16">
-      <button type="button" onClick={() => setOpen((value) => !value)} className="flex max-w-full items-center gap-ui-xs font-mono text-system-micro text-primary-light transition-colors hover:text-white">
+      <button type="button" onClick={() => setOpen((value) => !value)} className="flex max-w-full items-center gap-ui-xs font-mono text-system-micro text-primary-light transition-colors hover:text-foreground">
         {open ? <ChevronDown className="h-3.5 w-3.5 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0" />}
         <span className="truncate">{agentSummary(calledAgents)}</span>
       </button>
       {open ? (
         <div className="mt-ui-xs space-y-ui-xs border-l border-border/70 pl-ui-sm">
           {calledAgents.map((agent) => agent.nodeId ? (
-            <button key={agent.invocationId} type="button" onClick={() => onSelectAgent(agent.nodeId!)} className="flex max-w-full items-center gap-ui-xs text-left font-mono text-system-micro text-muted-foreground hover:text-white" style={{ paddingLeft: `${Math.max(0, Math.min(agent.depth - 1, 3)) * 10}px` }}>
+            <button key={agent.invocationId} type="button" onClick={() => onSelectAgent(agent.nodeId!)} className="flex max-w-full items-center gap-ui-xs text-left font-mono text-system-micro text-muted-foreground hover:text-foreground" style={{ paddingLeft: `${Math.max(0, Math.min(agent.depth - 1, 3)) * 10}px` }}>
               <AgentStatusIcon status={agent.status} />
               <span className="truncate">{agent.name}</span>
             </button>
@@ -156,7 +156,7 @@ export function NetworkLiveDelegations({ delegations }: { delegations: LiveNetwo
 
   return (
     <div className="pl-16">
-      <button type="button" onClick={() => setOpen((value) => !value)} className="flex max-w-full items-center gap-ui-xs font-mono text-system-micro text-primary-light transition-colors hover:text-white">
+      <button type="button" onClick={() => setOpen((value) => !value)} className="flex max-w-full items-center gap-ui-xs font-mono text-system-micro text-primary-light transition-colors hover:text-foreground">
         {open ? <ChevronDown className="h-3.5 w-3.5 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0" />}
         <span className="truncate">{delegationSummary(delegations)}</span>
       </button>
@@ -239,7 +239,7 @@ export function NetworkOpenRunAction({ execution, onOpenTrace }: {
   onOpenTrace: (execution: NetworkExecution) => void
 }) {
   return (
-    <button type="button" onClick={() => onOpenTrace(execution)} className="h-control-segment rounded-control px-ui-sm font-mono text-system-micro font-medium text-primary-light transition-colors hover:bg-background/70 hover:text-white">
+    <button type="button" onClick={() => onOpenTrace(execution)} className="h-control-segment rounded-control px-ui-sm font-mono text-system-micro font-medium text-primary-light transition-colors hover:bg-background/70 hover:text-foreground">
       Open Run
     </button>
   )
