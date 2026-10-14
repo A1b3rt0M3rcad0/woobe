@@ -1,0 +1,87 @@
+{
+  "recorded_at": "2026-10-14T20:46:19.502708+00:00",
+  "implementation_commit": "9d1d58fc5f91a297e367ba4e5f9d6bca9bd81ba3",
+  "pr": "https://github.com/A1b3rt0M3rcad0/woobe/pull/217",
+  "browser": "154.0.8037.57",
+  "data": "Synthetic API fixtures; no live backend or external provider qualification.",
+  "checks": [
+    {
+      "name": "Frontend unit suite",
+      "command": "npm --prefix packages/woobe-frontend run test:run",
+      "result": "passed",
+      "files": 110,
+      "tests": 643,
+      "final_focused_recheck": {
+        "name": "Network context inspector",
+        "tests": 3,
+        "result": "passed"
+      }
+    },
+    {
+      "name": "Production browser suite",
+      "command": "cd tests/e2e && npx playwright test --config playwright.config.ts",
+      "result": "passed",
+      "tests": 105,
+      "final_focused_rechecks": {
+        "mvp_flows": 13,
+        "public_form": 1,
+        "network_workspaces": 5,
+        "populated_canvas_after_final_sizing": 1
+      }
+    },
+    {
+      "name": "Production components and overlays",
+      "command": "cd tests/e2e && WOOBE_CAPTURE_DOCS=1 npx playwright test --config review.config.ts --workers=4",
+      "result": "passed",
+      "tests": 252
+    },
+    {
+      "name": "Frontend TypeScript and Vite production build",
+      "command": "npm --prefix packages/woobe-frontend run build",
+      "result": "passed",
+      "note": "Also rebuilt by the final production browser rechecks. Large-chunk warning remains."
+    },
+    {
+      "name": "Independent embed unit suite",
+      "command": "npm --prefix packages/woobe-embed test",
+      "result": "passed",
+      "tests": 25
+    },
+    {
+      "name": "Independent embed typecheck and production build",
+      "command": "npm --prefix packages/woobe-embed run typecheck; npm --prefix packages/woobe-embed run build",
+      "result": "passed"
+    },
+    {
+      "name": "Frontend UUID architecture policy",
+      "command": ".venv/bin/python -m pytest -q tests/architecture/test_frontend_uuid_policy.py",
+      "result": "passed",
+      "tests": 1
+    },
+    {
+      "name": "Evidence inventory",
+      "command": "python3 scripts/frontend_visual_inventory.py",
+      "result": "passed",
+      "png_count": 618,
+      "overlay_source_files_classified": 77
+    },
+    {
+      "name": "Static screenshot gallery",
+      "result": "passed",
+      "checks": [
+        "618 images indexed",
+        "filter updates visible items",
+        "selected original PNG decodes at 390 × 1100",
+        "no page errors"
+      ]
+    },
+    {
+      "name": "Patch whitespace and workflow YAML",
+      "result": "passed"
+    }
+  ],
+  "source_inventory": "coverage.json",
+  "rendered_font_evidence": "../screenshots/v2/fonts.json",
+  "remote_ci": "Not inspected: api.github.com is rejected by the current cloud network policy.",
+  "merged_by_this_task": false
+}

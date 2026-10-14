@@ -10,6 +10,9 @@ on:
       - "packages/woobe-embed/**"
       - "packages/woobe-runtime-client/**"
       - "tests/e2e/**"
+      - "docs/design/**"
+      - "docs/screenshots/**"
+      - "scripts/frontend_visual_inventory.py"
       - ".github/workflows/frontend.yml"
   workflow_dispatch:
 
@@ -65,6 +68,10 @@ jobs:
       - name: Qualify built frontend with browser API fixtures
         working-directory: tests/e2e
         run: npx playwright test --config playwright.config.ts
+
+      - name: Verify frontend visual evidence inventory
+        working-directory: .
+        run: python3 scripts/frontend_visual_inventory.py
 
       - name: Run Chat Embed tests
         working-directory: packages/woobe-embed

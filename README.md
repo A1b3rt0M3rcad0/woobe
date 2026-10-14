@@ -2,7 +2,7 @@
 
 ![Woobe Control Plane — Project Overview](docs/screenshots/project-overview.png)
 
-*Rendered interface with demonstration data. [Screenshots and reproduction instructions](docs/screenshots/README.md).*
+*Guild v2 operational interface, rendered with synthetic data. [Pages, components, overlays and reproduction instructions](docs/screenshots/README.md).*
 
 **Define, version, test, deploy and operate AI agents like production software.**
 
