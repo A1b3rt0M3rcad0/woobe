@@ -4,7 +4,7 @@ from shared.contracts.errors import NotFoundError, ValidationError, ConflictErro
 from shared.contracts.project_configuration import ConfigurationError
 
 
-async def configuration_summary(session, *, project_id, environment, inventory, reader, inspect, authorize):
+async def configuration_summary(session, *, project_id, environment, inventory, reader, inspect_many, authorize):
     page = await inventory(session, project_id=project_id, environment=environment, limit=50)
     # Authorize the complete bounded observation before deriving counts or
     # exposing identities. A partial authority must never get global counts.
@@ -12,6 +12,7 @@ async def configuration_summary(session, *, project_id, environment, inventory, 
         await authorize(target)
     dependencies, unresolved, affected, unselected = {}, [], set(), 0
     notices = False
+    closures = []
     for target in page['targets']:
         identity = (target['kind'], str(target['id']))
         if not target['selected']:
@@ -28,7 +29,10 @@ async def configuration_summary(session, *, project_id, environment, inventory, 
             unresolved.append('CONFIG_DEPENDENCY_UNRESOLVED')
             affected.add(identity)
             continue
-        result, _ = await inspect(project_id=project_id, environment=environment, dependencies=closure['dependencies'])
+        closures.append((identity, closure))
+    results = await inspect_many(project_id=project_id, environment=environment,
+        groups=[closure['dependencies'] for _, closure in closures])
+    for (identity, closure), (result, _) in zip(closures, results, strict=True):
         if closure['unresolved'] or result['state'] == 'unknown':
             unresolved.append('CONFIG_DEPENDENCY_UNRESOLVED')
         notices = notices or result['state'] == 'ready_with_notices'

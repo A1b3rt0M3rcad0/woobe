@@ -165,7 +165,7 @@ class ProjectConfigurationService:
                             project_id=project_id, permission=required, path_context=context)
                 return await configuration_summary(session, project_id=project_id, environment=arguments['environment'],
                     inventory=_target_inventory, reader=_target_reader, authorize=authorize_target,
-                    inspect=ConfigurationResolution(session, encryption_key=self.encryption_key).inspect)
+                    inspect_many=ConfigurationResolution(session, encryption_key=self.encryption_key).inspect_many)
             if action == "readiness":
                 from shared.contracts.project_configuration import ConfigurationError
                 if _target_reader is None:

@@ -156,6 +156,40 @@ async def test_reference_without_value_and_no_environment_fallback(configuration
 
 
 @pytest.mark.asyncio
+async def test_batched_metadata_preserves_independent_revisions_requiredness_and_admission(configuration, monkeypatch):
+    from modules.core.infra.database import configuration_resolution as module
+
+    store, project, engine = configuration
+    _, dep = await prepared(store, project)
+    optional = replace(dep, definition_revision='another-release', required=False)
+    groups = [[dep], [optional]] * 50
+    await store.session.flush()
+    statements = []
+    def record(_conn, _cursor, statement, *_): statements.append(statement)
+    monkeypatch.setattr(module, 'decrypt_secret', lambda *_: pytest.fail('Metadata must not decrypt'))
+    event.listen(engine.sync_engine, 'before_cursor_execute', record)
+    try:
+        results = await store.inspect_many(project_id=project, environment='draft', groups=groups)
+        assert len(statements) == 4, statements
+        assert all('stored_value' not in statement for statement in statements)
+        assert len(results) == 100
+        assert all(result[0]['state'] == ('blocked' if index % 2 == 0 else 'ready_with_notices')
+                   for index, result in enumerate(results))
+        # Independent target observation is not permission to mix revisions in
+        # one actual Run. Admission keeps its existing strict closure contract.
+        with pytest.raises(ConfigurationError) as conflict:
+            await store.acquire(project_id=project, run_id=uuid4(), environment='draft', dependencies=[dep, optional])
+        assert conflict.value.code == 'CONFIG_REVISION_CONFLICT'
+        statements.clear()
+        with pytest.raises(ConfigurationError) as forbidden:
+            await store.inspect_many(project_id=project, environment='draft', groups=[[dep], [replace(dep, project_id=uuid4())]])
+        assert forbidden.value.code == 'CONFIG_USAGE_NOT_AUTHORIZED'
+        assert not statements
+    finally:
+        event.remove(engine.sync_engine, 'before_cursor_execute', record)
+
+
+@pytest.mark.asyncio
 async def test_lease_retry_requires_exact_closure_and_preserves_accepted_version(configuration):
     store, project, _ = configuration
     key, dep = await prepared(store, project)
@@ -477,12 +511,23 @@ async def test_configuration_readiness_large_closure_has_bounded_queries_and_pol
             durations.append((perf_counter() - start) * 1000)
             assert result["required_key_count"] == key_count and len(pins) == reference_count
             assert result["state"] == "ready_with_notices"
-        assert len(statements) <= 4 * len(durations)
+        group_durations = []
+        groups = [dependencies[index:index + 5] for index in range(0, reference_count, 5)]
+        for _ in range(6 if reference_count == 500 else 2):
+            start = perf_counter()
+            grouped = await store.inspect_many(project_id=project, environment="draft", groups=groups)
+            group_durations.append((perf_counter() - start) * 1000)
+            assert len(grouped) == len(groups)
+            assert sum(len(pins) for _, pins in grouped) == reference_count
+            assert all(result['state'] == 'ready_with_notices' for result, _ in grouped)
+        assert len(statements) <= 4 * (len(durations) + len(group_durations))
         assert max(inspected) == 1
         assert all("stored_value" not in statement for statement in statements)
     finally:
         event.remove(engine.sync_engine, "before_cursor_execute", capture)
-    print({"keys": key_count, "references": reference_count, "milliseconds": durations, "queries_per_read": len(statements) / len(durations)})
+    print({"keys": key_count, "references": reference_count, "milliseconds": durations,
+           "independent_closures": len(groups), "batch_milliseconds": group_durations,
+           "queries_per_read": len(statements) / (len(durations) + len(group_durations))})
 
 
 @pytest.mark.asyncio

@@ -207,6 +207,12 @@ unresolved closure reports `unknown` / `complete: false`, never a partial green
 status. Use exact target readiness for execution decisions. CLI clients discover
 the optional `project_summary` capability before requesting this projection.
 
+The central metadata inspection is batched across the authorized target closures:
+keys, Environment slots, policies and validation evidence are read once per
+observation (with additional bounded reads for legacy aliases). Different
+resource revisions are evaluated independently. This batching creates no leases
+and does not relax the single-closure revision checks used by actual admission.
+
 New Web isolated Drafts default to **Remote references** (Package 2.0). Existing
 unmigrated connections can be captured by explicitly choosing **Legacy
 compatibility**; a failed remote-reference capture never silently retries under

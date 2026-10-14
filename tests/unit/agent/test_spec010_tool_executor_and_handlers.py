@@ -124,11 +124,20 @@ class TestNoSelfConsumption:
 class TestComposerConstruction:
     """Tool composers must wire use cases with correct signatures."""
 
-    def test_execute_tool_composer_includes_secret_resolver(self):
-        import inspect
+    def test_execute_tool_composer_includes_secret_resolver(self, monkeypatch):
+        from unittest.mock import Mock
         from modules.agent.composition.composers.tools_composers import execute_tool_composer
-        source = inspect.getsource(execute_tool_composer)
-        assert "secret_resolver" in source
+        from modules.agent.composition.factories import configured_tool_operations as factory
+        from modules.agent.infra.adapters.runtime_secret_resolver import RuntimeToolSecretResolver
+        registry = Mock(return_value=object())
+        uow = Mock(side_effect=AssertionError('Detached composition must not allocate a global UoW'))
+        monkeypatch.setattr(factory, 'build_tool_runtime_registry', registry)
+        monkeypatch.setattr(factory, 'build_agent_uow', uow)
+        monkeypatch.setattr(factory, 'get_http_tool_executor', lambda: object())
+        handler = execute_tool_composer()
+        assert handler.registry is registry.return_value
+        assert isinstance(registry.call_args.kwargs['secret_resolver'], RuntimeToolSecretResolver)
+        uow.assert_not_called()
 
     def test_create_tool_composer_includes_outbox(self):
         import inspect

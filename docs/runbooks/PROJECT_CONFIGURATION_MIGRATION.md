@@ -76,7 +76,18 @@ are outside the live-source migration and need their own retention policy.
 
 ### Shared legacy Secret authority
 
-The central alias store can retain an explicit set of Tool/field consumers for one legacy Secret. Only owner migration adapters populate that set. Public use-policy grants do not add consumers to it, and knowing a Secret name or alias ID does not create that authority. Destination and Environment policy checks still apply at acceptance and send time. An unknown alias is an error; it never falls back to an Environment value.
+The central alias store can retain an explicit set of Tool/field consumers for one
+legacy Secret. Trusted owner adapters capture that set during migration or an
+explicitly authorized compatibility Tool write. The latter requires Secret read
+and use-policy write authority for all compatibility Environments. Public
+use-policy grants alone do not add consumers, and knowing a Secret name or alias
+ID does not create authority. Existing revocations survive Tool edits.
+Destination and Environment policy checks still apply at acceptance and send
+time. An unknown alias is an error; it never falls back to an Environment value.
+
+New Provider and Secret API writes already centralize material in their first
+transaction. Inventory intentionally selects only pre-bridge source rows; an empty
+Provider/Secret page is not evidence that inline Tool/OAuth sources migrated.
 
 Secret cutover captures the current and retained Agent Tool header closure and
 compares it again before moving material. Recognized header templates are compiled

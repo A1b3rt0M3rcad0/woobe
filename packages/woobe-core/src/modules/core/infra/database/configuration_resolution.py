@@ -69,9 +69,32 @@ def dependency_digest(dependencies):
 class ConfigurationResolution(ConfigurationStore):
     async def inspect(self, *, project_id, environment, dependencies: list[ConfigurationDependency], lock=False):
         environment = normalize_runtime_environment(environment)
+        self._require_project(project_id, dependencies)
+        dependencies = normalize_dependencies(dependencies)
+        metadata = await self._read_metadata(project_id, environment, dependencies, lock=lock)
+        return self._inspect_metadata(environment, dependencies, metadata)
+
+    async def inspect_many(self, *, project_id, environment, groups):
+        """One metadata observation for independently authorized target closures.
+
+        Never merge definitions across targets: two Releases may legitimately
+        bind different revisions of the same Tool. Admission still normalizes and
+        locks one exact closure independently through inspect/acquire.
+        """
+        environment = normalize_runtime_environment(environment)
+        for dependencies in groups:
+            self._require_project(project_id, dependencies)
+        normalized = [normalize_dependencies(dependencies) for dependencies in groups]
+        metadata = await self._read_metadata(project_id, environment,
+            [dep for dependencies in normalized for dep in dependencies], lock=False)
+        return [self._inspect_metadata(environment, dependencies, metadata) for dependencies in normalized]
+
+    @staticmethod
+    def _require_project(project_id, dependencies):
         if any(dep.project_id != project_id for dep in dependencies):
             raise ConfigurationError("CONFIG_USAGE_NOT_AUTHORIZED")
-        dependencies = normalize_dependencies(dependencies)
+
+    async def _read_metadata(self, project_id, environment, dependencies, *, lock):
         names = sorted({dep.key for dep in dependencies})
         query = select(Key).where(Key.project_id == project_id, Key.key.in_(names)).order_by(Key.key)
         if lock:
@@ -106,6 +129,11 @@ class ConfigurationResolution(ConfigurationStore):
                 ConfigurationValidationModel.created_at.desc(), ConfigurationValidationModel.id.desc())
             .distinct(ConfigurationValidationModel.consumer_kind, ConfigurationValidationModel.consumer_id))).all() if consumer_ids else []
         validations = {(v.consumer_kind, v.consumer_id): v for v in validation_rows}
+        return keys, values, policy_index, aliases, legacy_consumers, legacy, validations
+
+    @staticmethod
+    def _inspect_metadata(environment, dependencies, metadata):
+        keys, values, policy_index, aliases, legacy_consumers, legacy, validations = metadata
         items, pins = [], []
         for dep in dependencies:
             key = keys.get(dep.key)
