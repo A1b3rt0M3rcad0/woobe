@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+from copy import deepcopy
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
@@ -30,6 +31,7 @@ from shared.contracts.errors import NotFoundError
 from shared.contracts.project_configuration import ConfigurationDependency, ConfigurationError
 from shared.infra.crypto import decrypt_secret, encrypt_secret
 from shared.runtime_environment import normalize_runtime_environment
+from modules.core.domain.configuration_protocol_metadata import validate_protocol_metadata
 
 
 def now():
@@ -186,10 +188,12 @@ class ConfigurationStore:
             return
         self.session.add(ConfigurationValueVersionModel(project_id=key.project_id, key_id=key.id,
                          value_version=slot.value_version, source=source, stored_value=slot.stored_value,
-                         revoked=slot.revoked, expires_at=now() + timedelta(seconds=VERSION_RETENTION_SECONDS)))
+                         revoked=slot.revoked, expires_at=now() + timedelta(seconds=VERSION_RETENTION_SECONDS),
+                         protocol_metadata=deepcopy(slot.protocol_metadata or {})))
 
     async def write_value(self, *, project_id, key_id, environment, expected_revision,
-                          value: str | None = None, clear=False, actor="system"):
+                          value: str | None = None, clear=False, actor="system", protocol_metadata=None):
+        protocol_metadata = validate_protocol_metadata(protocol_metadata)
         environment = normalize_runtime_environment(environment)
         key = await self.key(project_id, key_id, lock=True)
         slot = await self.session.scalar(select(Value).where(Value.key_id == key.id, Value.environment == environment)
@@ -209,6 +213,7 @@ class ConfigurationStore:
         slot.revoked = clear
         slot.material_state = "revoked" if clear else "present"
         slot.stored_value = None if clear else encrypt_secret(value, self.encryption_key) if key.kind == "secret" else value
+        slot.protocol_metadata = {} if clear else protocol_metadata
         slot.crypto_key_id = "instance:v1" if key.kind == "secret" else None
         if clear:
             await self.session.flush()

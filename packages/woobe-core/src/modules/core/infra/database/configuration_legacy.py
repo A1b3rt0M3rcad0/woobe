@@ -15,6 +15,7 @@ from modules.core.domain.project_configuration import validate_material
 from shared.contracts.project_configuration import ConfigurationDependency, ConfigurationError, valid_tool_authentication_field
 from shared.infra.crypto import decrypt_secret
 from shared.runtime_environment import normalize_runtime_environment
+from modules.core.domain.configuration_protocol_metadata import validate_protocol_metadata
 
 
 class LegacyConfigurationStore(ConfigurationResolution):
@@ -57,13 +58,14 @@ class LegacyConfigurationStore(ConfigurationResolution):
         return {"source": "legacy_configuration", "key": row.key, "alias_id": str(row.id)}
 
     async def adopt(self, *, project_id, source_kind, source_id, field_path, source_revision,
-                    encrypted_value, dependencies, actor):
+                    encrypted_value, dependencies, actor, protocol_metadata=None):
         """Called in the source writer's transaction after locking its source row.
 
         The caller clears the old active field in the same transaction. Matching
         source identity/revision makes backfill restartable without re-encryption
         or duplicate declarations. This operation never selects an Environment.
         """
+        protocol_metadata = validate_protocol_metadata(protocol_metadata)
         if source_kind not in {"provider_credential", "secret", "tool", "mcp_oauth"}:
             raise ConfigurationError("LEGACY_FORMAT_UNSUPPORTED")
         # Validate the captured relation before declaring keys or moving material.
@@ -112,7 +114,7 @@ class LegacyConfigurationStore(ConfigurationResolution):
             except Exception:
                 state = "unavailable"
         self.session.add(Material(alias_id=alias.id, stored_value=encrypted_value or None,
-            value_version=uuid4(), revision=1, material_state=state, revoked=False))
+            value_version=uuid4(), revision=1, material_state=state, revoked=False, protocol_metadata=protocol_metadata))
         destinations, consumers = {}, set()
         for dependency in dependencies:
             same_owner = (dependency.consumer_id == source_id and dependency.consumer_kind == source_kind
@@ -162,7 +164,8 @@ class LegacyConfigurationStore(ConfigurationResolution):
             if alias.routes.get(env) != "legacy_compat":
                 raise ConfigurationError("CONFIG_REVISION_CONFLICT")
             await self.write_value(project_id=project_id, key_id=key.id, environment=env,
-                expected_revision=expected_values[env], value=plain, actor=actor)
+                expected_revision=expected_values[env], value=plain, actor=actor,
+                protocol_metadata=material.protocol_metadata)
         alias.routes = {**alias.routes, **{env: "environment" for env in environments}}
         alias.revision += 1
         if all(route == "environment" for route in alias.routes.values()):
@@ -173,7 +176,8 @@ class LegacyConfigurationStore(ConfigurationResolution):
         await self.audit(project_id, "legacy.converted", actor, alias_id=str(alias.id), revision=alias.revision)
         return {"alias_id": str(alias.id), "revision": alias.revision, "routes": alias.routes, "state": alias.state}
 
-    async def rotate_legacy(self, *, project_id, alias_id, encrypted_value, source_revision, actor):
+    async def rotate_legacy(self, *, project_id, alias_id, encrypted_value, source_revision, actor, protocol_metadata=None):
+        protocol_metadata = validate_protocol_metadata(protocol_metadata)
         await self.lock_project(project_id)
         alias = await self.session.scalar(select(Alias).where(Alias.project_id == project_id, Alias.id == alias_id).with_for_update())
         if alias is None:
@@ -190,6 +194,7 @@ class LegacyConfigurationStore(ConfigurationResolution):
         await self._archive(key, material, source="legacy:" + str(alias.id))
         material.stored_value, material.value_version = encrypted_value, uuid4()
         material.material_state, material.revoked = "present", False
+        material.protocol_metadata = protocol_metadata
         material.revision += 1
         alias.source_revision = source_revision
         alias.revision += 1
@@ -229,6 +234,7 @@ class LegacyConfigurationStore(ConfigurationResolution):
         await self._archive(key, material, source='legacy:' + str(alias.id))
         material.stored_value, material.value_version = None, uuid4()
         material.material_state, material.revoked = 'revoked', True
+        material.protocol_metadata = {}
         material.revision += 1
         alias.revision += 1
         await self.session.flush()

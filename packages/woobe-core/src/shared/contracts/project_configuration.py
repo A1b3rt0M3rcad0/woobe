@@ -104,6 +104,16 @@ class ConfigurationError(DomainError):
 
 
 @dataclass(frozen=True, slots=True)
+class ConfigurationResolvedValue:
+    """Internal runtime material; never an administrative response contract."""
+    value: str = field(repr=False)
+    value_version: UUID
+    environment: Environment
+    source: str
+    protocol_metadata: dict = field(default_factory=dict)
+
+
+@dataclass(frozen=True, slots=True)
 class ConfigurationDependency:
     project_id: UUID
     consumer_kind: str

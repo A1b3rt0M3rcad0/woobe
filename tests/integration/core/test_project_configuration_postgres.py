@@ -17,6 +17,85 @@ CANARY = "configuration-private-canary-7c2f"
 
 
 @pytest.mark.asyncio
+async def test_protocol_metadata_is_pinned_with_material_not_taken_from_current_slot(configuration):
+    store, project, _ = configuration
+    consumer = uuid4()
+    key = await store.declare(project_id=project, key='OAUTH_ACCESS', kind='secret')
+    key_id = UUID(key['id'])
+    metadata = {'protocol': 'mcp_oauth', 'state': 'connected', 'token_type': 'Bearer', 'expires_at': '2026-10-14T12:00:00+00:00'}
+    await store.write_value(project_id=project, key_id=key_id, environment='draft',
+        expected_revision=0, value=CANARY, protocol_metadata=metadata)
+    dep = ConfigurationDependency(project, 'mcp_oauth', consumer, 'profile',
+        '/config/oauth/fields/access_token', 'OAUTH_ACCESS', 'https://mcp.example/mcp')
+    await store.grant_use(project_id=project, key_id=key_id, consumer_kind='mcp_oauth', consumer_scope=str(consumer),
+        destination=dep.destination, environments=['draft'], field_paths=[dep.field_path], expected_revision=0, actor='owner')
+    run = uuid4()
+    await store.acquire(project_id=project, run_id=run, environment='draft', dependencies=[dep])
+    await store.write_value(project_id=project, key_id=key_id, environment='draft', expected_revision=1,
+        value=CANARY + '-new', protocol_metadata={**metadata, 'expires_at': '2026-10-15T12:00:00+00:00'})
+    resolved = await store.resolve_with_metadata(project_id=project, run_id=run, consumer_kind=dep.consumer_kind,
+        consumer_id=consumer, field_path=dep.field_path, destination=dep.destination)
+    assert resolved.value == CANARY and resolved.protocol_metadata == metadata
+    assert 'private-canary' not in repr(resolved) and CANARY not in repr(resolved)
+    resolved.protocol_metadata['expires_at'] = '2027-01-01T00:00:00+00:00'
+    again = await store.resolve_with_metadata(project_id=project, run_id=run, consumer_kind=dep.consumer_kind,
+        consumer_id=consumer, field_path=dep.field_path, destination=dep.destination)
+    assert again.protocol_metadata == metadata
+
+
+@pytest.mark.asyncio
+async def test_protocol_metadata_survives_explicit_legacy_conversion_and_public_rotation_resets_it(configuration):
+    from modules.core.infra.database.configuration_legacy import LegacyConfigurationStore
+    from shared.infra.crypto import encrypt_secret
+    store, project, _ = configuration
+    store = LegacyConfigurationStore(store.session, encryption_key=store.encryption_key)
+    consumer = uuid4()
+    dep = ConfigurationDependency(project, 'mcp_oauth', consumer, 'profile',
+        '/config/oauth/fields/access_token', 'unused', 'https://mcp.example/mcp')
+    metadata = {'protocol': 'mcp_oauth', 'state': 'connected', 'token_type': 'Bearer', 'expires_at': '2026-10-14T12:00:00+00:00'}
+    adopted = await store.adopt(project_id=project, source_kind='mcp_oauth', source_id=consumer,
+        field_path=dep.field_path, source_revision='original', encrypted_value=encrypt_secret(CANARY, store.encryption_key),
+        dependencies=[dep], actor='owner', protocol_metadata=metadata)
+    alias_id, key_id = UUID(adopted['alias_id']), UUID(adopted['key_id'])
+    dep = replace(dep, key=adopted['key'], legacy_alias_id=alias_id)
+    await store.convert(project_id=project, alias_id=alias_id, environments=['draft'], expected_revision=1,
+        expected_values={'draft': 0}, actor='owner')
+    run = uuid4()
+    await store.acquire(project_id=project, run_id=run, environment='draft', dependencies=[dep])
+    identity = dict(project_id=project, run_id=run, consumer_kind=dep.consumer_kind,
+        consumer_id=consumer, field_path=dep.field_path, destination=dep.destination)
+    assert (await store.resolve_with_metadata(**identity)).protocol_metadata == metadata
+    await store.write_value(project_id=project, key_id=key_id, environment='draft', expected_revision=1, value=CANARY + '-manual')
+    next_run = uuid4()
+    await store.acquire(project_id=project, run_id=next_run, environment='draft', dependencies=[dep])
+    assert (await store.resolve_with_metadata(**{**identity, 'run_id': next_run})).protocol_metadata == {}
+    assert (await store.resolve_with_metadata(**identity)).protocol_metadata == metadata
+
+
+@pytest.mark.asyncio
+async def test_protocol_metadata_migration_refuses_lossy_downgrade(configuration, monkeypatch):
+    import importlib.util
+    from pathlib import Path
+    from alembic.migration import MigrationContext
+    from alembic.operations import Operations
+    from sqlalchemy import text
+    store, project, _ = configuration
+    key = await store.declare(project_id=project, key='PROTOCOL_ROLLBACK', kind='secret')
+    await store.write_value(project_id=project, key_id=UUID(key['id']), environment='draft', expected_revision=0,
+        value=CANARY, protocol_metadata={'protocol': 'mcp_oauth', 'state': 'connected', 'token_type': 'Bearer'})
+    path = Path(__file__).resolve().parents[3] / 'packages/woobe-core/migrations/versions/0106_configuration_protocol_metadata.py'
+    specification = importlib.util.spec_from_file_location('protocol_metadata_migration', path)
+    migration = importlib.util.module_from_spec(specification)
+    specification.loader.exec_module(migration)
+    def attempt(sync_session):
+        monkeypatch.setattr(migration, 'op', Operations(MigrationContext.configure(sync_session.connection())))
+        with pytest.raises(RuntimeError, match='compatible bridge reader'):
+            migration.downgrade()
+        assert sync_session.scalar(text("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='core' AND column_name='protocol_metadata'")) == 3
+    await store.session.run_sync(attempt)
+
+
+@pytest.mark.asyncio
 async def test_project_inventory_pages_both_domains_without_repeating_exhausted_owner(configuration):
     from woobe_api.configuration_composition import target_inventory
     from modules.agent.infra.database.models import AgentModel

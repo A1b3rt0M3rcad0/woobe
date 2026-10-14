@@ -154,6 +154,7 @@ class ProjectEnvironmentValueModel(BaseModel):
     value_version: Mapped[UUID | None] = mapped_column(nullable=True)
     revision: Mapped[int] = mapped_column(BigInteger, default=1, server_default="1")
     material_state: Mapped[str] = mapped_column(String(24), default="present", server_default="present")
+    protocol_metadata: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, server_default=text("'{}'::jsonb"))
     crypto_key_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     writer: Mapped[str | None] = mapped_column(String(128), nullable=True)
     revoked: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"))

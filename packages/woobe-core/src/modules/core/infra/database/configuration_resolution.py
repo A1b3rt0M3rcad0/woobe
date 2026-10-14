@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 from collections import defaultdict
+from copy import deepcopy
 from dataclasses import asdict, replace
 import hashlib
 import json
@@ -12,6 +13,7 @@ from urllib.parse import urlsplit, urlunsplit
 from sqlalchemy import select
 
 from modules.core.domain.project_configuration import canonical_destination, VERSION_RETENTION_SECONDS
+from modules.core.domain.configuration_protocol_metadata import validate_protocol_metadata
 from modules.core.infra.database.configuration_models import (
     ConfigurationLeaseModel, ConfigurationValidationModel, ConfigurationUsePolicyModel as Policy,
     ConfigurationValueVersionModel as Version, LegacyConfigurationAliasModel as Alias,
@@ -19,7 +21,7 @@ from modules.core.infra.database.configuration_models import (
 )
 from modules.core.infra.database.configuration_store import ConfigurationStore, now
 from modules.core.infra.database.models import ProjectEnvironmentKeyModel as Key, ProjectEnvironmentValueModel as Value
-from shared.contracts.project_configuration import ConfigurationDependency, ConfigurationError, ConfigurationValuePin
+from shared.contracts.project_configuration import ConfigurationDependency, ConfigurationError, ConfigurationValuePin, ConfigurationResolvedValue
 from shared.infra.crypto import decrypt_secret
 from shared.runtime_environment import normalize_runtime_environment
 
@@ -263,6 +265,11 @@ class ConfigurationResolution(ConfigurationStore):
         return document
 
     async def resolve(self, *, project_id, run_id, consumer_kind, consumer_id, field_path, destination):
+        resolved = await self.resolve_with_metadata(project_id=project_id, run_id=run_id,
+            consumer_kind=consumer_kind, consumer_id=consumer_id, field_path=field_path, destination=destination)
+        return resolved.value
+
+    async def resolve_with_metadata(self, *, project_id, run_id, consumer_kind, consumer_id, field_path, destination):
         lease = await self.session.scalar(select(ConfigurationLeaseModel).where(
             ConfigurationLeaseModel.project_id == project_id, ConfigurationLeaseModel.run_id == run_id,
             ConfigurationLeaseModel.expires_at > now()))
@@ -306,7 +313,9 @@ class ConfigurationResolution(ConfigurationStore):
         if material.stored_value is None:
             raise ConfigurationError("CONFIG_VERSION_UNAVAILABLE")
         try:
-            return decrypt_secret(material.stored_value, self.encryption_key) if key.kind == "secret" else material.stored_value
+            value = decrypt_secret(material.stored_value, self.encryption_key) if key.kind == "secret" else material.stored_value
         except Exception:
             # Crypto/backend failures must not echo material or provider details.
             raise ConfigurationError("CONFIG_STORE_UNAVAILABLE") from None
+        return ConfigurationResolvedValue(value=value, value_version=version, environment=lease.environment,
+            source=pin['source'], protocol_metadata=validate_protocol_metadata(deepcopy(material.protocol_metadata or {})))

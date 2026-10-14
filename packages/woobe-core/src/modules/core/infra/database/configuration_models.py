@@ -84,6 +84,7 @@ class ConfigurationValueVersionModel(BaseModel):
     stored_value: Mapped[str] = mapped_column(Text)
     revoked: Mapped[bool] = mapped_column(Boolean, default=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    protocol_metadata: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, server_default=text("'{}'::jsonb"))
 
 
 class LegacyConfigurationAliasModel(BaseModel):
@@ -116,6 +117,7 @@ class LegacyConfigurationValueModel(BaseModel):
     revision: Mapped[int] = mapped_column(BigInteger, default=1)
     material_state: Mapped[str] = mapped_column(String(24), default="present")
     revoked: Mapped[bool] = mapped_column(Boolean, default=False)
+    protocol_metadata: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, server_default=text("'{}'::jsonb"))
 
 
 class ConfigurationLeaseModel(BaseModel):

@@ -328,3 +328,12 @@ implemented as migration building blocks. Revocation invalidates every retained
 material version; a later replacement cannot resurrect revoked Run pins. These
 building blocks do not yet replace the existing encrypted OAuth source fields
 or qualify their cutover. A split alias must use explicit Environment operations.
+
+Migration `0106` versions closed protocol metadata with central material, including
+credential expiration and the protocol state. Internal resolution returns metadata
+from the accepted material version rather than the current slot. Rotation archives
+both together; explicit compatibility conversion preserves the interpretation.
+Manual generic replacement starts with no inherited protocol metadata. Metadata
+cannot contain token values, arbitrary provider text or timezone-free expiration.
+Downgrade refuses to discard populated interpretation metadata and requires a
+compatible bridge. These fields prepare the OAuth cutover; they do not activate it.
