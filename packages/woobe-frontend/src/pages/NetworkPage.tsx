@@ -1,3 +1,4 @@
+import { ThemeSelect } from '@/features/appearance/ThemeSelect'
 import { useNetworkIdentity } from '@/features/network/NetworkIdentityContext'
 import { AsacWorkbench } from '@/features/asac/AsacWorkbench'
 import { Dialog } from '@/components/ui/Dialog'
@@ -986,6 +987,7 @@ export default function NetworkPage() {
               ))}
             </div>
             {environment === 'draft' ? <button type="button" disabled={!workspaceDirty || draftSavePending || editorHasErrors || Boolean(snapshotInspection)} onClick={() => void saveDraft()} className={smallButton}>{draftSavePending ? 'Saving…' : workspaceDirty ? 'Save Draft' : `Draft saved · r${editorRevision}`}</button> : null}
+            <ThemeSelect />
             <button type="button" onClick={() => openNetworkManager(environment)} className={smallButton}><History className="mr-ui-xs inline h-3.5 w-3.5" />Manage Network</button>
             <button type="button" onClick={() => setShowAsac(true)} className={smallButton}>History & lifecycle</button>
             <button type="button" onClick={() => setShowApi(true)} className={smallButton}><Code2 className="mr-ui-xs inline h-3.5 w-3.5" />API Reference</button>

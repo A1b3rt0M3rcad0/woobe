@@ -1,3 +1,4 @@
+import { ThemeSelect } from '@/features/appearance/ThemeSelect'
 import { Link } from 'react-router-dom'
 import { Menu, ChevronRight, Orbit } from 'lucide-react'
 import { Button } from '@woobe/ui'
@@ -21,7 +22,7 @@ export function Topbar({ onOpenNavigation }: { onOpenNavigation: () => void }) {
           <Link to={`/workspaces/${currentWorkspace?.id}/projects/${currentProject.id}`} className="truncate font-medium text-foreground">{currentProject.name}</Link>
         </>}
       </div>
-      <span className="hidden shrink-0 rounded-control border border-border px-ui-sm py-ui-xs text-product-caption text-muted-foreground sm:inline-flex">Control plane</span>
+      <ThemeSelect />
     </header>
   )
 }

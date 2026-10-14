@@ -1,3 +1,4 @@
+import { ThemeSelect } from '@/features/appearance/ThemeSelect'
 import { Outlet } from 'react-router-dom'
 import { Orbit, GitBranch, FlaskConical, Activity } from 'lucide-react'
 
@@ -31,6 +32,7 @@ export function AuthLayout() {
         <p className="text-product-caption text-muted-foreground">Self-hostable. API-first. Built around your workflow.</p>
       </section>
       <section className="flex min-w-0 flex-col justify-center border-l border-border bg-surface px-6 py-12 sm:px-12 lg:px-16">
+        <div className="mb-8 flex justify-end"><ThemeSelect /></div>
         <div className="mx-auto w-full max-w-form-narrow">
           <div className="mb-12 flex items-center gap-ui-sm text-foreground lg:hidden" translate="no"><Orbit className="h-7 w-7" aria-hidden="true" /><span className="text-brand-title font-medium">Woobe</span></div>
           <Outlet />

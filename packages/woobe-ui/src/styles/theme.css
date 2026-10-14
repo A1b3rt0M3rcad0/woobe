@@ -1,21 +1,96 @@
 @import './fonts.css';
 @import './guild-tokens.css';
-/* Guild v2 operational mapping, with the owner's stronger shell/panel contrast. */
+/* Operational themes. Guild reconstruction assets remain unchanged. */
 :root {
   color-scheme: light;
-  --woobe-canvas: 243 241 237;
-  --woobe-surface: 255 254 253;
-  --woobe-panel-band: 246 244 240;
-  --woobe-control: 239 238 235;
-  --woobe-border: 212 208 200;
-  --woobe-control-border: 140 134 125;
-  --woobe-ink: 36 35 33;
-  --woobe-secondary: 70 67 63;
-  --woobe-muted: 107 104 99;
-  --woobe-link: 173 57 0;
+  --woobe-canvas: 239 237 232;
+  --woobe-workspace: 245 243 239;
+  --woobe-surface: 255 253 249;
+  --woobe-elevated: 255 254 252;
+  --woobe-panel-band: 246 243 238;
+  --woobe-control: 234 230 223;
+  --woobe-border: 212 206 196;
+  --woobe-control-border: 133 122 108;
+  --woobe-ink: 41 38 32;
+  --woobe-secondary: 75 70 63;
+  --woobe-muted: 97 91 82;
+  --woobe-link: 167 68 29;
+  --woobe-primary: 41 38 32;
+  --woobe-primary-hover: 64 58 50;
+  --woobe-on-primary: 255 253 249;
+  --woobe-success: 36 104 70;
+  --woobe-warning: 134 91 19;
+  --woobe-error: 178 56 52;
+  --woobe-info: 54 95 133;
+  --woobe-network: 109 65 168;
+  --woobe-selected: 241 223 208;
+  --woobe-focus: #a7441d;
+  --woobe-grid: #c2bcb2;
+  --woobe-edge: #857a6c;
+  --woobe-backdrop: rgb(25 26 23 / .48);
+  --woobe-code-string: #865b13;
+  --woobe-code-number: #a7441d;
 }
-/* Dark navigation is scoped to the rail/drawer; product panels remain light. */
-.woobe-dark, .woobe-navigation {
+:root[data-theme='dark'], .woobe-dark, .woobe-navigation {
+  color-scheme: dark;
+  --woobe-canvas: 25 26 23;
+  --woobe-workspace: 29 31 27;
+  --woobe-surface: 37 39 33;
+  --woobe-elevated: 45 48 40;
+  --woobe-panel-band: 32 34 29;
+  --woobe-control: 23 25 21;
+  --woobe-border: 65 69 58;
+  --woobe-control-border: 119 126 108;
+  --woobe-ink: 240 238 231;
+  --woobe-secondary: 213 210 198;
+  --woobe-muted: 192 189 175;
+  --woobe-link: 241 161 111;
+  --woobe-primary: 240 238 231;
+  --woobe-primary-hover: 255 253 249;
+  --woobe-on-primary: 29 31 27;
+  --woobe-success: 138 198 160;
+  --woobe-warning: 224 190 115;
+  --woobe-error: 240 145 135;
+  --woobe-info: 144 183 220;
+  --woobe-network: 190 164 235;
+  --woobe-selected: 61 44 33;
+  --woobe-focus: #f6b68b;
+  --woobe-grid: #4c5144;
+  --woobe-edge: #929985;
+  --woobe-backdrop: rgb(8 9 7 / .7);
+  --woobe-code-string: #e0be73;
+  --woobe-code-number: #f1a16f;
+}
+/* Root-derived variables also reach portals and third-party renderers. */
+:root, .woobe-dark, .woobe-navigation {
+  --g-canvas: rgb(var(--woobe-workspace));
+  --g-surface: rgb(var(--woobe-surface));
+  --g-ink: rgb(var(--woobe-ink));
+  --g-text-muted: rgb(var(--woobe-muted));
+  --g-text-faint: rgb(var(--woobe-muted));
+  --g-line: rgb(var(--woobe-border));
+  --g-line-subtle: rgb(var(--woobe-panel-band));
+  --g-control-border: rgb(var(--woobe-control-border));
+  --g-accent-ink: rgb(var(--woobe-link));
+  --g-success-ink: rgb(var(--woobe-success));
+  --g-success-mark: rgb(var(--woobe-success));
+  --g-warning-ink: rgb(var(--woobe-warning));
+  --g-danger-ink: rgb(var(--woobe-error));
+  --g-info-ink: rgb(var(--woobe-info));
+  --g-peach: rgb(var(--woobe-selected));
+  --woobe-editor-background: rgb(var(--woobe-control));
+  --woobe-editor-surface: rgb(var(--woobe-elevated));
+  --woobe-editor-foreground: rgb(var(--woobe-ink));
+  --woobe-editor-border: rgb(var(--woobe-border));
+  --woobe-editor-active: rgb(var(--woobe-panel-band));
+}
+.woobe-navigation {
+  --woobe-canvas: 21 22 19;
+  --woobe-surface: 21 22 19;
+  --woobe-panel-band: 29 31 27;
+  --woobe-control: 37 39 33;
+}
+.woobe-navigation {
   color-scheme: dark;
   --woobe-canvas: 24 23 21;
   --woobe-surface: 36 35 33;
@@ -67,7 +142,7 @@
   --meter-color: var(--g-accent);
   position: relative;
   height: .5rem;
-  background: radial-gradient(circle, #ddd9d3 1px, transparent 1.15px) 0 0 / 3px 3px;
+  background: radial-gradient(circle, rgb(var(--woobe-border)) 1px, transparent 1.15px) 0 0 / 3px 3px;
 }
 .woobe-dot-meter > span {
   position: absolute;
@@ -86,3 +161,6 @@
   :where(input,textarea,select,button) { border-color: ButtonText; }
   :focus-visible { outline-color: Highlight; }
 }
+
+.woobe-theme-select { max-width: 8rem; }
+.woobe-metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 8rem), 1fr)); gap: .5rem; }

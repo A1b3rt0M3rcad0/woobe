@@ -1,3 +1,4 @@
+import { ThemeSelect } from '@/features/appearance/ThemeSelect'
 import { useState } from 'react'
 import { Badge, SegmentedControl } from '@woobe/ui'
 import { Button } from '@/components/ui/Button'
@@ -77,7 +78,7 @@ export function PlaygroundHeader({
 
   return (
     <>
-      <header className={`relative ${UI_LAYER_CLASS.playgroundChrome} flex h-workspace-header shrink-0 items-center justify-between border-b border-border bg-surface/[0.92] px-ui-md`}>
+      <header className={`relative ${UI_LAYER_CLASS.playgroundChrome} flex min-h-workspace-header shrink-0 flex-wrap items-center justify-between gap-y-ui-sm py-ui-sm border-b border-border bg-surface/[0.92] px-ui-md`}>
         <div className="flex min-w-0 flex-1 items-center gap-ui-sm">
           <button
             onClick={handleBack}
@@ -106,7 +107,8 @@ export function PlaygroundHeader({
           </div>
         </div>
 
-        <div className="flex shrink-0 items-center gap-ui-xs">
+        <div className="flex max-w-full flex-wrap items-center gap-ui-xs">
+          <ThemeSelect />
           <SegmentedControl
             ariaLabel="Agent environment"
             value={environment}

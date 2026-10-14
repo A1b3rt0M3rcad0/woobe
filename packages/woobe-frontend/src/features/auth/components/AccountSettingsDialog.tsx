@@ -1,3 +1,4 @@
+import { ThemeSelect } from '@/features/appearance/ThemeSelect'
 import { LogOut } from 'lucide-react'
 import {
   Alert,
@@ -48,6 +49,8 @@ export function AccountSettingsDialog({ open, onClose }: AccountSettingsDialogPr
             </Field>
           </div>
         </SectionBlock>
+
+        <SectionBlock title="Appearance" description="Saved on this browser. System follows your device preference." density="compact"><ThemeSelect /></SectionBlock>
 
         <Alert variant="warning">
           <AlertDescription>Signing out ends the current Woobe session on this device.</AlertDescription>

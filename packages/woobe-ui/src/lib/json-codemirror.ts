@@ -16,7 +16,7 @@ export const jsonDarkTheme = EditorView.theme(
     '.cm-content': {
       caretColor: woobeCodeTheme.caret,
       fontFamily: woobeTypography.mono.join(', '),
-      fontSize: woobeTypographyScale.systemHeading[0],
+      fontSize: woobeTypographyScale.codeDefault[0],
       lineHeight: woobeTypographyScale.productBody[1].lineHeight,
     },
     '.cm-cursor': { borderLeftColor: woobeCodeTheme.caret },
@@ -48,7 +48,7 @@ export const jsonDarkTheme = EditorView.theme(
     '.cm-scroller::-webkit-scrollbar-thumb:hover': { backgroundColor: woobeCodeTheme.scrollbarHover },
     '.cm-scroller::-webkit-scrollbar-corner': { background: 'transparent' },
   },
-  { dark: true },
+  { dark: false },
 )
 
 const jsonHighlightStyle = HighlightStyle.define([
