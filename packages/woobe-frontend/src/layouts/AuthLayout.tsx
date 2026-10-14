@@ -23,7 +23,7 @@ export function AuthLayout() {
             {lifecycle.map(({ icon: Icon, title, description }) => (
               <div key={title} className="flex items-start gap-4 border-b border-border px-ui-panel-inset py-ui-lg last:border-b-0">
                 <Icon className="mt-1 h-5 w-5 shrink-0 text-muted-foreground" aria-hidden="true" />
-                <div><h3 className="font-mono text-product-body font-medium">{title}</h3><p className="mt-1 text-product-small text-muted-foreground">{description}</p></div>
+                <div><h3 className="font-sans text-product-body font-medium">{title}</h3><p className="mt-1 text-product-small text-muted-foreground">{description}</p></div>
               </div>
             ))}
           </div>

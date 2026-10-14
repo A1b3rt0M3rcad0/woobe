@@ -15,7 +15,7 @@ const ReadOnlyField = forwardRef<HTMLDivElement, ReadOnlyFieldProps>(
       <p className="font-mono text-product-caption font-medium uppercase tracking-ui-field-label text-muted">{label}</p>
       <p className="mt-ui-xs whitespace-pre-wrap break-words font-mono text-product-small font-medium text-accent-foreground">{value}</p>
       {description ? (
-        <p className={cn('mt-ui-xs break-words text-product-caption text-muted-foreground', descriptionVariant === 'technical' ? 'font-mono' : 'font-mono')}>
+        <p className={cn('mt-ui-xs break-words text-product-caption text-muted-foreground', descriptionVariant === 'technical' ? 'font-mono' : 'font-sans')}>
           {description}
         </p>
       ) : null}

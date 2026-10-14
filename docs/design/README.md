@@ -4,7 +4,7 @@ The repository owner's `guild-inspired-enterprise-ui-v2.zip` is the visual speci
 
 ## Modes and anatomy
 
-The Control Plane, setup, configuration, authentication forms and ChatSurface controls use **operational / comfortable** density. Technical panel titles, resource names, controls, table headers, rules, status and values use JetBrains Mono; explanatory prose and conversation use Inter. Primary technical titles use 500, values use 400, regular body is 14/20px, metadata is 12/18px. No operational panel is scaled as a marketing illustration.
+The Control Plane, setup, configuration, authentication forms and ChatSurface controls use **operational / comfortable** density. Inter is the default for navigation, breadcrumbs, controls, forms, feedback and explanations. Georgia / Times New Roman / serif supplies regular editorial page titles and overview section headings. JetBrains Mono is explicit on technical panel headers, resource identifiers, table data, rules, status, timestamps and numerical values. A technical card or dialog does not impose monospace on its whole subtree. Primary technical titles use 500, values use 400, regular body is 14/20px, metadata is 12/18px. No operational panel is scaled as a marketing illustration.
 
 | Family | Primary reference from skill | Applied anatomy |
 | --- | --- | --- |
@@ -13,7 +13,7 @@ The Control Plane, setup, configuration, authentication forms and ChatSurface co
 | Financial summaries and usage | `13-usage-cap-overlap-user.png` | SpendBreakdown / RunCost: compact header, scope/period, regular mono value, aligned attribution, footer; no invented caps or policy |
 | Governance, access, configuration | `06-permission-matrix.png` | PermissionMatrix: labelled rows, real allowed/denied state, technical controls |
 | API examples and CLI | `07-cli-workflow.png` | TerminalWindow: clear surface, mono output, bounded scrolling, copy confirmation |
-| Sign-in narrative | `12-home-hero-user.png` | Editorial typography: regular Georgia heading, Inter explanation; usable form remains operational |
+| Editorial page titles, overview sections and sign-in narrative | `12-home-hero-user.png` | Editorial typography: regular Georgia heading, Inter explanation; usable form remains operational |
 | Network graph and traces | `05-mint-ui-overlap.png` | Technical configuration and inspectable result in normal flow; no decorative overlap of active controls |
 
 ## Geometry and tokens
@@ -22,7 +22,7 @@ Canvas `#f8f7f5`; panel `#fffefd`; ink `#242321`; muted `#6b6863`; hairline `#e3
 
 Reference figure dimensions (224px AgentMini or 270px UsageCap) describe **illustrations**. Operational controls use the specification's comfortable sizes; the application does not gain decorative marketing stages, fictitious budget enforcement, or additional KPIs. Main workspace, graph and inspector widths retain their information requirements. On narrow viewports, layouts wrap or stack; bidimensional code/tables scroll regionally. No hidden document overflow is accepted as proof of reflow.
 
-Fonts are real variable WOFF2 resources self-hosted by `woobe-ui`, including Latin Extended and OFL notices. Browser evidence must establish declared, loaded **and rendered** families with CDP, including 400/500 and Portuguese glyphs. Screenshots use deterministic, explicitly synthetic API fixtures; runtime and permissions remain backend-owned.
+Inter and JetBrains Mono are real variable WOFF2 resources self-hosted by `woobe-ui`, including Latin Extended and OFL notices. CSS family tokens in `guild-tokens.css` are consumed by Tailwind and CodeMirror through `woobeTypography`; consumers do not repeat their stacks. The Georgia stack uses system fonts and the browser serif fallback; no proprietary Georgia files are distributed. `MathSurface` retains its existing mathematical styling independently of editorial title sizing. Browser evidence must establish declared, loaded **and rendered** families with CDP, including 400/500 and Portuguese glyphs. Screenshots use deterministic, explicitly synthetic API fixtures; runtime and permissions remain backend-owned.
 
 ## Coverage and evidence
 

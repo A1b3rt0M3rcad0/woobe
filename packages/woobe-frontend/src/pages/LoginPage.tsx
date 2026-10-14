@@ -24,7 +24,7 @@ export default function LoginPage() {
   return (
     <div>
       <header className="mb-ui-content-gutter">
-        <h1 className="font-mono text-page-title font-medium tracking-tight text-slate-50">
+        <h1 className="font-serif text-page-title font-normal text-slate-50">
           Sign in to Woobe
         </h1>
         <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">
@@ -45,11 +45,11 @@ export default function LoginPage() {
             placeholder="you@company.com"
             invalid={Boolean(errors.email)}
             aria-describedby={errors.email ? 'login-email-error' : undefined}
-            className="h-control rounded-control bg-control px-ui-md font-mono text-system-control text-slate-100"
+            className="h-control rounded-control bg-control px-ui-md font-sans text-system-control text-slate-100"
             {...register('email')}
           />
           {errors.email?.message && (
-            <FieldError id="login-email-error" className="font-mono text-product-caption">
+            <FieldError id="login-email-error" className="font-sans text-product-caption">
               {errors.email.message}
             </FieldError>
           )}
@@ -66,18 +66,18 @@ export default function LoginPage() {
             placeholder="Enter your password"
             invalid={Boolean(errors.password)}
             aria-describedby={errors.password ? 'login-password-error' : undefined}
-            className="h-control rounded-control bg-control px-ui-md font-mono text-system-control text-slate-100"
+            className="h-control rounded-control bg-control px-ui-md font-sans text-system-control text-slate-100"
             {...register('password')}
           />
           {errors.password?.message && (
-            <FieldError id="login-password-error" className="font-mono text-product-caption">
+            <FieldError id="login-password-error" className="font-sans text-product-caption">
               {errors.password.message}
             </FieldError>
           )}
         </Field>
 
         {errors.root && (
-          <Alert variant="destructive" className="flex items-start gap-ui-sm rounded-control px-ui-md py-ui-sm font-mono text-product-caption">
+          <Alert variant="destructive" className="flex items-start gap-ui-sm rounded-control px-ui-md py-ui-sm font-sans text-product-caption">
             <AlertTriangle className="mt-px h-icon-sm w-icon-sm shrink-0 text-error" />
             <p>{errors.root.message}</p>
           </Alert>
@@ -88,7 +88,7 @@ export default function LoginPage() {
         </Button>
       </form>
 
-      <div className="mt-ui-content-gutter border-t border-border pt-ui-md text-center font-mono text-system-meta text-muted-foreground">
+      <div className="mt-ui-content-gutter border-t border-border pt-ui-md text-center font-sans text-system-meta text-muted-foreground">
         Don&apos;t have an account?{' '}
         <Link
           to="/register"

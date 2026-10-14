@@ -115,7 +115,7 @@ export function Drawer({ open, onClose, children, title, className }: DrawerProp
         )}
       >
         <div className="flex h-dialog-header shrink-0 items-center justify-between border-b border-border px-ui-xl">
-          {title ? <h2 id={titleId} className="font-mono text-system-heading font-medium text-accent-foreground">{title}</h2> : <span />}
+          {title ? <h2 id={titleId} className="font-sans text-system-heading font-medium text-accent-foreground">{title}</h2> : <span />}
           <Button type="button" variant="ghost" size="iconSm" onClick={onClose} className="ml-auto text-muted-foreground" aria-label="Close drawer">
             <CloseIcon />
           </Button>

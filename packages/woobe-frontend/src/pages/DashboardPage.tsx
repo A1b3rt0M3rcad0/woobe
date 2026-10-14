@@ -58,13 +58,13 @@ function Panel({ children, className = '' }: { children: ReactNode; className?: 
 }
 
 function PanelHeader({ title, subtitle, action }: { title: string; subtitle?: string; action?: ReactNode }) {
-  return <TechnicalPanelHeader title={title} description={subtitle} actions={action} hierarchy="section" />
+  return <TechnicalPanelHeader title={title} description={subtitle} actions={action} hierarchy="technical" />
 }
 
 function StorySectionHeader({ title, description }: { title: string; description: string }) {
   return (
     <div className="border-t border-border pt-ui-xl">
-      <h2 className="text-section-title font-medium text-foreground">{title}</h2>
+      <h2 className="font-serif text-editorial-section font-normal text-foreground">{title}</h2>
       <p className="mt-ui-xs max-w-3xl text-product-caption text-muted-foreground">{description}</p>
     </div>
   )
@@ -98,7 +98,7 @@ function MetricCard({ metric, onReviewPricing }: { metric: DashboardMetric; onRe
         </div>)}
       </div> : <p className="break-words font-mono text-metric font-normal tabular-nums text-foreground">{metric.value}</p>}
     </div>
-    <p className={`min-h-control border-t border-border px-ui-panel-inset py-ui-sm font-mono text-product-caption ${detailTone}`}>{metric.detail ?? 'No terminal Runs in this interval'}</p>
+    <p className={`min-h-control border-t border-border px-ui-panel-inset py-ui-sm font-sans text-product-caption ${detailTone}`}>{metric.detail ?? 'No terminal Runs in this interval'}</p>
     {metric.costHelp && <Dialog open={helpOpen} onClose={() => setHelpOpen(false)} title="Runtime cost coverage" className="max-w-md">
       <p className="font-sans text-sm leading-6 text-muted-foreground">{metric.costHelp.description}</p>
       {metric.costHelp.reviewPricing && <div className="mt-4 space-y-3">
@@ -412,7 +412,7 @@ function OperationalIssues({ model }: { model: DashboardViewModel }) {
     return (
       <Panel className="border-red-500/15 bg-red-500/[0.018] px-4 py-3">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-start gap-3"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-error" /><div><p className="font-mono text-sm font-medium text-foreground">{totalIssues} operational {totalIssues === 1 ? 'issue' : 'issues'} in this period</p><p className="mt-1 text-xs text-slate-400">{model.issues.summary.join(' · ')}</p></div></div>
+          <div className="flex items-start gap-3"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-error" /><div><p className="font-sans text-sm font-medium text-foreground">{totalIssues} operational {totalIssues === 1 ? 'issue' : 'issues'} in this period</p><p className="mt-1 text-xs text-slate-400">{model.issues.summary.join(' · ')}</p></div></div>
           <div className="flex flex-wrap gap-x-6 gap-y-2 text-xs"><span className="text-muted">Affected <b className="ml-1 text-foreground">{firstEntity?.name ?? 'Unknown'}</b></span><span className="text-muted">Failure code <b className="ml-1 font-mono text-error">{firstCode?.code ?? 'unknown'}</b></span>{model.issues.peakLabel && <span className="text-muted">Occurred <b className="ml-1 text-foreground">{model.issues.peakLabel}</b></span>}</div>
         </div>
       </Panel>
@@ -659,7 +659,7 @@ export default function DashboardPage() {
           {isUpdating && <div className="absolute inset-x-0 top-0 h-0.5 animate-pulse bg-primary/70" />}
           <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
             <div className="min-w-0">
-              <div className="flex items-center gap-2"><h1 className="font-mono text-page-title font-medium tracking-tight text-foreground">Project Overview</h1>{isUpdating && <span className="rounded-full border border-primary/20 bg-primary/5 px-2 py-0.5 text-system-meta text-primary-light">Updating {environmentLabel(environment)} overview…</span>}</div>
+              <div className="flex items-center gap-2"><h1 className="font-serif text-page-title font-normal text-foreground">Project Overview</h1>{isUpdating && <span className="rounded-full border border-primary/20 bg-primary/5 px-2 py-0.5 text-system-meta text-primary-light">Updating {environmentLabel(environment)} overview…</span>}</div>
               {model && <p className="mt-ui-sm text-product-caption text-muted">Interval: {model.intervalLabel} · {model.timezoneLabel} · Last refreshed {model.generatedAtLabel}</p>}
             </div>
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center xl:justify-end">

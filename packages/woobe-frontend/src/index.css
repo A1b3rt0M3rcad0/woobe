@@ -7,10 +7,9 @@
   * {
     @apply border-border;
   }
-  p { font-family: 'Inter', system-ui, sans-serif; }
   body {
     @apply bg-background text-foreground;
-    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-family: var(--g-font-sans);
     font-size: .875rem;
     font-variant-numeric: tabular-nums lining-nums;
     font-variant-ligatures: none;

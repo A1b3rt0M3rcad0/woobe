@@ -31,7 +31,7 @@ const SectionBlock = forwardRef<HTMLElement, SectionBlockProps>(
     const contentGap = hasChildren ? (density === 'compact' || secondary ? 'mb-ui-sm' : 'mb-ui-md') : undefined
     const titleClass = secondary ? 'text-system-control font-medium' : 'text-section-title font-medium'
     const descriptionClass = 'text-system-meta'
-    const familyClass = product ? 'font-mono' : 'font-mono'
+    const familyClass = product ? 'font-sans' : 'font-mono'
 
     return (
       <section ref={ref} className={cn('rounded-container border border-border bg-surface/70', spacing, className)} {...props}>
@@ -49,7 +49,7 @@ const SectionBlock = forwardRef<HTMLElement, SectionBlockProps>(
                 </div>
               ) : null}
               {description ? (
-                <div className={cn('mt-ui-xs text-muted-foreground', descriptionClass, familyClass)}>
+                <div className={cn('mt-ui-xs font-sans text-muted-foreground', descriptionClass)}>
                   {description}
                 </div>
               ) : null}

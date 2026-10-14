@@ -53,7 +53,7 @@ export function SegmentedControl({
             disabled={item.disabled}
             onClick={() => onValueChange(item.value)}
             className={cn(
-              'flex min-w-0 items-center justify-center gap-ui-xs rounded-technical border px-ui-sm font-mono font-normal transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50',
+              'flex min-w-0 items-center justify-center gap-ui-xs rounded-technical border px-ui-sm font-sans font-normal transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50',
               sizeClass,
               stretch && 'min-w-max flex-1',
               active

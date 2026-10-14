@@ -277,7 +277,7 @@ export function WoobeDateTimePicker({
             <Button type="button" variant="outline" size="iconSm" onClick={() => changeMonth(-1)} className="text-muted-foreground" aria-label="Previous month">
               <ChevronLeft className="h-icon-lg w-icon-lg" />
             </Button>
-            <p className="font-mono text-system-control font-medium text-accent-foreground">{monthLabel(visibleMonth)}</p>
+            <p className="font-sans text-system-control font-medium text-accent-foreground">{monthLabel(visibleMonth)}</p>
             <Button type="button" variant="outline" size="iconSm" onClick={() => changeMonth(1)} className="text-muted-foreground" aria-label="Next month">
               <ChevronRight className="h-icon-lg w-icon-lg" />
             </Button>
@@ -285,7 +285,7 @@ export function WoobeDateTimePicker({
 
           <div className="mt-ui-md grid grid-cols-7 gap-ui-hairline">
             {WEEKDAYS.map((weekday) => (
-              <span key={weekday} className="pb-ui-xs text-center font-mono text-system-meta font-medium text-muted-foreground">
+              <span key={weekday} className="pb-ui-xs text-center font-sans text-system-meta font-medium text-muted-foreground">
                 {weekday}
               </span>
             ))}

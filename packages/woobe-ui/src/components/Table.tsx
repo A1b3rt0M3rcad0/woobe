@@ -44,7 +44,7 @@ export function Table<T>({
         <tbody>
           {data.length === 0 ? (
             <tr>
-              <td colSpan={columns.length} className="px-ui-lg py-ui-xxl text-center font-mono text-product-small text-muted-foreground">
+              <td colSpan={columns.length} className="px-ui-lg py-ui-xxl text-center font-sans text-product-small text-muted-foreground">
                 {emptyLabel}
               </td>
             </tr>

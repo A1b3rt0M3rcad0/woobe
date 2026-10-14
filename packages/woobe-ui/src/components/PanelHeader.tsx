@@ -14,14 +14,14 @@ export interface PanelHeaderProps extends Omit<HTMLAttributes<HTMLDivElement>, '
 
 const titleClasses: Record<PanelHeaderHierarchy, string> = {
   technical: 'font-mono text-system-control font-medium',
-  section: 'font-mono text-section-title font-medium',
+  section: 'font-sans text-section-title font-medium',
   entity: 'font-mono text-entity-title font-medium',
 }
 
 const descriptionClasses: Record<PanelHeaderHierarchy, string> = {
-  technical: 'font-mono text-system-meta',
-  section: 'font-mono text-product-caption',
-  entity: 'font-mono text-product-caption',
+  technical: 'font-sans text-system-meta',
+  section: 'font-sans text-product-caption',
+  entity: 'font-sans text-product-caption',
 }
 
 export function PanelHeader({

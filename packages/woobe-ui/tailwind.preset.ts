@@ -39,7 +39,7 @@ const woobeTailwindPreset = {
       },
       fontFamily: {
         sans: [...woobeTypography.sans],
-        serif: ['Georgia', 'Times New Roman', 'serif'],
+        serif: [...woobeTypography.serif],
         mono: [...woobeTypography.mono],
       },
       fontSize: woobeFontSizes,

@@ -23,14 +23,14 @@ const GuidedEmptyState = forwardRef<HTMLDivElement, GuidedEmptyStateProps>(
       <div className="mx-auto flex h-control-sm w-control-sm items-center justify-center rounded-control border border-border bg-control text-primary-light">
         {icon || <Inbox className="h-icon-lg w-icon-lg" />}
       </div>
-      <div className="mt-ui-md font-mono text-product-label font-medium text-slate-100">{title}</div>
-      <div className="mx-auto mt-ui-xs max-w-xl font-mono text-product-small text-muted-foreground">{description}</div>
+      <div className="mt-ui-md font-sans text-product-label font-medium text-slate-100">{title}</div>
+      <div className="mx-auto mt-ui-xs max-w-xl font-sans text-product-small text-muted-foreground">{description}</div>
       {next && next.length > 0 ? (
         <div className="mx-auto mt-ui-lg grid max-w-2xl gap-px overflow-hidden rounded-container border border-border bg-border text-left sm:grid-cols-3">
           {next.map((item, index) => (
             <div key={index} className="flex min-h-12 items-start gap-ui-sm bg-control/90 p-ui-md">
               <CheckCircle2 className="mt-ui-hairline h-icon w-icon shrink-0 text-primary-light" />
-              <span className="font-mono text-product-caption leading-4 text-muted-foreground">{item}</span>
+              <span className="font-sans text-product-caption leading-4 text-muted-foreground">{item}</span>
             </div>
           ))}
         </div>

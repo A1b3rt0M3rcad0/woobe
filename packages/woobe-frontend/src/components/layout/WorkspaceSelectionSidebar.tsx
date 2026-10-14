@@ -25,7 +25,7 @@ function FlowItem({ title, description, icon: Icon, active, disabled, compact, o
       onClick={onClick}
       title={description}
       className={cn(
-        'group flex h-control-nav w-full items-center gap-ui-sm rounded-technical border px-ui-sm text-left font-mono text-product-small transition-colors',
+        'group flex h-control-nav w-full items-center gap-ui-sm rounded-technical border px-ui-sm text-left font-sans text-product-small transition-colors',
         active
           ? 'border-primary/40 bg-primary/[0.12] text-slate-50'
           : 'border-transparent text-slate-300 hover:border-border hover:bg-accent/40 hover:text-slate-50',
@@ -92,13 +92,13 @@ export function WorkspaceSelectionSidebar({ compact = false }: { compact?: boole
           <Orbit className="h-icon-brand w-icon-brand" strokeWidth={1.7} />
         </div>
         <div className="min-w-0">
-          <p className="font-mono text-heading-sm font-medium tracking-[0.02em] text-slate-50">WOOBE</p>
-          <p className="mt-ui-hairline font-mono text-system-label uppercase tracking-[0.12em] text-muted-foreground">control plane</p>
+          <p className="font-sans text-heading-sm font-medium tracking-[0.02em] text-slate-50">WOOBE</p>
+          <p className="mt-ui-hairline font-sans text-system-label uppercase tracking-[0.12em] text-muted-foreground">control plane</p>
         </div>
       </header>
 
       <nav className="flex-1 overflow-y-auto px-ui-md py-ui-lg" aria-label="Workspace navigation">
-        <p className="mb-ui-sm px-ui-sm font-mono text-system-label font-medium uppercase tracking-[0.15em] text-muted-foreground">
+        <p className="mb-ui-sm px-ui-sm font-sans text-system-label font-medium uppercase tracking-[0.15em] text-muted-foreground">
           Workspace
         </p>
         <div className="grid gap-ui-hairline">{flowItems}</div>

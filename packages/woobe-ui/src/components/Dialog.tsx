@@ -84,15 +84,13 @@ export function DialogFooter({ className, meta, actions, ...props }: DialogFoote
 const LAYER_CLASS: Record<DialogLayer, string> = { modal: 'z-modal', nestedModal: 'z-nested-modal' }
 
 export const dialogTypographyClass = [
-  'font-mono',
+  'font-sans',
   '[&_h1]:text-heading-sm [&_h2]:text-section-title [&_h3]:text-section-title [&_h4]:text-system-control',
-  '[&_label]:font-mono [&_legend]:font-mono [&_button]:font-mono',
-  '[&_input]:font-mono [&_input]:text-system-control',
-  '[&_select]:font-mono [&_select]:h-control [&_select]:rounded-control [&_select]:border-control-border [&_select]:bg-control [&_select]:text-system-control [&_select]:font-normal [&_select]:text-accent-foreground',
-  '[&_option]:font-mono [&_option]:text-system-control',
-  '[&_textarea]:font-mono [&_textarea]:text-system-control',
+  '[&_input]:text-system-control',
+  '[&_select]:h-control [&_select]:rounded-control [&_select]:border-control-border [&_select]:bg-control [&_select]:text-system-control [&_select]:font-normal [&_select]:text-accent-foreground',
+  '[&_option]:text-system-control',
+  '[&_textarea]:text-system-control',
   '[&_th]:font-mono [&_dt]:font-mono [&_code]:font-mono [&_pre]:font-mono',
-  '[&_.uppercase]:font-mono [&_.tabular-nums]:font-mono [&_aside]:font-mono',
   '[&_.text-lg]:text-heading-sm [&_.text-base]:text-product-body [&_.text-sm]:text-product-small [&_.text-xs]:text-product-caption',
 ].join(' ')
 
@@ -198,7 +196,7 @@ export function Dialog({ open, onClose, title, children, className, contentClass
     >
       <div className="flex min-h-panel-header shrink-0 items-center justify-between gap-ui-sm border-b border-border bg-control/20 px-ui-panel-inset py-ui-xs">
         {title ? (
-          <h2 id={presentation === 'modal' ? titleId : undefined} className="min-w-0 break-words font-mono text-entity-title font-medium text-accent-foreground">
+          <h2 id={presentation === 'modal' ? titleId : undefined} className="min-w-0 break-words font-sans text-entity-title font-medium text-accent-foreground">
             {title}
           </h2>
         ) : <span />}

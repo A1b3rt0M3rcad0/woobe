@@ -20,7 +20,7 @@ const MetricTile = forwardRef<HTMLDivElement, MetricTileProps>(
         <span className="truncate">{label}</span>
       </div>
       <div className="mt-ui-sm break-words font-mono text-metric tabular-nums font-normal text-accent-foreground">{value}</div>
-      {detail ? <div className="mt-ui-xs font-mono text-product-caption text-muted-foreground">{detail}</div> : null}
+      {detail ? <div className="mt-ui-xs font-sans text-product-caption text-muted-foreground">{detail}</div> : null}
     </div>
   ),
 )

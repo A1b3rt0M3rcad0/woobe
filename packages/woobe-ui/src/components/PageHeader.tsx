@@ -27,7 +27,7 @@ const PageHeader = forwardRef<HTMLDivElement, PageHeaderProps>(
             {eyebrow}
           </div>
         ) : null}
-        <h1 className="font-mono text-page-title font-medium tracking-tight text-slate-100">
+        <h1 className="font-serif text-page-title font-normal text-slate-100">
           {title}
         </h1>
         {description ? (

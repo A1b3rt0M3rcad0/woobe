@@ -57,7 +57,7 @@ const operateNavItems: NavItem[] = [
 
 function SidebarSectionTitle({ children }: { children: string }) {
   return (
-    <p className="mb-ui-sm px-ui-sm font-mono text-chrome-meta font-medium tracking-wide text-muted-foreground">
+    <p className="mb-ui-sm px-ui-sm font-sans text-chrome-meta font-medium tracking-wide text-muted-foreground">
       {children}
     </p>
   )
@@ -72,7 +72,7 @@ function SidebarNavLink({ item, href }: { item: NavItem; href: string }) {
       end={item.end}
       className={({ isActive }) =>
         cn(
-          'group flex h-control-nav items-center gap-ui-sm rounded-technical border px-ui-sm font-mono text-product-label font-medium transition-colors',
+          'group flex h-control-nav items-center gap-ui-sm rounded-technical border px-ui-sm font-sans text-product-label font-medium transition-colors',
           isActive
             ? 'border-border bg-accent text-slate-50'
             : 'border-transparent text-slate-300 hover:border-border hover:bg-accent/45 hover:text-slate-50',
@@ -113,8 +113,8 @@ function ContextMenuItem({ icon: Icon, title, description, active, onClick }: { 
     >
       <Icon className="mt-ui-hairline h-icon w-icon shrink-0 text-muted-foreground" />
       <span className="min-w-0 flex-1">
-        <span className="block truncate font-mono text-product-small font-medium">{title}</span>
-        {description && <span className="mt-ui-xs block truncate font-mono text-chrome-meta text-muted-foreground">{description}</span>}
+        <span className="block truncate font-sans text-product-small font-medium">{title}</span>
+        {description && <span className="mt-ui-xs block truncate font-sans text-chrome-meta text-muted-foreground">{description}</span>}
       </span>
     </button>
   )
@@ -182,8 +182,8 @@ function ProjectContextCard({
       >
         <span className="flex items-center justify-between gap-ui-sm">
           <span className="min-w-0 flex-1">
-            <span className="block truncate font-mono text-entity-title font-medium text-slate-50">{currentProject.name}</span>
-            <span className="mt-ui-xs block truncate font-mono text-chrome-control text-muted-foreground">{currentWorkspace.name}</span>
+            <span className="block truncate font-sans text-entity-title font-medium text-slate-50">{currentProject.name}</span>
+            <span className="mt-ui-xs block truncate font-sans text-chrome-control text-muted-foreground">{currentWorkspace.name}</span>
           </span>
           <ChevronDown className={cn('h-icon w-icon shrink-0 text-muted-foreground transition-transform', open && 'rotate-180 text-primary-light')} />
         </span>
@@ -205,10 +205,10 @@ function ProjectContextCard({
         )}
       >
         <div className="max-h-sidebar-context overflow-y-auto scrollbar-thin">
-          <p className="px-ui-sm pb-ui-xs pt-ui-xs font-mono text-chrome-meta font-medium uppercase tracking-[0.14em] text-muted-foreground">Switch project</p>
+          <p className="px-ui-sm pb-ui-xs pt-ui-xs font-sans text-chrome-meta font-medium uppercase tracking-[0.14em] text-muted-foreground">Switch project</p>
           <div className="grid min-w-0 grid-cols-1 gap-ui-hairline">
             {projects.length === 0 ? (
-              <p className="px-ui-sm py-ui-sm font-mono text-chrome-label text-muted-foreground">No projects available</p>
+              <p className="px-ui-sm py-ui-sm font-sans text-chrome-label text-muted-foreground">No projects available</p>
             ) : projects.map((project) => (
               <ContextMenuItem
                 key={project.id}
@@ -226,7 +226,7 @@ function ProjectContextCard({
           </div>
 
           <div className="border-t border-border pt-ui-xs">
-            <p className="px-ui-sm pb-ui-xs pt-ui-xs font-mono text-chrome-meta font-medium uppercase tracking-[0.14em] text-muted-foreground">Workspace</p>
+            <p className="px-ui-sm pb-ui-xs pt-ui-xs font-sans text-chrome-meta font-medium uppercase tracking-[0.14em] text-muted-foreground">Workspace</p>
             {workspaces.map((workspace) => (
               <ContextMenuItem
                 key={workspace.id}
@@ -254,8 +254,8 @@ function ConfigButton({ icon: Icon, label, description, onClick }: { icon: Lucid
     >
       <Icon className="h-icon w-icon shrink-0 text-muted-foreground transition-colors group-hover:text-slate-200" />
       <span className="min-w-0 flex-1">
-        <span className="block truncate font-mono text-product-small font-medium text-slate-300 transition-colors group-hover:text-slate-50">{label}</span>
-        <span className="mt-ui-xs block truncate font-mono text-product-caption text-muted-foreground">{description}</span>
+        <span className="block truncate font-sans text-product-small font-medium text-slate-300 transition-colors group-hover:text-slate-50">{label}</span>
+        <span className="mt-ui-xs block truncate font-sans text-product-caption text-muted-foreground">{description}</span>
       </span>
     </button>
   )
@@ -277,7 +277,7 @@ function ProjectContextSkeleton() {
 function NoWorkspaceState() {
   return (
     <div className="rounded-container border border-border bg-control/35 p-ui-lg text-center">
-      <p className="font-mono text-product-small font-medium text-slate-100">Workspace required</p>
+      <p className="font-sans text-product-small font-medium text-slate-100">Workspace required</p>
       <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">Select a Workspace before opening a Project.</p>
     </div>
   )
@@ -315,8 +315,8 @@ export function Sidebar() {
             <Orbit className="h-icon-brand w-icon-brand" strokeWidth={1.7} />
           </div>
           <div className="min-w-0">
-            <p className="font-mono text-brand-title font-medium tracking-tight text-slate-50">WOOBE</p>
-            <p className="mt-ui-hairline font-mono text-chrome-meta text-muted-foreground">control plane</p>
+            <p className="font-sans text-brand-title font-medium tracking-tight text-slate-50">WOOBE</p>
+            <p className="mt-ui-hairline font-sans text-chrome-meta text-muted-foreground">control plane</p>
           </div>
         </header>
 

@@ -55,7 +55,7 @@ export function WoobeDatePicker({
         >
           <ChevronLeft className="h-icon w-icon" />
         </Button>
-        <p className="font-mono text-system-control font-medium">
+        <p className="font-sans text-system-control font-medium">
           {new Intl.DateTimeFormat(undefined, {
             month: 'long',
             year: 'numeric',

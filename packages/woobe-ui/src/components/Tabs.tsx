@@ -57,7 +57,7 @@ export function Tabs({ tabs, defaultTab, value, onValueChange, className, conten
                 document.getElementById(`${id}-tab-${tabs[next].id}`)?.focus()
               }}
               className={cn(
-                'flex h-control-xs items-center whitespace-nowrap rounded-technical border px-ui-sm font-mono text-chrome-label font-normal transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40',
+                'flex h-control-xs items-center whitespace-nowrap rounded-technical border px-ui-sm font-sans text-chrome-label font-normal transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40',
                 active === tab.id
                   ? 'border-border bg-accent text-accent-foreground'
                   : 'border-transparent text-muted-foreground hover:text-accent-foreground',

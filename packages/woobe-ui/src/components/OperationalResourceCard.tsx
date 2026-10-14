@@ -43,7 +43,7 @@ export function ResourceCard({
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-control bg-[#ffe6d9] text-primary-light">{icon}</span>
           <span className="min-w-0 pt-ui-hairline">
             <span className="block break-words font-mono text-product-label font-medium text-accent-foreground">{title}</span>
-            {subtitle ? <span className="mt-ui-xs block break-words font-mono text-product-caption text-muted-foreground">{subtitle}</span> : null}
+            {subtitle ? <span className="mt-ui-xs block break-words font-sans text-product-caption text-muted-foreground">{subtitle}</span> : null}
           </span>
         </span>
         <span className="flex shrink-0 items-center gap-ui-xs">
