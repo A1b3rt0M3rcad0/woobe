@@ -374,6 +374,32 @@ def model_spec_hash(spec: ModelSpec) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
+def effective_model_semantic_fingerprint(spec: ModelSpec) -> str:
+    """Comparison only. Never substitutes for the exact historical definition hash."""
+    from modules.agent.domain.provider_identity import canonical_provider_key
+    payload = spec.as_dict()
+    for key in ("display_name", "source", "spec_version"):
+        payload.pop(key)
+    payload["provider"] = canonical_provider_key(spec.provider)
+    payload["capabilities"] = {name: {"supported": cap.supported, "config": dict(cap.config)}
+        for name, cap in spec.capabilities.items()}
+    payload["pricing"] = {key: value for key, value in spec.pricing.items()
+        if key in {"currency", "billing_unit", "input_cost_per_1m_tokens", "output_cost_per_1m_tokens"} and value is not None}
+    payload["metadata"] = {key: value for key, value in spec.metadata.items()
+        if key in {"dimensions", "base_url", "protocol", "api_capabilities", "runtime_constraints"}}
+
+    def normalize(value):
+        if isinstance(value, dict):
+            return {key: normalize(item) for key, item in sorted(value.items())}
+        if isinstance(value, (list, tuple, set, frozenset)):
+            return sorted((normalize(item) for item in value), key=lambda item: json.dumps(item, sort_keys=True))
+        if type(value) is float and value.is_integer():
+            return int(value)
+        return value
+
+    return hashlib.sha256(json.dumps(normalize(payload), sort_keys=True, separators=(",", ":"), allow_nan=False).encode()).hexdigest()
+
+
 __all__ = [
     "MODEL_SPEC_VERSION",
     "ModelCapability",

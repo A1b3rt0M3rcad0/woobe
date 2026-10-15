@@ -77,88 +77,11 @@ def _resolve_model_spec(
     return _parse_model_spec(embedded) if embedded is not None else None
 
 
-def _positive_int(value: Any) -> int | None:
-    if value is None or isinstance(value, bool):
-        return None
-    try:
-        parsed = int(value)
-    except (TypeError, ValueError):
-        return None
-    return parsed if parsed > 0 else None
-
-
 def _provider_value(value: Any) -> str:
     return str(getattr(value, "value", value))
 
 
-def _apply_model_spec_overrides(
-    spec: ModelSpec,
-    metadata: Mapping[str, Any] | None,
-) -> ModelSpec:
-    metadata = _mapping(metadata)
-    capability_metadata = _mapping(metadata.get("capabilities"))
-    capability_source = str(
-        metadata.get("capability_source")
-        or metadata.get("source")
-        or "manual"
-    )
-
-    capabilities = dict(spec.capabilities)
-    capability_keys = {
-        "supports_tools": ModelCapabilityNames.TOOL_CALLING,
-        "supports_json": ModelCapabilityNames.STRUCTURED_OUTPUT,
-        "supports_streaming": ModelCapabilityNames.STREAMING,
-    }
-    for legacy_key, normalized_key in capability_keys.items():
-        supported = capability_metadata.get(legacy_key)
-        if not isinstance(supported, bool):
-            continue
-        existing = capabilities.get(normalized_key)
-        capabilities[normalized_key] = ModelCapability(
-            supported=supported,
-            config=(dict(existing.config) if existing is not None else {}),
-            source=capability_source,
-        )
-
-    context_window = _positive_int(metadata.get("context_window"))
-    max_output_tokens = _positive_int(metadata.get("max_output_tokens"))
-    limits = ModelLimits(
-        context_window=(
-            context_window
-            if context_window is not None
-            else spec.limits.context_window
-        ),
-        max_input_tokens=spec.limits.max_input_tokens,
-        max_output_tokens=(
-            max_output_tokens
-            if max_output_tokens is not None
-            else spec.limits.max_output_tokens
-        ),
-        max_batch_size=spec.limits.max_batch_size,
-        max_input_bytes=spec.limits.max_input_bytes,
-        max_output_bytes=spec.limits.max_output_bytes,
-    )
-
-    pricing = dict(spec.pricing)
-    pricing_override = _mapping(metadata.get("pricing"))
-    for key in (
-        "input_cost_per_1m_tokens",
-        "output_cost_per_1m_tokens",
-        "currency",
-        "billing_unit",
-        "source",
-    ):
-        value = pricing_override.get(key)
-        if value is not None:
-            pricing[key] = value
-
-    return replace(
-        spec,
-        metadata={**spec.metadata, **({"base_url": metadata["base_url"]} if metadata.get("base_url") else {})},
-        capabilities=capabilities,
-        limits=limits,
-        pricing=pricing,
-    )
+from modules.agent.application.model_spec_overrides import compose_model_spec as _apply_model_spec_overrides
 
 
 def _manual_model_spec(
@@ -195,7 +118,7 @@ def _manual_model_spec(
         provider=canonical_provider_key(provider),
     )
     spec = replace(spec, source="manual")
-    return _apply_model_spec_overrides(spec, metadata)
+    return spec
 
 
 def _apply_normalized_spec(
@@ -250,7 +173,7 @@ class CreateProviderModelUseCase:
         if not normalized_model:
             raise ValidationError("Provider model identifier is required")
 
-        metadata = input_dto.metadata or {}
+        metadata = deepcopy(input_dto.metadata or {})
         spec = _resolve_model_spec(
             explicit=(
                 input_dto.spec
@@ -277,8 +200,7 @@ class CreateProviderModelUseCase:
                 provider=credential.provider,
                 explicit_model_type=input_dto.model_type,
             )
-        else:
-            spec = _apply_model_spec_overrides(spec, metadata)
+        spec = _apply_model_spec_overrides(spec, metadata)
         spec = parse_model_spec_definition(spec.as_dict())
         validate_model_spec_binding(spec, credential, normalized_model, input_dto.model_type)
         validate_spec_assertions(spec, spec_hash=input_dto.spec_hash, spec_version=input_dto.spec_version)
@@ -318,6 +240,7 @@ class UpdateProviderModelUseCase:
 
             raise ModelConfigNotFoundError
         item = deepcopy(item)
+        previous_metadata = deepcopy(item.metadata or {})
         data = input_dto.model_dump(exclude_unset=True)
         if "provider_credential_id" in data:
             credential = await self._load_credential(
@@ -336,7 +259,7 @@ class UpdateProviderModelUseCase:
         if "model" in data and data["model"] is not None:
             item.model = data["model"].strip()
         if "metadata" in data and data["metadata"] is not None:
-            item.metadata = data["metadata"] or {}
+            item.metadata = deepcopy(data["metadata"] or {})
         if "model_type" in data:
             item.model_type = data["model_type"]
 
@@ -391,8 +314,10 @@ class UpdateProviderModelUseCase:
                     provider=credential.provider,
                     explicit_model_type=item.model_type,
                 )
-            elif spec is not None:
-                spec = _apply_model_spec_overrides(spec, item.metadata)
+            if spec is not None:
+                if explicit_spec is not _MISSING:
+                    item.metadata["model_spec_baseline"] = spec.as_dict()
+                spec = _apply_model_spec_overrides(spec, item.metadata, previous_metadata=previous_metadata)
 
             _apply_normalized_spec(
                 item,
