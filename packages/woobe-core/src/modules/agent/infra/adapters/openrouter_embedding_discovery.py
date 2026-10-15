@@ -52,7 +52,7 @@ class OpenRouterEmbeddingModelDiscoveryService:
 
         from modules.agent.infra.adapters.model_discovery import ModelDiscoveryService
         from modules.agent.infra.adapters.model_provider_registry import OpenRouterProviderAdapter
-        from modules.agent.infra.adapters.provider_discovery_adapters import _spec_to_available_output
+        from modules.agent.infra.adapters.model_discovery_output import _spec_to_available_output
         normalized = ModelDiscoveryService()._normalize_openrouter({"data": [
             {**raw, "model_type": "embedding"} for raw in items if isinstance(raw, dict)
         ]})

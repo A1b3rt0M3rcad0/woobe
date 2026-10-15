@@ -1,13 +1,9 @@
 from modules.agent.application.dtos.model_discovery_dtos import (
     AvailableProviderModelOutput,
 )
-from modules.agent.application.use_cases.provider_model_reconciliation import (
+from modules.agent.application.dtos.provider_model_reconciliation_dtos import (
     ReconciliationScope,
     ApplyProviderModelReconciliationInput,
-    PreviewProviderModelReconciliationUseCase,
-    ApplyProviderModelReconciliationUseCase,
-    _digest,
-    _conflict,
 )
 from modules.agent.application.interfaces.project_configuration import (
     configuration_for_session,
@@ -22,13 +18,19 @@ from modules.agent.infra.database.provider_model_repositories import (
 from modules.agent.infra.database.repositories import (
     SQLAlchemyProviderCredentialRepository,
 )
+from modules.agent.domain.catalog_reconciliation import (
+    catalog_digest as _digest,
+    reconciliation_conflict as _conflict,
+)
 from shared.contracts.errors import NotFoundError
 from shared.presentation.contracts import OperationRequest, OperationResult
 
 
 class ProviderModelReconciliationHandler:
-    def __init__(self, uow_factory, discovery, *, apply=False):
+    def __init__(self, uow_factory, discovery, *, preview_use_case_factory, apply_use_case_factory, apply=False):
         self.uow_factory, self.discovery, self.apply = uow_factory, discovery, apply
+        self.preview_use_case_factory = preview_use_case_factory
+        self.apply_use_case_factory = apply_use_case_factory
 
     async def __call__(self, request):
         dto = (
@@ -98,7 +100,7 @@ class ProviderModelReconciliationHandler:
                             "CONFIGURATION_REVISION_CONFLICT",
                             "Environment changed during discovery; compare again",
                         )
-                result = await ApplyProviderModelReconciliationUseCase(
+                result = await self.apply_use_case_factory(
                     models, credentials
                 ).execute(dto, remote, revision, configuration_revision)
             else:
@@ -107,7 +109,7 @@ class ProviderModelReconciliationHandler:
                         "CREDENTIAL_REVISION_CONFLICT",
                         "Credential changed during discovery; compare again",
                     )
-                result = await PreviewProviderModelReconciliationUseCase(
+                result = await self.preview_use_case_factory(
                     models
                 ).execute(scope, credential, remote, configuration_revision)
         return OperationResult(body={"success": True, "message": "ok", "data": result})

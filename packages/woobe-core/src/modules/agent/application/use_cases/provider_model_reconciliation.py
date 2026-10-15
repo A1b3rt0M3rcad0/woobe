@@ -6,12 +6,6 @@ Apply is atomic and creates/reuses definitions; adoption remains an explicit Dra
 
 from copy import deepcopy
 from dataclasses import replace
-import hashlib
-import json
-from typing import Literal
-from uuid import UUID
-
-from pydantic import BaseModel, ConfigDict, Field
 
 from modules.agent.application.dtos.ai_dtos import CreateProviderModelInput
 from modules.agent.application.use_cases.ai_provider_model_cases import (
@@ -23,37 +17,16 @@ from modules.agent.domain.model_spec import (
     model_spec_hash,
 )
 from modules.agent.domain.provider_identity import canonical_provider_key
-from shared.contracts.errors import ConflictError, ValidationError
-
-
-class ReconciliationScope(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    project_id: UUID
-    provider_credential_id: UUID
-    environment: Literal["draft", "staging", "production"] = "draft"
-    capability: Literal["generation", "embedding"] | None = None
-
-
-class ReconciliationSelection(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    model_id: str
-    installed_model_id: UUID | None = None
-    expected_model_revision: str | None = None
-    candidate_digest: str
-
-
-class ApplyProviderModelReconciliationInput(ReconciliationScope):
-    expected_credential_revision: int = Field(ge=1)
-    expected_configuration_revision: str | None = None
-    selections: list[ReconciliationSelection] = Field(min_length=1, max_length=100)
-
-
-def _digest(value):
-    return hashlib.sha256(
-        json.dumps(
-            value, sort_keys=True, separators=(",", ":"), default=str, allow_nan=False
-        ).encode()
-    ).hexdigest()
+from shared.contracts.errors import ValidationError
+from modules.agent.application.dtos.provider_model_reconciliation_dtos import (
+    ReconciliationScope,
+    ReconciliationSelection,
+    ApplyProviderModelReconciliationInput,
+)
+from modules.agent.domain.catalog_reconciliation import (
+    catalog_digest as _digest,
+    reconciliation_conflict as _conflict,
+)
 
 
 def model_revision(item):
@@ -73,12 +46,6 @@ def model_revision(item):
             "updated_at": item.updated_at,
         }
     )
-
-
-def _conflict(code, message):
-    error = ConflictError(message)
-    error.code = code
-    raise error
 
 
 def _candidate(scope, credential, remote, installed=None, configuration_revision=None):

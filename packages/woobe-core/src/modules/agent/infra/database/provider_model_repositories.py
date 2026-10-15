@@ -3,9 +3,9 @@ from __future__ import annotations
 from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import ForeignKey, Index, Integer, String, UniqueConstraint, select, or_, update, func, case, cast as sql_cast
+from sqlalchemy import ForeignKey, select, or_, update, func, case, cast as sql_cast
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, add_mapped_attribute, mapped_column
+from sqlalchemy.orm import add_mapped_attribute, mapped_column
 
 from modules.agent.application.interfaces.provider_model_repository import (
     ProviderModelRepository,
@@ -23,39 +23,9 @@ from modules.agent.infra.database.repositories import (
 )
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 from shared.contracts.pagination import CursorPage
-from shared.infra.database.base import BaseModel
+from modules.agent.infra.database.provider_model_models import ProviderModelModel
 from shared.infra.repositories.base_repository import BaseSQLAlchemyRepository
 
-
-class ProviderModelModel(BaseModel):
-    __tablename__ = "provider_models"
-    __table_args__ = (
-        UniqueConstraint(
-            "project_id",
-            "provider_credential_id",
-            "model",
-            "spec_hash",
-            name="uq_provider_models_project_credential_spec",
-        ),
-        Index("ix_provider_models_project_id", "project_id"),
-        Index("ix_provider_models_credential_id", "provider_credential_id"),
-        {"schema": "agent"},
-    )
-
-    project_id: Mapped[UUID]
-    provider_credential_id: Mapped[UUID] = mapped_column(
-        ForeignKey("agent.provider_credentials.id")
-    )
-    name: Mapped[str] = mapped_column(String(255))
-    model: Mapped[str] = mapped_column(String(255))
-    model_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    spec: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
-    spec_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    spec_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    status: Mapped[str] = mapped_column(String(32), default="active")
-    meta: Mapped[dict[str, Any] | None] = mapped_column(
-        "metadata", JSONB, nullable=True
-    )
 
 
 def _register_provider_model_refs() -> None:
@@ -133,7 +103,7 @@ class SQLAlchemyProviderModelRepository(
 
     async def save(self, provider_model: ProviderModel) -> ProviderModel:
         from modules.agent.infra.database.repositories import SQLAlchemyProviderCredentialRepository
-        from modules.agent.application.model_spec_definition import validate_model_spec_binding
+        from modules.agent.domain.provider_identity import validate_model_spec_binding
         from modules.agent.domain.model_spec import ModelSpec
         from shared.contracts.errors import ConflictError
         credential = await SQLAlchemyProviderCredentialRepository(self._session_or_uow).lock_by_id(provider_model.provider_credential_id)

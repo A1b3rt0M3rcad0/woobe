@@ -36,6 +36,9 @@ long_lived_handler = "Callable"
 long_lived_functions = [
   # Provider I/O must occur outside the short authorization/pinning transaction.
   "list_available_provider_models_composer",
+  # Catalog reconciliation performs discovery before a separate short SQL apply.
+  "provider_model_reconciliation_composer",
+  "apply_provider_model_reconciliation_composer",
   # Persisted Tool execution/discovery acquire authorization, then release SQL.
   "execute_tool_composer",
   "refresh_mcp_tools_composer",

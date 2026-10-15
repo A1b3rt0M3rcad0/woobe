@@ -201,7 +201,7 @@ class SQLAlchemyProviderCredentialRepository(
             from modules.agent.domain.errors import CredentialNotFoundError
             raise CredentialNotFoundError(credential.id)
         from modules.agent.domain.provider_identity import providers_equivalent
-        from modules.agent.infra.database.provider_model_repositories import ProviderModelModel
+        from modules.agent.infra.database.provider_model_models import ProviderModelModel
         old_endpoint = (model.meta or {}).get("base_url")
         new_endpoint = (credential.metadata or {}).get("base_url")
         old_endpoint_binding = ((model.authentication or {}).get("fields") or {}).get("base_url")

@@ -11,7 +11,7 @@ from modules.agent.application.portable_model_spec import validate_portable_mode
 from modules.agent.domain.model_spec import ModelSpec, ModelOperations, model_spec_hash
 from modules.agent.domain.provider_identity import (
     canonical_provider_key,
-    providers_equivalent,
+    validate_model_spec_binding,
     validate_provider_base_url,
 )
 from shared.contracts.errors import ValidationError
@@ -125,22 +125,6 @@ def parse_model_spec_definition(value: dict) -> ModelSpec:
         )
     return spec
 
-
-def validate_model_spec_binding(spec, credential, model_id, declared_model_type=None):
-    declared = declared_model_type.strip().lower() if declared_model_type else None
-    declared = {
-        "generation": "language",
-        "llm": "language",
-        "chat": "language",
-        "chat_completion": "language",
-        "embeddings": "embedding",
-    }.get(declared, declared)
-    if (
-        not providers_equivalent(spec.provider, credential.provider)
-        or spec.model_id != model_id
-        or (declared is not None and spec.model_type != declared)
-    ):
-        raise ValidationError("ModelSpec identity differs from the destination Model")
 
 
 def validate_spec_assertions(spec, *, spec_hash=None, spec_version=None):

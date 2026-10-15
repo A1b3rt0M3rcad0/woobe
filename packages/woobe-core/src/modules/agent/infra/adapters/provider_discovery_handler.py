@@ -104,7 +104,7 @@ class ProviderDiscoveryHandler:
                             run_id=operation_id, consumer_kind="provider_credential", consumer_id=credential.id,
                             state=state, actor="key:" + str(principal.api_key_id) if isinstance(principal, ControlPlanePrincipal)
                             else "user:" + str(principal.user_id))
-        from modules.agent.application.use_cases.provider_model_reconciliation import _digest
+        from modules.agent.domain.catalog_reconciliation import catalog_digest
         return OperationResult(outcome=OperationOutcome.SUCCESS,
-            metadata={"credential_binding_revision": str(credential.binding_revision), "configuration_revision": _digest(pins)},
+            metadata={"credential_binding_revision": str(credential.binding_revision), "configuration_revision": catalog_digest(pins)},
             body={"success": True, "message": "ok", "data": [item.model_dump() for item in items]})

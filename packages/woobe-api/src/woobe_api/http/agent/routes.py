@@ -1,4 +1,4 @@
-from modules.agent.entrypoint import ReconciliationScope, ApplyProviderModelReconciliationInput, provider_model_reconciliation_composer
+from modules.agent.entrypoint import ReconciliationScope, ApplyProviderModelReconciliationInput, provider_model_reconciliation_composer, apply_provider_model_reconciliation_composer
 from typing import Literal
 from modules.agent.entrypoint import CreateReleaseInput
 from modules.agent.entrypoint import ExecuteReleaseTestInput, build_release_test_execution_handler
@@ -144,7 +144,7 @@ async def preview_provider_model_reconciliation(request: FastAPIRequest):
 
 @router.post("/provider-models/sync-apply", openapi_extra=request_body_contract(ApplyProviderModelReconciliationInput, "/ai/provider-models/sync-apply", "post", required=True))
 async def apply_provider_model_reconciliation(request: FastAPIRequest):
-    return response_adapter(await request_adapter(request, provider_model_reconciliation_composer(apply=True)))
+    return response_adapter(await request_adapter(request, apply_provider_model_reconciliation_composer()))
 
 
 @router.get("/provider-models/{provider_model_id}")
