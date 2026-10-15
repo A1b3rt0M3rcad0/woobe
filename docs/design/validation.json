@@ -1,45 +1,30 @@
 {
-  "recorded_at": "2026-10-14T22:42:12.387776-03:00",
+  "recorded_at": "2026-10-14T23:45:38.864264-03:00",
   "timezone": "America/Sao_Paulo",
-  "implementation_commit": "39561b04fc9c318886b72cfaf1c79f6db52048a1",
+  "implementation_commit": "4aee50604064e77685303dce62d80cd4eb7a6af5",
   "pr": "https://github.com/A1b3rt0M3rcad0/woobe/pull/217",
   "branch": "feature/frontend-enterprise-redesign",
   "merged_by_this_task": false,
   "browser": "Chromium 154.0.8037.57 built on Debian GNU/Linux 13 (trixie)",
   "changes": [
-    "Owner-supplied brand kit installed intact in woobe-ui: 334 files, actual SHA-256 inventory and original archive hash.",
-    "Shared WoobeLogo uses original vector artwork and correct light/dark lockups; generic branding replaced in authentication, navigation, onboarding and auth loading.",
-    "Frontend browser icons retain transparency and real dimensions; Embed HTML uses the shared mark without altering consumer appearance.",
-    "README uses supplied light/dark lockups and updated Overview capture. Existing operational palette, typography and settings-only theme control are preserved."
+    "README opens with one centered supplied logo and descriptive heading, followed by product context, links and capabilities before a dedicated Control Plane screenshot section.",
+    "Workspace/Project breadcrumbs no longer repeat the Woobe symbol; sidebar identity, navigation actions and theme behavior remain intact.",
+    "All 58 main-page/theme screenshots regenerated from the production build; README, screenshot index and gallery use current image hashes."
   ],
   "checks": [
     {
-      "name": "Complete frontend unit suite",
+      "name": "Production page, navigation, brand, workspace and typography rechecks",
       "result": "passed",
-      "files": 112,
-      "tests": 661,
-      "command": "VITE_API_URL=http://127.0.0.1:8000 VITE_CHAT_EMBED_URL=http://127.0.0.1:8081 VITE_WOOBE_EDITION=core npm --prefix packages/woobe-frontend run test:run"
+      "tests": 104,
+      "command": "cd tests/e2e && CI=true WOOBE_CAPTURE_DOCS=1 WOOBE_CAPTURE_REFINEMENT=1 WOOBE_REQUIRE_GEORGIA=1 PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/chromium PLAYWRIGHT_BROWSERS_PATH=/workspace/.playwright npx playwright test --config playwright.config.ts surface-coverage.spec.ts workspace-refinement.spec.ts navigation-contrast.spec.ts brand-identity.spec.ts typography.spec.ts --workers=2",
+      "scope": "Builds actual frontend and Embed. Covers routes at three widths, navigation contrast and account settings in both themes, original brand loading/proportions, workspace interactions and rendered font families."
     },
     {
-      "name": "Complete production browser suite",
+      "name": "README local Markdown rendering and structure",
       "result": "passed",
-      "tests": 161,
-      "command": "cd tests/e2e && CI=true WOOBE_CAPTURE_DOCS=1 WOOBE_CAPTURE_REFINEMENT=1 WOOBE_REQUIRE_GEORGIA=1 PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/chromium PLAYWRIGHT_BROWSERS_PATH=/workspace/.playwright npx playwright test --config playwright.config.ts --workers=2",
-      "scope": "Builds actual frontend and Embed; adds five real-artwork/asset tests covering loading, light/dark variants, proportions, mobile navigation and PNG transparency/dimensions. Also covers all previous routes, authority, overlays, themes, fonts, workspaces and native zoom."
-    },
-    {
-      "name": "Shared primitives, actual rendered fonts and interaction rechecks",
-      "result": "passed",
-      "tests": 3,
-      "command": "cd tests/e2e && CI=true WOOBE_CAPTURE_DOCS=1 WOOBE_REQUIRE_GEORGIA=1 PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/chromium PLAYWRIGHT_BROWSERS_PATH=/workspace/.playwright npx playwright test --config review.config.ts gallery.spec.ts --grep 'rendered|nested dialogs|hover, focus' --workers=2",
-      "scope": "Includes new brand sample, actual loaded fonts, nested dialogs/focus, JSON expansion, copy and selected states."
-    },
-    {
-      "name": "Original asset integrity",
-      "result": "passed",
-      "files": 334,
-      "evidence": "../../packages/woobe-ui/brand-kit-import.json",
-      "scope": "Original bytes preserved. Supplied manifest predates 37 updated files; actual installed hashes are recorded separately. Brand SVGs parsed and verified to contain only drawing/text elements without external references or event handlers."
+      "theme_cases": 2,
+      "local_targets_checked": 51,
+      "scope": "Local Markdown preview in Chromium, in light and dark: one heading, one logo, original SVGs loaded, logo center offset 0px. Relative links and in-document navigation targets exist. Product context precedes the system image. This is a local preview, not a GitHub rendering test."
     },
     {
       "name": "Screenshot and source inventory",
@@ -77,19 +62,17 @@
       ]
     ],
     "capture_window_local": [
-      "2026-10-14T22:38:15.377626-03:00",
-      "2026-10-14T22:41:27.649854-03:00"
+      "2026-10-14T23:42:14.378400-03:00",
+      "2026-10-14T23:45:09.231337-03:00"
     ],
-    "readme_image_sha256": "eff97086f35b6bf2eb660536dc3ccbc31521272364bd32514af3a8bf0954f8dd",
-    "readme_cache_key": "eff97086f35b",
+    "readme_image_sha256": "7d1c01bc91e49f62ff9245ddf11c3f278c5516ced6d9fd831415838f1e18f621",
+    "readme_cache_key": "7d1c01bc91e4",
     "sha256_inventory": "coverage.json",
-    "scope": "Existing main pages and light/dark workspace comparisons; brand-only review captures remain in ignored test output. Source-kit reference images are stored separately in woobe-ui/brand-kit."
+    "scope": "Main pages and the existing light/dark Agent and Network workspace comparisons. Temporary README review images are outside the repository."
   },
   "manual_visual_review": [
-    "Supplied logo asset board and original primary lockup.",
-    "Built login at 1440px in light mode and at 390px in dark mode, retaining correct artwork proportions.",
-    "Built Workspace navigation at 1440px in dark mode: orange/white lockup and shared dark palette.",
-    "Updated Project Overview README capture and main-page screenshot set."
+    "Local README preview in light and dark: centered original lockup, descriptive heading, product introduction and dedicated screenshot section.",
+    "Fresh desktop and tablet Overview: text-only Workspace/Project breadcrumbs, sidebar brand preserved, readable content."
   ],
   "design_contracts": [
     "BRAND.md",
@@ -99,17 +82,15 @@
     "fonts/typography-1440px.json",
     "fonts/typography-768px.json",
     "fonts/typography-390px.json",
-    "fonts/typography-auth.json",
-    "fonts/primitives.json"
+    "fonts/typography-auth.json"
   ],
   "font_note": "Outlined wordmark is supplied artwork, independent of system fonts. Georgia remains the installed editorial system font; Inter and JetBrains Mono remain self-hosted interface/technical families. No font binary was imported from the kit.",
-  "initial_iteration": "Two desktop brand checks caught flex-column stretching of the login logo box. The logo now aligns at its intrinsic width; the final complete suite passes those same proportion assertions.",
   "preceding_validation": {
-    "source": "aaae5c8eed5f87529980d8cf02364dbc533fff8d",
-    "report": "https://github.com/A1b3rt0M3rcad0/woobe/blob/aaae5c8eed5f87529980d8cf02364dbc533fff8d/docs/design/validation.json",
-    "scope": "Earlier full shared-component/overlay checks and theme/navigation/storage work remain recorded at their source. Current checks above were rerun for the brand integration."
+    "source": "4dd76b750961fcc8e840ab3a2804c8fe66e88b5b",
+    "report": "https://github.com/A1b3rt0M3rcad0/woobe/blob/4dd76b750961fcc8e840ab3a2804c8fe66e88b5b/docs/design/validation.json",
+    "scope": "Prior brand integration: 661 unit tests, complete 161-test production browser suite, three shared-component/font/interaction rechecks and integrity checks for all 334 supplied assets. Those broader checks were not repeated for this breadcrumb removal and README reorganization."
   },
-  "remote_ci": "Local validation above is complete; it does not claim completion of workflows triggered by the new push.",
+  "remote_ci": "Local checks above do not claim completion of workflows triggered by the new push.",
   "limits": [
     "Synthetic API fixtures do not qualify a live backend or model-provider deployment.",
     "Selected contrast, keyboard and browser checks are not complete accessibility certification.",

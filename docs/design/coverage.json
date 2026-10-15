@@ -3726,43 +3726,43 @@
       "path": "docs/screenshots/agents.png",
       "width": 1440,
       "height": 1100,
-      "bytes": 106368,
-      "sha256": "97c5606e2e9f3fe1780af91062f0b1ea9dd50987619cde458dd1e1e8b10df953"
+      "bytes": 105973,
+      "sha256": "a06dfdf7d09877f5d325979ef5a52d916518e067987d881b805520ae5d4e1817"
     },
     {
       "path": "docs/screenshots/api-keys.png",
       "width": 1440,
       "height": 1100,
-      "bytes": 102938,
-      "sha256": "2af3bf649f99f206c97fd0a276d9551e4424930d2600d197f7e1ba3eb4aa799f"
+      "bytes": 102527,
+      "sha256": "f6d035cde2021d04f500cc5878b3f74d5950e68840860f4e3bf616bb44591ad3"
     },
     {
       "path": "docs/screenshots/chat-surfaces.png",
       "width": 1440,
       "height": 1100,
-      "bytes": 94914,
-      "sha256": "1e26bafde4c1f409b648a4bdbf64a1df9cccf8b3d42c1b6620d6ebf27bb22619"
+      "bytes": 94514,
+      "sha256": "72caea7ff66c6a7224846e6250cfdc9dcc3d66b1b0f1eb57ed8bb8f8f7a01c7b"
     },
     {
       "path": "docs/screenshots/credentials.png",
       "width": 1440,
       "height": 1100,
-      "bytes": 107581,
-      "sha256": "ec0268217c9b19ae74eb89838b7ae6182fb1f1ec96a809c29897c9f68d9dd590"
+      "bytes": 107188,
+      "sha256": "5a979356c5b4f63ddba8e54ab67425658f10ba6d93b60e1fba202a5e2b08496c"
     },
     {
       "path": "docs/screenshots/environments.png",
       "width": 1440,
       "height": 1100,
-      "bytes": 101568,
-      "sha256": "06c9a532dbab960c56a4c204a62f45dd14baa2a1cfc4723b02556ff6b6675c16"
+      "bytes": 101166,
+      "sha256": "4777be01c8462f6dedf94233a5c6f8255b24e325cce45b54daf36d3ff7346019"
     },
     {
       "path": "docs/screenshots/knowledge.png",
       "width": 1440,
       "height": 1100,
-      "bytes": 102974,
-      "sha256": "933a0094c634930651b968690ae6ca5320e4aedc061d83f8b5924356fd77a698"
+      "bytes": 102565,
+      "sha256": "4fef7f56049354dfe855fb9af2232283c01c90e426a3c00f8a1b91d0a1fdc452"
     },
     {
       "path": "docs/screenshots/mobile/agent-playground.png",
@@ -3824,8 +3824,8 @@
       "path": "docs/screenshots/mobile/network-workspace.png",
       "width": 390,
       "height": 1100,
-      "bytes": 62931,
-      "sha256": "37caadc265bd4c09b9c0b4d6a9552388ed0a3f96a8582e908c1f0d0f745f5c09"
+      "bytes": 62945,
+      "sha256": "d637faa67d613abbbb026050a99eca91cc714b9d14bd2563af59781b752b4096"
     },
     {
       "path": "docs/screenshots/mobile/networks.png",
@@ -3894,36 +3894,36 @@
       "path": "docs/screenshots/models.png",
       "width": 1440,
       "height": 1100,
-      "bytes": 106047,
-      "sha256": "05b4314b7fd0a1aa10024baf0a56b118b4cf4a3a3eff6add631143c91bd13fce"
+      "bytes": 105661,
+      "sha256": "c50b71443d07f7467f56b12f279252dc5b34bda95164e2d2344420bfa8d2855d"
     },
     {
       "path": "docs/screenshots/network-workspace.png",
       "width": 1440,
       "height": 1100,
-      "bytes": 108509,
-      "sha256": "d22dad723b57102271347e4596a4fdc65d0fc31ab971a1f0fe49a257e6bd55a5"
+      "bytes": 108507,
+      "sha256": "07457ce490a48653257972f190d999711268dc6d74d57aa12854457edd54a689"
     },
     {
       "path": "docs/screenshots/networks.png",
       "width": 1440,
       "height": 1100,
-      "bytes": 117369,
-      "sha256": "9f09ee3d6044541fa4a92f80af7185359304deb9b9b7be194abb386c09c6ae25"
+      "bytes": 116998,
+      "sha256": "d44afc6de8db76a7e3c4e2a8ddff61781229508a1af06b9c4b9a34f4b1f28a87"
     },
     {
       "path": "docs/screenshots/project-overview.png",
       "width": 1440,
       "height": 1100,
-      "bytes": 222241,
-      "sha256": "eff97086f35b6bf2eb660536dc3ccbc31521272364bd32514af3a8bf0954f8dd"
+      "bytes": 221842,
+      "sha256": "7d1c01bc91e49f62ff9245ddf11c3f278c5516ced6d9fd831415838f1e18f621"
     },
     {
       "path": "docs/screenshots/projects.png",
       "width": 1440,
       "height": 1100,
-      "bytes": 56890,
-      "sha256": "723884933097c2b5c788f6c731fe6be9e363fd39ec0081d5b597b67d1ab886f5"
+      "bytes": 56557,
+      "sha256": "b807f79ba2121f672a46fb742af2752dac54a31454109b04b5eec1503e7d344e"
     },
     {
       "path": "docs/screenshots/sign-in.png",
@@ -3936,15 +3936,15 @@
       "path": "docs/screenshots/skills.png",
       "width": 1440,
       "height": 1100,
-      "bytes": 104213,
-      "sha256": "9e825026d7db7b63d354ac98ff45525788c04a3449c881d01898e147778fb64e"
+      "bytes": 103806,
+      "sha256": "113e459da459912afe49d61ae5c93d78132ae00befc54a235ad7b5ceadad2c01"
     },
     {
       "path": "docs/screenshots/tablet/agent-playground.png",
       "width": 768,
       "height": 1100,
-      "bytes": 68255,
-      "sha256": "cbd4bbdabaed73df6a9d95df7d07f01e52ebc299f07681fdedfc28a5221b93ad"
+      "bytes": 68273,
+      "sha256": "b6da9b067dc40544746c8b360794d3c51b8468db18f457171b350cc2c32e1150"
     },
     {
       "path": "docs/screenshots/tablet/agents.png",
@@ -3978,8 +3978,8 @@
       "path": "docs/screenshots/tablet/environments.png",
       "width": 768,
       "height": 1100,
-      "bytes": 46136,
-      "sha256": "d20339264e52bb2e8419ed27815248cde2526fd38125ad68dfea984205d3d82a"
+      "bytes": 46147,
+      "sha256": "363e8cbcf394a06f81f5b90ebd3f8f307cd46eccfda4de3e09b780d4deea0d3d"
     },
     {
       "path": "docs/screenshots/tablet/knowledge.png",
@@ -4069,57 +4069,57 @@
       "path": "docs/screenshots/themes/agent-playground-dark.png",
       "width": 1440,
       "height": 1100,
-      "bytes": 188696,
-      "sha256": "802bd7f556eb94e46ee5c408e8119d7e90a5ef0ae67a6a3ad217c85b522d8833"
+      "bytes": 188703,
+      "sha256": "2cb4a4e2dfb356534183c825fef1d4cb4ac812abff85847d8dbf21b0412f774c"
     },
     {
       "path": "docs/screenshots/themes/agent-playground-light.png",
       "width": 1440,
       "height": 1100,
-      "bytes": 189007,
-      "sha256": "688e9954012ded72cd434cd92b0f68f62282f5fdc8f2c1f5a4af9fe17709d35b"
+      "bytes": 188993,
+      "sha256": "c21a9c11f11d1d94d1b9657827da28675e7dd4a69639a1dcc49a4206af27084d"
     },
     {
       "path": "docs/screenshots/themes/network-workspace-dark.png",
       "width": 1440,
       "height": 1100,
-      "bytes": 180838,
-      "sha256": "ad6988dff9efd9a77a73775131538abbc8dfa16ce866b5d913d1a501f6c81328"
+      "bytes": 180836,
+      "sha256": "aaab999f2804cb8aa290c0a964ee7b1026f96d3cc4a285e5532bbd2e22b2fabb"
     },
     {
       "path": "docs/screenshots/themes/network-workspace-light.png",
       "width": 1440,
       "height": 1100,
-      "bytes": 181175,
-      "sha256": "42cd142ec32f888d25c283faf816e790b935f7ebf722489c6483f7e4926d6b11"
+      "bytes": 181170,
+      "sha256": "9954d4659a13f8f2681a75b47d160afe8e1b279b2d19752c400c81cae276f067"
     },
     {
       "path": "docs/screenshots/tools.png",
       "width": 1440,
       "height": 1100,
-      "bytes": 99735,
-      "sha256": "b1242ea173cd939dff209ca1b622129bec3b0a3773a7e69134036b853346b3fc"
+      "bytes": 99338,
+      "sha256": "a8a0aa6f4d96bc2f521fac5af8416fd8267c256fe82e1406af1898766d732ed7"
     },
     {
       "path": "docs/screenshots/traces.png",
       "width": 1440,
       "height": 1100,
-      "bytes": 161637,
-      "sha256": "df200af8faa2077184f49182b8e9ee9c6a94d88fd9680057a20da57013912da9"
+      "bytes": 161241,
+      "sha256": "370c7fdbdf6452c62db6268818b039d43bcd56a018df0d93b4823614b06efc53"
     },
     {
       "path": "docs/screenshots/usage.png",
       "width": 1440,
       "height": 1100,
-      "bytes": 204744,
-      "sha256": "c9d94f864a8afb4da29e69bc3866395ee2466baea9aec8dc4af427aa3afa5dee"
+      "bytes": 204347,
+      "sha256": "d2a2005516b3c5b3f050997facbe0a6e382e755850d12fb11f86ba676af8c0b4"
     },
     {
       "path": "docs/screenshots/workspaces.png",
       "width": 1440,
       "height": 1100,
-      "bytes": 57068,
-      "sha256": "e2639fe1172ba1df7a62fd7a0b28f60c66b0011ab637f48f15837df4424ce720"
+      "bytes": 56737,
+      "sha256": "ddc33c63b12508d449988f85ee1c85a212a1f986b7df091e8269b52bd6fc21d5"
     }
   ]
 }
