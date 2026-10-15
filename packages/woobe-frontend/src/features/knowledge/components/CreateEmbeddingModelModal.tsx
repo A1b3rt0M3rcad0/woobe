@@ -209,7 +209,7 @@ export function CreateEmbeddingModelModal({ open, projectId, onClose, onCreated,
   const usableCredentials = useMemo(
     () => credentials.filter((credential) => (
       (!credential.status || credential.status === 'active')
-      && ['openai', 'openai_compatible', 'custom', 'openrouter'].includes(credential.provider)
+      && (credential.supports_embedding ?? ['openai', 'openai_compatible', 'custom', 'openrouter'].includes(credential.provider))
     )),
     [credentials],
   )

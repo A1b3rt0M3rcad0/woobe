@@ -1,4 +1,5 @@
-import { buildProviderModelDefinition, effectiveModelPricing } from '@/features/provider-models/modelDefinition'
+import { ModelSettingsModal } from '@/features/provider-models/components/ModelSettingsModal'
+import { buildProviderModelDefinition, effectiveModelPricing, isAgentModel } from '@/features/provider-models/modelDefinition'
 import { useEffect, useMemo, useState } from 'react'
 import { Check, Cpu, KeyRound, Pencil, Plus, Search } from 'lucide-react'
 import { toast } from 'sonner'
@@ -41,6 +42,7 @@ export function AgentModelManagerModal({ open, projectId, selectedModelId, onClo
   const credentials = credentialsQuery.data ?? []
   const models = modelsQuery.data ?? []
 
+  const [advancedOpen, setAdvancedOpen] = useState(false)
   const [screen, setScreen] = useState<Screen>('list')
   const [query, setQuery] = useState('')
   const [editingModel, setEditingModel] = useState<ProviderModel | null>(null)
@@ -68,7 +70,7 @@ export function AgentModelManagerModal({ open, projectId, selectedModelId, onClo
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase()
     return models.filter((model) => (
-      model.status !== 'archived'
+      model.status !== 'archived' && isAgentModel(model)
       && (!normalized || `${model.name} ${model.model} ${model.provider || ''}`.toLowerCase().includes(normalized))
     ))
   }, [models, query])
@@ -178,6 +180,7 @@ export function AgentModelManagerModal({ open, projectId, selectedModelId, onClo
   const busy = createCredential.isPending || updateCredential.isPending || createModel.isPending || updateModel.isPending
 
   return (
+    <>
     <Dialog
       open={open}
       onClose={onClose}
@@ -373,6 +376,7 @@ export function AgentModelManagerModal({ open, projectId, selectedModelId, onClo
               </div>
             </div>
             <div className="flex shrink-0 justify-end gap-ui-sm border-t border-border bg-surface/95 px-ui-lg py-ui-md">
+              {editingModel && <Button variant="outline" onClick={() => setAdvancedOpen(true)}>Capabilities and overrides</Button>}
               <Button variant="outline" onClick={() => setScreen('list')} disabled={busy}>Cancel</Button>
               <Button onClick={() => void saveModel()} loading={createModel.isPending || updateModel.isPending}>
                 {editingModel ? 'Save and use' : 'Create and use'}
@@ -382,5 +386,14 @@ export function AgentModelManagerModal({ open, projectId, selectedModelId, onClo
         )}
       </div>
     </Dialog>
+    {advancedOpen && editingModel && <ModelSettingsModal open projectId={projectId} credentials={credentials}
+      selectedModel={editingModel} initialSection="capabilities" layer="nestedModal"
+      onClose={() => setAdvancedOpen(false)} onSaved={async () => {
+        const result = await modelsQuery.refetch()
+        const updated = result.data?.find(item => item.id === editingModel.id)
+        if (updated) setEditingModel(updated)
+        setAdvancedOpen(false)
+      }} />}
+    </>
   )
 }

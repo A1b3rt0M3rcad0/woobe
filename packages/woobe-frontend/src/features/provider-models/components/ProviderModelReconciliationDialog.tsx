@@ -12,7 +12,8 @@ export function ProviderModelReconciliationDialog({ projectId, credentialId, onC
   const [confirm, setConfirm] = useState(false)
   const queryClient = useQueryClient()
   const scope = { project_id: projectId, provider_credential_id: credentialId, environment: 'draft', capability }
-  const preview = useQuery({ queryKey: ['provider-model-reconciliation', scope], queryFn: () => previewProviderModels(scope), retry: false })
+  const preview = useQuery({ queryKey: ['provider-model-reconciliation', scope], queryFn: () => previewProviderModels(scope),
+    retry: false, refetchOnWindowFocus: false, refetchOnReconnect: false })
   const apply = useMutation({
     mutationFn: () => applyProviderModels(scope, preview.data!, preview.data!.items.filter((_, index) => selected.has(index))),
     onSuccess: () => {
@@ -45,7 +46,7 @@ export function ProviderModelReconciliationDialog({ projectId, credentialId, onC
         </tr>)}</tbody>
       </table></div>}
       {apply.error && <p role="alert">{apply.error.message} Refresh the comparison before retrying.</p>}
-      {apply.data && <div role="status">{apply.data.items.map(item => <p key={item.model_id}>{item.model_id}: {item.result} · {item.provider_model_id}</p>)}<p>{apply.data.adoption}</p></div>}
+      {apply.data && <div role="status">{apply.data.items.map(item => <p key={item.model_id}>{item.model_id}: {item.result}{item.evidence_updated ? ' · catalog evidence updated' : ''} · {item.provider_model_id}</p>)}<p>{apply.data.adoption}</p></div>}
       {confirm && <p role="alert">Apply {selected.size} selected definitions using the reviewed evidence?</p>}
       <div className="flex justify-end gap-ui-sm">
         <Button variant="outline" disabled={apply.isPending} onClick={() => { setSelected(new Set()); setConfirm(false); apply.reset(); void preview.refetch() }}>Refresh comparison</Button>

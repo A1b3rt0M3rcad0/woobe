@@ -33,8 +33,9 @@ export function useUpdateCredential() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: UpdateProviderCredentialRequest }) => updateCredential(id, data),
-    onSuccess: () => {
+    onSuccess: (_credential, { id }) => {
       queryClient.invalidateQueries({ queryKey: ['credentials'] })
+      queryClient.invalidateQueries({ queryKey: ['available-provider-models'], predicate: query => query.queryKey[2] === id })
     },
   })
 }
@@ -43,8 +44,9 @@ export function useRotateCredential() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: RotateProviderCredentialRequest }) => rotateCredential(id, data),
-    onSuccess: () => {
+    onSuccess: (_credential, { id }) => {
       queryClient.invalidateQueries({ queryKey: ['credentials'] })
+      queryClient.invalidateQueries({ queryKey: ['available-provider-models'], predicate: query => query.queryKey[2] === id })
     },
   })
 }

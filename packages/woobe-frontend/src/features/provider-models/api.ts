@@ -64,7 +64,7 @@ export function previewProviderModels(scope: ReconciliationScope) {
 }
 
 export function applyProviderModels(scope: ReconciliationScope, preview: ReconciliationPreview, items: ReconciliationItem[]) {
-  return post<{ items: { model_id: string; result: string; provider_model_id: string }[]; adoption: string }>('/ai/provider-models/sync-apply', {
+  return post<{ items: { model_id: string; result: string; provider_model_id: string; evidence_updated?: boolean }[]; adoption: string }>('/ai/provider-models/sync-apply', {
     ...scope, expected_credential_revision: preview.expected_credential_revision,
     expected_configuration_revision: preview.expected_configuration_revision,
     selections: items.map(({ model_id, installed_model_id, expected_model_revision, candidate_digest }) => ({
