@@ -55,4 +55,11 @@ describe('shared ProviderModel authoring contract', () => {
     expect(isAgentModel({ ...model, spec: { ...spec, operations: ['embedding.create'], output_modalities: ['embedding'] } })).toBe(false)
     expect(isAgentModel({ ...model, spec: { ...spec, operations: ['image.generate'], output_modalities: ['image'] } })).toBe(false)
   })
+
+  it('removes an override when restoring a capability absent from the catalog', () => {
+    const baseline = { ...spec, capabilities: {} }
+    const existing = { ...model, metadata: { model_spec_baseline: baseline, model_spec_overrides: { capabilities: { tool_calling: false } } } }
+    const restored = buildProviderModelDefinition({ ...input, existing, inheritCatalog: true, metadata: { capabilities: { supports_tools: null } } })
+    expect(restored.metadata?.model_spec_overrides.capabilities.tool_calling).toEqual({ action: 'inherit' })
+  })
 })

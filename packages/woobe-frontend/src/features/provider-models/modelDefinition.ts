@@ -26,6 +26,7 @@ interface DefinitionInput {
   catalog?: AvailableProviderModel | null
   metadata?: Record<string, any>
   modelType?: string
+  inheritCatalog?: boolean
 }
 
 export function buildProviderModelDefinition(input: DefinitionInput): CreateProviderModelRequest {
@@ -41,9 +42,14 @@ export function buildProviderModelDefinition(input: DefinitionInput): CreateProv
   const baseline = spec ?? (sameIdentity ? input.existing?.metadata?.model_spec_baseline ?? input.existing?.spec : null)
   const current = spec ?? (sameIdentity ? input.existing?.spec : null)
   const overrides: Record<string, Record<string, any>> = {}
+  if (input.inheritCatalog) for (const [group, fields] of Object.entries(input.existing?.metadata?.model_spec_overrides ?? {})) {
+    overrides[group] = Object.fromEntries(Object.keys(fields as object).map(key => [key, { action: 'inherit' }]))
+  }
   const compare = (group: string, key: string, value: unknown, old: unknown, inherited: unknown) => {
-    if (value === undefined || (value === old && !spec)) return
+    if (value === undefined || (value === old && !spec && !input.inheritCatalog)) return
     const hadOverride = Object.prototype.hasOwnProperty.call(input.existing?.metadata?.model_spec_overrides?.[group] ?? {}, key)
+    const inheritedValue = inherited ?? (group === 'capabilities' ? 'unknown' : key === 'currency' ? 'USD' : key === 'billing_unit' ? 'per_1m_tokens' : null)
+    if (input.inheritCatalog && value === inheritedValue) return
     if ((value === null || value === inherited) && !hadOverride) return
     overrides[group] ??= {}
     if (value === null || value === inherited) overrides[group][key] = { action: 'inherit' }

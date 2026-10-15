@@ -391,7 +391,8 @@ export function AgentModelManagerModal({ open, projectId, selectedModelId, onClo
       onClose={() => setAdvancedOpen(false)} onSaved={async () => {
         const result = await modelsQuery.refetch()
         const updated = result.data?.find(item => item.id === editingModel.id)
-        if (updated) setEditingModel(updated)
+        if (updated) openModel(updated)
+        else setScreen('list')
         setAdvancedOpen(false)
       }} />}
     </>

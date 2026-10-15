@@ -454,6 +454,7 @@ export function ModelSettingsModal({
   const [catalogModelId, setCatalogModelId] = useState('')
   const [manualMode, setManualMode] = useState(false)
   const [modelId, setModelId] = useState('')
+  const [inheritCatalog, setInheritCatalog] = useState(false)
   const [compareOpen, setCompareOpen] = useState(false)
   const [displayName, setDisplayName] = useState('')
   const [status, setStatus] = useState('active')
@@ -497,6 +498,7 @@ export function ModelSettingsModal({
   useEffect(() => {
     if (!open) return
     setCreatedCredential(null)
+    setInheritCatalog(false)
     setCredentialPending(false)
     setCatalogModelId('')
     setArchiveModel(null)
@@ -609,7 +611,7 @@ export function ModelSettingsModal({
       capabilitiesChanged,
     )
     try {
-    const definition = buildProviderModelDefinition({ projectId, credentialId: credential.id, name: resolvedName, modelId: resolvedModel, existing: selectedModel, catalog: catalogModel, metadata })
+    const definition = buildProviderModelDefinition({ projectId, credentialId: credential.id, name: resolvedName, modelId: resolvedModel, existing: selectedModel, catalog: catalogModel, metadata, inheritCatalog })
 
 
       if (selectedModel) {
@@ -1094,6 +1096,8 @@ export function ModelSettingsModal({
                 {credential && step === 'model' && <Button variant="outline" onClick={() => setCompareOpen(true)}>Compare with provider</Button>}
                 {selectedModel?.metadata?.model_spec_baseline && step === 'model' && <Button variant="outline" onClick={() => {
                   const base = selectedModel.metadata!.model_spec_baseline
+                  setInheritCatalog(true)
+                  setCurrency(base.pricing?.currency || 'USD')
                   setInputCost(base.pricing?.input_cost_per_1m_tokens == null ? '' : String(base.pricing.input_cost_per_1m_tokens))
                   setOutputCost(base.pricing?.output_cost_per_1m_tokens == null ? '' : String(base.pricing.output_cost_per_1m_tokens))
                   setContextWindow(base.limits?.context_window == null ? '' : String(base.limits.context_window))
