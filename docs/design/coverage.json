@@ -3027,7 +3027,7 @@
     {
       "source": "packages/woobe-frontend/src/features/projects/components/ConfigurationKeyDeclarationDialog.tsx",
       "explicit_sans_uses": 0,
-      "explicit_mono_uses": 0,
+      "explicit_mono_uses": 1,
       "explicit_serif_uses": 0
     },
     {
@@ -3063,7 +3063,7 @@
     {
       "source": "packages/woobe-frontend/src/features/projects/components/ConfigurationValueEditor.tsx",
       "explicit_sans_uses": 0,
-      "explicit_mono_uses": 2,
+      "explicit_mono_uses": 4,
       "explicit_serif_uses": 0
     },
     {

@@ -10,7 +10,7 @@ values are separate. A development operator can declare and bind a key without
 receiving its value; an authorized configuration operator fills the value in
 **Project → Environments** and approves its consumer and destination.
 
-The central page supports search, paginated status, comparison between authorized
+The central page supports search, paginated keys, comparison between authorized
 environments, individual replacement/clear, atomic batch entry, usage and legacy
 mapping review. Editors start blank. Sensitive requests do not enter React Query
 mutation caches. Leaving an editor requires discard confirmation; reload or close
@@ -20,13 +20,28 @@ is still in progress.
 
 ### Creating, editing and deleting keys
 
+The key list has no global Environment or Environment-specific status filter.
+Draft, Staging and Production metadata is requested independently and shown next
+to each shared key. A restricted or unavailable Environment is labelled as such;
+its state and permissions are never borrowed from another Environment. Batch
+actions identify the Environment explicitly in the corresponding table header.
+Legacy mapping review retains its own scoped Environment selector, and usage
+approvals choose their Environment inside the usage dialog.
+
 In **Add key**, choose the Environment for the value inside the modal. Creating
-the shared declaration opens its value editor in that Environment; changing the
-page's toolbar first is unnecessary. Cancelling value entry leaves the declared
-key available without a new value. The value editor also has its own Environment
+the shared declaration opens its value editor in that Environment. Cancelling
+value entry leaves the declared key available without a new value. The value editor also has its own Environment
 selector. Changing it with unsaved input requires discarding that input, then
 loads the chosen Environment's metadata, revision and permissions. Values never
-carry over automatically. After saving, the page follows the saved Environment.
+carry over automatically. Saving refreshes the shared list and remembers the
+chosen Environment for the next editor without filtering the list. An Environment
+in an incoming URL supplies the initial modal choice only.
+
+Value editors use a full-width layout with a single-line, horizontally scrollable
+key name and a footer that remains visible on small screens. Tokens and URLs use
+single-line fields; text, JSON and PEM use resizable multiline fields with local
+scrolling. Input spaces, indentation and line breaks are preserved. The server
+validates the declared format; changing the editor layout does not relax it.
 
 **Edit key** updates description and format through the revision-checked metadata
 API. Key identity, name and kind remain stable. Existing material must validate
