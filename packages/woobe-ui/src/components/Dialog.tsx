@@ -225,7 +225,7 @@ export function Dialog({ open, onClose, title, children, className, contentClass
     <div
       ref={overlayRef}
       className={cn(
-        'fixed inset-0 flex min-h-svh w-screen items-start justify-center bg-foreground/20',
+        'fixed inset-0 flex min-h-svh w-screen items-start justify-center bg-[var(--woobe-backdrop)]',
         workspace && height === 'workspace' ? 'p-ui-lg' : 'p-ui-lg',
         contentScroll ? 'overflow-hidden' : 'overflow-y-auto',
         LAYER_CLASS[layer],

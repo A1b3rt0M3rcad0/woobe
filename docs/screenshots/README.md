@@ -1,10 +1,10 @@
 # Woobe main pages
 
-Updated Chromium captures of the production application, using synthetic API fixtures. Only main pages are retained; component, modal and auxiliary-state screenshots were removed at the owner’s request.
+Updated Chromium captures of the production application, using synthetic API fixtures. Main pages are retained, with four comparable light/dark workspace captures requested for the theme refinement. Component and modal screenshots stay outside documentation.
 
 ![Project Overview](project-overview.png)
 
-18 pages · 54 images · desktop 1440 × 1100, tablet 768 × 1100, mobile 390 × 1100.
+18 main pages × 3 widths + 4 theme comparisons = 58 images. Desktop 1440 × 1100, tablet 768 × 1100, mobile 390 × 1100.
 
 | Page | Desktop | Tablet | Mobile |
 | --- | --- | --- | --- |
@@ -27,12 +27,20 @@ Updated Chromium captures of the production application, using synthetic API fix
 | Usage | [View](usage.png) | [View](tablet/usage.png) | [View](mobile/usage.png) |
 | Runs | [View](traces.png) | [View](tablet/traces.png) | [View](mobile/traces.png) |
 
+## Workspace theme comparisons
+
+| Workspace | Light | Dark |
+| --- | --- | --- |
+| Agent Playground, expanded Run and context bars | [View](themes/agent-playground-light.png) | [View](themes/agent-playground-dark.png) |
+| Network workspace | [View](themes/network-workspace-light.png) | [View](themes/network-workspace-dark.png) |
+
 ## Reproduce
 
 Install the locked dependencies in `packages/woobe-frontend`, `packages/woobe-embed` and `tests/e2e`. Install Playwright Chromium and the local Georgia family as described in [font provenance](../design/FONTS.md). From `tests/e2e`:
 
 ```sh
 WOOBE_CAPTURE_DOCS=1 WOOBE_REQUIRE_GEORGIA=1 npx playwright test --config playwright.config.ts tests/surface-coverage.spec.ts tests/typography.spec.ts
+WOOBE_CAPTURE_REFINEMENT=1 npx playwright test --config playwright.config.ts tests/workspace-refinement.spec.ts
 cd ../..
 python3 scripts/frontend_visual_inventory.py
 ```

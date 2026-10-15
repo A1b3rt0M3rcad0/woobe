@@ -588,6 +588,14 @@
       "screenshot_scope": "Tested without committed component/overlay screenshots."
     },
     {
+      "source": "packages/woobe-ui/src/components/ContributionBars.tsx",
+      "review_groups": [
+        "panels"
+      ],
+      "browser_test": "tests/e2e/review/gallery.spec.ts",
+      "screenshot_scope": "Tested without committed component/overlay screenshots."
+    },
+    {
       "source": "packages/woobe-ui/src/components/CopyButton.tsx",
       "review_groups": [
         "code"
@@ -1498,6 +1506,8 @@
     "packages/woobe-frontend/src/features/api-keys/components/ApiKeySecretReveal.tsx",
     "packages/woobe-frontend/src/features/api-keys/components/CreateApiKeyDialog.tsx",
     "packages/woobe-frontend/src/features/api-keys/components/RotateApiKeyDialog.tsx",
+    "packages/woobe-frontend/src/features/appearance/ThemeProvider.tsx",
+    "packages/woobe-frontend/src/features/appearance/ThemeSelect.tsx",
     "packages/woobe-frontend/src/features/asac/AsacWorkbench.tsx",
     "packages/woobe-frontend/src/features/asac/EnvironmentSelectionNotice.tsx",
     "packages/woobe-frontend/src/features/auth/AuthProvider.tsx",
@@ -1664,6 +1674,7 @@
     "packages/woobe-frontend/src/features/tools/components/ToolSettingsModal.tsx",
     "packages/woobe-frontend/src/features/tools/components/ToolTemplateAutocomplete.tsx",
     "packages/woobe-frontend/src/features/traces/components/ContextInspector.tsx",
+    "packages/woobe-frontend/src/features/traces/components/RunMetrics.tsx",
     "packages/woobe-frontend/src/features/usage/components/UsageMetricGrid.tsx",
     "packages/woobe-frontend/src/features/usage/components/UsageOperations.tsx",
     "packages/woobe-frontend/src/features/usage/components/UsageTrendChart.tsx",
@@ -1710,6 +1721,7 @@
     "packages/woobe-ui/src/components/Card.tsx",
     "packages/woobe-ui/src/components/Checkbox.tsx",
     "packages/woobe-ui/src/components/CodePanel.tsx",
+    "packages/woobe-ui/src/components/ContributionBars.tsx",
     "packages/woobe-ui/src/components/CopyButton.tsx",
     "packages/woobe-ui/src/components/CreateResourceCard.tsx",
     "packages/woobe-ui/src/components/DangerConfirmDialog.tsx",
@@ -2175,6 +2187,18 @@
       "explicit_serif_uses": 0
     },
     {
+      "source": "packages/woobe-frontend/src/features/appearance/ThemeProvider.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/appearance/ThemeSelect.tsx",
+      "explicit_sans_uses": 1,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
       "source": "packages/woobe-frontend/src/features/asac/AsacWorkbench.tsx",
       "explicit_sans_uses": 0,
       "explicit_mono_uses": 5,
@@ -2530,8 +2554,8 @@
     },
     {
       "source": "packages/woobe-frontend/src/features/network/components/NetworkGraphEditor.tsx",
-      "explicit_sans_uses": 2,
-      "explicit_mono_uses": 6,
+      "explicit_sans_uses": 3,
+      "explicit_mono_uses": 5,
       "explicit_serif_uses": 0
     },
     {
@@ -2584,8 +2608,8 @@
     },
     {
       "source": "packages/woobe-frontend/src/features/network/components/NetworkOverviewInspector.tsx",
-      "explicit_sans_uses": 1,
-      "explicit_mono_uses": 2,
+      "explicit_sans_uses": 2,
+      "explicit_mono_uses": 1,
       "explicit_serif_uses": 0
     },
     {
@@ -2620,8 +2644,8 @@
     },
     {
       "source": "packages/woobe-frontend/src/features/network/components/NetworkRunDiagnosticsPanel.tsx",
-      "explicit_sans_uses": 10,
-      "explicit_mono_uses": 22,
+      "explicit_sans_uses": 15,
+      "explicit_mono_uses": 17,
       "explicit_serif_uses": 0
     },
     {
@@ -2656,8 +2680,8 @@
     },
     {
       "source": "packages/woobe-frontend/src/features/network/components/NetworkTraceTree.tsx",
-      "explicit_sans_uses": 5,
-      "explicit_mono_uses": 15,
+      "explicit_sans_uses": 8,
+      "explicit_mono_uses": 13,
       "explicit_serif_uses": 0
     },
     {
@@ -2710,8 +2734,8 @@
     },
     {
       "source": "packages/woobe-frontend/src/features/playground/components/AgentInspector.tsx",
-      "explicit_sans_uses": 1,
-      "explicit_mono_uses": 2,
+      "explicit_sans_uses": 2,
+      "explicit_mono_uses": 1,
       "explicit_serif_uses": 0
     },
     {
@@ -2735,7 +2759,7 @@
     {
       "source": "packages/woobe-frontend/src/features/playground/components/AgentRunAnalyticsPanel.tsx",
       "explicit_sans_uses": 8,
-      "explicit_mono_uses": 17,
+      "explicit_mono_uses": 14,
       "explicit_serif_uses": 0
     },
     {
@@ -2770,7 +2794,7 @@
     },
     {
       "source": "packages/woobe-frontend/src/features/playground/components/ChatComposer.tsx",
-      "explicit_sans_uses": 6,
+      "explicit_sans_uses": 7,
       "explicit_mono_uses": 5,
       "explicit_serif_uses": 0
     },
@@ -3171,6 +3195,12 @@
       "explicit_serif_uses": 0
     },
     {
+      "source": "packages/woobe-frontend/src/features/traces/components/RunMetrics.tsx",
+      "explicit_sans_uses": 8,
+      "explicit_mono_uses": 5,
+      "explicit_serif_uses": 0
+    },
+    {
       "source": "packages/woobe-frontend/src/features/usage/components/UsageMetricGrid.tsx",
       "explicit_sans_uses": 3,
       "explicit_mono_uses": 4,
@@ -3447,6 +3477,12 @@
       "explicit_serif_uses": 0
     },
     {
+      "source": "packages/woobe-ui/src/components/ContributionBars.tsx",
+      "explicit_sans_uses": 2,
+      "explicit_mono_uses": 1,
+      "explicit_serif_uses": 0
+    },
+    {
       "source": "packages/woobe-ui/src/components/CopyButton.tsx",
       "explicit_sans_uses": 1,
       "explicit_mono_uses": 0,
@@ -3497,7 +3533,7 @@
     {
       "source": "packages/woobe-ui/src/components/Field.tsx",
       "explicit_sans_uses": 4,
-      "explicit_mono_uses": 1,
+      "explicit_mono_uses": 0,
       "explicit_serif_uses": 0
     },
     {
@@ -3550,8 +3586,8 @@
     },
     {
       "source": "packages/woobe-ui/src/components/MetricTile.tsx",
-      "explicit_sans_uses": 1,
-      "explicit_mono_uses": 2,
+      "explicit_sans_uses": 2,
+      "explicit_mono_uses": 1,
       "explicit_serif_uses": 0
     },
     {
@@ -4013,6 +4049,34 @@
       "height": 1100,
       "bytes": 42251,
       "sha256": "5f8068062a38f84db4df276977c05b9b45e2a078e1de6a2a25247fd8ae4db215"
+    },
+    {
+      "path": "docs/screenshots/themes/agent-playground-dark.png",
+      "width": 1440,
+      "height": 1100,
+      "bytes": 187061,
+      "sha256": "2f2d87f64c2e54c348c8d459b30d5008c5a41e0b98424266d5cfcc9a20cf0166"
+    },
+    {
+      "path": "docs/screenshots/themes/agent-playground-light.png",
+      "width": 1440,
+      "height": 1100,
+      "bytes": 187140,
+      "sha256": "b16f14df4af880b22e9bdf399b9dfa77d8f13b3ff7663a3f42483e543f0c8572"
+    },
+    {
+      "path": "docs/screenshots/themes/network-workspace-dark.png",
+      "width": 1440,
+      "height": 1100,
+      "bytes": 179042,
+      "sha256": "1fbe949ad8c742def132a81c8e43c120cf40e18a1dbf93b6158509599ad58373"
+    },
+    {
+      "path": "docs/screenshots/themes/network-workspace-light.png",
+      "width": 1440,
+      "height": 1100,
+      "bytes": 179451,
+      "sha256": "85405a67b0fdfc12085caf7cb64df993d9c7c6d6dd3880f989429cba9a06d790"
     },
     {
       "path": "docs/screenshots/tools.png",

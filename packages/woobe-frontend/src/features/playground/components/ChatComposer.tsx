@@ -116,7 +116,7 @@ export function ChatComposer({
             <button
               type="button"
               onClick={() => setExternalContextOpen((current) => !current)}
-              className="flex min-w-0 flex-1 items-center gap-ui-xs px-ui-sm text-left transition-colors hover:bg-control/35"
+              className="flex min-w-0 flex-1 flex-wrap items-center gap-ui-xs px-ui-sm text-left transition-colors hover:bg-control/35"
               aria-expanded={externalContextOpen}
             >
               {externalContextOpen
@@ -166,8 +166,10 @@ export function ChatComposer({
         </div>
       ) : null}
 
-      <div className="min-w-0 max-w-full rounded-container border border-border bg-control/40 transition-colors focus-within:border-primary/45 focus-within:ring-1 focus-within:ring-primary/15">
+      {missingRequiredExternalContextFields > 0 && <p className="mb-ui-sm font-sans text-chrome-label text-warning">{missingRequiredExternalContextFields} required context field{missingRequiredExternalContextFields === 1 ? ' is' : 's are'} missing. <button type="button" onClick={() => setExternalContextOpen(true)} className="min-h-control-xs underline underline-offset-2">Review External Context</button></p>}
+      <div className="min-w-0 max-w-full rounded-container border border-control-border bg-surface transition-colors focus-within:border-primary-light focus-within:ring-1 focus-within:ring-primary-light">
         <textarea
+          aria-label="Message"
           ref={textareaRef}
           value={input}
           onChange={handleInput}
@@ -183,11 +185,11 @@ export function ChatComposer({
           ? 'flex min-w-0 items-center justify-between gap-ui-xs border-t border-border/60 px-ui-xs py-ui-xs'
           : 'flex min-w-0 items-center justify-between border-t border-border/60 px-ui-sm py-ui-sm'}>
           <div className="flex min-w-0 items-center gap-ui-xs">
-            <Button type="button" variant="ghost" size={compact ? 'xs' : 'sm'} disabled={blocked} className="font-sans text-muted-foreground">
+            <Button type="button" variant="ghost" size={compact ? 'xs' : 'sm'} disabled title="Not available in this workspace" className="font-sans text-muted-foreground">
               <Paperclip className="h-icon-sm w-icon-sm" />
               Attach
             </Button>
-            <Button type="button" variant="ghost" size={compact ? 'xs' : 'sm'} disabled={blocked} className="font-sans text-muted-foreground">
+            <Button type="button" variant="ghost" size={compact ? 'xs' : 'sm'} disabled title="Not available in this workspace" className="font-sans text-muted-foreground">
               <Wrench className="h-icon-sm w-icon-sm" />
               Tools
             </Button>

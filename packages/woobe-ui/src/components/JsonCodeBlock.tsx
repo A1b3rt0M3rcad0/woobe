@@ -49,6 +49,7 @@ export function JsonCodeBlock({
   const [collapsed, setCollapsed] = useState(initialCollapsed)
   const [copied, setCopied] = useState(false)
   const [expanded, setExpanded] = useState(false)
+  const [formatted, setFormatted] = useState(false)
 
   const rawText = useMemo(() => {
     if (value == null) return ''
@@ -58,9 +59,10 @@ export function JsonCodeBlock({
 
   const displayText = useMemo(() => {
     if (!rawText) return ''
+    if (!formatted) return rawText
     const result = formatJsonSafely(rawText)
     return result.ok ? result.value : rawText
-  }, [rawText])
+  }, [rawText, formatted])
 
   const isInvalid = useMemo(() => {
     if (!rawText) return false
@@ -69,10 +71,10 @@ export function JsonCodeBlock({
   }, [rawText, value])
 
   const handleCopy = useCallback(() => {
-    void navigator.clipboard.writeText(displayText)
+    void navigator.clipboard.writeText(rawText)
     setCopied(true)
     setTimeout(() => setCopied(false), 1500)
-  }, [displayText])
+  }, [rawText])
 
 
   const inlineCmExtensions = useMemo(
@@ -95,7 +97,7 @@ export function JsonCodeBlock({
   const panelActions = (
     <>
       {actions.includes('collapse') && displayText ? <ActionButton label={collapsed ? 'Expand' : 'Collapse'} title={collapsed ? 'Expand' : 'Collapse'} onClick={() => setCollapsed(current => !current)}>{collapsed ? <ChevronRight className="h-icon-sm w-icon-sm" /> : <ChevronDown className="h-icon-sm w-icon-sm" />}</ActionButton> : null}
-      {actions.includes('format') && displayText ? <ActionButton label="Format JSON" title="Format JSON" onClick={() => {}}><Paintbrush className="h-icon-sm w-icon-sm" /></ActionButton> : null}
+      {actions.includes('format') && displayText ? <ActionButton label="Format JSON" title="Format JSON" onClick={() => setFormatted(true)}><Paintbrush className="h-icon-sm w-icon-sm" /></ActionButton> : null}
       {actions.includes('copy') && displayText ? <ActionButton label="Copy JSON" title={copied ? 'Copied!' : 'Copy'} onClick={handleCopy}>{copied ? <Check className="h-icon-sm w-icon-sm text-success" /> : <Copy className="h-icon-sm w-icon-sm" />}</ActionButton> : null}
       {actions.includes('expand') && displayText ? <ActionButton label="Expand JSON" title="Expand JSON" onClick={() => setExpanded(true)}><Maximize2 className="h-icon-sm w-icon-sm" /></ActionButton> : null}
     </>

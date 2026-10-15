@@ -59,7 +59,7 @@ describe('configuration component typography after class merging', () => {
     for (const text of ['OpenAI Compatible', 'Provider model ID', 'Select the Project connection.']) {
       expect(textElement(text).classList.contains('text-system-meta')).toBe(true)
     }
-    expect(textElement('Name').classList.contains('text-product-caption')).toBe(true)
+    expect(textElement('Name').classList.contains('text-chrome-label')).toBe(true)
     expect(textElement('Initial Draft objective.').classList.contains('text-product-caption')).toBe(true)
     expect(textElement('Support Agent').classList.contains('text-product-small')).toBe(true)
     expect(textElement('Add connection').classList.contains('text-accent-foreground')).toBe(true)

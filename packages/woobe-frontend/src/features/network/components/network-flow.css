@@ -1,8 +1,10 @@
 .network-flow {
   --xy-background-color: var(--g-canvas);
   --xy-background-color-default: var(--g-canvas);
-  --xy-edge-stroke: var(--g-control-border);
-  --xy-edge-stroke-default: var(--g-control-border);
+  --xy-connectionline-stroke: rgb(var(--woobe-link));
+  --xy-edge-stroke-selected: rgb(var(--woobe-link));
+  --xy-edge-stroke: var(--woobe-edge);
+  --xy-edge-stroke-default: var(--woobe-edge);
   background-color: var(--g-canvas);
 }
 
@@ -20,7 +22,7 @@
 .network-flow .react-flow__controls,
 .network-flow .react-flow__minimap {
   overflow: hidden;
-  border: 1px solid var(--g-control-border);
+  border: 1px solid var(--woobe-edge);
   border-radius: 0.625rem;
   background: var(--g-canvas);
   box-shadow: var(--g-shadow-panel);
@@ -69,3 +71,7 @@
 .network-flow .react-flow__minimap-svg {
   background: var(--g-canvas);
 }
+
+.network-flow .react-flow__edge.selected .react-flow__edge-path,
+.network-flow .react-flow__edge:hover .react-flow__edge-path { stroke: rgb(var(--woobe-link)); stroke-width: 3; }
+.network-flow .react-flow__node:focus-visible { outline: 3px solid var(--woobe-focus); outline-offset: 4px; }

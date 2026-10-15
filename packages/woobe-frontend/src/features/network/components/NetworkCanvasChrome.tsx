@@ -92,11 +92,12 @@ export function NetworkCanvasChrome({ nodeCount, edgeCount, fitKey, viewportTouc
     const shell = chromeRef.current?.closest<HTMLElement>('[data-network-canvas-shell]')
     const insetRatio = leftInset / Math.max(shell?.clientWidth ?? 1, 1)
     const padding = leftInset > 0
-      ? Math.min(0.58, 0.32 + insetRatio * 0.45)
-      : 0.32
+      ? Math.min(0.4, 0.12 + insetRatio * 0.3)
+      : 0.12
     await fitView({
       padding,
-      maxZoom: leftInset > 0 ? 0.8 : 0.84,
+      minZoom: nodeCount <= 6 ? 0.9 : 0.35,
+      maxZoom: 1,
       duration,
     })
     if (leftInset > 0) {

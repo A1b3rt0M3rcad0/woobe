@@ -164,3 +164,6 @@
 
 .woobe-theme-select { max-width: 8rem; }
 .woobe-metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 8rem), 1fr)); gap: .5rem; }
+
+.woobe-metric-tile { container-type: inline-size; }
+.woobe-metric-value { font-size: clamp(1.125rem, 14cqi, 2rem); line-height: 1.2; }

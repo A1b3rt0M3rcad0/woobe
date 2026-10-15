@@ -26,7 +26,7 @@ PAGE_FOLDERS = {
 PRIMITIVE_GROUPS = {
     'buttons': ['Button'], 'badges': ['Badge', 'Separator', 'TechnicalListItem'],
     'fields': ['Field', 'Input', 'InputGroup', 'Select', 'Textarea', 'Checkbox', 'ReadOnlyField', 'FormActions'],
-    'panels': ['DotMeter', 'SectionBlock', 'PanelHeader', 'Card', 'MetricTile', 'OperationalResourceCard', 'CreateResourceCard'],
+    'panels': ['DotMeter', 'ContributionBars', 'SectionBlock', 'PanelHeader', 'Card', 'MetricTile', 'OperationalResourceCard', 'CreateResourceCard'],
     'tables': ['PageHeader', 'ResourcePage', 'Tabs', 'Table', 'Stepper', 'SegmentedControl'],
     'feedback': ['Alert', 'Skeleton', 'LoadingState', 'EmptyStatePanel', 'GuidedEmptyState'],
     'code': ['CodePanel', 'JsonCodeBlock', 'CopyButton', 'JsonEditor', 'MathSurface'],
@@ -46,6 +46,8 @@ def main():
     widths = {'desktop': 1440, 'tablet': 768, 'mobile': 390}
     expected = {f"{'' if view == 'desktop' else view + '/'}{page['slug']}.png": width
                 for page in pages for view, width in widths.items()}
+    expected.update({f'themes/{surface}-{theme}.png': 1440
+                     for surface in ['agent-playground', 'network-workspace'] for theme in ['light', 'dark']})
     found = {str(path.relative_to(CAPTURES)): path for path in CAPTURES.rglob('*.png')}
     missing = sorted(set(expected) - set(found))
     extra = sorted(set(found) - set(expected))
@@ -116,16 +118,20 @@ def main():
     }
     (ROOT / 'docs/design/coverage.json').write_text(json.dumps(inventory, indent=2) + '\n')
     lines = ['# Woobe main pages', '',
-             'Updated Chromium captures of the production application, using synthetic API fixtures. Only main pages are retained; component, modal and auxiliary-state screenshots were removed at the owner’s request.', '',
+             'Updated Chromium captures of the production application, using synthetic API fixtures. Main pages are retained, with four comparable light/dark workspace captures requested for the theme refinement. Component and modal screenshots stay outside documentation.', '',
              '![Project Overview](project-overview.png)', '',
-             f"{len(pages)} pages · {len(images)} images · desktop 1440 × 1100, tablet 768 × 1100, mobile 390 × 1100.", '',
+             f"{len(pages)} main pages × 3 widths + 4 theme comparisons = {len(images)} images. Desktop 1440 × 1100, tablet 768 × 1100, mobile 390 × 1100.", '',
              '| Page | Desktop | Tablet | Mobile |', '| --- | --- | --- | --- |']
     for page in pages:
         slug = page['slug']
         lines.append(f"| {page['title']} | [View]({slug}.png) | [View](tablet/{slug}.png) | [View](mobile/{slug}.png) |")
-    lines += ['', '## Reproduce', '',
+    lines += ['', '## Workspace theme comparisons', '',
+              '| Workspace | Light | Dark |', '| --- | --- | --- |',
+              '| Agent Playground, expanded Run and context bars | [View](themes/agent-playground-light.png) | [View](themes/agent-playground-dark.png) |',
+              '| Network workspace | [View](themes/network-workspace-light.png) | [View](themes/network-workspace-dark.png) |',
+              '', '## Reproduce', '',
               'Install the locked dependencies in `packages/woobe-frontend`, `packages/woobe-embed` and `tests/e2e`. Install Playwright Chromium and the local Georgia family as described in [font provenance](../design/FONTS.md). From `tests/e2e`:', '',
-              '```sh', 'WOOBE_CAPTURE_DOCS=1 WOOBE_REQUIRE_GEORGIA=1 npx playwright test --config playwright.config.ts tests/surface-coverage.spec.ts tests/typography.spec.ts', 'cd ../..', 'python3 scripts/frontend_visual_inventory.py', '```', '',
+              '```sh', 'WOOBE_CAPTURE_DOCS=1 WOOBE_REQUIRE_GEORGIA=1 npx playwright test --config playwright.config.ts tests/surface-coverage.spec.ts tests/typography.spec.ts', 'WOOBE_CAPTURE_REFINEMENT=1 npx playwright test --config playwright.config.ts tests/workspace-refinement.spec.ts', 'cd ../..', 'python3 scripts/frontend_visual_inventory.py', '```', '',
               'In this cloud environment, set `PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/chromium` and `PLAYWRIGHT_BROWSERS_PATH=/workspace/.playwright`. The suite builds the real frontend and independent embed before capture. Public and product pages use their actual routers. Images show the initial viewport; long operational content remains scrollable in the application.', '',
               'The [gallery](index.html) provides thumbnails. [Source inventory and image hashes](../design/coverage.json), [rendered font evidence](../design/fonts/) and [review results](../design/REVIEW.md) record separate checks. Fixtures do not prove live backend or provider integration. Georgia is installed locally for these captures; other clients follow the declared serif fallback stack.', '',
               'Component/overlay browser tests remain enabled. Optional auxiliary captures use `WOOBE_CAPTURE_AUXILIARY=1` and stay in ignored test output, outside this documentation.', '']

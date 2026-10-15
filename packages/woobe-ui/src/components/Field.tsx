@@ -30,8 +30,7 @@ const FieldLabel = forwardRef<HTMLLabelElement, LabelHTMLAttributes<HTMLLabelEle
         ref={ref}
         className={cn(
           'font-medium text-muted',
-          density === 'technical' ? 'font-mono' : 'font-sans',
-          density === 'technical' ? 'text-product-caption' : 'text-system-nano',
+          'font-sans text-chrome-label',
           className,
         )}
         {...props}

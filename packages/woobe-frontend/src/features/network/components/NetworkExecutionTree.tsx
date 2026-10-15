@@ -103,12 +103,12 @@ function AgentsCalled({ root, onSelectAgent }: { root: NetworkAgentInvocation; o
           {agents.map((agent, index) => agent.id ? (
             <button key={`${agent.id}-${index}`} type="button" onClick={() => onSelectAgent(agent.id!)} className="flex max-w-full items-center gap-ui-xs text-left font-mono text-system-micro text-muted-foreground hover:text-foreground" style={{ paddingLeft: `${Math.max(0, Math.min(agent.depth - 1, 3)) * 10}px` }}>
               <AgentStatusIcon status={agent.status} />
-              <span className="truncate">{agent.name}</span>
+              <span className="break-words">{agent.name}</span>
             </button>
           ) : (
             <div key={`${agent.name}-${index}`} className="flex max-w-full items-center gap-ui-xs font-mono text-system-micro text-muted-foreground" style={{ paddingLeft: `${Math.max(0, Math.min(agent.depth - 1, 3)) * 10}px` }}>
               <AgentStatusIcon status={agent.status} />
-              <span className="truncate">{agent.name}</span>
+              <span className="break-words">{agent.name}</span>
             </div>
           ))}
         </div>
@@ -136,12 +136,12 @@ export function NetworkLiveAgents({ agents, onSelectAgent }: {
           {calledAgents.map((agent) => agent.nodeId ? (
             <button key={agent.invocationId} type="button" onClick={() => onSelectAgent(agent.nodeId!)} className="flex max-w-full items-center gap-ui-xs text-left font-mono text-system-micro text-muted-foreground hover:text-foreground" style={{ paddingLeft: `${Math.max(0, Math.min(agent.depth - 1, 3)) * 10}px` }}>
               <AgentStatusIcon status={agent.status} />
-              <span className="truncate">{agent.name}</span>
+              <span className="break-words">{agent.name}</span>
             </button>
           ) : (
             <div key={agent.invocationId} className="flex max-w-full items-center gap-ui-xs font-mono text-system-micro text-muted-foreground" style={{ paddingLeft: `${Math.max(0, Math.min(agent.depth - 1, 3)) * 10}px` }}>
               <AgentStatusIcon status={agent.status} />
-              <span className="truncate">{agent.name}</span>
+              <span className="break-words">{agent.name}</span>
             </div>
           ))}
         </div>

@@ -75,7 +75,7 @@ export function OperationsPanel(props: OperationsPanelProps) {
     const runFinalizing = selectedRun?.status === 'running' || selectedRun?.status === 'pending'
 
     return (
-      <div className="flex h-full min-h-0 w-operations-panel shrink-0 flex-col overflow-hidden border-r border-border bg-surface/[0.74]">
+      <div className="absolute inset-y-0 left-playground-rail z-workspace flex h-full min-h-0 w-operations-panel max-w-[calc(100vw-3.5rem)] shrink-0 shadow-popup xl:static xl:z-auto flex-col overflow-hidden border-r border-border bg-surface/[0.74]">
         <ScrollArea className="max-h-[238px] flex-shrink-0 border-b border-border bg-background/15">
           <TraceList traces={traces} selectedTraceId={selectedTraceId} onSelectTrace={onSelectTrace} isLoading={tracesLoading} isError={tracesError} errorMessage={tracesErrorMessage} onRetry={onTracesRetry} hasSessionId={Boolean(sessionId)} />
         </ScrollArea>
@@ -116,7 +116,7 @@ export function OperationsPanel(props: OperationsPanelProps) {
   }
 
   return (
-    <div className="flex h-full min-h-0 w-operations-panel shrink-0 flex-col overflow-hidden border-r border-border bg-surface/[0.74]">
+    <div className="absolute inset-y-0 left-playground-rail z-workspace flex h-full min-h-0 w-operations-panel max-w-[calc(100vw-3.5rem)] shrink-0 shadow-popup xl:static xl:z-auto flex-col overflow-hidden border-r border-border bg-surface/[0.74]">
       {sessionInteractionBlocked ? <div className="shrink-0 border-b border-border bg-background/25 px-ui-md py-ui-sm font-sans text-product-caption text-muted-foreground">{streamState === 'stopping' ? 'Stopping the active Agent Run. Session changes unlock after terminal finalization.' : 'An Agent Run is active. Session changes unlock after the Run reaches a terminal state.'}</div> : null}
       <ScrollArea className={cn('min-h-0 flex-1', sessionInteractionBlocked && 'pointer-events-none opacity-60')}>
         <SessionsPanel

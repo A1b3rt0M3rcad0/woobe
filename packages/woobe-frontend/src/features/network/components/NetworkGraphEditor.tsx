@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useQueries } from '@tanstack/react-query'
 import {
   Background,
@@ -14,6 +14,7 @@ import {
   type Node,
   type NodeProps,
   type NodeTypes,
+  type OnSelectionChangeParams,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import './network-flow.css'
@@ -52,7 +53,7 @@ function AgentNode({ data, selected }: NodeProps<AgentFlowNode>) {
   const issue = data.issues.find((item) => item.severity === 'error')
   return (
     <article className={cn(
-      'w-60 rounded-container border bg-surface/95 p-ui-md text-left transition-colors',
+      'w-[280px] rounded-container border bg-surface/95 p-ui-md text-left transition-colors',
       selected
         ? 'border-primary ring-1 ring-primary/30'
         : data.activeInRun
@@ -66,16 +67,16 @@ function AgentNode({ data, selected }: NodeProps<AgentFlowNode>) {
       {!data.isRoot ? <Handle type="target" position={Position.Left} className="!h-3 !w-3 !border-2 !border-surface !bg-slate-400" /> : null}
       <Handle type="source" position={Position.Right} className="!h-3 !w-3 !border-2 !border-surface !bg-primary" />
       <div className="flex items-start gap-ui-md">
-        <div className={cn('flex h-control w-control shrink-0 items-center justify-center rounded-control border', data.isRoot ? 'border-primary/35 bg-primary/10 text-primary-light' : 'border-border bg-background/60 text-slate-300')}>
+        <div className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-control border', data.isRoot ? 'border-primary/35 bg-primary/10 text-primary-light' : 'border-border bg-background/60 text-slate-300')}>
           {data.isRoot ? <Crown className="h-icon w-icon" /> : <Bot className="h-icon w-icon" />}
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-ui-sm">
-            <p className="truncate font-mono text-product-small font-medium text-foreground">{data.node.label}</p>
+            <p className="break-words font-sans text-product-small font-medium text-foreground">{data.node.label}</p>
             {issue ? <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-error" /> : null}
           </div>
-          <p className="mt-ui-xs truncate font-mono text-system-meta text-muted-foreground">{data.agent ? `${data.agent.provider}/${data.agent.model}` : 'Agent unavailable'}</p>
-          {data.node.capability_description ? <p className="mt-ui-sm line-clamp-2 font-sans text-product-caption leading-4 text-slate-400">{data.node.capability_description}</p> : null}
+          <p className="mt-ui-xs break-all font-mono text-system-meta text-muted-foreground">{data.agent ? `${data.agent.provider}/${data.agent.model}` : 'Agent unavailable'}</p>
+          {data.node.capability_description ? <p className="mt-ui-sm line-clamp-2 font-sans text-chrome-label leading-5 text-slate-400">{data.node.capability_description}</p> : null}
         </div>
       </div>
       <div className="mt-ui-md space-y-ui-sm border-t border-border/70 pt-ui-sm">
@@ -197,6 +198,7 @@ export function NetworkGraphEditor({
     selected: selection.type === 'node' && selection.id === node.id,
     draggable: !readOnly,
     connectable: !readOnly,
+    ariaLabel: `${node.label}. ${definition.root_node_id === node.id ? 'Entry point' : 'Agent'}. Select to inspect.`,
     data: {
       node,
       agent: agentsById.get(node.agent_id),
@@ -222,9 +224,10 @@ export function NetworkGraphEditor({
       source: edge.source_node_id,
       target: edge.target_node_id,
       selected: selection.type === 'edge' && selection.id === edge.id,
-      markerEnd: { type: MarkerType.ArrowClosed, color: active ? '#24ad65' : undefined },
-      animated: active,
-      style: { strokeWidth: active ? 2.5 : 2, stroke: active ? '#24ad65' : undefined },
+      markerEnd: { type: MarkerType.ArrowClosed, color: active ? 'rgb(var(--woobe-success))' : 'var(--woobe-edge)' },
+      animated: false,
+      interactionWidth: 24,
+      style: { strokeWidth: active ? 2.5 : 2, stroke: active ? 'rgb(var(--woobe-success))' : 'var(--woobe-edge)' },
     }
   }), [activePath, definition.edges, selection])
   const fitKey = useMemo(() => [
@@ -234,6 +237,13 @@ export function NetworkGraphEditor({
     definition.nodes.map((node) => node.id).sort().join(','),
     definition.edges.map((edge) => edge.id).sort().join(','),
   ].join(':'), [definition.edges, definition.nodes, definition.root_node_id, inspectionLabel, readOnly])
+
+  const handleSelectionChange = useCallback(({ nodes: selectedNodes, edges: selectedEdges }: OnSelectionChangeParams) => {
+    const node = selectedNodes[0]
+    const edge = selectedEdges[0]
+    if (node && (selection.type !== 'node' || selection.id !== node.id)) onSelect({ type: 'node', id: node.id })
+    else if (!node && edge && (selection.type !== 'edge' || selection.id !== edge.id)) onSelect({ type: 'edge', id: edge.id })
+  }, [onSelect, selection])
 
   const connect = (connection: Connection) => {
     if (readOnly || !connection.source || !connection.target) return
@@ -253,12 +263,13 @@ export function NetworkGraphEditor({
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
-        colorMode="dark"
+        colorMode="light"
         className="network-flow"
         onMoveStart={(event) => {
           if (event) viewportTouchedRef.current = true
         }}
         onNodesChange={onNodesChange}
+        onSelectionChange={handleSelectionChange}
         onConnect={connect}
         onNodeClick={(_, node) => onSelect({ type: 'node', id: node.id })}
         onEdgeClick={(_, edge) => onSelect({ type: 'edge', id: edge.id })}
@@ -283,7 +294,7 @@ export function NetworkGraphEditor({
         maxZoom={1.8}
         proOptions={{ hideAttribution: true }}
       >
-        <Background variant={BackgroundVariant.Dots} gap={28} size={1.2} color="rgba(100,116,139,.52)" />
+        <Background variant={BackgroundVariant.Dots} gap={28} size={1.2} color="var(--woobe-grid)" />
         <NetworkCanvasChrome
           nodeCount={definition.nodes.length}
           edgeCount={definition.edges.length}
@@ -296,11 +307,11 @@ export function NetworkGraphEditor({
           zoomable
           inversePan
           zoomStep={5}
-          bgColor="var(--g-canvas)"
-          nodeStrokeColor="#8c867d"
-          nodeColor={(node) => activePathSet.has(node.id) ? '#197542' : node.id === definition.root_node_id ? '#7c3aed' : '#e3e1dd'}
-          maskColor="rgba(36,35,33,.10)"
-          maskStrokeColor="#8c867d"
+          bgColor="rgb(var(--woobe-control))"
+          nodeStrokeColor="var(--woobe-edge)"
+          nodeColor={(node) => activePathSet.has(node.id) ? 'rgb(var(--woobe-success))' : node.id === definition.root_node_id ? 'rgb(var(--woobe-link))' : 'rgb(var(--woobe-control-border))'}
+          maskColor="rgb(var(--woobe-canvas) / .6)"
+          maskStrokeColor="var(--woobe-edge)"
           maskStrokeWidth={1.5}
           ariaLabel="Network overview. Drag to navigate and scroll to zoom."
         />

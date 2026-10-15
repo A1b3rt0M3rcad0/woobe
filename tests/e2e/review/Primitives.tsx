@@ -11,6 +11,7 @@ export function Primitives() {
       <p data-font-probe="mono" className="font-mono font-medium">Usage Cap · PR Reviewer · $312.40 / $380 · 0123456789 · I l 1 O 0 · ação conexão utilização</p>
       <p data-font-probe="sans" className="font-sans font-normal">Informação, configuração e observação: texto explicativo em Inter.</p>
     </section>
+    <section className="review-sample" data-sample="contribution-bars"><h2>Context contributions</h2><UI.ContributionBars unit="Persisted contribution units" rows={[{ id: 'system', label: 'System instructions', value: 1898, share: 1898/1899 }, { id: 'input', label: 'Current input', value: 1, share: 1/1899 }]} /></section>
     <section className="review-sample" data-sample="buttons"><h2>Buttons and states</h2><div className="review-stack">
       {(['default','secondary','outline','ghost','destructive','link'] as const).map(variant => <UI.Button key={variant} variant={variant}>{variant}</UI.Button>)}
       <UI.Button disabled>Disabled</UI.Button><UI.Button loading>Saving</UI.Button>

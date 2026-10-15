@@ -126,7 +126,7 @@ export function ChatCanvas({
   runtimeBlocked = false,
   runtimeBlockReason,
   emptyTitle = 'Test your Agent',
-  emptyDescription = 'Your model and provider are ready. Send a message to validate the current Draft.',
+  emptyDescription = 'Send a message to test this Draft. Review its configuration and inspect each Run from the panels.',
   suggestions = defaultSuggestions,
   composerValue,
   onComposerValueChange,
@@ -231,7 +231,7 @@ export function ChatCanvas({
   const EmptyIcon = assistantIcon === 'network' ? Workflow : Bot
 
   return (
-    <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
+    <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-workspace">
       <ScrollArea ref={messagesContainerRef} className="relative min-h-0 min-w-0 flex-1" onScroll={handleScroll}>
         <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-technical-grid bg-technical-grid opacity-100" />
 
@@ -244,7 +244,7 @@ export function ChatCanvas({
             <div className="mb-ui-md flex h-control-nav w-control-nav items-center justify-center rounded-control border border-border bg-control text-primary-light">
               <EmptyIcon className="h-icon-lg w-icon-lg" />
             </div>
-            <h2 className="font-sans text-system-heading font-medium text-slate-50">{emptyTitle}</h2>
+            <h2 className="font-sans text-heading-sm font-medium text-slate-50">{emptyTitle}</h2>
             <p className="mt-ui-sm max-w-md font-sans text-product-small text-muted-foreground">
               {runtimeBlocked ? runtimeBlockReason : emptyDescription}
             </p>
@@ -271,7 +271,7 @@ export function ChatCanvas({
         ) : (
           <div ref={messagesContentRef} className={compact
             ? 'relative min-w-0 space-y-ui-sm p-ui-sm pb-ui-xs'
-            : 'relative min-w-0 space-y-ui-md p-ui-lg pb-ui-sm'}>
+            : 'relative mx-auto w-full min-w-0 max-w-5xl space-y-ui-md p-ui-lg pb-ui-sm'}>
             {visibleEntries.map((entry, index) => {
               const content = (
                 <ChatMessage

@@ -82,7 +82,7 @@ function AgentPlaygroundSkeleton() {
           <SkeletonLine className="ml-auto h-2.5 w-24" />
         </div>
       </div>
-      <div className="flex flex-1 min-h-0 overflow-hidden">
+      <div className="relative flex flex-1 min-h-0 overflow-hidden">
         <div className="w-[52px] shrink-0 border-r border-border bg-surface/75 p-2">
           <div className="space-y-2">
             <div className="h-10 animate-pulse rounded-lg border border-primary/15 bg-primary/5" />
@@ -203,7 +203,7 @@ function PlaygroundContent() {
   const rawEventsRef = useRef<RawStreamEvent[]>([])
   const [leftPanelTab, setLeftPanelTab] = useState<LeftPanelTab | null>('debug')
   const [showLeftPanel, setShowLeftPanel] = useState(false)
-  const [showRightPanel, setShowRightPanel] = useState(true)
+  const [showRightPanel, setShowRightPanel] = useState(() => window.innerWidth >= 1280)
   const [rightPanelTab, setRightPanelTab] = useState('editor')
   const [selectedTraceId, setSelectedTraceId] = useState<string | null>(null)
   const [showApiModal, setShowApiModal] = useState(false)
@@ -727,6 +727,7 @@ function PlaygroundContent() {
   }
 
   const handleLeftPanelTabChange = (tab: LeftPanelTab) => {
+    if (window.innerWidth < 1280) setShowRightPanel(false)
     if (leftPanelTab === tab) setShowLeftPanel(!showLeftPanel)
     else { setLeftPanelTab(tab); setShowLeftPanel(true); setSelectedTraceId(null) }
   }
@@ -780,8 +781,8 @@ function PlaygroundContent() {
           environment={environment}
           environmentChangeDisabled={isSending}
           onEnvironmentChange={handleEnvironmentChange}
-          onToggleLeftPanel={() => setShowLeftPanel(!showLeftPanel)}
-          onToggleRightPanel={() => setShowRightPanel(!showRightPanel)}
+          onToggleLeftPanel={() => { setShowLeftPanel(!showLeftPanel); if (innerWidth < 1280) setShowRightPanel(false) }}
+          onToggleRightPanel={() => { setShowRightPanel(!showRightPanel); if (innerWidth < 1280) setShowLeftPanel(false) }}
           onApiClick={() => setShowApiModal(true)}
           onSettingsClick={() => navigate(p(projectId!, 'agents', agentId!, 'edit'))}
           releaseVersion={currentEnvironmentRelease?.version}
@@ -796,7 +797,7 @@ function PlaygroundContent() {
           <span className="ml-auto text-muted">{visibleProvider || '—'}/{visibleModel || '—'}</span>
         </div>
         <ConfigurationReadinessNotice projectId={projectId!} targetKind="agent" targetId={agentId!} environment={environment} versionId={currentEnvironmentRelease?.id} workspaceId={workspaceId} unsaved={environment === 'draft' && isDirty} />
-        <div className="flex flex-1 min-h-0 overflow-hidden">
+        <div className="relative flex flex-1 min-h-0 overflow-hidden">
           <OperationsRail
             activeTab={showLeftPanel ? leftPanelTab : null}
             environment={environment}

@@ -110,3 +110,5 @@ export {
   type WoobeCodeTheme,
   type WoobeColors,
 } from './tokens'
+
+export { ContributionBars, type ContributionRow } from './components/ContributionBars'

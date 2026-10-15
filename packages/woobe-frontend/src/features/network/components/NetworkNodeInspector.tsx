@@ -121,7 +121,7 @@ export function NetworkNodeInspector({
           <div className="min-w-0 flex-1">
             <p className="font-mono text-system-micro font-medium uppercase tracking-ui-label text-primary-light">Agent in Network</p>
             <div className="mt-ui-xs flex min-w-0 items-center gap-ui-sm">
-              <h2 className="truncate text-sm font-medium text-foreground">{node.label}</h2>
+              <h2 className="break-words text-sm font-medium text-foreground">{node.label}</h2>
               {definition.root_node_id === node.id ? <span className="shrink-0 rounded-technical border border-primary/25 bg-primary/5 px-ui-xs py-ui-hairline font-mono text-system-micro uppercase text-primary-light">Entry point</span> : null}
             </div>
             <p className="mt-ui-xs truncate font-mono text-system-label text-muted-foreground">{binding ? `${binding.source} · ${binding.version}` : agent ? `${agent.provider}/${agent.model}` : node.agent_id}</p>

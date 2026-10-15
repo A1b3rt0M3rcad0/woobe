@@ -96,7 +96,7 @@ export function Drawer({ open, onClose, children, title, className }: DrawerProp
   return (
     <div
       ref={overlayRef}
-      className="fixed inset-0 z-modal flex bg-foreground/20"
+      className="fixed inset-0 z-modal flex bg-[var(--woobe-backdrop)]"
       onClick={(event) => {
         if (event.target === overlayRef.current && isTopOverlay(overlayId)) onClose()
       }}

@@ -199,6 +199,7 @@ export default function NetworkPage() {
   const { environment, centerMode, selection, inspectorContext, inspectionScope } = workspace
   const [panelTab, setPanelTab] = useState<PanelTab>('traces')
   const [showLeftPanel, setShowLeftPanel] = useState(false)
+  const [showNetworkInspector, setShowNetworkInspector] = useState(true)
   const [networkSessionActionBlocked, setNetworkSessionActionBlocked] = useState(false)
   const [pendingNode, setPendingNode] = useState<string | null>(null)
   const [showAsac, setShowAsac] = useState(false)
@@ -977,6 +978,7 @@ export default function NetworkPage() {
           </div>
           <p className="font-sans text-system-micro text-muted-foreground">Network workspace · isolated within this Project</p>
         </div>
+        <ThemeSelect />
         {isInitialSetup ? (
           <div className="ml-auto flex items-center gap-ui-sm"><span className="rounded-control border border-primary/25 bg-primary/5 px-ui-md py-ui-xs font-mono text-system-micro font-medium text-primary-light">Draft · initial setup</span></div>
         ) : (
@@ -987,8 +989,8 @@ export default function NetworkPage() {
               ))}
             </div>
             {environment === 'draft' ? <button type="button" disabled={!workspaceDirty || draftSavePending || editorHasErrors || Boolean(snapshotInspection)} onClick={() => void saveDraft()} className={smallButton}>{draftSavePending ? 'Saving…' : workspaceDirty ? 'Save Draft' : `Draft saved · r${editorRevision}`}</button> : null}
-            <ThemeSelect />
             <button type="button" onClick={() => openNetworkManager(environment)} className={smallButton}><History className="mr-ui-xs inline h-3.5 w-3.5" />Manage Network</button>
+            <button type="button" aria-expanded={showNetworkInspector} onClick={() => setShowNetworkInspector(value => !value)} className={smallButton}>{showNetworkInspector ? 'Hide inspector' : 'Show inspector'}</button>
             <button type="button" onClick={() => setShowAsac(true)} className={smallButton}>History & lifecycle</button>
             <button type="button" onClick={() => setShowApi(true)} className={smallButton}><Code2 className="mr-ui-xs inline h-3.5 w-3.5" />API Reference</button>
             {environment === 'production' ? (
@@ -1049,7 +1051,7 @@ export default function NetworkPage() {
           {isReadyUntested && effectiveCenterMode === 'canvas' ? <NetworkReadyToTest pending={draftSavePending || createNetworkSessionMutation.isPending} onTest={() => { void startFirstTest() }} onAddSpecialist={() => openCatalog('add-specialist')} /> : null}
           {snapshotLoadingId ? <div className="pointer-events-none absolute inset-x-0 top-3 z-20 flex justify-center"><div className="rounded-control border border-border bg-surface/95 px-ui-md py-ui-sm font-sans text-system-label text-muted-foreground shadow-xl">Loading exact Run snapshot…</div></div> : null}
         </div>
-        {isInitialSetup ? <NetworkInitialSetupInspector /> : <NetworkContextInspector context={inspectorContext} centerMode={centerMode} inspectionScope={inspectionScope} inspectionLabel={snapshotInspection?.title ?? null} inspectionKind={snapshotInspection?.kind ?? null} definition={workspaceDefinition} agents={projectAgents} bindings={workspaceBindings} liveDraftContractsByAgentId={draftExternalContextContractsByAgentId} issues={workspaceIssues} selection={selection} readOnly={inspectorReadOnly} name={snapshotInspection ? `${editorName} · ${snapshotInspection.snapshot.version_label ?? 'snapshot'}` : editorName} description={editorDescription} agentWorkspace={agentWorkspace} onContext={(context) => dispatchWorkspace({ type: 'context', context })} onLocateOnCanvas={() => changeCenter('canvas')} onSelect={selectWorkspace} onMetadata={updateEditorMetadata} onChange={changeEditor} />}
+        <div className={showNetworkInspector ? 'contents' : 'hidden'}>{isInitialSetup ? <NetworkInitialSetupInspector /> : <NetworkContextInspector context={inspectorContext} centerMode={centerMode} inspectionScope={inspectionScope} inspectionLabel={snapshotInspection?.title ?? null} inspectionKind={snapshotInspection?.kind ?? null} definition={workspaceDefinition} agents={projectAgents} bindings={workspaceBindings} liveDraftContractsByAgentId={draftExternalContextContractsByAgentId} issues={workspaceIssues} selection={selection} readOnly={inspectorReadOnly} name={snapshotInspection ? `${editorName} · ${snapshotInspection.snapshot.version_label ?? 'snapshot'}` : editorName} description={editorDescription} agentWorkspace={agentWorkspace} onContext={(context) => dispatchWorkspace({ type: 'context', context })} onLocateOnCanvas={() => changeCenter('canvas')} onSelect={selectWorkspace} onMetadata={updateEditorMetadata} onChange={changeEditor} />}</div>
         </div>
         <NetworkAgentCatalogDrawer open={catalogOpen} mode={catalogMode} agents={projectAgents} addedAgentIds={new Set(editorDefinition.nodes.map((node) => node.agent_id))} onClose={() => setCatalogOpen(false)} onAdd={(agent) => { void addAgentToNetwork(agent) }} onCreate={() => openCreateAgent(true)} />
       </div>

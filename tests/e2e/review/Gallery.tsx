@@ -4,6 +4,7 @@ import { AppProviders } from '../../../packages/woobe-frontend/src/app/providers
 import { AgentEditorProvider } from '../../../packages/woobe-frontend/src/features/playground/AgentEditorContext'
 import { commonProps, productionAgent, project } from './fixtures'
 import { overlayCases } from './registry'
+import { WorkspaceReview } from './WorkspaceReview'
 import { Primitives } from './Primitives'
 import './review.css'
 
@@ -23,7 +24,7 @@ export function Gallery() {
     <main className="review-shell" data-review-ready data-review-case={name}>
       <header className="review-caption"><span>Woobe component review</span><span>Synthetic API data · {name}</span></header>
       <ReviewBoundary>
-        {name === 'primitives' ? <Primitives /> : record && open ? <div style={name.includes('Popover') ? { display: 'flex', justifyContent: 'flex-end' } : undefined}><record.component {...commonProps} {...callbacks} {...record.props} /></div> : <p data-review-closed>Closed</p>}
+        {name === 'workspace' ? <WorkspaceReview /> : name === 'primitives' ? <Primitives /> : record && open ? <div style={name.includes('Popover') ? { display: 'flex', justifyContent: 'flex-end' } : undefined}><record.component {...commonProps} {...callbacks} {...record.props} /></div> : <p data-review-closed>Closed</p>}
       </ReviewBoundary>
     </main>
   </AgentEditorProvider></AppProviders></BrowserRouter>
