@@ -3,16 +3,17 @@ import { installApi, respond, productionAgent, project } from './control-plane'
 import { projectOverviewFixture } from '../../../packages/woobe-frontend/src/features/dashboard/fixtures'
 
 /** Local synthetic provider/configuration responses; no live provider calls. */
-export async function installSetupFlow(page: Page, options: { connection?: boolean; model?: boolean; catalogError?: boolean; configurationDenied?: boolean } = {}) {
+export async function installSetupFlow(page: Page, options: { connection?: boolean; model?: boolean; catalogError?: boolean; configurationDenied?: boolean; legacy?: boolean } = {}) {
   await installApi(page, { asacAgent: true })
   const credential = { id: 'setup-credential', project_id: project.id, provider: 'openrouter', name: 'Support gateway', status: 'active', authentication: { type: 'api_key', fields: { api_key: { source: 'project_environment', key: 'OPENROUTER_API_KEY' } } }, metadata: { base_url: 'https://openrouter.ai/api/v1' }, created_at: '2026-10-15T03:00:00Z' }
+  if (options.legacy) credential.authentication.fields.api_key.source = 'legacy_configuration'
   const model = { id: 'setup-model', project_id: project.id, provider_credential_id: credential.id, provider: 'openrouter', name: 'Support model', model: 'synthetic/support-model', model_type: 'generation', status: 'active', metadata: {}, spec: {} }
   const key = { id: 'setup-key', key: 'OPENROUTER_API_KEY', kind: 'secret', description: 'Synthetic provider access', value_format: 'token', definition_revision: 1, origin: 'declared', material: 'missing', used_by_count: 0, values: {} }
   const state = { credential: options.connection || options.model ? credential : null as typeof credential | null, model: options.model ? model : null as typeof model | null, agent: { ...productionAgent }, keyDeclared: !!(options.connection || options.model), valueSaved: false, approved: false, catalogError: !!options.catalogError, failAgent: false, failModel: false, calls: [] as { path: string; method: string; body: any }[], modelWrites: 0, agentWrites: 0, providerRequests: 0 }
   await page.route('https://openrouter.ai/**', route => { state.providerRequests++; return route.abort() })
   await page.route('**/*', async route => {
     const request = route.request(), url = new URL(request.url()), path = url.pathname, method = request.method()
-    if (request.isNavigationRequest() || !['/ai/', '/core/'].some(prefix => path.startsWith(prefix))) return route.fallback()
+    if (request.isNavigationRequest() || !['/ai/', '/core/', '/runtime/', '/v1/'].some(prefix => path.startsWith(prefix))) return route.fallback()
     const body = method === 'GET' ? null : request.postDataJSON()
     state.calls.push({ path: path + url.search, method, body })
     if (path === '/ai/credentials') {

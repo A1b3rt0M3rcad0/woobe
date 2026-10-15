@@ -8,12 +8,15 @@ import { ConfigurationUsageDialog } from '@/features/projects/components/Configu
 
 /** Reuses the central configuration editors. It never reads a secret value. */
 export function ProviderConnectionConfiguration({ credential }: { credential: ProviderCredential }) {
-  const key = credential.authentication?.fields.api_key.key
+  const reference = credential.authentication?.fields.api_key
+  const legacy = reference?.source === 'legacy_configuration'
+  const key = legacy ? undefined : reference?.key
   const client = useQueryClient()
   const [editor, setEditor] = useState<'value' | 'usage' | null>(null)
   const query = useQuery({ queryKey: ['project-configuration', credential.project_id, 'connection', key],
     queryFn: () => listConfiguration(credential.project_id, 'draft', key), enabled: Boolean(key), retry: false })
-  if (!key) return <p className="text-sm text-muted-foreground">This connection uses legacy credential storage. Configure its migration in Project → Environments.</p>
+  if (legacy || !reference) return <p className="text-sm text-muted-foreground">This connection uses legacy credential storage. Configure its migration in Project → Environments.</p>
+  if (!key) return <p className="text-sm text-muted-foreground">The API key reference is unavailable. Review the connection in Environments.</p>
   const item = query.data?.items.find(item => item.key === key)
   const permissions = query.data?.permissions ?? {}
   const refresh = () => {

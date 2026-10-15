@@ -65,7 +65,7 @@ test('first Project and Agent: configure Draft, review, edit and retry without d
   expect(state.modelWrites).toBe(1); expect(state.agentWrites).toBe(2)
   expect(state.valueSaved && state.approved).toBe(true); expect(state.agent.name).toBe('Updated support assistant')
   expect(state.agent.provider_credential_id).toBe('setup-credential')
-  expect(state.calls.filter(call => call.method === 'POST' && /\/runs|\/chat\/|\/release/.test(call.path))).toHaveLength(0)
+  expect(state.calls.filter(call => call.method === 'POST' && /\/runs(?:[/?]|$)|\/chat(?:[/?]|$)|\/releases?(?:[/?]|$)/.test(call.path))).toHaveLength(0)
   expect(state.providerRequests).toBe(0)
 })
 
@@ -180,4 +180,12 @@ test('configuration permission denial shows unknown access without value control
   await expect(setup.getByRole('alert')).toContainText('Configuration is unavailable or your access is restricted.')
   await expect(setup.getByRole('button', { name: /Set Draft|Replace Draft/ })).toHaveCount(0)
   expect(state.calls.filter(call => call.method === 'PUT')).toHaveLength(0)
+})
+
+test('legacy provider references retain their explicit migration boundary', async ({ page }) => {
+  const state = await installSetupFlow(page, { connection: true, legacy: true }); await login(page); await page.goto(`${root}/credentials`)
+  await page.getByRole('button', { name: 'Open provider connection Support gateway' }).click()
+  await expect(page.getByText('This connection uses legacy credential storage. Configure its migration in Project → Environments.', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: /Set Draft API key|Replace Draft API key/ })).toHaveCount(0)
+  expect(state.calls.filter(call => call.path.includes('/configuration/keys'))).toHaveLength(0)
 })
