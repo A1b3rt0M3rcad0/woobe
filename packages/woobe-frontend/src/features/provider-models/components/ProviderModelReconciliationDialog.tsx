@@ -26,9 +26,9 @@ export function ProviderModelReconciliationDialog({ projectId, credentialId, onC
   return <Dialog open layer="nestedModal" onClose={apply.isPending ? () => undefined : onClose} title="Compare with provider">
     <div className="space-y-ui-md p-ui-lg">
       <p className="text-product-body text-muted-foreground">Review current provider evidence and select definitions to install. Existing Releases retain their published bindings. Adopt the resulting Model explicitly on an Agent Draft.</p>
-      <label>Operation <select aria-label="Catalog operation" value={capability} disabled={apply.isPending} onChange={event => {
+      <label className="block">Operation <select aria-label="Catalog operation" value={capability} disabled={apply.isPending} onChange={event => {
         setCapability(event.target.value as 'generation' | 'embedding'); setSelected(new Set()); setConfirm(false)
-      }} className="rounded-control border bg-background p-ui-sm">
+      }} className="block w-full min-w-0 max-w-full rounded-control border bg-background p-ui-sm">
         <option value="generation">Language generation</option><option value="embedding">Embeddings · Vector Snapshots require 1536 dimensions</option>
       </select></label>
       {preview.isPending && <p>Loading provider catalog…</p>}
@@ -48,7 +48,7 @@ export function ProviderModelReconciliationDialog({ projectId, credentialId, onC
       {apply.error && <p role="alert">{apply.error.message} Refresh the comparison before retrying.</p>}
       {apply.data && <div role="status">{apply.data.items.map(item => <p key={item.model_id}>{item.model_id}: {item.result}{item.evidence_updated ? ' · catalog evidence updated' : ''} · {item.provider_model_id}</p>)}<p>{apply.data.adoption}</p></div>}
       {confirm && <p role="alert">Apply {selected.size} selected definitions using the reviewed evidence?</p>}
-      <div className="flex justify-end gap-ui-sm">
+      <div className="flex flex-wrap justify-end gap-ui-sm">
         <Button variant="outline" disabled={apply.isPending} onClick={() => { setSelected(new Set()); setConfirm(false); apply.reset(); void preview.refetch() }}>Refresh comparison</Button>
         <Button disabled={!selected.size || apply.isPending || preview.isFetching} onClick={() => confirm ? apply.mutate() : setConfirm(true)}>{apply.isPending ? 'Applying…' : confirm ? 'Confirm selected changes' : 'Apply selected'}</Button>
       </div>

@@ -369,6 +369,11 @@
     "export": "ModelSettingsModal"
   },
   {
+    "id": "ProviderModelReconciliationDialog",
+    "source": "packages/woobe-frontend/src/features/provider-models/components/ProviderModelReconciliationDialog.tsx",
+    "export": "ProviderModelReconciliationDialog"
+  },
+  {
     "id": "RuntimeApiReferenceModal",
     "alias": "Overlay58",
     "source": "packages/woobe-frontend/src/features/runtime-reference/RuntimeApiReferenceModal.tsx",

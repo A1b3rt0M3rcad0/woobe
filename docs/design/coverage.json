@@ -1257,6 +1257,11 @@
       "export": "ModelSettingsModal"
     },
     {
+      "id": "ProviderModelReconciliationDialog",
+      "source": "packages/woobe-frontend/src/features/provider-models/components/ProviderModelReconciliationDialog.tsx",
+      "export": "ProviderModelReconciliationDialog"
+    },
+    {
       "id": "RuntimeApiReferenceModal",
       "alias": "Overlay58",
       "source": "packages/woobe-frontend/src/features/runtime-reference/RuntimeApiReferenceModal.tsx",
@@ -1409,6 +1414,7 @@
     "packages/woobe-frontend/src/features/provider-credentials/components/AddProviderCredentialModal.tsx",
     "packages/woobe-frontend/src/features/provider-credentials/components/RotateProviderCredentialDialog.tsx",
     "packages/woobe-frontend/src/features/provider-models/components/ModelSettingsModal.tsx",
+    "packages/woobe-frontend/src/features/provider-models/components/ProviderModelReconciliationDialog.tsx",
     "packages/woobe-frontend/src/features/runtime-reference/RuntimeApiReferenceModal.tsx",
     "packages/woobe-frontend/src/features/skills/ManageSkillsDialog.tsx",
     "packages/woobe-frontend/src/features/tools/components/HttpProviderPanel.tsx",
@@ -1672,6 +1678,7 @@
     "packages/woobe-frontend/src/features/provider-credentials/components/ProviderSecretInput.tsx",
     "packages/woobe-frontend/src/features/provider-credentials/components/RotateProviderCredentialDialog.tsx",
     "packages/woobe-frontend/src/features/provider-models/components/ModelSettingsModal.tsx",
+    "packages/woobe-frontend/src/features/provider-models/components/ProviderModelReconciliationDialog.tsx",
     "packages/woobe-frontend/src/features/runtime-reference/RuntimeApiReferenceModal.tsx",
     "packages/woobe-frontend/src/features/skills/AgentSkillsSection.tsx",
     "packages/woobe-frontend/src/features/skills/ManageSkillsDialog.tsx",
@@ -3112,6 +3119,12 @@
       "source": "packages/woobe-frontend/src/features/provider-models/components/ModelSettingsModal.tsx",
       "explicit_sans_uses": 1,
       "explicit_mono_uses": 9,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/provider-models/components/ProviderModelReconciliationDialog.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 1,
       "explicit_serif_uses": 0
     },
     {
