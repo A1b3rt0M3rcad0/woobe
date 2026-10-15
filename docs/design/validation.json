@@ -1,35 +1,80 @@
 {
-  "recorded_at": "2026-10-14T23:45:38.864264-03:00",
+  "recorded_at": "2026-10-15T00:59:45.588500-03:00",
   "timezone": "America/Sao_Paulo",
-  "implementation_commit": "4aee50604064e77685303dce62d80cd4eb7a6af5",
-  "pr": "https://github.com/A1b3rt0M3rcad0/woobe/pull/217",
-  "branch": "feature/frontend-enterprise-redesign",
+  "implementation_commit": "8dc9d78378f2f459f8bd774512cf2e05d22e12e3",
+  "application_commit": "8dc9d78378f2f459f8bd774512cf2e05d22e12e3",
+  "initial_browser_application_commit": "bdefe46c",
+  "browser_unique_cases_covered": 180,
+  "base_commit": "2487e54c0eeb2d2bb0a610e5355c6f87aecd68fc",
+  "branch": "feature/first-agent-provider-ux",
+  "pr": null,
+  "pr_status": "Creation attempted with gh pr create; blocked by current environment HTTP policy (api.github.com returns Forbidden). Branch and commits are pushed. No merge requested or performed for this follow-up.",
   "merged_by_this_task": false,
   "browser": "Chromium 154.0.8037.57 built on Debian GNU/Linux 13 (trixie)",
   "changes": [
-    "README opens with one centered supplied logo and descriptive heading, followed by product context, links and capabilities before a dedicated Control Plane screenshot section.",
-    "Workspace/Project breadcrumbs no longer repeat the Woobe symbol; sidebar identity, navigation actions and theme behavior remain intact.",
-    "All 58 main-page/theme screenshots regenerated from the production build; README, screenshot index and gallery use current image hashes."
+    "One first-Agent progress sequence, natural-height forms, labelled required fields, linked inline errors/focus, explicit example, editable review, guarded exit and no automatic first message.",
+    "Provider creation reuses central Draft value and explicit consumer/destination approval editors without discarding the surrounding Agent or Model form. New declarations are automatically selected as typed references.",
+    "Legacy credential references retain explicit migration routes; the Draft shortcut never reads or writes a direct value for them.",
+    "Provider forms show one option per provider family, support named connections and inline compatible-endpoint validation. Busy state clears before transitioning from a saved form.",
+    "Returning to review or retrying Agent creation reuses the saved Model. Catalog failure retains manual entry and retry; configuration permission failure stays unavailable.",
+    "Credential details distinguish enabled from validated access; actions wrap inside the modal and lifecycle controls retain impact checks.",
+    "Overview removes its second environment selector. The configuration notice follows the header selection; All explicitly checks Draft.",
+    "Main-page gallery adds first-Agent setup at three widths. All 61 page/theme captures regenerated; root README Overview cache hash updated."
   ],
   "checks": [
     {
-      "name": "Production page, navigation, brand, workspace and typography rechecks",
+      "name": "Complete frontend unit suite",
       "result": "passed",
-      "tests": 104,
-      "command": "cd tests/e2e && CI=true WOOBE_CAPTURE_DOCS=1 WOOBE_CAPTURE_REFINEMENT=1 WOOBE_REQUIRE_GEORGIA=1 PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/chromium PLAYWRIGHT_BROWSERS_PATH=/workspace/.playwright npx playwright test --config playwright.config.ts surface-coverage.spec.ts workspace-refinement.spec.ts navigation-contrast.spec.ts brand-identity.spec.ts typography.spec.ts --workers=2",
-      "scope": "Builds actual frontend and Embed. Covers routes at three widths, navigation contrast and account settings in both themes, original brand loading/proportions, workspace interactions and rendered font families."
+      "files": 112,
+      "tests": 661,
+      "command": "VITE_API_URL=http://127.0.0.1:8000 VITE_CHAT_EMBED_URL=http://127.0.0.1:8081 VITE_WOOBE_EDITION=core npm --prefix packages/woobe-frontend run test:run"
     },
     {
-      "name": "README local Markdown rendering and structure",
+      "name": "Complete production browser coverage, with focused bootstrap recheck",
+      "result": "passed_after_recheck",
+      "unique_tests": 179,
+      "command": "cd tests/e2e && CI=true WOOBE_CAPTURE_DOCS=1 WOOBE_CAPTURE_REFINEMENT=1 WOOBE_REQUIRE_GEORGIA=1 PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/chromium PLAYWRIGHT_BROWSERS_PATH=/workspace/.playwright npx playwright test --config playwright.config.ts --workers=2",
+      "initial_run": {
+        "passed": 178,
+        "failed": 1,
+        "duration": "5.7m",
+        "failure": "Owner bootstrap still expected the retired heading Create the Project for your Agent. The page correctly rendered the new Create a Project heading."
+      },
+      "correction": "d4aefd57 updates the assertion to the new exact heading; application behavior is unchanged by that test correction.",
+      "recheck": {
+        "passed": 1,
+        "failed": 0,
+        "command": "cd tests/e2e && CI=true PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/chromium PLAYWRIGHT_BROWSERS_PATH=/workspace/.playwright npx playwright test --config playwright.config.ts mvp-release.spec.ts --grep \"bootstraps the first\" --workers=1"
+      },
+      "scope": "All 18 new setup/provider/Overview browser tests passed within the complete run. Covers synthetic creation, Draft value/approval entry, retries/back/edit without duplicate Model writes, manual/catalog paths, permission denial and URL feedback. Existing routes, authority, Embed, workspace, theme, typography and zoom checks also ran."
+    },
+    {
+      "name": "Affected provider/manual overlays, focus and font checks",
       "result": "passed",
-      "theme_cases": 2,
-      "local_targets_checked": 51,
-      "scope": "Local Markdown preview in Chromium, in light and dark: one heading, one logo, original SVGs loaded, logo center offset 0px. Relative links and in-document navigation targets exist. Product context precedes the system image. This is a local preview, not a GitHub rendering test."
+      "tests": 12,
+      "command": "cd tests/e2e && CI=true WOOBE_CAPTURE_DOCS=1 WOOBE_REQUIRE_GEORGIA=1 PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/chromium PLAYWRIGHT_BROWSERS_PATH=/workspace/.playwright npx playwright test --config review.config.ts gallery.spec.ts --grep \"AddProviderCredentialModal|ProviderConnectionModal|ManualModelModal|rendered|nested dialogs|hover, focus\" --workers=2"
+    },
+    {
+      "name": "Final setup, legacy-boundary and bootstrap qualification",
+      "result": "passed",
+      "tests": 20,
+      "command": "cd tests/e2e && CI=true PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/chromium PLAYWRIGHT_BROWSERS_PATH=/workspace/.playwright npx playwright test --config playwright.config.ts setup-ux.spec.ts mvp-release.spec.ts --grep \"first Project|setup form|inline errors|catalog failure|provider details|new provider|Overview only|custom provider|permission denial|legacy provider|bootstraps the first\" --workers=2",
+      "scope": "All 19 new workflow cases and the corrected owner bootstrap pass after the final legacy-reference guard. Legacy connections retain their migration path without direct value controls or configuration-key reads."
+    },
+    {
+      "name": "Complete first-Agent workflow with runtime traffic audit",
+      "result": "passed",
+      "tests": 1,
+      "command": "cd tests/e2e && CI=true PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/chromium PLAYWRIGHT_BROWSERS_PATH=/workspace/.playwright npx playwright test --config playwright.config.ts setup-ux.spec.ts --grep \"first Project and Agent\" --workers=1",
+      "scope": "Records AI, Core, Runtime and v1 API requests. No automatic chat/Run/release POST and no direct provider request occurs during setup; model persistence, Draft value and explicit approval are separate recorded actions."
     },
     {
       "name": "Screenshot and source inventory",
       "result": "passed",
-      "command": "python3 scripts/frontend_visual_inventory.py"
+      "command": "python3 scripts/frontend_visual_inventory.py",
+      "routes": 53,
+      "shared_modules": 44,
+      "classified_overlay_sources": 79
     },
     {
       "name": "AST knowledge graph",
@@ -43,10 +88,10 @@
     }
   ],
   "screenshots": {
-    "main_pages": 18,
-    "main_page_pngs": 54,
+    "main_pages": 19,
+    "main_page_pngs": 57,
     "theme_comparison_pngs": 4,
-    "png_count": 58,
+    "png_count": 61,
     "viewport_css_pixels": [
       [
         1440,
@@ -62,35 +107,38 @@
       ]
     ],
     "capture_window_local": [
-      "2026-10-14T23:42:14.378400-03:00",
-      "2026-10-14T23:45:09.231337-03:00"
+      "2026-10-15T00:44:33.963829-03:00",
+      "2026-10-15T00:47:53.231819-03:00"
     ],
-    "readme_image_sha256": "7d1c01bc91e49f62ff9245ddf11c3f278c5516ced6d9fd831415838f1e18f621",
-    "readme_cache_key": "7d1c01bc91e4",
+    "readme_image_sha256": "4513f986f77ff9be66f7d31cf46f4f1f34d780738b20dde9678decc5afbddefc",
+    "readme_cache_key": "4513f986f77f",
     "sha256_inventory": "coverage.json",
-    "scope": "Main pages and the existing light/dark Agent and Network workspace comparisons. Temporary README review images are outside the repository."
+    "scope": "Main pages only, plus four existing workspace theme comparisons. Provider modal and detailed setup captures stay in ignored Playwright output."
   },
   "manual_visual_review": [
-    "Local README preview in light and dark: centered original lockup, descriptive heading, product introduction and dedicated screenshot section.",
-    "Fresh desktop and tablet Overview: text-only Workspace/Project breadcrumbs, sidebar brand preserved, readable content."
+    "Owner setup/modal problem captures and the installed 04-dark-agent-grid.png surface reference.",
+    "New first-Agent form in dark mode at 2560px and 390px; natural-height card, readable fields and nearby actions.",
+    "New credential detail dialog in dark mode at 1440px; configuration controls and lifecycle actions fit within the dialog.",
+    "Committed light first-Agent setup page and updated Overview without a second selector."
   ],
   "design_contracts": [
-    "BRAND.md",
-    "THEMES.md"
+    "SETUP_UX.md",
+    "THEMES.md",
+    "BRAND.md"
   ],
   "rendered_font_evidence": [
     "fonts/typography-1440px.json",
     "fonts/typography-768px.json",
     "fonts/typography-390px.json",
-    "fonts/typography-auth.json"
+    "fonts/typography-auth.json",
+    "fonts/primitives.json"
   ],
-  "font_note": "Outlined wordmark is supplied artwork, independent of system fonts. Georgia remains the installed editorial system font; Inter and JetBrains Mono remain self-hosted interface/technical families. No font binary was imported from the kit.",
   "preceding_validation": {
-    "source": "4dd76b750961fcc8e840ab3a2804c8fe66e88b5b",
-    "report": "https://github.com/A1b3rt0M3rcad0/woobe/blob/4dd76b750961fcc8e840ab3a2804c8fe66e88b5b/docs/design/validation.json",
-    "scope": "Prior brand integration: 661 unit tests, complete 161-test production browser suite, three shared-component/font/interaction rechecks and integrity checks for all 334 supplied assets. Those broader checks were not repeated for this breadcrumb removal and README reorganization."
+    "source": "2487e54c0eeb2d2bb0a610e5355c6f87aecd68fc",
+    "report": "https://github.com/A1b3rt0M3rcad0/woobe/blob/2487e54c0eeb2d2bb0a610e5355c6f87aecd68fc/docs/design/validation.json",
+    "scope": "Prior redesign and brand qualification, integrated through PR #217. Current follow-up browser/unit checks are recorded above."
   },
-  "remote_ci": "Local checks above do not claim completion of workflows triggered by the new push.",
+  "remote_ci": "No claim of new-PR CI completion. Opening the requested PR is currently blocked by environment network policy.",
   "limits": [
     "Synthetic API fixtures do not qualify a live backend or model-provider deployment.",
     "Selected contrast, keyboard and browser checks are not complete accessibility certification.",

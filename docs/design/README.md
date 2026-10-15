@@ -26,6 +26,12 @@ Run Activity uses grouped bars at actual UTC bucket positions in the API's full 
 
 Success percentages retain the API's completed / terminal criterion, including cancelled Runs in the denominator and excluding running Runs. Absolute counts remain beside the percentages to contextualize small samples. Average and p95 use recorded terminal durations. Unpriced Run counts accompany partial cost subtotals. Configuration readiness distinguishes confirmed blockers, incomplete/unknown checks, paginated checks, permission failures and fetch failures; page-level completeness never becomes project readiness.
 
+The Overview’s header owns environment filtering. Its configuration notice shows the same environment as read-only context; the All view explicitly checks Draft configuration.
+
+## Agent and provider setup
+
+[The setup UX contract](SETUP_UX.md) documents the single progress sequence, content-sized forms, Draft configuration entry points and actual persistence boundaries. Current Light/Dark surfaces continue to follow [THEMES.md](THEMES.md).
+
 ## Geometry and tokens
 
 Canvas `#f3f1ed`; panel `#fffefd`; panel header/footer band `#f6f4f0`; ink `#242321`; muted `#6b6863`; separator `#d4d0c8`; control boundary `#8c867d`; graphic accent `#ff5500`; small accent text `#ad3900`. These application mappings incorporate the owner's requested stronger surface contrast; the original Guild skill tokens remain unchanged. Semantic success `#197542`, warning `#9b5700`, failure `#b42318`. Avatars 28–32px, radius 4–6px; badges 4px; controls 6px; panels 10px. Panel inset 18px, header 48px, row at least 40–48px, footer around 40px. Content drives height. Canonical short panel shadow follows `assets/tokens.css`.
@@ -38,6 +44,6 @@ Inter and JetBrains Mono are real variable WOFF2 resources self-hosted by `woobe
 
 ## Coverage and evidence
 
-See `coverage.json` for the source inventory and `../screenshots/README.md` for the rendered evidence and reproduction commands. The inventory includes redirects and unused compatibility files so they cannot silently count as rendered pages. The owner requested a reduced documentation set: only current screenshots of the 18 main pages at desktop, tablet and mobile widths. Shared primitives, open overlays, internal sections, scrolling and nested confirmations remain covered by browser tests, without committed auxiliary screenshots. Browser checks, visual inspection and backend integration are distinct evidence.
+See `coverage.json` for the source inventory and `../screenshots/README.md` for the rendered evidence and reproduction commands. The inventory includes redirects and unused compatibility files so they cannot silently count as rendered pages. The owner requested a reduced documentation set: only current screenshots of the 19 main pages, including first-Agent setup at desktop, tablet and mobile widths. Shared primitives, open overlays, internal sections, scrolling and nested confirmations remain covered by browser tests, without committed auxiliary screenshots. Browser checks, visual inspection and backend integration are distinct evidence.
 
 The typography correction, local Georgia installation, checksum provenance and browser glyph checks are documented in [FONTS.md](FONTS.md). The original Guild v2 skill files are unchanged.

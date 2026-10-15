@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CAPTURES = ROOT / 'docs/screenshots'
 FRONTEND = ROOT / 'packages/woobe-frontend/src'
 PAGE_FOLDERS = {
-    'LoginPage': 'sign-in', 'RegisterPage': 'register', 'NotFoundPage': 'not-found',
+    'FirstRunSetupPage': 'project-setup', 'LoginPage': 'sign-in', 'RegisterPage': 'register', 'NotFoundPage': 'not-found',
     'DashboardPage': 'overview', 'WorkspacesPage': 'workspaces',
     'WorkspaceDetailPage': 'workspace-settings', 'WorkspaceProjectsPage': 'workspace-projects',
     'WorkspaceProjectDetailPage': 'project-settings', 'SettingsPage': 'account-settings',
@@ -84,6 +84,7 @@ def main():
     overlays = json.loads((ROOT / 'tests/e2e/review/overlay-cases.json').read_text())
     hosts = [{'id': name, 'source': source} for name, source in re.findall(r"id:'(host-[^']+)',source:'([^']+)'", registry)]
     page_owned = ['features/asac/AsacWorkbench.tsx', 'layouts/DashboardLayout.tsx',
+                  'pages/FirstRunSetupPage.tsx', 'features/first-run/components/AgentModelStep.tsx',
                   *[f'pages/{name}.tsx' for name in ['ApiKeysPage', 'ChatSurfacesPage', 'CredentialsPage', 'NetworksPage', 'SkillsPage', 'DashboardPage']]]
     covered = {item['source'] for item in overlays + hosts} | {relative(FRONTEND / source) for source in page_owned}
     overlay_sources = []
@@ -113,7 +114,7 @@ def main():
         'main_pages': pages, 'routes': routes, 'shared_components': primitives,
         'direct_overlays': overlays, 'inline_overlay_hosts': hosts, 'overlay_source_inventory': overlay_sources,
         'page_owned_overlays': [relative(FRONTEND / source) for source in page_owned],
-        'overlay_browser_tests': ['tests/e2e/review/gallery.spec.ts', 'tests/e2e/review/inline-overlays.spec.ts', 'tests/e2e/review/page-overlays.spec.ts', 'tests/e2e/tests/overlay-flows.spec.ts'],
+        'overlay_browser_tests': ['tests/e2e/review/gallery.spec.ts', 'tests/e2e/review/inline-overlays.spec.ts', 'tests/e2e/review/page-overlays.spec.ts', 'tests/e2e/tests/overlay-flows.spec.ts', 'tests/e2e/tests/setup-ux.spec.ts'],
         'unrouted_page_modules': compatibility, 'tsx_source_inventory': [relative(path) for path in sources],
         'typography_source_inventory': typography, 'screenshots': images,
     }

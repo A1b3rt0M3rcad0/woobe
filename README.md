@@ -32,7 +32,7 @@ Woobe provides the control plane and runtime between your application and its AI
 
 The Web UI brings Project resources, execution and delivery into one workspace. Use the Overview to inspect Run activity, reliability and cost, then open Agents or Networks to configure, test and release changes.
 
-![Woobe Control Plane — Project Overview](docs/screenshots/project-overview.png?v=7d1c01bc91e4)
+![Woobe Control Plane — Project Overview](docs/screenshots/project-overview.png?v=4513f986f77f)
 
 ## Quick start
 
@@ -55,9 +55,9 @@ With Woobe running, connect a supported model Provider using your credentials. T
 
 ### 1. Create and validate an Agent
 
-On a fresh instance, register the instance owner and create or select a Project. Connect your model Provider with its credentials, then create a **Support** Agent and select an available model.
+On a fresh instance, register the instance owner and follow first-Agent setup. Name your Project, give the Agent a name and objective, then choose a saved model or connect a Provider. A new connection references a named Project secret; use the Draft controls to set its value and approve the destination before browsing models or testing. Review your choices and create the Agent Draft to open the Playground.
 
-For a first prompt, use:
+For the Agent’s objective, use:
 
 ```text
 Help the user investigate an unavailable service.
@@ -65,7 +65,7 @@ Ask for missing details, suggest concrete diagnostic steps,
 and state what you cannot verify. Never invent a diagnosis.
 ```
 
-Save Draft, stage the configuration and run a test such as **“Our API is returning HTTP 503. What should I check?”**. Inspect the result before publishing an immutable Agent Release and explicitly activating that version in Production. Projects enforcing qualified delivery use the [deployment workflow](docs/CLI_DEPLOYMENT.md).
+Send a first message in the Playground, such as **“Our API is returning HTTP 503. What should I check?”**. Inspect the Draft response before staging changes, publishing an immutable Agent Release and explicitly activating that version in Production. Staging and Production require their own configuration values and destination approvals. Projects enforcing qualified delivery use the [deployment workflow](docs/CLI_DEPLOYMENT.md).
 
 ### 2. Connect the CLI
 

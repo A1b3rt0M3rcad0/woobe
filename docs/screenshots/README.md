@@ -2,25 +2,26 @@
 
 Updated Chromium captures of the production application, using synthetic API fixtures. Main pages are retained, with four comparable light/dark workspace captures requested for the theme refinement. Component and modal screenshots stay outside documentation.
 
-![Project Overview](project-overview.png?v=7d1c01bc91e4)
+![Project Overview](project-overview.png?v=4513f986f77f)
 
-18 main pages × 3 widths + 4 theme comparisons = 58 images. Desktop 1440 × 1100, tablet 768 × 1100, mobile 390 × 1100.
+19 main pages × 3 widths + 4 theme comparisons = 61 images. Desktop 1440 × 1100, tablet 768 × 1100, mobile 390 × 1100.
 
 | Page | Desktop | Tablet | Mobile |
 | --- | --- | --- | --- |
 | Sign in | [View](sign-in.png?v=fa38dc88988b) | [View](tablet/sign-in.png?v=d0b364f36dd6) | [View](mobile/sign-in.png?v=905bb2c8a867) |
 | Workspaces | [View](workspaces.png?v=ddc33c63b125) | [View](tablet/workspaces.png?v=79b787a4e276) | [View](mobile/workspaces.png?v=232221f4fe8f) |
 | Projects | [View](projects.png?v=b807f79ba212) | [View](tablet/projects.png?v=331d4dd64ad6) | [View](mobile/projects.png?v=301c0da5e26f) |
-| Project Overview | [View](project-overview.png?v=7d1c01bc91e4) | [View](tablet/project-overview.png?v=69579681700b) | [View](mobile/project-overview.png?v=c84b7cffedac) |
+| Project Overview | [View](project-overview.png?v=4513f986f77f) | [View](tablet/project-overview.png?v=f96e47a89763) | [View](mobile/project-overview.png?v=3fe52c7d6300) |
+| First Agent setup | [View](first-agent-setup.png?v=069f7deee20c) | [View](tablet/first-agent-setup.png?v=35dfe8771ee2) | [View](mobile/first-agent-setup.png?v=e8dfc3d7929d) |
 | Agents | [View](agents.png?v=a06dfdf7d098) | [View](tablet/agents.png?v=9b60c6a1a875) | [View](mobile/agents.png?v=862193be80cd) |
 | Networks | [View](networks.png?v=d44afc6de8db) | [View](tablet/networks.png?v=af73554d015e) | [View](mobile/networks.png?v=8f04530655c4) |
-| Agent playground | [View](agent-playground.png?v=c310a6314d82) | [View](tablet/agent-playground.png?v=b6da9b067dc4) | [View](mobile/agent-playground.png?v=ff5316ba276d) |
+| Agent playground | [View](agent-playground.png?v=c310a6314d82) | [View](tablet/agent-playground.png?v=cbd4bbdabaed) | [View](mobile/agent-playground.png?v=ff5316ba276d) |
 | Network workspace | [View](network-workspace.png?v=07457ce490a4) | [View](tablet/network-workspace.png?v=e59e9174c1d4) | [View](mobile/network-workspace.png?v=d637faa67d61) |
 | Knowledge | [View](knowledge.png?v=4fef7f560493) | [View](tablet/knowledge.png?v=93df4ab9d0d9) | [View](mobile/knowledge.png?v=ad2470157184) |
 | Tools | [View](tools.png?v=a8a0aa6f4d96) | [View](tablet/tools.png?v=0a8b1e50c2e9) | [View](mobile/tools.png?v=2f7391777079) |
 | Skills | [View](skills.png?v=113e459da459) | [View](tablet/skills.png?v=fc212db3ed89) | [View](mobile/skills.png?v=015faef38258) |
 | Models | [View](models.png?v=c50b71443d07) | [View](tablet/models.png?v=be8103eb693a) | [View](mobile/models.png?v=08584b3bea21) |
-| Credentials | [View](credentials.png?v=5a979356c5b4) | [View](tablet/credentials.png?v=2d79f83d0685) | [View](mobile/credentials.png?v=c3b630640057) |
+| Credentials | [View](credentials.png?v=e85a354b93cb) | [View](tablet/credentials.png?v=2d79f83d0685) | [View](mobile/credentials.png?v=c3b630640057) |
 | Environments | [View](environments.png?v=4777be01c846) | [View](tablet/environments.png?v=363e8cbcf394) | [View](mobile/environments.png?v=699c68274859) |
 | API Keys | [View](api-keys.png?v=f6d035cde202) | [View](tablet/api-keys.png?v=2db356b411ce) | [View](mobile/api-keys.png?v=97c6cb3468a3) |
 | ChatSurfaces | [View](chat-surfaces.png?v=72caea7ff66c) | [View](tablet/chat-surfaces.png?v=32af9c67fc7c) | [View](mobile/chat-surfaces.png?v=f4a34d20f553) |
@@ -31,8 +32,8 @@ Updated Chromium captures of the production application, using synthetic API fix
 
 | Workspace | Light | Dark |
 | --- | --- | --- |
-| Agent Playground, expanded Run and context bars | [View](themes/agent-playground-light.png?v=c21a9c11f11d) | [View](themes/agent-playground-dark.png?v=2cb4a4e2dfb3) |
-| Network workspace | [View](themes/network-workspace-light.png?v=9954d4659a13) | [View](themes/network-workspace-dark.png?v=aaab999f2804) |
+| Agent Playground, expanded Run and context bars | [View](themes/agent-playground-light.png?v=c21a9c11f11d) | [View](themes/agent-playground-dark.png?v=41c5d4ea6544) |
+| Network workspace | [View](themes/network-workspace-light.png?v=7f89e8cf39c4) | [View](themes/network-workspace-dark.png?v=c50982ab0869) |
 
 ## Reproduce
 

@@ -23,6 +23,11 @@
       "title": "Project Overview"
     },
     {
+      "surface": "project-setup",
+      "slug": "first-agent-setup",
+      "title": "First Agent setup"
+    },
+    {
       "surface": "agents",
       "slug": "agents",
       "title": "Agents"
@@ -185,7 +190,11 @@
       "component": "FirstRunSetupPage",
       "kind": "rendered-page",
       "browser_test": "tests/e2e/tests/surface-coverage.spec.ts",
-      "screenshot_scope": "Not selected: documentation intentionally retains only main pages."
+      "screenshots": [
+        "docs/screenshots/first-agent-setup.png",
+        "docs/screenshots/tablet/first-agent-setup.png",
+        "docs/screenshots/mobile/first-agent-setup.png"
+      ]
     },
     {
       "path": "/workspaces/:workspaceId/projects/:projectId/settings",
@@ -1357,6 +1366,7 @@
     "packages/woobe-frontend/src/features/chat-surfaces/components/ChatSurfaceLiveTestDialog.tsx",
     "packages/woobe-frontend/src/features/contracts/ContractFieldBuilder.tsx",
     "packages/woobe-frontend/src/features/contracts/RuntimeContextPanel.tsx",
+    "packages/woobe-frontend/src/features/first-run/components/AgentModelStep.tsx",
     "packages/woobe-frontend/src/features/first-run/components/ManualModelModal.tsx",
     "packages/woobe-frontend/src/features/first-run/components/ProviderConnectionModal.tsx",
     "packages/woobe-frontend/src/features/knowledge/components/AttachCollectionModal.tsx",
@@ -1414,6 +1424,7 @@
     "packages/woobe-frontend/src/pages/ChatSurfacesPage.tsx",
     "packages/woobe-frontend/src/pages/CredentialsPage.tsx",
     "packages/woobe-frontend/src/pages/DashboardPage.tsx",
+    "packages/woobe-frontend/src/pages/FirstRunSetupPage.tsx",
     "packages/woobe-frontend/src/pages/NetworkPage.tsx",
     "packages/woobe-frontend/src/pages/NetworksPage.tsx",
     "packages/woobe-frontend/src/pages/SkillsPage.tsx",
@@ -1422,6 +1433,8 @@
   "page_owned_overlays": [
     "packages/woobe-frontend/src/features/asac/AsacWorkbench.tsx",
     "packages/woobe-frontend/src/layouts/DashboardLayout.tsx",
+    "packages/woobe-frontend/src/pages/FirstRunSetupPage.tsx",
+    "packages/woobe-frontend/src/features/first-run/components/AgentModelStep.tsx",
     "packages/woobe-frontend/src/pages/ApiKeysPage.tsx",
     "packages/woobe-frontend/src/pages/ChatSurfacesPage.tsx",
     "packages/woobe-frontend/src/pages/CredentialsPage.tsx",
@@ -1433,7 +1446,8 @@
     "tests/e2e/review/gallery.spec.ts",
     "tests/e2e/review/inline-overlays.spec.ts",
     "tests/e2e/review/page-overlays.spec.ts",
-    "tests/e2e/tests/overlay-flows.spec.ts"
+    "tests/e2e/tests/overlay-flows.spec.ts",
+    "tests/e2e/tests/setup-ux.spec.ts"
   ],
   "unrouted_page_modules": [
     "packages/woobe-frontend/src/pages/AgentDetailPage.tsx",
@@ -1661,6 +1675,7 @@
     "packages/woobe-frontend/src/features/projects/components/ProjectEnvironmentSettings.tsx",
     "packages/woobe-frontend/src/features/projects/components/ProjectSettingsDialog.tsx",
     "packages/woobe-frontend/src/features/provider-credentials/components/AddProviderCredentialModal.tsx",
+    "packages/woobe-frontend/src/features/provider-credentials/components/ProviderConnectionConfiguration.tsx",
     "packages/woobe-frontend/src/features/provider-credentials/components/ProviderCredentialCreateForm.tsx",
     "packages/woobe-frontend/src/features/provider-credentials/components/ProviderSecretInput.tsx",
     "packages/woobe-frontend/src/features/provider-credentials/components/RotateProviderCredentialDialog.tsx",
@@ -2306,31 +2321,31 @@
     {
       "source": "packages/woobe-frontend/src/features/first-run/components/AgentModelStep.tsx",
       "explicit_sans_uses": 0,
-      "explicit_mono_uses": 1,
+      "explicit_mono_uses": 0,
       "explicit_serif_uses": 0
     },
     {
       "source": "packages/woobe-frontend/src/features/first-run/components/AgentReviewStep.tsx",
-      "explicit_sans_uses": 2,
-      "explicit_mono_uses": 5,
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 1,
       "explicit_serif_uses": 0
     },
     {
       "source": "packages/woobe-frontend/src/features/first-run/components/FirstRunAgentSetup.tsx",
-      "explicit_sans_uses": 1,
-      "explicit_mono_uses": 1,
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
       "explicit_serif_uses": 1
     },
     {
       "source": "packages/woobe-frontend/src/features/first-run/components/FirstRunProjectStep.tsx",
-      "explicit_sans_uses": 3,
-      "explicit_mono_uses": 1,
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
       "explicit_serif_uses": 1
     },
     {
       "source": "packages/woobe-frontend/src/features/first-run/components/FirstRunShell.tsx",
-      "explicit_sans_uses": 3,
-      "explicit_mono_uses": 2,
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 1,
       "explicit_serif_uses": 1
     },
     {
@@ -3078,6 +3093,12 @@
       "explicit_serif_uses": 0
     },
     {
+      "source": "packages/woobe-frontend/src/features/provider-credentials/components/ProviderConnectionConfiguration.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 1,
+      "explicit_serif_uses": 0
+    },
+    {
       "source": "packages/woobe-frontend/src/features/provider-credentials/components/ProviderCredentialCreateForm.tsx",
       "explicit_sans_uses": 0,
       "explicit_mono_uses": 0,
@@ -3296,7 +3317,7 @@
     {
       "source": "packages/woobe-frontend/src/pages/CredentialsPage.tsx",
       "explicit_sans_uses": 2,
-      "explicit_mono_uses": 4,
+      "explicit_mono_uses": 2,
       "explicit_serif_uses": 0
     },
     {
@@ -3747,8 +3768,8 @@
       "path": "docs/screenshots/credentials.png",
       "width": 1440,
       "height": 1100,
-      "bytes": 107188,
-      "sha256": "5a979356c5b4f63ddba8e54ab67425658f10ba6d93b60e1fba202a5e2b08496c"
+      "bytes": 107187,
+      "sha256": "e85a354b93cb2da7219f79f5390f05473106de779f564cc3ccd87da713de15e5"
     },
     {
       "path": "docs/screenshots/environments.png",
@@ -3756,6 +3777,13 @@
       "height": 1100,
       "bytes": 101166,
       "sha256": "4777be01c8462f6dedf94233a5c6f8255b24e325cce45b54daf36d3ff7346019"
+    },
+    {
+      "path": "docs/screenshots/first-agent-setup.png",
+      "width": 1440,
+      "height": 1100,
+      "bytes": 105656,
+      "sha256": "069f7deee20c9138c198f90dde0b459b74eea8604ec2fb5aae0a5a476362d6c1"
     },
     {
       "path": "docs/screenshots/knowledge.png",
@@ -3807,6 +3835,13 @@
       "sha256": "699c682748596e1f2e258aaa67eda8ae1bf1ba51890fb3a429702de357544d4a"
     },
     {
+      "path": "docs/screenshots/mobile/first-agent-setup.png",
+      "width": 390,
+      "height": 1100,
+      "bytes": 79590,
+      "sha256": "e8dfc3d7929dcc29d73ff9fdbcd16bb25c1052fcdb2f0a9b7edc121d915af16f"
+    },
+    {
       "path": "docs/screenshots/mobile/knowledge.png",
       "width": 390,
       "height": 1100,
@@ -3838,8 +3873,8 @@
       "path": "docs/screenshots/mobile/project-overview.png",
       "width": 390,
       "height": 1100,
-      "bytes": 67819,
-      "sha256": "c84b7cffedacfdf6cd348be3f377a9fc4cea1dea83aa652db79612bef8a90be3"
+      "bytes": 67810,
+      "sha256": "3fe52c7d6300673b2228ec44c14035a281034be58de8f230f43144ba21b64187"
     },
     {
       "path": "docs/screenshots/mobile/projects.png",
@@ -3915,8 +3950,8 @@
       "path": "docs/screenshots/project-overview.png",
       "width": 1440,
       "height": 1100,
-      "bytes": 221842,
-      "sha256": "7d1c01bc91e49f62ff9245ddf11c3f278c5516ced6d9fd831415838f1e18f621"
+      "bytes": 221391,
+      "sha256": "4513f986f77ff9be66f7d31cf46f4f1f34d780738b20dde9678decc5afbddefc"
     },
     {
       "path": "docs/screenshots/projects.png",
@@ -3943,8 +3978,8 @@
       "path": "docs/screenshots/tablet/agent-playground.png",
       "width": 768,
       "height": 1100,
-      "bytes": 68273,
-      "sha256": "b6da9b067dc40544746c8b360794d3c51b8468db18f457171b350cc2c32e1150"
+      "bytes": 68255,
+      "sha256": "cbd4bbdabaed73df6a9d95df7d07f01e52ebc299f07681fdedfc28a5221b93ad"
     },
     {
       "path": "docs/screenshots/tablet/agents.png",
@@ -3982,6 +4017,13 @@
       "sha256": "363e8cbcf394a06f81f5b90ebd3f8f307cd46eccfda4de3e09b780d4deea0d3d"
     },
     {
+      "path": "docs/screenshots/tablet/first-agent-setup.png",
+      "width": 768,
+      "height": 1100,
+      "bytes": 81674,
+      "sha256": "35dfe8771ee2af2dc55e5ce4e43fe72316bc3ce74481308da476252af01c51ef"
+    },
+    {
       "path": "docs/screenshots/tablet/knowledge.png",
       "width": 768,
       "height": 1100,
@@ -4013,8 +4055,8 @@
       "path": "docs/screenshots/tablet/project-overview.png",
       "width": 768,
       "height": 1100,
-      "bytes": 102615,
-      "sha256": "69579681700b9b9e172794add09d97aee6a3b3a7456d20ee383ab7e30e778167"
+      "bytes": 102318,
+      "sha256": "f96e47a89763891bb75ec2651095b34161a3ad00aa081fccdc2f30873f4642e5"
     },
     {
       "path": "docs/screenshots/tablet/projects.png",
@@ -4070,7 +4112,7 @@
       "width": 1440,
       "height": 1100,
       "bytes": 188703,
-      "sha256": "2cb4a4e2dfb356534183c825fef1d4cb4ac812abff85847d8dbf21b0412f774c"
+      "sha256": "41c5d4ea65448a8659f5c2c5373375053ebf9a3c3bb4fdcd5f3fab52dcdd15ad"
     },
     {
       "path": "docs/screenshots/themes/agent-playground-light.png",
@@ -4083,15 +4125,15 @@
       "path": "docs/screenshots/themes/network-workspace-dark.png",
       "width": 1440,
       "height": 1100,
-      "bytes": 180836,
-      "sha256": "aaab999f2804cb8aa290c0a964ee7b1026f96d3cc4a285e5532bbd2e22b2fabb"
+      "bytes": 180846,
+      "sha256": "c50982ab0869048a58f251f99768c721236192d3f4a3f651a565d6a2a4a834d3"
     },
     {
       "path": "docs/screenshots/themes/network-workspace-light.png",
       "width": 1440,
       "height": 1100,
-      "bytes": 181170,
-      "sha256": "9954d4659a13f8f2681a75b47d160afe8e1b279b2d19752c400c81cae276f067"
+      "bytes": 181175,
+      "sha256": "7f89e8cf39c496ef7037d3bd8bc478462eaa6157aeb6bf7ec7dbcdd6152cdc85"
     },
     {
       "path": "docs/screenshots/tools.png",

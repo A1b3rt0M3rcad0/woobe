@@ -8,7 +8,10 @@ not yet qualified for rollout.
 A declaration names a key and its format. Its Draft, Staging and Production
 values are separate. A development operator can declare and bind a key without
 receiving its value; an authorized configuration operator fills the value in
-**Project → Environments** and approves its consumer and destination.
+**Project → Environments** and approves its consumer and destination. Provider
+setup also offers the same central editors for Draft after the connection is
+saved, preserving the Agent or Model form. Declaring a new secret in that flow
+selects its reference automatically; it does not save a value or approve use.
 
 The central page supports search, paginated status, comparison between authorized
 environments, individual replacement/clear, atomic batch entry, usage and legacy

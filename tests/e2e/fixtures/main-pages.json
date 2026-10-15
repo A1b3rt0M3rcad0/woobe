@@ -3,6 +3,7 @@
   {"surface":"workspaces","slug":"workspaces","title":"Workspaces"},
   {"surface":"workspace-projects","slug":"projects","title":"Projects"},
   {"surface":"overview","slug":"project-overview","title":"Project Overview"},
+  {"surface":"project-setup","slug":"first-agent-setup","title":"First Agent setup"},
   {"surface":"agents","slug":"agents","title":"Agents"},
   {"surface":"networks","slug":"networks","title":"Networks"},
   {"surface":"playground","slug":"agent-playground","title":"Agent playground"},
