@@ -140,14 +140,15 @@ test('new provider from model creation keeps context through Draft configuration
   expect(state.agentWrites + state.modelWrites).toBe(0)
 })
 
-test('Overview only has its header environment filter', async ({ page }) => {
+test('Overview filters metrics from its header without a configuration banner', async ({ page }) => {
   const state = await installSetupFlow(page); await login(page); await page.goto(root)
-  const notice = page.getByRole('complementary', { name: 'Project configuration' })
-  await expect(notice.getByRole('combobox')).toHaveCount(0); await expect(notice.getByText(/^draft$/i)).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Run Activity', exact: true })).toBeVisible()
+  await expect(page.getByRole('complementary', { name: 'Project configuration' })).toHaveCount(0)
   await page.getByRole('button', { name: 'Production', exact: true }).click()
-  await expect(notice.getByText(/^production$/i)).toBeVisible()
-  await expect.poll(() => state.calls.some(call => call.path.includes('/configuration/summary?environment=production'))).toBe(true)
-  await expect(notice.getByRole('combobox')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Production', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await expect.poll(() => state.calls.some(call => call.path.includes('/overview?') && new URL(call.path, 'http://fixture').searchParams.get('environment') === 'production')).toBe(true)
+  await expect(page.getByRole('heading', { name: 'Run Activity', exact: true })).toBeVisible()
+  expect(state.calls.filter(call => call.path.includes('/configuration/summary'))).toHaveLength(0)
 })
 
 test('custom provider validates its endpoint and saves only a typed key reference', async ({ page }) => {

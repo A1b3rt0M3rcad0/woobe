@@ -135,22 +135,3 @@ test('the seven-day filter preserves the requested time domain and daily buckets
   await expect(page.getByLabel('Activity interval', { exact: true }).locator('option')).toHaveCount(8)
   await expect(page.getByText('$0.25', { exact: true })).toBeVisible()
 })
-
-test('only a confirmed configuration blocker gets the primary corrective action', async ({ page }) => {
-  await openOverview(page)
-  const notice = page.getByRole('complementary', { name: 'Project configuration' })
-  await expect(notice.getByRole('status')).toContainText('Execution readiness is unverified')
-  await expect(notice.getByRole('link', { name: 'Review configuration' })).toBeVisible()
-  await expect(notice.getByRole('link', { name: 'Configure now' })).toHaveCount(0)
-  await page.route('**/core/projects/project-a/configuration/summary*', route => respond(route, {
-    environment: 'draft', scope: 'current_selections', state: 'blocked', complete: true,
-    checked_at: '2026-06-20T12:00:00Z', inspected_target_count: 3, unselected_target_count: 0,
-    affected_target_count: 1, blocked_key_count: 1, missing_key_count: 1, required_key_count: 1,
-    affected_consumer_count: 1,
-  }))
-  await notice.getByRole('button', { name: 'Refresh status' }).click()
-  await expect(notice.getByRole('status')).toContainText('Configuration blocks 1 selected target')
-  await expect(notice.getByRole('link', { name: 'Configure now' })).toHaveAttribute('href', /environments\?environment=draft&returnTo=/)
-  const audit = await new AxeBuilder({ page }).include('[aria-label="Project configuration"]').withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()
-  expect(audit.violations).toEqual([])
-})

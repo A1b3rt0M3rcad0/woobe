@@ -26,7 +26,7 @@ Run Activity uses grouped bars at actual UTC bucket positions in the API's full 
 
 Success percentages retain the API's completed / terminal criterion, including cancelled Runs in the denominator and excluding running Runs. Absolute counts remain beside the percentages to contextualize small samples. Average and p95 use recorded terminal durations. Unpriced Run counts accompany partial cost subtotals. Configuration readiness distinguishes confirmed blockers, incomplete/unknown checks, paginated checks, permission failures and fetch failures; page-level completeness never becomes project readiness.
 
-The Overview’s header owns environment filtering. Its configuration notice shows the same environment as read-only context; the All view explicitly checks Draft configuration.
+The Overview’s header owns environment filtering. Metrics follow the header directly, without a Project configuration banner or summary request. Configuration management remains in Environments and the relevant setup and execution flows.
 
 ## Agent and provider setup
 
