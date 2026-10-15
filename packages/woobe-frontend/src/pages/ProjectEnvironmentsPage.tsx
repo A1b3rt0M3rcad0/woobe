@@ -1,4 +1,3 @@
-import { ConfigurationBatchEditor } from '@/features/projects/components/ConfigurationBatchEditor'
 import { ConfigurationEnvironmentComparison } from '@/features/projects/components/ConfigurationEnvironmentComparison'
 import { ConfigurationLegacyPanel } from '@/features/projects/components/ConfigurationLegacyPanel'
 import { useEffect, useState } from 'react'
@@ -36,7 +35,6 @@ function EnvironmentWorkspace({ projectId }: { projectId: string }) {
   const [deleting, setDeleting] = useState<ConfigurationKey | null>(null)
   const [usage, setUsage] = useState<{ item: ConfigurationKey; environment: ProjectEnvironment } | null>(null)
   const [creating, setCreating] = useState(false)
-  const [batch, setBatch] = useState<{ items: ConfigurationKey[]; environment: ProjectEnvironment } | null>(null)
   const [view, setView] = useState<'keys' | 'compare' | 'legacy'>('keys')
   useEffect(() => { setPreferredEnvironment(initialEnvironment) }, [initialEnvironment])
   const client = useQueryClient()
@@ -55,7 +53,6 @@ function EnvironmentWorkspace({ projectId }: { projectId: string }) {
   }
   const canDeclare = environments.some(environment => permissionsFor(environment).declare)
   const canManageValues = environments.some(environment => permissionsFor(environment)['value:write'] || permissionsFor(environment)['value:clear'])
-  const pageKeyIds = new Set(catalog?.items.map(item => item.id))
   const refresh = () => {
     void client.invalidateQueries({ queryKey: ['project-configuration', projectId] })
     void client.invalidateQueries({ queryKey: ['configuration-readiness', projectId] })
@@ -84,13 +81,7 @@ function EnvironmentWorkspace({ projectId }: { projectId: string }) {
       <div className="min-w-0 overflow-x-auto rounded-technical border border-border bg-card" role="region" aria-label="Configuration keys" tabIndex={0}>
         <table className="w-full min-w-[64rem] table-fixed text-left text-product-small"><thead className="border-b border-border bg-muted/30"><tr>
           <th className="w-56 p-ui-md font-medium">Key</th><th className="w-28 p-ui-md font-medium">Format</th>
-          {environments.map((environment, index) => {
-            const pending = queries[index].data?.items.filter(item => item.material !== 'present' && pageKeyIds.has(item.id)) ?? []
-            return <th key={environment} scope="col" className="w-32 p-ui-md font-medium"><div className="space-y-ui-sm">
-              <span>{environmentLabel(environment)}</span>
-              {permissionsFor(environment)['value:write'] && pending.length > 0 && <Button variant="outline" size="sm" aria-label={`Configure pending ${environmentLabel(environment)} values`} onClick={() => setBatch({ items: pending, environment })}>Set values</Button>}
-            </div></th>
-          })}
+          {environments.map(environment => <th key={environment} scope="col" className="w-32 p-ui-md font-medium">{environmentLabel(environment)}</th>)}
           <th className="w-32 p-ui-md font-medium">Used by</th><th className="w-56 p-ui-md font-medium">Actions</th>
         </tr></thead>
           <tbody>{catalog.items.map(item => <tr key={item.id} className="border-b border-border last:border-0">
@@ -115,7 +106,6 @@ function EnvironmentWorkspace({ projectId }: { projectId: string }) {
       </div>
       <div className="flex justify-end gap-ui-sm"><Button variant="outline" disabled={!offset} onClick={() => setOffset(Math.max(0, offset - 50))}>Previous</Button><Button variant="outline" disabled={!catalog.has_next} onClick={() => setOffset(offset + 50)}>Next</Button></div>
     </>}
-    {batch && <ConfigurationBatchEditor key={`${projectId}:${batch.environment}:batch`} projectId={projectId} environment={batch.environment} keys={batch.items} onClose={() => setBatch(null)} onSaved={refresh} />}
     {editing && <ConfigurationValueEditor key={`${projectId}:${editing.item.id}`} projectId={projectId} item={editing.item} environment={editing.environment} onClose={() => setEditing(null)} onSaved={selected => { refresh(); setPreferredEnvironment(selected) }} />}
     {creating && <ConfigurationKeyDeclarationDialog projectId={projectId} environment={preferredEnvironment} onClose={() => setCreating(false)} onSaved={refresh} onConfigure={(item, selected) => { setSearch(item.key); setOffset(0); setEditing({ item, environment: selected }) }} />}
     {editingDefinition && <ConfigurationKeyDeclarationDialog key={editingDefinition.id} projectId={projectId} item={editingDefinition} onClose={() => setEditingDefinition(null)} onSaved={refresh} />}

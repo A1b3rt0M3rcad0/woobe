@@ -11,7 +11,7 @@ receiving its value; an authorized configuration operator fills the value in
 **Project → Environments** and approves its consumer and destination.
 
 The central page supports search, paginated keys, comparison between authorized
-environments, individual replacement/clear, atomic batch entry, usage and legacy
+environments, individual replacement/clear, usage and legacy
 mapping review. Editors start blank. Sensitive requests do not enter React Query
 mutation caches. Leaving an editor requires discard confirmation; reload or close
 warns about unsaved input. Submission failures clear input and show a sanitized
@@ -23,8 +23,8 @@ is still in progress.
 The key list has no global Environment or Environment-specific status filter.
 Draft, Staging and Production metadata is requested independently and shown next
 to each shared key. A restricted or unavailable Environment is labelled as such;
-its state and permissions are never borrowed from another Environment. Batch
-actions identify the Environment explicitly in the corresponding table header.
+its state and permissions are never borrowed from another Environment. Table
+headers show Environment names; **Manage values** in each key's row opens its editor.
 Legacy mapping review retains its own scoped Environment selector, and usage
 approvals choose their Environment inside the usage dialog.
 
