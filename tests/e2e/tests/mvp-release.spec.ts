@@ -69,7 +69,7 @@ test('bootstraps the first Woobe Core owner', async ({ page }) => {
   await page.getByPlaceholder('At least 6 characters').fill('ReleaseGate123!')
   await page.getByRole('button', { name: 'Create workspace' }).click()
   await expect(page).toHaveURL(/\/workspaces\/workspace-a\/setup/)
-  await expect(page.getByRole('heading', { name: 'Create the Project for your Agent' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Create a Project', exact: true })).toBeVisible()
 })
 
 test('opens a Project without edition-specific billing navigation', async ({ page }) => {
