@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import ForeignKey, Index, Integer, String, UniqueConstraint, select
+from sqlalchemy import ForeignKey, Index, Integer, String, UniqueConstraint, select, or_
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, add_mapped_attribute, mapped_column
 
@@ -194,11 +194,23 @@ class SQLAlchemyProviderModelRepository(
         )
 
     async def update(self, provider_model: ProviderModel) -> ProviderModel:
+        await self.lock_by_id(provider_model.id)
         model = await self._get_model_by_id(provider_model.id)
         if model is None:
             from modules.agent.domain.errors import ModelConfigNotFoundError
 
             raise ModelConfigNotFoundError
+        if (model.model != provider_model.model or model.provider_credential_id != provider_model.provider_credential_id
+                or (model.meta or {}).get("base_url") != (provider_model.metadata or {}).get("base_url")):
+            referenced = await self._session.scalar(select(AgentReleaseModel.id).where(or_(
+                AgentReleaseModel.provider_model_id == model.id,
+                AgentReleaseModel.fallback_provider_model_id == model.id,
+            )).limit(1))
+            if referenced is not None:
+                from shared.contracts.errors import ConflictError
+                error = ConflictError("Create a new Model and explicitly rebind the Draft; released model identity is in use")
+                error.code = "MODEL_IDENTITY_IN_USE"
+                raise error
         model.provider_credential_id = provider_model.provider_credential_id
         model.name = provider_model.name
         model.model = provider_model.model
@@ -287,6 +299,26 @@ class SQLAlchemyAgentReleaseRepositoryWithProviderModels(
     SQLAlchemyAgentReleaseRepository
 ):
     async def save(self, release: AgentRelease) -> AgentRelease:
+        # The same row locks used by identity mutation serialize publication with
+        # retargeting. Recheck the snapshot after taking them, before writing it.
+        from modules.agent.domain.model_spec import ModelSpec
+        from modules.agent.domain.provider_identity import providers_equivalent
+        from modules.agent.infra.database.repositories import SQLAlchemyProviderCredentialRepository
+        from shared.contracts.errors import ConflictError
+        for model_id, credential_id, snapshot in (
+            (release.provider_model_id, release.provider_credential_id, release.model_spec_snapshot),
+            (release.fallback_provider_model_id, release.fallback_credential_id, release.fallback_model_spec_snapshot),
+        ):
+            credential = await SQLAlchemyProviderCredentialRepository(self._session_or_uow).lock_by_id(credential_id) if credential_id else None
+            definition = await SQLAlchemyProviderModelRepository(self._session_or_uow).lock_by_id(model_id) if model_id else None
+            if isinstance(snapshot, dict):
+                spec = ModelSpec.from_dict(snapshot)
+                if (credential is None or not providers_equivalent(credential.provider, spec.provider)
+                        or (definition is not None and (definition.model != spec.model_id
+                            or definition.provider_credential_id != credential_id))):
+                    error = ConflictError("Model binding changed while capturing the Release")
+                    error.code = "RELEASE_MODEL_BINDING_CONFLICT"
+                    raise error
         saved = await super().save(release)
         await self._write_refs(release)
         saved.provider_model_id = release.provider_model_id

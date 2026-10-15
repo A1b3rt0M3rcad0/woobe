@@ -19,6 +19,7 @@ from modules.agent.application.tool_release_snapshots import (
 from modules.agent.domain.entities import Agent, AgentRelease, ProviderModel
 from modules.agent.domain.enums import CredentialStatus, ProviderModelStatus, ReleaseStatus, ToolStatus
 from modules.agent.domain.model_spec import ModelSpec
+from modules.agent.domain.provider_identity import providers_equivalent
 from modules.agent.domain.errors import RuntimeEnvironmentNotReadyError
 from modules.agent.domain.external_context_contract import (
     ExternalContextContractError,
@@ -736,6 +737,30 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
 
     async def _resolve_provider_model_refs(self, uow: Any, agent: Agent) -> Agent:
         self._restore_frozen_pricing(agent)
+        frozen = set()
+        settings = dict(agent.settings or {})
+        for key, provider_field, model_field, credential_field in (
+            ("model_spec", "provider", "model", "provider_credential_id"),
+            ("fallback_model_spec", "fallback_provider", "fallback_model", "fallback_credential_id"),
+        ):
+            snapshot = settings.get(key)
+            if settings.get(f"{key}_frozen") is not True or not isinstance(snapshot, dict):
+                continue
+            try:
+                spec = ModelSpec.from_dict(snapshot)
+            except (TypeError, ValueError) as exc:
+                raise ValidationError("Frozen Release ModelSpec is invalid") from exc
+            credential_id = getattr(agent, credential_field, None)
+            credential = await uow.provider_credentials.get_by_id(credential_id) if credential_id else None
+            if (credential is None or credential.project_id != agent.project_id
+                    or not providers_equivalent(credential.provider, spec.provider)):
+                error = ConflictError("Frozen Release credential is unavailable or has a different provider")
+                error.code = "RELEASE_MODEL_BINDING_CONFLICT"
+                raise error
+            self._validate_credential_runtime_status(credential)
+            setattr(agent, provider_field, spec.provider)
+            setattr(agent, model_field, spec.model_id)
+            frozen.add(key)
         provider_model_repo = getattr(uow, "provider_models", None)
         if provider_model_repo is None:
             if getattr(agent, "model", None):
@@ -757,7 +782,7 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
                 )
             self._validate_runtime_model(agent)
             return agent
-        if agent.provider_model_id:
+        if agent.provider_model_id and "model_spec" not in frozen:
             provider_model = await provider_model_repo.get_by_id(agent.provider_model_id)
             if provider_model is None or provider_model.project_id != agent.project_id:
                 from modules.agent.domain.errors import ModelConfigNotFoundError
@@ -787,7 +812,7 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
                 provider=credential.provider,
             )
 
-        if agent.fallback_provider_model_id:
+        if agent.fallback_provider_model_id and "fallback_model_spec" not in frozen:
             fallback_model = await provider_model_repo.get_by_id(agent.fallback_provider_model_id)
             if fallback_model is None or fallback_model.project_id != agent.project_id:
                 from modules.agent.domain.errors import ModelConfigNotFoundError
