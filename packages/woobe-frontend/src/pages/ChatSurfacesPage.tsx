@@ -107,7 +107,7 @@ function CreateSurfaceDialog({
   const [origin, setOrigin] = useState('')
   const [displayTitle, setDisplayTitle] = useState('')
   const [theme, setTheme] = useState<ChatSurfaceTheme>('system')
-  const [primaryColor, setPrimaryColor] = useState('#3B82F6')
+  const [primaryColor, setPrimaryColor] = useState('#242321')
   const [placeholder, setPlaceholder] = useState('Type a message…')
   const [welcomeMessage, setWelcomeMessage] = useState('')
   const targets = targetType === 'agent' ? agents : networks

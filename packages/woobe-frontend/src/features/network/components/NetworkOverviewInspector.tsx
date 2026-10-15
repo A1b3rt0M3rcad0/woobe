@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { Workflow } from 'lucide-react'
 import { toast } from 'sonner'
-import { Button, EmptyStatePanel, Field, FieldLabel, Input, MetricTile, PanelHeader, SectionBlock, Select, Textarea } from '@woobe/ui'
+import { Button, EmptyStatePanel, Field, FieldLabel, Input, ReadOnlyField, PanelHeader, SectionBlock, Select, Textarea } from '@woobe/ui'
 
 import type { Agent } from '@/features/agents/types'
 import { previewNetworkDraftExternalContextContract } from '@/features/network/externalContextContractPreview'
@@ -107,25 +107,25 @@ export function NetworkOverviewInspector({
           />
         ) : null}
 
-        <SectionBlock
+        <SectionBlock variant="product"
           density="compact"
           title="Network identity"
           description={displayIdentity.description.trim() || 'No description yet.'}
           actions={<Button type="button" size="sm" variant="outline" onClick={() => { setIdentityDraft(displayIdentity); setIdentityOpen(true) }}>{readOnly ? 'View' : 'Edit'}</Button>}
         >
-          <p className="truncate font-mono text-chrome-meta text-muted-foreground">{displayIdentity.name}</p>
+          <p className="break-words font-sans text-chrome-label text-muted-foreground">{displayIdentity.name}</p>
         </SectionBlock>
 
-        <SectionBlock density="compact" title="Composition">
-          <div className="grid gap-ui-sm sm:grid-cols-2">
-            <MetricTile label="Entry point" value={entryPoint} />
-            <MetricTile label="Agents" value={definition.nodes.length} />
-            <MetricTile label="Delegations" value={definition.edges.length} />
-            <MetricTile label="Mode" value={definition.settings.session_mode} />
+        <SectionBlock variant="product" density="compact" title="Composition">
+          <ReadOnlyField label="Entry point" value={entryPoint} className="mb-ui-sm" />
+          <div className="grid gap-ui-sm sm:grid-cols-3">
+            <ReadOnlyField label="Agents" value={definition.nodes.length} />
+            <ReadOnlyField label="Delegations" value={definition.edges.length} />
+            <ReadOnlyField label="Mode" value={definition.settings.session_mode} />
           </div>
         </SectionBlock>
 
-        <SectionBlock density="compact" title="External Context" description="Effective contract composed from the Agents in this environment.">
+        <SectionBlock variant="product" density="compact" title="External Context" description="Effective contract composed from the Agents in this environment.">
           {Object.keys(effectiveExternalContextContract).length ? (
             <div className="divide-y divide-border/70 border-y border-border/70">
               {Object.entries(effectiveExternalContextContract).map(([fieldName, rawField]) => {
@@ -147,7 +147,7 @@ export function NetworkOverviewInspector({
           )}
         </SectionBlock>
 
-        <SectionBlock
+        <SectionBlock variant="product"
           density="compact"
           title="Runtime"
           description={`${definition.settings.session_mode} · depth ${definition.settings.max_depth} · ${definition.settings.max_invocations} invocations · ${definition.settings.timeout_seconds}s · tool results ${toolResultMaxChars} chars`}

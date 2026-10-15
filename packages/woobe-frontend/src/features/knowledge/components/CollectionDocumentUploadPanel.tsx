@@ -199,7 +199,7 @@ export function CollectionDocumentUploadPanel({
                 <UploadCloud className="h-icon-lg w-icon-lg" />
               </span>
               <div>
-                <p className="font-mono text-system-control font-semibold text-accent-foreground">Drop file here</p>
+                <p className="font-sans text-system-control font-medium text-accent-foreground">Drop file here</p>
                 <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">or click to browse from your computer</p>
               </div>
               <div className="flex flex-wrap justify-center gap-ui-xs">

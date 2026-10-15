@@ -100,7 +100,7 @@ export function AgentContextAssemblerField({ projectId, compact = false }: { pro
     <>
       <section aria-label="Context Manager" className={cn(!compact && 'rounded-container border border-border bg-surface p-ui-lg')}>
         <div className="mb-ui-sm">
-          <p className="font-mono text-system-meta font-semibold uppercase tracking-[0.1em] text-muted-foreground">Context Manager</p>
+          <p className="font-mono text-system-meta font-medium uppercase tracking-[0.1em] text-muted-foreground">Context Manager</p>
           <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">Controls how context is managed before each Agent execution.</p>
         </div>
 
@@ -110,7 +110,7 @@ export function AgentContextAssemblerField({ projectId, compact = false }: { pro
               <BrainCircuit className="h-3.5 w-3.5" />
             </span>
             <div className="min-w-0 flex-1">
-              <p className="break-words font-mono text-system-label font-semibold text-slate-100">{selectedDescriptor.display_name}</p>
+              <p className="break-words font-mono text-system-label font-medium text-slate-100">{selectedDescriptor.display_name}</p>
               <p className="mt-ui-xs font-mono text-system-meta text-muted-foreground">{selectedName}</p>
               {selectedDescriptor.description ? <p className="mt-ui-sm line-clamp-2 font-sans text-product-caption text-muted-foreground">{selectedDescriptor.description}</p> : null}
             </div>
@@ -130,11 +130,11 @@ export function AgentContextAssemblerField({ projectId, compact = false }: { pro
 
       <AgentContextConfigurationDialog open={configureOpen} onClose={() => setConfigureOpen(false)} projectId={projectId} managerName={selectedDescriptor.display_name} />
 
-      <Dialog open={open} onClose={() => setOpen(false)} title="Select a Context Manager" className="max-w-dialog-wide overflow-hidden bg-surface/95" contentClassName="p-0">
-        <div className="grid h-dialog-workspace min-h-0 grid-cols-[15.625rem_minmax(0,1fr)] overflow-hidden">
+      <Dialog open={open} onClose={() => setOpen(false)} title="Select a Context Manager" variant="workspace" height="workspace">
+        <div className="grid h-full min-h-0 grid-cols-[15.625rem_minmax(0,1fr)] overflow-hidden">
           <aside className="flex min-h-0 flex-col border-r border-border/90 bg-background/25">
             <div className="shrink-0 border-b border-border/90 px-ui-lg py-ui-md">
-              <p className="font-mono text-system-meta font-semibold uppercase tracking-[0.12em] text-muted-foreground">Registered managers</p>
+              <p className="font-mono text-system-meta font-medium uppercase tracking-[0.12em] text-muted-foreground">Registered managers</p>
               <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">
                 {isLoading ? 'Loading registry…' : isError ? 'Current selection only' : `${catalogOptions.length} available`}
               </p>
@@ -172,7 +172,7 @@ export function AgentContextAssemblerField({ projectId, compact = false }: { pro
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-ui-sm">
-                      <h3 className="font-mono text-system-heading font-semibold text-slate-50">{focused.display_name}</h3>
+                      <h3 className="font-mono text-system-heading font-medium text-slate-50">{focused.display_name}</h3>
                       <span className="rounded-technical border border-border px-ui-xs py-ui-hairline font-mono text-system-meta text-muted-foreground">{focused.name}</span>
                       {focusedIsCurrent ? <span className="rounded-technical border border-primary/30 bg-primary/10 px-ui-xs py-ui-hairline font-mono text-system-meta uppercase text-primary-light">Selected</span> : null}
                       {focused.is_default ? <span className="rounded-technical border border-border bg-background/40 px-ui-xs py-ui-hairline font-mono text-system-meta uppercase text-muted-foreground">System default</span> : null}
@@ -191,18 +191,18 @@ export function AgentContextAssemblerField({ projectId, compact = false }: { pro
                     </div>
 
                     <div className="mt-ui-lg grid gap-ui-lg border-t border-border/75 pt-ui-lg md:grid-cols-2">
-                      <div><p className="font-mono text-system-meta font-semibold uppercase tracking-[0.12em] text-muted-foreground">Description</p><p className="mt-ui-sm font-sans text-product-body text-slate-200">{focused.description}</p></div>
-                      <div><p className="font-mono text-system-meta font-semibold uppercase tracking-[0.12em] text-muted-foreground">How it operates</p><p className="mt-ui-sm font-sans text-product-body text-slate-300">{focused.behavior}</p></div>
+                      <div><p className="font-mono text-system-meta font-medium uppercase tracking-[0.12em] text-muted-foreground">Description</p><p className="mt-ui-sm font-sans text-product-body text-slate-200">{focused.description}</p></div>
+                      <div><p className="font-mono text-system-meta font-medium uppercase tracking-[0.12em] text-muted-foreground">How it operates</p><p className="mt-ui-sm font-sans text-product-body text-slate-300">{focused.behavior}</p></div>
                     </div>
 
                     <div className="mt-ui-lg border-t border-border/75 pt-ui-lg">
-                      <p className="font-mono text-system-meta font-semibold uppercase tracking-[0.12em] text-muted-foreground">Recommended for</p>
+                      <p className="font-mono text-system-meta font-medium uppercase tracking-[0.12em] text-muted-foreground">Recommended for</p>
                       <div className="mt-ui-sm grid gap-x-ui-xl gap-y-ui-xs sm:grid-cols-2"><DetailList items={focused.recommended_for} /></div>
                     </div>
 
                     <div className="mt-ui-lg grid gap-ui-xl border-t border-border/75 pt-ui-lg md:grid-cols-2">
-                      <div><p className="font-mono text-system-meta font-semibold uppercase tracking-[0.12em] text-muted-foreground">Capabilities</p><div className="mt-ui-sm"><DetailList items={focused.capabilities} /></div></div>
-                      <div><p className="font-mono text-system-meta font-semibold uppercase tracking-[0.12em] text-muted-foreground">Limitations</p><div className="mt-ui-sm"><DetailList items={focused.limitations} /></div></div>
+                      <div><p className="font-mono text-system-meta font-medium uppercase tracking-[0.12em] text-muted-foreground">Capabilities</p><div className="mt-ui-sm"><DetailList items={focused.capabilities} /></div></div>
+                      <div><p className="font-mono text-system-meta font-medium uppercase tracking-[0.12em] text-muted-foreground">Limitations</p><div className="mt-ui-sm"><DetailList items={focused.limitations} /></div></div>
                     </div>
 
                     <div className="mt-ui-lg rounded-container border border-border/75 bg-background/30 px-ui-md py-ui-md font-sans text-product-small text-muted-foreground">
@@ -215,11 +215,11 @@ export function AgentContextAssemblerField({ projectId, compact = false }: { pro
               </div>
             </ScrollArea>
 
-            <div className="flex shrink-0 items-center justify-between gap-ui-md border-t border-border/90 bg-background/20 px-ui-lg py-ui-md">
-              <p className="min-w-0 truncate font-sans text-product-caption text-muted-foreground">{catalogBacked ? `${focused.name}${focused.is_default ? ' · system default' : ''}` : 'Registry metadata unavailable'}</p>
-              <div className="flex shrink-0 items-center gap-ui-sm">
+            <div className="flex shrink-0 flex-wrap items-center justify-between gap-ui-md border-t border-border/90 bg-background/20 px-ui-lg py-ui-md">
+              <p className="min-w-0 basis-full font-mono text-product-caption sm:basis-auto text-muted-foreground">{catalogBacked ? `${focused.name}${focused.is_default ? ' · system default' : ''}` : 'Registry metadata unavailable'}</p>
+              <div className="flex shrink-0 flex-wrap items-center gap-ui-sm">
                 <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-                {incompatibleSkills && <p role="alert" className="max-w-xs font-sans text-product-caption text-amber-400">Disable installed Skills before selecting a manager without Skills support.</p>}
+                {incompatibleSkills && <p role="alert" className="max-w-xs font-sans text-product-caption text-warning">Disable installed Skills before selecting a manager without Skills support.</p>}
                 <Button onClick={applySelection} disabled={!canApplySelection}>{focusedIsCurrent ? 'Selected' : 'Select manager'}</Button>
               </div>
             </div>

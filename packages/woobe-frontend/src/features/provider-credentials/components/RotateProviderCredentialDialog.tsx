@@ -51,7 +51,7 @@ export function RotateProviderCredentialDialog({ open, credential, generationCou
 
           <Alert variant="info">
             <AlertDescription>
-              <span className="inline-flex items-center gap-ui-xs font-mono text-system-label font-semibold text-accent-foreground">
+              <span className="inline-flex items-center gap-ui-xs font-mono text-system-label font-medium text-accent-foreground">
                 <CheckCircle2 className="h-icon w-icon text-primary-light" />Existing bindings stay unchanged
               </span>
               <span className="mt-ui-xs block">The credential ID is preserved. Connected models, Agents and releases continue using this connection without relinking.</span>
@@ -66,7 +66,7 @@ export function RotateProviderCredentialDialog({ open, credential, generationCou
 
           <Alert variant="warning">
             <AlertDescription>
-              <span className="inline-flex items-center gap-ui-xs font-mono text-system-label font-semibold">
+              <span className="inline-flex items-center gap-ui-xs font-mono text-system-label font-medium">
                 <AlertTriangle className="h-icon w-icon" />Provider-side revocation is separate
               </span>
               <span className="mt-ui-xs block">Woobe replaces the stored secret but cannot revoke the previous key at the provider. Revoke it in the provider dashboard after rotation succeeds.</span>

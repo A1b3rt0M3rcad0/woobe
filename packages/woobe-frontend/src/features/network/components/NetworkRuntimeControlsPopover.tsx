@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ChevronDown, X } from 'lucide-react'
 import { toast } from 'sonner'
@@ -21,12 +21,14 @@ export function NetworkRuntimeControlsPopover({ networkId, projectId }: { networ
   const rootRef = useRef<HTMLDivElement | null>(null)
   const menuRef = useRef<HTMLDivElement | null>(null)
   const buttonRef = useRef<HTMLButtonElement | null>(null)
+  const menuId = useId()
   const [open, setOpen] = useState(false)
   const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0, width: menuWidth })
   const statesQuery = useNetworkRuntimeEnvironments(networkId, projectId)
   const updateRuntime = useUpdateNetworkRuntimeEnvironment(networkId, projectId)
 
-  const enabledCount = environments.filter((environment) => statesQuery.data?.[environment]?.enabled ?? true).length
+  const statesKnown = !statesQuery.isError && environments.every(environment => typeof statesQuery.data?.[environment]?.enabled === 'boolean')
+  const enabledCount = environments.filter(environment => statesKnown && statesQuery.data?.[environment]?.enabled === true).length
 
   function openMenu() {
     const button = buttonRef.current
@@ -74,10 +76,10 @@ export function NetworkRuntimeControlsPopover({ networkId, projectId }: { networ
   }
 
   const menu = open ? (
-    <div ref={menuRef} className="fixed z-focus overflow-hidden rounded-container border border-border bg-surface/95 shadow-popup backdrop-blur-md" style={menuPosition}>
+    <div ref={menuRef} id={menuId} role="region" aria-label="Network runtime controls" className="fixed z-focus overflow-hidden rounded-container border border-border bg-surface/95 shadow-popup backdrop-blur-md" style={menuPosition}>
       <div className="flex items-center justify-between border-b border-border px-ui-md py-ui-sm">
         <div>
-          <p className="font-mono text-system-control font-semibold text-accent-foreground">Network runtime</p>
+          <p className="font-mono text-system-control font-medium text-accent-foreground">Network runtime</p>
           <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">Control Network Runs by environment.</p>
         </div>
         <Button type="button" variant="ghost" size="iconXs" onClick={() => setOpen(false)} aria-label="Close runtime controls"><X className="h-icon-sm w-icon-sm" /></Button>
@@ -85,21 +87,21 @@ export function NetworkRuntimeControlsPopover({ networkId, projectId }: { networ
 
       <div className="divide-y divide-border/70">
         {environments.map((environment) => {
-          const enabled = statesQuery.data?.[environment]?.enabled ?? true
+          const enabled = statesKnown && statesQuery.data?.[environment]?.enabled === true
           return (
             <div key={environment} className="flex items-center justify-between gap-ui-md px-ui-md py-ui-sm">
               <div className="flex min-w-0 items-center gap-ui-sm">
                 <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', enabled ? 'bg-success' : 'bg-muted')} />
                 <div className="min-w-0">
                   <p className="font-mono text-system-control font-medium text-accent-foreground">{titleCase(environment)}</p>
-                  <p className="font-sans text-product-caption text-muted-foreground">{enabled ? 'Runs allowed' : 'Runs blocked'}</p>
+                  <p className="font-sans text-product-caption text-muted-foreground">{!statesKnown ? statesQuery.isLoading ? 'Loading state' : 'State unavailable' : enabled ? 'Runs allowed' : 'Runs blocked'}</p>
                 </div>
               </div>
 
               <button
                 type="button"
                 aria-pressed={enabled}
-                disabled={updateRuntime.isPending || statesQuery.isLoading}
+                disabled={updateRuntime.isPending || !statesKnown}
                 onClick={() => void updateEnabled(environment, !enabled)}
                 className={cn(
                   'relative h-5 w-9 shrink-0 rounded-full border transition-colors disabled:cursor-not-allowed disabled:opacity-60',
@@ -122,16 +124,17 @@ export function NetworkRuntimeControlsPopover({ networkId, projectId }: { networ
     <div ref={rootRef} className="relative z-playground-chrome flex items-center">
       <Button
         ref={buttonRef}
+        aria-expanded={open}
+        aria-controls={menuId}
         type="button"
         size="sm"
         variant={open ? 'secondary' : 'outline'}
-        aria-expanded={open}
         onClick={() => open ? setOpen(false) : openMenu()}
         title="Network runtime environments"
       >
-        <span className={cn('mr-ui-xs h-1.5 w-1.5 rounded-full', enabledCount === environments.length ? 'bg-success' : enabledCount === 0 ? 'bg-muted' : 'bg-warning')} />
+        <span className={cn('mr-ui-xs h-1.5 w-1.5 rounded-full', !statesKnown ? 'bg-muted' : enabledCount === environments.length ? 'bg-success' : enabledCount === 0 ? 'bg-muted' : 'bg-warning')} />
         <span>Runtime</span>
-        <span className="ml-ui-xs text-muted-foreground">{enabledCount}/{environments.length}</span>
+        <span className="ml-ui-xs text-muted-foreground">{statesKnown ? `${enabledCount}/${environments.length}` : statesQuery.isLoading ? 'Loading' : 'Unknown'}</span>
         <ChevronDown className={cn('ml-ui-xs h-icon-sm w-icon-sm text-muted-foreground transition-transform', open && 'rotate-180')} />
       </Button>
       {typeof document !== 'undefined' && menu ? createPortal(menu, document.body) : null}

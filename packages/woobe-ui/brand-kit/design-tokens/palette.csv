@@ -1,0 +1,26 @@
+name,hex,usage
+orange,#FF5500,restrained accent and brand
+orange-ink,#AD3900,semantic or supporting token
+canvas,#F8F7F5,app/page backgrounds
+surface,#FFFEFD,panels and cards
+ink,#0F0F0F,primary wordmark and high contrast
+body-ink,#242321,semantic or supporting token
+muted,#6B6863,supporting copy
+faint,#A09C95,semantic or supporting token
+border,#E3E1DD,1px separators
+border-subtle,#EFEEEB,semantic or supporting token
+peach,#FFE4D6,semantic or supporting token
+mint,#D9F7D6,semantic or supporting token
+success,#197542,semantic or supporting token
+success-mark,#24AD65,semantic or supporting token
+success-bg,#E8F5EA,semantic or supporting token
+warning,#9B5700,semantic or supporting token
+warning-mark,#E58B16,semantic or supporting token
+warning-bg,#FFF1DF,semantic or supporting token
+danger,#B42318,semantic or supporting token
+danger-mark,#EA554D,semantic or supporting token
+danger-bg,#FFF0ED,semantic or supporting token
+info,#2454A6,semantic or supporting token
+info-bg,#ECF1FF,semantic or supporting token
+violet,#7752D9,semantic or supporting token
+violet-bg,#F2EEFE,semantic or supporting token

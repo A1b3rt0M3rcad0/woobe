@@ -9,13 +9,13 @@ const environmentLabels: Record<OperationalEnvironment, string> = {
   production: 'Production',
 }
 
-const liveVariant: Record<OperationalEnvironment, BadgeVariant> = {
+const enabledVariant: Record<OperationalEnvironment, BadgeVariant> = {
   draft: 'secondary',
   staging: 'default',
   production: 'success',
 }
 
-const liveDot: Record<OperationalEnvironment, string> = {
+const enabledDot: Record<OperationalEnvironment, string> = {
   draft: 'bg-slate-400',
   staging: 'bg-primary',
   production: 'bg-success',
@@ -36,7 +36,7 @@ export function RuntimeEnvironmentPill({
 }) {
   unknown = unknown || (available && enabled === undefined && !loading)
   const label = environmentLabels[environment]
-  const live = available && enabled === true && !unknown
+  const isEnabled = available && enabled === true && !unknown
   const off = available && enabled === false && !unknown
   const neutral = loading || unknown
   const text = loading
@@ -45,10 +45,10 @@ export function RuntimeEnvironmentPill({
       ? `${label} Unknown`
       : !available
         ? `No ${label}`
-        : live
-          ? `${label} Live`
+        : isEnabled
+          ? `${label} Enabled`
           : `${label} Off`
-  const variant: BadgeVariant = neutral || !available || off ? 'outline' : liveVariant[environment]
+  const variant: BadgeVariant = neutral || !available || off ? 'outline' : enabledVariant[environment]
 
   return (
     <Badge
@@ -63,7 +63,7 @@ export function RuntimeEnvironmentPill({
           neutral && 'bg-slate-500',
           !neutral && !available && 'bg-slate-600',
           !neutral && off && 'bg-slate-500',
-          !neutral && live && liveDot[environment],
+          !neutral && isEnabled && enabledDot[environment],
           loading && 'animate-pulse',
         )}
         aria-hidden="true"

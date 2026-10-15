@@ -39,7 +39,7 @@ export function AgentLifecycleAction({
         disabled={disabled || isDirty}
         onClick={() => onManageAgent('draft', 'stage')}
         title={isDirty ? 'Save Draft before creating immutable Staging' : 'Review the saved Draft and create immutable Staging'}
-        className="bg-primary text-white hover:bg-primary/90"
+        className="bg-primary text-primary-foreground hover:bg-primary/90"
       >
         <Upload className="mr-1 h-3.5 w-3.5" />
         Stage Agent
@@ -54,7 +54,7 @@ export function AgentLifecycleAction({
         disabled={disabled || staging.state !== 'selected'}
         onClick={() => onManageAgent('staging', 'publish')}
         title={staging.state === 'selected' ? 'Review current Staging and publish an immutable Release' : 'Create Staging before publishing'}
-        className="bg-primary text-white hover:bg-primary/90"
+        className="bg-primary text-primary-foreground hover:bg-primary/90"
       >
         <Rocket className="mr-1 h-3.5 w-3.5" />
         Publish Release
@@ -68,7 +68,7 @@ export function AgentLifecycleAction({
       disabled={disabled || production.state !== 'selected' || rollbackCandidates.length === 0}
       onClick={() => onManageAgent('releases', 'rollback')}
       title={rollbackCandidates.length ? 'Choose a historical immutable Release to rollback to' : 'No previous Agent Release is available'}
-      className="bg-primary text-white hover:bg-primary/90"
+      className="bg-primary text-primary-foreground hover:bg-primary/90"
     >
       <RotateCcw className="mr-1 h-3.5 w-3.5" />
       Rollback

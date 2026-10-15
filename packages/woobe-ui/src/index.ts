@@ -1,7 +1,8 @@
 export { mergeWoobeClasses } from './lib/cn'
+export { WoobeLogo, type WoobeLogoProps } from './components/WoobeLogo'
 export { Alert, AlertDescription, AlertTitle, type AlertProps, type AlertVariant } from './components/Alert'
 export { Badge, type BadgeProps, type BadgeSize, type BadgeVariant } from './components/Badge'
-export { Button, type ButtonProps, type ButtonSize, type ButtonVariant } from './components/Button'
+export { Button, buttonClassName, type ButtonProps, type ButtonSize, type ButtonVariant } from './components/Button'
 export { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from './components/Card'
 export { Checkbox, type CheckboxProps } from './components/Checkbox'
 export { CodePanel, type CodePanelProps } from './components/CodePanel'
@@ -27,6 +28,7 @@ export {
   type DialogVariant,
 } from './components/Dialog'
 export { Drawer, type DrawerProps } from './components/Drawer'
+export { DotMeter, type DotMeterProps } from './components/DotMeter'
 export { Dropdown, type DropdownHandle, type DropdownProps } from './components/Dropdown'
 export { EmptyStatePanel, type EmptyStatePanelProps, type EmptyStatePanelVariant } from './components/EmptyStatePanel'
 export { Field, FieldDescription, FieldError, FieldLabel, FieldOptional } from './components/Field'
@@ -109,3 +111,5 @@ export {
   type WoobeCodeTheme,
   type WoobeColors,
 } from './tokens'
+
+export { ContributionBars, type ContributionRow } from './components/ContributionBars'

@@ -30,7 +30,7 @@ function CanvasPreparing() {
         <div className="flex h-control-lg w-control-lg items-center justify-center rounded-control border border-primary/25 bg-primary/10 text-primary-light">
           <Loader2 className="h-icon-lg w-icon-lg animate-spin" />
         </div>
-        <p className="mt-ui-md font-mono text-system-label font-semibold uppercase tracking-ui-eyebrow text-slate-200">Preparing Canvas</p>
+        <p className="mt-ui-md font-mono text-system-label font-medium uppercase tracking-ui-eyebrow text-slate-200">Preparing Canvas</p>
         <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">Positioning the Network composition.</p>
       </div>
     </div>
@@ -92,11 +92,12 @@ export function NetworkCanvasChrome({ nodeCount, edgeCount, fitKey, viewportTouc
     const shell = chromeRef.current?.closest<HTMLElement>('[data-network-canvas-shell]')
     const insetRatio = leftInset / Math.max(shell?.clientWidth ?? 1, 1)
     const padding = leftInset > 0
-      ? Math.min(0.58, 0.32 + insetRatio * 0.45)
-      : 0.32
+      ? Math.min(0.4, 0.12 + insetRatio * 0.3)
+      : 0.12
     await fitView({
       padding,
-      maxZoom: leftInset > 0 ? 0.8 : 0.84,
+      minZoom: nodeCount <= 6 ? 0.9 : 0.35,
+      maxZoom: 1,
       duration,
     })
     if (leftInset > 0) {
@@ -180,7 +181,7 @@ export function NetworkCanvasChrome({ nodeCount, edgeCount, fitKey, viewportTouc
             viewportTouchedRef.current = true
             void zoomIn()
           }}
-          className="flex h-control-sm w-control-sm items-center justify-center border-b border-border bg-control/55 text-muted-foreground transition-colors hover:bg-accent hover:text-white"
+          className="flex h-control-sm w-control-sm items-center justify-center border-b border-border bg-control/55 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
         >
           <Plus className="h-icon w-icon" />
         </button>
@@ -192,7 +193,7 @@ export function NetworkCanvasChrome({ nodeCount, edgeCount, fitKey, viewportTouc
             viewportTouchedRef.current = true
             void zoomOut()
           }}
-          className="flex h-control-sm w-control-sm items-center justify-center border-b border-border bg-control/55 text-muted-foreground transition-colors hover:bg-accent hover:text-white"
+          className="flex h-control-sm w-control-sm items-center justify-center border-b border-border bg-control/55 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
         >
           <Minus className="h-icon w-icon" />
         </button>
@@ -204,7 +205,7 @@ export function NetworkCanvasChrome({ nodeCount, edgeCount, fitKey, viewportTouc
             viewportTouchedRef.current = false
             void fitVisibleArea(180)
           }}
-          className="flex h-control-sm w-control-sm items-center justify-center bg-control/55 text-muted-foreground transition-colors hover:bg-accent hover:text-white"
+          className="flex h-control-sm w-control-sm items-center justify-center bg-control/55 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
         >
           <Maximize2 className="h-icon w-icon" />
         </button>
@@ -215,7 +216,7 @@ export function NetworkCanvasChrome({ nodeCount, edgeCount, fitKey, viewportTouc
         style={{ left: leftInset + 16 }}
       >
         <Workflow className="h-3.5 w-3.5 text-primary-light" />
-        <span><b className="text-white">{nodeCount}</b> Agents · <b className="text-white">{edgeCount}</b> delegations</span>
+        <span><b className="text-foreground">{nodeCount}</b> Agents · <b className="text-foreground">{edgeCount}</b> delegations</span>
       </div>
     </>
   )

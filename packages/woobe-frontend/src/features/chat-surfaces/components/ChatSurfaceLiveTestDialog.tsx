@@ -199,9 +199,9 @@ export function ChatSurfaceLiveTestDialog({
       className="flex h-[min(820px,calc(100svh-2rem))] w-[min(96rem,calc(100vw-2rem))] max-w-none flex-col overflow-hidden"
       contentClassName="min-h-0 flex-1 p-0"
     >
-      <div className="flex h-full min-h-0 flex-col lg:flex-row">
-        <div className="min-h-0 min-w-0 flex-1 bg-background/55 p-ui-md">
-          <div className="h-full min-h-80 overflow-hidden rounded-container border border-border bg-background">
+      <div className="flex h-full min-h-0 flex-col overflow-y-auto lg:flex-row lg:overflow-hidden">
+        <div className="h-[28rem] min-h-[28rem] min-w-0 shrink-0 bg-background/55 p-ui-md lg:h-auto lg:min-h-0 lg:flex-1">
+          <div className="h-full min-h-0 overflow-hidden rounded-container border border-border bg-background">
             {loading ? (
               <EmptyStatePanel
                 compact

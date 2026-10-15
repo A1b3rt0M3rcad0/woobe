@@ -26,7 +26,7 @@ describe('Agent inspector layout', () => {
       /></QueryClientProvider>,
     )
 
-    expect(markup).toContain('lg:w-inspector-workspace')
+    expect(markup).toContain('xl:w-inspector-workspace')
     expect(markup).toContain('w-[min(94vw,32.5rem)]')
     expect(markup).not.toContain('Expand Inspector')
     expect(markup).not.toContain('Restore Inspector width')

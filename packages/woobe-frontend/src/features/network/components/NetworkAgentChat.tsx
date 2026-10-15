@@ -534,7 +534,7 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
       >
         <MessageSquare className="h-icon w-icon shrink-0 text-primary-light" />
         <div className="flex min-w-0 flex-1 items-center gap-ui-sm">
-          <p className="font-mono text-system-control font-semibold text-accent-foreground">Chat</p>
+          <p className="font-mono text-system-control font-medium text-accent-foreground">Chat</p>
           <Badge variant={isDirty ? 'warning' : 'default'} size="compact">
             {isDirty ? 'Draft preview' : 'Current Draft'}
           </Badge>
@@ -560,7 +560,7 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
           <div className="absolute right-0 top-full z-popover mt-ui-xs flex max-h-popover w-dialog-sidebar flex-col overflow-hidden rounded-container border border-border bg-surface shadow-popup">
             <div className="flex shrink-0 items-center border-b border-border px-ui-md py-ui-sm">
               <div className="min-w-0 flex-1">
-                <p className="font-mono text-system-control font-semibold text-accent-foreground">Sessions</p>
+                <p className="font-mono text-system-control font-medium text-accent-foreground">Sessions</p>
                 <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">Previous conversations for this Agent</p>
               </div>
               {sessionsQuery.isFetching ? <Loader2 className="h-icon w-icon animate-spin text-muted-foreground" /> : null}
@@ -568,7 +568,7 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
 
             <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto p-ui-sm">
               {sessionsQuery.isLoading && sessions.length === 0 ? (
-                <div className="flex items-center justify-center gap-ui-sm py-ui-xl font-mono text-system-label text-muted-foreground">
+                <div className="flex items-center justify-center gap-ui-sm py-ui-xl font-sans text-system-label text-muted-foreground">
                   <Loader2 className="h-icon w-icon animate-spin" />
                   Loading sessions…
                 </div>
@@ -649,7 +649,7 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
       ) : null}
 
       {pinnedPreviousSnapshot ? (
-        <div className="shrink-0 border-t border-border bg-background/35 px-ui-sm py-ui-xs font-mono text-system-meta text-muted-foreground">
+        <div className="shrink-0 border-t border-border bg-background/35 px-ui-sm py-ui-xs font-sans text-system-meta text-muted-foreground">
           This Chat remains pinned to its previous Draft snapshot.
         </div>
       ) : null}

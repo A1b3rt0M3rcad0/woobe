@@ -52,7 +52,7 @@ export function TraceList({ traces, selectedTraceId, onSelectTrace, isLoading, i
       <div className="p-ui-md">
         <EmptyStatePanel
           compact
-          icon={<AlertCircle className="h-icon-lg w-icon-lg text-red-300" />}
+          icon={<AlertCircle className="h-icon-lg w-icon-lg text-error" />}
           title="Failed to load Agent Runs"
           description={errorMessage || 'The Runs list could not be loaded.'}
           action={onRetry ? (
@@ -82,7 +82,7 @@ export function TraceList({ traces, selectedTraceId, onSelectTrace, isLoading, i
     <div className="p-ui-md">
       <div className="mb-ui-md flex items-center justify-between gap-ui-md border-b border-border/70 pb-ui-sm">
         <div>
-          <h3 className="font-mono text-system-control font-semibold text-slate-50">Agent Runs</h3>
+          <h3 className="font-mono text-system-control font-medium text-slate-50">Agent Runs</h3>
           <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">One Run for each Agent execution.</p>
         </div>
         <Button type="button" size="sm" variant="ghost" className="text-muted-foreground">

@@ -127,7 +127,7 @@ export function RoleSummary({ role }: { role: AuthorityCategory | undefined }) {
         <summary className="cursor-pointer">
           {role.permissions.length} permissions
         </summary>
-        <p className="mt-ui-xs break-all font-mono">
+        <p className="mt-ui-xs break-all font-sans">
           {role.permissions.join(', ')}
         </p>
       </details>

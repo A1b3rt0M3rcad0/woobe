@@ -45,9 +45,9 @@ function EnvironmentWorkspace({ projectId }: { projectId: string }) {
     {returnTo && <a href={returnTo} className="text-product-small text-primary underline underline-offset-2">Return to execution · no automatic Run</a>}
     <div className="flex flex-wrap items-end justify-between gap-ui-md rounded-technical border border-border bg-card p-ui-md">
       <div className="flex flex-wrap items-end gap-ui-sm">
-        <Field><FieldLabel>Environment</FieldLabel><Select value={environment} onChange={event => selectEnvironment(event.target.value as ProjectEnvironment)} options={['draft', 'staging', 'production'].map(value => ({ value, label: value[0].toUpperCase() + value.slice(1) }))} /></Field>
+        <Field><FieldLabel htmlFor="configuration-environment">Environment</FieldLabel><Select id="configuration-environment" value={environment} onChange={event => selectEnvironment(event.target.value as ProjectEnvironment)} options={['draft', 'staging', 'production'].map(value => ({ value, label: value[0].toUpperCase() + value.slice(1) }))} /></Field>
         <Field><FieldLabel htmlFor="configuration-search">Search keys</FieldLabel><Input id="configuration-search" value={search} onChange={e => { setSearch(e.target.value); setOffset(0) }} placeholder="Name or description" /></Field>
-        <Field><FieldLabel>Status</FieldLabel><Select value={status} onChange={event => { setStatus(event.target.value); setOffset(0) }} options={['all', 'configured', 'missing', 'attention', 'legacy'].map(value => ({ value, label: value[0].toUpperCase() + value.slice(1) }))} /></Field>
+        <Field><FieldLabel htmlFor="configuration-status">Status</FieldLabel><Select id="configuration-status" value={status} onChange={event => { setStatus(event.target.value); setOffset(0) }} options={['all', 'configured', 'missing', 'attention', 'legacy'].map(value => ({ value, label: value[0].toUpperCase() + value.slice(1) }))} /></Field>
       </div>
       {permissions.declare && <Button onClick={() => setCreating(true)}>Add key</Button>}
     </div>

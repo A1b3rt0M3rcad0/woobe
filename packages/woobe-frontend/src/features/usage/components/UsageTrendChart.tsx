@@ -161,7 +161,7 @@ export function UsageTrendChart({
     <section className="overflow-hidden rounded-xl border border-border/90 bg-surface/70">
       <div className="flex flex-col gap-4 border-b border-border px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h2 className="text-sm font-semibold text-white">Cost and run volume over time</h2>
+          <h2 className="text-sm font-medium text-foreground">Cost and run volume over time</h2>
           <p className="mt-1 text-xs text-muted">{contextLabel} Network cost is contained in Agent Run cost and is not additive.</p>
         </div>
         <div className="inline-flex w-fit rounded-lg border border-border/80 bg-background/45 p-1">
@@ -172,7 +172,7 @@ export function UsageTrendChart({
               onClick={() => onModeChange(item.value)}
               className={cn(
                 'rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
-                item.value === mode ? 'bg-primary/15 text-primary-light' : 'text-muted hover:text-white',
+                item.value === mode ? 'bg-primary/15 text-primary-light' : 'text-muted hover:text-foreground',
               )}
             >
               {item.label}
@@ -183,7 +183,7 @@ export function UsageTrendChart({
 
       <div className="grid gap-4 p-4 xl:grid-cols-[minmax(0,1fr)_320px]">
         <div className="relative min-h-[290px] overflow-hidden rounded-lg border border-border/70 bg-background/25 p-3">
-          <div className="mb-2 flex flex-wrap items-center gap-4 text-[10px] text-muted">
+          <div className="mb-2 flex flex-wrap items-center gap-4 text-system-meta text-muted">
             <span className="inline-flex items-center gap-1.5"><span className="h-0.5 w-5 bg-primary" />{series[0]?.primaryLabel ?? 'Agent Runs'}</span>
             {series[0]?.secondaryLabel && (
               <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2 rounded-sm bg-violet-400/70" />{series[0].secondaryLabel}</span>
@@ -245,10 +245,10 @@ export function UsageTrendChart({
               </circle>
             ))}
           </svg>
-          <div className="flex justify-between gap-4 px-1 text-[10px] text-muted">
+          <div className="flex justify-between gap-4 px-1 text-system-meta text-muted">
             {tickIndexes.map((index) => <span key={index}>{points[index] ? formatBucket(points[index].bucket_start, bucket) : ''}</span>)}
           </div>
-          <div className="mt-3 flex items-center gap-2 border-t border-border/60 pt-3 text-[10px] text-muted">
+          <div className="mt-3 flex items-center gap-2 border-t border-border/60 pt-3 text-system-meta text-muted">
             <MousePointerClick className="h-3.5 w-3.5 text-primary-light" />
             Select a bucket to inspect its Agent Run and Network Run economics.
           </div>
@@ -258,30 +258,30 @@ export function UsageTrendChart({
           <div className="rounded-lg border border-primary/25 bg-primary/5 p-4">
             <div className="flex items-center gap-2">
               <CalendarRange className="h-4 w-4 text-primary-light" />
-              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-primary-light">Selected period</p>
+              <p className="font-mono text-system-meta font-medium uppercase tracking-[0.14em] text-primary-light">Selected period</p>
             </div>
-            <p className="mt-2 text-sm font-semibold text-white">
+            <p className="font-mono mt-2 text-sm font-medium text-foreground">
               {selectedPoint ? formatBucket(selectedPoint.bucket_start, bucket, true) : 'No period selected'}
             </p>
             {selectedPoint && selectedSeries && (
               <div className="mt-3 grid grid-cols-2 gap-2">
                 <div className="rounded-md border border-border/60 bg-background/25 p-2.5">
-                  <p className="text-[9px] uppercase tracking-wider text-muted">{selectedSeries.primaryLabel}</p>
-                  <p className="mt-1 text-sm font-semibold text-white">{formatValue(selectedSeries.primary, mode)}</p>
+                  <p className="font-mono text-system-meta uppercase tracking-wider text-muted">{selectedSeries.primaryLabel}</p>
+                  <p className="font-mono mt-1 text-sm font-medium text-foreground">{formatValue(selectedSeries.primary, mode)}</p>
                 </div>
                 <div className="rounded-md border border-border/60 bg-background/25 p-2.5">
-                  <p className="text-[9px] uppercase tracking-wider text-muted">{selectedSeries.secondaryLabel || 'LLM calls'}</p>
-                  <p className="mt-1 text-sm font-semibold text-white">
+                  <p className="font-mono text-system-meta uppercase tracking-wider text-muted">{selectedSeries.secondaryLabel || 'LLM calls'}</p>
+                  <p className="font-mono mt-1 text-sm font-medium text-foreground">
                     {selectedSeries.secondaryLabel ? formatValue(selectedSeries.secondary, mode) : selectedPoint.llm_calls}
                   </p>
                 </div>
                 <div className="rounded-md border border-border/60 bg-background/25 p-2.5">
-                  <p className="text-[9px] uppercase tracking-wider text-muted">Agent success</p>
-                  <p className="mt-1 text-sm font-semibold text-white">{agentSuccess === null ? '—' : `${agentSuccess.toFixed(1)}%`}</p>
+                  <p className="font-mono text-system-meta uppercase tracking-wider text-muted">Agent success</p>
+                  <p className="font-mono mt-1 text-sm font-medium text-foreground">{agentSuccess === null ? '—' : `${agentSuccess.toFixed(1)}%`}</p>
                 </div>
                 <div className="rounded-md border border-border/60 bg-background/25 p-2.5">
-                  <p className="text-[9px] uppercase tracking-wider text-muted">Network success</p>
-                  <p className="mt-1 text-sm font-semibold text-white">{networkSuccess === null ? '—' : `${networkSuccess.toFixed(1)}%`}</p>
+                  <p className="font-mono text-system-meta uppercase tracking-wider text-muted">Network success</p>
+                  <p className="font-mono mt-1 text-sm font-medium text-foreground">{networkSuccess === null ? '—' : `${networkSuccess.toFixed(1)}%`}</p>
                 </div>
               </div>
             )}
@@ -290,16 +290,16 @@ export function UsageTrendChart({
           <div className="rounded-lg border border-border/70 bg-background/25 p-4">
             <div className="flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-primary-light" />
-              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">Period peaks</p>
+              <p className="font-mono text-system-meta font-medium uppercase tracking-[0.14em] text-muted">Period peaks</p>
             </div>
             <div className="mt-3 space-y-3">
               {highlights.map((highlight) => (
                 <div key={highlight.label} className="flex items-center justify-between gap-3 text-xs">
                   <div className="min-w-0">
-                    <p className="truncate text-white">{highlight.label}</p>
-                    <p className="mt-0.5 text-[10px] text-muted">{highlight.period}</p>
+                    <p className="font-mono truncate text-foreground">{highlight.label}</p>
+                    <p className="font-mono mt-0.5 text-system-meta text-muted">{highlight.period}</p>
                   </div>
-                  <span className="shrink-0 font-medium text-white">{highlight.value}</span>
+                  <span className="shrink-0 font-medium text-foreground">{highlight.value}</span>
                 </div>
               ))}
             </div>
@@ -308,12 +308,12 @@ export function UsageTrendChart({
           <div className="rounded-lg border border-border/70 bg-background/25 p-3 text-xs">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2 text-muted"><CircleGauge className="h-4 w-4 text-primary-light" />Primary total</div>
-              <span className="font-semibold text-white">{formatValue(totals.primary, mode)}</span>
+              <span className="font-medium text-foreground">{formatValue(totals.primary, mode)}</span>
             </div>
             {series[0]?.secondaryLabel && (
               <div className="mt-2 flex items-center justify-between gap-3 border-t border-border/60 pt-2">
                 <span className="text-muted">Secondary total</span>
-                <span className="font-semibold text-white">{formatValue(totals.secondary, mode)}</span>
+                <span className="font-medium text-foreground">{formatValue(totals.secondary, mode)}</span>
               </div>
             )}
           </div>

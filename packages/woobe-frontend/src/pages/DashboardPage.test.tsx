@@ -58,15 +58,16 @@ describe('DashboardPage states', () => {
     expect(activityIndex).toBeGreaterThan(-1)
     expect(changesIndex).toBeGreaterThan(activityIndex)
     expect(currentStateIndex).toBeGreaterThan(changesIndex)
-    expect(recentIndex).toBeGreaterThan(currentStateIndex)
+    expect(recentIndex).toBeGreaterThan(activityIndex)
+    expect(recentIndex).toBeLessThan(changesIndex)
   })
 
   it('renders distinct Run activity, reliability, issues, and contextual changes', () => {
     const markup = renderToStaticMarkup(<DashboardDataState model={adaptProjectOverview(cloneFixture())} onNavigate={vi.fn()} onOpenRun={vi.fn()} />)
     expect(markup).toContain('Run Activity')
-    expect(markup).toContain('Agent Run area and Network Run bars')
+    expect(markup).toContain('Agent Runs, Network Runs and Errors by time bucket')
     expect(markup).toContain('Reliability &amp; Performance')
-    expect(markup).toContain('operational issue')
+    expect(markup).toContain('Execution errors')
     expect(markup).toContain('Released to Production')
     expect(markup).toContain('Support Agent')
     expect(markup).toContain('Support Network')
@@ -97,7 +98,7 @@ describe('DashboardPage states', () => {
     expect(markup).not.toContain('Production releases')
   })
 
-  it('keeps Recent Runs compact and removes guidance copy and token columns', () => {
+  it('keeps Recent Runs compact with section context and without token columns', () => {
     const model = adaptProjectOverview(cloneFixture())
     const markup = renderToStaticMarkup(<DashboardDataState model={model} onNavigate={vi.fn()} onOpenRun={vi.fn()} />)
 
@@ -106,7 +107,7 @@ describe('DashboardPage states', () => {
     expect(markup).toContain('Duration')
     expect(markup).toContain('Cost')
     expect(markup).not.toContain('The three latest primary executions')
-    expect(markup).not.toContain('Volume, reliability, performance, and cost in the selected period.')
+    expect(markup).toContain('Volume, reliability, performance, and cost in the selected period.')
     expect(markup).not.toContain('Tokens')
   })
 })

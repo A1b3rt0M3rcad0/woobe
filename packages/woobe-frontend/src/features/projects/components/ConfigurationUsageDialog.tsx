@@ -34,7 +34,7 @@ export function ConfigurationUsageDialog({ projectId, item, environment, canAppr
         {usage.isLoading ? <p>Loading consumers…</p> : usage.isError ? <p role="alert">Consumer information is unavailable.</p> : <>
           <ul className="divide-y divide-border">{usage.data?.items.map(row => <li key={`${row.consumer_kind}:${row.consumer_id}:${row.definition_revision}:${row.field_path}`} className="flex flex-wrap items-center justify-between gap-ui-md py-ui-sm">
             <div className="min-w-0"><p className="break-all">{row.consumer_kind} · {row.consumer_id}</p>
-              <p className="break-all font-mono text-product-small text-muted-foreground">{row.field_path} · revision {row.definition_revision}</p>
+              <p className="break-all font-sans text-product-small text-muted-foreground">{row.field_path} · revision {row.definition_revision}</p>
               <p className="break-all text-product-small">{row.destination || 'Destination resolved by the selected definition'}</p></div>
             {canApprove && row.destination && <Button variant="outline" size="sm" disabled={!policies.data || pending} onClick={() => setApproval(row)}>Approve for {environment}</Button>}
           </li>)}</ul>
@@ -52,7 +52,7 @@ export function ConfigurationUsageDialog({ projectId, item, environment, canAppr
       </section>
     </div>
     {(approval || revocation) && <Dialog open layer="nestedModal" onClose={() => { if (!pending) { setApproval(null); setRevocation(null); setError('') } }} title={approval ? `Approve use in ${environment}?` : 'Revoke this approval?'}>
-      <div className="space-y-ui-md p-ui-lg"><p className="break-all font-mono">{approval?.destination ?? revocation?.destination}</p>
+      <div className="space-y-ui-md p-ui-lg"><p className="break-all font-sans">{approval?.destination ?? revocation?.destination}</p>
         <p>{approval ? 'This consumer will be allowed to send the configured value to this destination and its child paths. Review the host and path before approving.' : `New calls using this approval will stop in ${revocation?.environments.join(', ')}. Existing Runs must obtain new authorization.`}</p>
         {error && <p role="alert" className="text-destructive">{error}</p>}
         <div className="flex justify-end gap-ui-sm"><Button variant="outline" disabled={pending} onClick={() => { setApproval(null); setRevocation(null); setError('') }}>Cancel</Button><Button disabled={pending} onClick={() => void save()}>{pending ? 'Saving…' : approval ? 'Approve use' : 'Revoke approval'}</Button></div>

@@ -27,8 +27,8 @@ describe('MarkdownMessage', () => {
 
     expect(html).toContain('repoName')
     expect(html).toContain('proprietario/repositorio')
-    expect(html).toContain('bg-white/[0.06]')
-    expect(html).toContain('border-white/10')
+    expect(html).toContain('bg-muted/15')
+    expect(html).toContain('border-border')
     expect(html).not.toContain('bg-primary/10')
     expect(html).not.toContain('border-primary/20')
   })

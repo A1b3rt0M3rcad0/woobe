@@ -14,12 +14,13 @@ export {
 } from './foundations'
 
 export const woobeTypography = {
-  sans: ['Inter', 'system-ui', 'sans-serif'],
-  mono: ['JetBrains Mono', 'Fira Code', 'monospace'],
+  sans: ['var(--g-font-sans)'],
+  serif: ['var(--g-font-serif)'],
+  mono: ['var(--g-font-mono)'],
 } as const
 
 export const woobeRadius = {
-  technical: '0.125rem',
-  control: '0.1875rem',
-  container: '0.25rem',
+  technical: '0.25rem',
+  control: '0.375rem',
+  container: '0.625rem',
 } as const

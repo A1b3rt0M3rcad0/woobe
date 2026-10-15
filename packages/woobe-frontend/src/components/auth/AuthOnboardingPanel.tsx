@@ -1,4 +1,5 @@
 import { Bot, Building2, FolderKanban } from 'lucide-react'
+import { WoobeLogo } from '@woobe/ui'
 
 const steps = [
   { icon: Building2, title: 'Create a workspace', description: 'Group members, billing and projects.' },
@@ -10,16 +11,13 @@ export function AuthOnboardingPanel() {
   return (
     <section className="hidden border-r border-border bg-surface/60 p-10 lg:flex lg:flex-col lg:justify-between">
       <div>
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-white">W</div>
-          <div>
-            <h1 className="text-xl font-bold text-white">Woobe</h1>
-            <p className="text-sm text-muted">Production runtime for AI agents</p>
-          </div>
+        <div>
+          <WoobeLogo className="h-9" />
+          <p className="mt-2 text-sm text-muted">Production runtime for AI agents</p>
         </div>
         <div className="mt-16 max-w-xl">
-          <p className="text-xs font-medium uppercase tracking-[0.2em] text-primary-light">Workspace setup</p>
-          <h2 className="mt-3 text-4xl font-semibold tracking-tight text-white">Build a production AI agent in one guided flow.</h2>
+          <p className="font-mono text-xs font-medium uppercase tracking-[0.2em] text-primary-light">Workspace setup</p>
+          <h2 className="mt-3 text-4xl font-medium tracking-tight text-foreground">Build a production AI agent in one guided flow.</h2>
           <p className="mt-4 text-sm leading-6 text-muted">Sign in, choose your workspace, configure an agent and connect the resources it needs to run.</p>
         </div>
       </div>
@@ -31,7 +29,7 @@ export function AuthOnboardingPanel() {
             </div>
             <div>
               <p className="text-xs text-primary-light">Step {index + 1}</p>
-              <p className="text-sm font-semibold text-white">{step.title}</p>
+              <p className="font-mono text-sm font-medium text-foreground">{step.title}</p>
               <p className="mt-1 text-xs text-muted">{step.description}</p>
             </div>
           </div>

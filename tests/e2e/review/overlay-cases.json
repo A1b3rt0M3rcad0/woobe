@@ -1,0 +1,412 @@
+[
+  {
+    "id": "Dialog",
+    "source": "packages/woobe-ui/src/components/Dialog.tsx"
+  },
+  {
+    "id": "Drawer",
+    "source": "packages/woobe-ui/src/components/Drawer.tsx"
+  },
+  {
+    "id": "DangerConfirmDialog",
+    "source": "packages/woobe-ui/src/components/DangerConfirmDialog.tsx"
+  },
+  {
+    "id": "ConfigurationValueEditor",
+    "source": "packages/woobe-frontend/src/features/projects/components/ConfigurationValueEditor.tsx"
+  },
+  {
+    "id": "CreateProjectDialog",
+    "alias": "Overlay0",
+    "source": "packages/woobe-frontend/src/components/forms/CreateProjectDialog.tsx",
+    "export": "CreateProjectDialog"
+  },
+  {
+    "id": "CreateWorkspaceDialog",
+    "alias": "Overlay1",
+    "source": "packages/woobe-frontend/src/components/forms/CreateWorkspaceDialog.tsx",
+    "export": "CreateWorkspaceDialog"
+  },
+  {
+    "id": "AgentBehaviorFieldDialog",
+    "alias": "Overlay2",
+    "source": "packages/woobe-frontend/src/features/agents/components/AgentBehaviorFieldDialog.tsx",
+    "export": "AgentBehaviorFieldDialog"
+  },
+  {
+    "id": "AgentContextConfigurationDialog",
+    "alias": "Overlay3",
+    "source": "packages/woobe-frontend/src/features/agents/components/AgentContextConfigurationDialog.tsx",
+    "export": "AgentContextConfigurationDialog"
+  },
+  {
+    "id": "AgentModelManagerModal",
+    "alias": "Overlay4",
+    "source": "packages/woobe-frontend/src/features/agents/components/AgentModelManagerModal.tsx",
+    "export": "AgentModelManagerModal"
+  },
+  {
+    "id": "CreateAgentFlowModal",
+    "alias": "Overlay5",
+    "source": "packages/woobe-frontend/src/features/agents/components/CreateAgentFlowModal.tsx",
+    "export": "CreateAgentFlowModal"
+  },
+  {
+    "id": "CreateApiKeyDialog",
+    "alias": "Overlay6",
+    "source": "packages/woobe-frontend/src/features/api-keys/components/CreateApiKeyDialog.tsx",
+    "export": "CreateApiKeyDialog"
+  },
+  {
+    "id": "RotateApiKeyDialog",
+    "alias": "Overlay7",
+    "source": "packages/woobe-frontend/src/features/api-keys/components/RotateApiKeyDialog.tsx",
+    "export": "RotateApiKeyDialog"
+  },
+  {
+    "id": "AccountSettingsDialog",
+    "alias": "Overlay8",
+    "source": "packages/woobe-frontend/src/features/auth/components/AccountSettingsDialog.tsx",
+    "export": "AccountSettingsDialog"
+  },
+  {
+    "id": "ChatSurfaceDetailsModal",
+    "alias": "Overlay9",
+    "source": "packages/woobe-frontend/src/features/chat-surfaces/components/ChatSurfaceDetailsModal.tsx",
+    "export": "ChatSurfaceDetailsModal"
+  },
+  {
+    "id": "ChatSurfaceLiveTestDialog",
+    "alias": "Overlay10",
+    "source": "packages/woobe-frontend/src/features/chat-surfaces/components/ChatSurfaceLiveTestDialog.tsx",
+    "export": "ChatSurfaceLiveTestDialog"
+  },
+  {
+    "id": "ManualModelModal",
+    "alias": "Overlay11",
+    "source": "packages/woobe-frontend/src/features/first-run/components/ManualModelModal.tsx",
+    "export": "ManualModelModal"
+  },
+  {
+    "id": "ProviderConnectionModal",
+    "alias": "Overlay12",
+    "source": "packages/woobe-frontend/src/features/first-run/components/ProviderConnectionModal.tsx",
+    "export": "ProviderConnectionModal"
+  },
+  {
+    "id": "AttachCollectionModal",
+    "alias": "Overlay13",
+    "source": "packages/woobe-frontend/src/features/knowledge/components/AttachCollectionModal.tsx",
+    "export": "AttachCollectionModal"
+  },
+  {
+    "id": "BuildVectorSnapshotModalV2",
+    "alias": "Overlay14",
+    "source": "packages/woobe-frontend/src/features/knowledge/components/BuildVectorSnapshotModalV2.tsx",
+    "export": "BuildVectorSnapshotModalV2"
+  },
+  {
+    "id": "CollectionDetailsModal",
+    "alias": "Overlay15",
+    "source": "packages/woobe-frontend/src/features/knowledge/components/CollectionDetailsModal.tsx",
+    "export": "CollectionDetailsModal"
+  },
+  {
+    "id": "CollectionDetailsModalV2-CollectionDetailsModal",
+    "alias": "Overlay16",
+    "source": "packages/woobe-frontend/src/features/knowledge/components/CollectionDetailsModalV2.tsx",
+    "export": "CollectionDetailsModal"
+  },
+  {
+    "id": "CollectionDocumentUploadModal",
+    "alias": "Overlay17",
+    "source": "packages/woobe-frontend/src/features/knowledge/components/CollectionDocumentUploadModal.tsx",
+    "export": "CollectionDocumentUploadModal"
+  },
+  {
+    "id": "CreateCollectionModal",
+    "alias": "Overlay18",
+    "source": "packages/woobe-frontend/src/features/knowledge/components/CreateCollectionModal.tsx",
+    "export": "CreateCollectionModal"
+  },
+  {
+    "id": "CreateEmbeddingModelModal",
+    "alias": "Overlay19",
+    "source": "packages/woobe-frontend/src/features/knowledge/components/CreateEmbeddingModelModal.tsx",
+    "export": "CreateEmbeddingModelModal"
+  },
+  {
+    "id": "DocumentsDrawer",
+    "alias": "Overlay20",
+    "source": "packages/woobe-frontend/src/features/knowledge/components/DocumentsDrawer.tsx",
+    "export": "DocumentsDrawer"
+  },
+  {
+    "id": "SelectKnowledgeVersionModal",
+    "alias": "Overlay21",
+    "source": "packages/woobe-frontend/src/features/knowledge/components/SelectKnowledgeVersionModal.tsx",
+    "export": "SelectKnowledgeVersionModal"
+  },
+  {
+    "id": "UploadDocumentModal",
+    "alias": "Overlay22",
+    "source": "packages/woobe-frontend/src/features/knowledge/components/UploadDocumentModal.tsx",
+    "export": "UploadDocumentModal"
+  },
+  {
+    "id": "VectorSnapshotDetailsModal",
+    "alias": "Overlay23",
+    "source": "packages/woobe-frontend/src/features/knowledge/components/VectorSnapshotDetailsModal.tsx",
+    "export": "VectorSnapshotDetailsModal"
+  },
+  {
+    "id": "NetworkAgentCatalogDrawer",
+    "alias": "Overlay24",
+    "source": "packages/woobe-frontend/src/features/network/components/NetworkAgentCatalogDrawer.tsx",
+    "export": "NetworkAgentCatalogDrawer"
+  },
+  {
+    "id": "NetworkApiModal",
+    "alias": "Overlay25",
+    "source": "packages/woobe-frontend/src/features/network/components/NetworkApiModal.tsx",
+    "export": "NetworkApiModal"
+  },
+  {
+    "id": "NetworkDraftConflictDialog",
+    "alias": "Overlay26",
+    "source": "packages/woobe-frontend/src/features/network/components/NetworkDraftConflictDialog.tsx",
+    "export": "NetworkDraftConflictDialog"
+  },
+  {
+    "id": "NetworkInspectorModal",
+    "alias": "Overlay27",
+    "source": "packages/woobe-frontend/src/features/network/components/NetworkInspectorModal.tsx",
+    "export": "NetworkInspectorModal"
+  },
+  {
+    "id": "NetworkPromotionDialogV2-NetworkPromotionDialog",
+    "alias": "Overlay28",
+    "source": "packages/woobe-frontend/src/features/network/components/NetworkPromotionDialogV2.tsx",
+    "export": "NetworkPromotionDialog"
+  },
+  {
+    "id": "NetworkReleaseDialogs-NetworkReleaseModal",
+    "alias": "Overlay29",
+    "source": "packages/woobe-frontend/src/features/network/components/NetworkReleaseDialogs.tsx",
+    "export": "NetworkReleaseModal"
+  },
+  {
+    "id": "NetworkReleaseDialogs-UnsavedAgentSwitchDialog",
+    "alias": "Overlay30",
+    "source": "packages/woobe-frontend/src/features/network/components/NetworkReleaseDialogs.tsx",
+    "export": "UnsavedAgentSwitchDialog"
+  },
+  {
+    "id": "NetworkRemoveDialog",
+    "alias": "Overlay31",
+    "source": "packages/woobe-frontend/src/features/network/components/NetworkRemoveDialog.tsx",
+    "export": "NetworkRemoveDialog"
+  },
+  {
+    "id": "NetworkRollbackDialog",
+    "alias": "Overlay32",
+    "source": "packages/woobe-frontend/src/features/network/components/NetworkRollbackDialog.tsx",
+    "export": "NetworkRollbackDialog"
+  },
+  {
+    "id": "NetworkRuntimeControlsPopover",
+    "alias": "Overlay33",
+    "source": "packages/woobe-frontend/src/features/network/components/NetworkRuntimeControlsPopover.tsx",
+    "export": "NetworkRuntimeControlsPopover"
+  },
+  {
+    "id": "NetworkUnsavedChangesDialog",
+    "alias": "Overlay34",
+    "source": "packages/woobe-frontend/src/features/network/components/NetworkUnsavedChangesDialog.tsx",
+    "export": "NetworkUnsavedChangesDialog"
+  },
+  {
+    "id": "NetworkVersionsModalV2-NetworkVersionsModal",
+    "alias": "Overlay35",
+    "source": "packages/woobe-frontend/src/features/network/components/NetworkVersionsModalV2.tsx",
+    "export": "NetworkVersionsModal"
+  },
+  {
+    "id": "AgentControlsPopover",
+    "alias": "Overlay36",
+    "source": "packages/woobe-frontend/src/features/playground/components/AgentControlsPopover.tsx",
+    "export": "AgentControlsPopover"
+  },
+  {
+    "id": "AgentManagerModal",
+    "alias": "Overlay37",
+    "source": "packages/woobe-frontend/src/features/playground/components/AgentManagerModal.tsx",
+    "export": "AgentManagerModal"
+  },
+  {
+    "id": "ApiModal",
+    "alias": "Overlay38",
+    "source": "packages/woobe-frontend/src/features/playground/components/ApiModal.tsx",
+    "export": "ApiModal"
+  },
+  {
+    "id": "ConfirmDeleteModal",
+    "alias": "Overlay39",
+    "source": "packages/woobe-frontend/src/features/playground/components/ConfirmDeleteModal.tsx",
+    "export": "ConfirmDeleteModal"
+  },
+  {
+    "id": "ConfirmVersionModal",
+    "alias": "Overlay40",
+    "source": "packages/woobe-frontend/src/features/playground/components/ConfirmVersionModal.tsx",
+    "export": "ConfirmVersionModal"
+  },
+  {
+    "id": "CreateReleaseDialog",
+    "alias": "Overlay41",
+    "source": "packages/woobe-frontend/src/features/playground/components/CreateReleaseDialog.tsx",
+    "export": "CreateReleaseDialog"
+  },
+  {
+    "id": "CreateToolModal",
+    "alias": "Overlay42",
+    "source": "packages/woobe-frontend/src/features/playground/components/CreateToolModal.tsx",
+    "export": "CreateToolModal"
+  },
+  {
+    "id": "EditHttpGroupModal",
+    "alias": "Overlay43",
+    "source": "packages/woobe-frontend/src/features/playground/components/EditHttpGroupModal.tsx",
+    "export": "EditHttpGroupModal"
+  },
+  {
+    "id": "EditToolModal",
+    "alias": "Overlay44",
+    "source": "packages/woobe-frontend/src/features/playground/components/EditToolModal.tsx",
+    "export": "EditToolModal"
+  },
+  {
+    "id": "ImportToolsModal",
+    "alias": "Overlay45",
+    "source": "packages/woobe-frontend/src/features/playground/components/ImportToolsModal.tsx",
+    "export": "ImportToolsModal"
+  },
+  {
+    "id": "ManageKnowledgeModal",
+    "alias": "Overlay46",
+    "source": "packages/woobe-frontend/src/features/playground/components/ManageKnowledgeModal.tsx",
+    "export": "ManageKnowledgeModal"
+  },
+  {
+    "id": "OutputContractHelpModal",
+    "alias": "Overlay47",
+    "source": "packages/woobe-frontend/src/features/playground/components/OutputContractHelpModal.tsx",
+    "export": "OutputContractHelpModal"
+  },
+  {
+    "id": "ProductionChangesModal",
+    "alias": "Overlay48",
+    "source": "packages/woobe-frontend/src/features/playground/components/ProductionChangesModal.tsx",
+    "export": "ProductionChangesModal"
+  },
+  {
+    "id": "ReleaseLibraryModal",
+    "alias": "Overlay49",
+    "source": "packages/woobe-frontend/src/features/playground/components/ReleaseLibraryModal.tsx",
+    "export": "ReleaseLibraryModal"
+  },
+  {
+    "id": "ReleaseSnapshotModal",
+    "alias": "Overlay50",
+    "source": "packages/woobe-frontend/src/features/playground/components/ReleaseSnapshotModal.tsx",
+    "export": "ReleaseSnapshotModal"
+  },
+  {
+    "id": "StageDraftSnapshotModal",
+    "alias": "Overlay51",
+    "source": "packages/woobe-frontend/src/features/playground/components/StageDraftSnapshotModal.tsx",
+    "export": "StageDraftSnapshotModal"
+  },
+  {
+    "id": "ConfigurationKeyDeclarationDialog",
+    "alias": "Overlay52",
+    "source": "packages/woobe-frontend/src/features/projects/components/ConfigurationKeyDeclarationDialog.tsx",
+    "export": "ConfigurationKeyDeclarationDialog"
+  },
+  {
+    "id": "ConfigurationUsageDialog",
+    "alias": "Overlay53",
+    "source": "packages/woobe-frontend/src/features/projects/components/ConfigurationUsageDialog.tsx",
+    "export": "ConfigurationUsageDialog"
+  },
+  {
+    "id": "ProjectSettingsDialog",
+    "alias": "Overlay54",
+    "source": "packages/woobe-frontend/src/features/projects/components/ProjectSettingsDialog.tsx",
+    "export": "ProjectSettingsDialog"
+  },
+  {
+    "id": "AddProviderCredentialModal",
+    "alias": "Overlay55",
+    "source": "packages/woobe-frontend/src/features/provider-credentials/components/AddProviderCredentialModal.tsx",
+    "export": "AddProviderCredentialModal"
+  },
+  {
+    "id": "RotateProviderCredentialDialog",
+    "alias": "Overlay56",
+    "source": "packages/woobe-frontend/src/features/provider-credentials/components/RotateProviderCredentialDialog.tsx",
+    "export": "RotateProviderCredentialDialog"
+  },
+  {
+    "id": "ModelSettingsModal",
+    "alias": "Overlay57",
+    "source": "packages/woobe-frontend/src/features/provider-models/components/ModelSettingsModal.tsx",
+    "export": "ModelSettingsModal"
+  },
+  {
+    "id": "RuntimeApiReferenceModal",
+    "alias": "Overlay58",
+    "source": "packages/woobe-frontend/src/features/runtime-reference/RuntimeApiReferenceModal.tsx",
+    "export": "RuntimeApiReferenceModal"
+  },
+  {
+    "id": "ManageSkillsDialog",
+    "alias": "Overlay59",
+    "source": "packages/woobe-frontend/src/features/skills/ManageSkillsDialog.tsx",
+    "export": "ManageSkillsDialog"
+  },
+  {
+    "id": "ToolSettingsModal",
+    "alias": "Overlay60",
+    "source": "packages/woobe-frontend/src/features/tools/components/ToolSettingsModal.tsx",
+    "export": "ToolSettingsModal"
+  },
+  {
+    "id": "WorkspaceSettingsDialog",
+    "alias": "Overlay61",
+    "source": "packages/woobe-frontend/src/features/workspaces/components/WorkspaceSettingsDialog.tsx",
+    "export": "WorkspaceSettingsDialog"
+  },
+  {
+    "id": "ToolsCreateDialog",
+    "alias": "Overlay62",
+    "source": "packages/woobe-frontend/src/pages/ToolsCreateDialog.tsx",
+    "export": "ToolsCreateDialog"
+  },
+  {
+    "id": "RagRuntimeSettings",
+    "source": "packages/woobe-frontend/src/features/playground/components/RagRuntimeSettings.tsx"
+  },
+  {
+    "id": "ConfigurationBatchEditor",
+    "source": "packages/woobe-frontend/src/features/projects/components/ConfigurationBatchEditor.tsx"
+  },
+  {
+    "id": "ManageSkills-Create",
+    "source": "packages/woobe-frontend/src/features/skills/ManageSkillsDialog.tsx"
+  },
+  {
+    "id": "ManageSkills-Import",
+    "source": "packages/woobe-frontend/src/features/skills/ManageSkillsDialog.tsx"
+  }
+]

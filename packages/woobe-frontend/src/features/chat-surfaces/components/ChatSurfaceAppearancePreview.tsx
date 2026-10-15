@@ -39,8 +39,8 @@ export function ChatSurfaceAppearancePreview({
     <section className="min-w-0 self-start overflow-hidden rounded-container border border-border bg-surface/[0.92]">
       <div className="flex h-[46px] min-w-0 items-center justify-between gap-3 border-b border-border px-3.5">
         <div className="min-w-0">
-          <p className="font-mono text-[8px] font-semibold uppercase tracking-[0.13em] text-muted-foreground">Preview</p>
-          <p className="mt-0.5 truncate font-mono text-[9px] text-slate-300">Production renderer</p>
+          <p className="font-sans text-system-meta font-medium uppercase tracking-[0.13em] text-muted-foreground">Preview</p>
+          <p className="mt-0.5 truncate font-sans text-system-meta text-slate-300">Production renderer</p>
         </div>
         {onTest ? (
           <Button
@@ -68,11 +68,11 @@ export function ChatSurfaceAppearancePreview({
       />
 
       <div className="border-t border-border px-3.5 py-3">
-        <p className="font-sans text-[10px] leading-4 text-muted-foreground">
+        <p className="font-sans text-system-meta leading-4 text-muted-foreground">
           Same ChatSurface renderer used by the production embed. Preview does not create a Session or execute the target.
         </p>
         {testDisabledReason ? (
-          <p className="mt-2 font-mono text-[9px] leading-4 text-amber-200/80">{testDisabledReason}</p>
+          <p className="mt-2 font-sans text-system-meta leading-4 text-warning">{testDisabledReason}</p>
         ) : null}
       </div>
     </section>

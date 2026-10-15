@@ -61,7 +61,7 @@ export function NetworkBindingBadge({
           <span aria-hidden className={cn('h-1.5 w-1.5 shrink-0 rounded-full', dirty ? 'bg-warning' : sourceDotTone[source])} />
           <span className="truncate">{sourceLabel[source]}{dirty ? ' · unsaved' : ''}</span>
         </span>
-        <span className="min-w-0 truncate text-right text-muted-foreground/70">{normalizedVersion}</span>
+        <span className="min-w-0 truncate text-right text-muted-foreground">{normalizedVersion}</span>
       </span>
     )
   }

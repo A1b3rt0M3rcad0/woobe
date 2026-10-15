@@ -155,10 +155,11 @@ export interface ConfigurationSummary {
 }
 export async function getConfigurationSummary(project: string, environment: ProjectEnvironment) {
   const result = await get<ConfigurationSummary>(`${configurationPath(project)}/summary`, { params: { environment } })
-  if (!result || result.environment !== environment || result.scope !== 'current_selections'
+  if (!result || result.environment !== environment || !['current_selections', 'current_selections_page'].includes(result.scope)
     || !['ready', 'ready_with_notices', 'blocked', 'unknown'].includes(result.state)
     || typeof result.complete !== 'boolean' || typeof result.checked_at !== 'string'
     || (!result.complete && result.state !== 'unknown')
+    || (result.scope === 'current_selections_page' && (result.state !== 'unknown' || result.complete))
     || ![result.inspected_target_count, result.unselected_target_count, result.affected_target_count,
       result.blocked_key_count, result.missing_key_count, result.required_key_count, result.affected_consumer_count]
       .every(value => Number.isSafeInteger(value) && value >= 0)) throw new Error('Configuration summary is incomplete.')

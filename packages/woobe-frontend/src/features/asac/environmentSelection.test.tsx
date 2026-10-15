@@ -36,7 +36,7 @@ beforeEach(() => {
 afterEach(async () => { await act(async () => root.unmount()); client.clear(); container.remove() })
 describe('authoritative environment selection', () => {
   it('uses a released snapshot absent from the catalog and fetches exact immutable details', async () => {
-    await render(); expect(container.textContent).toContain('Production Live'); expect(container.textContent).toContain('immutable-model · stateless')
+    await render(); expect(container.textContent).toContain('Production Enabled'); expect(container.textContent).toContain('immutable-model · stateless')
     expect(observed.snapshot?.external_context_contract).toEqual({ fields: [{ name: 'tenant' }] })
     expect(fixture.get).toHaveBeenCalledWith('/ai/agents/agent/releases/selected')
     expect(fixture.get.mock.calls.some(([path]) => path.endsWith('/releases'))).toBe(false)
@@ -52,7 +52,7 @@ describe('authoritative environment selection', () => {
   it('keeps verified selection visible when details are forbidden', async () => {
     let forbidden = true
     fixture.get.mockImplementation(async (path: string) => { if (path.endsWith('/current')) return current(); if (forbidden) throw new Error('403'); return release() })
-    await render(); expect(container.textContent).toContain('Production Live'); expect(container.textContent).toContain('details unavailable'); expect(observed.snapshot).toBeNull(); expect(observed.state).toBe('selected')
+    await render(); expect(container.textContent).toContain('Production Enabled'); expect(container.textContent).toContain('details unavailable'); expect(observed.snapshot).toBeNull(); expect(observed.state).toBe('selected')
     forbidden = false; await act(async () => container.querySelector('button')!.click()); await settle()
     expect(observed.snapshot?.model).toBe('immutable-model'); expect(observed.detailState).toBe('ready')
   })

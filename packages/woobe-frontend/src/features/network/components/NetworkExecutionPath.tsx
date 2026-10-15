@@ -18,10 +18,10 @@ import {
 } from './networkRunInspector'
 
 function StatusIcon({ status }: { status: NetworkAgentInvocation['status'] }) {
-  if (status === 'error') return <XCircle className="h-3.5 w-3.5 text-red-400" />
+  if (status === 'error') return <XCircle className="h-3.5 w-3.5 text-error" />
   if (status === 'cancelled') return <XCircle className="h-3.5 w-3.5 text-slate-400" />
-  if (status === 'running' || status === 'pending') return <CircleDot className="h-3.5 w-3.5 animate-pulse text-blue-400" />
-  return <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+  if (status === 'running' || status === 'pending') return <CircleDot className="h-3.5 w-3.5 animate-pulse text-primary-light" />
+  return <CheckCircle2 className="h-3.5 w-3.5 text-success" />
 }
 
 function toolSummaryLabel(invocation: NetworkAgentInvocation) {
@@ -68,12 +68,12 @@ export function NetworkExecutionPath({
             )}
             style={{ paddingLeft: `${10 + Math.min(depth, 4) * 16}px` }}
           >
-            {depth > 0 ? <CornerDownRight className="absolute left-1 top-2.5 h-3 w-3 text-muted-foreground/55" style={{ marginLeft: `${Math.min(depth - 1, 3) * 16}px` }} /> : null}
+            {depth > 0 ? <CornerDownRight className="absolute left-1 top-2.5 h-3 w-3 text-muted-foreground" style={{ marginLeft: `${Math.min(depth - 1, 3) * 16}px` }} /> : null}
             <div className="flex items-start gap-ui-sm">
               <span className="mt-ui-hairline shrink-0"><StatusIcon status={invocation.status} /></span>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-ui-sm">
-                  <p className="truncate font-sans text-product-small font-medium text-white">{invocation.agentName}</p>
+                  <p className="truncate font-mono text-product-small font-medium text-foreground">{invocation.agentName}</p>
                   <span className="shrink-0 font-mono text-system-meta uppercase tracking-ui-label text-muted-foreground">{role === 'entry' ? 'Entry' : 'Delegated'}</span>
                   {invocation.durationMs != null ? <span className="ml-auto shrink-0 font-mono text-system-meta text-muted-foreground">{formatLatency(invocation.durationMs)}</span> : null}
                 </div>
@@ -81,14 +81,14 @@ export function NetworkExecutionPath({
                   <span className="truncate">{invocation.source} · {invocation.version}</span>
                   {invocation.usage ? <span className="ml-auto shrink-0">{formatNumber(invocation.usage.input_tokens, 0)} / {formatNumber(invocation.usage.output_tokens, 0)} tokens</span> : null}
                 </div>
-                {toolSummary ? <p className={cn('mt-ui-xs inline-flex items-center gap-ui-xs font-mono text-system-meta', toolSummaryState.failed ? 'text-red-300' : toolSummaryState.running ? 'text-blue-300' : 'text-muted-foreground')}>{invocation.tools.some(isSkillOperation) ? <Puzzle className="h-3 w-3" /> : <Wrench className="h-3 w-3" />}{toolSummary}</p> : null}
+                {toolSummary ? <p className={cn('mt-ui-xs inline-flex items-center gap-ui-xs font-mono text-system-meta', toolSummaryState.failed ? 'text-error' : toolSummaryState.running ? 'text-primary-light' : 'text-muted-foreground')}>{invocation.tools.some(isSkillOperation) ? <Puzzle className="h-3 w-3" /> : <Wrench className="h-3 w-3" />}{toolSummary}</p> : null}
               </div>
             </div>
           </button>
         )
       })}
       {hiddenCount > 0 && onViewAll ? (
-        <button type="button" onClick={onViewAll} className="w-full rounded-control border border-dashed border-border/80 px-ui-md py-ui-sm font-mono text-system-micro text-muted-foreground transition-colors hover:border-primary/30 hover:text-white">
+        <button type="button" onClick={onViewAll} className="w-full rounded-control border border-dashed border-border/80 px-ui-md py-ui-sm font-sans text-system-micro text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground">
           View {hiddenCount} more Agent Run{hiddenCount === 1 ? '' : 's'}
         </button>
       ) : null}

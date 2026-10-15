@@ -1,0 +1,991 @@
+{
+  "description": "Recortes de imagens geradas pelo modelo, mantidos como PNG. SVGs na pasta components/ são reconstruções editáveis, não reversões exatas do vetor original.",
+  "crops": [
+    {
+      "file": "raster-extractions/brand/master-primary-logo.png",
+      "name": "master-primary-logo",
+      "source": "reference-boards/identity.png",
+      "source_rect_px": [
+        190,
+        82,
+        885,
+        315
+      ],
+      "dimensions_px": [
+        695,
+        233
+      ],
+      "kind": "raster-crop-original-image",
+      "editable": false
+    },
+    {
+      "file": "raster-extractions/brand/master-icon-tile.png",
+      "name": "master-icon-tile",
+      "source": "reference-boards/identity.png",
+      "source_rect_px": [
+        907,
+        67,
+        1193,
+        327
+      ],
+      "dimensions_px": [
+        286,
+        260
+      ],
+      "kind": "raster-crop-original-image",
+      "editable": false
+    },
+    {
+      "file": "raster-extractions/brand/master-lockup-variations.png",
+      "name": "master-lockup-variations",
+      "source": "reference-boards/identity.png",
+      "source_rect_px": [
+        50,
+        332,
+        901,
+        557
+      ],
+      "dimensions_px": [
+        851,
+        225
+      ],
+      "kind": "raster-crop-original-image",
+      "editable": false
+    },
+    {
+      "file": "raster-extractions/brand/master-mark-construction.png",
+      "name": "master-mark-construction",
+      "source": "reference-boards/identity.png",
+      "source_rect_px": [
+        942,
+        344,
+        1398,
+        555
+      ],
+      "dimensions_px": [
+        456,
+        211
+      ],
+      "kind": "raster-crop-original-image",
+      "editable": false
+    },
+    {
+      "file": "raster-extractions/brand/master-color-palette.png",
+      "name": "master-color-palette",
+      "source": "reference-boards/identity.png",
+      "source_rect_px": [
+        49,
+        567,
+        726,
+        834
+      ],
+      "dimensions_px": [
+        677,
+        267
+      ],
+      "kind": "raster-crop-original-image",
+      "editable": false
+    },
+    {
+      "file": "raster-extractions/brand/master-type-system.png",
+      "name": "master-type-system",
+      "source": "reference-boards/identity.png",
+      "source_rect_px": [
+        737,
+        570,
+        1385,
+        828
+      ],
+      "dimensions_px": [
+        648,
+        258
+      ],
+      "kind": "raster-crop-original-image",
+      "editable": false
+    },
+    {
+      "file": "raster-extractions/brand/master-brand-philosophy.png",
+      "name": "master-brand-philosophy",
+      "source": "reference-boards/identity.png",
+      "source_rect_px": [
+        48,
+        844,
+        615,
+        1001
+      ],
+      "dimensions_px": [
+        567,
+        157
+      ],
+      "kind": "raster-crop-original-image",
+      "editable": false
+    },
+    {
+      "file": "raster-extractions/brand/master-brand-principles.png",
+      "name": "master-brand-principles",
+      "source": "reference-boards/identity.png",
+      "source_rect_px": [
+        630,
+        843,
+        911,
+        1001
+      ],
+      "dimensions_px": [
+        281,
+        158
+      ],
+      "kind": "raster-crop-original-image",
+      "editable": false
+    },
+    {
+      "file": "raster-extractions/brand/asset-primary-logo.png",
+      "name": "asset-primary-logo",
+      "source": "reference-boards/logo-assets.png",
+      "source_rect_px": [
+        47,
+        70,
+        783,
+        309
+      ],
+      "dimensions_px": [
+        736,
+        239
+      ],
+      "kind": "raster-crop-original-image",
+      "editable": false
+    },
+    {
+      "file": "raster-extractions/brand/asset-icon-only.png",
+      "name": "asset-icon-only",
+      "source": "reference-boards/logo-assets.png",
+      "source_rect_px": [
+        783,
+        72,
+        1060,
+        304
+      ],
+      "dimensions_px": [
+        277,
+        232
+      ],
+      "kind": "raster-crop-original-image",
+      "editable": false
+    },
+    {
+      "file": "raster-extractions/brand/asset-stacked-logo.png",
+      "name": "asset-stacked-logo",
+      "source": "reference-boards/logo-assets.png",
+      "source_rect_px": [
+        1059,
+        73,
+        1366,
+        305
+      ],
+      "dimensions_px": [
+        307,
+        232
+      ],
+      "kind": "raster-crop-original-image",
+      "editable": false
+    },
+    {
+      "file": "raster-extractions/brand/asset-logo-variants.png",
+      "name": "asset-logo-variants",
+      "source": "reference-boards/logo-assets.png",
+      "source_rect_px": [
+        43,
+        327,
+        766,
+        508
+      ],
+      "dimensions_px": [
+        723,
+        181
+      ],
+      "kind": "raster-crop-original-image",
+      "editable": false
+    },
+    {
+      "file": "raster-extractions/brand/asset-app-icons.png",
+      "name": "asset-app-icons",
+      "source": "reference-boards/logo-assets.png",
+      "source_rect_px": [
+        775,
+        323,
+        1072,
+        510
+      ],
+      "dimensions_px": [
+        297,
+        187
+      ],
+      "kind": "raster-crop-original-image",
+      "editable": false
+    },
+    {
+      "file": "raster-extractions/brand/asset-favicons.png",
+      "name": "asset-favicons",
+      "source": "reference-boards/logo-assets.png",
+      "source_rect_px": [
+        1082,
+        328,
+        1388,
+        506
+      ],
+      "dimensions_px": [
+        306,
+        178
+      ],
+      "kind": "raster-crop-original-image",
+      "editable": false
+    },
+    {
+      "file": "raster-extractions/brand/asset-social-avatars.png",
+      "name": "asset-social-avatars",
+      "source": "reference-boards/logo-assets.png",
+      "source_rect_px": [
+        43,
+        527,
+        576,
+        769
+      ],
+      "dimensions_px": [
+        533,
+        242
+      ],
+      "kind": "raster-crop-original-image",
+      "editable": false
+    },
+    {
+      "file": "raster-extractions/brand/asset-logo-clear-space.png",
+      "name": "asset-logo-clear-space",
+      "source": "reference-boards/logo-assets.png",
+      "source_rect_px": [
+        572,
+        527,
+        1102,
+        772
+      ],
+      "dimensions_px": [
+        530,
+        245
+      ],
+      "kind": "raster-crop-original-image",
+      "editable": false
+    },
+    {
+      "file": "raster-extractions/brand/asset-minimum-sizes.png",
+      "name": "asset-minimum-sizes",
+      "source": "reference-boards/logo-assets.png",
+      "source_rect_px": [
+        1108,
+        526,
+        1405,
+        772
+      ],
+      "dimensions_px": [
+        297,
+        246
+      ],
+      "kind": "raster-crop-original-image",
+      "editable": false
+    },
+    {
+      "file": "raster-extractions/brand/asset-usage-examples.png",
+      "name": "asset-usage-examples",
+      "source": "reference-boards/logo-assets.png",
+      "source_rect_px": [
+        45,
+        774,
+        1385,
+        993
+      ],
+      "dimensions_px": [
+        1340,
+        219
+      ],
+      "kind": "raster-crop-original-image",
+      "editable": false
+    },
+    {
+      "file": "raster-extractions/components/01-top-navigation.png",
+      "name": "01-top-navigation",
+      "source": "reference-boards/ui-system.png",
+      "source_rect_px": [
+        42,
+        241,
+        626,
+        374
+      ],
+      "dimensions_px": [
+        584,
+        133
+      ],
+      "kind": "raster-crop-original-image",
+      "editable": false
+    },
+    {
+      "file": "raster-extractions/components/02-buttons.png",
+      "name": "02-buttons",
+      "source": "reference-boards/ui-system.png",
+      "source_rect_px": [
+        627,
+        241,
+        1080,
+        374
+      ],
+      "dimensions_px": [
+        453,
+        133
+      ],
+      "kind": "raster-crop-original-image",
+      "editable": false
+    },
+    {
+      "file": "raster-extractions/components/03-status-badges.png",
+      "name": "03-status-badges",
+      "source": "reference-boards/ui-system.png",
+      "source_rect_px": [
+        1078,
+        241,
+        1387,
+        374
+      ],
+      "dimensions_px": [
+        309,
+        133
+      ],
+      "kind": "raster-crop-original-image",
+      "editable": false
+    },
+    {
+      "file": "raster-extractions/components/04-agent-mini-cards.png",
+      "name": "04-agent-mini-cards",
+      "source": "reference-boards/ui-system.png",
+      "source_rect_px": [
+        41,
+        375,
+        546,
+        576
+      ],
+      "dimensions_px": [
+        505,
+        201
+      ],
+      "kind": "raster-crop-original-image",
+      "editable": false
+    },
+    {
+      "file": "raster-extractions/components/05-metric-card.png",
+      "name": "05-metric-card",
+      "source": "reference-boards/ui-system.png",
+      "source_rect_px": [
+        543,
+        375,
+        789,
+        574
+      ],
+      "dimensions_px": [
+        246,
+        199
+      ],
+      "kind": "raster-crop-original-image",
+      "editable": false
+    },
+    {
+      "file": "raster-extractions/components/06-feature-card.png",
+      "name": "06-feature-card",
+      "source": "reference-boards/ui-system.png",
+      "source_rect_px": [
+        791,
+        375,
+        1075,
+        576
+      ],
+      "dimensions_px": [
+        284,
+        201
+      ],
+      "kind": "raster-crop-original-image",
+      "editable": false
+    },
+    {
+      "file": "raster-extractions/components/07-dashboard-stat.png",
+      "name": "07-dashboard-stat",
+      "source": "reference-boards/ui-system.png",
+      "source_rect_px": [
+        1077,
+        375,
+        1389,
+        575
+      ],
+      "dimensions_px": [
+        312,
+        200
+      ],
+      "kind": "raster-crop-original-image",
+      "editable": false
+    },
+    {
+      "file": "raster-extractions/components/08-terminal-code-block.png",
+      "name": "08-terminal-code-block",
+      "source": "reference-boards/ui-system.png",
+      "source_rect_px": [
+        42,
+        580,
+        473,
+        822
+      ],
+      "dimensions_px": [
+        431,
+        242
+      ],
+      "kind": "raster-crop-original-image",
+      "editable": false
+    },
+    {
+      "file": "raster-extractions/components/09-input-fields.png",
+      "name": "09-input-fields",
+      "source": "reference-boards/ui-system.png",
+      "source_rect_px": [
+        476,
+        579,
+        747,
+        825
+      ],
+      "dimensions_px": [
+        271,
+        246
+      ],
+      "kind": "raster-crop-original-image",
+      "editable": false
+    },
+    {
+      "file": "raster-extractions/components/10-select-and-segmented.png",
+      "name": "10-select-and-segmented",
+      "source": "reference-boards/ui-system.png",
+      "source_rect_px": [
+        750,
+        577,
+        1047,
+        824
+      ],
+      "dimensions_px": [
+        297,
+        247
+      ],
+      "kind": "raster-crop-original-image",
+      "editable": false
+    },
+    {
+      "file": "raster-extractions/components/11-table-rows.png",
+      "name": "11-table-rows",
+      "source": "reference-boards/ui-system.png",
+      "source_rect_px": [
+        1048,
+        577,
+        1384,
+        827
+      ],
+      "dimensions_px": [
+        336,
+        250
+      ],
+      "kind": "raster-crop-original-image",
+      "editable": false
+    },
+    {
+      "file": "raster-extractions/components/12-tabs.png",
+      "name": "12-tabs",
+      "source": "reference-boards/ui-system.png",
+      "source_rect_px": [
+        42,
+        827,
+        366,
+        1001
+      ],
+      "dimensions_px": [
+        324,
+        174
+      ],
+      "kind": "raster-crop-original-image",
+      "editable": false
+    },
+    {
+      "file": "raster-extractions/components/13-modal-dialog.png",
+      "name": "13-modal-dialog",
+      "source": "reference-boards/ui-system.png",
+      "source_rect_px": [
+        368,
+        828,
+        698,
+        1001
+      ],
+      "dimensions_px": [
+        330,
+        173
+      ],
+      "kind": "raster-crop-original-image",
+      "editable": false
+    },
+    {
+      "file": "raster-extractions/components/14-spacing-scale.png",
+      "name": "14-spacing-scale",
+      "source": "reference-boards/ui-system.png",
+      "source_rect_px": [
+        701,
+        830,
+        896,
+        1001
+      ],
+      "dimensions_px": [
+        195,
+        171
+      ],
+      "kind": "raster-crop-original-image",
+      "editable": false
+    },
+    {
+      "file": "raster-extractions/components/15-radii-scale.png",
+      "name": "15-radii-scale",
+      "source": "reference-boards/ui-system.png",
+      "source_rect_px": [
+        898,
+        831,
+        1089,
+        1001
+      ],
+      "dimensions_px": [
+        191,
+        170
+      ],
+      "kind": "raster-crop-original-image",
+      "editable": false
+    },
+    {
+      "file": "raster-extractions/components/16-color-tokens.png",
+      "name": "16-color-tokens",
+      "source": "reference-boards/ui-system.png",
+      "source_rect_px": [
+        1086,
+        831,
+        1391,
+        1000
+      ],
+      "dimensions_px": [
+        305,
+        169
+      ],
+      "kind": "raster-crop-original-image",
+      "editable": false
+    },
+    {
+      "file": "raster-extractions/landing/01-navigation.png",
+      "name": "01-navigation",
+      "source": "reference-boards/landing-page.png",
+      "source_rect_px": [
+        39,
+        0,
+        1073,
+        75
+      ],
+      "dimensions_px": [
+        1034,
+        75
+      ],
+      "kind": "raster-crop-original-image",
+      "editable": false
+    },
+    {
+      "file": "raster-extractions/landing/02-hero-full.png",
+      "name": "02-hero-full",
+      "source": "reference-boards/landing-page.png",
+      "source_rect_px": [
+        40,
+        73,
+        1062,
+        378
+      ],
+      "dimensions_px": [
+        1022,
+        305
+      ],
+      "kind": "raster-crop-original-image",
+      "editable": false
+    },
+    {
+      "file": "raster-extractions/landing/03-hero-headline.png",
+      "name": "03-hero-headline",
+      "source": "reference-boards/landing-page.png",
+      "source_rect_px": [
+        317,
+        76,
+        789,
+        351
+      ],
+      "dimensions_px": [
+        472,
+        275
+      ],
+      "kind": "raster-crop-original-image",
+      "editable": false
+    },
+    {
+      "file": "raster-extractions/landing/04-agent-pr-reviewer.png",
+      "name": "04-agent-pr-reviewer",
+      "source": "reference-boards/landing-page.png",
+      "source_rect_px": [
+        70,
+        85,
+        255,
+        192
+      ],
+      "dimensions_px": [
+        185,
+        107
+      ],
+      "kind": "raster-crop-original-image",
+      "editable": false
+    },
+    {
+      "file": "raster-extractions/landing/05-agent-deploy-bot.png",
+      "name": "05-agent-deploy-bot",
+      "source": "reference-boards/landing-page.png",
+      "source_rect_px": [
+        850,
+        77,
+        1034,
+        191
+      ],
+      "dimensions_px": [
+        184,
+        114
+      ],
+      "kind": "raster-crop-original-image",
+      "editable": false
+    },
+    {
+      "file": "raster-extractions/landing/06-agent-log-summariser.png",
+      "name": "06-agent-log-summariser",
+      "source": "reference-boards/landing-page.png",
+      "source_rect_px": [
+        43,
+        238,
+        222,
+        345
+      ],
+      "dimensions_px": [
+        179,
+        107
+      ],
+      "kind": "raster-crop-original-image",
+      "editable": false
+    },
+    {
+      "file": "raster-extractions/landing/07-agent-notify.png",
+      "name": "07-agent-notify",
+      "source": "reference-boards/landing-page.png",
+      "source_rect_px": [
+        873,
+        236,
+        1054,
+        348
+      ],
+      "dimensions_px": [
+        181,
+        112
+      ],
+      "kind": "raster-crop-original-image",
+      "editable": false
+    },
+    {
+      "file": "raster-extractions/landing/08-metrics-section.png",
+      "name": "08-metrics-section",
+      "source": "reference-boards/landing-page.png",
+      "source_rect_px": [
+        40,
+        379,
+        1068,
+        587
+      ],
+      "dimensions_px": [
+        1028,
+        208
+      ],
+      "kind": "raster-crop-original-image",
+      "editable": false
+    },
+    {
+      "file": "raster-extractions/landing/09-cli-workflow.png",
+      "name": "09-cli-workflow",
+      "source": "reference-boards/landing-page.png",
+      "source_rect_px": [
+        43,
+        593,
+        1067,
+        852
+      ],
+      "dimensions_px": [
+        1024,
+        259
+      ],
+      "kind": "raster-crop-original-image",
+      "editable": false
+    },
+    {
+      "file": "raster-extractions/landing/10-terminal-panel.png",
+      "name": "10-terminal-panel",
+      "source": "reference-boards/landing-page.png",
+      "source_rect_px": [
+        465,
+        613,
+        948,
+        836
+      ],
+      "dimensions_px": [
+        483,
+        223
+      ],
+      "kind": "raster-crop-original-image",
+      "editable": false
+    },
+    {
+      "file": "raster-extractions/landing/11-capabilities.png",
+      "name": "11-capabilities",
+      "source": "reference-boards/landing-page.png",
+      "source_rect_px": [
+        43,
+        855,
+        1067,
+        1104
+      ],
+      "dimensions_px": [
+        1024,
+        249
+      ],
+      "kind": "raster-crop-original-image",
+      "editable": false
+    },
+    {
+      "file": "raster-extractions/landing/12-card-releases.png",
+      "name": "12-card-releases",
+      "source": "reference-boards/landing-page.png",
+      "source_rect_px": [
+        359,
+        868,
+        528,
+        1088
+      ],
+      "dimensions_px": [
+        169,
+        220
+      ],
+      "kind": "raster-crop-original-image",
+      "editable": false
+    },
+    {
+      "file": "raster-extractions/landing/13-card-traces.png",
+      "name": "13-card-traces",
+      "source": "reference-boards/landing-page.png",
+      "source_rect_px": [
+        533,
+        868,
+        702,
+        1088
+      ],
+      "dimensions_px": [
+        169,
+        220
+      ],
+      "kind": "raster-crop-original-image",
+      "editable": false
+    },
+    {
+      "file": "raster-extractions/landing/14-card-agent-networks.png",
+      "name": "14-card-agent-networks",
+      "source": "reference-boards/landing-page.png",
+      "source_rect_px": [
+        711,
+        868,
+        879,
+        1088
+      ],
+      "dimensions_px": [
+        168,
+        220
+      ],
+      "kind": "raster-crop-original-image",
+      "editable": false
+    },
+    {
+      "file": "raster-extractions/landing/15-card-knowledge.png",
+      "name": "15-card-knowledge",
+      "source": "reference-boards/landing-page.png",
+      "source_rect_px": [
+        883,
+        868,
+        1055,
+        1088
+      ],
+      "dimensions_px": [
+        172,
+        220
+      ],
+      "kind": "raster-crop-original-image",
+      "editable": false
+    },
+    {
+      "file": "raster-extractions/landing/16-observability.png",
+      "name": "16-observability",
+      "source": "reference-boards/landing-page.png",
+      "source_rect_px": [
+        40,
+        1107,
+        1066,
+        1305
+      ],
+      "dimensions_px": [
+        1026,
+        198
+      ],
+      "kind": "raster-crop-original-image",
+      "editable": false
+    },
+    {
+      "file": "raster-extractions/landing/17-dashboard-preview.png",
+      "name": "17-dashboard-preview",
+      "source": "reference-boards/landing-page.png",
+      "source_rect_px": [
+        375,
+        1125,
+        1059,
+        1299
+      ],
+      "dimensions_px": [
+        684,
+        174
+      ],
+      "kind": "raster-crop-original-image",
+      "editable": false
+    },
+    {
+      "file": "raster-extractions/landing/18-footer.png",
+      "name": "18-footer",
+      "source": "reference-boards/landing-page.png",
+      "source_rect_px": [
+        40,
+        1306,
+        1072,
+        1395
+      ],
+      "dimensions_px": [
+        1032,
+        89
+      ],
+      "kind": "raster-crop-original-image",
+      "editable": false
+    },
+    {
+      "file": "raster-extractions/application/01-homepage-laptop.png",
+      "name": "01-homepage-laptop",
+      "source": "reference-boards/product-application.png",
+      "source_rect_px": [
+        48,
+        244,
+        666,
+        695
+      ],
+      "dimensions_px": [
+        618,
+        451
+      ],
+      "kind": "raster-crop-original-image",
+      "editable": false
+    },
+    {
+      "file": "raster-extractions/application/02-console-desktop.png",
+      "name": "02-console-desktop",
+      "source": "reference-boards/product-application.png",
+      "source_rect_px": [
+        673,
+        244,
+        1115,
+        696
+      ],
+      "dimensions_px": [
+        442,
+        452
+      ],
+      "kind": "raster-crop-original-image",
+      "editable": false
+    },
+    {
+      "file": "raster-extractions/application/03-mobile-preview.png",
+      "name": "03-mobile-preview",
+      "source": "reference-boards/product-application.png",
+      "source_rect_px": [
+        1120,
+        244,
+        1403,
+        694
+      ],
+      "dimensions_px": [
+        283,
+        450
+      ],
+      "kind": "raster-crop-original-image",
+      "editable": false
+    },
+    {
+      "file": "raster-extractions/application/04-page-layout-rhythm.png",
+      "name": "04-page-layout-rhythm",
+      "source": "reference-boards/product-application.png",
+      "source_rect_px": [
+        40,
+        701,
+        621,
+        1010
+      ],
+      "dimensions_px": [
+        581,
+        309
+      ],
+      "kind": "raster-crop-original-image",
+      "editable": false
+    },
+    {
+      "file": "raster-extractions/application/05-design-notes.png",
+      "name": "05-design-notes",
+      "source": "reference-boards/product-application.png",
+      "source_rect_px": [
+        625,
+        700,
+        961,
+        1008
+      ],
+      "dimensions_px": [
+        336,
+        308
+      ],
+      "kind": "raster-crop-original-image",
+      "editable": false
+    },
+    {
+      "file": "raster-extractions/application/06-brand-context.png",
+      "name": "06-brand-context",
+      "source": "reference-boards/product-application.png",
+      "source_rect_px": [
+        967,
+        700,
+        1405,
+        1010
+      ],
+      "dimensions_px": [
+        438,
+        310
+      ],
+      "kind": "raster-crop-original-image",
+      "editable": false
+    }
+  ]
+}

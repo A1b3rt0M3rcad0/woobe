@@ -236,8 +236,8 @@ function CredentialDetailsDialog({
             <>
               <Button type="button" variant="outline" onClick={onEdit}><Pencil className="h-icon w-icon" />Edit</Button>
               <Button type="button" variant="outline" onClick={onRotate} disabled={credential.status !== 'active'}><RotateCcw className="h-icon w-icon" />{credential.authentication ? 'Configure environments' : 'Rotate'}</Button>
-              <Button type="button" variant="outline" onClick={onRevoke} disabled={credential.status === 'revoked'} className="text-amber-200 hover:text-amber-100"><ShieldOff className="h-icon w-icon" />Revoke</Button>
-              <Button type="button" variant="outline" onClick={onArchive} className="text-red-200 hover:text-red-100"><Trash2 className="h-icon w-icon" />Archive</Button>
+              <Button type="button" variant="outline" onClick={onRevoke} disabled={credential.status === 'revoked'} className="text-warning hover:text-warning"><ShieldOff className="h-icon w-icon" />Revoke</Button>
+              <Button type="button" variant="outline" onClick={onArchive} className="text-error hover:text-error"><Trash2 className="h-icon w-icon" />Archive</Button>
             </>
           )}
         />
@@ -412,7 +412,7 @@ export default function CredentialsPage() {
         />
         <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px]">
           <ResourceSearch value={query} onChange={setQuery} placeholder="Search Credentials, providers or endpoints..." label="Search Credentials" />
-          <Select value={providerFilter} onChange={(event) => setProviderFilter(event.target.value)} className="h-10" options={[{ value: 'all', label: 'All providers' }, ...providerOptions.map((provider) => ({ value: provider, label: modelProviderLabel(provider) }))]} />
+          <Select aria-label="Filter by provider" value={providerFilter} onChange={(event) => setProviderFilter(event.target.value)} className="h-10" options={[{ value: 'all', label: 'All providers' }, ...providerOptions.map((provider) => ({ value: provider, label: modelProviderLabel(provider) }))]} />
         </div>
       </ResourceToolbar>
 

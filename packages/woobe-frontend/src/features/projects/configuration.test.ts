@@ -20,3 +20,15 @@ it.each([{}, null, { state: 'ready', dependencies: null }, { state: 'ready', env
   vi.mocked(get).mockResolvedValue(value)
   await expect(getConfigurationReadiness('p', 'agent', 'a', 'production')).rejects.toThrow('response is incomplete')
 })
+
+it('accepts a partial summary as unknown without promoting page readiness', async () => {
+  const { getConfigurationSummary } = await import('./configuration')
+  const summary = { environment: 'draft', state: 'unknown', scope: 'current_selections_page', complete: false,
+    page_state: 'ready', page_complete: true, has_next: false, checked_at: '2026-06-20T12:00:00Z',
+    inspected_target_count: 5, unselected_target_count: 0, affected_target_count: 0,
+    blocked_key_count: 0, missing_key_count: 0, required_key_count: 2, affected_consumer_count: 0 }
+  vi.mocked(get).mockResolvedValue(summary)
+  expect(await getConfigurationSummary('p', 'draft')).toEqual(summary)
+  vi.mocked(get).mockResolvedValue({ ...summary, state: 'ready', complete: true })
+  await expect(getConfigurationSummary('p', 'draft')).rejects.toThrow('summary is incomplete')
+})

@@ -48,11 +48,12 @@ describe('Configuration value editor', () => {
   })
 
   it('keeps an unsaved value until discard is confirmed and clears rejected input', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(false)
     vi.mocked(writeConfiguration).mockRejectedValue(new Error('private-editor-canary'))
     await render(); await type('private-editor-canary')
     await act(async () => button('Cancel').click())
     expect(close).not.toHaveBeenCalled()
+    expect(document.querySelectorAll('[role=dialog]')).toHaveLength(2)
+    await act(async () => [...document.querySelectorAll('[role=dialog]')].pop()!.querySelector<HTMLButtonElement>('[aria-label="Close dialog"]')!.click())
     await act(async () => button('Replace value').click())
     expect(document.querySelector<HTMLInputElement>('#configuration-value')!.value).toBe('')
     expect(document.body.textContent).not.toContain('private-editor-canary')
@@ -71,4 +72,14 @@ describe('Configuration value editor', () => {
     expect(clearConfiguration).toHaveBeenCalledWith('project-a', key, 'draft')
     expect(writeConfiguration).not.toHaveBeenCalled()
   })
+})
+
+it('discards local value only after explicit confirmation', async () => {
+  await render(); await type('private-discard-canary')
+  await act(async () => button('Cancel').click())
+  expect(close).not.toHaveBeenCalled()
+  await act(async () => button('Discard value').click())
+  expect(close).toHaveBeenCalledOnce()
+  expect(writeConfiguration).not.toHaveBeenCalled()
+  expect(document.querySelector<HTMLInputElement>('#configuration-value')!.value).toBe('')
 })

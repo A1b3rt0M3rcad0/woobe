@@ -33,7 +33,7 @@ function inlineCodeClass(context: InlineRenderContext): string {
     return 'rounded-technical border border-border/80 bg-surface/70 px-ui-sm py-ui-hairline font-mono text-[0.82em] font-medium leading-none text-slate-100'
   }
 
-  return 'rounded-technical border border-white/10 bg-white/[0.06] px-ui-xs py-ui-hairline font-mono text-[0.86em] font-medium leading-none text-slate-100'
+  return 'rounded-technical border border-border bg-muted/15 px-ui-xs py-ui-hairline font-mono text-[0.86em] font-medium leading-none text-slate-100'
 }
 
 function isEscaped(value: string, index: number): boolean {
@@ -365,13 +365,13 @@ export function MarkdownMessage({ content, isStreaming, className }: MarkdownMes
     blocks.push(
       <div key={`table-${currentKey}`} className="my-ui-md overflow-x-auto rounded-container border border-border bg-background/35">
         <table className="min-w-full border-collapse font-sans text-product-small">
-          <thead className="bg-surface/70 font-mono text-system-label text-muted-foreground">
+          <thead className="bg-surface/70 font-sans text-system-label text-muted-foreground">
             <tr>
               {table.headers.map((header, headerIndex) => (
                 <th
                   key={`table-${currentKey}-h-${headerIndex}`}
                   className={cn(
-                    'border-b border-border px-ui-md py-ui-sm font-semibold uppercase tracking-wide',
+                    'border-b border-border px-ui-md py-ui-sm font-medium uppercase tracking-wide',
                     alignmentClass(table.alignments[headerIndex] ?? 'left'),
                   )}
                 >
@@ -387,7 +387,7 @@ export function MarkdownMessage({ content, isStreaming, className }: MarkdownMes
                   <td
                     key={`table-${currentKey}-r-${rowIndex}-c-${cellIndex}`}
                     className={cn(
-                      'min-w-content-table-cell px-ui-md py-ui-sm align-top text-white/90',
+                      'min-w-content-table-cell px-ui-md py-ui-sm align-top text-foreground',
                       alignmentClass(table.alignments[cellIndex] ?? 'left'),
                     )}
                   >
@@ -464,7 +464,7 @@ export function MarkdownMessage({ content, isStreaming, className }: MarkdownMes
         <HeadingTag
           key={`h-${currentKey}`}
           className={cn(
-            'mt-ui-xs font-sans font-semibold text-slate-50',
+            'mt-ui-xs font-sans font-medium text-slate-50',
             level === 1 && 'text-heading-lg',
             level === 2 && 'text-heading',
             level === 3 && 'text-heading-sm',

@@ -1,3 +1,4 @@
+import { formatCurrency } from '@/lib/formatters/number'
 import type { UsageInfo } from '@/features/playground/types'
 
 import type {
@@ -78,7 +79,7 @@ export function traceToRun(trace: NetworkTraceRecord): NetworkRun {
     environment: trace.environment,
     status: trace.status,
     duration: `${(trace.durationMs / 1000).toFixed(2)}s`,
-    cost: trace.costUsd == null ? 'Unknown' : `$${trace.costUsd.toFixed(3)}`,
+    cost: trace.costUsd == null ? 'Unknown' : formatCurrency(trace.costUsd),
     path: trace.execution.path,
     traceId: trace.traceId ?? undefined,
   }

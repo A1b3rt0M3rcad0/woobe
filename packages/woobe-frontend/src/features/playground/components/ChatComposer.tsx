@@ -116,7 +116,7 @@ export function ChatComposer({
             <button
               type="button"
               onClick={() => setExternalContextOpen((current) => !current)}
-              className="flex min-w-0 flex-1 items-center gap-ui-xs px-ui-sm text-left transition-colors hover:bg-control/35"
+              className="flex min-w-0 flex-1 flex-wrap items-center gap-ui-xs px-ui-sm text-left transition-colors hover:bg-control/35"
               aria-expanded={externalContextOpen}
             >
               {externalContextOpen
@@ -124,11 +124,11 @@ export function ChatComposer({
                 : <ChevronRight className="h-icon-sm w-icon-sm text-muted-foreground" />}
               <Braces className="h-icon-sm w-icon-sm text-primary-light" />
               <span className="font-mono text-system-control font-medium text-slate-100">External Context</span>
-              <span className="font-sans text-product-caption text-muted-foreground">
+              <span className="font-mono text-product-caption text-muted-foreground">
                 {externalContextFieldEntries.length} field{externalContextFieldEntries.length === 1 ? '' : 's'}
               </span>
               {missingRequiredExternalContextFields > 0 ? (
-                <span className="ml-auto rounded-technical border border-amber-400/25 bg-amber-400/[0.06] px-ui-xs font-mono text-system-meta text-amber-300">
+                <span className="ml-auto rounded-technical border border-amber-400/25 bg-amber-400/[0.06] px-ui-xs font-mono text-system-meta text-warning">
                   {missingRequiredExternalContextFields} required missing
                 </span>
               ) : (
@@ -142,7 +142,7 @@ export function ChatComposer({
                 type="button"
                 onClick={onClearExternalContextValues}
                 disabled={blocked}
-                className="border-l border-border/70 px-ui-sm font-mono text-system-meta text-muted-foreground transition-colors hover:bg-control/35 hover:text-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                className="border-l border-border/70 px-ui-sm font-sans text-system-meta text-muted-foreground transition-colors hover:bg-control/35 hover:text-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Clear
               </button>
@@ -166,8 +166,10 @@ export function ChatComposer({
         </div>
       ) : null}
 
-      <div className="min-w-0 max-w-full rounded-container border border-border bg-control/40 transition-colors focus-within:border-primary/45 focus-within:ring-1 focus-within:ring-primary/15">
+      {missingRequiredExternalContextFields > 0 && <p className="mb-ui-sm font-sans text-chrome-label text-warning">{missingRequiredExternalContextFields} required context field{missingRequiredExternalContextFields === 1 ? ' is' : 's are'} missing. <button type="button" onClick={() => setExternalContextOpen(true)} className="min-h-control-xs underline underline-offset-2">Review External Context</button></p>}
+      <div className="min-w-0 max-w-full rounded-container border border-control-border bg-surface transition-colors focus-within:border-primary-light focus-within:ring-1 focus-within:ring-primary-light">
         <textarea
+          aria-label="Message"
           ref={textareaRef}
           value={input}
           onChange={handleInput}
@@ -183,18 +185,18 @@ export function ChatComposer({
           ? 'flex min-w-0 items-center justify-between gap-ui-xs border-t border-border/60 px-ui-xs py-ui-xs'
           : 'flex min-w-0 items-center justify-between border-t border-border/60 px-ui-sm py-ui-sm'}>
           <div className="flex min-w-0 items-center gap-ui-xs">
-            <Button type="button" variant="ghost" size={compact ? 'xs' : 'sm'} disabled={blocked} className="font-sans text-muted-foreground">
+            <Button type="button" variant="ghost" size={compact ? 'xs' : 'sm'} disabled title="Not available in this workspace" className="font-sans text-muted-foreground">
               <Paperclip className="h-icon-sm w-icon-sm" />
               Attach
             </Button>
-            <Button type="button" variant="ghost" size={compact ? 'xs' : 'sm'} disabled={blocked} className="font-sans text-muted-foreground">
+            <Button type="button" variant="ghost" size={compact ? 'xs' : 'sm'} disabled title="Not available in this workspace" className="font-sans text-muted-foreground">
               <Wrench className="h-icon-sm w-icon-sm" />
               Tools
             </Button>
           </div>
           <div className="flex min-w-0 shrink-0 items-center gap-ui-sm">
             {compact ? <span className="sr-only">{resolvedStatus}</span> : (
-              <span className="hidden max-w-[17.5rem] truncate font-mono text-system-micro text-muted-foreground/80 sm:inline">
+              <span className="hidden max-w-[17.5rem] truncate font-mono text-system-micro text-muted-foreground sm:inline">
                 {resolvedStatus}
               </span>
             )}

@@ -13,7 +13,7 @@ import {
 
 import { JsonCodeBlock } from '@/components/ui/JsonCodeBlock'
 import { ToolCallsCollapsible } from '@/features/playground/components/ToolCallsCollapsible'
-import { formatLatency, formatNumber } from '@/lib/formatters/number'
+import { formatLatency, formatNumber, formatCurrency } from '@/lib/formatters/number'
 import { cn } from '@/lib/utils'
 
 import type { NetworkAgentInvocation } from './networkChatExecution'
@@ -34,8 +34,8 @@ function SourcesList({ invocation }: { invocation: NetworkAgentInvocation }) {
       {invocation.sources.map((source, index) => (
         <div key={source.chunk_id || `${source.document_id || 'source'}-${index}`} className="rounded-control border border-border/70 bg-background/45 p-ui-sm">
           <div className="flex items-center gap-ui-sm">
-            <Database className="h-3.5 w-3.5 shrink-0 text-violet-300" />
-            <span className="min-w-0 flex-1 truncate font-sans text-product-small text-white">{source.document_title || 'Untitled source'}</span>
+            <Database className="h-3.5 w-3.5 shrink-0 text-network" />
+            <span className="min-w-0 flex-1 truncate font-mono text-product-small text-foreground">{source.document_title || 'Untitled source'}</span>
             {source.page_number != null ? <span className="font-mono text-system-meta text-muted-foreground">p. {source.page_number}</span> : null}
             {source.score != null ? <span className="font-mono text-system-meta text-muted-foreground">{formatNumber(source.score * 100, 0)}%</span> : null}
           </div>
@@ -74,8 +74,8 @@ function ContextSummary({ invocation }: { invocation: NetworkAgentInvocation }) 
         <span className={cn('h-2 w-2 rounded-full', invocation.contextState === 'stateless' ? 'bg-slate-400' : invocation.contextState === 'created' ? 'bg-blue-400' : 'bg-emerald-400')} />
         <p className="min-w-0 flex-1 font-sans text-product-caption text-slate-200">{label}</p>
       </div>
-      {invocation.agentSessionId ? <div className="mt-ui-sm flex items-center gap-ui-sm"><code className="min-w-0 flex-1 truncate font-mono text-system-meta text-primary-light">agent session {invocation.agentSessionId}</code><button type="button" onClick={() => copyText(invocation.agentSessionId!)} className="text-muted-foreground transition-colors hover:text-white" aria-label="Copy Agent Session ID"><Copy className="h-3 w-3" /></button></div> : null}
-      {invocation.childTraceId ? <div className="mt-ui-xs flex items-center gap-ui-sm"><code className="min-w-0 flex-1 truncate font-mono text-system-meta text-muted-foreground">child trace {invocation.childTraceId}</code><button type="button" onClick={() => copyText(invocation.childTraceId!)} className="text-muted-foreground transition-colors hover:text-white" aria-label="Copy child trace ID"><Copy className="h-3 w-3" /></button></div> : null}
+      {invocation.agentSessionId ? <div className="mt-ui-sm flex items-center gap-ui-sm"><code className="min-w-0 flex-1 break-all font-mono text-system-meta text-primary-light">agent session {invocation.agentSessionId}</code><button type="button" onClick={() => copyText(invocation.agentSessionId!)} className="text-muted-foreground transition-colors hover:text-foreground" aria-label="Copy Agent Session ID"><Copy className="h-3 w-3" /></button></div> : null}
+      {invocation.childTraceId ? <div className="mt-ui-xs flex items-center gap-ui-sm"><code className="min-w-0 flex-1 break-all font-mono text-system-meta text-muted-foreground">child trace {invocation.childTraceId}</code><button type="button" onClick={() => copyText(invocation.childTraceId!)} className="text-muted-foreground transition-colors hover:text-foreground" aria-label="Copy child trace ID"><Copy className="h-3 w-3" /></button></div> : null}
     </div>
   )
 }
@@ -89,32 +89,34 @@ export function NetworkTraceInvocation({ invocation, trace, depth, onOpenAgent }
   const [open, setOpen] = useState(false)
   const routingEvent = trace.events.find((event) => event.type === 'network.route.selected' && event.spanId === invocation.spanId)
   const statusIcon = invocation.status === 'error'
-    ? <XCircle className="h-3.5 w-3.5 text-red-400" />
+    ? <XCircle className="h-3.5 w-3.5 text-error" />
     : invocation.status === 'cancelled'
       ? <XCircle className="h-3.5 w-3.5 text-slate-400" />
       : invocation.status === 'running'
-        ? <CircleDot className="h-3.5 w-3.5 animate-pulse text-blue-400" />
-        : <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+        ? <CircleDot className="h-3.5 w-3.5 animate-pulse text-primary-light" />
+        : <CheckCircle2 className="h-3.5 w-3.5 text-success" />
 
   return (
-    <div className={cn(depth > 0 && 'border-l border-border/80 pl-ui-sm')}>
+    <div className={cn(depth > 0 && depth <= 2 && 'border-l border-border/80 pl-ui-sm')}>
       <article className={cn(surface, invocation.status === 'error' && 'border-red-500/30')}>
         <div className="flex items-start gap-ui-sm p-ui-sm">
           <div className="mt-ui-hairline flex h-control-sm w-control-sm shrink-0 items-center justify-center rounded-control border border-border bg-surface">{statusIcon}</div>
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 flex-wrap items-center gap-ui-xs">
-              <p className="truncate font-sans text-product-small font-medium text-white">{invocation.agentName}</p>
+              <p className="break-words font-sans text-product-small font-medium text-foreground">{invocation.agentName}</p>
               <Badge tone={invocation.source === 'release' ? 'production' : invocation.source}>{invocation.source}</Badge>
             </div>
-            <p className="mt-ui-xs truncate font-mono text-system-meta text-muted-foreground">{invocation.provider || '—'}/{invocation.model || '—'} · {invocation.version}</p>
+            <p className="mt-ui-xs break-all font-mono text-system-meta text-muted-foreground">{invocation.provider || '—'}/{invocation.model || '—'} · {invocation.version}</p>
+            {depth > 2 && <p className="font-sans text-system-meta text-muted-foreground">Delegation depth {depth}</p>}
             <div className="mt-ui-xs flex flex-wrap gap-x-ui-sm gap-y-ui-xs font-mono text-system-meta text-muted-foreground">
+              <span className="font-sans capitalize">{invocation.status}</span>
               {invocation.durationMs != null ? <span>{formatLatency(invocation.durationMs)}</span> : null}
               {invocation.usage ? <span>{formatNumber(invocation.usage.input_tokens, 0)} in / {formatNumber(invocation.usage.output_tokens, 0)} out</span> : null}
-              {invocation.costUsd != null ? <span>${invocation.costUsd.toFixed(3)}</span> : null}
+              {invocation.costUsd != null ? <span>{formatCurrency(invocation.costUsd)}</span> : null}
             </div>
           </div>
-          {invocation.nodeId ? <button type="button" onClick={() => onOpenAgent(invocation.nodeId!)} className="h-control-segment rounded-control border border-border/80 px-ui-sm font-mono text-system-micro text-muted-foreground transition-colors hover:border-primary/30 hover:text-white">Open Agent</button> : null}
-          <button type="button" onClick={() => setOpen((value) => !value)} className="flex h-control-segment w-control-segment shrink-0 items-center justify-center rounded-control text-muted-foreground transition-colors hover:bg-surface hover:text-white" aria-label={open ? 'Collapse invocation' : 'Expand invocation'} aria-expanded={open}>
+          {invocation.nodeId ? <button type="button" onClick={() => onOpenAgent(invocation.nodeId!)} className="h-control-segment rounded-control border border-border/80 px-ui-sm font-mono text-system-micro text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground">Open Agent</button> : null}
+          <button type="button" onClick={() => setOpen((value) => !value)} className="flex h-control-segment w-control-segment shrink-0 items-center justify-center rounded-control text-muted-foreground transition-colors hover:bg-surface hover:text-foreground" aria-label={open ? 'Collapse invocation' : 'Expand invocation'} aria-expanded={open}>
             {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
           </button>
         </div>
@@ -123,7 +125,7 @@ export function NetworkTraceInvocation({ invocation, trace, depth, onOpenAgent }
             <ContextSummary invocation={invocation} />
             {invocation.failure ? (
               <div className="rounded-control border border-red-500/30 bg-red-500/5 p-ui-sm">
-                <p className="font-sans text-product-caption font-medium text-red-300">{invocation.failure.message}</p>
+                <p className="font-sans text-product-caption font-medium text-error">{invocation.failure.message}</p>
                 <p className="mt-ui-xs font-mono text-system-meta text-muted-foreground">{invocation.failure.code} · {invocation.failure.stage}{invocation.failure.retryable ? ' · retryable' : ''}</p>
               </div>
             ) : null}
@@ -133,16 +135,20 @@ export function NetworkTraceInvocation({ invocation, trace, depth, onOpenAgent }
             <RoutingDecision event={routingEvent} />
             {invocation.tools.length ? <ToolCallsCollapsible toolCalls={invocation.tools} variant="network" /> : null}
             <SourcesList invocation={invocation} />
-            {invocation.children.length ? (
-              <div className="space-y-ui-sm">
-                <div className="flex items-center gap-ui-xs font-mono text-system-meta font-medium uppercase tracking-ui-label text-muted-foreground"><Bot className="h-3 w-3" />Agents called ({invocation.children.length})</div>
-                {invocation.children.map((child) => <NetworkTraceInvocation key={child.spanId} invocation={child} trace={trace} depth={Math.min(depth + 1, 3)} onOpenAgent={onOpenAgent} />)}
-              </div>
-            ) : null}
             <JsonCodeBlock value={{ span_id: invocation.spanId, parent_span_id: invocation.parentSpanId, agent_id: invocation.agentId, agent_session_id: invocation.agentSessionId, child_trace_id: invocation.childTraceId, node_id: invocation.nodeId }} maxHeight={112} />
           </div>
         ) : null}
       </article>
+      {open && invocation.children.length > 0 ? (
+        <div className="mt-ui-sm space-y-ui-sm">
+          <div className="flex items-center gap-ui-xs font-sans text-system-meta font-medium text-muted-foreground">
+            <Bot className="h-3 w-3" />Agents called ({invocation.children.length})
+          </div>
+          {invocation.children.map((child) => (
+            <NetworkTraceInvocation key={child.spanId} invocation={child} trace={trace} depth={depth + 1} onOpenAgent={onOpenAgent} />
+          ))}
+        </div>
+      ) : null}
     </div>
   )
 }

@@ -117,7 +117,7 @@ export function ToolInputBindingsEditor({
 
   return (
     <div className="overflow-hidden rounded-xl border border-border/75 bg-background/20">
-      <div className="grid grid-cols-[minmax(110px,1fr)_76px_150px_minmax(150px,1.1fr)] items-center gap-2 border-b border-border/70 bg-background/30 px-3 py-2 font-mono text-[9px] uppercase tracking-wide text-muted">
+      <div className="grid grid-cols-[minmax(110px,1fr)_76px_150px_minmax(150px,1.1fr)] items-center gap-2 border-b border-border/70 bg-background/30 px-3 py-2 font-mono text-system-meta uppercase tracking-wide text-muted">
         <span>Input</span>
         <span>Type</span>
         <span>Source</span>
@@ -134,10 +134,10 @@ export function ToolInputBindingsEditor({
               className="grid min-h-[48px] grid-cols-[minmax(110px,1fr)_76px_150px_minmax(150px,1.1fr)] items-center gap-2 px-3 py-2"
             >
               <div className="min-w-0">
-                <p className="truncate font-mono text-[11px] font-medium text-white">{input.name}</p>
-                {input.required ? <p className="mt-0.5 text-[9px] text-muted">required</p> : null}
+                <p className="truncate font-mono text-system-meta font-medium text-foreground">{input.name}</p>
+                {input.required ? <p className="font-mono mt-0.5 text-system-meta text-muted">required</p> : null}
               </div>
-              <span className="truncate font-mono text-[10px] capitalize text-muted">{input.type}</span>
+              <span className="truncate font-mono text-system-meta capitalize text-muted">{input.type}</span>
               <Select
                 value={binding?.source.kind || 'agent'}
                 options={SOURCE_OPTIONS}
@@ -157,7 +157,7 @@ export function ToolInputBindingsEditor({
                   className="font-mono text-xs"
                 />
               ) : (
-                <span className="px-2 font-mono text-[10px] text-muted">Model-provided</span>
+                <span className="px-2 font-mono text-system-meta text-muted">Model-provided</span>
               )}
             </div>
           )
@@ -165,7 +165,7 @@ export function ToolInputBindingsEditor({
       </div>
 
       <div className="border-t border-border/70 px-3 py-2">
-        <p className="text-[10px] leading-4 text-muted">
+        <p className="font-sans text-system-meta leading-4 text-muted">
           Runtime bindings are removed from the model-visible Tool schema. External Context comes from the immutable Run snapshot; Project Environment comes from the selected draft/staging/production execution environment and is never exposed to the model.
         </p>
       </div>

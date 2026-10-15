@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Button, Dialog, Field, FieldLabel, Input } from '@woobe/ui'
+import { Button, Dialog, DangerConfirmDialog, Field, FieldLabel, Input } from '@woobe/ui'
 import { writeConfigurationBatch, type ConfigurationKey } from '../configuration'
 import type { ProjectEnvironment } from '../types'
 
@@ -9,13 +9,15 @@ export function ConfigurationBatchEditor({ projectId, environment, keys, onClose
   const [values, setValues] = useState<Record<string, string>>({})
   const [pending, setPending] = useState(false)
   const [error, setError] = useState('')
+  const [confirmDiscard, setConfirmDiscard] = useState(false)
   const dirty = Object.values(values).some(Boolean)
   useEffect(() => {
     const warn = (event: BeforeUnloadEvent) => { if (dirty) { event.preventDefault(); event.returnValue = '' } }
     window.addEventListener('beforeunload', warn)
     return () => window.removeEventListener('beforeunload', warn)
   }, [dirty])
-  const close = () => { if (pending || (dirty && !window.confirm('Discard the unsaved values?'))) return; setValues({}); onClose() }
+  const discard = () => { setValues({}); setConfirmDiscard(false); onClose() }
+  const close = () => { if (pending) return; if (dirty) setConfirmDiscard(true); else discard() }
   const save = async () => {
     setPending(true); setError('')
     try {
@@ -41,5 +43,6 @@ export function ConfigurationBatchEditor({ projectId, environment, keys, onClose
       {error && <p role="alert">{error}</p>}
       <div className="flex justify-end gap-ui-sm border-t border-border pt-ui-md"><Button variant="outline" onClick={close} disabled={pending}>Cancel</Button><Button disabled={!dirty || pending} onClick={() => void save()}>{pending ? 'Saving…' : 'Save entered values'}</Button></div>
     </div>
+    <DangerConfirmDialog open={confirmDiscard} layer="nestedModal" title="Discard unsaved values?" description="The entered values will be removed from this editor. Saved configuration stays unchanged." confirmLabel="Discard values" onClose={() => setConfirmDiscard(false)} onConfirm={discard} />
   </Dialog>
 }

@@ -59,3 +59,17 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+## Self-hosted interface fonts
+
+Inter and JetBrains Mono variable Latin/Latin Extended WOFF2 assets are distributed
+from Fontsource packages `@fontsource-variable/inter` and
+`@fontsource-variable/jetbrains-mono` version 5.3.0 (npm registry). Both families
+use the SIL Open Font License 1.1. Full notices are preserved in
+`packages/woobe-ui/src/assets/fonts/inter-OFL.txt` and
+`packages/woobe-ui/src/assets/fonts/jetbrains-mono-OFL.txt`. Sources:
+https://github.com/rsms/inter and https://github.com/JetBrains/JetBrainsMono.
+
+The Guild-inspired v2 reconstruction token values were supplied by the repository
+owner in `guild-inspired-enterprise-ui-v2.zip`. Reference screenshots remain
+review inputs only and are not shipped as Woobe product assets.

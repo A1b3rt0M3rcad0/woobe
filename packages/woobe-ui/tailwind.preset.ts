@@ -16,9 +16,33 @@ import {
 const woobeTailwindPreset = {
   theme: {
     extend: {
-      colors: woobeColors,
+      colors: {
+        ...woobeColors,
+        emerald: { 300: 'rgb(var(--woobe-success) / <alpha-value>)', 400: 'rgb(var(--woobe-success) / <alpha-value>)', 500: 'rgb(var(--woobe-success) / <alpha-value>)', 600: 'rgb(var(--woobe-success) / <alpha-value>)' },
+        green: { 300: 'rgb(var(--woobe-success) / <alpha-value>)', 400: 'rgb(var(--woobe-success) / <alpha-value>)', 500: 'rgb(var(--woobe-success) / <alpha-value>)', 600: 'rgb(var(--woobe-success) / <alpha-value>)' },
+        red: { 300: 'rgb(var(--woobe-error) / <alpha-value>)', 400: 'rgb(var(--woobe-error) / <alpha-value>)', 500: 'rgb(var(--woobe-error) / <alpha-value>)', 600: 'rgb(var(--woobe-error) / <alpha-value>)' },
+        amber: { 300: 'rgb(var(--woobe-warning) / <alpha-value>)', 400: 'rgb(var(--woobe-warning) / <alpha-value>)', 500: 'rgb(var(--woobe-warning) / <alpha-value>)', 600: 'rgb(var(--woobe-warning) / <alpha-value>)' },
+        orange: { 300: 'rgb(var(--woobe-link) / <alpha-value>)', 400: 'rgb(var(--woobe-link) / <alpha-value>)', 500: 'rgb(var(--woobe-link) / <alpha-value>)', 600: 'rgb(var(--woobe-link) / <alpha-value>)' },
+        blue: { 300: 'rgb(var(--woobe-info) / <alpha-value>)', 400: 'rgb(var(--woobe-info) / <alpha-value>)', 500: 'rgb(var(--woobe-info) / <alpha-value>)', 600: 'rgb(var(--woobe-info) / <alpha-value>)' },
+        purple: { 300: 'rgb(var(--woobe-network) / <alpha-value>)', 400: 'rgb(var(--woobe-network) / <alpha-value>)', 500: 'rgb(var(--woobe-network) / <alpha-value>)', 600: 'rgb(var(--woobe-network) / <alpha-value>)' },
+        violet: { 300: 'rgb(var(--woobe-network) / <alpha-value>)', 400: 'rgb(var(--woobe-network) / <alpha-value>)', 500: 'rgb(var(--woobe-network) / <alpha-value>)', 600: 'rgb(var(--woobe-network) / <alpha-value>)' },
+        indigo: { 300: 'rgb(var(--woobe-network) / <alpha-value>)', 400: 'rgb(var(--woobe-network) / <alpha-value>)', 500: 'rgb(var(--woobe-network) / <alpha-value>)', 600: 'rgb(var(--woobe-network) / <alpha-value>)' },
+        slate: {
+          50: 'rgb(var(--woobe-ink, 36 35 33) / <alpha-value>)',
+          100: 'rgb(var(--woobe-ink, 36 35 33) / <alpha-value>)',
+          200: 'rgb(var(--woobe-secondary, 70 67 63) / <alpha-value>)',
+          300: 'rgb(var(--woobe-secondary, 70 67 63) / <alpha-value>)',
+          400: 'rgb(var(--woobe-muted, 107 104 99) / <alpha-value>)',
+          500: 'rgb(var(--woobe-muted) / <alpha-value>)', 600: 'rgb(var(--woobe-control-border) / <alpha-value>)',
+          700: 'rgb(var(--woobe-border, 212 208 200) / <alpha-value>)',
+          800: 'rgb(var(--woobe-control, 239 238 235) / <alpha-value>)',
+          900: 'rgb(var(--woobe-control, 239 238 235) / <alpha-value>)',
+          950: 'rgb(var(--woobe-canvas, 243 241 237) / <alpha-value>)',
+        },
+      },
       fontFamily: {
         sans: [...woobeTypography.sans],
+        serif: [...woobeTypography.serif],
         mono: [...woobeTypography.mono],
       },
       fontSize: woobeFontSizes,
@@ -75,6 +99,7 @@ const woobeTailwindPreset = {
         'icon-brand': woobeControl.icon.brand,
       },
       minHeight: {
+        'workspace-header': woobeControl.height.workspaceHeader,
         'control-xs': woobeControl.height.technical,
         'control-segment': woobeControl.height.segment,
         'control-sm': woobeControl.height.compact,
@@ -153,7 +178,8 @@ const woobeTailwindPreset = {
       },
       screens: woobeBreakpoints,
       boxShadow: {
-        DEFAULT: woobeShadow.none,
+        DEFAULT: woobeShadow.panel,
+        panel: woobeShadow.panel,
         sm: woobeShadow.none,
         md: woobeShadow.none,
         lg: woobeShadow.none,

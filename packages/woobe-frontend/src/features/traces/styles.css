@@ -1,0 +1,16 @@
+/* The stream can be much narrower than the browser beside its inspector. */
+.run-stream-list { container: run-stream / inline-size; }
+.run-stream-row { grid-template-columns: 28px minmax(0,1fr); }
+.run-stream-row > :nth-child(2),
+.run-stream-row > :nth-child(3),
+.run-stream-row > :nth-child(4),
+.run-stream-row > :nth-child(5) { grid-column: 2; }
+.run-stream-row > :nth-child(4) { justify-self: start; }
+.run-stream-row > :nth-child(5) { display: flex; flex-wrap: wrap; gap: 8px 12px; text-align: left; }
+.run-stream-row > :nth-child(6) { display: none; }
+@container run-stream (min-width: 48rem) {
+  .run-stream-row { grid-template-columns: 32px minmax(0,1.45fr) minmax(0,.9fr) 140px 145px 20px; }
+  .run-stream-row > :nth-child(n) { grid-column: auto; }
+  .run-stream-row > :nth-child(5) { display: block; text-align: right; }
+  .run-stream-row > :nth-child(6) { display: block; }
+}

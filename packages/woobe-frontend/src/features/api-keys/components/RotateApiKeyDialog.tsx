@@ -53,7 +53,7 @@ export function RotateApiKeyDialog({
                 <RotateCcw className="h-4 w-4" />
               </div>
               <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-white">{apiKey.name}</p>
+                <p className="font-mono truncate text-sm font-medium text-foreground">{apiKey.name}</p>
                 <code className="mt-1 block truncate text-xs text-muted">{apiKey.key_prefix}...</code>
               </div>
             </div>
@@ -61,32 +61,32 @@ export function RotateApiKeyDialog({
             {apiKey.kind === 'runtime' ? (
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 <div className="rounded-lg border border-border/70 bg-background/55 p-3">
-                  <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted"><TargetIcon className="h-3.5 w-3.5" />{targetLabel}</div>
-                  <p className="mt-1 truncate text-sm font-medium text-white">{resolvedTargetName}</p>
+                  <div className="flex items-center gap-2 text-system-meta font-medium uppercase tracking-[0.16em] text-muted"><TargetIcon className="h-3.5 w-3.5" />{targetLabel}</div>
+                  <p className="font-mono mt-1 truncate text-sm font-medium text-foreground">{resolvedTargetName}</p>
                 </div>
                 <div className="rounded-lg border border-border/70 bg-background/55 p-3">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">Environment</p>
-                  <p className="mt-1 text-sm font-medium capitalize text-white">{apiKey.environment}</p>
+                  <p className="font-mono text-system-meta font-medium uppercase tracking-[0.16em] text-muted">Environment</p>
+                  <p className="font-mono mt-1 text-sm font-medium capitalize text-foreground">{apiKey.environment}</p>
                 </div>
                 <div className="rounded-lg border border-border/70 bg-background/55 p-3 sm:col-span-2">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">Interfaces</p>
-                  <p className="mt-1 text-sm text-white">{apiKey.interfaces.join(' · ')}</p>
+                  <p className="font-mono text-system-meta font-medium uppercase tracking-[0.16em] text-muted">Interfaces</p>
+                  <p className="mt-1 text-sm text-foreground">{apiKey.interfaces.join(' · ')}</p>
                 </div>
               </div>
             ) : (
               <div className="mt-4 rounded-lg border border-border/70 bg-background/55 p-3">
-                <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted"><KeyRound className="h-3.5 w-3.5" />Permissions</div>
-                <p className="mt-1 text-sm text-white">{apiKey.scopes.map(permissionLabel).join(' · ')}</p>
+                <div className="flex items-center gap-2 text-system-meta font-medium uppercase tracking-[0.16em] text-muted"><KeyRound className="h-3.5 w-3.5" />Permissions</div>
+                <p className="mt-1 text-sm text-foreground">{apiKey.scopes.map(permissionLabel).join(' · ')}</p>
               </div>
             )}
           </section>
 
           <section className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
             <div className="flex items-start gap-3">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
               <div>
-                <p className="text-sm font-semibold text-amber-100">The current key stops working immediately</p>
-                <p className="mt-1 text-xs leading-5 text-amber-100/70">Name, purpose, {targetLabel} binding, environment and interfaces remain unchanged. Only the secret changes.</p>
+                <p className="font-sans text-sm font-medium text-warning">The current key stops working immediately</p>
+                <p className="mt-1 text-xs leading-5 text-warning">Name, purpose, {targetLabel} binding, environment and interfaces remain unchanged. Only the secret changes.</p>
               </div>
             </div>
           </section>

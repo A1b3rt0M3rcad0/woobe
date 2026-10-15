@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Button, Dialog, Field, FieldLabel, Input } from '@woobe/ui'
+import { Button, Dialog, DangerConfirmDialog, Field, FieldLabel, Input } from '@woobe/ui'
 import type { ProjectEnvironment } from '../types'
 import { clearConfiguration, writeConfiguration, type ConfigurationKey } from '../configuration'
 
@@ -17,6 +17,7 @@ export function ConfigurationValueEditor({ projectId, item, environment, canWrit
   const [value, setValue] = useState('')
   const [pending, setPending] = useState(false)
   const [error, setError] = useState('')
+  const [confirmDiscard, setConfirmDiscard] = useState(false)
   const [confirmClear, setConfirmClear] = useState(false)
   const configured = item.values[environment]?.configured ?? false
   useEffect(() => {
@@ -24,11 +25,8 @@ export function ConfigurationValueEditor({ projectId, item, environment, canWrit
     window.addEventListener('beforeunload', warn)
     return () => window.removeEventListener('beforeunload', warn)
   }, [value])
-  const close = () => {
-    if (pending || (value && !window.confirm('Discard the unsaved value?'))) return
-    setValue('')
-    onClose()
-  }
+  const discard = () => { setValue(''); setConfirmDiscard(false); onClose() }
+  const close = () => { if (pending) return; if (value) setConfirmDiscard(true); else discard() }
   const save = async (clear = false) => {
     setPending(true)
     setError('')
@@ -67,5 +65,6 @@ export function ConfigurationValueEditor({ projectId, item, environment, canWrit
         <div className="flex justify-end gap-ui-sm"><Button variant="outline" onClick={() => setConfirmClear(false)}>Cancel</Button><Button disabled={pending} onClick={() => void save(true)}>Clear value</Button></div>
       </div>
     </Dialog>}
+    <DangerConfirmDialog open={confirmDiscard} layer="nestedModal" title="Discard unsaved value?" description="The entered value will be removed from this editor. Saved configuration stays unchanged." confirmLabel="Discard value" onClose={() => setConfirmDiscard(false)} onConfirm={discard} />
   </Dialog>
 }

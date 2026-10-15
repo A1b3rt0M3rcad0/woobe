@@ -74,7 +74,7 @@ const TechnicalListItem = forwardRef<HTMLDivElement, TechnicalListItemProps>(
       : 'gap-ui-sm px-ui-sm py-ui-sm'
 
     const labelSize = technical ? 'text-system-control' : compact ? 'text-system-control' : 'text-system-value'
-    const labelWeight = technical ? 'font-medium' : 'font-semibold'
+    const labelWeight = technical ? 'font-medium' : 'font-medium'
     const technicalDescriptionSize = technical ? 'text-system-meta' : 'text-system-nano'
     const productDescriptionSize = technical
       ? 'text-product-caption'
@@ -119,7 +119,7 @@ const TechnicalListItem = forwardRef<HTMLDivElement, TechnicalListItemProps>(
             labelSize,
             labelWeight,
             multiline ? 'whitespace-normal break-words' : 'truncate',
-            selected ? 'text-accent-foreground' : 'text-accent-foreground/85',
+            selected ? 'text-accent-foreground' : 'text-accent-foreground',
           )}>
             {label}
           </span>

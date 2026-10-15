@@ -79,7 +79,7 @@ export function NetworkOperationsPanel({
         'flex min-h-0 w-operations-panel max-w-[calc(100vw-5rem)] flex-col overflow-hidden border-r border-border bg-surface/95',
         resolvedPresentation === 'overlay'
           ? 'absolute inset-y-0 left-playground-rail z-workspace shadow-popup'
-          : 'relative z-base shrink-0',
+          : 'absolute inset-y-0 left-playground-rail z-workspace shrink-0 shadow-popup xl:relative xl:inset-auto xl:z-base',
       )}
     >
       {activeTab === 'sessions' ? (

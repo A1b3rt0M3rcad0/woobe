@@ -58,18 +58,19 @@ describe('adaptProjectOverview', () => {
   })
   it('maps the operational story to the Overview view model', () => {
     const model = adaptProjectOverview(cloneFixture())
-    const averageRunTimeMetric = model.metrics[model.metrics.length - 1]
 
     expect(model.metrics.map((metric) => metric.label)).toEqual([
       'Agent Runs',
       'Network Runs',
-      'Runtime Cost',
       'Agent Run Success',
-      'Network Run Success',
-      'Average Run Time',
+      'Runtime Cost',
     ])
-    expect(averageRunTimeMetric?.comparison?.agent.label).toBe('Agent Run')
-    expect(averageRunTimeMetric?.comparison?.network.label).toBe('Network Run')
+    expect(model.reliability.network.successRate).toBe(100)
+    expect(model.reliability.network.terminalRuns).toBe(2)
+    expect(model.reliability.agent.averageDurationLabel).toBe('121 ms')
+    expect(model.reliability.network.p95DurationLabel).toBe('940 ms')
+    expect(model.metrics[2].detail).toBe('11 / 12 terminal Runs successful')
+    expect(model.metrics[0].change).toBe('+20% vs previous window')
     expect(model.narrative).toContain('12 Agent Runs')
     expect(model.narrative).toContain('2 Network Runs')
     expect(model.series).toHaveLength(2)

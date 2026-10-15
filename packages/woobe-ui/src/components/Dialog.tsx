@@ -86,13 +86,11 @@ const LAYER_CLASS: Record<DialogLayer, string> = { modal: 'z-modal', nestedModal
 export const dialogTypographyClass = [
   'font-sans',
   '[&_h1]:text-heading-sm [&_h2]:text-section-title [&_h3]:text-section-title [&_h4]:text-system-control',
-  '[&_label]:font-mono [&_legend]:font-mono [&_button]:font-mono',
-  '[&_input]:font-sans [&_input]:text-system-control',
-  '[&_select]:font-mono [&_select]:h-control [&_select]:rounded-control [&_select]:border-border [&_select]:bg-control [&_select]:text-system-control [&_select]:font-normal [&_select]:text-accent-foreground',
-  '[&_option]:font-mono [&_option]:text-system-control',
-  '[&_textarea]:font-sans [&_textarea]:text-system-control',
+  '[&_input]:text-system-control',
+  '[&_select]:h-control [&_select]:rounded-control [&_select]:border-control-border [&_select]:bg-control [&_select]:text-system-control [&_select]:font-normal [&_select]:text-accent-foreground',
+  '[&_option]:text-system-control',
+  '[&_textarea]:text-system-control',
   '[&_th]:font-mono [&_dt]:font-mono [&_code]:font-mono [&_pre]:font-mono',
-  '[&_.uppercase]:font-mono [&_.tabular-nums]:font-mono [&_aside]:font-mono',
   '[&_.text-lg]:text-heading-sm [&_.text-base]:text-product-body [&_.text-sm]:text-product-small [&_.text-xs]:text-product-caption',
 ].join(' ')
 
@@ -186,19 +184,19 @@ export function Dialog({ open, onClose, title, children, className, contentClass
       tabIndex={presentation === 'modal' ? -1 : undefined}
       data-dialog-variant={variant}
       className={cn(
-        'dialog-scrollbars relative w-full max-w-dialog-compact rounded-container border border-border bg-surface text-accent-foreground shadow-popup',
+        'dialog-scrollbars relative my-auto w-full max-w-dialog-compact rounded-container border border-border bg-surface text-accent-foreground shadow-popup',
         workspace && 'flex max-h-dialog max-w-dialog-wide flex-col overflow-hidden',
         workspace && height === 'workspace' && 'h-dialog-workspace',
         dialogTypographyClass,
-        '[&_.rounded-2xl]:rounded-container [&_.rounded-xl]:rounded-container [&_.rounded-lg]:rounded-control [&_.rounded-md]:rounded-technical',
+        '[&_.rounded-2xl]:rounded-container [&_.rounded-xl]:rounded-container [&_.rounded-lg]:rounded-container [&_.rounded-md]:rounded-control',
         '[&_.shadow-sm]:shadow-none [&_.shadow-lg]:shadow-none [&_.shadow-xl]:shadow-none [&_.shadow-2xl]:shadow-none',
         contentScroll && 'flex max-h-dialog flex-col overflow-hidden',
         className,
       )}
     >
-      <div className="flex h-panel-header shrink-0 items-center justify-between border-b border-border bg-control/20 px-ui-panel-inset">
+      <div className="flex min-h-panel-header shrink-0 items-center justify-between gap-ui-sm border-b border-border bg-control/20 px-ui-panel-inset py-ui-xs">
         {title ? (
-          <h2 id={presentation === 'modal' ? titleId : undefined} className="min-w-0 truncate font-sans text-entity-title font-semibold text-accent-foreground">
+          <h2 id={presentation === 'modal' ? titleId : undefined} className="min-w-0 break-words font-sans text-entity-title font-medium text-accent-foreground">
             {title}
           </h2>
         ) : <span />}
@@ -227,8 +225,8 @@ export function Dialog({ open, onClose, title, children, className, contentClass
     <div
       ref={overlayRef}
       className={cn(
-        'fixed inset-0 flex min-h-svh w-screen items-center justify-center bg-background/80 backdrop-blur-sm',
-        workspace && height === 'workspace' ? 'p-ui-lg' : 'p-ui-content-gutter',
+        'fixed inset-0 flex min-h-svh w-screen items-start justify-center bg-[var(--woobe-backdrop)]',
+        workspace && height === 'workspace' ? 'p-ui-lg' : 'p-ui-lg',
         contentScroll ? 'overflow-hidden' : 'overflow-y-auto',
         LAYER_CLASS[layer],
       )}

@@ -32,7 +32,7 @@ export function AgentOutputSettings() {
           description="Define the typed structured response consumed by downstream code."
           actions={(
             <div className="flex items-center gap-ui-sm">
-              <label className="flex items-center gap-ui-sm font-mono text-system-label text-muted-foreground">
+              <label className="flex items-center gap-ui-sm font-sans text-system-label text-muted-foreground">
                 {enabled ? 'Enabled' : 'Disabled'}
                 <Checkbox checked={enabled} onChange={(event) => toggle(event.target.checked)} />
               </label>

@@ -11,10 +11,13 @@ export default defineConfig({
   retries: 0,
   workers: 1,
   reporter: process.env.CI
-    ? [['line'], ['html', { outputFolder: 'playwright-report', open: 'never' }]]
+    ? [['github'], ['line'], ['html', { outputFolder: 'playwright-report', open: 'never' }]]
     : 'list',
   use: {
     baseURL: externalBaseURL ?? 'http://127.0.0.1:4173',
+    launchOptions: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE
+      ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE }
+      : undefined,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
@@ -27,7 +30,7 @@ export default defineConfig({
   ],
   webServer: externalBaseURL
     ? undefined
-    : {
+    : [{
         command: 'npm --prefix ../../packages/woobe-frontend run build && npm --prefix ../../packages/woobe-frontend run preview -- --host 127.0.0.1 --port 4173',
         url: 'http://127.0.0.1:4173',
         reuseExistingServer: !process.env.CI,
@@ -35,6 +38,13 @@ export default defineConfig({
         env: {
           ...process.env,
           VITE_API_URL: 'http://127.0.0.1:4173',
+          VITE_CHAT_EMBED_URL: 'http://127.0.0.1:4181',
+          VITE_WOOBE_EDITION: 'core',
         },
-      },
+      }, {
+        command: 'npm --prefix ../../packages/woobe-embed run build && python3 support/serve_embed.py --port 4181 --directory ../../packages/woobe-embed/dist',
+        url: 'http://127.0.0.1:4181/preview.html',
+        reuseExistingServer: !process.env.CI,
+        timeout: 60_000,
+      }],
 })

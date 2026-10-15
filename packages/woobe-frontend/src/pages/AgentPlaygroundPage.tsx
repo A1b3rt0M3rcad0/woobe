@@ -57,12 +57,12 @@ function upsertToolCall(existing: ToolCallInfo[] | null | undefined, next: ToolC
 }
 
 function SkeletonLine({ className = '' }: { className?: string }) {
-  return <div className={`animate-pulse rounded-full bg-white/[0.07] ${className}`} />
+  return <div className={`animate-pulse rounded-full bg-muted/15 ${className}`} />
 }
 
 function AgentPlaygroundSkeleton() {
   return (
-    <div className="-m-6 h-[calc(100vh-3.5rem)] overflow-hidden flex flex-col bg-background">
+    <div className="h-svh overflow-hidden flex flex-col bg-background">
       <div className="h-12 shrink-0 border-b border-border bg-surface/60 px-3">
         <div className="flex h-full items-center gap-3">
           <SkeletonLine className="h-3 w-16" />
@@ -82,12 +82,12 @@ function AgentPlaygroundSkeleton() {
           <SkeletonLine className="ml-auto h-2.5 w-24" />
         </div>
       </div>
-      <div className="flex flex-1 min-h-0 overflow-hidden">
+      <div className="relative flex flex-1 min-h-0 overflow-hidden">
         <div className="w-[52px] shrink-0 border-r border-border bg-surface/75 p-2">
           <div className="space-y-2">
             <div className="h-10 animate-pulse rounded-lg border border-primary/15 bg-primary/5" />
-            <div className="h-10 animate-pulse rounded-lg bg-white/[0.035]" />
-            <div className="h-10 animate-pulse rounded-lg bg-white/[0.035]" />
+            <div className="h-10 animate-pulse rounded-lg bg-muted/15" />
+            <div className="h-10 animate-pulse rounded-lg bg-muted/15" />
           </div>
         </div>
         <div className="w-[400px] shrink-0 border-r border-border bg-surface/70 p-4">
@@ -203,7 +203,7 @@ function PlaygroundContent() {
   const rawEventsRef = useRef<RawStreamEvent[]>([])
   const [leftPanelTab, setLeftPanelTab] = useState<LeftPanelTab | null>('debug')
   const [showLeftPanel, setShowLeftPanel] = useState(false)
-  const [showRightPanel, setShowRightPanel] = useState(true)
+  const [showRightPanel, setShowRightPanel] = useState(() => window.innerWidth >= 1280)
   const [rightPanelTab, setRightPanelTab] = useState('editor')
   const [selectedTraceId, setSelectedTraceId] = useState<string | null>(null)
   const [showApiModal, setShowApiModal] = useState(false)
@@ -727,6 +727,7 @@ function PlaygroundContent() {
   }
 
   const handleLeftPanelTabChange = (tab: LeftPanelTab) => {
+    if (window.innerWidth < 1280) setShowRightPanel(false)
     if (leftPanelTab === tab) setShowLeftPanel(!showLeftPanel)
     else { setLeftPanelTab(tab); setShowLeftPanel(true); setSelectedTraceId(null) }
   }
@@ -771,7 +772,7 @@ function PlaygroundContent() {
 
   return (
     <ErrorBoundary>
-      <div className="-m-6 h-[calc(100vh-3.5rem)] overflow-hidden flex flex-col bg-background">
+      <div className="h-svh overflow-hidden flex flex-col bg-background">
         <PlaygroundHeader
           agent={agent}
           projectId={projectId!}
@@ -780,23 +781,23 @@ function PlaygroundContent() {
           environment={environment}
           environmentChangeDisabled={isSending}
           onEnvironmentChange={handleEnvironmentChange}
-          onToggleLeftPanel={() => setShowLeftPanel(!showLeftPanel)}
-          onToggleRightPanel={() => setShowRightPanel(!showRightPanel)}
+          onToggleLeftPanel={() => { setShowLeftPanel(!showLeftPanel); if (innerWidth < 1280) setShowRightPanel(false) }}
+          onToggleRightPanel={() => { setShowRightPanel(!showRightPanel); if (innerWidth < 1280) setShowLeftPanel(false) }}
           onApiClick={() => setShowApiModal(true)}
           onSettingsClick={() => navigate(p(projectId!, 'agents', agentId!, 'edit'))}
           releaseVersion={currentEnvironmentRelease?.version}
           visibleProvider={visibleProvider}
           visibleModel={visibleModel}
         />
-        <div className="h-6 shrink-0 flex items-center px-4 border-b border-border text-[10px] bg-surface/30">
+        <div className="h-6 shrink-0 flex items-center px-4 border-b border-border text-system-meta bg-surface/30">
           <span className="text-muted font-medium">{statusLabel}</span>
-          {environment === 'draft' && isDirty && <span className="ml-2 text-yellow-400 font-medium">· unsaved changes</span>}
-          {!runtimeEnabled && <span className="ml-2 text-red-400 font-medium">· {runtimeStateReason}</span>}
-          {!environmentReady && <span className="ml-2 text-amber-300 font-medium">· {environmentReadReason}</span>}
+          {environment === 'draft' && isDirty && <span className="ml-2 text-warning font-medium">· unsaved changes</span>}
+          {!runtimeEnabled && <span className="ml-2 text-error font-medium">· {runtimeStateReason}</span>}
+          {!environmentReady && <span className="ml-2 text-warning font-medium">· {environmentReadReason}</span>}
           <span className="ml-auto text-muted">{visibleProvider || '—'}/{visibleModel || '—'}</span>
         </div>
         <ConfigurationReadinessNotice projectId={projectId!} targetKind="agent" targetId={agentId!} environment={environment} versionId={currentEnvironmentRelease?.id} workspaceId={workspaceId} unsaved={environment === 'draft' && isDirty} />
-        <div className="flex flex-1 min-h-0 overflow-hidden">
+        <div className="relative flex flex-1 min-h-0 overflow-hidden">
           <OperationsRail
             activeTab={showLeftPanel ? leftPanelTab : null}
             environment={environment}

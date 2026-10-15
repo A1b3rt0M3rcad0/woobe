@@ -1,0 +1,99 @@
+{
+  "recorded_at": "2026-10-14T23:45:38.864264-03:00",
+  "timezone": "America/Sao_Paulo",
+  "implementation_commit": "4aee50604064e77685303dce62d80cd4eb7a6af5",
+  "pr": "https://github.com/A1b3rt0M3rcad0/woobe/pull/217",
+  "branch": "feature/frontend-enterprise-redesign",
+  "merged_by_this_task": false,
+  "browser": "Chromium 154.0.8037.57 built on Debian GNU/Linux 13 (trixie)",
+  "changes": [
+    "README opens with one centered supplied logo and descriptive heading, followed by product context, links and capabilities before a dedicated Control Plane screenshot section.",
+    "Workspace/Project breadcrumbs no longer repeat the Woobe symbol; sidebar identity, navigation actions and theme behavior remain intact.",
+    "All 58 main-page/theme screenshots regenerated from the production build; README, screenshot index and gallery use current image hashes."
+  ],
+  "checks": [
+    {
+      "name": "Production page, navigation, brand, workspace and typography rechecks",
+      "result": "passed",
+      "tests": 104,
+      "command": "cd tests/e2e && CI=true WOOBE_CAPTURE_DOCS=1 WOOBE_CAPTURE_REFINEMENT=1 WOOBE_REQUIRE_GEORGIA=1 PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/chromium PLAYWRIGHT_BROWSERS_PATH=/workspace/.playwright npx playwright test --config playwright.config.ts surface-coverage.spec.ts workspace-refinement.spec.ts navigation-contrast.spec.ts brand-identity.spec.ts typography.spec.ts --workers=2",
+      "scope": "Builds actual frontend and Embed. Covers routes at three widths, navigation contrast and account settings in both themes, original brand loading/proportions, workspace interactions and rendered font families."
+    },
+    {
+      "name": "README local Markdown rendering and structure",
+      "result": "passed",
+      "theme_cases": 2,
+      "local_targets_checked": 51,
+      "scope": "Local Markdown preview in Chromium, in light and dark: one heading, one logo, original SVGs loaded, logo center offset 0px. Relative links and in-document navigation targets exist. Product context precedes the system image. This is a local preview, not a GitHub rendering test."
+    },
+    {
+      "name": "Screenshot and source inventory",
+      "result": "passed",
+      "command": "python3 scripts/frontend_visual_inventory.py"
+    },
+    {
+      "name": "AST knowledge graph",
+      "result": "passed",
+      "command": "/workspace/.local/bin/graphify update ."
+    },
+    {
+      "name": "Patch whitespace",
+      "result": "passed",
+      "command": "git diff --check"
+    }
+  ],
+  "screenshots": {
+    "main_pages": 18,
+    "main_page_pngs": 54,
+    "theme_comparison_pngs": 4,
+    "png_count": 58,
+    "viewport_css_pixels": [
+      [
+        1440,
+        1100
+      ],
+      [
+        768,
+        1100
+      ],
+      [
+        390,
+        1100
+      ]
+    ],
+    "capture_window_local": [
+      "2026-10-14T23:42:14.378400-03:00",
+      "2026-10-14T23:45:09.231337-03:00"
+    ],
+    "readme_image_sha256": "7d1c01bc91e49f62ff9245ddf11c3f278c5516ced6d9fd831415838f1e18f621",
+    "readme_cache_key": "7d1c01bc91e4",
+    "sha256_inventory": "coverage.json",
+    "scope": "Main pages and the existing light/dark Agent and Network workspace comparisons. Temporary README review images are outside the repository."
+  },
+  "manual_visual_review": [
+    "Local README preview in light and dark: centered original lockup, descriptive heading, product introduction and dedicated screenshot section.",
+    "Fresh desktop and tablet Overview: text-only Workspace/Project breadcrumbs, sidebar brand preserved, readable content."
+  ],
+  "design_contracts": [
+    "BRAND.md",
+    "THEMES.md"
+  ],
+  "rendered_font_evidence": [
+    "fonts/typography-1440px.json",
+    "fonts/typography-768px.json",
+    "fonts/typography-390px.json",
+    "fonts/typography-auth.json"
+  ],
+  "font_note": "Outlined wordmark is supplied artwork, independent of system fonts. Georgia remains the installed editorial system font; Inter and JetBrains Mono remain self-hosted interface/technical families. No font binary was imported from the kit.",
+  "preceding_validation": {
+    "source": "4dd76b750961fcc8e840ab3a2804c8fe66e88b5b",
+    "report": "https://github.com/A1b3rt0M3rcad0/woobe/blob/4dd76b750961fcc8e840ab3a2804c8fe66e88b5b/docs/design/validation.json",
+    "scope": "Prior brand integration: 661 unit tests, complete 161-test production browser suite, three shared-component/font/interaction rechecks and integrity checks for all 334 supplied assets. Those broader checks were not repeated for this breadcrumb removal and README reorganization."
+  },
+  "remote_ci": "Local checks above do not claim completion of workflows triggered by the new push.",
+  "limits": [
+    "Synthetic API fixtures do not qualify a live backend or model-provider deployment.",
+    "Selected contrast, keyboard and browser checks are not complete accessibility certification.",
+    "Local Chromium 154 and installed Georgia may rasterize differently from pinned CI Chromium and other client fonts."
+  ]
+}

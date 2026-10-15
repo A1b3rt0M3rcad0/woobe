@@ -1,0 +1,6 @@
+/* Font files are NOT bundled. Use installed/licensed fonts. */
+:root { --g-font-serif: Georgia, 'Times New Roman', serif; --g-font-sans: Inter, system-ui, -apple-system, sans-serif; --g-font-mono: 'JetBrains Mono', 'Fira Code', monospace; }
+/* Inter and JetBrains Mono can be installed/self-hosted separately after license review. */
+body { font-family: var(--g-font-sans); }
+code, pre, .technical-label { font-family: var(--g-font-mono); }
+.editorial-heading { font-family: var(--g-font-serif); font-weight: 400; letter-spacing: -0.045em; line-height: 1.06; }

@@ -134,9 +134,9 @@ export function UploadDocumentModal({ open, onClose, projectId, collectionIds, d
         <div className="grid gap-5 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
           <section className="min-w-0 space-y-2">
             <div className="flex min-h-6 items-center justify-between gap-2">
-              <label className="text-[11px] font-medium uppercase tracking-wider text-muted">Destination collection</label>
+              <label className="text-system-meta font-medium uppercase tracking-wider text-muted">Destination collection</label>
               {selectedCollection && (
-                <span className="max-w-[180px] truncate rounded-full border border-border bg-background px-2 py-0.5 text-[10px] text-muted">
+                <span className="max-w-[180px] truncate rounded-full border border-border bg-background px-2 py-0.5 text-system-meta text-muted">
                   {selectedCollection.name || collectionFallbackName(selectedCollection.id)}
                 </span>
               )}
@@ -175,16 +175,16 @@ export function UploadDocumentModal({ open, onClose, projectId, collectionIds, d
                             onClick={() => setCollectionId(collection.id)}
                             className={`flex w-full min-w-0 items-center gap-3 rounded-lg border p-3 text-left transition-colors ${
                               selected
-                                ? 'border-primary bg-primary/10 text-white'
-                                : 'border-transparent bg-transparent text-muted hover:border-border hover:bg-surface hover:text-white'
+                                ? 'border-primary bg-primary/10 text-foreground'
+                                : 'border-transparent bg-transparent text-muted hover:border-border hover:bg-surface hover:text-foreground'
                             }`}
                           >
                             <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border ${selected ? 'border-primary/40 bg-primary/15 text-primary' : 'border-border bg-background text-muted'}`}>
                               <FolderOpen className="h-4 w-4" />
                             </div>
                             <div className="min-w-0 flex-1">
-                              <p className="truncate text-sm font-medium">{name}</p>
-                              <p className="truncate text-[11px] text-muted">{collection.id}</p>
+                              <p className="font-mono truncate text-sm font-medium">{name}</p>
+                              <p className="font-mono truncate text-system-meta text-muted">{collection.id}</p>
                             </div>
                             {selected && <CheckCircle2 className="h-4 w-4 shrink-0 text-primary" />}
                           </button>
@@ -198,7 +198,7 @@ export function UploadDocumentModal({ open, onClose, projectId, collectionIds, d
           </section>
 
           <section className="min-w-0 space-y-2">
-            <label className="flex min-h-6 items-center text-[11px] font-medium uppercase tracking-wider text-muted">File</label>
+            <label className="flex min-h-6 items-center text-system-meta font-medium uppercase tracking-wider text-muted">File</label>
             <input
               ref={fileInputRef}
               type="file"
@@ -244,14 +244,14 @@ export function UploadDocumentModal({ open, onClose, projectId, collectionIds, d
                   <div className="w-full min-w-0 rounded-xl border border-border bg-surface/70 p-3 text-left">
                     <div className="flex min-w-0 items-start gap-3">
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-white">{file.name}</p>
-                        <p className="mt-1 truncate text-xs text-muted">
+                        <p className="font-mono truncate text-sm font-medium text-foreground">{file.name}</p>
+                        <p className="font-mono mt-1 truncate text-xs text-muted">
                           {formatBytes(file.size)}{selectedCollection ? ` · ${selectedCollection.name || collectionFallbackName(selectedCollection.id)}` : ''}
                         </p>
                       </div>
                       <button
                         type="button"
-                        className="shrink-0 rounded-md p-1 text-muted hover:bg-accent hover:text-white"
+                        className="shrink-0 rounded-md p-1 text-muted hover:bg-accent hover:text-foreground"
                         onClick={clearSelectedFile}
                         aria-label="Remove selected file"
                       >
@@ -259,23 +259,23 @@ export function UploadDocumentModal({ open, onClose, projectId, collectionIds, d
                       </button>
                     </div>
                   </div>
-                  <p className="text-[11px] text-muted">Click the area to replace the file.</p>
+                  <p className="font-sans text-system-meta text-muted">Click the area to replace the file.</p>
                 </div>
               ) : (
                 <>
                   <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-surface">
                     <UploadCloud className="h-5 w-5 text-primary" />
                   </div>
-                  <p className="text-sm font-medium text-white">Drop file here</p>
+                  <p className="font-sans text-sm font-medium text-foreground">Drop file here</p>
                   <p className="mt-1 text-xs text-muted">or click to browse from your computer</p>
                   <div className="mt-4 flex flex-wrap justify-center gap-1.5">
                     {ACCEPTED_DOCUMENT_EXTENSIONS.map((extension) => (
-                      <span key={extension} className="rounded-full border border-border bg-surface px-2 py-0.5 text-[11px] text-muted">
+                      <span key={extension} className="rounded-full border border-border bg-surface px-2 py-0.5 text-system-meta text-muted">
                         {extension.toUpperCase().replace('.', '')}
                       </span>
                     ))}
                   </div>
-                  <p className="mt-3 text-[11px] text-muted">Maximum {MAX_DOCUMENT_FILE_MB} MB</p>
+                  <p className="font-sans mt-3 text-system-meta text-muted">Maximum {MAX_DOCUMENT_FILE_MB} MB</p>
                 </>
               )}
             </div>
@@ -283,7 +283,7 @@ export function UploadDocumentModal({ open, onClose, projectId, collectionIds, d
         </div>
 
         <div>
-          <label className="mb-1 block text-[11px] font-medium uppercase tracking-wider text-muted">Document title</label>
+          <label className="mb-1 block text-system-meta font-medium uppercase tracking-wider text-muted">Document title</label>
           <Input
             value={title}
             onChange={(event) => setTitle(event.target.value)}

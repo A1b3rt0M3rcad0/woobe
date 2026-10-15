@@ -22,6 +22,7 @@ export default defineConfig({
       '@uiw/react-codemirror': path.resolve(__dirname, './node_modules/@uiw/react-codemirror'),
       react: path.resolve(__dirname, './node_modules/react'),
       'react-dom': path.resolve(__dirname, './node_modules/react-dom'),
+      'react-router-dom': path.resolve(__dirname, './node_modules/react-router-dom'),
       'lucide-react': path.resolve(__dirname, './node_modules/lucide-react'),
       'tailwind-merge': path.resolve(__dirname, './node_modules/tailwind-merge'),
     },
@@ -29,6 +30,15 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    fs: {
+      allow: [
+        __dirname,
+        path.resolve(__dirname, '../woobe-ui'),
+        path.resolve(__dirname, '../woobe-runtime-client'),
+        path.resolve(__dirname, '../../tests/e2e/review'),
+        path.resolve(__dirname, '../../tests/e2e/fixtures'),
+      ],
+    },
   },
   test: {
     globals: true,

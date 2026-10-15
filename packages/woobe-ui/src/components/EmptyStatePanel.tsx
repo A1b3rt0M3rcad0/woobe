@@ -25,13 +25,13 @@ const EmptyStatePanel = forwardRef<HTMLDivElement, EmptyStatePanelProps>(
       className={cn(
         'flex flex-col items-center justify-center rounded-container border text-center',
         variantClasses[variant],
-        compact ? 'min-h-24 px-ui-lg py-ui-md' : 'min-h-32 px-ui-xl py-ui-lg',
+        compact ? 'min-h-24 px-ui-lg py-ui-md' : 'min-h-48 px-ui-xxl py-ui-xxl',
         className,
       )}
       {...props}
     >
-      {icon ? <div className="mb-ui-sm text-muted-foreground">{icon}</div> : null}
-      <div className="font-mono text-system-control font-semibold text-slate-200">{title}</div>
+      {icon ? <div className="mb-ui-lg flex h-control-row w-control-row items-center justify-center rounded-container border border-border bg-control text-primary">{icon}</div> : null}
+      <div className="font-sans text-section-title font-medium text-slate-200">{title}</div>
       {description ? (
         <div className={cn(
           'mt-ui-xs max-w-md font-sans text-muted-foreground',

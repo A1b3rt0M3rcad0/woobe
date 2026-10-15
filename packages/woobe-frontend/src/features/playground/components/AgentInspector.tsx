@@ -51,7 +51,7 @@ function EnvironmentSnapshotContent({
       </div>
       <ScrollArea className="min-h-0 flex-1">
         {loading && !release ? (
-          <div className="p-ui-lg font-mono text-chrome-label text-muted-foreground">Loading {label} snapshot…</div>
+          <div className="p-ui-lg font-sans text-chrome-label text-muted-foreground">Loading {label} snapshot…</div>
         ) : release ? (
           <div className="p-ui-md"><ReleaseDetailsView release={release} /></div>
         ) : (
@@ -84,11 +84,11 @@ export function AgentInspector({
   return (
     <aside
       aria-label="Agent Inspector"
-      className="fixed bottom-0 right-0 top-playground-inspector z-workspace flex w-[min(94vw,32.5rem)] max-w-[94vw] shrink-0 flex-col border-l border-border bg-surface lg:static lg:z-auto lg:w-inspector-workspace lg:max-w-inspector-workspace lg:bg-surface/[0.78]"
+      className="absolute inset-y-0 right-0 z-workspace flex w-[min(94vw,32.5rem)] max-w-[94vw] shrink-0 flex-col border-l border-border bg-surface xl:static xl:z-auto xl:w-inspector-workspace xl:max-w-inspector-workspace xl:bg-surface"
     >
       <div className="flex h-control shrink-0 items-center gap-ui-sm border-b border-border bg-background/20 px-ui-md">
         <div className="min-w-0 flex-1">
-          <p className="truncate font-mono text-chrome-label font-semibold text-slate-50">Agent settings</p>
+          <p className="truncate font-sans text-chrome-control font-medium text-slate-50">Agent settings</p>
         </div>
 
         <SegmentedControl

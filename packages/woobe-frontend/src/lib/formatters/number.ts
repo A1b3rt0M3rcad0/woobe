@@ -3,7 +3,7 @@ export function formatNumber(
   digits = 2,
   fallback = "—"
 ): string {
-  if (typeof value !== "number" || Number.isNaN(value)) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
     return fallback;
   }
 
@@ -14,7 +14,7 @@ export function formatTokens(
   value: number | null | undefined,
   fallback = "—"
 ): string {
-  if (typeof value !== "number" || Number.isNaN(value)) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
     return fallback;
   }
   return value.toLocaleString();
@@ -25,10 +25,13 @@ export function formatCurrency(
   digits = 4,
   fallback = "—"
 ): string {
-  if (typeof value !== "number" || Number.isNaN(value)) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
     return fallback;
   }
 
+  if (value !== 0 && Math.abs(value) < 10 ** -digits) {
+    return `$${value.toLocaleString('en-US', { maximumSignificantDigits: 6, useGrouping: false })}`;
+  }
   return `$${value.toFixed(digits)}`;
 }
 
@@ -36,7 +39,7 @@ export function formatLatency(
   value: number | null | undefined,
   fallback = "—"
 ): string {
-  if (typeof value !== "number" || Number.isNaN(value)) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
     return fallback;
   }
 

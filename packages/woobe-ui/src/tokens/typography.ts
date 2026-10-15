@@ -24,6 +24,7 @@ export const woobeFontSizes = {
   'brand-title': woobeTypographyScale.brandTitle,
   'brand-caption': woobeTypographyScale.brandCaption,
   'page-title': woobeTypographyScale.pageTitle,
+  'editorial-section': woobeTypographyScale.editorialSection,
   'code-compact': woobeTypographyScale.codeCompact,
   'code-default': woobeTypographyScale.codeDefault,
   'heading-sm': woobeTypographyScale.headingSmall,

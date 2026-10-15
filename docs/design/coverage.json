@@ -1,0 +1,4125 @@
+{
+  "specification": "guild-inspired-enterprise-ui v2.0 with owner-required editorial / interface / technical typography",
+  "evidence_note": "Only current main-page screenshots are committed, as requested. Source inventory, browser tests and visual review are distinct; fixtures are synthetic.",
+  "main_pages": [
+    {
+      "surface": "sign-in",
+      "slug": "sign-in",
+      "title": "Sign in"
+    },
+    {
+      "surface": "workspaces",
+      "slug": "workspaces",
+      "title": "Workspaces"
+    },
+    {
+      "surface": "workspace-projects",
+      "slug": "projects",
+      "title": "Projects"
+    },
+    {
+      "surface": "overview",
+      "slug": "project-overview",
+      "title": "Project Overview"
+    },
+    {
+      "surface": "agents",
+      "slug": "agents",
+      "title": "Agents"
+    },
+    {
+      "surface": "networks",
+      "slug": "networks",
+      "title": "Networks"
+    },
+    {
+      "surface": "playground",
+      "slug": "agent-playground",
+      "title": "Agent playground"
+    },
+    {
+      "surface": "network-workspace",
+      "slug": "network-workspace",
+      "title": "Network workspace"
+    },
+    {
+      "surface": "knowledge",
+      "slug": "knowledge",
+      "title": "Knowledge"
+    },
+    {
+      "surface": "tools",
+      "slug": "tools",
+      "title": "Tools"
+    },
+    {
+      "surface": "skills",
+      "slug": "skills",
+      "title": "Skills"
+    },
+    {
+      "surface": "models",
+      "slug": "models",
+      "title": "Models"
+    },
+    {
+      "surface": "credentials",
+      "slug": "credentials",
+      "title": "Credentials"
+    },
+    {
+      "surface": "environments",
+      "slug": "environments",
+      "title": "Environments"
+    },
+    {
+      "surface": "api-keys",
+      "slug": "api-keys",
+      "title": "API Keys"
+    },
+    {
+      "surface": "chat-surfaces",
+      "slug": "chat-surfaces",
+      "title": "ChatSurfaces"
+    },
+    {
+      "surface": "usage",
+      "slug": "usage",
+      "title": "Usage"
+    },
+    {
+      "surface": "traces",
+      "slug": "traces",
+      "title": "Runs"
+    }
+  ],
+  "routes": [
+    {
+      "path": "/",
+      "component": "RootRedirect",
+      "kind": "redirect",
+      "browser_test": "tests/e2e/tests/surface-coverage.spec.ts",
+      "screenshot_scope": "Not selected: documentation intentionally retains only main pages."
+    },
+    {
+      "path": "/login",
+      "component": "LoginPage",
+      "kind": "rendered-page",
+      "browser_test": "tests/e2e/tests/surface-coverage.spec.ts",
+      "screenshots": [
+        "docs/screenshots/sign-in.png",
+        "docs/screenshots/tablet/sign-in.png",
+        "docs/screenshots/mobile/sign-in.png"
+      ]
+    },
+    {
+      "path": "/register",
+      "component": "RegisterPage",
+      "kind": "rendered-page",
+      "browser_test": "tests/e2e/tests/surface-coverage.spec.ts",
+      "screenshot_scope": "Not selected: documentation intentionally retains only main pages."
+    },
+    {
+      "path": "/dashboard",
+      "component": "DashboardRedirect",
+      "kind": "redirect",
+      "browser_test": "tests/e2e/tests/surface-coverage.spec.ts",
+      "screenshot_scope": "Not selected: documentation intentionally retains only main pages."
+    },
+    {
+      "path": "/workspaces",
+      "component": "WorkspacesPage",
+      "kind": "rendered-page",
+      "browser_test": "tests/e2e/tests/surface-coverage.spec.ts",
+      "screenshots": [
+        "docs/screenshots/workspaces.png",
+        "docs/screenshots/tablet/workspaces.png",
+        "docs/screenshots/mobile/workspaces.png"
+      ]
+    },
+    {
+      "path": "/workspaces/:workspaceId",
+      "component": "Navigate",
+      "kind": "redirect",
+      "browser_test": "tests/e2e/tests/surface-coverage.spec.ts",
+      "screenshot_scope": "Not selected: documentation intentionally retains only main pages."
+    },
+    {
+      "path": "/workspaces/:workspaceId/settings",
+      "component": "WorkspaceDetailPage",
+      "kind": "rendered-page",
+      "browser_test": "tests/e2e/tests/surface-coverage.spec.ts",
+      "screenshot_scope": "Not selected: documentation intentionally retains only main pages."
+    },
+    {
+      "path": "/workspaces/:workspaceId/projects",
+      "component": "WorkspaceProjectsPage",
+      "kind": "rendered-page",
+      "browser_test": "tests/e2e/tests/surface-coverage.spec.ts",
+      "screenshots": [
+        "docs/screenshots/projects.png",
+        "docs/screenshots/tablet/projects.png",
+        "docs/screenshots/mobile/projects.png"
+      ]
+    },
+    {
+      "path": "/workspaces/:workspaceId/setup",
+      "component": "FirstRunSetupPage",
+      "kind": "rendered-page",
+      "browser_test": "tests/e2e/tests/surface-coverage.spec.ts",
+      "screenshot_scope": "Not selected: documentation intentionally retains only main pages."
+    },
+    {
+      "path": "/workspaces/:workspaceId/projects/:projectId",
+      "component": "DashboardPage",
+      "kind": "rendered-page",
+      "browser_test": "tests/e2e/tests/surface-coverage.spec.ts",
+      "screenshots": [
+        "docs/screenshots/project-overview.png",
+        "docs/screenshots/tablet/project-overview.png",
+        "docs/screenshots/mobile/project-overview.png"
+      ]
+    },
+    {
+      "path": "/workspaces/:workspaceId/projects/:projectId/setup",
+      "component": "FirstRunSetupPage",
+      "kind": "rendered-page",
+      "browser_test": "tests/e2e/tests/surface-coverage.spec.ts",
+      "screenshot_scope": "Not selected: documentation intentionally retains only main pages."
+    },
+    {
+      "path": "/workspaces/:workspaceId/projects/:projectId/settings",
+      "component": "WorkspaceProjectDetailPage",
+      "kind": "rendered-page",
+      "browser_test": "tests/e2e/tests/surface-coverage.spec.ts",
+      "screenshot_scope": "Not selected: documentation intentionally retains only main pages."
+    },
+    {
+      "path": "/workspaces/:workspaceId/projects/:projectId/network",
+      "component": "LegacyNetworkRedirect",
+      "kind": "redirect",
+      "browser_test": "tests/e2e/tests/surface-coverage.spec.ts",
+      "screenshot_scope": "Not selected: documentation intentionally retains only main pages."
+    },
+    {
+      "path": "/workspaces/:workspaceId/projects/:projectId/networks",
+      "component": "NetworksPage",
+      "kind": "rendered-page",
+      "browser_test": "tests/e2e/tests/surface-coverage.spec.ts",
+      "screenshots": [
+        "docs/screenshots/networks.png",
+        "docs/screenshots/tablet/networks.png",
+        "docs/screenshots/mobile/networks.png"
+      ]
+    },
+    {
+      "path": "/workspaces/:workspaceId/projects/:projectId/networks/:networkId",
+      "component": "NetworkWorkspaceRoute",
+      "kind": "rendered-page",
+      "browser_test": "tests/e2e/tests/surface-coverage.spec.ts",
+      "screenshots": [
+        "docs/screenshots/network-workspace.png",
+        "docs/screenshots/tablet/network-workspace.png",
+        "docs/screenshots/mobile/network-workspace.png"
+      ]
+    },
+    {
+      "path": "/workspaces/:workspaceId/projects/:projectId/agents",
+      "component": "AgentsPage",
+      "kind": "rendered-page",
+      "browser_test": "tests/e2e/tests/surface-coverage.spec.ts",
+      "screenshots": [
+        "docs/screenshots/agents.png",
+        "docs/screenshots/tablet/agents.png",
+        "docs/screenshots/mobile/agents.png"
+      ]
+    },
+    {
+      "path": "/workspaces/:workspaceId/projects/:projectId/agents/new",
+      "component": "AgentListRedirect",
+      "kind": "redirect",
+      "browser_test": "tests/e2e/tests/surface-coverage.spec.ts",
+      "screenshot_scope": "Not selected: documentation intentionally retains only main pages."
+    },
+    {
+      "path": "/workspaces/:workspaceId/projects/:projectId/agents/:agentId",
+      "component": "AgentPlaygroundRedirect",
+      "kind": "redirect",
+      "browser_test": "tests/e2e/tests/surface-coverage.spec.ts",
+      "screenshot_scope": "Not selected: documentation intentionally retains only main pages."
+    },
+    {
+      "path": "/workspaces/:workspaceId/projects/:projectId/agents/:agentId/edit",
+      "component": "AgentPlaygroundRedirect",
+      "kind": "redirect",
+      "browser_test": "tests/e2e/tests/surface-coverage.spec.ts",
+      "screenshot_scope": "Not selected: documentation intentionally retains only main pages."
+    },
+    {
+      "path": "/workspaces/:workspaceId/projects/:projectId/agents/:agentId/playground",
+      "component": "AgentPlaygroundPage",
+      "kind": "rendered-page",
+      "browser_test": "tests/e2e/tests/surface-coverage.spec.ts",
+      "screenshots": [
+        "docs/screenshots/agent-playground.png",
+        "docs/screenshots/tablet/agent-playground.png",
+        "docs/screenshots/mobile/agent-playground.png"
+      ]
+    },
+    {
+      "path": "/workspaces/:workspaceId/projects/:projectId/knowledge",
+      "component": "KnowledgePage",
+      "kind": "rendered-page",
+      "browser_test": "tests/e2e/tests/surface-coverage.spec.ts",
+      "screenshots": [
+        "docs/screenshots/knowledge.png",
+        "docs/screenshots/tablet/knowledge.png",
+        "docs/screenshots/mobile/knowledge.png"
+      ]
+    },
+    {
+      "path": "/workspaces/:workspaceId/projects/:projectId/tools",
+      "component": "ToolsPage",
+      "kind": "rendered-page",
+      "browser_test": "tests/e2e/tests/surface-coverage.spec.ts",
+      "screenshots": [
+        "docs/screenshots/tools.png",
+        "docs/screenshots/tablet/tools.png",
+        "docs/screenshots/mobile/tools.png"
+      ]
+    },
+    {
+      "path": "/workspaces/:workspaceId/projects/:projectId/skills",
+      "component": "SkillsPage",
+      "kind": "rendered-page",
+      "browser_test": "tests/e2e/tests/surface-coverage.spec.ts",
+      "screenshots": [
+        "docs/screenshots/skills.png",
+        "docs/screenshots/tablet/skills.png",
+        "docs/screenshots/mobile/skills.png"
+      ]
+    },
+    {
+      "path": "/workspaces/:workspaceId/projects/:projectId/models",
+      "component": "ModelsPage",
+      "kind": "rendered-page",
+      "browser_test": "tests/e2e/tests/surface-coverage.spec.ts",
+      "screenshots": [
+        "docs/screenshots/models.png",
+        "docs/screenshots/tablet/models.png",
+        "docs/screenshots/mobile/models.png"
+      ]
+    },
+    {
+      "path": "/workspaces/:workspaceId/projects/:projectId/environments",
+      "component": "ProjectEnvironmentsPage",
+      "kind": "rendered-page",
+      "browser_test": "tests/e2e/tests/surface-coverage.spec.ts",
+      "screenshots": [
+        "docs/screenshots/environments.png",
+        "docs/screenshots/tablet/environments.png",
+        "docs/screenshots/mobile/environments.png"
+      ]
+    },
+    {
+      "path": "/workspaces/:workspaceId/projects/:projectId/credentials",
+      "component": "CredentialsPage",
+      "kind": "rendered-page",
+      "browser_test": "tests/e2e/tests/surface-coverage.spec.ts",
+      "screenshots": [
+        "docs/screenshots/credentials.png",
+        "docs/screenshots/tablet/credentials.png",
+        "docs/screenshots/mobile/credentials.png"
+      ]
+    },
+    {
+      "path": "/workspaces/:workspaceId/projects/:projectId/api-keys",
+      "component": "ApiKeysPage",
+      "kind": "rendered-page",
+      "browser_test": "tests/e2e/tests/surface-coverage.spec.ts",
+      "screenshots": [
+        "docs/screenshots/api-keys.png",
+        "docs/screenshots/tablet/api-keys.png",
+        "docs/screenshots/mobile/api-keys.png"
+      ]
+    },
+    {
+      "path": "/workspaces/:workspaceId/projects/:projectId/chat-surfaces",
+      "component": "ChatSurfacesPage",
+      "kind": "rendered-page",
+      "browser_test": "tests/e2e/tests/surface-coverage.spec.ts",
+      "screenshots": [
+        "docs/screenshots/chat-surfaces.png",
+        "docs/screenshots/tablet/chat-surfaces.png",
+        "docs/screenshots/mobile/chat-surfaces.png"
+      ]
+    },
+    {
+      "path": "/workspaces/:workspaceId/projects/:projectId/usage",
+      "component": "UsagePage",
+      "kind": "rendered-page",
+      "browser_test": "tests/e2e/tests/surface-coverage.spec.ts",
+      "screenshots": [
+        "docs/screenshots/usage.png",
+        "docs/screenshots/tablet/usage.png",
+        "docs/screenshots/mobile/usage.png"
+      ]
+    },
+    {
+      "path": "/workspaces/:workspaceId/projects/:projectId/traces",
+      "component": "TracesPage",
+      "kind": "rendered-page",
+      "browser_test": "tests/e2e/tests/surface-coverage.spec.ts",
+      "screenshots": [
+        "docs/screenshots/traces.png",
+        "docs/screenshots/tablet/traces.png",
+        "docs/screenshots/mobile/traces.png"
+      ]
+    },
+    {
+      "path": "/mcp/oauth/callback",
+      "component": "McpConnectCallbackPage",
+      "kind": "rendered-page",
+      "browser_test": "tests/e2e/tests/surface-coverage.spec.ts",
+      "screenshot_scope": "Not selected: documentation intentionally retains only main pages."
+    },
+    {
+      "path": "/projects",
+      "component": "LegacyProjectRedirect",
+      "kind": "redirect",
+      "browser_test": "tests/e2e/tests/surface-coverage.spec.ts",
+      "screenshot_scope": "Not selected: documentation intentionally retains only main pages."
+    },
+    {
+      "path": "/projects/:projectId",
+      "component": "LegacyProjectRedirect",
+      "kind": "redirect",
+      "browser_test": "tests/e2e/tests/surface-coverage.spec.ts",
+      "screenshot_scope": "Not selected: documentation intentionally retains only main pages."
+    },
+    {
+      "path": "/projects/:projectId/network",
+      "component": "LegacyProjectRedirect",
+      "kind": "redirect",
+      "browser_test": "tests/e2e/tests/surface-coverage.spec.ts",
+      "screenshot_scope": "Not selected: documentation intentionally retains only main pages."
+    },
+    {
+      "path": "/projects/:projectId/networks",
+      "component": "LegacyProjectRedirect",
+      "kind": "redirect",
+      "browser_test": "tests/e2e/tests/surface-coverage.spec.ts",
+      "screenshot_scope": "Not selected: documentation intentionally retains only main pages."
+    },
+    {
+      "path": "/projects/:projectId/networks/:networkId",
+      "component": "LegacyProjectRedirect",
+      "kind": "redirect",
+      "browser_test": "tests/e2e/tests/surface-coverage.spec.ts",
+      "screenshot_scope": "Not selected: documentation intentionally retains only main pages."
+    },
+    {
+      "path": "/projects/:projectId/agents",
+      "component": "LegacyProjectRedirect",
+      "kind": "redirect",
+      "browser_test": "tests/e2e/tests/surface-coverage.spec.ts",
+      "screenshot_scope": "Not selected: documentation intentionally retains only main pages."
+    },
+    {
+      "path": "/projects/:projectId/agents/new",
+      "component": "LegacyProjectRedirect",
+      "kind": "redirect",
+      "browser_test": "tests/e2e/tests/surface-coverage.spec.ts",
+      "screenshot_scope": "Not selected: documentation intentionally retains only main pages."
+    },
+    {
+      "path": "/projects/:projectId/agents/:agentId",
+      "component": "LegacyProjectRedirect",
+      "kind": "redirect",
+      "browser_test": "tests/e2e/tests/surface-coverage.spec.ts",
+      "screenshot_scope": "Not selected: documentation intentionally retains only main pages."
+    },
+    {
+      "path": "/projects/:projectId/agents/:agentId/edit",
+      "component": "LegacyProjectRedirect",
+      "kind": "redirect",
+      "browser_test": "tests/e2e/tests/surface-coverage.spec.ts",
+      "screenshot_scope": "Not selected: documentation intentionally retains only main pages."
+    },
+    {
+      "path": "/projects/:projectId/agents/:agentId/playground",
+      "component": "LegacyProjectRedirect",
+      "kind": "redirect",
+      "browser_test": "tests/e2e/tests/surface-coverage.spec.ts",
+      "screenshot_scope": "Not selected: documentation intentionally retains only main pages."
+    },
+    {
+      "path": "/projects/:projectId/knowledge",
+      "component": "LegacyProjectRedirect",
+      "kind": "redirect",
+      "browser_test": "tests/e2e/tests/surface-coverage.spec.ts",
+      "screenshot_scope": "Not selected: documentation intentionally retains only main pages."
+    },
+    {
+      "path": "/projects/:projectId/tools",
+      "component": "LegacyProjectRedirect",
+      "kind": "redirect",
+      "browser_test": "tests/e2e/tests/surface-coverage.spec.ts",
+      "screenshot_scope": "Not selected: documentation intentionally retains only main pages."
+    },
+    {
+      "path": "/projects/:projectId/skills",
+      "component": "LegacyProjectRedirect",
+      "kind": "redirect",
+      "browser_test": "tests/e2e/tests/surface-coverage.spec.ts",
+      "screenshot_scope": "Not selected: documentation intentionally retains only main pages."
+    },
+    {
+      "path": "/projects/:projectId/models",
+      "component": "LegacyProjectRedirect",
+      "kind": "redirect",
+      "browser_test": "tests/e2e/tests/surface-coverage.spec.ts",
+      "screenshot_scope": "Not selected: documentation intentionally retains only main pages."
+    },
+    {
+      "path": "/projects/:projectId/credentials",
+      "component": "LegacyProjectRedirect",
+      "kind": "redirect",
+      "browser_test": "tests/e2e/tests/surface-coverage.spec.ts",
+      "screenshot_scope": "Not selected: documentation intentionally retains only main pages."
+    },
+    {
+      "path": "/projects/:projectId/environments",
+      "component": "LegacyProjectRedirect",
+      "kind": "redirect",
+      "browser_test": "tests/e2e/tests/surface-coverage.spec.ts",
+      "screenshot_scope": "Not selected: documentation intentionally retains only main pages."
+    },
+    {
+      "path": "/projects/:projectId/api-keys",
+      "component": "LegacyProjectRedirect",
+      "kind": "redirect",
+      "browser_test": "tests/e2e/tests/surface-coverage.spec.ts",
+      "screenshot_scope": "Not selected: documentation intentionally retains only main pages."
+    },
+    {
+      "path": "/projects/:projectId/chat-surfaces",
+      "component": "LegacyProjectRedirect",
+      "kind": "redirect",
+      "browser_test": "tests/e2e/tests/surface-coverage.spec.ts",
+      "screenshot_scope": "Not selected: documentation intentionally retains only main pages."
+    },
+    {
+      "path": "/projects/:projectId/usage",
+      "component": "LegacyProjectRedirect",
+      "kind": "redirect",
+      "browser_test": "tests/e2e/tests/surface-coverage.spec.ts",
+      "screenshot_scope": "Not selected: documentation intentionally retains only main pages."
+    },
+    {
+      "path": "/projects/:projectId/traces",
+      "component": "LegacyProjectRedirect",
+      "kind": "redirect",
+      "browser_test": "tests/e2e/tests/surface-coverage.spec.ts",
+      "screenshot_scope": "Not selected: documentation intentionally retains only main pages."
+    },
+    {
+      "path": "/settings",
+      "component": "SettingsPage",
+      "kind": "rendered-page",
+      "browser_test": "tests/e2e/tests/surface-coverage.spec.ts",
+      "screenshot_scope": "Not selected: documentation intentionally retains only main pages."
+    },
+    {
+      "path": "*",
+      "component": "NotFoundPage",
+      "kind": "rendered-page",
+      "browser_test": "tests/e2e/tests/surface-coverage.spec.ts",
+      "screenshot_scope": "Not selected: documentation intentionally retains only main pages."
+    }
+  ],
+  "shared_components": [
+    {
+      "source": "packages/woobe-ui/src/components/Alert.tsx",
+      "review_groups": [
+        "feedback"
+      ],
+      "browser_test": "tests/e2e/review/gallery.spec.ts",
+      "screenshot_scope": "Tested without committed component/overlay screenshots."
+    },
+    {
+      "source": "packages/woobe-ui/src/components/Badge.tsx",
+      "review_groups": [
+        "badges"
+      ],
+      "browser_test": "tests/e2e/review/gallery.spec.ts",
+      "screenshot_scope": "Tested without committed component/overlay screenshots."
+    },
+    {
+      "source": "packages/woobe-ui/src/components/Button.tsx",
+      "review_groups": [
+        "buttons"
+      ],
+      "browser_test": "tests/e2e/review/gallery.spec.ts",
+      "screenshot_scope": "Tested without committed component/overlay screenshots."
+    },
+    {
+      "source": "packages/woobe-ui/src/components/Card.tsx",
+      "review_groups": [
+        "panels"
+      ],
+      "browser_test": "tests/e2e/review/gallery.spec.ts",
+      "screenshot_scope": "Tested without committed component/overlay screenshots."
+    },
+    {
+      "source": "packages/woobe-ui/src/components/Checkbox.tsx",
+      "review_groups": [
+        "fields"
+      ],
+      "browser_test": "tests/e2e/review/gallery.spec.ts",
+      "screenshot_scope": "Tested without committed component/overlay screenshots."
+    },
+    {
+      "source": "packages/woobe-ui/src/components/CodePanel.tsx",
+      "review_groups": [
+        "code"
+      ],
+      "browser_test": "tests/e2e/review/gallery.spec.ts",
+      "screenshot_scope": "Tested without committed component/overlay screenshots."
+    },
+    {
+      "source": "packages/woobe-ui/src/components/ContributionBars.tsx",
+      "review_groups": [
+        "panels"
+      ],
+      "browser_test": "tests/e2e/review/gallery.spec.ts",
+      "screenshot_scope": "Tested without committed component/overlay screenshots."
+    },
+    {
+      "source": "packages/woobe-ui/src/components/CopyButton.tsx",
+      "review_groups": [
+        "code"
+      ],
+      "browser_test": "tests/e2e/review/gallery.spec.ts",
+      "screenshot_scope": "Tested without committed component/overlay screenshots."
+    },
+    {
+      "source": "packages/woobe-ui/src/components/CreateResourceCard.tsx",
+      "review_groups": [
+        "panels"
+      ],
+      "browser_test": "tests/e2e/review/gallery.spec.ts",
+      "screenshot_scope": "Tested without committed component/overlay screenshots."
+    },
+    {
+      "source": "packages/woobe-ui/src/components/DangerConfirmDialog.tsx",
+      "review_groups": [],
+      "browser_test": "tests/e2e/review/gallery.spec.ts",
+      "screenshot_scope": "Tested without committed component/overlay screenshots."
+    },
+    {
+      "source": "packages/woobe-ui/src/components/Dialog.tsx",
+      "review_groups": [],
+      "browser_test": "tests/e2e/review/gallery.spec.ts",
+      "screenshot_scope": "Tested without committed component/overlay screenshots."
+    },
+    {
+      "source": "packages/woobe-ui/src/components/DotMeter.tsx",
+      "review_groups": [
+        "panels"
+      ],
+      "browser_test": "tests/e2e/review/gallery.spec.ts",
+      "screenshot_scope": "Tested without committed component/overlay screenshots."
+    },
+    {
+      "source": "packages/woobe-ui/src/components/Drawer.tsx",
+      "review_groups": [],
+      "browser_test": "tests/e2e/review/gallery.spec.ts",
+      "screenshot_scope": "Tested without committed component/overlay screenshots."
+    },
+    {
+      "source": "packages/woobe-ui/src/components/Dropdown.tsx",
+      "review_groups": [
+        "dropdown"
+      ],
+      "browser_test": "tests/e2e/review/gallery.spec.ts",
+      "screenshot_scope": "Tested without committed component/overlay screenshots."
+    },
+    {
+      "source": "packages/woobe-ui/src/components/EmptyStatePanel.tsx",
+      "review_groups": [
+        "feedback"
+      ],
+      "browser_test": "tests/e2e/review/gallery.spec.ts",
+      "screenshot_scope": "Tested without committed component/overlay screenshots."
+    },
+    {
+      "source": "packages/woobe-ui/src/components/Field.tsx",
+      "review_groups": [
+        "fields"
+      ],
+      "browser_test": "tests/e2e/review/gallery.spec.ts",
+      "screenshot_scope": "Tested without committed component/overlay screenshots."
+    },
+    {
+      "source": "packages/woobe-ui/src/components/FormActions.tsx",
+      "review_groups": [
+        "fields"
+      ],
+      "browser_test": "tests/e2e/review/gallery.spec.ts",
+      "screenshot_scope": "Tested without committed component/overlay screenshots."
+    },
+    {
+      "source": "packages/woobe-ui/src/components/GuidedEmptyState.tsx",
+      "review_groups": [
+        "feedback"
+      ],
+      "browser_test": "tests/e2e/review/gallery.spec.ts",
+      "screenshot_scope": "Tested without committed component/overlay screenshots."
+    },
+    {
+      "source": "packages/woobe-ui/src/components/Input.tsx",
+      "review_groups": [
+        "fields"
+      ],
+      "browser_test": "tests/e2e/review/gallery.spec.ts",
+      "screenshot_scope": "Tested without committed component/overlay screenshots."
+    },
+    {
+      "source": "packages/woobe-ui/src/components/InputGroup.tsx",
+      "review_groups": [
+        "fields"
+      ],
+      "browser_test": "tests/e2e/review/gallery.spec.ts",
+      "screenshot_scope": "Tested without committed component/overlay screenshots."
+    },
+    {
+      "source": "packages/woobe-ui/src/components/JsonCodeBlock.tsx",
+      "review_groups": [
+        "code"
+      ],
+      "browser_test": "tests/e2e/review/gallery.spec.ts",
+      "screenshot_scope": "Tested without committed component/overlay screenshots."
+    },
+    {
+      "source": "packages/woobe-ui/src/components/JsonEditor.tsx",
+      "review_groups": [
+        "code"
+      ],
+      "browser_test": "tests/e2e/review/gallery.spec.ts",
+      "screenshot_scope": "Tested without committed component/overlay screenshots."
+    },
+    {
+      "source": "packages/woobe-ui/src/components/LoadingState.tsx",
+      "review_groups": [
+        "feedback"
+      ],
+      "browser_test": "tests/e2e/review/gallery.spec.ts",
+      "screenshot_scope": "Tested without committed component/overlay screenshots."
+    },
+    {
+      "source": "packages/woobe-ui/src/components/MathSurface.tsx",
+      "review_groups": [
+        "code"
+      ],
+      "browser_test": "tests/e2e/review/gallery.spec.ts",
+      "screenshot_scope": "Tested without committed component/overlay screenshots."
+    },
+    {
+      "source": "packages/woobe-ui/src/components/MetricTile.tsx",
+      "review_groups": [
+        "panels"
+      ],
+      "browser_test": "tests/e2e/review/gallery.spec.ts",
+      "screenshot_scope": "Tested without committed component/overlay screenshots."
+    },
+    {
+      "source": "packages/woobe-ui/src/components/OperationalResourceCard.tsx",
+      "review_groups": [
+        "panels"
+      ],
+      "browser_test": "tests/e2e/review/gallery.spec.ts",
+      "screenshot_scope": "Tested without committed component/overlay screenshots."
+    },
+    {
+      "source": "packages/woobe-ui/src/components/PageHeader.tsx",
+      "review_groups": [
+        "tables"
+      ],
+      "browser_test": "tests/e2e/review/gallery.spec.ts",
+      "screenshot_scope": "Tested without committed component/overlay screenshots."
+    },
+    {
+      "source": "packages/woobe-ui/src/components/PanelHeader.tsx",
+      "review_groups": [
+        "panels"
+      ],
+      "browser_test": "tests/e2e/review/gallery.spec.ts",
+      "screenshot_scope": "Tested without committed component/overlay screenshots."
+    },
+    {
+      "source": "packages/woobe-ui/src/components/ReadOnlyField.tsx",
+      "review_groups": [
+        "fields"
+      ],
+      "browser_test": "tests/e2e/review/gallery.spec.ts",
+      "screenshot_scope": "Tested without committed component/overlay screenshots."
+    },
+    {
+      "source": "packages/woobe-ui/src/components/ResourcePage.tsx",
+      "review_groups": [
+        "tables"
+      ],
+      "browser_test": "tests/e2e/review/gallery.spec.ts",
+      "screenshot_scope": "Tested without committed component/overlay screenshots."
+    },
+    {
+      "source": "packages/woobe-ui/src/components/ScrollArea.tsx",
+      "review_groups": [
+        "resource-shell"
+      ],
+      "browser_test": "tests/e2e/review/gallery.spec.ts",
+      "screenshot_scope": "Tested without committed component/overlay screenshots."
+    },
+    {
+      "source": "packages/woobe-ui/src/components/SectionBlock.tsx",
+      "review_groups": [
+        "panels"
+      ],
+      "browser_test": "tests/e2e/review/gallery.spec.ts",
+      "screenshot_scope": "Tested without committed component/overlay screenshots."
+    },
+    {
+      "source": "packages/woobe-ui/src/components/SegmentedControl.tsx",
+      "review_groups": [
+        "tables"
+      ],
+      "browser_test": "tests/e2e/review/gallery.spec.ts",
+      "screenshot_scope": "Tested without committed component/overlay screenshots."
+    },
+    {
+      "source": "packages/woobe-ui/src/components/Select.tsx",
+      "review_groups": [
+        "fields"
+      ],
+      "browser_test": "tests/e2e/review/gallery.spec.ts",
+      "screenshot_scope": "Tested without committed component/overlay screenshots."
+    },
+    {
+      "source": "packages/woobe-ui/src/components/Separator.tsx",
+      "review_groups": [
+        "badges"
+      ],
+      "browser_test": "tests/e2e/review/gallery.spec.ts",
+      "screenshot_scope": "Tested without committed component/overlay screenshots."
+    },
+    {
+      "source": "packages/woobe-ui/src/components/Skeleton.tsx",
+      "review_groups": [
+        "feedback"
+      ],
+      "browser_test": "tests/e2e/review/gallery.spec.ts",
+      "screenshot_scope": "Tested without committed component/overlay screenshots."
+    },
+    {
+      "source": "packages/woobe-ui/src/components/Stepper.tsx",
+      "review_groups": [
+        "tables"
+      ],
+      "browser_test": "tests/e2e/review/gallery.spec.ts",
+      "screenshot_scope": "Tested without committed component/overlay screenshots."
+    },
+    {
+      "source": "packages/woobe-ui/src/components/Table.tsx",
+      "review_groups": [
+        "tables"
+      ],
+      "browser_test": "tests/e2e/review/gallery.spec.ts",
+      "screenshot_scope": "Tested without committed component/overlay screenshots."
+    },
+    {
+      "source": "packages/woobe-ui/src/components/Tabs.tsx",
+      "review_groups": [
+        "tables"
+      ],
+      "browser_test": "tests/e2e/review/gallery.spec.ts",
+      "screenshot_scope": "Tested without committed component/overlay screenshots."
+    },
+    {
+      "source": "packages/woobe-ui/src/components/TechnicalListItem.tsx",
+      "review_groups": [
+        "badges"
+      ],
+      "browser_test": "tests/e2e/review/gallery.spec.ts",
+      "screenshot_scope": "Tested without committed component/overlay screenshots."
+    },
+    {
+      "source": "packages/woobe-ui/src/components/Textarea.tsx",
+      "review_groups": [
+        "fields"
+      ],
+      "browser_test": "tests/e2e/review/gallery.spec.ts",
+      "screenshot_scope": "Tested without committed component/overlay screenshots."
+    },
+    {
+      "source": "packages/woobe-ui/src/components/WoobeDatePicker.tsx",
+      "review_groups": [
+        "dates"
+      ],
+      "browser_test": "tests/e2e/review/gallery.spec.ts",
+      "screenshot_scope": "Tested without committed component/overlay screenshots."
+    },
+    {
+      "source": "packages/woobe-ui/src/components/WoobeDateTimePicker.tsx",
+      "review_groups": [
+        "dates"
+      ],
+      "browser_test": "tests/e2e/review/gallery.spec.ts",
+      "screenshot_scope": "Tested without committed component/overlay screenshots."
+    },
+    {
+      "source": "packages/woobe-ui/src/components/WoobeLogo.tsx",
+      "review_groups": [
+        "brand"
+      ],
+      "browser_test": "tests/e2e/review/gallery.spec.ts",
+      "screenshot_scope": "Tested without committed component/overlay screenshots."
+    }
+  ],
+  "direct_overlays": [
+    {
+      "id": "Dialog",
+      "source": "packages/woobe-ui/src/components/Dialog.tsx"
+    },
+    {
+      "id": "Drawer",
+      "source": "packages/woobe-ui/src/components/Drawer.tsx"
+    },
+    {
+      "id": "DangerConfirmDialog",
+      "source": "packages/woobe-ui/src/components/DangerConfirmDialog.tsx"
+    },
+    {
+      "id": "ConfigurationValueEditor",
+      "source": "packages/woobe-frontend/src/features/projects/components/ConfigurationValueEditor.tsx"
+    },
+    {
+      "id": "CreateProjectDialog",
+      "alias": "Overlay0",
+      "source": "packages/woobe-frontend/src/components/forms/CreateProjectDialog.tsx",
+      "export": "CreateProjectDialog"
+    },
+    {
+      "id": "CreateWorkspaceDialog",
+      "alias": "Overlay1",
+      "source": "packages/woobe-frontend/src/components/forms/CreateWorkspaceDialog.tsx",
+      "export": "CreateWorkspaceDialog"
+    },
+    {
+      "id": "AgentBehaviorFieldDialog",
+      "alias": "Overlay2",
+      "source": "packages/woobe-frontend/src/features/agents/components/AgentBehaviorFieldDialog.tsx",
+      "export": "AgentBehaviorFieldDialog"
+    },
+    {
+      "id": "AgentContextConfigurationDialog",
+      "alias": "Overlay3",
+      "source": "packages/woobe-frontend/src/features/agents/components/AgentContextConfigurationDialog.tsx",
+      "export": "AgentContextConfigurationDialog"
+    },
+    {
+      "id": "AgentModelManagerModal",
+      "alias": "Overlay4",
+      "source": "packages/woobe-frontend/src/features/agents/components/AgentModelManagerModal.tsx",
+      "export": "AgentModelManagerModal"
+    },
+    {
+      "id": "CreateAgentFlowModal",
+      "alias": "Overlay5",
+      "source": "packages/woobe-frontend/src/features/agents/components/CreateAgentFlowModal.tsx",
+      "export": "CreateAgentFlowModal"
+    },
+    {
+      "id": "CreateApiKeyDialog",
+      "alias": "Overlay6",
+      "source": "packages/woobe-frontend/src/features/api-keys/components/CreateApiKeyDialog.tsx",
+      "export": "CreateApiKeyDialog"
+    },
+    {
+      "id": "RotateApiKeyDialog",
+      "alias": "Overlay7",
+      "source": "packages/woobe-frontend/src/features/api-keys/components/RotateApiKeyDialog.tsx",
+      "export": "RotateApiKeyDialog"
+    },
+    {
+      "id": "AccountSettingsDialog",
+      "alias": "Overlay8",
+      "source": "packages/woobe-frontend/src/features/auth/components/AccountSettingsDialog.tsx",
+      "export": "AccountSettingsDialog"
+    },
+    {
+      "id": "ChatSurfaceDetailsModal",
+      "alias": "Overlay9",
+      "source": "packages/woobe-frontend/src/features/chat-surfaces/components/ChatSurfaceDetailsModal.tsx",
+      "export": "ChatSurfaceDetailsModal"
+    },
+    {
+      "id": "ChatSurfaceLiveTestDialog",
+      "alias": "Overlay10",
+      "source": "packages/woobe-frontend/src/features/chat-surfaces/components/ChatSurfaceLiveTestDialog.tsx",
+      "export": "ChatSurfaceLiveTestDialog"
+    },
+    {
+      "id": "ManualModelModal",
+      "alias": "Overlay11",
+      "source": "packages/woobe-frontend/src/features/first-run/components/ManualModelModal.tsx",
+      "export": "ManualModelModal"
+    },
+    {
+      "id": "ProviderConnectionModal",
+      "alias": "Overlay12",
+      "source": "packages/woobe-frontend/src/features/first-run/components/ProviderConnectionModal.tsx",
+      "export": "ProviderConnectionModal"
+    },
+    {
+      "id": "AttachCollectionModal",
+      "alias": "Overlay13",
+      "source": "packages/woobe-frontend/src/features/knowledge/components/AttachCollectionModal.tsx",
+      "export": "AttachCollectionModal"
+    },
+    {
+      "id": "BuildVectorSnapshotModalV2",
+      "alias": "Overlay14",
+      "source": "packages/woobe-frontend/src/features/knowledge/components/BuildVectorSnapshotModalV2.tsx",
+      "export": "BuildVectorSnapshotModalV2"
+    },
+    {
+      "id": "CollectionDetailsModal",
+      "alias": "Overlay15",
+      "source": "packages/woobe-frontend/src/features/knowledge/components/CollectionDetailsModal.tsx",
+      "export": "CollectionDetailsModal"
+    },
+    {
+      "id": "CollectionDetailsModalV2-CollectionDetailsModal",
+      "alias": "Overlay16",
+      "source": "packages/woobe-frontend/src/features/knowledge/components/CollectionDetailsModalV2.tsx",
+      "export": "CollectionDetailsModal"
+    },
+    {
+      "id": "CollectionDocumentUploadModal",
+      "alias": "Overlay17",
+      "source": "packages/woobe-frontend/src/features/knowledge/components/CollectionDocumentUploadModal.tsx",
+      "export": "CollectionDocumentUploadModal"
+    },
+    {
+      "id": "CreateCollectionModal",
+      "alias": "Overlay18",
+      "source": "packages/woobe-frontend/src/features/knowledge/components/CreateCollectionModal.tsx",
+      "export": "CreateCollectionModal"
+    },
+    {
+      "id": "CreateEmbeddingModelModal",
+      "alias": "Overlay19",
+      "source": "packages/woobe-frontend/src/features/knowledge/components/CreateEmbeddingModelModal.tsx",
+      "export": "CreateEmbeddingModelModal"
+    },
+    {
+      "id": "DocumentsDrawer",
+      "alias": "Overlay20",
+      "source": "packages/woobe-frontend/src/features/knowledge/components/DocumentsDrawer.tsx",
+      "export": "DocumentsDrawer"
+    },
+    {
+      "id": "SelectKnowledgeVersionModal",
+      "alias": "Overlay21",
+      "source": "packages/woobe-frontend/src/features/knowledge/components/SelectKnowledgeVersionModal.tsx",
+      "export": "SelectKnowledgeVersionModal"
+    },
+    {
+      "id": "UploadDocumentModal",
+      "alias": "Overlay22",
+      "source": "packages/woobe-frontend/src/features/knowledge/components/UploadDocumentModal.tsx",
+      "export": "UploadDocumentModal"
+    },
+    {
+      "id": "VectorSnapshotDetailsModal",
+      "alias": "Overlay23",
+      "source": "packages/woobe-frontend/src/features/knowledge/components/VectorSnapshotDetailsModal.tsx",
+      "export": "VectorSnapshotDetailsModal"
+    },
+    {
+      "id": "NetworkAgentCatalogDrawer",
+      "alias": "Overlay24",
+      "source": "packages/woobe-frontend/src/features/network/components/NetworkAgentCatalogDrawer.tsx",
+      "export": "NetworkAgentCatalogDrawer"
+    },
+    {
+      "id": "NetworkApiModal",
+      "alias": "Overlay25",
+      "source": "packages/woobe-frontend/src/features/network/components/NetworkApiModal.tsx",
+      "export": "NetworkApiModal"
+    },
+    {
+      "id": "NetworkDraftConflictDialog",
+      "alias": "Overlay26",
+      "source": "packages/woobe-frontend/src/features/network/components/NetworkDraftConflictDialog.tsx",
+      "export": "NetworkDraftConflictDialog"
+    },
+    {
+      "id": "NetworkInspectorModal",
+      "alias": "Overlay27",
+      "source": "packages/woobe-frontend/src/features/network/components/NetworkInspectorModal.tsx",
+      "export": "NetworkInspectorModal"
+    },
+    {
+      "id": "NetworkPromotionDialogV2-NetworkPromotionDialog",
+      "alias": "Overlay28",
+      "source": "packages/woobe-frontend/src/features/network/components/NetworkPromotionDialogV2.tsx",
+      "export": "NetworkPromotionDialog"
+    },
+    {
+      "id": "NetworkReleaseDialogs-NetworkReleaseModal",
+      "alias": "Overlay29",
+      "source": "packages/woobe-frontend/src/features/network/components/NetworkReleaseDialogs.tsx",
+      "export": "NetworkReleaseModal"
+    },
+    {
+      "id": "NetworkReleaseDialogs-UnsavedAgentSwitchDialog",
+      "alias": "Overlay30",
+      "source": "packages/woobe-frontend/src/features/network/components/NetworkReleaseDialogs.tsx",
+      "export": "UnsavedAgentSwitchDialog"
+    },
+    {
+      "id": "NetworkRemoveDialog",
+      "alias": "Overlay31",
+      "source": "packages/woobe-frontend/src/features/network/components/NetworkRemoveDialog.tsx",
+      "export": "NetworkRemoveDialog"
+    },
+    {
+      "id": "NetworkRollbackDialog",
+      "alias": "Overlay32",
+      "source": "packages/woobe-frontend/src/features/network/components/NetworkRollbackDialog.tsx",
+      "export": "NetworkRollbackDialog"
+    },
+    {
+      "id": "NetworkRuntimeControlsPopover",
+      "alias": "Overlay33",
+      "source": "packages/woobe-frontend/src/features/network/components/NetworkRuntimeControlsPopover.tsx",
+      "export": "NetworkRuntimeControlsPopover"
+    },
+    {
+      "id": "NetworkUnsavedChangesDialog",
+      "alias": "Overlay34",
+      "source": "packages/woobe-frontend/src/features/network/components/NetworkUnsavedChangesDialog.tsx",
+      "export": "NetworkUnsavedChangesDialog"
+    },
+    {
+      "id": "NetworkVersionsModalV2-NetworkVersionsModal",
+      "alias": "Overlay35",
+      "source": "packages/woobe-frontend/src/features/network/components/NetworkVersionsModalV2.tsx",
+      "export": "NetworkVersionsModal"
+    },
+    {
+      "id": "AgentControlsPopover",
+      "alias": "Overlay36",
+      "source": "packages/woobe-frontend/src/features/playground/components/AgentControlsPopover.tsx",
+      "export": "AgentControlsPopover"
+    },
+    {
+      "id": "AgentManagerModal",
+      "alias": "Overlay37",
+      "source": "packages/woobe-frontend/src/features/playground/components/AgentManagerModal.tsx",
+      "export": "AgentManagerModal"
+    },
+    {
+      "id": "ApiModal",
+      "alias": "Overlay38",
+      "source": "packages/woobe-frontend/src/features/playground/components/ApiModal.tsx",
+      "export": "ApiModal"
+    },
+    {
+      "id": "ConfirmDeleteModal",
+      "alias": "Overlay39",
+      "source": "packages/woobe-frontend/src/features/playground/components/ConfirmDeleteModal.tsx",
+      "export": "ConfirmDeleteModal"
+    },
+    {
+      "id": "ConfirmVersionModal",
+      "alias": "Overlay40",
+      "source": "packages/woobe-frontend/src/features/playground/components/ConfirmVersionModal.tsx",
+      "export": "ConfirmVersionModal"
+    },
+    {
+      "id": "CreateReleaseDialog",
+      "alias": "Overlay41",
+      "source": "packages/woobe-frontend/src/features/playground/components/CreateReleaseDialog.tsx",
+      "export": "CreateReleaseDialog"
+    },
+    {
+      "id": "CreateToolModal",
+      "alias": "Overlay42",
+      "source": "packages/woobe-frontend/src/features/playground/components/CreateToolModal.tsx",
+      "export": "CreateToolModal"
+    },
+    {
+      "id": "EditHttpGroupModal",
+      "alias": "Overlay43",
+      "source": "packages/woobe-frontend/src/features/playground/components/EditHttpGroupModal.tsx",
+      "export": "EditHttpGroupModal"
+    },
+    {
+      "id": "EditToolModal",
+      "alias": "Overlay44",
+      "source": "packages/woobe-frontend/src/features/playground/components/EditToolModal.tsx",
+      "export": "EditToolModal"
+    },
+    {
+      "id": "ImportToolsModal",
+      "alias": "Overlay45",
+      "source": "packages/woobe-frontend/src/features/playground/components/ImportToolsModal.tsx",
+      "export": "ImportToolsModal"
+    },
+    {
+      "id": "ManageKnowledgeModal",
+      "alias": "Overlay46",
+      "source": "packages/woobe-frontend/src/features/playground/components/ManageKnowledgeModal.tsx",
+      "export": "ManageKnowledgeModal"
+    },
+    {
+      "id": "OutputContractHelpModal",
+      "alias": "Overlay47",
+      "source": "packages/woobe-frontend/src/features/playground/components/OutputContractHelpModal.tsx",
+      "export": "OutputContractHelpModal"
+    },
+    {
+      "id": "ProductionChangesModal",
+      "alias": "Overlay48",
+      "source": "packages/woobe-frontend/src/features/playground/components/ProductionChangesModal.tsx",
+      "export": "ProductionChangesModal"
+    },
+    {
+      "id": "ReleaseLibraryModal",
+      "alias": "Overlay49",
+      "source": "packages/woobe-frontend/src/features/playground/components/ReleaseLibraryModal.tsx",
+      "export": "ReleaseLibraryModal"
+    },
+    {
+      "id": "ReleaseSnapshotModal",
+      "alias": "Overlay50",
+      "source": "packages/woobe-frontend/src/features/playground/components/ReleaseSnapshotModal.tsx",
+      "export": "ReleaseSnapshotModal"
+    },
+    {
+      "id": "StageDraftSnapshotModal",
+      "alias": "Overlay51",
+      "source": "packages/woobe-frontend/src/features/playground/components/StageDraftSnapshotModal.tsx",
+      "export": "StageDraftSnapshotModal"
+    },
+    {
+      "id": "ConfigurationKeyDeclarationDialog",
+      "alias": "Overlay52",
+      "source": "packages/woobe-frontend/src/features/projects/components/ConfigurationKeyDeclarationDialog.tsx",
+      "export": "ConfigurationKeyDeclarationDialog"
+    },
+    {
+      "id": "ConfigurationUsageDialog",
+      "alias": "Overlay53",
+      "source": "packages/woobe-frontend/src/features/projects/components/ConfigurationUsageDialog.tsx",
+      "export": "ConfigurationUsageDialog"
+    },
+    {
+      "id": "ProjectSettingsDialog",
+      "alias": "Overlay54",
+      "source": "packages/woobe-frontend/src/features/projects/components/ProjectSettingsDialog.tsx",
+      "export": "ProjectSettingsDialog"
+    },
+    {
+      "id": "AddProviderCredentialModal",
+      "alias": "Overlay55",
+      "source": "packages/woobe-frontend/src/features/provider-credentials/components/AddProviderCredentialModal.tsx",
+      "export": "AddProviderCredentialModal"
+    },
+    {
+      "id": "RotateProviderCredentialDialog",
+      "alias": "Overlay56",
+      "source": "packages/woobe-frontend/src/features/provider-credentials/components/RotateProviderCredentialDialog.tsx",
+      "export": "RotateProviderCredentialDialog"
+    },
+    {
+      "id": "ModelSettingsModal",
+      "alias": "Overlay57",
+      "source": "packages/woobe-frontend/src/features/provider-models/components/ModelSettingsModal.tsx",
+      "export": "ModelSettingsModal"
+    },
+    {
+      "id": "RuntimeApiReferenceModal",
+      "alias": "Overlay58",
+      "source": "packages/woobe-frontend/src/features/runtime-reference/RuntimeApiReferenceModal.tsx",
+      "export": "RuntimeApiReferenceModal"
+    },
+    {
+      "id": "ManageSkillsDialog",
+      "alias": "Overlay59",
+      "source": "packages/woobe-frontend/src/features/skills/ManageSkillsDialog.tsx",
+      "export": "ManageSkillsDialog"
+    },
+    {
+      "id": "ToolSettingsModal",
+      "alias": "Overlay60",
+      "source": "packages/woobe-frontend/src/features/tools/components/ToolSettingsModal.tsx",
+      "export": "ToolSettingsModal"
+    },
+    {
+      "id": "WorkspaceSettingsDialog",
+      "alias": "Overlay61",
+      "source": "packages/woobe-frontend/src/features/workspaces/components/WorkspaceSettingsDialog.tsx",
+      "export": "WorkspaceSettingsDialog"
+    },
+    {
+      "id": "ToolsCreateDialog",
+      "alias": "Overlay62",
+      "source": "packages/woobe-frontend/src/pages/ToolsCreateDialog.tsx",
+      "export": "ToolsCreateDialog"
+    },
+    {
+      "id": "RagRuntimeSettings",
+      "source": "packages/woobe-frontend/src/features/playground/components/RagRuntimeSettings.tsx"
+    },
+    {
+      "id": "ConfigurationBatchEditor",
+      "source": "packages/woobe-frontend/src/features/projects/components/ConfigurationBatchEditor.tsx"
+    },
+    {
+      "id": "ManageSkills-Create",
+      "source": "packages/woobe-frontend/src/features/skills/ManageSkillsDialog.tsx"
+    },
+    {
+      "id": "ManageSkills-Import",
+      "source": "packages/woobe-frontend/src/features/skills/ManageSkillsDialog.tsx"
+    }
+  ],
+  "inline_overlay_hosts": [
+    {
+      "id": "host-agent-result",
+      "source": "packages/woobe-frontend/src/features/playground/components/AgentResultViewer.tsx"
+    },
+    {
+      "id": "host-config-legacy",
+      "source": "packages/woobe-frontend/src/features/projects/components/ConfigurationLegacyPanel.tsx"
+    },
+    {
+      "id": "host-network-history",
+      "source": "packages/woobe-frontend/src/pages/NetworkPage.tsx"
+    },
+    {
+      "id": "host-context-manager",
+      "source": "packages/woobe-frontend/src/features/agents/components/AgentContextAssemblerField.tsx"
+    },
+    {
+      "id": "host-execution-strategy",
+      "source": "packages/woobe-frontend/src/features/agents/components/AgentExecutionStrategyField.tsx"
+    },
+    {
+      "id": "host-field-description",
+      "source": "packages/woobe-frontend/src/features/contracts/ContractFieldBuilder.tsx"
+    },
+    {
+      "id": "host-runtime-context",
+      "source": "packages/woobe-frontend/src/features/contracts/RuntimeContextPanel.tsx"
+    },
+    {
+      "id": "host-agent-snapshot",
+      "source": "packages/woobe-frontend/src/features/network/components/NetworkAgentVersionsV2.tsx"
+    },
+    {
+      "id": "host-http-routes",
+      "source": "packages/woobe-frontend/src/features/tools/components/HttpProviderPanel.tsx"
+    },
+    {
+      "id": "host-mcp-tools",
+      "source": "packages/woobe-frontend/src/features/tools/components/McpProviderPanel.tsx"
+    }
+  ],
+  "overlay_source_inventory": [
+    "packages/woobe-frontend/src/components/forms/CreateProjectDialog.tsx",
+    "packages/woobe-frontend/src/components/forms/CreateWorkspaceDialog.tsx",
+    "packages/woobe-frontend/src/features/agents/components/AgentBehaviorFieldDialog.tsx",
+    "packages/woobe-frontend/src/features/agents/components/AgentContextAssemblerField.tsx",
+    "packages/woobe-frontend/src/features/agents/components/AgentContextConfigurationDialog.tsx",
+    "packages/woobe-frontend/src/features/agents/components/AgentExecutionStrategyField.tsx",
+    "packages/woobe-frontend/src/features/agents/components/AgentModelManagerModal.tsx",
+    "packages/woobe-frontend/src/features/agents/components/CreateAgentFlowModal.tsx",
+    "packages/woobe-frontend/src/features/api-keys/components/CreateApiKeyDialog.tsx",
+    "packages/woobe-frontend/src/features/api-keys/components/RotateApiKeyDialog.tsx",
+    "packages/woobe-frontend/src/features/asac/AsacWorkbench.tsx",
+    "packages/woobe-frontend/src/features/auth/components/AccountSettingsDialog.tsx",
+    "packages/woobe-frontend/src/features/chat-surfaces/components/ChatSurfaceDetailsModal.tsx",
+    "packages/woobe-frontend/src/features/chat-surfaces/components/ChatSurfaceLiveTestDialog.tsx",
+    "packages/woobe-frontend/src/features/contracts/ContractFieldBuilder.tsx",
+    "packages/woobe-frontend/src/features/contracts/RuntimeContextPanel.tsx",
+    "packages/woobe-frontend/src/features/first-run/components/ManualModelModal.tsx",
+    "packages/woobe-frontend/src/features/first-run/components/ProviderConnectionModal.tsx",
+    "packages/woobe-frontend/src/features/knowledge/components/AttachCollectionModal.tsx",
+    "packages/woobe-frontend/src/features/knowledge/components/BuildVectorSnapshotModalV2.tsx",
+    "packages/woobe-frontend/src/features/knowledge/components/CollectionDetailsModal.tsx",
+    "packages/woobe-frontend/src/features/knowledge/components/CollectionDetailsModalV2.tsx",
+    "packages/woobe-frontend/src/features/knowledge/components/CollectionDocumentUploadModal.tsx",
+    "packages/woobe-frontend/src/features/knowledge/components/CreateCollectionModal.tsx",
+    "packages/woobe-frontend/src/features/knowledge/components/CreateEmbeddingModelModal.tsx",
+    "packages/woobe-frontend/src/features/knowledge/components/DocumentsDrawer.tsx",
+    "packages/woobe-frontend/src/features/knowledge/components/SelectKnowledgeVersionModal.tsx",
+    "packages/woobe-frontend/src/features/knowledge/components/UploadDocumentModal.tsx",
+    "packages/woobe-frontend/src/features/knowledge/components/VectorSnapshotDetailsModal.tsx",
+    "packages/woobe-frontend/src/features/network/components/NetworkAgentCatalogDrawer.tsx",
+    "packages/woobe-frontend/src/features/network/components/NetworkAgentVersionsV2.tsx",
+    "packages/woobe-frontend/src/features/network/components/NetworkDraftConflictDialog.tsx",
+    "packages/woobe-frontend/src/features/network/components/NetworkInspectorModal.tsx",
+    "packages/woobe-frontend/src/features/network/components/NetworkPromotionDialogV2.tsx",
+    "packages/woobe-frontend/src/features/network/components/NetworkReleaseDialogs.tsx",
+    "packages/woobe-frontend/src/features/network/components/NetworkRemoveDialog.tsx",
+    "packages/woobe-frontend/src/features/network/components/NetworkRollbackDialog.tsx",
+    "packages/woobe-frontend/src/features/network/components/NetworkUnsavedChangesDialog.tsx",
+    "packages/woobe-frontend/src/features/network/components/NetworkVersionsModalV2.tsx",
+    "packages/woobe-frontend/src/features/playground/components/AgentManagerModal.tsx",
+    "packages/woobe-frontend/src/features/playground/components/AgentResultViewer.tsx",
+    "packages/woobe-frontend/src/features/playground/components/ConfirmDeleteModal.tsx",
+    "packages/woobe-frontend/src/features/playground/components/ConfirmVersionModal.tsx",
+    "packages/woobe-frontend/src/features/playground/components/CreateReleaseDialog.tsx",
+    "packages/woobe-frontend/src/features/playground/components/EditHttpGroupModal.tsx",
+    "packages/woobe-frontend/src/features/playground/components/ImportToolsModal.tsx",
+    "packages/woobe-frontend/src/features/playground/components/ManageKnowledgeModal.tsx",
+    "packages/woobe-frontend/src/features/playground/components/OutputContractHelpModal.tsx",
+    "packages/woobe-frontend/src/features/playground/components/ProductionChangesModal.tsx",
+    "packages/woobe-frontend/src/features/playground/components/RagRuntimeSettings.tsx",
+    "packages/woobe-frontend/src/features/playground/components/ReleaseLibraryModal.tsx",
+    "packages/woobe-frontend/src/features/playground/components/ReleaseSnapshotModal.tsx",
+    "packages/woobe-frontend/src/features/playground/components/StageDraftSnapshotModal.tsx",
+    "packages/woobe-frontend/src/features/projects/components/ConfigurationBatchEditor.tsx",
+    "packages/woobe-frontend/src/features/projects/components/ConfigurationKeyDeclarationDialog.tsx",
+    "packages/woobe-frontend/src/features/projects/components/ConfigurationLegacyPanel.tsx",
+    "packages/woobe-frontend/src/features/projects/components/ConfigurationUsageDialog.tsx",
+    "packages/woobe-frontend/src/features/projects/components/ConfigurationValueEditor.tsx",
+    "packages/woobe-frontend/src/features/projects/components/ProjectSettingsDialog.tsx",
+    "packages/woobe-frontend/src/features/provider-credentials/components/AddProviderCredentialModal.tsx",
+    "packages/woobe-frontend/src/features/provider-credentials/components/RotateProviderCredentialDialog.tsx",
+    "packages/woobe-frontend/src/features/provider-models/components/ModelSettingsModal.tsx",
+    "packages/woobe-frontend/src/features/runtime-reference/RuntimeApiReferenceModal.tsx",
+    "packages/woobe-frontend/src/features/skills/ManageSkillsDialog.tsx",
+    "packages/woobe-frontend/src/features/tools/components/HttpProviderPanel.tsx",
+    "packages/woobe-frontend/src/features/tools/components/McpProviderPanel.tsx",
+    "packages/woobe-frontend/src/features/tools/components/ToolSettingsModal.tsx",
+    "packages/woobe-frontend/src/features/workspaces/components/WorkspaceSettingsDialog.tsx",
+    "packages/woobe-frontend/src/layouts/DashboardLayout.tsx",
+    "packages/woobe-frontend/src/pages/ApiKeysPage.tsx",
+    "packages/woobe-frontend/src/pages/ChatSurfacesPage.tsx",
+    "packages/woobe-frontend/src/pages/CredentialsPage.tsx",
+    "packages/woobe-frontend/src/pages/DashboardPage.tsx",
+    "packages/woobe-frontend/src/pages/NetworkPage.tsx",
+    "packages/woobe-frontend/src/pages/NetworksPage.tsx",
+    "packages/woobe-frontend/src/pages/SkillsPage.tsx",
+    "packages/woobe-frontend/src/pages/ToolsCreateDialog.tsx"
+  ],
+  "page_owned_overlays": [
+    "packages/woobe-frontend/src/features/asac/AsacWorkbench.tsx",
+    "packages/woobe-frontend/src/layouts/DashboardLayout.tsx",
+    "packages/woobe-frontend/src/pages/ApiKeysPage.tsx",
+    "packages/woobe-frontend/src/pages/ChatSurfacesPage.tsx",
+    "packages/woobe-frontend/src/pages/CredentialsPage.tsx",
+    "packages/woobe-frontend/src/pages/NetworksPage.tsx",
+    "packages/woobe-frontend/src/pages/SkillsPage.tsx",
+    "packages/woobe-frontend/src/pages/DashboardPage.tsx"
+  ],
+  "overlay_browser_tests": [
+    "tests/e2e/review/gallery.spec.ts",
+    "tests/e2e/review/inline-overlays.spec.ts",
+    "tests/e2e/review/page-overlays.spec.ts",
+    "tests/e2e/tests/overlay-flows.spec.ts"
+  ],
+  "unrouted_page_modules": [
+    "packages/woobe-frontend/src/pages/AgentDetailPage.tsx",
+    "packages/woobe-frontend/src/pages/CreateAgentPage.tsx",
+    "packages/woobe-frontend/src/pages/EditAgentPage.tsx",
+    "packages/woobe-frontend/src/pages/ProjectDetailPage.tsx",
+    "packages/woobe-frontend/src/pages/ProjectsPage.tsx"
+  ],
+  "tsx_source_inventory": [
+    "packages/woobe-frontend/src/App.tsx",
+    "packages/woobe-frontend/src/app/providers.tsx",
+    "packages/woobe-frontend/src/app/router.tsx",
+    "packages/woobe-frontend/src/components/api-keys/ApiKeySafetyNotice.tsx",
+    "packages/woobe-frontend/src/components/auth/AuthOnboardingPanel.tsx",
+    "packages/woobe-frontend/src/components/common/CopyButton.tsx",
+    "packages/woobe-frontend/src/components/common/CreateResourceCard.tsx",
+    "packages/woobe-frontend/src/components/common/DangerConfirmDialog.tsx",
+    "packages/woobe-frontend/src/components/common/EmptyState.tsx",
+    "packages/woobe-frontend/src/components/common/ErrorBoundary.tsx",
+    "packages/woobe-frontend/src/components/common/ErrorState.tsx",
+    "packages/woobe-frontend/src/components/common/GuidedEmptyState.tsx",
+    "packages/woobe-frontend/src/components/common/LoadingState.tsx",
+    "packages/woobe-frontend/src/components/common/OperationalResourceCard.tsx",
+    "packages/woobe-frontend/src/components/common/PageHeader.tsx",
+    "packages/woobe-frontend/src/components/common/ProjectPageShell.tsx",
+    "packages/woobe-frontend/src/components/common/ResourcePage.tsx",
+    "packages/woobe-frontend/src/components/common/ResourceSummaryCard.tsx",
+    "packages/woobe-frontend/src/components/common/RuntimeEnvironmentPill.tsx",
+    "packages/woobe-frontend/src/components/common/StatusBadge.tsx",
+    "packages/woobe-frontend/src/components/forms/AutoSlugHelp.tsx",
+    "packages/woobe-frontend/src/components/forms/CreateProjectDialog.tsx",
+    "packages/woobe-frontend/src/components/forms/CreateWorkspaceDialog.tsx",
+    "packages/woobe-frontend/src/components/forms/NameSlugFields.tsx",
+    "packages/woobe-frontend/src/components/layout/DashboardShell.tsx",
+    "packages/woobe-frontend/src/components/layout/Sidebar.tsx",
+    "packages/woobe-frontend/src/components/layout/SidebarUserCard.tsx",
+    "packages/woobe-frontend/src/components/layout/Topbar.tsx",
+    "packages/woobe-frontend/src/components/layout/WorkspaceSelectionSidebar.tsx",
+    "packages/woobe-frontend/src/components/ui/Alert.tsx",
+    "packages/woobe-frontend/src/components/ui/Badge.tsx",
+    "packages/woobe-frontend/src/components/ui/Button.tsx",
+    "packages/woobe-frontend/src/components/ui/Card.tsx",
+    "packages/woobe-frontend/src/components/ui/Checkbox.tsx",
+    "packages/woobe-frontend/src/components/ui/Dialog.tsx",
+    "packages/woobe-frontend/src/components/ui/Drawer.tsx",
+    "packages/woobe-frontend/src/components/ui/Dropdown.tsx",
+    "packages/woobe-frontend/src/components/ui/Input.tsx",
+    "packages/woobe-frontend/src/components/ui/JsonCodeBlock.tsx",
+    "packages/woobe-frontend/src/components/ui/JsonEditor.tsx",
+    "packages/woobe-frontend/src/components/ui/ScrollArea.tsx",
+    "packages/woobe-frontend/src/components/ui/Select.tsx",
+    "packages/woobe-frontend/src/components/ui/Separator.tsx",
+    "packages/woobe-frontend/src/components/ui/Skeleton.tsx",
+    "packages/woobe-frontend/src/components/ui/Table.tsx",
+    "packages/woobe-frontend/src/components/ui/Tabs.tsx",
+    "packages/woobe-frontend/src/components/ui/Textarea.tsx",
+    "packages/woobe-frontend/src/components/ui/WoobeDateTimePicker.tsx",
+    "packages/woobe-frontend/src/features/agents/components/AgentBehaviorDetails.tsx",
+    "packages/woobe-frontend/src/features/agents/components/AgentBehaviorFieldDialog.tsx",
+    "packages/woobe-frontend/src/features/agents/components/AgentBehaviorSettings.tsx",
+    "packages/woobe-frontend/src/features/agents/components/AgentConfigurationEditor.tsx",
+    "packages/woobe-frontend/src/features/agents/components/AgentContextAssemblerField.tsx",
+    "packages/woobe-frontend/src/features/agents/components/AgentContextConfigurationDialog.tsx",
+    "packages/woobe-frontend/src/features/agents/components/AgentCreationBootstrap.tsx",
+    "packages/woobe-frontend/src/features/agents/components/AgentEditorNavigation.tsx",
+    "packages/woobe-frontend/src/features/agents/components/AgentExecutionStrategyField.tsx",
+    "packages/woobe-frontend/src/features/agents/components/AgentExternalContextSettings.tsx",
+    "packages/woobe-frontend/src/features/agents/components/AgentKnowledgeSettings.tsx",
+    "packages/woobe-frontend/src/features/agents/components/AgentModelManagerModal.tsx",
+    "packages/woobe-frontend/src/features/agents/components/AgentModelSettings.tsx",
+    "packages/woobe-frontend/src/features/agents/components/AgentOutputSettings.tsx",
+    "packages/woobe-frontend/src/features/agents/components/AgentOverviewSettings.tsx",
+    "packages/woobe-frontend/src/features/agents/components/AgentRuntimeSettings.tsx",
+    "packages/woobe-frontend/src/features/agents/components/AgentSessionModeField.tsx",
+    "packages/woobe-frontend/src/features/agents/components/AgentToolsSettings.tsx",
+    "packages/woobe-frontend/src/features/agents/components/CreateAgentFlowModal.tsx",
+    "packages/woobe-frontend/src/features/api-keys/components/ApiKeyExpirationField.tsx",
+    "packages/woobe-frontend/src/features/api-keys/components/ApiKeySecretReveal.tsx",
+    "packages/woobe-frontend/src/features/api-keys/components/CreateApiKeyDialog.tsx",
+    "packages/woobe-frontend/src/features/api-keys/components/RotateApiKeyDialog.tsx",
+    "packages/woobe-frontend/src/features/appearance/ThemeProvider.tsx",
+    "packages/woobe-frontend/src/features/appearance/ThemeSelect.tsx",
+    "packages/woobe-frontend/src/features/asac/AsacWorkbench.tsx",
+    "packages/woobe-frontend/src/features/asac/EnvironmentSelectionNotice.tsx",
+    "packages/woobe-frontend/src/features/auth/AuthProvider.tsx",
+    "packages/woobe-frontend/src/features/auth/ProtectedRoute.tsx",
+    "packages/woobe-frontend/src/features/auth/components/AccountSettingsDialog.tsx",
+    "packages/woobe-frontend/src/features/chat-surfaces/components/ChatSurfaceAppearanceEditor.tsx",
+    "packages/woobe-frontend/src/features/chat-surfaces/components/ChatSurfaceAppearancePreview.tsx",
+    "packages/woobe-frontend/src/features/chat-surfaces/components/ChatSurfaceDetailsModal.tsx",
+    "packages/woobe-frontend/src/features/chat-surfaces/components/ChatSurfaceLiveTestDialog.tsx",
+    "packages/woobe-frontend/src/features/contracts/ContractFieldBuilder.tsx",
+    "packages/woobe-frontend/src/features/contracts/ContractValueForm.tsx",
+    "packages/woobe-frontend/src/features/contracts/RuntimeContextPanel.tsx",
+    "packages/woobe-frontend/src/features/control-keys/AccessRolePicker.tsx",
+    "packages/woobe-frontend/src/features/control-keys/WorkspaceCliKeys.tsx",
+    "packages/woobe-frontend/src/features/dashboard/components/RunActivityChart.tsx",
+    "packages/woobe-frontend/src/features/first-run/components/AgentDetailsStep.tsx",
+    "packages/woobe-frontend/src/features/first-run/components/AgentModelStep.tsx",
+    "packages/woobe-frontend/src/features/first-run/components/AgentReviewStep.tsx",
+    "packages/woobe-frontend/src/features/first-run/components/FirstRunAgentSetup.tsx",
+    "packages/woobe-frontend/src/features/first-run/components/FirstRunProjectStep.tsx",
+    "packages/woobe-frontend/src/features/first-run/components/FirstRunShell.tsx",
+    "packages/woobe-frontend/src/features/first-run/components/ManualModelModal.tsx",
+    "packages/woobe-frontend/src/features/first-run/components/ModelPicker.tsx",
+    "packages/woobe-frontend/src/features/first-run/components/ProviderConnectionModal.tsx",
+    "packages/woobe-frontend/src/features/knowledge/components/AttachCollectionModal.tsx",
+    "packages/woobe-frontend/src/features/knowledge/components/BuildVectorSnapshotModalV2.tsx",
+    "packages/woobe-frontend/src/features/knowledge/components/CollectionDetailsModal.tsx",
+    "packages/woobe-frontend/src/features/knowledge/components/CollectionDetailsModalV2.tsx",
+    "packages/woobe-frontend/src/features/knowledge/components/CollectionDocumentUploadModal.tsx",
+    "packages/woobe-frontend/src/features/knowledge/components/CollectionDocumentUploadPanel.tsx",
+    "packages/woobe-frontend/src/features/knowledge/components/CollectionVectorWorkspace.tsx",
+    "packages/woobe-frontend/src/features/knowledge/components/CreateCollectionModal.tsx",
+    "packages/woobe-frontend/src/features/knowledge/components/CreateEmbeddingModelModal.tsx",
+    "packages/woobe-frontend/src/features/knowledge/components/DocumentsDrawer.tsx",
+    "packages/woobe-frontend/src/features/knowledge/components/EmbeddingModelCard.tsx",
+    "packages/woobe-frontend/src/features/knowledge/components/SelectKnowledgeVersionModal.tsx",
+    "packages/woobe-frontend/src/features/knowledge/components/UploadDocumentModal.tsx",
+    "packages/woobe-frontend/src/features/knowledge/components/VectorBuildPreview.tsx",
+    "packages/woobe-frontend/src/features/knowledge/components/VectorSnapshotDetailsModal.tsx",
+    "packages/woobe-frontend/src/features/network/NetworkIdentityContext.tsx",
+    "packages/woobe-frontend/src/features/network/components/AgentSnapshotDetails.tsx",
+    "packages/woobe-frontend/src/features/network/components/NetworkAgentCatalogDrawer.tsx",
+    "packages/woobe-frontend/src/features/network/components/NetworkAgentChat.tsx",
+    "packages/woobe-frontend/src/features/network/components/NetworkAgentVersions.tsx",
+    "packages/woobe-frontend/src/features/network/components/NetworkAgentVersionsV2.tsx",
+    "packages/woobe-frontend/src/features/network/components/NetworkAgentWorkspace.tsx",
+    "packages/woobe-frontend/src/features/network/components/NetworkApiModal.tsx",
+    "packages/woobe-frontend/src/features/network/components/NetworkBindingBadge.tsx",
+    "packages/woobe-frontend/src/features/network/components/NetworkCanvas.tsx",
+    "packages/woobe-frontend/src/features/network/components/NetworkCanvasChrome.tsx",
+    "packages/woobe-frontend/src/features/network/components/NetworkChatWorkspace.tsx",
+    "packages/woobe-frontend/src/features/network/components/NetworkCompositionSettings.tsx",
+    "packages/woobe-frontend/src/features/network/components/NetworkConfigurationWorkspace.tsx",
+    "packages/woobe-frontend/src/features/network/components/NetworkContextInspector.tsx",
+    "packages/woobe-frontend/src/features/network/components/NetworkDebugPanel.tsx",
+    "packages/woobe-frontend/src/features/network/components/NetworkDraftConflictDialog.tsx",
+    "packages/woobe-frontend/src/features/network/components/NetworkEdgeInspector.tsx",
+    "packages/woobe-frontend/src/features/network/components/NetworkExecutionPath.tsx",
+    "packages/woobe-frontend/src/features/network/components/NetworkExecutionTree.tsx",
+    "packages/woobe-frontend/src/features/network/components/NetworkGraphEditor.tsx",
+    "packages/woobe-frontend/src/features/network/components/NetworkGraphInspector.tsx",
+    "packages/woobe-frontend/src/features/network/components/NetworkInitialSetup.tsx",
+    "packages/woobe-frontend/src/features/network/components/NetworkInspectorModal.tsx",
+    "packages/woobe-frontend/src/features/network/components/NetworkInspectorShell.tsx",
+    "packages/woobe-frontend/src/features/network/components/NetworkInspectorWorkspace.tsx",
+    "packages/woobe-frontend/src/features/network/components/NetworkNodeInspector.tsx",
+    "packages/woobe-frontend/src/features/network/components/NetworkOperations.tsx",
+    "packages/woobe-frontend/src/features/network/components/NetworkOperationsRail.tsx",
+    "packages/woobe-frontend/src/features/network/components/NetworkOverviewInspector.tsx",
+    "packages/woobe-frontend/src/features/network/components/NetworkPromotionDialog.tsx",
+    "packages/woobe-frontend/src/features/network/components/NetworkPromotionDialogV2.tsx",
+    "packages/woobe-frontend/src/features/network/components/NetworkReleaseDialogs.tsx",
+    "packages/woobe-frontend/src/features/network/components/NetworkRemoveDialog.tsx",
+    "packages/woobe-frontend/src/features/network/components/NetworkRollbackDialog.tsx",
+    "packages/woobe-frontend/src/features/network/components/NetworkRunDiagnosticsPanel.tsx",
+    "packages/woobe-frontend/src/features/network/components/NetworkRuntimeControlsPopover.tsx",
+    "packages/woobe-frontend/src/features/network/components/NetworkSessionComposition.tsx",
+    "packages/woobe-frontend/src/features/network/components/NetworkSessionsPanel.tsx",
+    "packages/woobe-frontend/src/features/network/components/NetworkTraceDetails.tsx",
+    "packages/woobe-frontend/src/features/network/components/NetworkTracePanel.tsx",
+    "packages/woobe-frontend/src/features/network/components/NetworkTraceTree.tsx",
+    "packages/woobe-frontend/src/features/network/components/NetworkUnsavedChangesDialog.tsx",
+    "packages/woobe-frontend/src/features/network/components/NetworkVersionsModal.tsx",
+    "packages/woobe-frontend/src/features/network/components/NetworkVersionsModalV2.tsx",
+    "packages/woobe-frontend/src/features/network/components/NetworkVersionsWorkspace.tsx",
+    "packages/woobe-frontend/src/features/network/components/NetworkWorkspaceBootstrap.tsx",
+    "packages/woobe-frontend/src/features/playground/AgentEditorContext.tsx",
+    "packages/woobe-frontend/src/features/playground/PlaygroundRuntimeContext.tsx",
+    "packages/woobe-frontend/src/features/playground/components/AgentControlsPopover.tsx",
+    "packages/woobe-frontend/src/features/playground/components/AgentInspector.tsx",
+    "packages/woobe-frontend/src/features/playground/components/AgentLifecycleAction.tsx",
+    "packages/woobe-frontend/src/features/playground/components/AgentManagerModal.tsx",
+    "packages/woobe-frontend/src/features/playground/components/AgentResultViewer.tsx",
+    "packages/woobe-frontend/src/features/playground/components/AgentRunAnalyticsPanel.tsx",
+    "packages/woobe-frontend/src/features/playground/components/AgentRunEvidencePanel.tsx",
+    "packages/woobe-frontend/src/features/playground/components/AgentRunOperationalView.tsx",
+    "packages/woobe-frontend/src/features/playground/components/ApiModal.tsx",
+    "packages/woobe-frontend/src/features/playground/components/ApiReferenceRuntimeKeySection.tsx",
+    "packages/woobe-frontend/src/features/playground/components/ChatCanvas.tsx",
+    "packages/woobe-frontend/src/features/playground/components/ChatComposer.tsx",
+    "packages/woobe-frontend/src/features/playground/components/ChatMessage.tsx",
+    "packages/woobe-frontend/src/features/playground/components/ConfirmDeleteModal.tsx",
+    "packages/woobe-frontend/src/features/playground/components/ConfirmVersionModal.tsx",
+    "packages/woobe-frontend/src/features/playground/components/CreateReleaseDialog.tsx",
+    "packages/woobe-frontend/src/features/playground/components/CreateToolModal.tsx",
+    "packages/woobe-frontend/src/features/playground/components/EditHttpGroupModal.tsx",
+    "packages/woobe-frontend/src/features/playground/components/EditToolModal.tsx",
+    "packages/woobe-frontend/src/features/playground/components/ImportToolsModal.tsx",
+    "packages/woobe-frontend/src/features/playground/components/InspectorTabs.tsx",
+    "packages/woobe-frontend/src/features/playground/components/JsonCodeBlock.tsx",
+    "packages/woobe-frontend/src/features/playground/components/ManageKnowledgeModal.tsx",
+    "packages/woobe-frontend/src/features/playground/components/MarkdownMessage.tsx",
+    "packages/woobe-frontend/src/features/playground/components/MathExpression.tsx",
+    "packages/woobe-frontend/src/features/playground/components/MetricCard.tsx",
+    "packages/woobe-frontend/src/features/playground/components/OperationsPanel.tsx",
+    "packages/woobe-frontend/src/features/playground/components/OperationsRail.tsx",
+    "packages/woobe-frontend/src/features/playground/components/OutputContractHelpModal.tsx",
+    "packages/woobe-frontend/src/features/playground/components/PlaygroundHeader.tsx",
+    "packages/woobe-frontend/src/features/playground/components/ProductionChangesModal.tsx",
+    "packages/woobe-frontend/src/features/playground/components/RagExecutionSettings.tsx",
+    "packages/woobe-frontend/src/features/playground/components/RagRuntimeSettings.tsx",
+    "packages/woobe-frontend/src/features/playground/components/ReleaseDetailsView.tsx",
+    "packages/woobe-frontend/src/features/playground/components/ReleaseLibraryModal.tsx",
+    "packages/woobe-frontend/src/features/playground/components/ReleaseSnapshotModal.tsx",
+    "packages/woobe-frontend/src/features/playground/components/ReleaseTab.tsx",
+    "packages/woobe-frontend/src/features/playground/components/ReleaseTabV2.tsx",
+    "packages/woobe-frontend/src/features/playground/components/SessionsPanel.tsx",
+    "packages/woobe-frontend/src/features/playground/components/StageDraftSnapshotModal.tsx",
+    "packages/woobe-frontend/src/features/playground/components/StructuredJsonResponse.tsx",
+    "packages/woobe-frontend/src/features/playground/components/ToolCallsCollapsible.tsx",
+    "packages/woobe-frontend/src/features/playground/components/TraceDetails.tsx",
+    "packages/woobe-frontend/src/features/playground/components/TraceDiagnosticsPanel.tsx",
+    "packages/woobe-frontend/src/features/playground/components/TraceList.tsx",
+    "packages/woobe-frontend/src/features/projects/components/ConfigurationBatchEditor.tsx",
+    "packages/woobe-frontend/src/features/projects/components/ConfigurationEnvironmentComparison.tsx",
+    "packages/woobe-frontend/src/features/projects/components/ConfigurationKeyDeclarationDialog.tsx",
+    "packages/woobe-frontend/src/features/projects/components/ConfigurationLegacyPanel.tsx",
+    "packages/woobe-frontend/src/features/projects/components/ConfigurationReadinessNotice.tsx",
+    "packages/woobe-frontend/src/features/projects/components/ConfigurationReferenceSelector.tsx",
+    "packages/woobe-frontend/src/features/projects/components/ConfigurationUsageDialog.tsx",
+    "packages/woobe-frontend/src/features/projects/components/ConfigurationValueEditor.tsx",
+    "packages/woobe-frontend/src/features/projects/components/ProjectConfigurationNotice.tsx",
+    "packages/woobe-frontend/src/features/projects/components/ProjectEnvironmentSettings.tsx",
+    "packages/woobe-frontend/src/features/projects/components/ProjectSettingsDialog.tsx",
+    "packages/woobe-frontend/src/features/provider-credentials/components/AddProviderCredentialModal.tsx",
+    "packages/woobe-frontend/src/features/provider-credentials/components/ProviderCredentialCreateForm.tsx",
+    "packages/woobe-frontend/src/features/provider-credentials/components/ProviderSecretInput.tsx",
+    "packages/woobe-frontend/src/features/provider-credentials/components/RotateProviderCredentialDialog.tsx",
+    "packages/woobe-frontend/src/features/provider-models/components/ModelSettingsModal.tsx",
+    "packages/woobe-frontend/src/features/runtime-reference/RuntimeApiReferenceModal.tsx",
+    "packages/woobe-frontend/src/features/skills/AgentSkillsSection.tsx",
+    "packages/woobe-frontend/src/features/skills/ManageSkillsDialog.tsx",
+    "packages/woobe-frontend/src/features/skills/SkillCatalog.tsx",
+    "packages/woobe-frontend/src/features/skills/SkillSnapshotSummary.tsx",
+    "packages/woobe-frontend/src/features/tools/components/AgentToolCard.tsx",
+    "packages/woobe-frontend/src/features/tools/components/ApiFirstToolForm.tsx",
+    "packages/woobe-frontend/src/features/tools/components/ConfigurationAuthenticationEditor.tsx",
+    "packages/woobe-frontend/src/features/tools/components/HttpProviderPanel.tsx",
+    "packages/woobe-frontend/src/features/tools/components/HttpRequestBodyEditor.tsx",
+    "packages/woobe-frontend/src/features/tools/components/McpProviderPanel.tsx",
+    "packages/woobe-frontend/src/features/tools/components/ToolDiscoveryForm.tsx",
+    "packages/woobe-frontend/src/features/tools/components/ToolForm.tsx",
+    "packages/woobe-frontend/src/features/tools/components/ToolInputBindingsEditor.tsx",
+    "packages/woobe-frontend/src/features/tools/components/ToolSettingsModal.tsx",
+    "packages/woobe-frontend/src/features/tools/components/ToolTemplateAutocomplete.tsx",
+    "packages/woobe-frontend/src/features/traces/components/ContextInspector.tsx",
+    "packages/woobe-frontend/src/features/traces/components/RunMetrics.tsx",
+    "packages/woobe-frontend/src/features/usage/components/UsageMetricGrid.tsx",
+    "packages/woobe-frontend/src/features/usage/components/UsageOperations.tsx",
+    "packages/woobe-frontend/src/features/usage/components/UsageTrendChart.tsx",
+    "packages/woobe-frontend/src/features/workspace/WorkspaceProvider.tsx",
+    "packages/woobe-frontend/src/features/workspaces/components/WorkspaceSettingsDialog.tsx",
+    "packages/woobe-frontend/src/layouts/AuthLayout.tsx",
+    "packages/woobe-frontend/src/layouts/DashboardLayout.tsx",
+    "packages/woobe-frontend/src/main.tsx",
+    "packages/woobe-frontend/src/pages/AgentDetailPage.tsx",
+    "packages/woobe-frontend/src/pages/AgentPlaygroundPage.tsx",
+    "packages/woobe-frontend/src/pages/AgentsPage.tsx",
+    "packages/woobe-frontend/src/pages/ApiKeysPage.tsx",
+    "packages/woobe-frontend/src/pages/ChatSurfacesPage.tsx",
+    "packages/woobe-frontend/src/pages/CreateAgentPage.tsx",
+    "packages/woobe-frontend/src/pages/CredentialsPage.tsx",
+    "packages/woobe-frontend/src/pages/DashboardPage.tsx",
+    "packages/woobe-frontend/src/pages/EditAgentPage.tsx",
+    "packages/woobe-frontend/src/pages/FirstRunSetupPage.tsx",
+    "packages/woobe-frontend/src/pages/KnowledgePage.tsx",
+    "packages/woobe-frontend/src/pages/LoginPage.tsx",
+    "packages/woobe-frontend/src/pages/McpConnectCallbackPage.tsx",
+    "packages/woobe-frontend/src/pages/ModelsPage.tsx",
+    "packages/woobe-frontend/src/pages/NetworkPage.tsx",
+    "packages/woobe-frontend/src/pages/NetworkWorkspaceRoute.tsx",
+    "packages/woobe-frontend/src/pages/NetworksPage.tsx",
+    "packages/woobe-frontend/src/pages/NotFoundPage.tsx",
+    "packages/woobe-frontend/src/pages/ProjectDetailPage.tsx",
+    "packages/woobe-frontend/src/pages/ProjectEnvironmentsPage.tsx",
+    "packages/woobe-frontend/src/pages/ProjectsPage.tsx",
+    "packages/woobe-frontend/src/pages/RegisterPage.tsx",
+    "packages/woobe-frontend/src/pages/SettingsPage.tsx",
+    "packages/woobe-frontend/src/pages/SkillsPage.tsx",
+    "packages/woobe-frontend/src/pages/ToolsCreateDialog.tsx",
+    "packages/woobe-frontend/src/pages/ToolsPage.tsx",
+    "packages/woobe-frontend/src/pages/TracesPage.tsx",
+    "packages/woobe-frontend/src/pages/UsagePage.tsx",
+    "packages/woobe-frontend/src/pages/WorkspaceDetailPage.tsx",
+    "packages/woobe-frontend/src/pages/WorkspaceProjectDetailPage.tsx",
+    "packages/woobe-frontend/src/pages/WorkspaceProjectsPage.tsx",
+    "packages/woobe-frontend/src/pages/WorkspacesPage.tsx",
+    "packages/woobe-ui/src/components/Alert.tsx",
+    "packages/woobe-ui/src/components/Badge.tsx",
+    "packages/woobe-ui/src/components/Button.tsx",
+    "packages/woobe-ui/src/components/Card.tsx",
+    "packages/woobe-ui/src/components/Checkbox.tsx",
+    "packages/woobe-ui/src/components/CodePanel.tsx",
+    "packages/woobe-ui/src/components/ContributionBars.tsx",
+    "packages/woobe-ui/src/components/CopyButton.tsx",
+    "packages/woobe-ui/src/components/CreateResourceCard.tsx",
+    "packages/woobe-ui/src/components/DangerConfirmDialog.tsx",
+    "packages/woobe-ui/src/components/Dialog.tsx",
+    "packages/woobe-ui/src/components/DotMeter.tsx",
+    "packages/woobe-ui/src/components/Drawer.tsx",
+    "packages/woobe-ui/src/components/Dropdown.tsx",
+    "packages/woobe-ui/src/components/EmptyStatePanel.tsx",
+    "packages/woobe-ui/src/components/Field.tsx",
+    "packages/woobe-ui/src/components/FormActions.tsx",
+    "packages/woobe-ui/src/components/GuidedEmptyState.tsx",
+    "packages/woobe-ui/src/components/Input.tsx",
+    "packages/woobe-ui/src/components/InputGroup.tsx",
+    "packages/woobe-ui/src/components/JsonCodeBlock.tsx",
+    "packages/woobe-ui/src/components/JsonEditor.tsx",
+    "packages/woobe-ui/src/components/LoadingState.tsx",
+    "packages/woobe-ui/src/components/MathSurface.tsx",
+    "packages/woobe-ui/src/components/MetricTile.tsx",
+    "packages/woobe-ui/src/components/OperationalResourceCard.tsx",
+    "packages/woobe-ui/src/components/PageHeader.tsx",
+    "packages/woobe-ui/src/components/PanelHeader.tsx",
+    "packages/woobe-ui/src/components/ReadOnlyField.tsx",
+    "packages/woobe-ui/src/components/ResourcePage.tsx",
+    "packages/woobe-ui/src/components/ScrollArea.tsx",
+    "packages/woobe-ui/src/components/SectionBlock.tsx",
+    "packages/woobe-ui/src/components/SegmentedControl.tsx",
+    "packages/woobe-ui/src/components/Select.tsx",
+    "packages/woobe-ui/src/components/Separator.tsx",
+    "packages/woobe-ui/src/components/Skeleton.tsx",
+    "packages/woobe-ui/src/components/Stepper.tsx",
+    "packages/woobe-ui/src/components/Table.tsx",
+    "packages/woobe-ui/src/components/Tabs.tsx",
+    "packages/woobe-ui/src/components/TechnicalListItem.tsx",
+    "packages/woobe-ui/src/components/Textarea.tsx",
+    "packages/woobe-ui/src/components/WoobeDatePicker.tsx",
+    "packages/woobe-ui/src/components/WoobeDateTimePicker.tsx",
+    "packages/woobe-ui/src/components/WoobeLogo.tsx"
+  ],
+  "typography_source_inventory": [
+    {
+      "source": "packages/woobe-frontend/src/App.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/app/providers.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/app/router.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/components/api-keys/ApiKeySafetyNotice.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 1,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/components/auth/AuthOnboardingPanel.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 2,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/components/common/CopyButton.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/components/common/CreateResourceCard.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/components/common/DangerConfirmDialog.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/components/common/EmptyState.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/components/common/ErrorBoundary.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/components/common/ErrorState.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 1,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/components/common/GuidedEmptyState.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/components/common/LoadingState.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/components/common/OperationalResourceCard.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/components/common/PageHeader.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/components/common/ProjectPageShell.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/components/common/ResourcePage.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/components/common/ResourceSummaryCard.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/components/common/RuntimeEnvironmentPill.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/components/common/StatusBadge.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/components/forms/AutoSlugHelp.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/components/forms/CreateProjectDialog.tsx",
+      "explicit_sans_uses": 2,
+      "explicit_mono_uses": 1,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/components/forms/CreateWorkspaceDialog.tsx",
+      "explicit_sans_uses": 1,
+      "explicit_mono_uses": 1,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/components/forms/NameSlugFields.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/components/layout/DashboardShell.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/components/layout/Sidebar.tsx",
+      "explicit_sans_uses": 14,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/components/layout/SidebarUserCard.tsx",
+      "explicit_sans_uses": 6,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/components/layout/Topbar.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/components/layout/WorkspaceSelectionSidebar.tsx",
+      "explicit_sans_uses": 3,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/components/ui/Alert.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/components/ui/Badge.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/components/ui/Button.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/components/ui/Card.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/components/ui/Checkbox.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/components/ui/Dialog.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/components/ui/Drawer.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/components/ui/Dropdown.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/components/ui/Input.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/components/ui/JsonCodeBlock.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/components/ui/JsonEditor.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/components/ui/ScrollArea.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/components/ui/Select.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/components/ui/Separator.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/components/ui/Skeleton.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/components/ui/Table.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/components/ui/Tabs.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/components/ui/Textarea.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/components/ui/WoobeDateTimePicker.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/agents/components/AgentBehaviorDetails.tsx",
+      "explicit_sans_uses": 1,
+      "explicit_mono_uses": 2,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/agents/components/AgentBehaviorFieldDialog.tsx",
+      "explicit_sans_uses": 3,
+      "explicit_mono_uses": 2,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/agents/components/AgentBehaviorSettings.tsx",
+      "explicit_sans_uses": 1,
+      "explicit_mono_uses": 1,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/agents/components/AgentConfigurationEditor.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 2,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/agents/components/AgentContextAssemblerField.tsx",
+      "explicit_sans_uses": 10,
+      "explicit_mono_uses": 16,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/agents/components/AgentContextConfigurationDialog.tsx",
+      "explicit_sans_uses": 1,
+      "explicit_mono_uses": 4,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/agents/components/AgentCreationBootstrap.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/agents/components/AgentEditorNavigation.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/agents/components/AgentExecutionStrategyField.tsx",
+      "explicit_sans_uses": 8,
+      "explicit_mono_uses": 12,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/agents/components/AgentExternalContextSettings.tsx",
+      "explicit_sans_uses": 3,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/agents/components/AgentKnowledgeSettings.tsx",
+      "explicit_sans_uses": 1,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/agents/components/AgentModelManagerModal.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 2,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/agents/components/AgentModelSettings.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/agents/components/AgentOutputSettings.tsx",
+      "explicit_sans_uses": 2,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/agents/components/AgentOverviewSettings.tsx",
+      "explicit_sans_uses": 4,
+      "explicit_mono_uses": 3,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/agents/components/AgentRuntimeSettings.tsx",
+      "explicit_sans_uses": 1,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/agents/components/AgentSessionModeField.tsx",
+      "explicit_sans_uses": 2,
+      "explicit_mono_uses": 2,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/agents/components/AgentToolsSettings.tsx",
+      "explicit_sans_uses": 2,
+      "explicit_mono_uses": 1,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/agents/components/CreateAgentFlowModal.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 1,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/api-keys/components/ApiKeyExpirationField.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 1,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/api-keys/components/ApiKeySecretReveal.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 2,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/api-keys/components/CreateApiKeyDialog.tsx",
+      "explicit_sans_uses": 2,
+      "explicit_mono_uses": 2,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/api-keys/components/RotateApiKeyDialog.tsx",
+      "explicit_sans_uses": 1,
+      "explicit_mono_uses": 5,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/appearance/ThemeProvider.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/appearance/ThemeSelect.tsx",
+      "explicit_sans_uses": 1,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/asac/AsacWorkbench.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 5,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/asac/EnvironmentSelectionNotice.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/auth/AuthProvider.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/auth/ProtectedRoute.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/auth/components/AccountSettingsDialog.tsx",
+      "explicit_sans_uses": 1,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/chat-surfaces/components/ChatSurfaceAppearanceEditor.tsx",
+      "explicit_sans_uses": 5,
+      "explicit_mono_uses": 4,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/chat-surfaces/components/ChatSurfaceAppearancePreview.tsx",
+      "explicit_sans_uses": 4,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/chat-surfaces/components/ChatSurfaceDetailsModal.tsx",
+      "explicit_sans_uses": 5,
+      "explicit_mono_uses": 9,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/chat-surfaces/components/ChatSurfaceLiveTestDialog.tsx",
+      "explicit_sans_uses": 3,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/contracts/ContractFieldBuilder.tsx",
+      "explicit_sans_uses": 1,
+      "explicit_mono_uses": 4,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/contracts/ContractValueForm.tsx",
+      "explicit_sans_uses": 2,
+      "explicit_mono_uses": 2,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/contracts/RuntimeContextPanel.tsx",
+      "explicit_sans_uses": 1,
+      "explicit_mono_uses": 5,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/control-keys/AccessRolePicker.tsx",
+      "explicit_sans_uses": 1,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/control-keys/WorkspaceCliKeys.tsx",
+      "explicit_sans_uses": 6,
+      "explicit_mono_uses": 8,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/dashboard/components/RunActivityChart.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 8,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/first-run/components/AgentDetailsStep.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/first-run/components/AgentModelStep.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 1,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/first-run/components/AgentReviewStep.tsx",
+      "explicit_sans_uses": 2,
+      "explicit_mono_uses": 5,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/first-run/components/FirstRunAgentSetup.tsx",
+      "explicit_sans_uses": 1,
+      "explicit_mono_uses": 1,
+      "explicit_serif_uses": 1
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/first-run/components/FirstRunProjectStep.tsx",
+      "explicit_sans_uses": 3,
+      "explicit_mono_uses": 1,
+      "explicit_serif_uses": 1
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/first-run/components/FirstRunShell.tsx",
+      "explicit_sans_uses": 3,
+      "explicit_mono_uses": 2,
+      "explicit_serif_uses": 1
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/first-run/components/ManualModelModal.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 1,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/first-run/components/ModelPicker.tsx",
+      "explicit_sans_uses": 1,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/first-run/components/ProviderConnectionModal.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/knowledge/components/AttachCollectionModal.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/knowledge/components/BuildVectorSnapshotModalV2.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 3,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/knowledge/components/CollectionDetailsModal.tsx",
+      "explicit_sans_uses": 4,
+      "explicit_mono_uses": 3,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/knowledge/components/CollectionDetailsModalV2.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 4,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/knowledge/components/CollectionDocumentUploadModal.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/knowledge/components/CollectionDocumentUploadPanel.tsx",
+      "explicit_sans_uses": 3,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/knowledge/components/CollectionVectorWorkspace.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/knowledge/components/CreateCollectionModal.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/knowledge/components/CreateEmbeddingModelModal.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 3,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/knowledge/components/DocumentsDrawer.tsx",
+      "explicit_sans_uses": 1,
+      "explicit_mono_uses": 4,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/knowledge/components/EmbeddingModelCard.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/knowledge/components/SelectKnowledgeVersionModal.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/knowledge/components/UploadDocumentModal.tsx",
+      "explicit_sans_uses": 3,
+      "explicit_mono_uses": 4,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/knowledge/components/VectorBuildPreview.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 8,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/knowledge/components/VectorSnapshotDetailsModal.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/network/NetworkIdentityContext.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/network/components/AgentSnapshotDetails.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 12,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/network/components/NetworkAgentCatalogDrawer.tsx",
+      "explicit_sans_uses": 1,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/network/components/NetworkAgentChat.tsx",
+      "explicit_sans_uses": 5,
+      "explicit_mono_uses": 2,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/network/components/NetworkAgentVersions.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/network/components/NetworkAgentVersionsV2.tsx",
+      "explicit_sans_uses": 1,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/network/components/NetworkAgentWorkspace.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 3,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/network/components/NetworkApiModal.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/network/components/NetworkBindingBadge.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 1,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/network/components/NetworkCanvas.tsx",
+      "explicit_sans_uses": 1,
+      "explicit_mono_uses": 8,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/network/components/NetworkCanvasChrome.tsx",
+      "explicit_sans_uses": 1,
+      "explicit_mono_uses": 2,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/network/components/NetworkChatWorkspace.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/network/components/NetworkCompositionSettings.tsx",
+      "explicit_sans_uses": 1,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/network/components/NetworkConfigurationWorkspace.tsx",
+      "explicit_sans_uses": 2,
+      "explicit_mono_uses": 2,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/network/components/NetworkContextInspector.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 2,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/network/components/NetworkDebugPanel.tsx",
+      "explicit_sans_uses": 5,
+      "explicit_mono_uses": 12,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/network/components/NetworkDraftConflictDialog.tsx",
+      "explicit_sans_uses": 1,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/network/components/NetworkEdgeInspector.tsx",
+      "explicit_sans_uses": 1,
+      "explicit_mono_uses": 2,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/network/components/NetworkExecutionPath.tsx",
+      "explicit_sans_uses": 1,
+      "explicit_mono_uses": 5,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/network/components/NetworkExecutionTree.tsx",
+      "explicit_sans_uses": 1,
+      "explicit_mono_uses": 9,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/network/components/NetworkGraphEditor.tsx",
+      "explicit_sans_uses": 4,
+      "explicit_mono_uses": 5,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/network/components/NetworkGraphInspector.tsx",
+      "explicit_sans_uses": 1,
+      "explicit_mono_uses": 1,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/network/components/NetworkInitialSetup.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/network/components/NetworkInspectorModal.tsx",
+      "explicit_sans_uses": 3,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/network/components/NetworkInspectorShell.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/network/components/NetworkInspectorWorkspace.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/network/components/NetworkNodeInspector.tsx",
+      "explicit_sans_uses": 8,
+      "explicit_mono_uses": 8,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/network/components/NetworkOperations.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/network/components/NetworkOperationsRail.tsx",
+      "explicit_sans_uses": 2,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/network/components/NetworkOverviewInspector.tsx",
+      "explicit_sans_uses": 2,
+      "explicit_mono_uses": 1,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/network/components/NetworkPromotionDialog.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/network/components/NetworkPromotionDialogV2.tsx",
+      "explicit_sans_uses": 5,
+      "explicit_mono_uses": 3,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/network/components/NetworkReleaseDialogs.tsx",
+      "explicit_sans_uses": 1,
+      "explicit_mono_uses": 1,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/network/components/NetworkRemoveDialog.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/network/components/NetworkRollbackDialog.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 1,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/network/components/NetworkRunDiagnosticsPanel.tsx",
+      "explicit_sans_uses": 15,
+      "explicit_mono_uses": 17,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/network/components/NetworkRuntimeControlsPopover.tsx",
+      "explicit_sans_uses": 3,
+      "explicit_mono_uses": 2,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/network/components/NetworkSessionComposition.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/network/components/NetworkSessionsPanel.tsx",
+      "explicit_sans_uses": 1,
+      "explicit_mono_uses": 5,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/network/components/NetworkTraceDetails.tsx",
+      "explicit_sans_uses": 15,
+      "explicit_mono_uses": 38,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/network/components/NetworkTracePanel.tsx",
+      "explicit_sans_uses": 6,
+      "explicit_mono_uses": 5,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/network/components/NetworkTraceTree.tsx",
+      "explicit_sans_uses": 9,
+      "explicit_mono_uses": 13,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/network/components/NetworkUnsavedChangesDialog.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/network/components/NetworkVersionsModal.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/network/components/NetworkVersionsModalV2.tsx",
+      "explicit_sans_uses": 9,
+      "explicit_mono_uses": 31,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/network/components/NetworkVersionsWorkspace.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 2,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/network/components/NetworkWorkspaceBootstrap.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 3,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/playground/AgentEditorContext.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/playground/PlaygroundRuntimeContext.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/playground/components/AgentControlsPopover.tsx",
+      "explicit_sans_uses": 4,
+      "explicit_mono_uses": 3,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/playground/components/AgentInspector.tsx",
+      "explicit_sans_uses": 2,
+      "explicit_mono_uses": 1,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/playground/components/AgentLifecycleAction.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/playground/components/AgentManagerModal.tsx",
+      "explicit_sans_uses": 4,
+      "explicit_mono_uses": 2,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/playground/components/AgentResultViewer.tsx",
+      "explicit_sans_uses": 5,
+      "explicit_mono_uses": 3,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/playground/components/AgentRunAnalyticsPanel.tsx",
+      "explicit_sans_uses": 8,
+      "explicit_mono_uses": 14,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/playground/components/AgentRunEvidencePanel.tsx",
+      "explicit_sans_uses": 6,
+      "explicit_mono_uses": 7,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/playground/components/AgentRunOperationalView.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/playground/components/ApiModal.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/playground/components/ApiReferenceRuntimeKeySection.tsx",
+      "explicit_sans_uses": 2,
+      "explicit_mono_uses": 2,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/playground/components/ChatCanvas.tsx",
+      "explicit_sans_uses": 7,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/playground/components/ChatComposer.tsx",
+      "explicit_sans_uses": 7,
+      "explicit_mono_uses": 5,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/playground/components/ChatMessage.tsx",
+      "explicit_sans_uses": 6,
+      "explicit_mono_uses": 7,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/playground/components/ConfirmDeleteModal.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/playground/components/ConfirmVersionModal.tsx",
+      "explicit_sans_uses": 2,
+      "explicit_mono_uses": 2,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/playground/components/CreateReleaseDialog.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 1,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/playground/components/CreateToolModal.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/playground/components/EditHttpGroupModal.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/playground/components/EditToolModal.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/playground/components/ImportToolsModal.tsx",
+      "explicit_sans_uses": 1,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/playground/components/InspectorTabs.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/playground/components/JsonCodeBlock.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/playground/components/ManageKnowledgeModal.tsx",
+      "explicit_sans_uses": 1,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/playground/components/MarkdownMessage.tsx",
+      "explicit_sans_uses": 4,
+      "explicit_mono_uses": 3,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/playground/components/MathExpression.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/playground/components/MetricCard.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 1,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/playground/components/OperationsPanel.tsx",
+      "explicit_sans_uses": 2,
+      "explicit_mono_uses": 1,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/playground/components/OperationsRail.tsx",
+      "explicit_sans_uses": 2,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/playground/components/OutputContractHelpModal.tsx",
+      "explicit_sans_uses": 1,
+      "explicit_mono_uses": 1,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/playground/components/PlaygroundHeader.tsx",
+      "explicit_sans_uses": 1,
+      "explicit_mono_uses": 2,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/playground/components/ProductionChangesModal.tsx",
+      "explicit_sans_uses": 3,
+      "explicit_mono_uses": 3,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/playground/components/RagExecutionSettings.tsx",
+      "explicit_sans_uses": 2,
+      "explicit_mono_uses": 3,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/playground/components/RagRuntimeSettings.tsx",
+      "explicit_sans_uses": 5,
+      "explicit_mono_uses": 6,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/playground/components/ReleaseDetailsView.tsx",
+      "explicit_sans_uses": 1,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/playground/components/ReleaseLibraryModal.tsx",
+      "explicit_sans_uses": 3,
+      "explicit_mono_uses": 2,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/playground/components/ReleaseSnapshotModal.tsx",
+      "explicit_sans_uses": 5,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/playground/components/ReleaseTab.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/playground/components/ReleaseTabV2.tsx",
+      "explicit_sans_uses": 1,
+      "explicit_mono_uses": 5,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/playground/components/SessionsPanel.tsx",
+      "explicit_sans_uses": 4,
+      "explicit_mono_uses": 5,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/playground/components/StageDraftSnapshotModal.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 4,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/playground/components/StructuredJsonResponse.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/playground/components/ToolCallsCollapsible.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 4,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/playground/components/TraceDetails.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 18,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/playground/components/TraceDiagnosticsPanel.tsx",
+      "explicit_sans_uses": 2,
+      "explicit_mono_uses": 2,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/playground/components/TraceList.tsx",
+      "explicit_sans_uses": 1,
+      "explicit_mono_uses": 3,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/projects/components/ConfigurationBatchEditor.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 1,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/projects/components/ConfigurationEnvironmentComparison.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 1,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/projects/components/ConfigurationKeyDeclarationDialog.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/projects/components/ConfigurationLegacyPanel.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 1,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/projects/components/ConfigurationReadinessNotice.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/projects/components/ConfigurationReferenceSelector.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/projects/components/ConfigurationUsageDialog.tsx",
+      "explicit_sans_uses": 2,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/projects/components/ConfigurationValueEditor.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 2,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/projects/components/ProjectConfigurationNotice.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/projects/components/ProjectEnvironmentSettings.tsx",
+      "explicit_sans_uses": 1,
+      "explicit_mono_uses": 6,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/projects/components/ProjectSettingsDialog.tsx",
+      "explicit_sans_uses": 1,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/provider-credentials/components/AddProviderCredentialModal.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/provider-credentials/components/ProviderCredentialCreateForm.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/provider-credentials/components/ProviderSecretInput.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 1,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/provider-credentials/components/RotateProviderCredentialDialog.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 2,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/provider-models/components/ModelSettingsModal.tsx",
+      "explicit_sans_uses": 1,
+      "explicit_mono_uses": 9,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/runtime-reference/RuntimeApiReferenceModal.tsx",
+      "explicit_sans_uses": 4,
+      "explicit_mono_uses": 5,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/skills/AgentSkillsSection.tsx",
+      "explicit_sans_uses": 5,
+      "explicit_mono_uses": 5,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/skills/ManageSkillsDialog.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/skills/SkillCatalog.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 8,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/skills/SkillSnapshotSummary.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 2,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/tools/components/AgentToolCard.tsx",
+      "explicit_sans_uses": 4,
+      "explicit_mono_uses": 4,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/tools/components/ApiFirstToolForm.tsx",
+      "explicit_sans_uses": 11,
+      "explicit_mono_uses": 19,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/tools/components/ConfigurationAuthenticationEditor.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 1,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/tools/components/HttpProviderPanel.tsx",
+      "explicit_sans_uses": 2,
+      "explicit_mono_uses": 8,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/tools/components/HttpRequestBodyEditor.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 5,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/tools/components/McpProviderPanel.tsx",
+      "explicit_sans_uses": 4,
+      "explicit_mono_uses": 8,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/tools/components/ToolDiscoveryForm.tsx",
+      "explicit_sans_uses": 3,
+      "explicit_mono_uses": 14,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/tools/components/ToolForm.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/tools/components/ToolInputBindingsEditor.tsx",
+      "explicit_sans_uses": 1,
+      "explicit_mono_uses": 6,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/tools/components/ToolSettingsModal.tsx",
+      "explicit_sans_uses": 4,
+      "explicit_mono_uses": 7,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/tools/components/ToolTemplateAutocomplete.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 1,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/traces/components/ContextInspector.tsx",
+      "explicit_sans_uses": 7,
+      "explicit_mono_uses": 21,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/traces/components/RunMetrics.tsx",
+      "explicit_sans_uses": 8,
+      "explicit_mono_uses": 5,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/usage/components/UsageMetricGrid.tsx",
+      "explicit_sans_uses": 3,
+      "explicit_mono_uses": 4,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/usage/components/UsageOperations.tsx",
+      "explicit_sans_uses": 6,
+      "explicit_mono_uses": 29,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/usage/components/UsageTrendChart.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 13,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/workspace/WorkspaceProvider.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/workspaces/components/WorkspaceSettingsDialog.tsx",
+      "explicit_sans_uses": 6,
+      "explicit_mono_uses": 1,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/layouts/AuthLayout.tsx",
+      "explicit_sans_uses": 2,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 1
+    },
+    {
+      "source": "packages/woobe-frontend/src/layouts/DashboardLayout.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/main.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/pages/AgentDetailPage.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 8,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/pages/AgentPlaygroundPage.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/pages/AgentsPage.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/pages/ApiKeysPage.tsx",
+      "explicit_sans_uses": 13,
+      "explicit_mono_uses": 8,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/pages/ChatSurfacesPage.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 3,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/pages/CreateAgentPage.tsx",
+      "explicit_sans_uses": 3,
+      "explicit_mono_uses": 1,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/pages/CredentialsPage.tsx",
+      "explicit_sans_uses": 2,
+      "explicit_mono_uses": 4,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/pages/DashboardPage.tsx",
+      "explicit_sans_uses": 6,
+      "explicit_mono_uses": 16,
+      "explicit_serif_uses": 2
+    },
+    {
+      "source": "packages/woobe-frontend/src/pages/EditAgentPage.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 1,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/pages/FirstRunSetupPage.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/pages/KnowledgePage.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/pages/LoginPage.tsx",
+      "explicit_sans_uses": 7,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 1
+    },
+    {
+      "source": "packages/woobe-frontend/src/pages/McpConnectCallbackPage.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/pages/ModelsPage.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/pages/NetworkPage.tsx",
+      "explicit_sans_uses": 9,
+      "explicit_mono_uses": 3,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/pages/NetworkWorkspaceRoute.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/pages/NetworksPage.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/pages/NotFoundPage.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 1
+    },
+    {
+      "source": "packages/woobe-frontend/src/pages/ProjectDetailPage.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/pages/ProjectEnvironmentsPage.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 1,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/pages/ProjectsPage.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/pages/RegisterPage.tsx",
+      "explicit_sans_uses": 7,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 1
+    },
+    {
+      "source": "packages/woobe-frontend/src/pages/SettingsPage.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/pages/SkillsPage.tsx",
+      "explicit_sans_uses": 3,
+      "explicit_mono_uses": 1,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/pages/ToolsCreateDialog.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/pages/ToolsPage.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/pages/TracesPage.tsx",
+      "explicit_sans_uses": 10,
+      "explicit_mono_uses": 60,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/pages/UsagePage.tsx",
+      "explicit_sans_uses": 1,
+      "explicit_mono_uses": 4,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/pages/WorkspaceDetailPage.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 1,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/pages/WorkspaceProjectDetailPage.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 1,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/pages/WorkspaceProjectsPage.tsx",
+      "explicit_sans_uses": 12,
+      "explicit_mono_uses": 5,
+      "explicit_serif_uses": 1
+    },
+    {
+      "source": "packages/woobe-frontend/src/pages/WorkspacesPage.tsx",
+      "explicit_sans_uses": 12,
+      "explicit_mono_uses": 5,
+      "explicit_serif_uses": 1
+    },
+    {
+      "source": "packages/woobe-ui/src/components/Alert.tsx",
+      "explicit_sans_uses": 3,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-ui/src/components/Badge.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 1,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-ui/src/components/Button.tsx",
+      "explicit_sans_uses": 1,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-ui/src/components/Card.tsx",
+      "explicit_sans_uses": 2,
+      "explicit_mono_uses": 1,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-ui/src/components/Checkbox.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-ui/src/components/CodePanel.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 2,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-ui/src/components/ContributionBars.tsx",
+      "explicit_sans_uses": 3,
+      "explicit_mono_uses": 1,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-ui/src/components/CopyButton.tsx",
+      "explicit_sans_uses": 1,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-ui/src/components/CreateResourceCard.tsx",
+      "explicit_sans_uses": 2,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-ui/src/components/DangerConfirmDialog.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-ui/src/components/Dialog.tsx",
+      "explicit_sans_uses": 2,
+      "explicit_mono_uses": 4,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-ui/src/components/DotMeter.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-ui/src/components/Drawer.tsx",
+      "explicit_sans_uses": 1,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-ui/src/components/Dropdown.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-ui/src/components/EmptyStatePanel.tsx",
+      "explicit_sans_uses": 2,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-ui/src/components/Field.tsx",
+      "explicit_sans_uses": 4,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-ui/src/components/FormActions.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-ui/src/components/GuidedEmptyState.tsx",
+      "explicit_sans_uses": 3,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-ui/src/components/Input.tsx",
+      "explicit_sans_uses": 1,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-ui/src/components/InputGroup.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-ui/src/components/JsonCodeBlock.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-ui/src/components/JsonEditor.tsx",
+      "explicit_sans_uses": 2,
+      "explicit_mono_uses": 1,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-ui/src/components/LoadingState.tsx",
+      "explicit_sans_uses": 10,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-ui/src/components/MathSurface.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 2
+    },
+    {
+      "source": "packages/woobe-ui/src/components/MetricTile.tsx",
+      "explicit_sans_uses": 2,
+      "explicit_mono_uses": 1,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-ui/src/components/OperationalResourceCard.tsx",
+      "explicit_sans_uses": 2,
+      "explicit_mono_uses": 2,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-ui/src/components/PageHeader.tsx",
+      "explicit_sans_uses": 1,
+      "explicit_mono_uses": 1,
+      "explicit_serif_uses": 1
+    },
+    {
+      "source": "packages/woobe-ui/src/components/PanelHeader.tsx",
+      "explicit_sans_uses": 4,
+      "explicit_mono_uses": 2,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-ui/src/components/ReadOnlyField.tsx",
+      "explicit_sans_uses": 1,
+      "explicit_mono_uses": 3,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-ui/src/components/ResourcePage.tsx",
+      "explicit_sans_uses": 4,
+      "explicit_mono_uses": 4,
+      "explicit_serif_uses": 1
+    },
+    {
+      "source": "packages/woobe-ui/src/components/ScrollArea.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-ui/src/components/SectionBlock.tsx",
+      "explicit_sans_uses": 2,
+      "explicit_mono_uses": 2,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-ui/src/components/SegmentedControl.tsx",
+      "explicit_sans_uses": 1,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-ui/src/components/Select.tsx",
+      "explicit_sans_uses": 1,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-ui/src/components/Separator.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-ui/src/components/Skeleton.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-ui/src/components/Stepper.tsx",
+      "explicit_sans_uses": 3,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-ui/src/components/Table.tsx",
+      "explicit_sans_uses": 1,
+      "explicit_mono_uses": 2,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-ui/src/components/Tabs.tsx",
+      "explicit_sans_uses": 1,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-ui/src/components/TechnicalListItem.tsx",
+      "explicit_sans_uses": 1,
+      "explicit_mono_uses": 3,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-ui/src/components/Textarea.tsx",
+      "explicit_sans_uses": 1,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-ui/src/components/WoobeDatePicker.tsx",
+      "explicit_sans_uses": 1,
+      "explicit_mono_uses": 2,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-ui/src/components/WoobeDateTimePicker.tsx",
+      "explicit_sans_uses": 2,
+      "explicit_mono_uses": 9,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-ui/src/components/WoobeLogo.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    }
+  ],
+  "screenshots": [
+    {
+      "path": "docs/screenshots/agent-playground.png",
+      "width": 1440,
+      "height": 1100,
+      "bytes": 126271,
+      "sha256": "c310a6314d82aa6dfb1685534d247d3a6c47b436f246dd752ccdb972f35be6c7"
+    },
+    {
+      "path": "docs/screenshots/agents.png",
+      "width": 1440,
+      "height": 1100,
+      "bytes": 105973,
+      "sha256": "a06dfdf7d09877f5d325979ef5a52d916518e067987d881b805520ae5d4e1817"
+    },
+    {
+      "path": "docs/screenshots/api-keys.png",
+      "width": 1440,
+      "height": 1100,
+      "bytes": 102527,
+      "sha256": "f6d035cde2021d04f500cc5878b3f74d5950e68840860f4e3bf616bb44591ad3"
+    },
+    {
+      "path": "docs/screenshots/chat-surfaces.png",
+      "width": 1440,
+      "height": 1100,
+      "bytes": 94514,
+      "sha256": "72caea7ff66c6a7224846e6250cfdc9dcc3d66b1b0f1eb57ed8bb8f8f7a01c7b"
+    },
+    {
+      "path": "docs/screenshots/credentials.png",
+      "width": 1440,
+      "height": 1100,
+      "bytes": 107188,
+      "sha256": "5a979356c5b4f63ddba8e54ab67425658f10ba6d93b60e1fba202a5e2b08496c"
+    },
+    {
+      "path": "docs/screenshots/environments.png",
+      "width": 1440,
+      "height": 1100,
+      "bytes": 101166,
+      "sha256": "4777be01c8462f6dedf94233a5c6f8255b24e325cce45b54daf36d3ff7346019"
+    },
+    {
+      "path": "docs/screenshots/knowledge.png",
+      "width": 1440,
+      "height": 1100,
+      "bytes": 102565,
+      "sha256": "4fef7f56049354dfe855fb9af2232283c01c90e426a3c00f8a1b91d0a1fdc452"
+    },
+    {
+      "path": "docs/screenshots/mobile/agent-playground.png",
+      "width": 390,
+      "height": 1100,
+      "bytes": 60825,
+      "sha256": "ff5316ba276d6c19fe19981ec6f92619d554e8f04750d08cc1918ec61e673d21"
+    },
+    {
+      "path": "docs/screenshots/mobile/agents.png",
+      "width": 390,
+      "height": 1100,
+      "bytes": 48862,
+      "sha256": "862193be80cd11944f807b5273f7c3fdd15dfb4c308032cdb7752526ddc0a88f"
+    },
+    {
+      "path": "docs/screenshots/mobile/api-keys.png",
+      "width": 390,
+      "height": 1100,
+      "bytes": 46174,
+      "sha256": "97c6cb3468a3f217d9ace4aae1da73352946e5187b428fbdda661a469a358320"
+    },
+    {
+      "path": "docs/screenshots/mobile/chat-surfaces.png",
+      "width": 390,
+      "height": 1100,
+      "bytes": 38105,
+      "sha256": "f4a34d20f55354eb6bee4b422e8eeb03878a16dd13c619a971523bb5fdbaae9a"
+    },
+    {
+      "path": "docs/screenshots/mobile/credentials.png",
+      "width": 390,
+      "height": 1100,
+      "bytes": 49969,
+      "sha256": "c3b630640057e6e31b160de4c76ed36b7301708b84f600c52c906f1b2af3c40f"
+    },
+    {
+      "path": "docs/screenshots/mobile/environments.png",
+      "width": 390,
+      "height": 1100,
+      "bytes": 45705,
+      "sha256": "699c682748596e1f2e258aaa67eda8ae1bf1ba51890fb3a429702de357544d4a"
+    },
+    {
+      "path": "docs/screenshots/mobile/knowledge.png",
+      "width": 390,
+      "height": 1100,
+      "bytes": 46166,
+      "sha256": "ad247015718401e21353ab30c2e377da2c8c92f5d49a4ed1997be468b3290d96"
+    },
+    {
+      "path": "docs/screenshots/mobile/models.png",
+      "width": 390,
+      "height": 1100,
+      "bytes": 48498,
+      "sha256": "08584b3bea2127f7ed09f410c73ff48569546649fb3e98dec3b3a79c5e7eb405"
+    },
+    {
+      "path": "docs/screenshots/mobile/network-workspace.png",
+      "width": 390,
+      "height": 1100,
+      "bytes": 62945,
+      "sha256": "d637faa67d613abbbb026050a99eca91cc714b9d14bd2563af59781b752b4096"
+    },
+    {
+      "path": "docs/screenshots/mobile/networks.png",
+      "width": 390,
+      "height": 1100,
+      "bytes": 64438,
+      "sha256": "8f04530655c4588d9921ce039935315e3edc838b944e0ee4dadbe953dc297273"
+    },
+    {
+      "path": "docs/screenshots/mobile/project-overview.png",
+      "width": 390,
+      "height": 1100,
+      "bytes": 67819,
+      "sha256": "c84b7cffedacfdf6cd348be3f377a9fc4cea1dea83aa652db79612bef8a90be3"
+    },
+    {
+      "path": "docs/screenshots/mobile/projects.png",
+      "width": 390,
+      "height": 1100,
+      "bytes": 37099,
+      "sha256": "301c0da5e26f7cf38405818826eabfbb1b54b048b10072ec01482424444e8e2f"
+    },
+    {
+      "path": "docs/screenshots/mobile/sign-in.png",
+      "width": 390,
+      "height": 1100,
+      "bytes": 30775,
+      "sha256": "905bb2c8a867e7367cdd209037d6f414831c60893c4d643a9abf8005bc82d0fa"
+    },
+    {
+      "path": "docs/screenshots/mobile/skills.png",
+      "width": 390,
+      "height": 1100,
+      "bytes": 47225,
+      "sha256": "015faef3825874478da0a4b0e436fd76ce823095cd125f96316521a6756ba205"
+    },
+    {
+      "path": "docs/screenshots/mobile/tools.png",
+      "width": 390,
+      "height": 1100,
+      "bytes": 43503,
+      "sha256": "2f73917770792a46a9688889aa4548edf8dbe5d44a8238d6459bbfdb500a781b"
+    },
+    {
+      "path": "docs/screenshots/mobile/traces.png",
+      "width": 390,
+      "height": 1100,
+      "bytes": 57886,
+      "sha256": "c1983135063de747ce1612f963ed928db53b2da8f9f5f471e0505ff8a9cda989"
+    },
+    {
+      "path": "docs/screenshots/mobile/usage.png",
+      "width": 390,
+      "height": 1100,
+      "bytes": 74885,
+      "sha256": "1dd5be96434be0d5bd781a3675a5e3cc5e2d7865f0dffb36f32d66db86ccdcd6"
+    },
+    {
+      "path": "docs/screenshots/mobile/workspaces.png",
+      "width": 390,
+      "height": 1100,
+      "bytes": 35694,
+      "sha256": "232221f4fe8f38f54fe8bc9050a1a7184f76ecd9dd9475579f8c64439b22133d"
+    },
+    {
+      "path": "docs/screenshots/models.png",
+      "width": 1440,
+      "height": 1100,
+      "bytes": 105661,
+      "sha256": "c50b71443d07f7467f56b12f279252dc5b34bda95164e2d2344420bfa8d2855d"
+    },
+    {
+      "path": "docs/screenshots/network-workspace.png",
+      "width": 1440,
+      "height": 1100,
+      "bytes": 108507,
+      "sha256": "07457ce490a48653257972f190d999711268dc6d74d57aa12854457edd54a689"
+    },
+    {
+      "path": "docs/screenshots/networks.png",
+      "width": 1440,
+      "height": 1100,
+      "bytes": 116998,
+      "sha256": "d44afc6de8db76a7e3c4e2a8ddff61781229508a1af06b9c4b9a34f4b1f28a87"
+    },
+    {
+      "path": "docs/screenshots/project-overview.png",
+      "width": 1440,
+      "height": 1100,
+      "bytes": 221842,
+      "sha256": "7d1c01bc91e49f62ff9245ddf11c3f278c5516ced6d9fd831415838f1e18f621"
+    },
+    {
+      "path": "docs/screenshots/projects.png",
+      "width": 1440,
+      "height": 1100,
+      "bytes": 56557,
+      "sha256": "b807f79ba2121f672a46fb742af2752dac54a31454109b04b5eec1503e7d344e"
+    },
+    {
+      "path": "docs/screenshots/sign-in.png",
+      "width": 1440,
+      "height": 1100,
+      "bytes": 89804,
+      "sha256": "fa38dc88988b0f142ff45ae0723dc450e6db44a71295f3e60159bd29c3761df2"
+    },
+    {
+      "path": "docs/screenshots/skills.png",
+      "width": 1440,
+      "height": 1100,
+      "bytes": 103806,
+      "sha256": "113e459da459912afe49d61ae5c93d78132ae00befc54a235ad7b5ceadad2c01"
+    },
+    {
+      "path": "docs/screenshots/tablet/agent-playground.png",
+      "width": 768,
+      "height": 1100,
+      "bytes": 68273,
+      "sha256": "b6da9b067dc40544746c8b360794d3c51b8468db18f457171b350cc2c32e1150"
+    },
+    {
+      "path": "docs/screenshots/tablet/agents.png",
+      "width": 768,
+      "height": 1100,
+      "bytes": 50981,
+      "sha256": "9b60c6a1a875a5156f56c14a4709d0a72da75fc58e9116586232562f39428a8f"
+    },
+    {
+      "path": "docs/screenshots/tablet/api-keys.png",
+      "width": 768,
+      "height": 1100,
+      "bytes": 49030,
+      "sha256": "2db356b411ce2171656ad09adc647f04ed26f34e736da4bc6798f413d17d184e"
+    },
+    {
+      "path": "docs/screenshots/tablet/chat-surfaces.png",
+      "width": 768,
+      "height": 1100,
+      "bytes": 41809,
+      "sha256": "32af9c67fc7c62e5b2eb891ebb9e902245cc3bc56e065fdc07401917e84c6c23"
+    },
+    {
+      "path": "docs/screenshots/tablet/credentials.png",
+      "width": 768,
+      "height": 1100,
+      "bytes": 53137,
+      "sha256": "2d79f83d06859e0f394d12cc7f827078e6aeaf48fa99120579e6738d7ba4303b"
+    },
+    {
+      "path": "docs/screenshots/tablet/environments.png",
+      "width": 768,
+      "height": 1100,
+      "bytes": 46147,
+      "sha256": "363e8cbcf394a06f81f5b90ebd3f8f307cd46eccfda4de3e09b780d4deea0d3d"
+    },
+    {
+      "path": "docs/screenshots/tablet/knowledge.png",
+      "width": 768,
+      "height": 1100,
+      "bytes": 47683,
+      "sha256": "93df4ab9d0d9277fb3c0ef93e44b692612184637776a85639910cd6260957c14"
+    },
+    {
+      "path": "docs/screenshots/tablet/models.png",
+      "width": 768,
+      "height": 1100,
+      "bytes": 51438,
+      "sha256": "be8103eb693afc48212642f27fc299599faed8bf17c32a35780fdf3ea488cfaa"
+    },
+    {
+      "path": "docs/screenshots/tablet/network-workspace.png",
+      "width": 768,
+      "height": 1100,
+      "bytes": 76555,
+      "sha256": "e59e9174c1d4af0242ecc1e152a007c7e55d6e203f8b97870b7fef2ed9a120d1"
+    },
+    {
+      "path": "docs/screenshots/tablet/networks.png",
+      "width": 768,
+      "height": 1100,
+      "bytes": 55322,
+      "sha256": "af73554d015e69b4f36373770bb3b815521b696234742eb737b4326980fe2c2f"
+    },
+    {
+      "path": "docs/screenshots/tablet/project-overview.png",
+      "width": 768,
+      "height": 1100,
+      "bytes": 102615,
+      "sha256": "69579681700b9b9e172794add09d97aee6a3b3a7456d20ee383ab7e30e778167"
+    },
+    {
+      "path": "docs/screenshots/tablet/projects.png",
+      "width": 768,
+      "height": 1100,
+      "bytes": 42155,
+      "sha256": "331d4dd64ad6c15b95ef7b4ac637c47af6e51a744ffed48fdd33945eb637cdcd"
+    },
+    {
+      "path": "docs/screenshots/tablet/sign-in.png",
+      "width": 768,
+      "height": 1100,
+      "bytes": 33597,
+      "sha256": "d0b364f36dd6df26b2d167c2cae73b1e01230097a169d16f0b6bd27291998647"
+    },
+    {
+      "path": "docs/screenshots/tablet/skills.png",
+      "width": 768,
+      "height": 1100,
+      "bytes": 49857,
+      "sha256": "fc212db3ed892b8cada5e6b4f503f7371fd4598054c02cb3ab915fe0d3499971"
+    },
+    {
+      "path": "docs/screenshots/tablet/tools.png",
+      "width": 768,
+      "height": 1100,
+      "bytes": 45122,
+      "sha256": "0a8b1e50c2e94732e84d8935912c61b44c37c1ace45e02564f1fdcaf7d4cf562"
+    },
+    {
+      "path": "docs/screenshots/tablet/traces.png",
+      "width": 768,
+      "height": 1100,
+      "bytes": 89343,
+      "sha256": "b40675910aaa6e84783c667b58de676366005e70afea05138799f35121d16665"
+    },
+    {
+      "path": "docs/screenshots/tablet/usage.png",
+      "width": 768,
+      "height": 1100,
+      "bytes": 110514,
+      "sha256": "b06b5bce45a7017c866ffdf9dcd65a7f7bda86d7fbac8e263895a87d0ad81334"
+    },
+    {
+      "path": "docs/screenshots/tablet/workspaces.png",
+      "width": 768,
+      "height": 1100,
+      "bytes": 41179,
+      "sha256": "79b787a4e276d5c7e033d8cbc2a7ef7ed76de0f88f6973672ac077dc769f7c50"
+    },
+    {
+      "path": "docs/screenshots/themes/agent-playground-dark.png",
+      "width": 1440,
+      "height": 1100,
+      "bytes": 188703,
+      "sha256": "2cb4a4e2dfb356534183c825fef1d4cb4ac812abff85847d8dbf21b0412f774c"
+    },
+    {
+      "path": "docs/screenshots/themes/agent-playground-light.png",
+      "width": 1440,
+      "height": 1100,
+      "bytes": 188993,
+      "sha256": "c21a9c11f11d1d94d1b9657827da28675e7dd4a69639a1dcc49a4206af27084d"
+    },
+    {
+      "path": "docs/screenshots/themes/network-workspace-dark.png",
+      "width": 1440,
+      "height": 1100,
+      "bytes": 180836,
+      "sha256": "aaab999f2804cb8aa290c0a964ee7b1026f96d3cc4a285e5532bbd2e22b2fabb"
+    },
+    {
+      "path": "docs/screenshots/themes/network-workspace-light.png",
+      "width": 1440,
+      "height": 1100,
+      "bytes": 181170,
+      "sha256": "9954d4659a13f8f2681a75b47d160afe8e1b279b2d19752c400c81cae276f067"
+    },
+    {
+      "path": "docs/screenshots/tools.png",
+      "width": 1440,
+      "height": 1100,
+      "bytes": 99338,
+      "sha256": "a8a0aa6f4d96bc2f521fac5af8416fd8267c256fe82e1406af1898766d732ed7"
+    },
+    {
+      "path": "docs/screenshots/traces.png",
+      "width": 1440,
+      "height": 1100,
+      "bytes": 161241,
+      "sha256": "370c7fdbdf6452c62db6268818b039d43bcd56a018df0d93b4823614b06efc53"
+    },
+    {
+      "path": "docs/screenshots/usage.png",
+      "width": 1440,
+      "height": 1100,
+      "bytes": 204347,
+      "sha256": "d2a2005516b3c5b3f050997facbe0a6e382e755850d12fb11f86ba676af8c0b4"
+    },
+    {
+      "path": "docs/screenshots/workspaces.png",
+      "width": 1440,
+      "height": 1100,
+      "bytes": 56737,
+      "sha256": "ddc33c63b12508d449988f85ee1c85a212a1f986b7df091e8269b52bd6fc21d5"
+    }
+  ]
+}

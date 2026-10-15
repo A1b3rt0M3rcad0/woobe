@@ -1,0 +1,6 @@
+/* Artwork stays unchanged; choose a supplied wordmark for its actual surface. */
+.woobe-brand-on-dark { display: none; }
+.woobe-brand[data-brand-appearance='dark'] > .woobe-brand-on-light,
+:is(:root[data-theme='dark'], .woobe-dark, .woobe-navigation) .woobe-brand[data-brand-appearance='auto'] > .woobe-brand-on-light { display: none; }
+.woobe-brand[data-brand-appearance='dark'] > .woobe-brand-on-dark,
+:is(:root[data-theme='dark'], .woobe-dark, .woobe-navigation) .woobe-brand[data-brand-appearance='auto'] > .woobe-brand-on-dark { display: block; }

@@ -21,7 +21,7 @@ function Label({ children }: { children: ReactNode }) {
 function PanelHeader({ title, description }: { title: string; description: string }) {
   return (
     <div className="mb-ui-md">
-      <h3 className="font-sans text-system-control font-semibold text-slate-50">{title}</h3>
+      <h3 className="font-mono text-system-control font-medium text-slate-50">{title}</h3>
       <p className="mt-ui-xs font-sans text-product-small leading-5 text-muted-foreground">{description}</p>
     </div>
   )
@@ -94,14 +94,14 @@ export function RagRuntimeSettings({ open, value, onClose, onApply }: RagRuntime
       contentClassName="min-h-0 flex-1 p-0"
     >
       <div className="flex h-full min-h-0 flex-col">
-        <div className="grid min-h-0 flex-1 lg:grid-cols-[17rem_minmax(0,1fr)]">
+        <div className="block min-h-0 flex-1 overflow-y-auto lg:grid lg:grid-cols-[17rem_minmax(0,1fr)] lg:overflow-hidden">
           <aside className="border-b border-border bg-background/25 p-ui-md lg:border-b-0 lg:border-r">
             <section className="rounded-container border border-border bg-background/30 p-ui-md">
               <span className="flex h-9 w-9 items-center justify-center rounded-control border border-border bg-control text-primary-light">
                 <SlidersHorizontal className="h-icon w-icon" />
               </span>
               <p className="mt-ui-md font-mono text-product-caption uppercase tracking-[0.08em] text-muted-foreground">Draft configuration</p>
-              <h3 className="mt-ui-xs font-sans text-system-control font-semibold text-slate-50">Runtime retrieval</h3>
+              <h3 className="mt-ui-xs font-mono text-system-control font-medium text-slate-50">Runtime retrieval</h3>
               <p className="mt-ui-xs font-sans text-product-small leading-5 text-muted-foreground">
                 Controls how the Agent searches the selected immutable Knowledge version. Staging freezes these values.
               </p>
@@ -114,7 +114,7 @@ export function RagRuntimeSettings({ open, value, onClose, onApply }: RagRuntime
                   ['Context chunks', maxContextChunks],
                 ].map(([label, current]) => (
                   <div key={String(label)} className="flex min-h-control items-center justify-between gap-ui-md py-ui-sm">
-                    <span className="font-sans text-product-caption text-muted-foreground">{label}</span>
+                    <span className="font-mono text-product-caption text-muted-foreground">{label}</span>
                     <span className="font-mono text-product-caption text-slate-200">{current}</span>
                   </div>
                 ))}
@@ -215,7 +215,7 @@ export function RagRuntimeSettings({ open, value, onClose, onApply }: RagRuntime
             </div>
 
             {error ? (
-              <p className="mt-ui-md border-l-2 border-l-red-400 bg-red-500/[0.05] px-ui-md py-ui-sm font-sans text-product-small text-red-200">
+              <p className="mt-ui-md border-l-2 border-l-red-400 bg-red-500/[0.05] px-ui-md py-ui-sm font-sans text-product-small text-error">
                 {error}
               </p>
             ) : null}

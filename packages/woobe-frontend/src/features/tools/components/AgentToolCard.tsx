@@ -59,7 +59,7 @@ function ToolStatusToggle({ active, loading, onClick }: { active: boolean; loadi
 function ActionsMenu({ canEdit, editLabel, onEdit, onRemove }: { canEdit: boolean; editLabel: string; onEdit?: () => void; onRemove: () => void }) {
   return (
     <details className="relative">
-      <summary className="flex h-control-segment cursor-pointer list-none items-center justify-center rounded-control px-ui-sm font-mono text-system-meta text-primary-light transition-colors hover:bg-accent [&::-webkit-details-marker]:hidden" aria-label="Tool actions">
+      <summary className="flex h-control-segment cursor-pointer list-none items-center justify-center rounded-control px-ui-sm font-sans text-system-meta text-primary-light transition-colors hover:bg-accent [&::-webkit-details-marker]:hidden" aria-label="Tool actions">
         More actions
       </summary>
       <div className="absolute right-0 top-8 z-popover min-w-40 rounded-container border border-border bg-surface p-ui-xs shadow-popup">
@@ -69,7 +69,7 @@ function ActionsMenu({ canEdit, editLabel, onEdit, onRemove }: { canEdit: boolea
             {editLabel}
           </button>
         ) : null}
-        <button type="button" onClick={onRemove} className="flex w-full items-center gap-ui-sm rounded-control px-ui-sm py-ui-sm text-left font-sans text-system-label text-red-200 hover:bg-red-500/10">
+        <button type="button" onClick={onRemove} className="flex w-full items-center gap-ui-sm rounded-control px-ui-sm py-ui-sm text-left font-sans text-system-label text-error hover:bg-red-500/10">
           <Trash2 className="h-3.5 w-3.5" />
           Remove from Agent
         </button>
@@ -98,7 +98,7 @@ export function AgentToolCard({
   const showReadOnlyStatus = context === 'playground' && !onToggleActive
 
   const actions = <ActionsMenu canEdit={!isRetired && isHttpProvider} editLabel={context === 'playground' ? 'Edit Project Tool' : 'Edit Tool'} onEdit={onEdit} onRemove={onRemove} />
-  const riskNotice = showRisk ? <div className="mt-ui-sm flex items-center gap-ui-xs pl-ui-lg font-sans text-product-small text-amber-200"><AlertTriangle className="h-3 w-3" />{risk} risk</div> : null
+  const riskNotice = showRisk ? <div className="mt-ui-sm flex items-center gap-ui-xs pl-ui-lg font-mono text-product-small text-warning"><AlertTriangle className="h-3 w-3" />{risk} risk</div> : null
 
   return (
     <article className={cn(
@@ -111,9 +111,9 @@ export function AgentToolCard({
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-ui-sm">
-            <h3 title={tool.name} className="truncate font-mono text-system-label font-semibold text-slate-100">{tool.name}</h3>
+            <h3 title={tool.name} className="truncate font-mono text-system-label font-medium text-slate-100">{tool.name}</h3>
             {isRetired ? (
-              <span className="shrink-0 font-mono text-system-meta text-amber-200">Retired</span>
+              <span className="shrink-0 font-mono text-system-meta text-warning">Retired</span>
             ) : showReadOnlyStatus ? (
               <span className="shrink-0 font-mono text-system-meta capitalize text-muted-foreground">{tool.status}</span>
             ) : null}

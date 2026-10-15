@@ -64,7 +64,7 @@ export function NetworkSessionsPanel({
       <div className="shrink-0 border-b border-border/80 px-ui-md py-ui-md">
         <div className="flex items-start justify-between gap-ui-md">
           <div>
-            <h3 className="font-mono text-system-heading font-semibold text-white">Sessions</h3>
+            <h3 className="font-mono text-system-heading font-medium text-foreground">Sessions</h3>
             <p className="mt-ui-hairline font-sans text-product-caption text-muted-foreground">Conversation continuity for the active Network environment.</p>
           </div>
           {activeSession && !activeSessionIsEarlierSnapshot ? (
@@ -88,9 +88,9 @@ export function NetworkSessionsPanel({
           {loading && sessions.length === 0 ? (
             Array.from({ length: 5 }).map((_, index) => (
               <div key={index} className="rounded-container border border-border/70 bg-background/35 p-ui-md">
-                <div className="h-3 w-32 animate-pulse rounded-full bg-white/[0.07]" />
-                <div className="mt-ui-md h-2.5 w-24 animate-pulse rounded-full bg-white/[0.07]" />
-                <div className="mt-ui-sm h-2.5 w-40 animate-pulse rounded-full bg-white/[0.07]" />
+                <div className="h-3 w-32 animate-pulse rounded-full bg-muted/15" />
+                <div className="mt-ui-md h-2.5 w-24 animate-pulse rounded-full bg-muted/15" />
+                <div className="mt-ui-sm h-2.5 w-40 animate-pulse rounded-full bg-muted/15" />
               </div>
             ))
           ) : null}
@@ -125,14 +125,14 @@ export function NetworkSessionsPanel({
                 <div className="flex items-start justify-between gap-ui-md">
                   <div className="flex min-w-0 items-center gap-ui-sm">
                     <Circle className={cn('h-2 w-2 shrink-0 fill-current', selected ? 'text-primary-light' : 'text-muted-foreground')} />
-                    <span className={cn('truncate font-sans text-product-small', selected ? 'font-medium text-white' : 'text-slate-200')}>{session.title}</span>
+                    <span className={cn('truncate font-mono text-product-small', selected ? 'font-medium text-foreground' : 'text-slate-200')}>{session.title}</span>
                   </div>
                   {selected ? <span className="shrink-0 font-mono text-system-meta font-medium uppercase text-primary-light">Selected</span> : null}
                 </div>
 
                 <div className="mt-ui-sm flex flex-wrap items-center gap-ui-sm font-mono text-system-meta text-muted-foreground">
                   <span className="text-indigo-300">{session.versionLabel}</span>
-                  {earlierSnapshot ? <span className="rounded-technical border border-amber-400/25 bg-amber-400/5 px-ui-xs py-ui-hairline text-amber-300">Earlier snapshot</span> : null}
+                  {earlierSnapshot ? <span className="rounded-technical border border-amber-400/25 bg-amber-400/5 px-ui-xs py-ui-hairline text-warning">Earlier snapshot</span> : null}
                 </div>
 
                 <div className="mt-ui-sm flex flex-wrap items-center gap-ui-md font-mono text-system-meta text-muted-foreground">

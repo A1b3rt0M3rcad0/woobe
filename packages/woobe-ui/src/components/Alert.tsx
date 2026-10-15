@@ -4,7 +4,7 @@ import { cn } from '../lib/cn'
 export type AlertVariant = 'default' | 'info' | 'success' | 'warning' | 'destructive'
 
 const variantClasses: Record<AlertVariant, string> = {
-  default: 'border-border bg-surface text-accent-foreground/85',
+  default: 'border-border bg-surface text-accent-foreground',
   info: 'border-primary/30 bg-primary/[0.07] text-primary-light',
   success: 'border-success/30 bg-success/[0.07] text-success',
   warning: 'border-warning/30 bg-warning/[0.07] text-warning',
@@ -33,14 +33,14 @@ Alert.displayName = 'Alert'
 
 const AlertTitle = forwardRef<HTMLHeadingElement, HTMLAttributes<HTMLHeadingElement>>(
   ({ className, ...props }, ref) => (
-    <h5 ref={ref} className={cn('mb-ui-xs font-mono text-system-control font-semibold', className)} {...props} />
+    <h5 ref={ref} className={cn('mb-ui-xs font-sans text-system-control font-medium', className)} {...props} />
   ),
 )
 AlertTitle.displayName = 'AlertTitle'
 
 const AlertDescription = forwardRef<HTMLParagraphElement, HTMLAttributes<HTMLParagraphElement>>(
   ({ className, ...props }, ref) => (
-    <p ref={ref} className={cn('font-sans text-product-caption opacity-90', className)} {...props} />
+    <p ref={ref} className={cn('font-sans text-product-caption', className)} {...props} />
   ),
 )
 AlertDescription.displayName = 'AlertDescription'

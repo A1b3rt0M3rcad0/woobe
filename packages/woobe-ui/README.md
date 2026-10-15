@@ -118,21 +118,19 @@ Use the variants by intent:
 - `standard`: confirmations, small forms, secret reveals and bounded actions. It remains compact, but uses the same typography, borders, controls and footer grammar as larger dialogs.
 - `workspace`: configuration flows, inspectors and multi-step operational surfaces. It uses `max-w-dialog-wide` and `max-h-dialog`, while the content determines the actual height. Use `DialogContextBar`, `DialogBody` and `DialogFooter` when the feature needs fixed chrome with an independently scrolling body.
 
-The canonical workspace width is `68.75rem` maximum. Height defaults to content-driven and is capped by `max-h-dialog`. Use `height="workspace"` when the design calls for a stable workspace across steps: `min(900px, calc(100svh - 32px))`, with a 16px viewport inset. Compose a flex child with `min-h-0 flex-1`, then `DialogContextBar`, `DialogBody` and `DialogFooter` to keep the context and actions outside the scrolling body. `DialogBody spacing="workspace"` follows the ChatSurface Details content insets (15px in constrained dialogs, up to 24px on desktop).
+The canonical workspace width is `68.75rem` maximum. Height defaults to content-driven and is capped by `max-h-dialog`. Use `height="workspace"` when the design calls for a stable workspace across steps: `min(900px, calc(100svh - 32px))`, with a 16px viewport inset. Compose a flex child with `min-h-0 flex-1`, then `DialogContextBar`, `DialogBody` and `DialogFooter` to keep the context and actions outside the scrolling body. `DialogBody spacing="workspace"` follows the ChatSurface Details content insets (18px in constrained dialogs, up to 24px on desktop).
 
 ### Configuration hierarchy
 
-The ChatSurface Details reference defines the Create Agent contract:
+Shared semantic type tokens own the hierarchy: 28px page titles, 16px section
+headings, 14px operational body/controls and 12px supporting metadata. Technical
+titles, values, labels, navigation and structured evidence use self-hosted JetBrains
+Mono. Inter is reserved for prose and conversation. Metrics use regular weight.
 
-- Dialog identity: Inter 13px/18px, semibold.
-- Primary `SectionBlock`: mono 12px/16px; secondary titles 10px/14px; descriptions and eyebrows 9px/12px.
-- `Field density="technical"`: mono uppercase labels 9px/14px, 0.1em tracking, muted color and 6px control gap; Inter helpers/errors 9px/14px. This density must not use the 7px tiny tier.
-- `TechnicalListItem density="technical"`: 10px operational labels and 9px supporting metadata.
-- `ReadOnlyField`: muted uppercase label 9px/14px, Inter value 11px/16px, 4px label/value gap, 12px padding, background/55 and a 4px radius. Use for review summaries and immutable settings values; long values wrap.
-- Normal controls/actions: 34px high with 10px text. Secondary actions use `Button size="sm"` (30px/9px), not the 26px technical size.
-- `Stepper` descriptions/status: 9px; `SegmentedControl size="segment"`: 26px inner control inside a 34px shell, without stretching unless the composition requires it.
-
-These values belong to shared components and tokens. Features select the appropriate variants and compose them without local typography overrides.
+Default controls are 44px high, compact controls 36px. Technical variants remain
+available for dense workspaces. Touch layouts must keep primary actions reachable.
+Use `Field`, `SectionBlock`, `ReadOnlyField`, `Stepper` and shared dialog layouts
+without feature-local typography overrides.
 
 Internal navigation remains feature-dependent. A settings surface may use a sidebar, while a creation workflow may use a stepper. The reusable contract is the density, hierarchy, spacing, typography and control language, not forcing unrelated workflows into the same geometry or navigation structure.
 
@@ -211,28 +209,37 @@ On workstation and ultrawide layouts, extra width should improve composition: pe
 
 ## Visual foundations
 
-- Canvas: `#020817`
-- Surface: `#0f1729`
-- Control surface: `#0b1220`
-- Border: `#1e293b`
-- Primary: `#3b82f6`
-- Product typography: Inter
-- Technical typography: JetBrains Mono, with Fira Code/monospace fallback
-- Section title tier: `12px`
-- Shared control tier: `10px`
-- Caption/description tier: `9px`
-- Nano/status metadata tier: `8px`
-- Technical/small radius: `2px`
-- Common controls: `3px`
-- Cards and larger containers: `4px`
-- Default control height: `34px`
-- Compact control height: `30px`
-- Segmented control inner height: `26px` inside the `34px` segmented shell
-- Common panel/dialog inset: approximately `15px`
+The console implements the supplied Guild-inspired v2 operational contract. The
+canvas and navigation are warm/light, panels use mono titles, regular numerical
+values, narrow separators and short shadows. External reference images are review
+inputs and are never distributed as Woobe screenshots.
 
-The visual hierarchy is border-driven rather than shadow-driven. Blue is reserved for primary actions, focus, selection and operationally meaningful state. Technical typography is intentionally prominent in navigation, labels, controls, metadata, IDs, metrics and operational UI, while Inter remains the default for longer product copy and user-entered content.
+| Role | Value |
+| --- | --- |
+| Canvas / surface | `#f8f7f5` / `#fffefd` |
+| Ink / muted | `#242321` / `#6b6863` |
+| Decorative line / control boundary | `#e3e1dd` / `#8c867d` |
+| Graphic accent / small accent text | `#ff5500` / `#ad3900` |
+| Primary action | `#242321`, near-white label |
+| Success / warning / error | `#197542` / `#9b5700` / `#b42318` |
 
-Subtle grid/ASCII influence may appear as secondary identity, but it must not turn product surfaces into terminal emulation or decorative marketing layouts.
+`src/styles/guild-tokens.css` preserves the supplied reconstruction values;
+`theme.css`, `colors.ts` and the Tailwind preset map them to existing semantic
+utilities. `fonts.css` provisions real variable Inter and JetBrains Mono files
+with Latin Extended support and their OFL notices. `mergeWoobeClasses` registers
+semantic sizes, dialog widths and radii so feature overrides replace defaults.
+
+Use 4px badges, 6px controls and 10px panels, with 18px comfortable panel insets.
+The explicit `.woobe-dark` scope is an alternate neutral theme for consumers; it
+is not the console navigation default. `DotMeter` communicates a named percentage
+without inventing limits; unknown and zero remain distinct and only the graphic
+is clamped. See the [visual contract](../../docs/design/README.md).
+
+ChatSurface remains in `woobe-embed` with its independent appearance configuration.
+Console tokens must not override a customer's configured embed theme or sizing.
+
+See [browser screenshots](../../docs/screenshots/README.md) for rendered examples
+and the repeatable capture command.
 
 ## Review checklist
 

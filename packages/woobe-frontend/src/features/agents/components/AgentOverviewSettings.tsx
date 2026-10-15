@@ -27,11 +27,11 @@ export function AgentOverviewSettings({ onOpenBehavior }: AgentOverviewSettingsP
         <PanelHeader hierarchy="section" icon={<Bot className="h-icon w-icon" />} title="Agent identity" description="Name, role and specialization used to identify this Agent." />
         <div className="space-y-ui-md p-ui-md">
           <div className="space-y-ui-sm">
-            <label className="block font-mono text-chrome-label font-medium uppercase tracking-ui-label text-muted-foreground" htmlFor={`${id}-name`}>Name</label>
+            <label className="block font-sans text-chrome-label font-medium uppercase tracking-ui-label text-muted-foreground" htmlFor={`${id}-name`}>Name</label>
             <Input id={`${id}-name`} value={state.name} onChange={event => setField('name', event.target.value)} />
           </div>
           <div className="space-y-ui-sm">
-            <label className="block font-mono text-chrome-label font-medium uppercase tracking-ui-label text-muted-foreground" htmlFor={`${id}-description`}>Description</label>
+            <label className="block font-sans text-chrome-label font-medium uppercase tracking-ui-label text-muted-foreground" htmlFor={`${id}-description`}>Description</label>
             <Textarea id={`${id}-description`} rows={2} className="min-h-textarea-compact resize-y" value={state.description} onChange={event => setField('description', event.target.value)} placeholder="Role and specialization" />
           </div>
         </div>
@@ -57,7 +57,7 @@ export function AgentOverviewSettings({ onOpenBehavior }: AgentOverviewSettingsP
               ['Guidance', `${guidance} / 3`],
             ].map(([label, value]) => (
               <div key={label} className="flex min-h-control items-center justify-between gap-ui-md px-ui-md py-ui-sm">
-                <span className="font-sans text-product-caption text-muted-foreground">{label}</span>
+                <span className="font-mono text-product-caption text-muted-foreground">{label}</span>
                 <span className="font-mono text-chrome-meta text-slate-300">{value}</span>
               </div>
             ))}

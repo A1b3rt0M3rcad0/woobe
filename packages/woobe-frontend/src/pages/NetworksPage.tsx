@@ -68,7 +68,7 @@ function NetworkOperationalCard({
         onClick={onOpen}
         icon={<Network className="h-icon-lg w-icon-lg" />}
         title={network.name}
-        subtitle={network.description || 'No description configured.'}
+        description={network.description || 'No description configured.'}
         metadata={(
           <>
             <RuntimeEnvironmentPill
@@ -291,7 +291,7 @@ export default function NetworksPage() {
             className="rounded-container border border-border bg-surface/70 py-10"
           />
         ) : visibleNetworks.length > 0 ? (
-          <div className="grid grid-cols-1 gap-ui-md md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-ui-md md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
             {visibleNetworks.map((network) => (
               <NetworkOperationalCard
                 key={network.id}

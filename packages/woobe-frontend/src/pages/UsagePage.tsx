@@ -292,13 +292,14 @@ export default function UsagePage() {
           </div>
 
           <div className="flex flex-col gap-ui-sm border-t border-border/70 pt-ui-md lg:flex-row lg:items-center">
-            <div className="flex shrink-0 items-center gap-ui-xs font-mono text-system-meta font-semibold uppercase tracking-ui-eyebrow text-muted-foreground">
+            <div className="flex shrink-0 items-center gap-ui-xs font-mono text-system-meta font-medium uppercase tracking-ui-eyebrow text-muted-foreground">
               <SlidersHorizontal className="h-icon w-icon text-primary-light" />
               Scope and attribution
             </div>
             {operation !== 'agent' ? (
               <Select
                 id="usage-network-scope"
+                aria-label="Network scope"
                 value={networkScope?.id ?? ''}
                 onChange={(event) => selectNetwork(event.target.value)}
                 className="min-w-[200px]"
@@ -310,6 +311,7 @@ export default function UsagePage() {
             ) : null}
             <Select
               id="usage-analyze-by"
+              aria-label="Analyze usage by"
               value={lens}
               onChange={(event) => setLens(event.target.value as UsageLens)}
               className="min-w-[190px]"
@@ -322,7 +324,7 @@ export default function UsagePage() {
 
           {activeScopeCount > 0 ? (
             <div className="flex flex-wrap items-center gap-ui-xs border-t border-border/70 pt-ui-md">
-              <span className="font-mono text-system-meta font-semibold uppercase tracking-ui-eyebrow text-muted-foreground">Active scope</span>
+              <span className="font-mono text-system-meta font-medium uppercase tracking-ui-eyebrow text-muted-foreground">Active scope</span>
               {environment !== 'all' ? <ScopeChip label="Environment" value={environmentLabels[environment]} onRemove={() => selectEnvironment('all')} /> : null}
               {operation !== 'all' ? <ScopeChip label="Operation" value={operationLabels[operation]} onRemove={() => selectOperation('all')} /> : null}
               {networkScope ? <ScopeChip label="Network" value={networkScope.label} onRemove={() => selectNetwork('')} /> : null}

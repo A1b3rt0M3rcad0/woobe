@@ -1,9 +1,7 @@
 import type { LucideIcon } from 'lucide-react'
 import {
   Activity,
-  CheckCircle2,
   CircleDollarSign,
-  Clock3,
   ShieldCheck,
   Workflow,
 } from 'lucide-react'
@@ -22,13 +20,6 @@ import type {
 const OVERVIEW_RECENT_ROW_LIMIT = 3
 const OVERVIEW_CHANGE_ROW_LIMIT = 5
 
-export interface DashboardMetricComparisonItem {
-  label: string
-  value: string
-  detail: string
-  tone: string
-}
-
 export interface DashboardMetric {
   label: string
   value: string
@@ -36,10 +27,7 @@ export interface DashboardMetric {
   direction: 'up' | 'down' | 'neutral'
   icon: LucideIcon
   tone: string
-  comparison?: {
-    agent: DashboardMetricComparisonItem
-    network: DashboardMetricComparisonItem
-  }
+  change?: string | null
   costHelp?: { description: string; reviewPricing: boolean }
 }
 
@@ -59,6 +47,7 @@ export interface DashboardSeriesPoint {
   agentDurationMs: number | null
   networkDurationMs: number | null
   costUsd: number | null
+  unknownCostCount: number
 }
 
 export interface DashboardEnvironmentSlice {
@@ -147,6 +136,7 @@ export interface DashboardOperationalIssues {
 
 export interface DashboardViewModel {
   narrative: string
+  window: { from: string; to: string; bucket: ProjectOverview['bucket'] }
   metrics: DashboardMetric[]
   series: DashboardSeriesPoint[]
   reliability: {
@@ -370,9 +360,9 @@ function networkRunRow(run: ProjectOverviewNetworkRun): DashboardRunRow {
 
 function reliabilityTone(rate: number | null): string {
   if (rate === null) return 'bg-slate-500/10 text-slate-300'
-  if (rate >= 99) return 'bg-emerald-500/10 text-emerald-400'
-  if (rate >= 95) return 'bg-amber-500/10 text-amber-300'
-  return 'bg-red-500/10 text-red-300'
+  if (rate >= 99) return 'bg-emerald-500/10 text-success'
+  if (rate >= 95) return 'bg-amber-500/10 text-warning'
+  return 'bg-red-500/10 text-error'
 }
 
 function actionLabel(action: OverviewChangeAction): string {
@@ -404,10 +394,11 @@ export function adaptProjectOverview(overview: ProjectOverview): DashboardViewMo
     {
       label: 'Agent Runs',
       value: formatInteger(summary.agent_runs),
-      detail: `${formatInteger(summary.direct_agent_runs)} direct · ${formatInteger(summary.network_agent_runs)} from Networks${runChange.detail ? ` · ${runChange.detail}` : ''}`,
+      detail: `${formatInteger(summary.direct_agent_runs)} direct · ${formatInteger(summary.network_agent_runs)} from Networks`,
+      change: runChange.detail,
       direction: runChange.direction,
       icon: Activity,
-      tone: 'bg-blue-500/10 text-blue-400',
+      tone: 'text-muted',
     },
     {
       label: 'Network Runs',
@@ -415,7 +406,17 @@ export function adaptProjectOverview(overview: ProjectOverview): DashboardViewMo
       detail: `${formatInteger(summary.successful_network_runs)} completed · ${formatInteger(summary.running_network_runs)} running · ${formatInteger(totalNetworkErrors)} errors`,
       direction: totalNetworkErrors > 0 ? 'down' : 'neutral',
       icon: Workflow,
-      tone: 'bg-violet-500/10 text-violet-300',
+      tone: 'text-muted',
+    },
+    {
+      label: 'Agent Run Success',
+      value: formatPercent(summary.agent_run_success_rate),
+      detail: summary.terminal_agent_runs === 0
+        ? 'No terminal Agent Runs'
+        : `${formatInteger(summary.successful_agent_runs)} / ${formatInteger(summary.terminal_agent_runs)} terminal Runs successful`,
+      direction: totalAgentErrors > 0 ? 'down' : 'neutral',
+      icon: ShieldCheck,
+      tone: reliabilityTone(summary.agent_run_success_rate),
     },
     {
       label: 'Runtime Cost',
@@ -431,50 +432,9 @@ export function adaptProjectOverview(overview: ProjectOverview): DashboardViewMo
       } : undefined,
       direction: 'neutral',
       icon: CircleDollarSign,
-      tone: summary.unknown_agent_run_cost_count > 0 ? 'bg-amber-500/10 text-amber-300' : 'bg-blue-500/10 text-blue-400',
+      tone: summary.unknown_agent_run_cost_count > 0 ? 'bg-amber-500/10 text-warning' : 'bg-blue-500/10 text-primary-light',
     },
-    {
-      label: 'Agent Run Success',
-      value: formatPercent(summary.agent_run_success_rate),
-      detail: summary.terminal_agent_runs === 0
-        ? 'No terminal Agent Runs'
-        : `${formatInteger(summary.successful_agent_runs)} successful · ${formatInteger(totalAgentErrors)} errors · ${formatInteger(summary.cancelled_agent_runs)} cancelled`,
-      direction: totalAgentErrors > 0 ? 'down' : 'neutral',
-      icon: ShieldCheck,
-      tone: reliabilityTone(summary.agent_run_success_rate),
-    },
-    {
-      label: 'Network Run Success',
-      value: formatPercent(summary.network_run_success_rate),
-      detail: summary.terminal_network_runs === 0
-        ? 'No terminal Network Runs'
-        : `${formatInteger(summary.successful_network_runs)} successful · ${formatInteger(totalNetworkErrors)} errors · ${formatInteger(summary.cancelled_network_runs)} cancelled`,
-      direction: totalNetworkErrors > 0 ? 'down' : 'neutral',
-      icon: CheckCircle2,
-      tone: reliabilityTone(summary.network_run_success_rate),
-    },
-    {
-      label: 'Average Run Time',
-      value: '',
-      detail: 'p95 is the duration not exceeded by 95% of terminal Runs',
-      direction: 'neutral',
-      icon: Clock3,
-      tone: 'bg-slate-500/10 text-slate-300',
-      comparison: {
-        agent: {
-          label: 'Agent Run',
-          value: formatLatency(summary.avg_agent_run_duration_ms),
-          detail: `p95 ${formatLatency(summary.p95_agent_run_duration_ms)}`,
-          tone: 'text-blue-300',
-        },
-        network: {
-          label: 'Network Run',
-          value: formatLatency(summary.avg_network_run_duration_ms),
-          detail: `p95 ${formatLatency(summary.p95_network_run_duration_ms)}`,
-          tone: 'text-violet-300',
-        },
-      },
-    },
+
   ]
 
   const series = overview.timeseries.map((point) => ({
@@ -493,6 +453,7 @@ export function adaptProjectOverview(overview: ProjectOverview): DashboardViewMo
     agentDurationMs: point.avg_agent_run_duration_ms,
     networkDurationMs: point.avg_network_run_duration_ms,
     costUsd: point.cost_usd,
+    unknownCostCount: point.unknown_cost_count,
   }))
 
   const distribution = overview.environment_distribution
@@ -563,6 +524,7 @@ export function adaptProjectOverview(overview: ProjectOverview): DashboardViewMo
 
   return {
     narrative: buildNarrative(overview),
+    window: { from: overview.from, to: overview.to, bucket: overview.bucket },
     metrics,
     series,
     reliability: {

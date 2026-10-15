@@ -59,6 +59,7 @@ function AgentOperationalCard({
       icon={<Bot className="h-icon-lg w-icon-lg" />}
       title={agent.name}
       subtitle={providerLabel(agent)}
+      description={agent.description}
       status={status && status !== 'active' ? <StatusBadge status={agent.status} size="compact" /> : undefined}
       metadata={(
         <>
@@ -190,7 +191,7 @@ export default function AgentsPage() {
         ) : isError ? (
           <ErrorState error={error} onRetry={refetch} className="rounded-container border border-border bg-surface/70 py-10" />
         ) : visibleAgents.length > 0 ? (
-          <div className="grid grid-cols-1 gap-ui-md md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-ui-md md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
             {visibleAgents.map((agent) => (
               <AgentOperationalCard
                 key={agent.id}

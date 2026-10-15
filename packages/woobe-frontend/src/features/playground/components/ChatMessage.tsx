@@ -73,7 +73,7 @@ function SourcesCollapsible({
                 compact ? 'p-ui-sm' : 'p-ui-md',
               )}
             >
-              <p className={cn('truncate font-mono font-semibold text-slate-100', compact ? 'text-system-label' : 'text-system-control')}>{source.document_title || 'Untitled'}</p>
+              <p className={cn('truncate font-mono font-medium text-slate-100', compact ? 'text-system-label' : 'text-system-control')}>{source.document_title || 'Untitled'}</p>
               {(source.page_number != null || source.score != null) && (
                 <div className={cn('mt-ui-xs flex flex-wrap gap-x-ui-sm font-mono text-muted-foreground', compact ? 'text-system-meta' : 'text-system-micro')}>
                   {source.page_number != null && <span>Page {source.page_number}</span>}
@@ -116,7 +116,7 @@ function ActivityBubble({
   return (
     <div
       className={cn(
-        'inline-flex items-center border border-border/80 bg-surface/65 font-sans text-muted-foreground',
+        'inline-flex items-center border border-border/80 bg-surface/65 font-mono text-muted-foreground',
         compact
           ? 'gap-ui-sm rounded-control px-ui-sm py-ui-sm text-product-caption'
           : 'gap-ui-sm rounded-container px-ui-md py-ui-sm text-product-small',
@@ -320,7 +320,7 @@ export function ChatMessage({
           {message.output_parse_error && (
             <div
               className={cn(
-                'flex items-start gap-ui-sm border border-amber-500/25 bg-amber-500/[0.07] text-amber-200',
+                'flex items-start gap-ui-sm border border-amber-500/25 bg-amber-500/[0.07] text-warning',
                 compact ? 'rounded-control px-ui-sm py-ui-xs font-sans text-product-caption' : 'rounded-container px-ui-sm py-ui-sm font-sans text-product-small',
               )}
             >
@@ -332,7 +332,7 @@ export function ChatMessage({
           <div className="flex flex-wrap items-center justify-between gap-x-ui-md gap-y-ui-xs">
             <div className={cn('flex min-w-0 flex-wrap items-center font-mono text-muted-foreground', compact ? 'gap-x-ui-sm gap-y-ui-xs text-system-meta' : 'gap-x-ui-sm gap-y-ui-xs text-system-nano')}>
               {message.model && (
-                <span className={cn('break-all', !compact && 'text-muted-foreground/70')}>
+                <span className={cn('break-all', !compact && 'text-muted-foreground')}>
                   {message.provider ? `${message.provider}/` : ''}{message.model}
                 </span>
               )}
@@ -343,7 +343,7 @@ export function ChatMessage({
                 </span>
               )}
               {message.trace_id && (
-                <span className={compact ? undefined : 'text-muted-foreground/70'}>trace {message.trace_id.slice(0, 8)}…</span>
+                <span className={compact ? undefined : 'text-muted-foreground'}>trace {message.trace_id.slice(0, 8)}…</span>
               )}
               {footerMeta ? <span>{footerMeta}</span> : null}
             </div>
@@ -363,10 +363,10 @@ export function ChatMessage({
               {footerActions}
               {!compact && (
                 <>
-                  <Button type="button" variant="ghost" size="iconXs" className="text-muted-foreground hover:border-emerald-500/30 hover:bg-emerald-500/[0.07] hover:text-emerald-300" title="Good response">
+                  <Button type="button" variant="ghost" size="iconXs" className="text-muted-foreground hover:border-emerald-500/30 hover:bg-emerald-500/[0.07] hover:text-success" title="Good response">
                     <ThumbsUp className="h-icon-sm w-icon-sm" />
                   </Button>
-                  <Button type="button" variant="ghost" size="iconXs" className="text-muted-foreground hover:border-red-500/30 hover:bg-red-500/[0.07] hover:text-red-300" title="Bad response">
+                  <Button type="button" variant="ghost" size="iconXs" className="text-muted-foreground hover:border-red-500/30 hover:bg-red-500/[0.07] hover:text-error" title="Bad response">
                     <ThumbsDown className="h-icon-sm w-icon-sm" />
                   </Button>
                 </>

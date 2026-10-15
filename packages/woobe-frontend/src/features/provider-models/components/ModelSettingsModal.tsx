@@ -281,7 +281,7 @@ function ReadOnlyValue({ label, value, mono = false }: { label: string; value: s
   return (
     <Field className="rounded-container border border-border/75 bg-background/25 px-ui-md py-ui-sm">
       <FieldLabel>{label}</FieldLabel>
-      <div className={mono ? 'break-words font-mono text-system-control text-accent-foreground' : 'break-words font-sans text-product-small font-medium text-accent-foreground'}>
+      <div className={mono ? 'break-words font-mono text-system-control text-accent-foreground' : 'break-words font-mono text-product-small font-medium text-accent-foreground'}>
         {value}
       </div>
     </Field>
@@ -340,7 +340,7 @@ function CatalogList({
   return (
     <div className="grid gap-ui-md">
       <div className="flex flex-wrap items-center justify-between gap-ui-sm">
-        <span className="font-sans text-product-caption text-muted-foreground">Choose a generation model from the provider catalog.</span>
+        <span className="font-mono text-product-caption text-muted-foreground">Choose a generation model from the provider catalog.</span>
         <Button type="button" size="sm" variant="ghost" onClick={onManual}>Enter model ID manually</Button>
       </div>
 
@@ -948,13 +948,13 @@ export function ModelSettingsModal({
             </div>
 
             <div className="border-t border-border pt-ui-md">
-              <p className="font-mono text-system-meta font-semibold uppercase tracking-[0.12em] text-muted-foreground">Declared capabilities</p>
+              <p className="font-mono text-system-meta font-medium uppercase tracking-[0.12em] text-muted-foreground">Declared capabilities</p>
               <div className="mt-ui-sm flex flex-wrap gap-ui-xs">
                 {Object.keys(normalizedSpec.capabilities).length ? Object.entries(normalizedSpec.capabilities).map(([name, supported]) => (
                   <Badge key={name} variant={supported === true ? 'success' : 'outline'} size="compact">
                     {name}: {supported === null ? 'unknown' : supported ? 'yes' : 'no'}
                   </Badge>
-                )) : <span className="font-sans text-product-caption text-muted-foreground">No capabilities declared.</span>}
+                )) : <span className="font-mono text-product-caption text-muted-foreground">No capabilities declared.</span>}
               </div>
             </div>
 
@@ -1061,7 +1061,7 @@ export function ModelSettingsModal({
                 </div>
                 <div className="min-w-0">
                   <div className="flex min-w-0 flex-wrap items-center gap-ui-sm">
-                    <h3 className="truncate font-mono text-system-heading font-semibold text-accent-foreground">{technicalName}</h3>
+                    <h3 className="truncate font-mono text-system-heading font-medium text-accent-foreground">{technicalName}</h3>
                     <StatusBadge status={selectedModel ? status : 'draft'} size="compact" />
                   </div>
                   <div className="mt-ui-xs flex min-w-0 flex-wrap items-center gap-x-ui-md gap-y-ui-xs font-mono text-system-meta text-muted-foreground">

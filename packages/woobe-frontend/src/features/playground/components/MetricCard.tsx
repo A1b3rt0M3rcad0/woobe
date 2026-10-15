@@ -15,7 +15,7 @@ export function MetricCard({ label, value, icon, className }: MetricCardProps) {
         {icon && <span className="text-muted shrink-0">{icon}</span>}
         <p className="text-xs text-muted">{label}</p>
       </div>
-      <p className="text-sm font-medium text-white mt-1">{value}</p>
+      <p className="font-mono text-sm font-medium text-foreground mt-1">{value}</p>
     </div>
   )
 }

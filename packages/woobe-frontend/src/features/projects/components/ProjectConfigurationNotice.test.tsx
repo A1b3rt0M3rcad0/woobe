@@ -20,7 +20,7 @@ it('defaults to Draft, persists an explicit choice and does not execute automati
   query.data = { state: 'blocked', blocked_key_count: 2, affected_target_count: 3 }
   await render()
   expect(useQuery.mock.calls[useQuery.mock.calls.length-1]?.[0].queryKey).toEqual(['configuration-readiness','project','summary','draft'])
-  expect(container.textContent).toContain('2 keys need attention · 3 affected targets')
+  expect(container.textContent).toContain('Configuration blocks 3 selected targets · 2 required keys need attention')
   const select = container.querySelector('select')!
   await act(async () => { select.value = 'production'; select.dispatchEvent(new Event('change', { bubbles:true })) })
   expect(sessionStorage.getItem('woobe:configuration-environment:project')).toBe('production')
@@ -40,7 +40,7 @@ it('uses the Overview environment and hides stale counts when permission is lost
 it('keeps incomplete checks distinct from readiness and refreshes only metadata', async () => {
   query.data={state:'unknown'}
   await render('draft')
-  expect(container.textContent).toContain('status is incomplete')
+  expect(container.textContent).toContain('Execution readiness is unverified')
   await act(async()=>container.querySelector('button')!.click())
   expect(query.refetch).toHaveBeenCalledOnce()
   expect(useQuery.mock.calls[useQuery.mock.calls.length-1]?.[0].refetchInterval).toBe(30_000)
@@ -50,4 +50,31 @@ it('identifies a bounded page without treating its counts as the whole Project',
   await render('draft')
   expect(container.textContent).toContain('Partial configuration check · 100 targets inspected')
   expect(container.textContent).not.toContain('Required configuration is ready')
+})
+
+it('uses a primary action only for confirmed configuration blockers', async () => {
+  query.data = { state: 'unknown', inspected_target_count: 4 }
+  await render('draft')
+  expect(container.textContent).toContain('Execution readiness is unverified')
+  expect(container.querySelector('a')?.textContent).toBe('Review configuration')
+  expect(container.textContent).not.toContain('Configuration blocks')
+  query.data = { state: 'blocked', affected_target_count: 1, blocked_key_count: 1 }
+  await render('draft')
+  expect(container.textContent).toContain('Configuration blocks 1 selected target')
+  expect(container.querySelector('a')?.textContent).toBe('Configure now')
+})
+
+it('does not call an unavailable check a configuration blocker or expose stale counts', async () => {
+  query.data = { state: 'blocked', affected_target_count: 99, blocked_key_count: 99 }
+  query.isError = true; query.error = new Error('PRIVATE-UPSTREAM-CANARY')
+  await render('draft')
+  expect(container.textContent).toContain('Configuration check unavailable')
+  expect(container.textContent).not.toMatch(/99|PRIVATE-UPSTREAM-CANARY|Configuration blocks/)
+})
+
+it('keeps the last partial page unverified even when its page is ready', async () => {
+  query.data = { scope: 'current_selections_page', state: 'unknown', has_next: false, inspected_target_count: 5, page_state: 'ready', page_complete: true }
+  await render('draft')
+  expect(container.textContent).toContain('Partial configuration check · 5 targets inspected')
+  expect(container.textContent).not.toContain('Required configuration is available')
 })

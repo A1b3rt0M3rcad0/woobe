@@ -143,7 +143,7 @@ export function HttpRequestBodyEditor({ value, onChange }: HttpRequestBodyEditor
     <div className="space-y-3 border-t border-border/70 pt-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-sm font-medium text-white">Request body</p>
+          <p className="font-mono text-sm font-medium text-foreground">Request body</p>
           <p className="mt-0.5 text-xs text-muted">Add fields visually or edit the JSON payload.</p>
         </div>
         <div className="flex items-center rounded-lg border border-border/80 bg-background/45 p-1">
@@ -186,7 +186,7 @@ export function HttpRequestBodyEditor({ value, onChange }: HttpRequestBodyEditor
                   className={field.type === 'json' ? 'font-mono text-xs' : undefined}
                 />
               )}
-              <Button type="button" size="sm" variant="ghost" className="text-red-300" onClick={() => removeField(index)} aria-label="Remove body field">
+              <Button type="button" size="sm" variant="ghost" className="text-error" onClick={() => removeField(index)} aria-label="Remove body field">
                 <X className="h-3.5 w-3.5" />
               </Button>
             </div>

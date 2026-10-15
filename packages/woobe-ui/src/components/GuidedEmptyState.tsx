@@ -23,7 +23,7 @@ const GuidedEmptyState = forwardRef<HTMLDivElement, GuidedEmptyStateProps>(
       <div className="mx-auto flex h-control-sm w-control-sm items-center justify-center rounded-control border border-border bg-control text-primary-light">
         {icon || <Inbox className="h-icon-lg w-icon-lg" />}
       </div>
-      <div className="mt-ui-md font-sans text-product-label font-semibold text-slate-100">{title}</div>
+      <div className="mt-ui-md font-sans text-product-label font-medium text-slate-100">{title}</div>
       <div className="mx-auto mt-ui-xs max-w-xl font-sans text-product-small text-muted-foreground">{description}</div>
       {next && next.length > 0 ? (
         <div className="mx-auto mt-ui-lg grid max-w-2xl gap-px overflow-hidden rounded-container border border-border bg-border text-left sm:grid-cols-3">

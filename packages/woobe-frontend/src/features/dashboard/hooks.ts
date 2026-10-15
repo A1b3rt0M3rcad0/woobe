@@ -72,7 +72,6 @@ export function useProjectOverview(options: UseProjectOverviewOptions) {
       })
     },
     enabled: Boolean(options.projectId),
-    placeholderData: (previousData) => previousData,
     staleTime: PROJECT_OVERVIEW_STALE_TIME_MS,
     refetchInterval: PROJECT_OVERVIEW_REFETCH_INTERVAL_MS,
     refetchOnWindowFocus: true,

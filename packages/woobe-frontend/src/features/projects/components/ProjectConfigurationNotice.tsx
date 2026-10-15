@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Button } from '@woobe/ui'
+import { Button, buttonClassName } from '@woobe/ui'
+import { AlertTriangle, Info } from 'lucide-react'
 import { ApiError } from '@/lib/api/errors'
 import { workspaceProjectPath } from '@/lib/constants/routes'
 import { getConfigurationSummary } from '../configuration'
@@ -23,18 +24,22 @@ export function ProjectConfigurationNotice({ projectId, workspaceId, environment
     refetchInterval: 30_000, refetchOnWindowFocus: 'always' })
   const forbidden = query.error instanceof ApiError && query.error.status === 403
   const data = query.isError ? undefined : query.data
+  const blocked = !query.isFetching && data?.state === 'blocked'
   const message = query.isFetching ? 'Checking configuration…'
     : forbidden ? 'Configuration status requires permission.'
-    : data?.state === 'unknown' && data.has_next ? `Partial configuration check · ${data.inspected_target_count} targets inspected`
-    : !data || data.state === 'unknown' ? 'Configuration status is incomplete. Review the exact target before execution.'
-    : data.state === 'blocked' ? `${data.blocked_key_count} keys need attention · ${data.affected_target_count} affected targets`
+    : query.isError ? 'Configuration check unavailable. Retry to verify the selected targets.'
+    : data?.scope === 'current_selections_page' || (data?.state === 'unknown' && data.has_next) ? `Partial configuration check · ${data.inspected_target_count} targets inspected. Check the exact Agent or Network before running.`
+    : !data || data.state === 'unknown' ? 'Execution readiness is unverified. Check the exact Agent or Network before running.'
+    : data.state === 'blocked' ? `Configuration blocks ${data.affected_target_count} selected ${data.affected_target_count === 1 ? 'target' : 'targets'} · ${data.blocked_key_count} required ${data.blocked_key_count === 1 ? 'key needs' : 'keys need'} attention`
     : data.inspected_target_count === data.unselected_target_count ? 'No active selections in this environment.'
-    : data.state === 'ready_with_notices' ? 'Values available · connection checks or legacy review remain'
-    : 'Required configuration is ready.'
+    : data.state === 'ready_with_notices' ? 'Required values available · connection checks or legacy review remain'
+    : 'Required configuration is available for inspected selections.'
   const params = new URLSearchParams({ environment })
   params.set('returnTo', window.location.pathname + window.location.search)
   const href = workspaceProjectPath(workspaceId, projectId, 'environments') + '?' + params
-  return <aside aria-label="Project configuration" className="flex flex-wrap items-center gap-ui-sm rounded-md border border-border bg-surface px-ui-md py-ui-sm text-product-small">
+  const StatusIcon = blocked || query.isError && !forbidden ? AlertTriangle : Info
+  return <aside aria-label="Project configuration" className={`flex flex-wrap items-center gap-ui-sm rounded-control border px-ui-md py-ui-sm text-product-small ${blocked ? 'border-warning/35 bg-warning/5' : 'border-border bg-surface'}`}>
+    <StatusIcon className={`h-icon w-icon shrink-0 ${blocked ? 'text-warning' : 'text-muted-foreground'}`} aria-hidden="true" />
     <span className="font-medium">Configuration</span>
     {selected ? <span className="capitalize">{environment}</span> : <label className="flex items-center gap-ui-xs">
       <span className="sr-only">Configuration environment</span>
@@ -43,8 +48,10 @@ export function ProjectConfigurationNotice({ projectId, workspaceId, environment
         <option value="draft">Draft</option><option value="staging">Staging</option><option value="production">Production</option>
       </select>
     </label>}
-    <span role="status" className="text-muted-foreground">{message}</span>
-    {!forbidden && <a href={href} className="ml-auto text-primary underline underline-offset-2">Configure now</a>}
-    <Button variant="ghost" size="sm" disabled={query.isFetching} onClick={() => { void query.refetch() }}>Refresh status</Button>
+    <span role="status" className={`min-w-0 flex-1 basis-64 ${blocked ? 'text-warning' : 'text-muted-foreground'}`}>{message}</span>
+    <div className="ml-auto flex max-w-full flex-wrap justify-end gap-ui-sm">
+      {!forbidden && <a href={href} className={buttonClassName({ variant: blocked ? 'default' : 'outline', size: 'sm' })}>{blocked ? 'Configure now' : 'Review configuration'}</a>}
+      <Button variant="ghost" size="sm" disabled={query.isFetching} onClick={() => { void query.refetch() }}>Refresh status</Button>
+    </div>
   </aside>
 }

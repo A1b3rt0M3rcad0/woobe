@@ -1,0 +1,10 @@
+:root {
+  --woobe-font-sans: Inter, system-ui, -apple-system, sans-serif;
+  --woobe-font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --woobe-font-serif: Georgia, 'Times New Roman', serif;
+  --woobe-font-serif-display-optional: 'Tiempos Text', Georgia, 'Times New Roman', serif;
+}
+body { font-family: var(--woobe-font-sans); font-size: 14px; line-height: 1.5; }
+.woobe-editorial { font-family: var(--woobe-font-serif); font-weight: 400; line-height: 1.06; letter-spacing: -.045em; }
+.woobe-technical { font-family: var(--woobe-font-mono); font-variant-numeric: tabular-nums; font-weight: 400; }
+.woobe-ui-copy { font-family: var(--woobe-font-sans); }

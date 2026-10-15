@@ -91,11 +91,11 @@ export function NetworkGraphInspector({
         {errors.length ? (
           <Alert variant="destructive" className="m-ui-md">
             <AlertDescription>
-              <div className="flex items-center gap-ui-sm font-mono text-system-label font-semibold">
+              <div className="flex items-center gap-ui-sm font-sans text-system-label font-medium">
                 <AlertTriangle className="h-icon w-icon" />
                 {errors.length} issue{errors.length === 1 ? '' : 's'} block this composition
               </div>
-              <ul className="mt-ui-sm space-y-ui-xs font-sans text-product-caption">
+              <ul className="mt-ui-sm space-y-ui-xs font-mono text-product-caption">
                 {errors.map((item, index) => <li key={`${item.code}-${item.nodeId ?? item.edgeId ?? index}`}>• {item.message}</li>)}
               </ul>
             </AlertDescription>

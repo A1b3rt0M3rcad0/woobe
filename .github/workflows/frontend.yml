@@ -6,9 +6,13 @@ on:
     types: [opened, reopened, synchronize, ready_for_review]
     paths:
       - "packages/woobe-frontend/**"
+      - "packages/woobe-ui/**"
       - "packages/woobe-embed/**"
       - "packages/woobe-runtime-client/**"
       - "tests/e2e/**"
+      - "docs/design/**"
+      - "docs/screenshots/**"
+      - "scripts/frontend_visual_inventory.py"
       - ".github/workflows/frontend.yml"
   workflow_dispatch:
 
@@ -57,18 +61,38 @@ jobs:
         working-directory: tests/e2e
         run: npx playwright install --with-deps chromium
 
+      - name: Install Chat Embed dependencies
+        working-directory: packages/woobe-embed
+        run: npm ci
+
       - name: Qualify built frontend with browser API fixtures
         working-directory: tests/e2e
         run: npx playwright test --config playwright.config.ts
 
-      - name: Install Chat Embed dependencies
-        working-directory: packages/woobe-embed
-        run: npm ci
+      - name: Verify frontend visual evidence inventory
+        working-directory: .
+        run: python3 scripts/frontend_visual_inventory.py
 
       - name: Run Chat Embed tests
         working-directory: packages/woobe-embed
         run: npm test
 
+      - name: Qualify shared components, overlays and responsive states
+        working-directory: tests/e2e
+        run: npx playwright test --config review.config.ts --workers=2
+
       - name: Typecheck Chat Embed
         working-directory: packages/woobe-embed
         run: npm run typecheck
+
+      - name: Upload browser failure evidence
+        if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: frontend-browser-failure-evidence
+          path: |
+            tests/e2e/playwright-report
+            tests/e2e/test-results
+            tests/e2e/review-results
+          if-no-files-found: ignore
+          retention-days: 7

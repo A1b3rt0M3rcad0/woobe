@@ -1,8 +1,13 @@
-# Woobe — Control Plane for Production AI Agents
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="packages/woobe-ui/brand-kit/brand/svg/woobe-lockup-orange-white.svg">
+    <img src="packages/woobe-ui/brand-kit/brand/svg/woobe-lockup-primary.svg" width="220" alt="Woobe">
+  </picture>
+</p>
 
-![Woobe — Product Overview](docs/assets/woobe-product-overview.png)
+<h1 align="center">Control plane for production AI agents</h1>
 
-**Define, version, test, deploy and operate AI agents like production software.**
+<p align="center">Define, version, test, deploy and operate AI agents like production software.</p>
 
 Woobe is an **API-first, source-available control plane and runtime for Agents and Agent Networks**. Develop through YAML and the CLI, work with a coding assistant, or use the Web UI. Woobe manages the releases, runtime execution and evidence behind your AI application.
 
@@ -22,6 +27,12 @@ Production agents need more than a prompt and a model call. Teams need to know w
 - **Own the deployment.** Self-host Core and connect your application through runtime APIs, the CLI or ChatSurface.
 
 Woobe provides the control plane and runtime between your application and its AI execution layer. Frameworks can help implement agent behavior; Woobe adds a shared lifecycle for configuration, validation, releases and operation. ChatSurface is one way to deliver that runtime to users.
+
+## Explore the Control Plane
+
+The Web UI brings Project resources, execution and delivery into one workspace. Use the Overview to inspect Run activity, reliability and cost, then open Agents or Networks to configure, test and release changes.
+
+![Woobe Control Plane — Project Overview](docs/screenshots/project-overview.png?v=7d1c01bc91e4)
 
 ## Quick start
 
@@ -281,6 +292,8 @@ See [`packages/README.md`](packages/README.md), [`tooling/README.md`](tooling/RE
 ## Resources
 
 - [Architecture](docs/ARCHITECTURE.md)
+- [Visual identity and brand kit](docs/design/BRAND.md)
+- [Main product pages](docs/screenshots/README.md)
 - [Self-hosting](docs/SELF_HOSTING.md)
 - [CLI installation and usage](docs/CLI.md)
 - [Qualified CLI deployment and recovery](docs/CLI_DEPLOYMENT.md)

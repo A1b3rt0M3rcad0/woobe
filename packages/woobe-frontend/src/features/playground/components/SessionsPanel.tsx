@@ -44,10 +44,10 @@ function SessionSkeleton() {
   return (
     <div className="rounded-container border border-border/70 bg-background/20 px-ui-md py-ui-sm">
       <div className="flex items-center justify-between gap-ui-sm">
-        <div className="h-2.5 w-24 animate-pulse rounded-technical bg-white/[0.06]" />
-        <div className="h-2 w-9 animate-pulse rounded-technical bg-white/[0.06]" />
+        <div className="h-2.5 w-24 animate-pulse rounded-technical bg-muted/15" />
+        <div className="h-2 w-9 animate-pulse rounded-technical bg-muted/15" />
       </div>
-      <div className="mt-ui-sm h-2 w-32 animate-pulse rounded-technical bg-white/[0.06]" />
+      <div className="mt-ui-sm h-2 w-32 animate-pulse rounded-technical bg-muted/15" />
     </div>
   )
 }
@@ -101,7 +101,7 @@ export function SessionsPanel({
     <div className="space-y-ui-md p-ui-md">
       <div className="flex items-center justify-between gap-ui-md border-b border-border/70 pb-ui-sm">
         <div>
-          <h3 className="font-mono text-system-control font-semibold text-slate-50">Sessions</h3>
+          <h3 className="font-mono text-system-control font-medium text-slate-50">Sessions</h3>
           <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">Conversation continuity for this Agent runtime.</p>
         </div>
         <span className="font-mono text-system-meta text-muted-foreground">{sessions.length} loaded</span>
@@ -130,7 +130,7 @@ export function SessionsPanel({
 
       {!isInitialLoading && isError ? (
         <EmptyStatePanel
-          icon={<AlertTriangle className="h-icon-lg w-icon-lg text-red-300" />}
+          icon={<AlertTriangle className="h-icon-lg w-icon-lg text-error" />}
           title="Couldn’t load Sessions"
           description={errorMessage || 'The Sessions list could not be loaded from the runtime.'}
           action={retryAction}
@@ -139,7 +139,7 @@ export function SessionsPanel({
 
       {!isInitialLoading && !isError && selectedSessionMissing && sessions.length === 0 ? (
         <EmptyStatePanel
-          icon={<AlertTriangle className="h-icon-lg w-icon-lg text-amber-300" />}
+          icon={<AlertTriangle className="h-icon-lg w-icon-lg text-warning" />}
           title="Session list is out of sync"
           description="The runtime returned a selected Session that is not present in the loaded environment list."
           action={onRetry ? (
@@ -163,7 +163,7 @@ export function SessionsPanel({
         <div className="space-y-ui-sm">
           {selectedSessionMissing && !isError ? (
             <div className="flex items-start gap-ui-sm rounded-container border border-amber-400/20 bg-background/25 px-ui-md py-ui-sm font-sans text-product-caption text-muted-foreground">
-              <AlertTriangle className="mt-ui-hairline h-icon-sm w-icon-sm shrink-0 text-amber-300" />
+              <AlertTriangle className="mt-ui-hairline h-icon-sm w-icon-sm shrink-0 text-warning" />
               <p>The selected Session is not present in the loaded page. Refresh before continuing it.</p>
             </div>
           ) : null}
@@ -195,7 +195,7 @@ export function SessionsPanel({
           })}
 
           <div ref={sentinelRef} className="h-ui-xs" />
-          {isLoadingMore ? <div className="flex items-center justify-center gap-ui-sm py-ui-md font-mono text-system-meta text-muted-foreground"><Loader2 className="h-icon-sm w-icon-sm animate-spin" />Loading more Sessions…</div> : null}
+          {isLoadingMore ? <div className="flex items-center justify-center gap-ui-sm py-ui-md font-sans text-system-meta text-muted-foreground"><Loader2 className="h-icon-sm w-icon-sm animate-spin" />Loading more Sessions…</div> : null}
         </div>
       ) : null}
     </div>

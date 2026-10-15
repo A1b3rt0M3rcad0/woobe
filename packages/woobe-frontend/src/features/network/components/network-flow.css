@@ -1,15 +1,17 @@
 .network-flow {
-  --xy-background-color: #020817;
-  --xy-background-color-default: #020817;
-  --xy-edge-stroke: rgb(71 85 105 / 0.9);
-  --xy-edge-stroke-default: rgb(71 85 105 / 0.9);
-  background-color: #020817;
+  --xy-background-color: var(--g-canvas);
+  --xy-background-color-default: var(--g-canvas);
+  --xy-connectionline-stroke: rgb(var(--woobe-link));
+  --xy-edge-stroke-selected: rgb(var(--woobe-link));
+  --xy-edge-stroke: var(--woobe-edge);
+  --xy-edge-stroke-default: var(--woobe-edge);
+  background-color: var(--g-canvas);
 }
 
 /* Canvas and Chat stay mounted to preserve viewport and streams. The active
    center surface must still be fully opaque, especially before a Session exists. */
 .absolute.inset-0.flex.min-w-0[aria-hidden="false"] {
-  background-color: #020817;
+  background-color: var(--g-canvas);
 }
 
 .network-flow .react-flow__renderer,
@@ -20,10 +22,10 @@
 .network-flow .react-flow__controls,
 .network-flow .react-flow__minimap {
   overflow: hidden;
-  border: 1px solid rgb(71 85 105 / 0.9);
-  border-radius: 0.75rem;
-  background: #020817;
-  box-shadow: 0 12px 30px rgb(0 0 0 / 0.3);
+  border: 1px solid var(--woobe-edge);
+  border-radius: 0.625rem;
+  background: var(--g-canvas);
+  box-shadow: var(--g-shadow-panel);
   transition:
     border-color 120ms ease,
     box-shadow 120ms ease;
@@ -34,7 +36,7 @@
 }
 
 .network-flow .react-flow__minimap:hover {
-  border-color: rgb(96 165 250 / 0.55);
+  border-color: var(--g-accent-ink);
 }
 
 .network-flow .react-flow__minimap:active {
@@ -45,9 +47,9 @@
   width: 2rem;
   height: 2rem;
   border: 0;
-  border-bottom: 1px solid rgb(51 65 85 / 0.75);
-  background: #0f1729;
-  color: #cbd5e1;
+  border-bottom: 1px solid var(--g-line);
+  background: var(--g-surface);
+  color: var(--g-ink);
 }
 
 .network-flow .react-flow__controls-button:last-child {
@@ -56,8 +58,8 @@
 
 .network-flow .react-flow__controls-button:hover,
 .network-flow .react-flow__controls-button:focus-visible {
-  background: #172554;
-  color: #fff;
+  background: var(--g-peach);
+  color: var(--g-ink);
 }
 
 .network-flow .react-flow__controls-button svg {
@@ -67,5 +69,9 @@
 }
 
 .network-flow .react-flow__minimap-svg {
-  background: #020817;
+  background: var(--g-canvas);
 }
+
+.network-flow .react-flow__edge.selected .react-flow__edge-path,
+.network-flow .react-flow__edge:hover .react-flow__edge-path { stroke: rgb(var(--woobe-link)); stroke-width: 3; }
+.network-flow .react-flow__node:focus-visible { outline: 3px solid var(--woobe-focus); outline-offset: 4px; }

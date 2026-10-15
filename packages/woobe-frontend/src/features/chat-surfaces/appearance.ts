@@ -3,7 +3,7 @@ import type { ChatSurfaceAppearance } from '@/features/chat-surfaces/types'
 export const DEFAULT_CHAT_SURFACE_APPEARANCE: ChatSurfaceAppearance = {
   schema_version: 2,
   theme: 'system',
-  primary_color: '#3B82F6',
+  primary_color: '#242321',
   title: 'Woobe',
   placeholder: 'Type a message…',
   welcome_message: null,

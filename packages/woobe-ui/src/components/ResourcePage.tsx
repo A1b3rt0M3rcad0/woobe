@@ -34,12 +34,11 @@ export function ResourcePage({
       className={cn(
         'resource-page-shell w-full font-sans',
         canvas ? 'max-w-none' : 'mx-auto max-w-resource space-y-ui-lg',
-        '[&_label]:font-mono [&_legend]:font-mono [&_button]:font-mono [&_input]:text-system-control',
-        '[&_select]:font-sans [&_select]:text-system-control [&_select]:font-normal [&_select]:text-slate-100 [&_select]:outline-none',
-        '[&_th]:font-mono [&_dt]:font-mono [&_code]:font-mono [&_pre]:font-mono',
-        '[&_.uppercase]:font-mono [&_.tabular-nums]:font-mono',
-        '[&_textarea]:font-sans',
-        '[&_.rounded-2xl]:rounded-container [&_.rounded-xl]:rounded-container [&_.rounded-lg]:rounded-control [&_.rounded-md]:rounded-technical',
+        '[&_input]:text-system-control',
+        '[&_select]:text-system-control [&_select]:font-normal [&_select]:text-slate-100 [&_select]:outline-none',
+        '[&_code]:font-mono [&_pre]:font-mono',
+
+        '[&_.rounded-2xl]:rounded-container [&_.rounded-xl]:rounded-container [&_.rounded-lg]:rounded-container [&_.rounded-md]:rounded-control',
         '[&_.shadow-sm]:shadow-none [&_.shadow-lg]:shadow-none [&_.shadow-xl]:shadow-none [&_.shadow-2xl]:shadow-none',
         className,
       )}
@@ -52,7 +51,7 @@ export function ResourcePage({
         variant={variant}
       />
       {canvas ? (
-        <div className="space-y-ui-stack px-ui-content-gutter py-ui-lg sm:px-ui-content-gutter">
+        <div className="space-y-ui-xxl px-ui-lg py-ui-xxl sm:px-ui-content-gutter">
           {children}
         </div>
       ) : children}
@@ -74,19 +73,19 @@ export function ResourcePageHeader({
       className={cn(
         'bg-surface/[0.96] shadow-none',
         canvas
-          ? 'flex min-h-project-sidebar-header w-full items-center border-b border-border px-ui-content-gutter py-ui-md'
-          : 'border border-border px-ui-lg py-ui-md',
+          ? 'flex min-h-project-sidebar-header w-full items-center border-b border-border px-ui-lg py-ui-xxl sm:px-ui-content-gutter'
+          : 'border-b border-border pb-ui-xxl pt-ui-md',
       )}
     >
       <div className="flex w-full flex-col gap-ui-md md:flex-row md:items-center md:justify-between">
         <div className="min-w-0">
           {eyebrow ? (
-            <div className="mb-ui-sm flex items-center gap-ui-sm font-mono text-system-meta font-bold uppercase tracking-ui-eyebrow text-muted-foreground">
+            <div className="mb-ui-sm flex items-center gap-ui-sm font-mono text-system-meta font-medium text-muted-foreground">
               <span className="h-ui-xs w-ui-xs bg-primary" />
               {eyebrow}
             </div>
           ) : null}
-          <h1 className={cn('font-sans font-semibold text-slate-50', canvas ? 'text-page-title' : 'text-heading')}>{title}</h1>
+          <h1 className="font-serif text-page-title font-normal text-slate-50">{title}</h1>
           <p className="mt-ui-xs max-w-3xl font-sans text-product-small text-muted-foreground">{description}</p>
         </div>
         {action ? <div className="shrink-0">{action}</div> : null}
@@ -99,7 +98,7 @@ export function ResourceToolbar({ children, className }: { children: ReactNode; 
   return (
     <div
       className={cn(
-        'resource-toolbar flex flex-col gap-ui-sm rounded-container border border-border bg-surface/[0.92] p-ui-sm shadow-none',
+        'resource-toolbar flex flex-col gap-ui-sm rounded-container border border-border bg-surface p-ui-md shadow-none',
         '[&_input]:h-control-sm [&_select]:h-control-sm',
         className,
       )}
@@ -115,10 +114,11 @@ export interface ResourceTab<T extends string> {
   count?: number
 }
 
-function ResourceCount({ children, compact = false }: { children: ReactNode; compact?: boolean }) {
+function ResourceCount({ children, compact = false, active = false }: { children: ReactNode; compact?: boolean; active?: boolean }) {
   return (
     <span className={cn(
-      'shrink-0 font-mono font-normal tabular-nums text-muted-foreground',
+      'shrink-0 font-mono font-normal tabular-nums',
+      active ? 'text-primary-foreground/80' : 'text-muted-foreground',
       compact ? 'text-system-meta' : 'text-system-meta',
     )}>
       {children}
@@ -144,13 +144,14 @@ export function ResourceTabs<T extends string>({
         value={value}
         onValueChange={(next) => onChange(next as T)}
         size="technical"
+        emphasis="strong"
         className="p-ui-hairline [&>button]:!h-control-xs [&>button]:!px-[7px] [&>button]:!text-system-control"
         items={tabs.map((tab) => ({
           value: tab.value,
           label: (
             <span className="flex min-w-0 items-center gap-ui-xs">
               <span className="truncate">{tab.label}</span>
-              {tab.count !== undefined ? <ResourceCount compact>{tab.count}</ResourceCount> : null}
+              {tab.count !== undefined ? <ResourceCount compact active={tab.value === value}>{tab.count}</ResourceCount> : null}
             </span>
           ),
         }))}
@@ -187,7 +188,7 @@ export function ResourceSearch({
         }}
         placeholder={placeholder}
         aria-label={label}
-        className="h-control-sm pl-8 pr-8 font-sans text-system-control"
+        className="h-control-sm pl-8 pr-8 text-system-control"
       />
       {value ? (
         <button
@@ -209,7 +210,7 @@ export function ResourceSectionHeader({ title, description, count }: { title: st
       <span className="h-1.5 w-1.5 shrink-0 bg-primary" />
       <div className="min-w-0">
         <div className="flex items-center gap-ui-sm">
-          <h2 className="font-mono text-system-control font-bold uppercase tracking-ui-eyebrow text-slate-50">{title}</h2>
+          <h2 className="font-sans text-section-title font-medium text-slate-50">{title}</h2>
           {count !== undefined ? <ResourceCount>{count}</ResourceCount> : null}
         </div>
         {description ? <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">{description}</p> : null}

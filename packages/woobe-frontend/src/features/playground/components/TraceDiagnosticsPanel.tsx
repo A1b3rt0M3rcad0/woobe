@@ -33,9 +33,9 @@ function Metric({ label, value, icon: Icon, hint }: {
     <div className="rounded-lg border border-border bg-background p-2.5" title={hint}>
       <div className="flex items-center gap-1.5 text-muted">
         <Icon className="h-3.5 w-3.5" />
-        <span className="text-[10px] uppercase tracking-wide">{label}</span>
+        <span className="text-system-meta uppercase tracking-wide">{label}</span>
       </div>
-      <p className="mt-1 text-sm font-mono text-white">{value}</p>
+      <p className="mt-1 text-sm font-sans text-foreground">{value}</p>
     </div>
   )
 }
@@ -75,11 +75,11 @@ export function TraceDiagnosticsPanel({ traceId, runId }: { traceId?: string | n
     <div className="border-b border-border px-4 py-3 space-y-2">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-xs font-medium text-white">Execution diagnostics</p>
-          <p className="text-[10px] text-muted">Wall-clock and cumulative work are shown separately</p>
+          <p className="font-mono text-xs font-medium text-foreground">Execution diagnostics</p>
+          <p className="font-sans text-system-meta text-muted">Wall-clock and cumulative work are shown separately</p>
         </div>
         {toolShare != null && (
-          <span className="rounded-full border border-border bg-background px-2 py-0.5 text-[10px] font-mono text-muted">
+          <span className="rounded-full border border-border bg-background px-2 py-0.5 text-system-meta font-mono text-muted">
             Tool/Skill wall {toolShare.toFixed(1)}%
           </span>
         )}
@@ -92,11 +92,11 @@ export function TraceDiagnosticsPanel({ traceId, runId }: { traceId?: string | n
         <Metric label="Tool/Skill work Σ" value={toolWork == null ? '—' : formatLatency(toolWork)} icon={Wrench} hint="Sum of individual Tool/Skill durations. It can exceed Tool/Skill wall when operations run in parallel." />
       </div>
 
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-muted">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-system-meta text-muted">
         <span>{llmCount} LLM call{llmCount === 1 ? '' : 's'}</span>
         <span>{toolCount} Tool/Skill operations</span>
-        <span className="inline-flex items-center gap-1 text-emerald-400"><CheckCircle className="h-3 w-3" /> {successes}</span>
-        <span className="inline-flex items-center gap-1 text-red-400"><XCircle className="h-3 w-3" /> {failures}</span>
+        <span className="inline-flex items-center gap-1 text-success"><CheckCircle className="h-3 w-3" /> {successes}</span>
+        <span className="inline-flex items-center gap-1 text-error"><XCircle className="h-3 w-3" /> {failures}</span>
         {parallelism != null && toolCount > 0 && <span>Operation parallelism {parallelism.toFixed(2)}×</span>}
         {prepare != null && <span>Setup {formatLatency(prepare)}</span>}
         {finalization != null && <span className="inline-flex items-center gap-1"><Database className="h-3 w-3" /> Finalize {formatLatency(finalization)}</span>}

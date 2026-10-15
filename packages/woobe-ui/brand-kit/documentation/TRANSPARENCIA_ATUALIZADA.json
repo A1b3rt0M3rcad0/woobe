@@ -1,0 +1,49 @@
+{
+  "updated_assets": {
+    "brand/svg": [
+      "app-icon-dark.svg",
+      "app-icon-light.svg",
+      "app-icon-orange.svg",
+      "app-icon-square.svg",
+      "social-avatar-dark.svg",
+      "social-avatar-light.svg",
+      "social-avatar-square.svg"
+    ],
+    "brand/png": [
+      "app-icon-dark-180.png",
+      "app-icon-dark-192.png",
+      "app-icon-dark-256.png",
+      "app-icon-dark-512.png",
+      "app-icon-dark-1024.png",
+      "app-icon-light-180.png",
+      "app-icon-light-192.png",
+      "app-icon-light-256.png",
+      "app-icon-light-512.png",
+      "app-icon-light-1024.png",
+      "app-icon-orange-180.png",
+      "app-icon-orange-192.png",
+      "app-icon-orange-256.png",
+      "app-icon-orange-512.png",
+      "app-icon-orange-1024.png"
+    ],
+    "brand/social": [
+      "avatar-dark-400.png",
+      "avatar-dark-512.png",
+      "avatar-light-400.png",
+      "avatar-light-512.png",
+      "avatar-square-400.png",
+      "avatar-square-512.png"
+    ],
+    "brand/favicons": [
+      "app-icon-square-16.png",
+      "app-icon-square-32.png",
+      "app-icon-square-48.png",
+      "app-icon-square-96.png",
+      "app-icon-square-180.png",
+      "app-icon-square-192.png",
+      "app-icon-square-512.png",
+      "favicon.ico"
+    ]
+  },
+  "notes": "Updated to transparent brand-element-only exports per user request."
+}

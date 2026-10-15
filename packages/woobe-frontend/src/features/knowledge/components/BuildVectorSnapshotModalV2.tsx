@@ -44,8 +44,8 @@ function CheckField({ checked, label, detail, onChange }: { checked: boolean; la
     <label className="flex cursor-pointer items-start gap-ui-sm rounded-container border border-border bg-background/25 p-ui-md">
       <Checkbox checked={checked} onChange={(event) => onChange(event.target.checked)} className="mt-ui-xs" />
       <span className="min-w-0">
-        <span className="block font-mono text-system-label font-semibold text-accent-foreground">{label}</span>
-        {detail ? <span className="mt-ui-xs block font-sans text-product-caption text-muted-foreground">{detail}</span> : null}
+        <span className="block font-mono text-system-label font-medium text-accent-foreground">{label}</span>
+        {detail ? <span className="mt-ui-xs block font-mono text-product-caption text-muted-foreground">{detail}</span> : null}
       </span>
     </label>
   )
@@ -176,8 +176,8 @@ export function BuildVectorSnapshotModalV2({ open, projectId, collection, onClos
                     actions={<Database className="h-icon w-icon text-primary-light" />}
                   >
                     <div className="grid gap-ui-sm border-t border-border pt-ui-md font-mono text-system-meta text-muted-foreground">
-                      <div className="flex items-center justify-between gap-ui-md"><span>Model</span><span className="truncate text-accent-foreground/85">{selectedModel?.name || 'Not selected'}</span></div>
-                      <div className="flex items-center justify-between gap-ui-md"><span>Preset</span><span className="capitalize text-accent-foreground/85">{preset}</span></div>
+                      <div className="flex items-center justify-between gap-ui-md"><span>Model</span><span className="truncate text-accent-foreground">{selectedModel?.name || 'Not selected'}</span></div>
+                      <div className="flex items-center justify-between gap-ui-md"><span>Preset</span><span className="capitalize text-accent-foreground">{preset}</span></div>
                     </div>
                   </SectionBlock>
 

@@ -13,13 +13,13 @@ export interface PanelHeaderProps extends Omit<HTMLAttributes<HTMLDivElement>, '
 }
 
 const titleClasses: Record<PanelHeaderHierarchy, string> = {
-  technical: 'font-mono text-system-control font-semibold',
-  section: 'font-mono text-section-title font-bold',
-  entity: 'font-sans text-entity-title font-semibold',
+  technical: 'font-mono text-system-control font-medium',
+  section: 'font-sans text-section-title font-medium',
+  entity: 'font-mono text-entity-title font-medium',
 }
 
 const descriptionClasses: Record<PanelHeaderHierarchy, string> = {
-  technical: 'font-mono text-system-meta',
+  technical: 'font-sans text-system-meta',
   section: 'font-sans text-product-caption',
   entity: 'font-sans text-product-caption',
 }
@@ -37,7 +37,7 @@ export function PanelHeader({
   return (
     <div
       className={cn(
-        'flex items-start justify-between gap-ui-md border-b border-border',
+        'flex items-start justify-between gap-ui-md rounded-t-container border-b border-border bg-panel-band',
         compact ? 'px-ui-md py-ui-sm' : 'px-ui-md py-ui-md',
         className,
       )}
@@ -50,7 +50,7 @@ export function PanelHeader({
           </span>
         ) : null}
         <div className="min-w-0">
-          <div className={cn(titleClasses[hierarchy], 'text-accent-foreground')}>{title}</div>
+          <h2 className={cn(titleClasses[hierarchy], 'text-accent-foreground')}>{title}</h2>
           {description ? <div className={cn('mt-ui-xs text-muted-foreground', descriptionClasses[hierarchy])}>{description}</div> : null}
         </div>
       </div>

@@ -1,8 +1,7 @@
 import { behaviorFields } from '@/features/agents/behavior'
-import { X } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
-import { dialogTypographyClass } from '@/components/ui/Dialog'
+import { Dialog } from '@/components/ui/Dialog'
 import type { AgentRelease } from '@/features/agents/types'
 
 interface ConfirmVersionModalProps {
@@ -58,23 +57,12 @@ export function ConfirmVersionModal({ open, onClose, onConfirm, versionName, cur
   })
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
-    >
-      <div role="dialog" aria-modal="true" aria-label="New Version" className={`${dialogTypographyClass} w-full max-w-lg rounded-xl border border-border bg-surface shadow-xl`}>
-        <div className="flex items-center justify-between p-4 border-b border-border">
-          <h2 className="text-sm font-semibold text-white">New Version</h2>
-          <button onClick={onClose} className="p-1 rounded-md text-muted hover:text-white hover:bg-accent transition-colors">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
+    <Dialog open={open} onClose={onClose} title="New Version" className="max-w-dialog" scrollMode="content">
         <div className="p-4 space-y-4">
           {hasUnsavedChanges && (
             <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/5 p-3">
-              <p className="text-xs text-yellow-300 font-medium">Draft has unsaved changes</p>
-              <p className="text-[11px] text-muted mt-1">These changes will be included in the version. Consider saving draft first.</p>
+              <p className="font-sans text-xs text-warning font-medium">Draft has unsaved changes</p>
+              <p className="font-sans text-system-meta text-muted mt-1">These changes will be included in the version. Consider saving draft first.</p>
             </div>
           )}
 
@@ -86,12 +74,12 @@ export function ConfirmVersionModal({ open, onClose, onConfirm, versionName, cur
           </div>
 
           <div>
-            <p className="text-xs font-medium text-muted mb-2">Changes from previous version</p>
+            <p className="font-mono text-xs font-medium text-muted mb-2">Changes from previous version</p>
             {changedFields.length === 0 ? (
               <p className="text-xs text-muted italic">No changes detected — snapshot will be identical to the latest version.</p>
             ) : (
               <div className="rounded-lg border border-border overflow-hidden">
-                <table className="w-full text-[11px]">
+                <table className="w-full text-system-meta">
                   <thead>
                     <tr className="border-b border-border bg-background/50">
                       <th className="text-left px-3 py-1.5 text-muted font-medium">Field</th>
@@ -107,8 +95,8 @@ export function ConfirmVersionModal({ open, onClose, onConfirm, versionName, cur
                         <tr key={key} className="border-b border-border/50 last:border-b-0">
                           <td className="px-3 py-1.5 text-muted font-medium">{label}</td>
                           <td className="px-3 py-1.5 text-muted max-w-[120px] truncate">{formatValue(previous)}</td>
-                          <td className="px-3 py-1.5 text-white max-w-[120px] truncate">
-                            <Badge variant="warning" className="text-[9px] mr-1">new</Badge>
+                          <td className="px-3 py-1.5 text-foreground max-w-[120px] truncate">
+                            <Badge variant="warning" className="text-system-meta mr-1">new</Badge>
                             {formatValue(current)}
                           </td>
                         </tr>
@@ -127,7 +115,6 @@ export function ConfirmVersionModal({ open, onClose, onConfirm, versionName, cur
             Create Version
           </Button>
         </div>
-      </div>
-    </div>
+    </Dialog>
   )
 }

@@ -2,6 +2,7 @@ import { type ReactNode } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider } from '@/features/auth/AuthProvider'
 import { WorkspaceProvider } from '@/features/workspace/WorkspaceProvider'
+import { ThemeProvider, useTheme } from '@/features/appearance/ThemeProvider'
 import { Toaster } from 'sonner'
 
 const queryClient = new QueryClient({
@@ -14,7 +15,8 @@ const queryClient = new QueryClient({
   },
 })
 
-export function AppProviders({ children }: { children: ReactNode }) {
+function ThemedProviders({ children }: { children: ReactNode }) {
+  const { resolvedTheme } = useTheme()
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
@@ -22,12 +24,12 @@ export function AppProviders({ children }: { children: ReactNode }) {
           {children}
           <Toaster
             position="bottom-right"
-            theme="dark"
+            theme={resolvedTheme}
             toastOptions={{
               style: {
-                background: '#0f1729',
-                border: '1px solid #1e293b',
-                color: '#f8fafc',
+                background: 'rgb(var(--woobe-surface))',
+                border: '1px solid rgb(var(--woobe-border))',
+                color: 'rgb(var(--woobe-ink))',
               },
             }}
           />
@@ -35,4 +37,8 @@ export function AppProviders({ children }: { children: ReactNode }) {
       </AuthProvider>
     </QueryClientProvider>
   )
+}
+
+export function AppProviders({ children }: { children: ReactNode }) {
+  return <ThemeProvider><ThemedProviders>{children}</ThemedProviders></ThemeProvider>
 }

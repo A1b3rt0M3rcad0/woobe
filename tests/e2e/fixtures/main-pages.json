@@ -1,0 +1,20 @@
+[
+  {"surface":"sign-in","slug":"sign-in","title":"Sign in"},
+  {"surface":"workspaces","slug":"workspaces","title":"Workspaces"},
+  {"surface":"workspace-projects","slug":"projects","title":"Projects"},
+  {"surface":"overview","slug":"project-overview","title":"Project Overview"},
+  {"surface":"agents","slug":"agents","title":"Agents"},
+  {"surface":"networks","slug":"networks","title":"Networks"},
+  {"surface":"playground","slug":"agent-playground","title":"Agent playground"},
+  {"surface":"network-workspace","slug":"network-workspace","title":"Network workspace"},
+  {"surface":"knowledge","slug":"knowledge","title":"Knowledge"},
+  {"surface":"tools","slug":"tools","title":"Tools"},
+  {"surface":"skills","slug":"skills","title":"Skills"},
+  {"surface":"models","slug":"models","title":"Models"},
+  {"surface":"credentials","slug":"credentials","title":"Credentials"},
+  {"surface":"environments","slug":"environments","title":"Environments"},
+  {"surface":"api-keys","slug":"api-keys","title":"API Keys"},
+  {"surface":"chat-surfaces","slug":"chat-surfaces","title":"ChatSurfaces"},
+  {"surface":"usage","slug":"usage","title":"Usage"},
+  {"surface":"traces","slug":"traces","title":"Runs"}
+]

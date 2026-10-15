@@ -77,8 +77,8 @@ export function DocumentsDrawer({ open, onClose, collectionId, collectionName }:
                 <div key={doc.id} className="rounded-lg border border-border p-4 space-y-2">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium truncate">{doc.title}</p>
-                      <p className="text-xs text-muted truncate">{doc.file_name}</p>
+                      <p className="font-mono text-sm font-medium truncate">{doc.title}</p>
+                      <p className="font-mono text-xs text-muted truncate">{doc.file_name}</p>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
                       <Badge variant={documentStatusVariant[doc.status] || 'default'}>
@@ -88,7 +88,7 @@ export function DocumentsDrawer({ open, onClose, collectionId, collectionName }:
                         type="button"
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 text-muted hover:bg-red-500/10 hover:text-red-400"
+                        className="h-8 w-8 text-muted hover:bg-red-500/10 hover:text-error"
                         onClick={() => setDocumentToDelete(doc)}
                         aria-label={`Delete document ${doc.title || doc.file_name}`}
                       >
@@ -103,11 +103,11 @@ export function DocumentsDrawer({ open, onClose, collectionId, collectionName }:
                     {doc.chunk_count != null && <span>{doc.chunk_count} chunks</span>}
                   </div>
                   {doc.status === 'indexed' && doc.indexed_at && (
-                    <p className="text-xs text-emerald-400">Indexed: {new Date(doc.indexed_at).toLocaleString()}</p>
+                    <p className="text-xs text-success">Indexed: {new Date(doc.indexed_at).toLocaleString()}</p>
                   )}
                   {doc.status === 'failed' && doc.error && (
                     <div className="rounded bg-red-500/10 p-2">
-                      <p className="text-xs text-red-400">{doc.error}</p>
+                      <p className="text-xs text-error">{doc.error}</p>
                     </div>
                   )}
                 </div>
@@ -126,11 +126,11 @@ export function DocumentsDrawer({ open, onClose, collectionId, collectionName }:
         {documentToDelete && (
           <div className="space-y-5">
             <div className="flex gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-red-500/20 bg-red-500/10 text-red-400">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-red-500/20 bg-red-500/10 text-error">
                 <AlertTriangle className="h-5 w-5" />
               </div>
               <div className="min-w-0 space-y-1">
-                <p className="text-sm font-medium text-white">Remove this document from the collection?</p>
+                <p className="font-sans text-sm font-medium text-foreground">Remove this document from the collection?</p>
                 <p className="text-sm leading-6 text-muted">
                   This action deletes the document record and its stored file. It cannot be undone.
                 </p>
@@ -138,8 +138,8 @@ export function DocumentsDrawer({ open, onClose, collectionId, collectionName }:
             </div>
 
             <div className="rounded-xl border border-border bg-background/70 p-3">
-              <p className="truncate text-sm font-medium text-white">{documentToDelete.title}</p>
-              <p className="mt-1 truncate text-xs text-muted">{documentToDelete.file_name}</p>
+              <p className="font-mono truncate text-sm font-medium text-foreground">{documentToDelete.title}</p>
+              <p className="font-mono mt-1 truncate text-xs text-muted">{documentToDelete.file_name}</p>
               <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
                 <span>{formatBytes(documentToDelete.size_bytes)}</span>
                 <span>{documentToDelete.content_type}</span>

@@ -1,6 +1,8 @@
+@import '../../woobe-ui/src/styles/fonts.css';
+@import '../../woobe-ui/src/styles/guild-tokens.css';
 :root {
   color-scheme: light dark;
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: var(--g-font-sans);
 }
 
 * {
@@ -19,14 +21,14 @@ body {
 }
 
 #woobe-chat {
-  --woobe-primary: #3b82f6;
-  --woobe-background: #f8fafc;
-  --woobe-surface: #ffffff;
-  --woobe-control: #f1f5f9;
-  --woobe-text: #0f172a;
-  --woobe-subtle-text: #64748b;
-  --woobe-muted-border: #cbd5e1;
-  --woobe-input-border: #94a3b8;
+  --woobe-primary: #242321;
+  --woobe-background: #f8f7f5;
+  --woobe-surface: #fffefd;
+  --woobe-control: #efeeeb;
+  --woobe-text: #242321;
+  --woobe-subtle-text: #6b6863;
+  --woobe-muted-border: #e3e1dd;
+  --woobe-input-border: #8c867d;
   --woobe-danger-surface: #fffafa;
   --woobe-danger-border: #fecaca;
   --woobe-danger-text: #b91c1c;
@@ -70,17 +72,17 @@ body {
 
 #woobe-chat[data-theme="dark"] {
   color-scheme: dark;
-  --woobe-background: #020817;
-  --woobe-surface: #0f1729;
-  --woobe-control: #0b1220;
+  --woobe-background: #181715;
+  --woobe-surface: #242321;
+  --woobe-control: #302e2b;
   --woobe-text: #f8fafc;
-  --woobe-subtle-text: #94a3b8;
-  --woobe-muted-border: #1e293b;
-  --woobe-input-border: #334155;
-  --woobe-danger-surface: #0b1220;
+  --woobe-subtle-text: #8c867d;
+  --woobe-muted-border: #524e48;
+  --woobe-input-border: #a09c95;
+  --woobe-danger-surface: #302e2b;
   --woobe-danger-border: #7f1d1d;
   --woobe-danger-text: #fca5a5;
-  --woobe-warning-surface: #0b1220;
+  --woobe-warning-surface: #302e2b;
   --woobe-warning-border: #78350f;
   --woobe-warning-text: #fcd34d;
 }
@@ -92,17 +94,17 @@ body {
 @media (prefers-color-scheme: dark) {
   #woobe-chat[data-theme="system"] {
     color-scheme: dark;
-    --woobe-background: #020817;
-    --woobe-surface: #0f1729;
-    --woobe-control: #0b1220;
+    --woobe-background: #181715;
+    --woobe-surface: #242321;
+    --woobe-control: #302e2b;
     --woobe-text: #f8fafc;
-    --woobe-subtle-text: #94a3b8;
-    --woobe-muted-border: #1e293b;
-    --woobe-input-border: #334155;
-    --woobe-danger-surface: #0b1220;
+    --woobe-subtle-text: #8c867d;
+    --woobe-muted-border: #524e48;
+    --woobe-input-border: #a09c95;
+    --woobe-danger-surface: #302e2b;
     --woobe-danger-border: #7f1d1d;
     --woobe-danger-text: #fca5a5;
-    --woobe-warning-surface: #0b1220;
+    --woobe-warning-surface: #302e2b;
     --woobe-warning-border: #78350f;
     --woobe-warning-text: #fcd34d;
   }
@@ -128,9 +130,9 @@ body {
   justify-content: var(--woobe-header-alignment);
   overflow: hidden;
   color: var(--woobe-header-text-custom, var(--woobe-text));
-  font-family: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 11px;
-  font-weight: 700;
+  font-family: var(--g-font-sans);
+  font-size: 13px;
+  font-weight: 500;
   letter-spacing: 0.01em;
   text-align: var(--woobe-header-alignment);
   text-overflow: ellipsis;
@@ -170,7 +172,7 @@ body {
 
 .message {
   position: relative;
-  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--g-font-sans);
   font-size: 14px;
   line-height: 1.5;
   white-space: pre-wrap;
@@ -181,7 +183,7 @@ body {
   align-self: flex-end;
   max-width: min(var(--woobe-user-message-max-width), var(--woobe-conversation-content-width));
   padding: var(--woobe-user-message-padding-y) var(--woobe-user-message-padding-x);
-  color: var(--woobe-user-message-text-custom, #ffffff);
+  color: var(--woobe-user-message-text-custom, #fffefd);
   background: var(--woobe-user-message-background-custom, var(--woobe-primary));
   border: var(--woobe-user-message-border-width) solid var(--woobe-user-message-border-custom, transparent);
   border-radius: var(--woobe-user-message-border-radius);
@@ -206,9 +208,9 @@ body {
   align-items: center;
   justify-items: center;
   vertical-align: middle;
-  font-family: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
-  font-size: 9px;
-  font-weight: 700;
+  font-family: var(--g-font-sans);
+  font-size: 12px;
+  font-weight: 500;
   border: 1px solid currentColor;
   border-radius: 3px;
   opacity: 0.65;
@@ -248,7 +250,7 @@ body {
 .message__content h1,
 .message__content h2,
 .message__content h3 {
-  font-family: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+  font-family: var(--g-font-mono);
   line-height: 1.25;
 }
 
@@ -275,7 +277,7 @@ body {
 
 .message__content code {
   padding: 0.12em 0.34em;
-  font-family: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-family: var(--g-font-mono);
   font-size: 0.88em;
   background: color-mix(in srgb, currentColor 7%, transparent);
   border: 1px solid color-mix(in srgb, currentColor 12%, transparent);
@@ -334,7 +336,7 @@ body {
 
 .message-table th {
   color: var(--woobe-subtle-text);
-  font-family: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+  font-family: var(--g-font-sans);
   font-size: 0.88em;
   font-weight: 650;
   background: var(--woobe-control);
@@ -380,8 +382,8 @@ body {
   align-items: center;
   gap: 7px;
   color: var(--woobe-subtle-text);
-  font-family: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
-  font-size: 10px;
+  font-family: var(--g-font-sans);
+  font-size: 12px;
   line-height: 1.35;
 }
 
@@ -420,8 +422,8 @@ body {
 }
 
 .message--system strong {
-  font-family: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
-  font-size: 11px;
+  font-family: var(--g-font-sans);
+  font-size: 13px;
 }
 
 .message--system span {
@@ -452,11 +454,11 @@ body {
 }
 
 textarea {
-  min-height: 36px;
+  min-height: 40px;
   max-height: 120px;
   padding: var(--woobe-input-padding-y) var(--woobe-input-padding-x);
   color: var(--woobe-input-text-custom, var(--woobe-text));
-  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--g-font-sans);
   font-size: var(--woobe-input-font-size);
   line-height: 1.35;
   resize: none;
@@ -476,26 +478,28 @@ textarea:hover:not(:disabled) {
 
 textarea:focus-visible {
   border-color: var(--woobe-input-focus-border-custom, var(--woobe-primary));
-  outline: none;
+  outline: 2px solid var(--woobe-primary);
+  outline-offset: 3px;
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--woobe-input-focus-border-custom, var(--woobe-primary)) 28%, transparent);
 }
 
 button:focus-visible {
-  outline: none;
+  outline: 2px solid var(--woobe-primary);
+  outline-offset: 3px;
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--woobe-primary) 42%, transparent);
 }
 
 .chat__send {
   display: inline-flex;
   min-width: 42px;
-  min-height: 36px;
+  min-height: 40px;
   padding: 0 12px;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  color: var(--woobe-send-text-custom, #ffffff);
-  font-family: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 10px;
+  color: var(--woobe-send-text-custom, #fffefd);
+  font-family: var(--g-font-sans);
+  font-size: 12px;
   font-weight: 600;
   background: var(--woobe-send-background-custom, var(--woobe-primary));
   border: var(--woobe-send-border-width) solid var(--woobe-send-border-custom, var(--woobe-primary));
@@ -596,11 +600,17 @@ textarea:disabled {
   margin-top: 8px;
   padding-top: 6px;
   color: var(--woobe-subtle-text);
-  font-family: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
-  font-size: 10px;
+  font-family: var(--g-font-mono);
+  font-size: 12px;
   border-top: 1px solid var(--woobe-muted-border);
 }
 
 .skill-activity p {
   margin: 3px 0;
 }
+
+/* Keep controls reachable and content readable on touch and zoomed layouts. */
+.chat :is(button, a, textarea) { touch-action: manipulation; }
+.chat :is(pre, code) { overflow-wrap: anywhere; }
+.chat__header { font-family: inherit; font-size: 15px; font-weight: 600; }
+.chat__send { font-family: inherit; font-size: 13px; }

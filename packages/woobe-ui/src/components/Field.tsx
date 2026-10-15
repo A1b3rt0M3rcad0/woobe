@@ -29,8 +29,8 @@ const FieldLabel = forwardRef<HTMLLabelElement, LabelHTMLAttributes<HTMLLabelEle
       <label
         ref={ref}
         className={cn(
-          'font-mono font-medium uppercase tracking-ui-field-label text-muted',
-          density === 'technical' ? 'text-product-caption' : 'text-system-nano',
+          'font-medium text-muted',
+          'font-sans text-chrome-label',
           className,
         )}
         {...props}
@@ -47,7 +47,7 @@ const FieldOptional = forwardRef<HTMLSpanElement, HTMLAttributes<HTMLSpanElement
       <span
         ref={ref}
         className={cn(
-          'ml-ui-xs font-mono font-normal normal-case tracking-normal text-muted-foreground/65',
+          'ml-ui-xs font-sans font-normal normal-case tracking-normal text-muted-foreground',
           density === 'technical' ? 'text-product-caption' : 'text-system-nano',
           className,
         )}

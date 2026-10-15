@@ -1,0 +1,77 @@
+{
+  "browser": "154.0.8037.57",
+  "evidence": [
+    {
+      "role": "sign-in-title",
+      "expected": "serif",
+      "computed": {
+        "family": "Georgia, \"Times New Roman\", serif",
+        "weight": "400",
+        "size": "36px",
+        "lineHeight": "40.32px"
+      },
+      "fonts": [
+        {
+          "familyName": "Georgia",
+          "postScriptName": "Georgia",
+          "isCustomFont": false,
+          "glyphCount": 16
+        }
+      ]
+    },
+    {
+      "role": "product-headline",
+      "expected": "serif",
+      "computed": {
+        "family": "Georgia, \"Times New Roman\", serif",
+        "weight": "400",
+        "size": "60px",
+        "lineHeight": "60px"
+      },
+      "fonts": [
+        {
+          "familyName": "Georgia",
+          "postScriptName": "Georgia",
+          "isCustomFont": false,
+          "glyphCount": 32
+        }
+      ]
+    },
+    {
+      "role": "email",
+      "expected": "Inter",
+      "computed": {
+        "family": "Inter, system-ui, sans-serif",
+        "weight": "400",
+        "size": "14px",
+        "lineHeight": "20px"
+      },
+      "fonts": [
+        {
+          "familyName": "Inter",
+          "postScriptName": "Inter-Regular",
+          "isCustomFont": true,
+          "glyphCount": 18
+        }
+      ]
+    },
+    {
+      "role": "sign-in-action",
+      "expected": "Inter",
+      "computed": {
+        "family": "Inter, system-ui, sans-serif",
+        "weight": "400",
+        "size": "14px",
+        "lineHeight": "20px"
+      },
+      "fonts": [
+        {
+          "familyName": "Inter",
+          "postScriptName": "Inter-Regular",
+          "isCustomFont": true,
+          "glyphCount": 7
+        }
+      ]
+    }
+  ]
+}

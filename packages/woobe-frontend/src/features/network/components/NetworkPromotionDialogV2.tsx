@@ -169,7 +169,7 @@ export function NetworkPromotionDialog({
                   </div>
                 )}
                 trailing={requiresApproval ? (
-                  <label className="flex cursor-pointer items-center gap-ui-xs rounded-control border border-warning/25 bg-warning/[0.05] px-ui-sm py-ui-xs font-mono text-system-label text-warning">
+                  <label className="flex cursor-pointer items-center gap-ui-xs rounded-control border border-warning/25 bg-warning/[0.05] px-ui-sm py-ui-xs font-sans text-system-label text-warning">
                     <Checkbox checked={checked} onChange={() => toggle(item.action_id!)} />
                     Approve
                   </label>
@@ -181,7 +181,7 @@ export function NetworkPromotionDialog({
                 )}
               >
                 {item.action_required ? (
-                  <div className="mt-ui-sm flex items-center gap-ui-xs border-t border-border pt-ui-sm font-sans text-product-caption text-warning">
+                  <div className="mt-ui-sm flex items-center gap-ui-xs border-t border-border pt-ui-sm font-mono text-product-caption text-warning">
                     <GitBranch className="h-icon-sm w-icon-sm" />
                     {actionLabel(item.action_required)}
                   </div>
@@ -202,7 +202,7 @@ export function NetworkPromotionDialog({
         {errors.length ? (
           <Alert variant="destructive">
             <AlertDescription>
-              <span className="flex items-center gap-ui-xs font-mono text-system-label font-semibold">
+              <span className="flex items-center gap-ui-xs font-sans text-system-label font-medium">
                 <AlertTriangle className="h-icon-sm w-icon-sm" />Resolve the composition before promotion
               </span>
               {errors.map((issue, index) => <span key={`${issue.code}-${index}`} className="mt-ui-xs block">• {issue.message}</span>)}
