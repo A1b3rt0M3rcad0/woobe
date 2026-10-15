@@ -1,84 +1,99 @@
 {
-  "recorded_at": "2026-10-14T19:24:01.566881-03:00",
-  "timezone": "America/Sao_Paulo",
-  "implementation_commit": "a1251f7bed90262b5c2bed09d2b782fa06730c9c",
+  "recorded_at": "2026-10-15T00:44:45.072480+00:00",
+  "timezone": "Etc/UTC",
+  "implementation_commit": "9cc6af6753ecc6a4d8aedffd96cfea88170c8100",
   "pr": "https://github.com/A1b3rt0M3rcad0/woobe/pull/217",
+  "branch": "feature/frontend-enterprise-redesign",
+  "merged_by_this_task": false,
   "browser": "154.0.8037.57",
-  "browser_configuration": "System Chromium via PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/chromium; PLAYWRIGHT_BROWSERS_PATH=/workspace/.playwright; DPR 1.",
-  "data": "Synthetic API fixtures, reference instant 2026-06-20T12:00:00Z; no live backend/provider qualification.",
+  "browser_configuration": "System Chromium through PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/chromium; DPR 1 for captures. Native browser zoom uses isolated test profiles and verifies devicePixelRatio at 1.25, 1.5 and 2.",
+  "data": "Synthetic API fixtures; reference instant 2026-06-20T12:00:00Z. No live provider/backend qualification.",
   "checks": [
     {
-      "name": "Frontend unit suite",
-      "command": "VITE_API_URL=http://127.0.0.1:8000 VITE_CHAT_EMBED_URL=http://127.0.0.1:4181 npm --prefix packages/woobe-frontend run test:run",
+      "name": "Complete frontend unit suite",
       "result": "passed",
-      "files": 111,
-      "tests": 659
+      "files": 112,
+      "tests": 661,
+      "command": "VITE_API_URL=http://127.0.0.1:8000 VITE_CHAT_EMBED_URL=http://127.0.0.1:8081 VITE_WOOBE_EDITION=core npm --prefix packages/woobe-frontend run test:run"
     },
     {
-      "name": "Focused final Overview and configuration unit recheck",
-      "command": "VITE_API_URL=http://127.0.0.1:8000 VITE_CHAT_EMBED_URL=http://127.0.0.1:4181 npm --prefix packages/woobe-frontend run test:run -- src/features/dashboard src/pages/DashboardPage.test.tsx src/features/projects/components/ProjectConfigurationNotice.test.tsx src/features/projects/configuration.test.ts",
+      "name": "Complete production browser suite",
       "result": "passed",
-      "files": 6,
-      "tests": 45
+      "tests": 149,
+      "implementation_at_start": "628f9258",
+      "command": "cd tests/e2e && CI=true WOOBE_CAPTURE_DOCS=1 WOOBE_CAPTURE_REFINEMENT=1 WOOBE_REQUIRE_GEORGIA=1 PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/chromium PLAYWRIGHT_BROWSERS_PATH=/workspace/.playwright npx playwright test --config playwright.config.ts",
+      "scope": "Full route, navigation, deployment authority, cost, embed, typography, theme, workspace and native zoom coverage. Subsequent header/color/label changes rechecked below."
     },
     {
-      "name": "Complete rebuilt production browser suite",
-      "command": "cd tests/e2e && PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/chromium PLAYWRIGHT_BROWSERS_PATH=/workspace/.playwright WOOBE_CAPTURE_DOCS=1 WOOBE_REQUIRE_GEORGIA=1 npx playwright test --config playwright.config.ts",
+      "name": "Complete shared component and overlay browser suite",
       "result": "passed",
-      "tests": 122,
-      "execution": "Complete suite before the final Recent Runs column-width adjustment; affected pages rebuilt and rechecked below.",
-      "includes": "11 Overview tests: five widths (320/390/768/1280/1440), selected axe rules, sparse/zero/partial-cost evidence, real-time positions, seven-day filtering, stale-data isolation, refresh failure, configuration blockers and keyboard inspection; existing navigation, routes, cost, embed and typography checks."
+      "tests": 254,
+      "command": "cd tests/e2e && CI=true PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/chromium PLAYWRIGHT_BROWSERS_PATH=/workspace/.playwright npx playwright test --config review.config.ts --workers=2",
+      "scope": "Real components, overlays, nested dialogs, fields, independent embed and both themes for conversation/diagnostic/deep-tree scenarios."
     },
     {
-      "name": "Final rebuilt Overview alignment, captures and fonts",
-      "command": "cd tests/e2e && PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/chromium PLAYWRIGHT_BROWSERS_PATH=/workspace/.playwright WOOBE_CAPTURE_DOCS=1 WOOBE_REQUIRE_GEORGIA=1 npx playwright test --config playwright.config.ts tests/overview-refinement.spec.ts tests/typography.spec.ts tests/surface-coverage.spec.ts --grep \"overview|fonts render\"",
+      "name": "Final main routes, typography, theme and workspace capture suite",
       "result": "passed",
-      "tests": 17,
-      "execution": "Final source, including Recent Runs columns, with five-width overflow/axe checks and fresh Overview captures/font probes."
+      "tests": 98,
+      "implementation_at_start": "27d079c6",
+      "command": "cd tests/e2e && CI=true WOOBE_CAPTURE_DOCS=1 WOOBE_CAPTURE_REFINEMENT=1 WOOBE_REQUIRE_GEORGIA=1 PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/chromium PLAYWRIGHT_BROWSERS_PATH=/workspace/.playwright npx playwright test --config playwright.config.ts surface-coverage.spec.ts typography.spec.ts workspace-refinement.spec.ts theme-preference.spec.ts"
     },
     {
-      "name": "Page-owned cost coverage and Skill installation dialogs",
-      "command": "cd tests/e2e && PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/chromium PLAYWRIGHT_BROWSERS_PATH=/workspace/.playwright npx playwright test --config review.config.ts review/page-overlays.spec.ts --grep \"page-owned cost coverage\"",
+      "name": "Final responsive header and native zoom regression",
       "result": "passed",
-      "tests": 3,
-      "execution": "Real application overlays at 1440, 768 and 390px; the unchanged full shared-component suite was not repeated for this page-scoped revision."
+      "runs": [
+        17,
+        8,
+        6
+      ],
+      "scope": "Rebuilt after the narrow header fix; 390/768/1024px identity, Back and named actions. Native zoom at 125%, 150%, 200%; introduction, composer and canvas controls remain reachable."
     },
     {
-      "name": "Frontend TypeScript and production build",
-      "command": "npm --prefix packages/woobe-frontend run build",
+      "name": "Final numeric and missing-evidence cases",
       "result": "passed",
-      "execution": "Rebuilt by the final production-browser run. Existing large-chunk warning remains."
+      "tests": 4,
+      "scope": "Small nonzero cost, zero cost and contribution, partial cost, large count, balanced/one/absent context. Nonnegative input/output counts sum to totals."
     },
     {
-      "name": "Independent embed production build",
-      "command": "npm --prefix packages/woobe-embed run build",
+      "name": "Final Playground and light/dark workspace captures",
       "result": "passed",
-      "execution": "Rebuilt and exercised by the final production-browser suite."
+      "tests": 5,
+      "scope": "Built from the final UI; regenerated the three Playground widths and four light/dark workspace comparisons."
     },
     {
-      "name": "Main-page inventory and dimensions",
+      "name": "Final changed component/font rechecks",
+      "result": "passed",
+      "runs": [
+        5,
+        1,
+        2
+      ],
+      "scope": "Actual rendered fonts, JSON expansion/focus, conversation states and eight-level invocation trees in both themes. Updated primitives.json font evidence."
+    },
+    {
+      "name": "Visual inventory and image validation",
+      "result": "passed",
       "command": "python3 scripts/frontend_visual_inventory.py",
+      "routes": 53,
+      "shared_modules": 43,
+      "classified_overlay_sources": 77,
+      "main_pages": 18,
+      "images": 58
+    },
+    {
+      "name": "Source knowledge graph and whitespace",
       "result": "passed",
-      "pages": 18,
-      "screenshots": 54,
-      "route_declarations": 53,
-      "shared_components": 42,
-      "classified_overlay_sources": 77
-    },
-    {
-      "name": "Patch whitespace",
-      "command": "git diff --check",
-      "result": "passed"
-    },
-    {
-      "name": "Code graph",
-      "command": "graphify update .",
-      "result": "updated"
+      "commands": [
+        "graphify update .",
+        "git diff --check"
+      ]
     }
   ],
   "screenshots": {
     "main_pages": 18,
-    "png_count": 54,
+    "main_page_pngs": 54,
+    "theme_comparison_pngs": 4,
+    "png_count": 58,
     "viewport_css_pixels": [
       [
         1440,
@@ -93,18 +108,28 @@
         1100
       ]
     ],
-    "file_capture_window": [
-      "2026-10-14T19:19:25.040178-03:00",
-      "2026-10-14T19:22:58.939473-03:00"
+    "capture_window_utc": [
+      "2026-10-15T00:24:50.359555+00:00",
+      "2026-10-15T00:39:52.755139+00:00"
     ],
-    "scope": "Only main-page screenshots committed. Additional Overview scroll-inspection images remain in ignored browser test artifacts.",
-    "visual_review": "Full-size Overview desktop/tablet/mobile, with scrolled activity, Recent Runs and current-state inspection. Existing charcoal navigation, Georgia headings, Inter labels and mono numerical values retained."
+    "readme_image_sha256": "9e4f9e58d47f49246c31b4f4d7566a1d30809ce23aae13b851436b696ec6738a",
+    "readme_cache_key": "9e4f9e58d47f",
+    "scope": "Main pages only, plus requested Agent Playground/Network light-dark comparisons. Other artifacts remain in ignored test output.",
+    "sha256_inventory": "coverage.json"
   },
+  "manual_visual_review": [
+    "Agent Playground light/dark with expanded Run and contribution bars at 1440x1100",
+    "Network light/dark, five-node fixture and semantic minimap at 1440x1100",
+    "Mobile Playground identity, controls, composer and empty guidance at 390x1100",
+    "Tablet Network canvas, readable node and inspector at 768x1100",
+    "Updated Project Overview README image at 1440x1100"
+  ],
   "rendered_font_evidence": [
     "fonts/typography-1440px.json",
     "fonts/typography-768px.json",
     "fonts/typography-390px.json",
-    "fonts/typography-auth.json"
+    "fonts/typography-auth.json",
+    "fonts/primitives.json"
   ],
   "font_roles": {
     "editorial": "Actual local Georgia glyphs, weight 400",
@@ -113,173 +138,18 @@
   },
   "installed_font_provenance": "fonts/installation.json",
   "source_inventory": "coverage.json",
-  "skills": "Original frontend-design and guild-inspired-enterprise-ui v2.0 files unchanged.",
-  "environment_configuration": {
-    "install_script": "saved",
-    "start_skill": "saved",
-    "publication": "Pending user review/save/publish in environment settings; Georgia is installed and verified in the current machine."
-  },
-  "remote_ci": "Check states, failure annotations and step outcomes inspected through the GitHub web UI. REST API access remains blocked by current environment network policy.",
-  "merged_by_this_task": false,
-  "overview_data_contract": {
-    "source": "ActiveDocumentProjectOverviewReader; contextual Overview composition; PROJECT_CONFIGURATION.md",
-    "success": "Completed / terminal; cancelled included, running excluded. Rates remain backend-owned.",
-    "duration": "Average and p95 over recorded terminal durations.",
-    "activity": "UTC hourly/daily buckets over [from,to); partial edges clipped, missing buckets unavailable, explicit zeros preserved. Summary totals are not inferred from sparse points.",
-    "cost": "Known subtotal, explicit partial coverage and unknown cost retained.",
-    "comparisons": "Only Agent Run volume has previous-window evidence in the current API.",
-    "configuration": "Metadata checks distinguish blockers, unknown, permission and fetch errors; page completeness never grants project readiness.",
-    "routing": "Existing entity/Run routes; generic Run ledger navigation makes no unsupported URL-filter promise."
-  },
-  "initial_validation_corrections": [
-    "Scoped the absolute-count browser assertion to the primary KPI because the same evidence is intentionally repeated in reliability.",
-    "An existing credentials flow sent Escape before the revoke dialog received initial focus. The test now waits for the named dialog and focus, and asserts dismissal before reopening; no credential behavior changed."
-  ],
-  "lint": "No lint script is configured in woobe-frontend; TypeScript, Vitest, Playwright and whitespace checks were used.",
+  "design_contract": "THEMES.md",
+  "skills": "Local frontend-design and guild-inspired-enterprise-ui v2.0 used; original skill files unchanged. The user typography/theme requirements take precedence over skill defaults.",
+  "remote_ci": "Public GitHub check states and failure annotations are inspected separately. Documentation recording does not imply final remote CI completion.",
   "limits": [
-    "Synthetic HTTP fixtures do not qualify a live backend or provider deployment.",
-    "Selected axe WCAG A/AA rules are not a complete accessibility certification.",
-    "System Chromium and local Georgia rasterization may differ on other machines."
+    "Synthetic fixtures do not qualify a live backend/provider deployment.",
+    "Semantic token contrast, selected axe checks, keyboard/zoom tests and manual screenshots do not constitute a complete WCAG certification.",
+    "CI uses pinned Playwright Chromium 136; local validation uses system Chromium 154 and local Georgia."
   ],
   "preceding_validation": {
-    "implementation_commit": "007d5e7c8c210a717ebadd971186c1d7136250d3",
-    "recorded_at": "2026-10-14T18:51:30.715986-03:00",
-    "shared_components_and_overlays": {
-      "name": "Shared components and overlays browser suite",
-      "command": "cd tests/e2e && WOOBE_CAPTURE_DOCS=1 WOOBE_REQUIRE_GEORGIA=1 npx playwright test --config review.config.ts --workers=2",
-      "result": "passed",
-      "tests": 252,
-      "execution": "Real shared components in the Vite review entry, with the independently built embed iframe."
-    },
-    "independent_embed_unit_typecheck_and_architecture": {
-      "recorded_at": "2026-10-14T18:29:15.569054-03:00",
-      "implementation_commit": "3b82c793e1669b8afa1abb27eb6cd36321c7b8db",
-      "delivered_commit": "e353daa296597919842f939913723c53977b5f73",
-      "checks": [
-        {
-          "name": "Narrative Markdown final recheck",
-          "command": "VITE_API_URL=http://127.0.0.1:8000 VITE_CHAT_EMBED_URL=http://127.0.0.1:4181 npm --prefix packages/woobe-frontend run test:run -- src/features/playground/components/MarkdownMessage.test.tsx",
-          "result": "passed",
-          "tests": 13
-        },
-        {
-          "name": "Independent embed unit suite",
-          "result": "passed",
-          "command": "npm --prefix packages/woobe-embed test",
-          "tests": 25
-        },
-        {
-          "name": "Independent embed typecheck and build",
-          "result": "passed",
-          "command": "npm --prefix packages/woobe-embed run typecheck; npm --prefix packages/woobe-embed run build",
-          "execution": "Typecheck run directly; production build also run by the final browser workspace/ChatSurface recheck."
-        },
-        {
-          "name": "Frontend UUID architecture policy",
-          "result": "passed",
-          "command": ".venv/bin/python -m pytest -q tests/architecture/test_frontend_uuid_policy.py",
-          "tests": 1
-        }
-      ]
-    }
-  },
-  "remote_delivery": {
-    "status": "pushed",
-    "branch": "feature/frontend-enterprise-redesign",
-    "implementation_commit": "a1251f7bed90262b5c2bed09d2b782fa06730c9c",
-    "screenshots_and_review_commit": "3066e7ba283c92345a0524a6b8c453ad9102e239",
-    "authentication": "The automatic Git credential path returned HTTP 401. Push succeeded using the existing GitHub CLI credential through a command-scoped Git credential helper; no credential values were exposed or changed."
-  },
-  "ci_failure_followup": {
-    "recorded_at": "2026-10-14T20:01:26.937223-03:00",
-    "original_failed_head": "10da7352987f15d72d7da46934091bc4fc869d8f",
-    "original_failed_runs": {
-      "frontend": "https://github.com/A1b3rt0M3rcad0/woobe/actions/runs/38647531589",
-      "acceptance": "https://github.com/A1b3rt0M3rcad0/woobe/actions/runs/38647531550",
-      "containers": "https://github.com/A1b3rt0M3rcad0/woobe/actions/runs/38647531562"
-    },
-    "annotated_font_failure_run": "https://github.com/A1b3rt0M3rcad0/woobe/actions/runs/38650527750",
-    "annotated_font_failure_counts": {
-      "passed": 118,
-      "failed": 4
-    },
-    "root_causes": {
-      "embed_image": "Missing shared UI source inputs for font/token CSS imports. Fixed in 4ad45596.",
-      "typography": "Chromium 136 reports Inter (Fontations), but probes required literal Inter. Shared normalization retains expected family, rendered glyph count and web/system origin checks."
-    },
-    "diagnostics_commit": "c4cb5702",
-    "checks": [
-      {
-        "name": "Isolated Embed build using Docker source inputs",
-        "result": "failed before, passed after",
-        "failure": "ENOENT ../../woobe-ui/src/styles/fonts.css",
-        "scope": "Sources copied exactly as in the Embed builder, with host npm dependencies reused; separate native Docker check below."
-      },
-      {
-        "name": "Native Embed Docker builder stage",
-        "result": "passed",
-        "command": "BUILDX_CONFIG=/workspace/.local/share/woobe-buildx docker build --target builder --secret id=proxy_ca,src=\"$CODEX_PROXY_CERT\" --file /tmp/woobe-embed-ci.Dockerfile --tag woobe-embed:pr217-builder .",
-        "scope": "Same source COPY/build instructions as the product Dockerfile; temporary helper adds only a BuildKit CA secret and npm trust setting required by the managed proxy. Runtime stage not rebuilt locally."
-      },
-      {
-        "name": "Release-unit architecture checks",
-        "result": "passed",
-        "command": ".venv/bin/python -m pytest -q tests/architecture/test_primary_release_units.py",
-        "tests": 17
-      },
-      {
-        "name": "Frontend workflow lint",
-        "result": "passed",
-        "command": "/workspace/.local/bin/actionlint -shellcheck= .github/workflows/frontend.yml",
-        "tool": "actionlint 1.7.7, official release archive verified against its published SHA256 checksums"
-      },
-      {
-        "name": "Production browser fallback-font reproduction",
-        "result": "passed",
-        "tests": 122,
-        "command": "CI=true FONTCONFIG_FILE=/tmp/woobe-ci-fontconfig.conf PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/chromium PLAYWRIGHT_BROWSERS_PATH=/workspace/.playwright npx playwright test --config playwright.config.ts"
-      },
-      {
-        "name": "Shared components/overlays fallback-font reproduction",
-        "result": "passed",
-        "tests": 252,
-        "command": "CI=true FONTCONFIG_FILE=/tmp/woobe-ci-fontconfig.conf PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/chromium PLAYWRIGHT_BROWSERS_PATH=/workspace/.playwright npx playwright test --config review.config.ts --workers=2"
-      },
-      {
-        "name": "Actual CI font metadata regression cases",
-        "result": "passed",
-        "tests": 5,
-        "command": "CI=true PLAYWRIGHT_BASE_URL=http://127.0.0.1:4173 npx playwright test --config playwright.config.ts tests/font-evidence.spec.ts",
-        "scope": "Pure metadata tests; no browser launched."
-      },
-      {
-        "name": "Final production font probes",
-        "result": "passed",
-        "tests": 4,
-        "command": "CI=true FONTCONFIG_FILE=/tmp/woobe-ci-fontconfig.conf PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/chromium PLAYWRIGHT_BROWSERS_PATH=/workspace/.playwright npx playwright test --config playwright.config.ts tests/typography.spec.ts"
-      },
-      {
-        "name": "Final shared-primitives font probe with local Georgia required",
-        "result": "passed",
-        "tests": 1,
-        "command": "CI=true PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/chromium PLAYWRIGHT_BROWSERS_PATH=/workspace/.playwright WOOBE_REQUIRE_GEORGIA=1 npx playwright test --config review.config.ts review/gallery.spec.ts --grep \"production primitives\""
-      },
-      {
-        "name": "Embed unit tests and typecheck",
-        "result": "passed",
-        "tests": 25,
-        "commands": [
-          "npm --prefix packages/woobe-embed test",
-          "npm --prefix packages/woobe-embed run typecheck"
-        ]
-      }
-    ],
-    "remote_acceptance_after_image_fix": {
-      "result": "success",
-      "run": "https://github.com/A1b3rt0M3rcad0/woobe/actions/runs/38650527813",
-      "head": "c4cb5702"
-    },
-    "final_pinned_browser_validation": "Pending at recording; the font fix and this evidence are published together for the next GitHub check.",
-    "environment_limits": "Pinned Chromium download and REST job logs are blocked in the current runtime. Required network domains and startup guidance are saved in the environment draft, not applied. Local fallback uses system Chromium 154, system FFmpeg and a Fontconfig profile rejecting Georgia; final font primitives also checked with local system Georgia."
+    "recorded_at": "2026-10-15T00:42:24.540726+00:00",
+    "implementation_commit": "9cc6af6753ecc6a4d8aedffd96cfea88170c8100",
+    "details": "Earlier Overview review and CI diagnosis remain in REVIEW.md and Git history.",
+    "ci_failure_followup": null
   }
 }

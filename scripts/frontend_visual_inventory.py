@@ -117,18 +117,21 @@ def main():
         'typography_source_inventory': typography, 'screenshots': images,
     }
     (ROOT / 'docs/design/coverage.json').write_text(json.dumps(inventory, indent=2) + '\n')
+    hashes = {item['path'].removeprefix('docs/screenshots/'): item['sha256'][:12] for item in images}
+    def image_url(name):
+        return f'{name}?v={hashes[name]}'
     lines = ['# Woobe main pages', '',
              'Updated Chromium captures of the production application, using synthetic API fixtures. Main pages are retained, with four comparable light/dark workspace captures requested for the theme refinement. Component and modal screenshots stay outside documentation.', '',
-             '![Project Overview](project-overview.png)', '',
+             f"![Project Overview]({image_url('project-overview.png')})", '',
              f"{len(pages)} main pages × 3 widths + 4 theme comparisons = {len(images)} images. Desktop 1440 × 1100, tablet 768 × 1100, mobile 390 × 1100.", '',
              '| Page | Desktop | Tablet | Mobile |', '| --- | --- | --- | --- |']
     for page in pages:
         slug = page['slug']
-        lines.append(f"| {page['title']} | [View]({slug}.png) | [View](tablet/{slug}.png) | [View](mobile/{slug}.png) |")
+        lines.append(f"| {page['title']} | [View]({image_url(slug + '.png')}) | [View]({image_url('tablet/' + slug + '.png')}) | [View]({image_url('mobile/' + slug + '.png')}) |")
     lines += ['', '## Workspace theme comparisons', '',
               '| Workspace | Light | Dark |', '| --- | --- | --- |',
-              '| Agent Playground, expanded Run and context bars | [View](themes/agent-playground-light.png) | [View](themes/agent-playground-dark.png) |',
-              '| Network workspace | [View](themes/network-workspace-light.png) | [View](themes/network-workspace-dark.png) |',
+              f"| Agent Playground, expanded Run and context bars | [View]({image_url('themes/agent-playground-light.png')}) | [View]({image_url('themes/agent-playground-dark.png')}) |",
+              f"| Network workspace | [View]({image_url('themes/network-workspace-light.png')}) | [View]({image_url('themes/network-workspace-dark.png')}) |",
               '', '## Reproduce', '',
               'Install the locked dependencies in `packages/woobe-frontend`, `packages/woobe-embed` and `tests/e2e`. Install Playwright Chromium and the local Georgia family as described in [font provenance](../design/FONTS.md). From `tests/e2e`:', '',
               '```sh', 'WOOBE_CAPTURE_DOCS=1 WOOBE_REQUIRE_GEORGIA=1 npx playwright test --config playwright.config.ts tests/surface-coverage.spec.ts tests/typography.spec.ts', 'WOOBE_CAPTURE_REFINEMENT=1 npx playwright test --config playwright.config.ts tests/workspace-refinement.spec.ts', 'cd ../..', 'python3 scripts/frontend_visual_inventory.py', '```', '',
@@ -138,8 +141,10 @@ def main():
     (CAPTURES / 'README.md').write_text('\n'.join(lines))
     cards = []
     for item in images:
-        src = html.escape(item['path'].removeprefix('docs/screenshots/'))
-        cards.append(f'<article data-name="{src}"><a href="{src}"><img loading="lazy" src="{src}" alt="{src}"><span>{src}</span></a></article>')
+        name = item['path'].removeprefix('docs/screenshots/')
+        src = html.escape(image_url(name))
+        label = html.escape(name)
+        cards.append(f'<article data-name="{label}"><a href="{src}"><img loading="lazy" src="{src}" alt="{label}"><span>{label}</span></a></article>')
     document = '''<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Woobe main pages</title>
 <style>body{margin:24px;background:#f8f7f5;color:#242321;font:14px/1.5 system-ui,sans-serif}input{font:inherit;padding:10px;border:1px solid #8c867d;border-radius:6px}main{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:18px;margin-top:24px}article{border:1px solid #e3e1dd;border-radius:10px;background:#fffefd;overflow:hidden}a{color:inherit}img{width:100%;height:220px;object-fit:contain;display:block}span{display:block;padding:12px}article[hidden]{display:none}h1{font:400 36px/1.1 Georgia,serif}</style>
 <header><h1>Woobe main pages</h1><p>Current production-browser captures with synthetic fixtures. <a href="README.md">Method and index</a></p><label for="query">Filter pages or viewport</label><br><input id="query" type="search" placeholder="e.g. overview, mobile"><p id="count" role="status"></p></header><main>'''

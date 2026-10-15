@@ -105,7 +105,7 @@
       "computed": {
         "family": "Inter, system-ui, sans-serif",
         "weight": "500",
-        "size": "11px"
+        "size": "13px"
       },
       "probeSource": "element"
     },
@@ -177,7 +177,7 @@
       "computed": {
         "family": "\"JetBrains Mono\", \"Fira Code\", monospace",
         "weight": "400",
-        "size": "15px"
+        "size": "13px"
       },
       "probeSource": "painted descendant or native shadow text"
     },
