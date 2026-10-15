@@ -112,5 +112,7 @@ export async function login(page: Page) {
   await page.getByPlaceholder('you@company.com').fill(user.email)
   await page.getByPlaceholder('Enter your password').fill('ReleaseGate123!')
   await page.getByRole('button', { name: 'Sign in' }).click()
-  await expect(page).toHaveURL(/\/workspaces\/workspace-a\/projects\/project-a|\/dashboard/)
+  // /dashboard still resolves Workspace/Project context and can close an opened
+  // mobile drawer when it redirects. Interact only after the destination loads.
+  await expect(page).toHaveURL(/\/workspaces\/workspace-a\/projects\/project-a(?:\/|$)/)
 }
