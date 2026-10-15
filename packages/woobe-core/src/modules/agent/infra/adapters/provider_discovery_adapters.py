@@ -6,6 +6,7 @@ from modules.agent.application.dtos.model_discovery_dtos import (
     AvailableProviderModelOutput,
 )
 from modules.agent.application.interfaces.provider_registry import ProviderConnection
+from modules.agent.application.interfaces.provider_registry import UnclassifiedProviderModel
 from modules.agent.domain.model_spec import (
     ModelCapabilityNames,
     ModelSpec,
@@ -37,13 +38,17 @@ def _spec_to_available_output(
     *,
     provider: str,
 ) -> AvailableProviderModelOutput:
+    if isinstance(spec, UnclassifiedProviderModel):
+        return AvailableProviderModelOutput(id=spec.model_id, label=spec.display_name,
+            provider=spec.provider, raw=dict(spec.raw), normalization_status="unclassified",
+            normalization_issues=list(spec.issues))
     pricing = dict(spec.pricing or {})
     metadata = dict(spec.metadata or {})
     raw = metadata.get("provider_model_raw")
     return AvailableProviderModelOutput(
         id=spec.model_id,
         label=spec.display_name,
-        provider=provider,
+        provider=spec.provider,
         source=spec.source,
         owned_by=(
             str(raw.get("owned_by"))
@@ -81,6 +86,8 @@ def _spec_to_available_output(
             name: capability.as_dict()
             for name, capability in spec.capabilities.items()
         },
+        model_spec=spec.as_dict(),
+        normalization_status=("normalized" if spec.operations & {"language.generate", "embedding.create"} else "unsupported_execution"),
         raw={
             **(raw if isinstance(raw, dict) else {}),
             "woobe_model_spec": spec.as_dict(),
@@ -91,7 +98,7 @@ def _spec_to_available_output(
 class ProviderModelDiscoveryAdapter:
     def __init__(self, service: ModelDiscoveryService) -> None:
         self._service = service
-        self._registry = build_provider_registry()
+        self._registry = build_provider_registry(service)
 
     async def __call__(
         self,

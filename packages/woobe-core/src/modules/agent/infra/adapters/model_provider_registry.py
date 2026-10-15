@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from dataclasses import replace
+from modules.agent.application.interfaces.provider_registry import UnclassifiedProviderModel
+from modules.agent.infra.adapters.openai_model_enrichment import OPENAI_MODEL_EVIDENCE, REVISION
+
 import asyncio
 import json
 from typing import Any, Mapping
@@ -280,58 +284,52 @@ class _DiscoveryServiceProviderAdapter:
         return tuple(self._normalize_item(item) for item in items)
 
     def _normalize_item(self, item: Any) -> ModelSpec:
-        raw = _mapping(getattr(item, "raw", None))
+        original = _mapping(getattr(item, "raw", None))
+        enrichment = OPENAI_MODEL_EVIDENCE.get(str(item.id), {}) if self.provider_key == "openai" else {}
+        raw = {**enrichment, **original}
         architecture = _mapping(raw.get("architecture"))
-        input_modalities = _modality_set(
-            raw.get("input_modalities")
-            or architecture.get("input_modalities"),
-            default={ModelModalities.TEXT},
-        )
-        output_modalities = _modality_set(
-            raw.get("output_modalities")
-            or architecture.get("output_modalities"),
-            default={ModelModalities.TEXT},
-        )
-        model_id = str(item.id)
-        display_name = str(item.label or item.id)
-
-        explicit_type = str(
-            raw.get("model_type")
-            or raw.get("type")
-            or ""
-        ).strip().lower()
-        is_embedding = (
-            explicit_type in {"embedding", "embeddings"}
-            or "embed" in model_id.lower()
-        )
-        if is_embedding:
-            return _embedding_spec(
-                provider=self.provider_key,
-                model_id=model_id,
-                display_name=display_name,
-                max_input_tokens=getattr(item, "context_window", None),
-                pricing={
-                    "input_cost_per_1m_tokens": getattr(item, "input_cost_per_1m_tokens", None),
-                    "output_cost_per_1m_tokens": getattr(item, "output_cost_per_1m_tokens", None),
-                },
-                raw=raw,
-            )
-
-        return _language_spec(
-            provider=self.provider_key,
-            model_id=model_id,
-            display_name=display_name,
-            input_modalities=input_modalities,
-            output_modalities=output_modalities,
-            context_window=getattr(item, "context_window", None),
-            max_output_tokens=getattr(item, "max_output_tokens", None),
-            capabilities=_common_discovery_capabilities(item),
-            pricing={
-                "input_cost_per_1m_tokens": getattr(item, "input_cost_per_1m_tokens", None),
-                "output_cost_per_1m_tokens": getattr(item, "output_cost_per_1m_tokens", None),
-            },
-            raw=raw,
-        )
+        inputs = _modality_set(raw.get("input_modalities", architecture.get("input_modalities")), default=set())
+        outputs = _modality_set(raw.get("output_modalities", architecture.get("output_modalities")), default=set())
+        explicit_type = raw.get("model_type") or raw.get("type")
+        explicit_ops = raw.get("operations") or []
+        if explicit_type in {"embedding", "embeddings"} or "embedding.create" in explicit_ops or "embedding" in outputs:
+            spec = _embedding_spec(provider=self.provider_key, model_id=str(item.id), display_name=str(item.label or item.id),
+                max_input_tokens=item.context_window, raw=original,
+                pricing={"input_cost_per_1m_tokens": item.input_cost_per_1m_tokens,
+                    "output_cost_per_1m_tokens": item.output_cost_per_1m_tokens,
+                    "currency": "USD", "billing_unit": "per_1m_tokens"})
+            if raw.get("dimensions") is not None:
+                spec = replace(spec, metadata={**spec.metadata, "dimensions": raw["dimensions"]})
+            return spec
+        if explicit_type in {"language", "generation", "chat"} or "language.generate" in explicit_ops:
+            inputs = inputs or {"text"}
+            outputs = outputs or {"text"}
+        if "text" in inputs and "text" in outputs and explicit_type not in {"audio", "image", "video", "rerank"}:
+            caps = _common_discovery_capabilities(item)
+            for old, key in {"supports_tools": "tool_calling", "supports_json": "structured_output", "supports_streaming": "streaming"}.items():
+                if key not in caps and type(enrichment.get(old)) is bool:
+                    caps[key] = ModelCapability(enrichment[old], source="curated")
+            spec = _language_spec(provider=self.provider_key, model_id=str(item.id), display_name=str(item.label or item.id),
+                input_modalities=inputs, output_modalities=outputs,
+                context_window=item.context_window or enrichment.get("context_window"),
+                max_output_tokens=item.max_output_tokens or enrichment.get("max_output_tokens"),
+                capabilities=caps, raw=original,
+                pricing={"input_cost_per_1m_tokens": item.input_cost_per_1m_tokens,
+                    "output_cost_per_1m_tokens": item.output_cost_per_1m_tokens,
+                    "currency": "USD", "billing_unit": "per_1m_tokens"})
+            if enrichment:
+                spec = replace(spec, metadata={**spec.metadata, "enrichment_revision": REVISION,
+                    "enrichment_source": "https://platform.openai.com/docs/models/" + str(item.id)})
+            return spec
+        families = {"image": ("image", "image.generate"), "audio": ("audio", "audio.synthesize"),
+            "video": ("video", "video.generate"), "scores": ("rerank", "rerank")}
+        for modality, (family, operation) in families.items():
+            if modality in outputs and inputs:
+                return ModelSpec(provider=self.provider_key, model_id=str(item.id), display_name=str(item.label or item.id),
+                    model_type=family, operations=frozenset({operation}), input_modalities=frozenset(inputs),
+                    output_modalities=frozenset(outputs), interaction=ModelInteractionSpec(mode="isolated"),
+                    source="provider", metadata={"provider_model_raw": original})
+        return UnclassifiedProviderModel(self.provider_key, str(item.id), str(item.label or item.id), original)
 
 
 class OpenAIProviderAdapter(_DiscoveryServiceProviderAdapter):
@@ -418,22 +416,36 @@ class AnthropicProviderAdapter:
     ) -> tuple[ModelSpec, ...]:
         base_url = _connection_base_url(connection, ANTHROPIC_BASE_URL)
         from modules.agent.infra.adapters.configuration_transport import BoundConfigurationCredential, configuration_get_json
-        payload = await configuration_get_json(f"{base_url}/v1/models?limit=1000", connection.api_key,
-            header="X-Api-Key", prefix="", headers={"anthropic-version": str(connection.metadata.get("anthropic_version") or "2023-06-01")}) if isinstance(connection.api_key, BoundConfigurationCredential) else await _async_json_get(
-            f"{base_url}/v1/models?limit=1000",
-            headers={
-                "X-Api-Key": connection.api_key,
-                "anthropic-version": str(
-                    connection.metadata.get("anthropic_version")
-                    or "2023-06-01"
-                ),
-            },
-        )
-        raw_items = payload.get("data")
-        if not isinstance(raw_items, list):
-            raise ProviderAdapterError(
-                "Anthropic model discovery response has no data array"
-            )
+        from urllib.parse import urlencode
+        raw_items = []
+        seen_cursors = set()
+        seen_ids = set()
+        cursor = None
+        for page in range(50):
+            query = {"limit": 1000}
+            if cursor is not None:
+                query["after_id"] = cursor
+            url = f"{base_url}/v1/models?{urlencode(query)}"
+            headers = {"anthropic-version": str(connection.metadata.get("anthropic_version") or "2023-06-01")}
+            payload = (await configuration_get_json(url, connection.api_key, header="X-Api-Key", prefix="", headers=headers)
+                if isinstance(connection.api_key, BoundConfigurationCredential) else await _async_json_get(url,
+                    headers={**headers, "X-Api-Key": connection.api_key}))
+            items = payload.get("data")
+            if not isinstance(items, list):
+                raise ProviderAdapterError("Anthropic model discovery response has no data array")
+            for item in items:
+                if isinstance(item, dict) and item.get("id") and item["id"] not in seen_ids:
+                    raw_items.append(item)
+                    seen_ids.add(item["id"])
+            if payload.get("has_more") is not True:
+                break
+            cursor = payload.get("last_id")
+            if not isinstance(cursor, str) or not cursor or cursor in seen_cursors:
+                raise ProviderAdapterError("Anthropic model pagination made no progress")
+            seen_cursors.add(cursor)
+        else:
+            raise ProviderAdapterError("Anthropic model pagination exceeded the page limit")
+        raw_items.sort(key=lambda item: item["id"])
 
         result: list[ModelSpec] = []
         for raw in raw_items:
@@ -443,21 +455,12 @@ class AnthropicProviderAdapter:
             if not model_id:
                 continue
             raw_capabilities = _mapping(raw.get("capabilities"))
-            capabilities: dict[str, ModelCapability] = {
-                ModelCapabilityNames.TOOL_CALLING: ModelCapability(
-                    supported=True,
-                    source="provider_catalog",
-                ),
-                ModelCapabilityNames.STREAMING: ModelCapability(
-                    supported=True,
-                    source="provider_catalog",
-                ),
-            }
+            capabilities: dict[str, ModelCapability] = {}
 
             structured = _mapping(
                 raw_capabilities.get("structured_outputs")
             )
-            if "supported" in structured:
+            if type(structured.get("supported")) is bool:
                 capabilities[
                     ModelCapabilityNames.STRUCTURED_OUTPUT
                 ] = ModelCapability(
@@ -472,7 +475,7 @@ class AnthropicProviderAdapter:
                 thinking.get("supported")
                 or effort.get("supported")
             )
-            if thinking or effort:
+            if type(thinking.get("supported")) is bool or type(effort.get("supported")) is bool:
                 levels = [
                     name
                     for name, value in effort.items()
@@ -487,14 +490,14 @@ class AnthropicProviderAdapter:
                 )
 
             batch = _mapping(raw_capabilities.get("batch"))
-            if "supported" in batch:
+            if type(batch.get("supported")) is bool:
                 capabilities[ModelCapabilityNames.BATCH] = ModelCapability(
                     supported=bool(batch.get("supported")),
                     source="provider",
                 )
 
             citations = _mapping(raw_capabilities.get("citations"))
-            if "supported" in citations:
+            if type(citations.get("supported")) is bool:
                 capabilities[
                     ModelCapabilityNames.CITATIONS
                 ] = ModelCapability(
@@ -505,7 +508,7 @@ class AnthropicProviderAdapter:
             code_execution = _mapping(
                 raw_capabilities.get("code_execution")
             )
-            if "supported" in code_execution:
+            if type(code_execution.get("supported")) is bool:
                 capabilities[
                     ModelCapabilityNames.CODE_EXECUTION
                 ] = ModelCapability(
@@ -598,22 +601,19 @@ class DeepSeekProviderAdapter:
 
             effort = _mapping(raw.get("effort"))
             levels = effort.get("supported_levels")
-            capabilities = {
-                ModelCapabilityNames.TOOL_CALLING: ModelCapability(
-                    supported=True,
-                    source="provider_catalog",
-                ),
-                ModelCapabilityNames.STRUCTURED_OUTPUT: ModelCapability(
-                    supported=True,
-                    config={"formats": ["json_object"]},
-                    source="provider_catalog",
-                ),
-                ModelCapabilityNames.STREAMING: ModelCapability(
-                    supported=True,
-                    source="provider_catalog",
-                ),
-            }
-            if isinstance(levels, list):
+            raw_caps = _mapping(raw.get("capabilities"))
+            capabilities = {}
+            # Only the protocol selected by Woobe supplies execution capabilities.
+            protocols = _mapping(raw.get("api_capabilities"))
+            openai_caps = _mapping(protocols.get("openai_chat_completions") or protocols.get("openai.chat_completions"))
+            for native, key in {"tool_calling": ModelCapabilityNames.TOOL_CALLING,
+                    "structured_output": ModelCapabilityNames.STRUCTURED_OUTPUT,
+                    "streaming": ModelCapabilityNames.STREAMING}.items():
+                flag = openai_caps.get(native, raw_caps.get(native))
+                flag = flag.get("supported") if isinstance(flag, dict) else flag
+                if type(flag) is bool:
+                    capabilities[key] = ModelCapability(flag, source="provider")
+            if isinstance(levels, list) and all(isinstance(level, str) and level.strip() for level in levels):
                 capabilities[
                     ModelCapabilityNames.REASONING
                 ] = ModelCapability(
@@ -630,6 +630,16 @@ class DeepSeekProviderAdapter:
                     source="provider",
                 )
 
+            known_language = model_id in {"deepseek-chat", "deepseek-reasoner"}
+            inputs = _modality_set(raw.get("input_modalities"), default={"text"} if known_language else set())
+            outputs = _modality_set(raw.get("output_modalities"), default={"text"} if known_language else set())
+            if "text" not in inputs or "text" not in outputs:
+                result.append(UnclassifiedProviderModel("deepseek", model_id, str(raw.get("name") or model_id), raw))
+                continue
+            constraints = {}
+            for protocol, evidence in protocols.items():
+                if isinstance(evidence, dict) and evidence.get("system_prompt_update") in {"leading-only", "in-history"}:
+                    constraints[protocol] = {"system_prompt_update": evidence["system_prompt_update"]}
             result.append(
                 _language_spec(
                     provider="deepseek",
@@ -653,14 +663,16 @@ class DeepSeekProviderAdapter:
                     raw=raw,
                 )
             )
+            result[-1] = replace(result[-1], metadata={**result[-1].metadata,
+                "runtime_constraints": constraints, "protocol": "openai.chat_completions"})
         return tuple(result)
 
 
-def build_provider_registry() -> ProviderRegistry:
+def build_provider_registry(discovery=None) -> ProviderRegistry:
     registry = ProviderRegistry()
-    registry.register(OpenAIProviderAdapter())
-    registry.register(OpenAICompatibleProviderAdapter())
-    registry.register(OpenRouterProviderAdapter())
+    registry.register(OpenAIProviderAdapter(discovery))
+    registry.register(OpenAICompatibleProviderAdapter(discovery))
+    registry.register(OpenRouterProviderAdapter(discovery))
     registry.register(AnthropicProviderAdapter())
     registry.register(DeepSeekProviderAdapter())
 

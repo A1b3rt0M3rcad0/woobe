@@ -17,23 +17,7 @@ SecretResolverCallable = Callable[[str], str]
 
 
 def _is_embedding_model(model: AvailableProviderModelOutput) -> bool:
-    if model.model_type:
-        return model.model_type == ModelTypes.EMBEDDING
-    if ModelOperations.EMBEDDING_CREATE in (model.operations or []):
-        return True
-
-    spec = model.raw.get("woobe_model_spec") if isinstance(model.raw, dict) else None
-    if isinstance(spec, dict):
-        model_type = str(spec.get("model_type") or "").strip().lower()
-        if model_type:
-            return model_type == ModelTypes.EMBEDDING
-        operations = spec.get("operations")
-        if isinstance(operations, list):
-            return ModelOperations.EMBEDDING_CREATE in operations
-
-    # Compatibility only for discovery payloads that predate ModelSpec semantics.
-    value = f"{model.id} {model.label}".lower()
-    return "embed" in value
+    return ModelOperations.EMBEDDING_CREATE in model.operations
 
 
 class ListAvailableProviderModelsUseCase:
@@ -77,8 +61,9 @@ class ListAvailableProviderModelsUseCase:
 
         try:
             if capability == "embedding" and provider == "openrouter":
-                return await self._embedding_discovery(provider, api_key, metadata)
-            models = await self._discovery(provider, api_key, metadata)
+                models = await self._embedding_discovery(provider, api_key, metadata)
+            else:
+                models = await self._discovery(provider, api_key, metadata)
         except ConfigurationError:
             raise
         except Exception:
@@ -87,5 +72,5 @@ class ListAvailableProviderModelsUseCase:
         if capability == "embedding":
             return [model for model in models if _is_embedding_model(model)]
         if capability == "generation":
-            return [model for model in models if not _is_embedding_model(model)]
+            return [model for model in models if ModelOperations.LANGUAGE_GENERATE in model.operations and "text" in model.output_modalities]
         return models

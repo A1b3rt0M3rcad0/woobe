@@ -7,6 +7,15 @@ from modules.agent.domain.model_spec import ModelSpec
 
 
 @dataclass(frozen=True, slots=True)
+class UnclassifiedProviderModel:
+    provider: str
+    model_id: str
+    display_name: str
+    raw: Mapping[str, Any] = field(default_factory=dict)
+    issues: tuple[str, ...] = ("Insufficient operation/modality evidence; declare a manual ModelSpec",)
+
+
+@dataclass(frozen=True, slots=True)
 class ProviderManifest:
     key: str
     display_name: str
@@ -62,7 +71,7 @@ class ProviderPort(Protocol):
     async def discover_models(
         self,
         connection: ProviderConnection,
-    ) -> tuple[ModelSpec, ...]: ...
+    ) -> tuple[ModelSpec | UnclassifiedProviderModel, ...]: ...
 
 
 ProviderAdapter = ProviderPort
