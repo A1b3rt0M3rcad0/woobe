@@ -67,7 +67,7 @@ class RuntimeEmbeddingCapability:
 
 
 def embedding_base_url(snapshot, provider_model, credential) -> str | None:
-    from modules.agent.domain.provider_identity import canonical_provider_key
+    from modules.agent.domain.provider_identity import canonical_provider_key, validate_provider_base_url
     provider = canonical_provider_key(snapshot.embedding_provider)
     provider_metadata = provider_model.metadata or {}
     credential_metadata = credential.metadata or {}
@@ -76,7 +76,10 @@ def embedding_base_url(snapshot, provider_model, credential) -> str | None:
         value = provider_metadata.get("base_url") or credential_metadata.get("base_url")
         if not value:
             raise ValidationError("Custom embedding provider requires base_url")
-        return str(value)
+        try:
+            return validate_provider_base_url(value)
+        except ValueError as exc:
+            raise ValidationError(str(exc)) from exc
     if provider == "openrouter":
         value = credential_metadata.get("base_url") or provider_metadata.get("base_url")
         return str(value) if value else None

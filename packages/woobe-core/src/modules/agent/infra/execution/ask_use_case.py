@@ -1212,20 +1212,17 @@ class AskAgentUseCase:
         credential: ProviderCredential,
         settings: dict | None,
     ) -> str | None:
-        from modules.agent.domain.provider_identity import canonical_provider_key
-        if canonical_provider_key(provider_val) == "openai_compatible":
-            base_url = (
-                (settings or {}).get("base_url")
-                or (credential.metadata or {}).get("base_url")
-            )
-            if not base_url:
-                from shared.contracts.errors import ValidationError
-
-                raise ValidationError(
-                    "Custom provider requires base_url in credential metadata or agent settings"
-                )
-            return base_url
-        return (settings or {}).get("base_url") or (credential.metadata or {}).get("base_url")
+        from modules.agent.domain.provider_identity import canonical_provider_key, validate_provider_base_url
+        from shared.contracts.errors import ValidationError
+        base_url = (settings or {}).get("base_url") or (credential.metadata or {}).get("base_url")
+        if canonical_provider_key(provider_val) == "openai_compatible" and not base_url:
+            raise ValidationError("OpenAI-compatible provider requires base_url")
+        if base_url:
+            try:
+                return validate_provider_base_url(base_url)
+            except ValueError as exc:
+                raise ValidationError(str(exc)) from exc
+        return None
 
     async def _try_fallback(
         self,

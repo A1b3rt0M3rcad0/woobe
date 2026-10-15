@@ -72,3 +72,29 @@ def test_exact_hash_and_semantic_fingerprint_have_separate_purposes():
         assert effective_model_semantic_fingerprint(
             spec
         ) != effective_model_semantic_fingerprint(altered)
+
+
+def test_fingerprint_normalizes_capability_sets_but_preserves_ordered_configuration():
+    from modules.agent.domain.model_spec import ModelCapability
+
+    spec = _language_spec()
+
+    def configured(formats, steps):
+        return replace(
+            spec,
+            capabilities={
+                "structured_output": ModelCapability(
+                    True, config={"formats": formats, "steps": steps}
+                )
+            },
+        )
+
+    first = configured(["json_object", "json_schema"], ["prompt", "tools"])
+    reordered_formats = configured(["json_schema", "json_object"], ["prompt", "tools"])
+    reordered_steps = configured(["json_object", "json_schema"], ["tools", "prompt"])
+    assert effective_model_semantic_fingerprint(
+        first
+    ) == effective_model_semantic_fingerprint(reordered_formats)
+    assert effective_model_semantic_fingerprint(
+        first
+    ) != effective_model_semantic_fingerprint(reordered_steps)

@@ -65,3 +65,18 @@ def test_compatible_runtime_uses_frozen_model_endpoint_and_refuses_missing_endpo
     assert resolver._resolve_base_url(agent, credential) == "https://frozen.example/v1"
     with pytest.raises(ValidationError, match="base_url"):
         resolver._resolve_base_url_for_provider(provider, credential, {})
+
+
+@pytest.mark.parametrize(
+    "endpoint",
+    ["relative/path", "ftp://example.test", "https://", "https://example.test:invalid"],
+)
+def test_invalid_compatible_endpoint_fails_before_invocation(endpoint):
+    credential = ProviderCredential(
+        project_id=uuid4(),
+        provider="openai_compatible",
+        metadata={"base_url": endpoint},
+    )
+    resolver = object.__new__(ReleaseRuntimeResolver)
+    with pytest.raises(ValidationError, match="absolute HTTP"):
+        resolver._resolve_base_url_for_provider("openai_compatible", credential, {})

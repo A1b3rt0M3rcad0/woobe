@@ -12,6 +12,7 @@ from modules.agent.domain.model_spec import ModelSpec, ModelOperations, model_sp
 from modules.agent.domain.provider_identity import (
     canonical_provider_key,
     providers_equivalent,
+    validate_provider_base_url,
 )
 from shared.contracts.errors import ValidationError
 
@@ -69,6 +70,12 @@ def parse_model_spec_definition(value: dict) -> ModelSpec:
     dimensions = (value.get("metadata") or {}).get("dimensions")
     if dimensions is not None and (type(dimensions) is not int or dimensions <= 0):
         raise ValidationError("Embedding dimensions must be a positive integer")
+    endpoint = (value.get("metadata") or {}).get("base_url")
+    if endpoint is not None:
+        try:
+            validate_provider_base_url(endpoint)
+        except ValueError as exc:
+            raise ValidationError(str(exc)) from exc
     for key in ("operations", "input_modalities", "output_modalities"):
         if not value.get(key) or not all(item.strip() for item in value[key]):
             raise ValidationError(f"ModelSpec {key} must not be empty")

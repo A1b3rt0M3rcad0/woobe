@@ -393,7 +393,11 @@ def effective_model_semantic_fingerprint(spec: ModelSpec) -> str:
 
     def normalize(value):
         if isinstance(value, dict):
-            return {key: normalize(item) for key, item in sorted(value.items())}
+            result = {key: normalize(item) for key, item in sorted(value.items())}
+            for key in {"formats", "levels", "supported_levels"} & result.keys():
+                if isinstance(result[key], list):
+                    result[key] = sorted(result[key], key=lambda item: json.dumps(item, sort_keys=True))
+            return result
         if isinstance(value, (set, frozenset)):
             return sorted((normalize(item) for item in value), key=lambda item: json.dumps(item, sort_keys=True))
         if isinstance(value, (list, tuple)):
