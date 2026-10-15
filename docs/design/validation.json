@@ -1,13 +1,18 @@
 {
-  "recorded_at": "2026-10-15T00:44:45.072480+00:00",
+  "recorded_at": "2026-10-15T01:25:31.996667+00:00",
   "timezone": "Etc/UTC",
-  "implementation_commit": "9cc6af6753ecc6a4d8aedffd96cfea88170c8100",
+  "implementation_commit": "5b810f13f2178de5f0aae8d4f04271bc69bcfe9e",
   "pr": "https://github.com/A1b3rt0M3rcad0/woobe/pull/217",
   "branch": "feature/frontend-enterprise-redesign",
   "merged_by_this_task": false,
-  "browser": "154.0.8037.57",
-  "browser_configuration": "System Chromium through PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/chromium; DPR 1 for captures. Native browser zoom uses isolated test profiles and verifies devicePixelRatio at 1.25, 1.5 and 2.",
-  "data": "Synthetic API fixtures; reference instant 2026-06-20T12:00:00Z. No live provider/backend qualification.",
+  "browser": "Chromium 154.0.8037.57 built on Debian GNU/Linux 13 (trixie)",
+  "data": "Synthetic API fixtures; no live provider/backend qualification.",
+  "changes": [
+    "Theme control only in Account settings → Appearance; removed from global and workspace headers and authentication.",
+    "Dark navigation uses the operational dark canvas, panel controls, text, borders, accent and focus. Light navigation retains charcoal.",
+    "Workspace selection keeps working in memory when browser persistence is blocked; theme settings remain reachable.",
+    "Existing shared UI/frontend/independent Embed ownership preserved."
+  ],
   "checks": [
     {
       "name": "Complete frontend unit suite",
@@ -19,74 +24,32 @@
     {
       "name": "Complete production browser suite",
       "result": "passed",
-      "tests": 149,
-      "implementation_at_start": "628f9258",
-      "command": "cd tests/e2e && CI=true WOOBE_CAPTURE_DOCS=1 WOOBE_CAPTURE_REFINEMENT=1 WOOBE_REQUIRE_GEORGIA=1 PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/chromium PLAYWRIGHT_BROWSERS_PATH=/workspace/.playwright npx playwright test --config playwright.config.ts",
-      "scope": "Full route, navigation, deployment authority, cost, embed, typography, theme, workspace and native zoom coverage. Subsequent header/color/label changes rechecked below."
+      "tests": 156,
+      "command": "cd tests/e2e && CI=true WOOBE_CAPTURE_DOCS=1 WOOBE_CAPTURE_REFINEMENT=1 WOOBE_REQUIRE_GEORGIA=1 PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/chromium PLAYWRIGHT_BROWSERS_PATH=/workspace/.playwright npx playwright test --config playwright.config.ts --workers=2",
+      "scope": "Builds frontend and Embed; route/overlay/navigation/authority checks, actual fonts, themes, unsaved workspace state and native zoom at 125%, 150%, 200%. Includes regenerated main-page and workspace captures."
     },
     {
-      "name": "Complete shared component and overlay browser suite",
-      "result": "passed",
-      "tests": 254,
-      "command": "cd tests/e2e && CI=true PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/chromium PLAYWRIGHT_BROWSERS_PATH=/workspace/.playwright npx playwright test --config review.config.ts --workers=2",
-      "scope": "Real components, overlays, nested dialogs, fields, independent embed and both themes for conversation/diagnostic/deep-tree scenarios."
-    },
-    {
-      "name": "Final main routes, typography, theme and workspace capture suite",
-      "result": "passed",
-      "tests": 98,
-      "implementation_at_start": "27d079c6",
-      "command": "cd tests/e2e && CI=true WOOBE_CAPTURE_DOCS=1 WOOBE_CAPTURE_REFINEMENT=1 WOOBE_REQUIRE_GEORGIA=1 PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/chromium PLAYWRIGHT_BROWSERS_PATH=/workspace/.playwright npx playwright test --config playwright.config.ts surface-coverage.spec.ts typography.spec.ts workspace-refinement.spec.ts theme-preference.spec.ts"
-    },
-    {
-      "name": "Final responsive header and native zoom regression",
-      "result": "passed",
-      "runs": [
-        17,
-        8,
-        6
-      ],
-      "scope": "Rebuilt after the narrow header fix; 390/768/1024px identity, Back and named actions. Native zoom at 125%, 150%, 200%; introduction, composer and canvas controls remain reachable."
-    },
-    {
-      "name": "Final numeric and missing-evidence cases",
+      "name": "Desktop/mobile navigation captures in both themes",
       "result": "passed",
       "tests": 4,
-      "scope": "Small nonzero cost, zero cost and contribution, partial cost, large count, balanced/one/absent context. Nonnegative input/output counts sum to totals."
+      "implementation_at_capture": "dcddd67a",
+      "scope": "Same built application, navigation-contrast.spec.ts, isolated output directory and screenshot:on. Shared Workspace/Project palette, active text and focus contrast, Account settings portal, selected axe rules, Escape and focus restoration.",
+      "artifacts": "/tmp/woobe-sidebar-review (local review only)"
     },
     {
-      "name": "Final Playground and light/dark workspace captures",
+      "name": "Screenshot/source inventory",
       "result": "passed",
-      "tests": 5,
-      "scope": "Built from the final UI; regenerated the three Playground widths and four light/dark workspace comparisons."
+      "command": "python3 scripts/frontend_visual_inventory.py"
     },
     {
-      "name": "Final changed component/font rechecks",
+      "name": "Patch whitespace",
       "result": "passed",
-      "runs": [
-        5,
-        1,
-        2
-      ],
-      "scope": "Actual rendered fonts, JSON expansion/focus, conversation states and eight-level invocation trees in both themes. Updated primitives.json font evidence."
+      "command": "git diff --check"
     },
     {
-      "name": "Visual inventory and image validation",
+      "name": "AST knowledge graph",
       "result": "passed",
-      "command": "python3 scripts/frontend_visual_inventory.py",
-      "routes": 53,
-      "shared_modules": 43,
-      "classified_overlay_sources": 77,
-      "main_pages": 18,
-      "images": 58
-    },
-    {
-      "name": "Source knowledge graph and whitespace",
-      "result": "passed",
-      "commands": [
-        "graphify update .",
-        "git diff --check"
-      ]
+      "command": "/workspace/.local/bin/graphify update ."
     }
   ],
   "screenshots": {
@@ -109,47 +72,37 @@
       ]
     ],
     "capture_window_utc": [
-      "2026-10-15T00:24:50.359555+00:00",
-      "2026-10-15T00:39:52.755139+00:00"
+      "2026-10-15T01:21:07.559151+00:00",
+      "2026-10-15T01:25:19.836961+00:00"
     ],
-    "readme_image_sha256": "9e4f9e58d47f49246c31b4f4d7566a1d30809ce23aae13b851436b696ec6738a",
-    "readme_cache_key": "9e4f9e58d47f",
-    "scope": "Main pages only, plus requested Agent Playground/Network light-dark comparisons. Other artifacts remain in ignored test output.",
+    "readme_image_sha256": "7a71cde1bd721e563991263bae1d3939f18aa72614de20dbc4558eae454cedfb",
+    "readme_cache_key": "7a71cde1bd72",
+    "scope": "Main pages plus existing light/dark Agent and Network comparisons; navigation review artifacts remain outside the gallery.",
     "sha256_inventory": "coverage.json"
   },
   "manual_visual_review": [
-    "Agent Playground light/dark with expanded Run and contribution bars at 1440x1100",
-    "Network light/dark, five-node fixture and semantic minimap at 1440x1100",
-    "Mobile Playground identity, controls, composer and empty guidance at 390x1100",
-    "Tablet Network canvas, readable node and inspector at 768x1100",
-    "Updated Project Overview README image at 1440x1100"
+    "Project Overview navigation in light/dark at 1440×1100 and dark mobile navigation at 390×1100.",
+    "Updated Project Overview README image and mobile Playground; Agent and Network headers without the theme control."
   ],
   "rendered_font_evidence": [
     "fonts/typography-1440px.json",
     "fonts/typography-768px.json",
     "fonts/typography-390px.json",
-    "fonts/typography-auth.json",
-    "fonts/primitives.json"
+    "fonts/typography-auth.json"
   ],
-  "font_roles": {
-    "editorial": "Actual local Georgia glyphs, weight 400",
-    "interface": "Actual custom Inter glyphs, including Overview analysis headings",
-    "technical": "Actual custom JetBrains Mono numerical glyphs"
-  },
   "installed_font_provenance": "fonts/installation.json",
-  "source_inventory": "coverage.json",
   "design_contract": "THEMES.md",
-  "skills": "Local frontend-design and guild-inspired-enterprise-ui v2.0 used; original skill files unchanged. The user typography/theme requirements take precedence over skill defaults.",
-  "remote_ci": "Public GitHub check states and failure annotations are inspected separately. Documentation recording does not imply final remote CI completion.",
-  "limits": [
-    "Synthetic fixtures do not qualify a live backend/provider deployment.",
-    "Semantic token contrast, selected axe checks, keyboard/zoom tests and manual screenshots do not constitute a complete WCAG certification.",
-    "CI uses pinned Playwright Chromium 136; local validation uses system Chromium 154 and local Georgia."
-  ],
+  "skills": "Existing frontend-design and Guild v2 contracts; user typography and theme requirements take precedence. Skill files unchanged.",
+  "remote_ci": "Local checks above are complete. GitHub workflows for the newly pushed source are separate and are not represented as completed by this record.",
+  "failure_followup": "The first full run passed 155 checks and exposed an uncaught WorkspaceProvider storage write after authentication in the blocked-storage scenario. Optional writes now catch storage failures like the existing reads. The regression additionally requires no page errors and verifies the preference falls back to System after reload without persistence.",
   "preceding_validation": {
-    "recorded_at": "2026-10-15T00:42:24.540726+00:00",
-    "implementation_commit": "9cc6af6753ecc6a4d8aedffd96cfea88170c8100",
-    "details": "Earlier Overview review and CI diagnosis remain in REVIEW.md and Git history.",
-    "ci_failure_followup": null
-  }
+    "source": "7c5ee7facd23976e6a1f49d637d061b4c53ce356",
+    "report": "https://github.com/A1b3rt0M3rcad0/woobe/blob/7c5ee7facd23976e6a1f49d637d061b4c53ce356/docs/design/validation.json",
+    "frontend_ci": "https://github.com/A1b3rt0M3rcad0/woobe/actions/runs/38661926972",
+    "scope": "Earlier shared component/Embed verification and CI failure diagnosis remain recorded at the preceding source. Those independent suites were not rerun for this scoped navigation/control change; the current frontend unit and production browser results are listed above."
+  },
+  "limits": [
+    "Selected contrast, axe and keyboard checks are not a complete accessibility certification.",
+    "Local Chromium 154 and installed Georgia may rasterize differently from pinned CI Chromium 136 and other client fonts."
+  ]
 }

@@ -2,37 +2,37 @@
 
 Updated Chromium captures of the production application, using synthetic API fixtures. Main pages are retained, with four comparable light/dark workspace captures requested for the theme refinement. Component and modal screenshots stay outside documentation.
 
-![Project Overview](project-overview.png?v=9e4f9e58d47f)
+![Project Overview](project-overview.png?v=7a71cde1bd72)
 
 18 main pages × 3 widths + 4 theme comparisons = 58 images. Desktop 1440 × 1100, tablet 768 × 1100, mobile 390 × 1100.
 
 | Page | Desktop | Tablet | Mobile |
 | --- | --- | --- | --- |
-| Sign in | [View](sign-in.png?v=ed8a2faf0768) | [View](tablet/sign-in.png?v=20ee1767acec) | [View](mobile/sign-in.png?v=643d373d59de) |
-| Workspaces | [View](workspaces.png?v=30f4c22f6b31) | [View](tablet/workspaces.png?v=f169b046b0c8) | [View](mobile/workspaces.png?v=5f08dcc071a4) |
-| Projects | [View](projects.png?v=b80a0a64d4a3) | [View](tablet/projects.png?v=89200bae6f12) | [View](mobile/projects.png?v=fb0016cd25e2) |
-| Project Overview | [View](project-overview.png?v=9e4f9e58d47f) | [View](tablet/project-overview.png?v=43c8ff56241c) | [View](mobile/project-overview.png?v=8032a4cd9389) |
-| Agents | [View](agents.png?v=39f0170ad388) | [View](tablet/agents.png?v=4f6d5ff1cd91) | [View](mobile/agents.png?v=ea1e87fb55a5) |
-| Networks | [View](networks.png?v=b9ffa3504ce3) | [View](tablet/networks.png?v=161e1cd1c1c4) | [View](mobile/networks.png?v=5dd8355e061d) |
-| Agent playground | [View](agent-playground.png?v=d7d26b50ddb2) | [View](tablet/agent-playground.png?v=d7e97abe0ae1) | [View](mobile/agent-playground.png?v=4bd03c9c9c0b) |
-| Network workspace | [View](network-workspace.png?v=b8d2eed6c980) | [View](tablet/network-workspace.png?v=c6dbf5d623fb) | [View](mobile/network-workspace.png?v=f5b4c067f97e) |
-| Knowledge | [View](knowledge.png?v=daba3aaf12f4) | [View](tablet/knowledge.png?v=36cc258e0eed) | [View](mobile/knowledge.png?v=f5c4c866d09e) |
-| Tools | [View](tools.png?v=6c0b4b3d4b0f) | [View](tablet/tools.png?v=eab115083330) | [View](mobile/tools.png?v=a3d4bbeae415) |
-| Skills | [View](skills.png?v=450d8c8b6dd8) | [View](tablet/skills.png?v=6b9c045ed565) | [View](mobile/skills.png?v=b02a69f4813c) |
-| Models | [View](models.png?v=1ad415b9db6f) | [View](tablet/models.png?v=610fc887f272) | [View](mobile/models.png?v=48d8a127aa09) |
-| Credentials | [View](credentials.png?v=7b781a206e61) | [View](tablet/credentials.png?v=d6506ce26f2b) | [View](mobile/credentials.png?v=ff3b5a0fa467) |
-| Environments | [View](environments.png?v=874c54d11424) | [View](tablet/environments.png?v=4e920c87f7f9) | [View](mobile/environments.png?v=a7b426cd850a) |
-| API Keys | [View](api-keys.png?v=2c28589d5bb1) | [View](tablet/api-keys.png?v=0d12cdf86792) | [View](mobile/api-keys.png?v=1b7e3b291b04) |
-| ChatSurfaces | [View](chat-surfaces.png?v=439e056cfb20) | [View](tablet/chat-surfaces.png?v=7384ac2ef77e) | [View](mobile/chat-surfaces.png?v=4f3ec855df81) |
-| Usage | [View](usage.png?v=0544a37b7f00) | [View](tablet/usage.png?v=b23fccf06c10) | [View](mobile/usage.png?v=5206976520dd) |
-| Runs | [View](traces.png?v=25b1f8f15abd) | [View](tablet/traces.png?v=e616e80e8475) | [View](mobile/traces.png?v=179bc96eb0bf) |
+| Sign in | [View](sign-in.png?v=07e86c0b2258) | [View](tablet/sign-in.png?v=6f0d0f5b6cd1) | [View](mobile/sign-in.png?v=68fb6eea4b6b) |
+| Workspaces | [View](workspaces.png?v=6d9880882134) | [View](tablet/workspaces.png?v=79b787a4e276) | [View](mobile/workspaces.png?v=232221f4fe8f) |
+| Projects | [View](projects.png?v=18932c39c45a) | [View](tablet/projects.png?v=331d4dd64ad6) | [View](mobile/projects.png?v=301c0da5e26f) |
+| Project Overview | [View](project-overview.png?v=7a71cde1bd72) | [View](tablet/project-overview.png?v=69579681700b) | [View](mobile/project-overview.png?v=c84b7cffedac) |
+| Agents | [View](agents.png?v=9d5af2a57314) | [View](tablet/agents.png?v=9b60c6a1a875) | [View](mobile/agents.png?v=862193be80cd) |
+| Networks | [View](networks.png?v=12f519bcbfea) | [View](tablet/networks.png?v=af73554d015e) | [View](mobile/networks.png?v=8f04530655c4) |
+| Agent playground | [View](agent-playground.png?v=c310a6314d82) | [View](tablet/agent-playground.png?v=cbd4bbdabaed) | [View](mobile/agent-playground.png?v=ff5316ba276d) |
+| Network workspace | [View](network-workspace.png?v=c8fedc61a350) | [View](tablet/network-workspace.png?v=e59e9174c1d4) | [View](mobile/network-workspace.png?v=d637faa67d61) |
+| Knowledge | [View](knowledge.png?v=ac70c753d799) | [View](tablet/knowledge.png?v=93df4ab9d0d9) | [View](mobile/knowledge.png?v=ad2470157184) |
+| Tools | [View](tools.png?v=55302b71da7a) | [View](tablet/tools.png?v=0a8b1e50c2e9) | [View](mobile/tools.png?v=2f7391777079) |
+| Skills | [View](skills.png?v=f1e2a7b94407) | [View](tablet/skills.png?v=fc212db3ed89) | [View](mobile/skills.png?v=015faef38258) |
+| Models | [View](models.png?v=a0110cb6a2e8) | [View](tablet/models.png?v=be8103eb693a) | [View](mobile/models.png?v=08584b3bea21) |
+| Credentials | [View](credentials.png?v=e6974383139f) | [View](tablet/credentials.png?v=2d79f83d0685) | [View](mobile/credentials.png?v=c3b630640057) |
+| Environments | [View](environments.png?v=b8db634e7c7e) | [View](tablet/environments.png?v=363e8cbcf394) | [View](mobile/environments.png?v=699c68274859) |
+| API Keys | [View](api-keys.png?v=ce64295109ef) | [View](tablet/api-keys.png?v=2db356b411ce) | [View](mobile/api-keys.png?v=97c6cb3468a3) |
+| ChatSurfaces | [View](chat-surfaces.png?v=7cbb6407252d) | [View](tablet/chat-surfaces.png?v=32af9c67fc7c) | [View](mobile/chat-surfaces.png?v=f4a34d20f553) |
+| Usage | [View](usage.png?v=934e3226ad98) | [View](tablet/usage.png?v=b06b5bce45a7) | [View](mobile/usage.png?v=1dd5be96434b) |
+| Runs | [View](traces.png?v=655091829ab6) | [View](tablet/traces.png?v=b40675910aaa) | [View](mobile/traces.png?v=9e3afd381383) |
 
 ## Workspace theme comparisons
 
 | Workspace | Light | Dark |
 | --- | --- | --- |
-| Agent Playground, expanded Run and context bars | [View](themes/agent-playground-light.png?v=4f6dc18701c2) | [View](themes/agent-playground-dark.png?v=1b2ee224d79d) |
-| Network workspace | [View](themes/network-workspace-light.png?v=d5a9bc56906b) | [View](themes/network-workspace-dark.png?v=8f2cd80ad99c) |
+| Agent Playground, expanded Run and context bars | [View](themes/agent-playground-light.png?v=05d55b3923e6) | [View](themes/agent-playground-dark.png?v=802bd7f556eb) |
+| Network workspace | [View](themes/network-workspace-light.png?v=0041083cbf89) | [View](themes/network-workspace-dark.png?v=ad6988dff9ef) |
 
 ## Reproduce
 
