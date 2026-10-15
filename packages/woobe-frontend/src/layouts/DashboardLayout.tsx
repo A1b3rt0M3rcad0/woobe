@@ -18,7 +18,9 @@ export function DashboardLayout() {
   const hideSidebar = isPlayground || isSetupFlow || isNetworkWorkspace || isPlayground
   const isProjectOverview = /^\/workspaces\/[^/]+\/projects\/[^/]+\/?$/.test(pathname)
   const isProjectResource = /^\/workspaces\/[^/]+\/projects\/[^/]+\/(?:network|networks|agents|knowledge|tools|skills|models|credentials|api-keys|chat-surfaces|usage|traces)\/?$/.test(pathname)
-  const mainClassName = isSetupFlow || isNetworkWorkspace || isPlayground
+  const mainClassName = isSetupFlow
+    ? 'scrollbar-thin min-h-0 min-w-0 flex-1 overflow-y-auto'
+    : isNetworkWorkspace || isPlayground
     ? 'min-h-0 min-w-0 flex-1 overflow-hidden'
     : isProjectOverview
       ? 'project-overview-main min-h-0 min-w-0 flex-1 overflow-y-auto p-ui-lg sm:p-ui-xxl'

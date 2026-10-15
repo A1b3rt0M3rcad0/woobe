@@ -1,9 +1,7 @@
 import type { UseFormReturn } from 'react-hook-form'
-import { ArrowRight, Bot, Circle, FolderKanban } from 'lucide-react'
-import { Field, FieldDescription, FieldLabel, SectionBlock } from '@woobe/ui'
-import { Button } from '@/components/ui/Button'
+import { ArrowRight } from 'lucide-react'
+import { Button, Field, FieldDescription, FieldLabel } from '@woobe/ui'
 import { Input } from '@/components/ui/Input'
-import { ScrollArea } from '@/components/ui/ScrollArea'
 import type { CreateProjectFormData } from '@/features/projects/schemas'
 
 interface FirstRunProjectStepProps {
@@ -11,13 +9,16 @@ interface FirstRunProjectStepProps {
   pending: boolean
   onSubmit: (data: CreateProjectFormData) => Promise<void>
 }
-
 export function FirstRunProjectStep({ form, pending, onSubmit }: FirstRunProjectStepProps) {
-  return (
-    <form onSubmit={form.handleSubmit(onSubmit)} className="grid min-h-[420px] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden rounded-container border border-border bg-surface/55 lg:h-full lg:min-h-0">
-      <header className="flex items-start gap-3 border-b border-border px-5 py-4 sm:px-6"><div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-control border border-border bg-control text-primary-light"><FolderKanban className="h-3.5 w-3.5" /></div><div><p className="font-mono text-system-meta uppercase tracking-[0.16em] text-primary-light">Project setup</p><h2 className="mt-1 font-serif text-editorial-section font-normal text-slate-100">Create the Project for your Agent</h2><p className="mt-1 max-w-2xl font-sans text-xs leading-5 text-muted">Define the technical boundary that will contain the Agent and its operational resources.</p></div></header>
-      <ScrollArea className="min-h-0 px-5 py-5 sm:px-6"><div className="max-w-3xl space-y-4"><Field><FieldLabel>Project name</FieldLabel><Input {...form.register('name')} error={form.formState.errors.name?.message} placeholder="Customer support platform" autoFocus /><FieldDescription>Use the product, team or technical boundary this Project will represent.</FieldDescription></Field><SectionBlock title="What happens next" density="compact"><div className="grid divide-y divide-border sm:grid-cols-3 sm:divide-x sm:divide-y-0">{[{ icon: Circle, title: 'Project', text: 'Create the isolation boundary.', tone: 'text-primary-light' }, { icon: Bot, title: 'Agent', text: 'Define instructions and model.', tone: 'text-muted' }, { icon: ArrowRight, title: 'Playground', text: 'Run the first operational test.', tone: 'text-muted' }].map((item) => { const Icon = item.icon; return <div key={item.title} className="flex gap-2.5 px-3 py-2.5 first:pl-0 last:pr-0"><Icon className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${item.tone}`} /><div><p className="font-sans text-system-meta font-medium text-slate-200">{item.title}</p><p className="mt-0.5 font-sans text-system-meta leading-4 text-muted">{item.text}</p></div></div> })}</div></SectionBlock></div></ScrollArea>
-      <footer className="flex items-center justify-end border-t border-border px-5 py-3 sm:px-6"><Button type="submit" loading={pending}>Create Project and continue<ArrowRight className="ml-1.5 h-3.5 w-3.5" /></Button></footer>
-    </form>
-  )
+  return <form onSubmit={form.handleSubmit(onSubmit)} className="overflow-hidden rounded-container border border-border bg-surface">
+    <header className="border-b border-border px-5 py-5 sm:px-6">
+      <h2 className="font-serif text-editorial-section font-normal text-foreground">Create a Project</h2>
+      <p className="mt-2 text-sm leading-5 text-muted-foreground">Keep this Agent, its models, credentials and Run history together.</p>
+    </header>
+    <div className="space-y-6 px-5 py-6 sm:px-6">
+      <Field><FieldLabel htmlFor="first-project-name">Project name</FieldLabel><Input id="first-project-name" {...form.register('name')} error={form.formState.errors.name?.message} aria-describedby="first-project-help" placeholder="e.g. Customer support" autoFocus /><FieldDescription id="first-project-help" className="text-sm leading-5">Use your product or team name. You can create more Projects later.</FieldDescription></Field>
+      <p className="text-sm leading-6 text-muted-foreground">Next, you will define your Agent’s purpose and choose a model. Creating the Project does not send a model request or deploy anything.</p>
+    </div>
+    <footer className="flex justify-end border-t border-border px-5 py-4 sm:px-6"><Button type="submit" loading={pending}>Create Project and continue<ArrowRight className="h-3.5 w-3.5" /></Button></footer>
+  </form>
 }

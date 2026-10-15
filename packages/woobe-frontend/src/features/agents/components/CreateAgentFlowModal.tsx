@@ -34,6 +34,8 @@ import {
   type AgentCreationFlowController,
 } from '@/features/agents/hooks/useAgentCreationFlow'
 import type { Agent } from '@/features/agents/types'
+import { ProviderConnectionConfiguration } from '@/features/provider-credentials/components/ProviderConnectionConfiguration'
+import type { ProviderCredential } from '@/features/provider-credentials/types'
 import { ProviderCredentialCreateForm } from '@/features/provider-credentials/components/ProviderCredentialCreateForm'
 
 interface CreateAgentFlowModalProps {
@@ -103,7 +105,8 @@ function ModalModelStep({ flow, projectId }: { flow: AgentCreationFlowController
   const [query, setQuery] = useState('')
   const [showProviderForm, setShowProviderForm] = useState(false)
   const [providerPending, setProviderPending] = useState(false)
-  const providerFormVisible = showProviderForm || flow.activeCredentials.length === 0
+  const [connectionToConfigure, setConnectionToConfigure] = useState<ProviderCredential | null>(null)
+  const providerFormVisible = Boolean(connectionToConfigure) || showProviderForm || flow.activeCredentials.length === 0
 
   const existingItems = useMemo(() => {
     const normalized = query.trim().toLowerCase()
@@ -125,25 +128,22 @@ function ModalModelStep({ flow, projectId }: { flow: AgentCreationFlowController
       <div className="mx-auto max-w-dialog-content">
         <SectionBlock
           eyebrow="Provider connection"
-          title="Connect a model provider"
-          description="Create the Project credential without leaving the Agent creation flow."
+          title={connectionToConfigure ? 'Configure Draft access' : 'Connect a model provider'}
+          description="Save the connection, configure its Draft access and continue without losing your Agent instructions."
         >
-          <ProviderCredentialCreateForm
+          {connectionToConfigure ? <ProviderConnectionConfiguration credential={connectionToConfigure} /> : <ProviderCredentialCreateForm
             projectId={projectId}
             existingCredentials={flow.credentials}
             formId="create-agent-provider-form"
             showActions={false}
             onPendingChange={setProviderPending}
-            onCreated={(credential) => {
-              flow.registerCreatedCredential(credential)
-              setShowProviderForm(false)
-            }}
-          />
+            onCreated={setConnectionToConfigure}
+          />}
           <FormActions className="mt-ui-md">
-            {flow.activeCredentials.length > 0 ? (
+            {flow.activeCredentials.length > 0 && !connectionToConfigure ? (
               <Button type="button" variant="outline" onClick={() => setShowProviderForm(false)} disabled={providerPending}>Back</Button>
             ) : null}
-            <Button type="submit" form="create-agent-provider-form" loading={providerPending}>Connect provider</Button>
+            {connectionToConfigure ? <Button onClick={() => { flow.registerCreatedCredential(connectionToConfigure); setConnectionToConfigure(null); setShowProviderForm(false) }}>Continue to models</Button> : <Button type="submit" form="create-agent-provider-form" loading={providerPending}>Save connection</Button>}
           </FormActions>
         </SectionBlock>
       </div>

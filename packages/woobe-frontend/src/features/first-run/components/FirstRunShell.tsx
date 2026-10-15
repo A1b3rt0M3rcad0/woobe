@@ -1,72 +1,57 @@
 import type { ReactNode } from 'react'
 import { ArrowLeft, Check } from 'lucide-react'
-import { SectionBlock, WoobeLogo } from '@woobe/ui'
-import { Button } from '@/components/ui/Button'
+import { Button, WoobeLogo } from '@woobe/ui'
+import type { AgentCreationStep } from '@/features/agents/hooks/useAgentCreationFlow'
 
-export type FirstRunStage = 'project' | 'agent' | 'test'
-
+export type FirstRunStage = 'project' | AgentCreationStep | 'test'
 interface FirstRunShellProps {
   workspaceName: string
   projectName?: string
   activeStage: FirstRunStage
   onExit: () => void
+  busy?: boolean
   children: ReactNode
 }
-
 const stages: Array<{ key: FirstRunStage; label: string; description: string }> = [
-  { key: 'project', label: 'Project', description: 'Create the technical boundary.' },
-  { key: 'agent', label: 'Agent', description: 'Configure the first operational Agent.' },
-  { key: 'test', label: 'First test', description: 'Run the Agent in the Playground.' },
+  { key: 'project', label: 'Project', description: 'A home for your Agent and its resources.' },
+  { key: 'details', label: 'Agent instructions', description: 'Give it a name and a clear objective.' },
+  { key: 'model', label: 'Model', description: 'Choose the model that will respond.' },
+  { key: 'review', label: 'Review', description: 'Check your choices and create a Draft.' },
+  { key: 'test', label: 'First test', description: 'Send a message in the Playground.' },
 ]
-
-export function FirstRunShell({ workspaceName, projectName, activeStage, onExit, children }: FirstRunShellProps) {
-  const activeIndex = stages.findIndex((stage) => stage.key === activeStage)
-
+export function FirstRunShell({ workspaceName, projectName, activeStage, onExit, busy, children }: FirstRunShellProps) {
+  const activeIndex = stages.findIndex(stage => stage.key === activeStage)
   return (
-    <div className="flex min-h-full flex-col bg-background lg:h-full lg:min-h-0 lg:overflow-hidden">
-      <header className="shrink-0 border-b border-border bg-surface/55">
-        <div className="mx-auto flex h-[58px] w-full max-w-[1320px] items-center justify-between gap-4 px-5 sm:px-8">
+    <div className="min-h-full bg-background">
+      <header className="border-b border-border bg-surface">
+        <div className="mx-auto flex w-full max-w-[1120px] items-center justify-between gap-4 px-5 py-5 sm:px-8">
           <div className="min-w-0">
-            <div className="flex items-center gap-ui-sm"><WoobeLogo variant="mark" className="h-4" /><p className="font-mono text-system-meta uppercase tracking-[0.18em] text-primary-light">First run</p></div>
-            <h1 className="mt-1 font-serif text-editorial-section font-normal text-slate-100">Launch your first Agent</h1>
+            <div className="mb-2 flex items-center gap-2 text-sm text-muted-foreground"><WoobeLogo variant="mark" decorative className="h-4 shrink-0" /><span>First Agent setup</span></div>
+            <h1 className="font-serif text-editorial-section font-normal text-foreground">Create your first Agent</h1>
+            <p className="mt-2 max-w-xl text-sm leading-5 text-muted-foreground">Define what it does, connect a model and try it in the Playground.</p>
           </div>
-          <Button type="button" size="sm" variant="outline" onClick={onExit}>
-            <ArrowLeft className="mr-1.5 h-3.5 w-3.5" />Exit setup
-          </Button>
+          <Button type="button" size="sm" variant="outline" onClick={onExit} disabled={busy} className="shrink-0"><ArrowLeft className="h-3.5 w-3.5" />Exit setup</Button>
         </div>
       </header>
-
-      <div className="mx-auto grid w-full max-w-[1320px] flex-1 gap-4 px-5 py-4 sm:px-8 lg:min-h-0 lg:grid-cols-[218px_minmax(0,1fr)] lg:overflow-hidden">
-        <aside className="space-y-3 lg:min-h-0 lg:self-start">
-          <SectionBlock title="Launch progress" eyebrow="Sequence" density="compact">
-            <div className="divide-y divide-border">
-              {stages.map((stage, index) => {
-                const completed = index < activeIndex
-                const active = index === activeIndex
-                return (
-                  <div key={stage.key} className="flex items-start gap-2.5 py-2 first:pt-0 last:pb-0">
-                    <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-technical border font-mono text-system-meta ${completed ? 'border-emerald-500/35 bg-emerald-500/10 text-success' : active ? 'border-primary/55 bg-primary/10 text-primary-light' : 'border-border bg-control text-muted'}`}>
-                      {completed ? <Check className="h-3 w-3" /> : index + 1}
-                    </span>
-                    <div className="min-w-0">
-                      <p className={`font-sans text-system-meta font-medium ${active ? 'text-slate-100' : 'text-muted'}`}>{stage.label}</p>
-                      {active ? <p className="mt-0.5 font-sans text-system-meta leading-4 text-muted">{stage.description}</p> : null}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </SectionBlock>
-
-          <SectionBlock title="Context" density="compact">
-            <dl className="space-y-2 font-sans text-system-meta">
-              <div><dt className="text-muted">Workspace</dt><dd className="mt-0.5 truncate text-slate-200" title={workspaceName}>{workspaceName}</dd></div>
-              <div className="border-t border-border pt-2"><dt className="text-muted">Project</dt><dd className="mt-0.5 truncate text-slate-200" title={projectName || 'Not created yet'}>{projectName || 'Not created yet'}</dd></div>
-            </dl>
-          </SectionBlock>
+      <div className="mx-auto grid w-full max-w-[1120px] items-start gap-6 px-5 py-6 sm:px-8 lg:grid-cols-[208px_minmax(0,1fr)]">
+        <aside className="min-w-0 space-y-6">
+          <nav aria-label="Setup progress"><ol className="flex flex-wrap gap-x-5 gap-y-3 lg:block lg:space-y-5">
+            {stages.map((stage, index) => {
+              const completed = index < activeIndex
+              const active = index === activeIndex
+              return <li key={stage.key} aria-current={active ? 'step' : undefined} className="flex items-start gap-3">
+                <span aria-hidden="true" className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-control border font-mono text-xs ${completed ? 'border-success/40 bg-success/10 text-success' : active ? 'border-primary bg-primary/10 text-primary-light' : 'border-border bg-surface text-muted-foreground'}`}>{completed ? <Check className="h-3.5 w-3.5" /> : index + 1}</span>
+                <div className="min-w-0 pt-0.5"><p className={`text-sm ${active ? 'font-medium text-foreground' : 'text-muted-foreground'}`}>{stage.label}{completed && <span className="sr-only"> completed</span>}</p><p className="mt-1 hidden text-xs leading-5 text-muted-foreground lg:block">{stage.description}</p></div>
+              </li>
+            })}
+          </ol></nav>
+          <dl className="hidden space-y-3 border-t border-border pt-4 text-sm lg:block">
+            <div><dt className="text-xs text-muted-foreground">Workspace</dt><dd className="mt-1 break-words text-foreground">{workspaceName}</dd></div>
+            <div><dt className="text-xs text-muted-foreground">Project</dt><dd className="mt-1 break-words text-foreground">{projectName || 'Created in the first step'}</dd></div>
+          </dl>
+          <p className="break-words text-sm text-muted-foreground lg:hidden">{workspaceName}{projectName ? ` / ${projectName}` : ''}</p>
         </aside>
-
-        <section className="min-h-0 min-w-0 lg:overflow-hidden">{children}</section>
+        <div className="min-w-0">{children}</div>
       </div>
     </div>
   )

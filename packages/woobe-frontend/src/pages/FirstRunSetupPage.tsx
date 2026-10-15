@@ -1,4 +1,5 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
+import { Button, Dialog } from '@woobe/ui'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useNavigate, useParams } from 'react-router-dom'
@@ -6,7 +7,7 @@ import { toast } from 'sonner'
 
 import { ErrorState } from '@/components/common/ErrorState'
 import { LoadingState } from '@/components/common/LoadingState'
-import { FirstRunAgentSetup } from '@/features/first-run/components/FirstRunAgentSetup'
+import { FirstRunAgentSetup, type FirstRunAgentState } from '@/features/first-run/components/FirstRunAgentSetup'
 import { FirstRunProjectStep } from '@/features/first-run/components/FirstRunProjectStep'
 import { FirstRunShell } from '@/features/first-run/components/FirstRunShell'
 import type { Agent } from '@/features/agents/types'
@@ -42,6 +43,8 @@ export default function FirstRunSetupPage() {
   const workspaceQuery = useWorkspaceDetail(workspaceId)
   const projectQuery = useProject(projectId)
   const createProject = useCreateProject(workspaceId)
+  const [agentState, setAgentState] = useState<FirstRunAgentState>({ step: 'details', dirty: false, busy: false })
+  const [confirmExit, setConfirmExit] = useState(false)
   const form = useForm<CreateProjectFormData>({
     resolver: zodResolver(createProjectSchema),
     defaultValues: { name: '' },
@@ -49,6 +52,14 @@ export default function FirstRunSetupPage() {
 
   const workspace = workspaceQuery.data
   const project = projectQuery.data || (currentProject?.id === projectId ? currentProject : null)
+  const unsaved = projectId ? agentState.dirty : form.formState.isDirty
+  const busy = agentState.busy || createProject.isPending
+  useEffect(() => {
+    if (!unsaved) return
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = '' }
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [unsaved])
 
   useEffect(() => {
     if (!workspace || currentWorkspace?.id === workspace.id) return
@@ -111,14 +122,15 @@ export default function FirstRunSetupPage() {
   }
 
   return (
-    <FirstRunShell
+    <><FirstRunShell
       workspaceName={workspace.name}
       projectName={project?.name}
-      activeStage={projectId ? 'agent' : 'project'}
-      onExit={exitSetup}
+      activeStage={projectId ? agentState.step : 'project'}
+      onExit={() => { if (unsaved) setConfirmExit(true); else exitSetup() }}
+      busy={busy}
     >
       {projectId ? (
-        <FirstRunAgentSetup projectId={projectId} onCreated={openPlayground} />
+        <FirstRunAgentSetup key={projectId} projectId={projectId} onCreated={openPlayground} onStateChange={setAgentState} />
       ) : (
         <FirstRunProjectStep
           form={form}
@@ -127,5 +139,10 @@ export default function FirstRunSetupPage() {
         />
       )}
     </FirstRunShell>
+      <Dialog open={confirmExit} onClose={() => setConfirmExit(false)} title="Leave setup?">
+        <p className="text-sm leading-6 text-muted-foreground">Unsaved form entries will be lost. Projects, provider connections and models already saved will remain available.</p>
+        <div className="mt-5 flex flex-wrap justify-end gap-3"><Button variant="outline" onClick={() => setConfirmExit(false)}>Continue setup</Button><Button onClick={exitSetup}>Leave setup</Button></div>
+      </Dialog>
+    </>
   )
 }

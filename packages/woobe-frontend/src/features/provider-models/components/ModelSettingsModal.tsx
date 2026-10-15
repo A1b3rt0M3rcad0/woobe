@@ -36,6 +36,7 @@ import { Button } from '@/components/ui/Button'
 import { Dialog, type DialogLayer } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
+import { ProviderConnectionConfiguration } from '@/features/provider-credentials/components/ProviderConnectionConfiguration'
 import { ProviderCredentialCreateForm } from '@/features/provider-credentials/components/ProviderCredentialCreateForm'
 import type { ProviderCredential } from '@/features/provider-credentials/types'
 import { modelProviderLabel, MODEL_PROVIDER_OPTIONS } from '@/features/provider-credentials/providers'
@@ -450,6 +451,7 @@ export function ModelSettingsModal({
   const [step, setStep] = useState<ProviderStep>('model')
   const [createdCredential, setCreatedCredential] = useState<ProviderCredential | null>(null)
   const [credentialPending, setCredentialPending] = useState(false)
+  const [connectionToConfigure, setConnectionToConfigure] = useState<ProviderCredential | null>(null)
   const [credentialId, setCredentialId] = useState('')
   const [catalogModelId, setCatalogModelId] = useState('')
   const [manualMode, setManualMode] = useState(false)
@@ -475,7 +477,7 @@ export function ModelSettingsModal({
   const usableCredentials = useMemo(() => allCredentials.filter(isCredentialUsable), [allCredentials])
   const credential = usableCredentials.find((item) => item.id === credentialId) || null
   const canUseCatalog = supportsCatalog(credential)
-  const shouldUseCatalog = canUseCatalog && !manualMode && !selectedModel
+  const shouldUseCatalog = open && step === 'model' && canUseCatalog && !manualMode && !selectedModel
   const availableModelsQuery = useAvailableProviderModels(projectId, shouldUseCatalog ? credentialId : undefined, 'generation')
   const availableModels = availableModelsQuery.data ?? []
   const catalogModel = shouldUseCatalog ? availableModels.find((model) => model.id === catalogModelId) || null : null
@@ -496,6 +498,7 @@ export function ModelSettingsModal({
   useEffect(() => {
     if (!open) return
     setCreatedCredential(null)
+    setConnectionToConfigure(null)
     setCredentialPending(false)
     setCatalogModelId('')
     setArchiveModel(null)
@@ -741,23 +744,18 @@ export function ModelSettingsModal({
     <div className="grid gap-ui-md">
       {step === 'credential' ? (
         <SectionBlock
-          title="Connect provider"
-          description="Create a Project credential, then continue configuring this Model without leaving the modal."
+          title={connectionToConfigure ? 'Configure Draft access' : 'Connect provider'}
+          description={connectionToConfigure ? 'The connection is saved. Configure its Draft key and destination, then return to your model.' : 'Save a Project connection, configure Draft access and continue without losing this Model form.'}
           density="compact"
         >
-          <ProviderCredentialCreateForm
+          {connectionToConfigure ? <ProviderConnectionConfiguration credential={connectionToConfigure} /> : <ProviderCredentialCreateForm
             projectId={projectId}
             existingCredentials={allCredentials}
             formId="model-provider-credential-form"
             showActions={false}
             onPendingChange={setCredentialPending}
-            onCreated={(created) => {
-              setCreatedCredential(created)
-              setCredentialId(created.id)
-              setStep('model')
-              toast.success('Provider connected')
-            }}
-          />
+            onCreated={setConnectionToConfigure}
+          />}
         </SectionBlock>
       ) : (
         <>
@@ -1105,15 +1103,13 @@ export function ModelSettingsModal({
             meta={<p className="max-w-2xl font-sans text-product-caption text-muted-foreground">{footerHint}</p>}
             actions={(
               <>
-                {step === 'credential' && usableCredentials.length > 0 ? (
+                {step === 'credential' && usableCredentials.length > 0 && !connectionToConfigure ? (
                   <Button type="button" variant="outline" disabled={busy} onClick={() => setStep('model')}>Back</Button>
                 ) : (
                   <Button type="button" variant="outline" disabled={busy} onClick={onClose}>Close</Button>
                 )}
                 {step === 'credential' ? (
-                  <Button type="submit" form="model-provider-credential-form" loading={credentialPending}>
-                    Connect and continue
-                  </Button>
+                  connectionToConfigure ? <Button onClick={() => { setCreatedCredential(connectionToConfigure); setCredentialId(connectionToConfigure.id); setConnectionToConfigure(null); setStep('model') }}>Continue to model</Button> : <Button type="submit" form="model-provider-credential-form" loading={credentialPending}>Save connection</Button>
                 ) : (
                   <Button type="button" loading={createModel.isPending || updateModel.isPending} disabled={!canSave} onClick={() => { void saveModel() }}>
                     <ShieldCheck className="mr-2 h-icon w-icon" />

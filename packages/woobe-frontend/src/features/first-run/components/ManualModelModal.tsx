@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useId, useState, type FormEvent } from 'react'
 import { Button, Dialog, Field, FieldDescription, FieldLabel, Input } from '@woobe/ui'
 
 interface ManualModelModalProps {
@@ -10,6 +10,7 @@ interface ManualModelModalProps {
 }
 
 export function ManualModelModal({ open, onClose, initialIdentifier = '', initialName = '', onConfirm }: ManualModelModalProps) {
+  const id = useId()
   const [identifier, setIdentifier] = useState('')
   const [name, setName] = useState('')
 
@@ -31,13 +32,13 @@ export function ManualModelModal({ open, onClose, initialIdentifier = '', initia
     <Dialog open={open} onClose={onClose} title="Enter model ID" className="max-w-dialog">
       <form onSubmit={handleSubmit} className="grid gap-ui-md">
         <Field>
-          <FieldLabel>Model ID</FieldLabel>
-          <Input value={identifier} onChange={(event) => setIdentifier(event.target.value)} placeholder="deepseek/deepseek-chat" autoCapitalize="none" autoCorrect="off" spellCheck={false} autoFocus className="font-mono" />
+          <FieldLabel htmlFor={`${id}-model`}>Model ID</FieldLabel>
+          <Input id={`${id}-model`} value={identifier} onChange={(event) => setIdentifier(event.target.value)} placeholder="deepseek/deepseek-chat" autoCapitalize="none" autoCorrect="off" spellCheck={false} autoFocus className="font-mono" />
           <FieldDescription>Use the exact model identifier exposed by the provider.</FieldDescription>
         </Field>
         <Field>
-          <FieldLabel>Display name <span className="font-normal text-muted-foreground">(optional)</span></FieldLabel>
-          <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Defaults to the model ID" />
+          <FieldLabel htmlFor={`${id}-name`}>Display name <span className="font-normal text-muted-foreground">(optional)</span></FieldLabel>
+          <Input id={`${id}-name`} value={name} onChange={(event) => setName(event.target.value)} placeholder="Defaults to the model ID" />
         </Field>
         <div className="flex items-center justify-end gap-ui-sm border-t border-border pt-ui-md">
           <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>

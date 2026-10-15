@@ -103,6 +103,8 @@ export function useAgentCreationFlow({ projectId, onCreated, active = true }: Us
   const [manualModelName, setManualModelName] = useState('')
   const [createdCredential, setCreatedCredential] = useState<ProviderCredential | null>(null)
   const [createdModel, setCreatedModel] = useState<ProviderModel | null>(null)
+  const [detailsErrors, setDetailsErrors] = useState<{ name?: string; objective?: string }>({})
+  const [submissionError, setSubmissionError] = useState<string | null>(null)
 
   const resetFlow = () => {
     setStep('details')
@@ -117,6 +119,8 @@ export function useAgentCreationFlow({ projectId, onCreated, active = true }: Us
     setManualModelName('')
     setCreatedCredential(null)
     setCreatedModel(null)
+    setDetailsErrors({})
+    setSubmissionError(null)
   }
 
   useEffect(() => {
@@ -184,6 +188,10 @@ export function useAgentCreationFlow({ projectId, onCreated, active = true }: Us
   }
 
   const continueFromDetails = () => {
+    setDetailsErrors({
+      ...(!agentName.trim() ? { name: 'Give your Agent a name.' } : {}),
+      ...(!agentObjective.trim() ? { objective: 'Describe what your Agent should do.' } : {}),
+    })
     if (!agentName.trim()) {
       toast.error('Agent name is required')
       return false
@@ -254,6 +262,7 @@ export function useAgentCreationFlow({ projectId, onCreated, active = true }: Us
   }
 
   const continueFromModel = async () => {
+    setSubmissionError(null)
     if (modelMode === 'existing') {
       if (!selectedModel) {
         toast.error('Select a model')
@@ -291,16 +300,19 @@ export function useAgentCreationFlow({ projectId, onCreated, active = true }: Us
       })
       setCreatedModel(model)
       setSelectedModelId(model.id)
+      setModelMode('existing')
       setStep('review')
       toast.success('Model added')
       return true
     } catch (error) {
+      setSubmissionError(error instanceof Error ? error.message : 'Could not save the model. Try again.')
       toast.error(error instanceof Error ? error.message : 'Failed to add model')
       return false
     }
   }
 
   const goBack = () => {
+    setSubmissionError(null)
     if (step === 'review') {
       setStep('model')
       return
@@ -309,6 +321,7 @@ export function useAgentCreationFlow({ projectId, onCreated, active = true }: Us
   }
 
   const createAgentFromFlow = async () => {
+    setSubmissionError(null)
     if (!agentName.trim()) return toast.error('Agent name is required')
     if (!agentObjective.trim()) return toast.error('Agent objective is required')
     if (!selectedModel) return toast.error('Select a generation model')
@@ -330,6 +343,7 @@ export function useAgentCreationFlow({ projectId, onCreated, active = true }: Us
       toast.success('Agent created')
       onCreated(agent)
     } catch (error) {
+      setSubmissionError(error instanceof Error ? error.message : 'Could not create the Agent. Your setup is still here; try again.')
       toast.error(error instanceof Error ? error.message : 'Failed to create agent')
     }
   }
@@ -341,6 +355,8 @@ export function useAgentCreationFlow({ projectId, onCreated, active = true }: Us
   return {
     step,
     setStep,
+    detailsErrors,
+    submissionError,
     stepNumber: step === 'details' ? 1 : step === 'model' ? 2 : 3,
     agentName,
     setAgentName,

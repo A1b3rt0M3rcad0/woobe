@@ -1,0 +1,183 @@
+import { expect, test, type Page } from '@playwright/test'
+import AxeBuilder from '@axe-core/playwright'
+import { login, project, workspace } from '../fixtures/control-plane'
+import { installSetupFlow } from '../fixtures/setup-flow'
+
+const root = `/workspaces/${workspace.id}/projects/${project.id}`
+async function instructions(page: Page) {
+  await page.getByLabel('Agent name').fill('Support assistant')
+  await page.getByLabel('What should this Agent do?').fill('Help customers investigate issues. Ask for missing details and never invent account information.')
+  await page.getByRole('button', { name: 'Choose model', exact: true }).click()
+}
+async function provider(page: Page) {
+  await page.getByText('OpenRouter', { exact: true }).click()
+  await expect(page.getByRole('radio', { name: /OpenRouter/ })).toBeChecked()
+  await page.getByRole('button', { name: 'Declare key', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: 'Declare configuration key', exact: true })
+  await expect(dialog.getByLabel('Key', { exact: true })).toHaveValue('OPENROUTER_API_KEY')
+  await dialog.getByRole('button', { name: 'Declare key', exact: true }).click()
+  await expect(dialog).not.toBeVisible()
+  await expect(page.getByLabel('Project configuration key')).toHaveValue('OPENROUTER_API_KEY')
+}
+async function capture(page: Page, name: string) {
+  await page.evaluate(() => document.fonts.ready)
+  await page.screenshot({ path: test.info().outputPath(`${name}.png`), animations: 'disabled' })
+}
+
+test('first Project and Agent: configure Draft, review, edit and retry without duplicate models', async ({ page }) => {
+  test.setTimeout(90_000)
+  const state = await installSetupFlow(page); await login(page); await page.goto(`/workspaces/${workspace.id}/setup`)
+  await page.getByLabel('Project name').fill('Customer support')
+  await page.getByRole('button', { name: 'Create Project and continue' }).click()
+  await expect(page).toHaveURL(`${root}/setup`); await instructions(page)
+  await page.getByRole('button', { name: 'Connect provider', exact: true }).click(); await provider(page)
+  await page.getByRole('button', { name: 'Save connection', exact: true }).click()
+  await expect(page.getByText('Connection saved: OpenRouter', { exact: true })).toBeVisible()
+  expect(state.modelWrites).toBe(0); expect(state.agentWrites).toBe(0)
+  expect(state.calls.filter(call => call.path.includes('available_for_credential_id'))).toHaveLength(0)
+  await page.getByRole('button', { name: 'Set Draft API key', exact: true }).click()
+  const value = page.getByRole('dialog', { name: 'Set value · draft', exact: true })
+  await value.getByLabel('New secret value').fill('synthetic-setup-value')
+  await value.getByRole('button', { name: 'Save value', exact: true }).click(); await expect(value).not.toBeVisible()
+  await expect(page.getByText('A value is saved in Draft. This does not confirm provider access.', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Review destination access' }).click()
+  const usage = page.getByRole('dialog', { name: 'Usage · OPENROUTER_API_KEY', exact: true })
+  await usage.getByRole('button', { name: 'Approve for draft', exact: true }).first().click()
+  const approval = page.getByRole('dialog', { name: 'Approve use in draft?', exact: true })
+  await approval.getByRole('button', { name: 'Approve use', exact: true }).click(); await expect(approval).not.toBeVisible()
+  await usage.getByRole('button', { name: 'Close dialog', exact: true }).click()
+  await page.getByRole('button', { name: 'Continue to models', exact: true }).click()
+  await page.getByRole('button', { name: /Support model/ }).click()
+  await page.getByRole('button', { name: 'Save model and review', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Review your Agent', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Change model', exact: true }).click()
+  await page.getByRole('button', { name: 'Review Agent', exact: true }).click(); expect(state.modelWrites).toBe(1)
+  await page.getByRole('button', { name: 'Edit instructions', exact: true }).click()
+  await expect(page.getByLabel('Agent name')).toHaveValue('Support assistant')
+  await page.getByLabel('Agent name').fill('Updated support assistant')
+  await page.getByRole('button', { name: 'Choose model', exact: true }).click()
+  await page.getByRole('button', { name: 'Review Agent', exact: true }).click(); await capture(page, 'agent-review')
+  state.failAgent = true
+  await page.getByRole('button', { name: 'Create Agent Draft', exact: true }).click()
+  await expect(page.locator('[aria-labelledby="first-agent-step-title"] [role="alert"]')).toBeVisible()
+  await page.getByRole('button', { name: 'Create Agent Draft', exact: true }).click()
+  await expect(page).toHaveURL(/\/playground\?firstRun=1$/)
+  expect(state.modelWrites).toBe(1); expect(state.agentWrites).toBe(2)
+  expect(state.valueSaved && state.approved).toBe(true); expect(state.agent.name).toBe('Updated support assistant')
+  expect(state.agent.provider_credential_id).toBe('setup-credential')
+  expect(state.calls.filter(call => call.method === 'POST' && /\/runs|\/chat\/|\/release/.test(call.path))).toHaveLength(0)
+  expect(state.providerRequests).toBe(0)
+})
+
+for (const theme of ['light', 'dark'] as const) for (const viewport of [{ width: 2560, height: 1440 }, { width: 1440, height: 900 }, { width: 768, height: 1024 }, { width: 390, height: 844 }]) test(`setup form at ${viewport.width}px in ${theme}`, async ({ page }) => {
+  await page.setViewportSize(viewport); await page.emulateMedia({ colorScheme: theme })
+  await installSetupFlow(page, { model: true }); await login(page); await page.goto(`${root}/setup`)
+  await page.getByRole('button', { name: 'Use a customer support example' }).click()
+  const next = page.getByRole('button', { name: 'Choose model', exact: true })
+  await next.scrollIntoViewIfNeeded(); await expect(next).toBeInViewport({ ratio: 1 })
+  if (viewport.width >= 1440) expect((await next.boundingBox())!.y).toBeLessThan(900)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1)
+  const audit = await new AxeBuilder({ page }).include('#main-content').withTags(['wcag2a', 'wcag2aa']).analyze()
+  expect(audit.violations).toEqual([]); await capture(page, `agent-${theme}-${viewport.width}`)
+  await next.click(); await expect(page.locator('[aria-current="step"]')).toContainText('Model')
+  await page.getByRole('button', { name: /Support model/ }).click()
+  await page.getByRole('button', { name: 'Review Agent', exact: true }).click()
+  await expect(page.getByText('Next: test your Draft in the Playground', { exact: true })).toBeVisible()
+})
+
+test('inline errors focus fields and exit confirms unsaved form entries', async ({ page }) => {
+  const state = await installSetupFlow(page, { model: true }); await login(page); await page.goto(`${root}/setup`)
+  await page.getByRole('button', { name: 'Choose model', exact: true }).click()
+  await expect(page.getByLabel('Agent name')).toBeFocused(); await expect(page.getByText('Give your Agent a name.', { exact: true })).toBeVisible()
+  await page.getByLabel('Agent name').fill('Keep my name')
+  await page.getByRole('button', { name: 'Choose model', exact: true }).click()
+  await expect(page.getByLabel('What should this Agent do?')).toBeFocused()
+  await page.getByRole('button', { name: 'Use a customer support example' }).click()
+  await expect(page.getByLabel('Agent name')).toHaveValue('Keep my name')
+  await page.getByRole('button', { name: 'Exit setup', exact: true }).click()
+  await page.getByRole('button', { name: 'Continue setup', exact: true }).click()
+  await expect(page.getByLabel('Agent name')).toHaveValue('Keep my name')
+  await page.getByRole('button', { name: 'Exit setup', exact: true }).click()
+  await page.getByRole('button', { name: 'Leave setup', exact: true }).click()
+  await expect(page).toHaveURL(`${root}/agents`); expect(state.agentWrites + state.modelWrites).toBe(0)
+})
+
+test('catalog failure supports manual entry and retry after a model save failure', async ({ page }) => {
+  const state = await installSetupFlow(page, { connection: true, catalogError: true }); await login(page); await page.goto(`${root}/setup`); await instructions(page)
+  await expect(page.getByText('Could not load the provider catalog', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Enter model ID manually', exact: true }).click()
+  const modal = page.getByRole('dialog', { name: 'Enter model ID', exact: true })
+  await modal.getByLabel('Model ID', { exact: true }).fill('synthetic/manual-support')
+  await modal.getByRole('button', { name: 'Use model', exact: true }).click(); state.failModel = true
+  await page.getByRole('button', { name: 'Save model and review', exact: true }).click()
+  await expect(page.locator('[aria-labelledby="first-agent-step-title"] [role="alert"]')).toBeVisible()
+  await page.getByRole('button', { name: 'Save model and review', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Review your Agent', exact: true })).toBeVisible()
+  expect(state.modelWrites).toBe(2); expect(state.model!.model).toBe('synthetic/manual-support')
+})
+
+for (const width of [1440, 768, 390]) test(`provider details contain actions at ${width}px`, async ({ page }) => {
+  await page.setViewportSize({ width, height: 900 }); await page.emulateMedia({ colorScheme: 'dark' })
+  await installSetupFlow(page, { connection: true }); await login(page); await page.goto(`${root}/credentials`)
+  await page.getByRole('button', { name: 'Open provider connection Support gateway' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Support gateway', exact: true })
+  await expect(dialog.getByText('Provider access has not been externally validated. Active means the connection is enabled.', { exact: true })).toBeVisible()
+  await dialog.getByText('Revoke or archive connection', { exact: true }).click()
+  const box = (await dialog.boundingBox())!
+  for (const button of await dialog.getByRole('button').all()) { const bounds = await button.boundingBox(); if (bounds) { expect(bounds.x).toBeGreaterThanOrEqual(box.x); expect(bounds.x + bounds.width).toBeLessThanOrEqual(box.x + box.width + 1) } }
+  expect(await dialog.evaluate(el => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1)
+  await capture(page, `provider-${width}`)
+})
+
+test('new provider from model creation keeps context through Draft configuration', async ({ page }) => {
+  const state = await installSetupFlow(page); await login(page); await page.goto(`${root}/models`)
+  await page.getByRole('button', { name: 'New Model', exact: true }).first().click(); await provider(page)
+  await page.getByRole('button', { name: 'Save connection', exact: true }).click()
+  await expect(page.getByRole('region', { name: 'Draft credential setup' })).toBeVisible()
+  expect(state.calls.filter(call => call.path.includes('available_for_credential_id'))).toHaveLength(0)
+  await page.getByRole('button', { name: 'Continue to model', exact: true }).click()
+  await expect(page.getByRole('dialog', { name: 'New model', exact: true })).toBeVisible()
+  expect(state.agentWrites + state.modelWrites).toBe(0)
+})
+
+test('Overview only has its header environment filter', async ({ page }) => {
+  const state = await installSetupFlow(page); await login(page); await page.goto(root)
+  const notice = page.getByRole('complementary', { name: 'Project configuration' })
+  await expect(notice.getByRole('combobox')).toHaveCount(0); await expect(notice.getByText(/^draft$/i)).toBeVisible()
+  await page.getByRole('button', { name: 'Production', exact: true }).click()
+  await expect(notice.getByText(/^production$/i)).toBeVisible()
+  await expect.poll(() => state.calls.some(call => call.path.includes('/configuration/summary?environment=production'))).toBe(true)
+  await expect(notice.getByRole('combobox')).toHaveCount(0)
+})
+
+test('custom provider validates its endpoint and saves only a typed key reference', async ({ page }) => {
+  const state = await installSetupFlow(page, { connection: true }); await login(page); await page.goto(`${root}/credentials`)
+  await page.getByRole('button', { name: 'Connect Provider', exact: true }).click()
+  await expect(page.getByRole('radio')).toHaveCount(5)
+  await page.getByText('OpenAI Compatible', { exact: true }).click()
+  await page.getByLabel('Project configuration key').selectOption('OPENROUTER_API_KEY')
+  await page.getByLabel('Base URL', { exact: true }).fill('not-a-url')
+  await page.getByRole('button', { name: 'Save connection', exact: true }).click()
+  await expect(page.getByLabel('Base URL', { exact: true })).toBeFocused()
+  await expect(page.getByText('Enter a complete HTTP or HTTPS endpoint, such as https://api.example.com/v1.', { exact: true })).toBeVisible()
+  expect(state.calls.filter(call => call.path === '/ai/credentials' && call.method === 'POST')).toHaveLength(0)
+  await page.getByLabel('Base URL', { exact: true }).fill('https://models.example.test/v1')
+  await page.getByLabel('Connection name').fill('Internal gateway')
+  await page.getByRole('button', { name: 'Save connection', exact: true }).click()
+  await expect(page.getByText('Connection saved: Internal gateway', { exact: true })).toBeVisible()
+  const request = state.calls.find(call => call.path === '/ai/credentials' && call.method === 'POST')!
+  expect(request.body).not.toHaveProperty('secret')
+  expect(request.body.authentication.fields.api_key).toEqual({ source: 'project_environment', key: 'OPENROUTER_API_KEY' })
+  expect(request.body.metadata.base_url).toBe('https://models.example.test/v1')
+  await page.getByRole('button', { name: 'Done', exact: true }).click()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+})
+
+test('configuration permission denial shows unknown access without value controls', async ({ page }) => {
+  const state = await installSetupFlow(page, { connection: true, configurationDenied: true }); await login(page); await page.goto(`${root}/credentials`)
+  await page.getByRole('button', { name: 'Open provider connection Support gateway' }).click()
+  const setup = page.getByRole('region', { name: 'Draft credential setup' })
+  await expect(setup.getByRole('alert')).toContainText('Configuration is unavailable or your access is restricted.')
+  await expect(setup.getByRole('button', { name: /Set Draft|Replace Draft/ })).toHaveCount(0)
+  expect(state.calls.filter(call => call.method === 'PUT')).toHaveLength(0)
+})

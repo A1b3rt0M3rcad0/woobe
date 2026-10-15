@@ -6,11 +6,11 @@ import { firstRunAgentStepCopy } from './FirstRunAgentSetup'
 describe('first-run Agent setup', () => {
   it('keeps a stable three-step hierarchy', () => {
     expect(firstRunAgentStepCopy('details')).toEqual({
-      title: 'Define the Agent',
-      description: 'Set its identity and initial behavior before choosing the model.',
+      title: 'Give your Agent a purpose',
+      description: 'Start with its name and the task it should help with. You can refine these later.',
     })
-    expect(firstRunAgentStepCopy('model').title).toBe('Choose the Agent model')
-    expect(firstRunAgentStepCopy('review').title).toBe('Review and create')
+    expect(firstRunAgentStepCopy('model').title).toBe('Choose a model')
+    expect(firstRunAgentStepCopy('review').title).toBe('Review your Agent')
   })
 
   it('does not promote provider connection to an onboarding step', () => {

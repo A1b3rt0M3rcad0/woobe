@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { AlertTriangle, Cable, Cpu, Database, Pencil, RotateCcw, ShieldOff, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { Alert, AlertDescription, AlertTitle, DialogFooter, SectionBlock, TechnicalListItem } from '@woobe/ui'
+import { Alert, AlertDescription, AlertTitle, SectionBlock, TechnicalListItem } from '@woobe/ui'
 
 import { ErrorState } from '@/components/common/ErrorState'
 import { LoadingState } from '@/components/common/LoadingState'
@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
 import { Select } from '@/components/ui/Select'
 import { AddProviderCredentialModal } from '@/features/provider-credentials/components/AddProviderCredentialModal'
+import { ProviderConnectionConfiguration } from '@/features/provider-credentials/components/ProviderConnectionConfiguration'
 import { RotateProviderCredentialDialog } from '@/features/provider-credentials/components/RotateProviderCredentialDialog'
 import { useCredentials, useUpdateCredential } from '@/features/provider-credentials/hooks'
 import type { ProviderCredential } from '@/features/provider-credentials/types'
@@ -201,11 +202,11 @@ function CredentialDetailsDialog({
       <div className="grid gap-ui-md">
         <SectionBlock
           title={modelProviderLabel(credential.provider)}
-          description={baseUrl}
+          description={<span className="break-all">{baseUrl}</span>}
           density="compact"
           actions={<StatusBadge status={credential.status || 'active'} size="compact" />}
         >
-          <p className="font-mono text-system-meta text-muted-foreground">Created · {formatDate(credential.created_at)}</p>
+          <p className="text-xs text-muted-foreground">Created · {formatDate(credential.created_at)}</p><p className="mt-2 text-sm text-muted-foreground">{credential.last_validated_at ? `Last externally validated · ${formatDate(credential.last_validated_at)}` : 'Provider access has not been externally validated. Active means the connection is enabled.'}</p>
         </SectionBlock>
 
         <SectionBlock title="Connected models" description="Models currently bound to this Project provider connection." density="compact">
@@ -213,7 +214,7 @@ function CredentialDetailsDialog({
             <div className="grid content-start gap-ui-xs">
               <p className="font-mono text-system-meta font-medium uppercase tracking-ui-label text-muted-foreground">Generation</p>
               {generationModels.length === 0 ? (
-                <p className="font-sans text-product-caption text-muted-foreground">No generation models.</p>
+                <p className="font-sans text-product-caption text-muted-foreground">No generation models yet. Add one in Models to use this connection with an Agent.</p>
               ) : generationModels.map((model) => (
                 <TechnicalListItem key={model.id} density="compact" label={model.name} description={model.model} />
               ))}
@@ -221,7 +222,7 @@ function CredentialDetailsDialog({
             <div className="grid content-start gap-ui-xs">
               <p className="font-mono text-system-meta font-medium uppercase tracking-ui-label text-muted-foreground">Embedding</p>
               {embeddingModels.length === 0 ? (
-                <p className="font-sans text-product-caption text-muted-foreground">No embedding models.</p>
+                <p className="font-sans text-product-caption text-muted-foreground">No embedding models yet. These are used for Knowledge indexing.</p>
               ) : embeddingModels.map((model) => (
                 <TechnicalListItem key={model.id} density="compact" label={model.name} description={model.model} />
               ))}
@@ -229,18 +230,18 @@ function CredentialDetailsDialog({
           </div>
         </SectionBlock>
 
-        <DialogFooter
-          className="-mx-ui-panel-inset -mb-ui-panel-inset mt-ui-xs"
-          meta={<span className="font-mono text-system-meta text-muted-foreground">{generationModels.length} generation · {embeddingModels.length} embedding</span>}
-          actions={(
-            <>
-              <Button type="button" variant="outline" onClick={onEdit}><Pencil className="h-icon w-icon" />Edit</Button>
-              <Button type="button" variant="outline" onClick={onRotate} disabled={credential.status !== 'active'}><RotateCcw className="h-icon w-icon" />{credential.authentication ? 'Configure environments' : 'Rotate'}</Button>
-              <Button type="button" variant="outline" onClick={onRevoke} disabled={credential.status === 'revoked'} className="text-warning hover:text-warning"><ShieldOff className="h-icon w-icon" />Revoke</Button>
-              <Button type="button" variant="outline" onClick={onArchive} className="text-error hover:text-error"><Trash2 className="h-icon w-icon" />Archive</Button>
-            </>
-          )}
-        />
+        {credential.authentication && <ProviderConnectionConfiguration credential={credential} />}
+        <div className="space-y-4 border-t border-border pt-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" variant="outline" onClick={onEdit}><Pencil className="h-icon w-icon" />Edit connection</Button>
+            <Button type="button" variant="outline" onClick={onRotate} disabled={credential.status !== 'active'}><RotateCcw className="h-icon w-icon" />{credential.authentication ? 'All environments' : 'Rotate key'}</Button>
+          </div>
+          <details className="rounded-control border border-border p-3">
+            <summary className="cursor-pointer text-sm font-medium">Revoke or archive connection</summary>
+            <p className="mt-3 text-sm leading-6 text-muted-foreground">Revoke stops new calls using this connection. Archive removes an unused connection from this list. You will review affected resources before confirming.</p>
+            <div className="mt-3 flex flex-wrap gap-2"><Button type="button" variant="outline" onClick={onRevoke} disabled={credential.status === 'revoked'} className="text-warning hover:text-warning"><ShieldOff className="h-icon w-icon" />Revoke</Button><Button type="button" variant="outline" onClick={onArchive} className="text-error hover:text-error"><Trash2 className="h-icon w-icon" />Archive</Button></div>
+          </details>
+        </div>
       </div>
     </Dialog>
   )

@@ -1,26 +1,28 @@
-import { SectionBlock } from '@woobe/ui'
+import { Button, SectionBlock } from '@woobe/ui'
 import type { AgentCreationFlowController } from '@/features/agents/hooks/useAgentCreationFlow'
 import { providerLabel } from '@/features/agents/hooks/useAgentCreationFlow'
 
 interface AgentReviewStepProps { flow: AgentCreationFlowController }
-
 export function AgentReviewStep({ flow }: AgentReviewStepProps) {
   const model = flow.selectedModel
   if (!model) return null
-
-  return (
-    <div className="grid gap-3 lg:grid-cols-2">
-      <SectionBlock title="Agent" density="compact">
-        <p className="font-mono text-system-meta font-medium text-slate-100">{flow.agentName.trim()}</p>
-        <p className="mt-1 font-sans text-xs leading-5 text-muted">{flow.agentDescription.trim() || 'No description provided.'}</p>
-      </SectionBlock>
-      <SectionBlock title="Model binding" density="compact">
-        <p className="truncate font-mono text-system-meta font-medium text-slate-100" title={model.name}>{model.name}</p>
-        <div className="mt-2 grid gap-2 sm:grid-cols-2"><div><p className="font-mono text-system-meta text-muted">Provider</p><p className="mt-0.5 text-xs text-slate-200">{providerLabel(model.provider)}</p></div><div><p className="font-mono text-system-meta text-muted">Model ID</p><p className="mt-0.5 truncate font-mono text-system-meta text-slate-200" title={model.model}>{model.model}</p></div></div>
-      </SectionBlock>
-      <SectionBlock title="Objective" density="compact" className="lg:col-span-2">
-        <p className="max-h-40 overflow-y-auto whitespace-pre-wrap font-sans text-xs leading-5 text-slate-200">{flow.agentObjective.trim()}</p>
-      </SectionBlock>
+  const credential = flow.credentials.find(item => item.id === model.provider_credential_id)
+  return <div className="space-y-5">
+    <SectionBlock title="Agent instructions" actions={<Button size="sm" variant="ghost" onClick={() => flow.setStep('details')}>Edit instructions</Button>}>
+      <p className="break-words text-base font-medium text-foreground">{flow.agentName.trim()}</p>
+      {flow.agentDescription.trim() && <p className="mt-1 text-sm text-muted-foreground">{flow.agentDescription.trim()}</p>}
+      <p className="mt-4 whitespace-pre-wrap break-words text-sm leading-6 text-foreground">{flow.agentObjective.trim()}</p>
+    </SectionBlock>
+    <SectionBlock title="Model" actions={<Button size="sm" variant="ghost" onClick={() => flow.setStep('model')}>Change model</Button>}>
+      <dl className="grid gap-4 text-sm sm:grid-cols-2">
+        <div><dt className="text-muted-foreground">Name</dt><dd className="mt-1 break-words text-foreground">{model.name}</dd></div>
+        <div><dt className="text-muted-foreground">Provider connection</dt><dd className="mt-1 break-words text-foreground">{credential?.name || providerLabel(model.provider)}</dd></div>
+        <div className="sm:col-span-2"><dt className="text-muted-foreground">Model ID</dt><dd className="mt-1 break-all font-mono text-xs text-foreground">{model.model}</dd></div>
+      </dl>
+    </SectionBlock>
+    <div className="border-l-2 border-primary pl-4 text-sm leading-6">
+      <p className="font-medium text-foreground">Next: test your Draft in the Playground</p>
+      <p className="mt-1 text-muted-foreground">No test message is sent during setup. Sending a message in the Playground uses your provider and may incur charges. Staging and Production are configured separately.</p>
     </div>
-  )
+  </div>
 }
