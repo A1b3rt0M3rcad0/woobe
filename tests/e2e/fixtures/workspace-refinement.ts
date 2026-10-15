@@ -14,11 +14,14 @@ export async function installWorkspaceRefinement(page: Page, options: {
   const costStatus = options.costStatus ?? 'unknown_pricing'
   const units = options.units ?? [1898, 1]
   const tokens = options.tokens ?? 2091
+  const inputTokens = Math.max(0, tokens - 100)
+  const outputTokens = tokens - inputTokens
+  const budget = Math.max(16000, inputTokens * 2)
   const run = {
     id: 'run-design', trace_id: 'trace-design', project_id: project.id, agent_id: productionAgent.id,
     session_id: null, environment: 'draft', origin: 'playground', status: 'completed', input_message: 'Review this customer request.',
-    provider: 'custom', model: 'review-model-with-a-long-technical-identifier', started_at: now, completed_at: now, created_at: now,
-    latency_ms: 1690, usage: { total_tokens: tokens, input_tokens: tokens - 100, output_tokens: 100, cost_usd: cost },
+    provider: 'custom', model: 'review-model-with-a-long-technical-identifier', started_at: '2026-06-20T11:59:58.310Z', completed_at: now, created_at: '2026-06-20T11:59:58.310Z',
+    latency_ms: 1690, usage: { total_tokens: tokens, input_tokens: inputTokens, output_tokens: outputTokens, cost_usd: cost },
     answer: 'Request reviewed. No execution error was reported.', tool_calls: [], sources: [], llm_calls: [{}],
     diagnostics: { cost_usd: cost, cost_status: costStatus, agent_runtime_latency_ms: 1690, total_tokens: tokens, llm_call_count: 1, tool_call_count: 0, source_count: 0, usage_complete: true },
   }
@@ -26,9 +29,9 @@ export async function installWorkspaceRefinement(page: Page, options: {
   await page.route('**/runtime/runs/run-design', route => respond(route, run))
   await page.route('**/runtime/runs/run-design/model-invocations', route => respond(route, units.length ? [{
     id: 'invocation-design', call_index: 1, phase: 'response', provider: run.provider, model: run.model,
-    status: 'completed', latency_ms: 1690, input_units: 1991, output_units: 100, total_units: tokens, cost_usd: cost,
-    context_snapshot: { id: 'context-design', estimated_input_units: 1899, reported_input_units: 1991, measurement_status: 'reported',
-      usable_input_budget: 16000, utilization: .124, manifest: { metrics: { context_fit_status: 'FIT' } },
+    status: 'completed', latency_ms: 1690, input_units: inputTokens, output_units: outputTokens, total_units: tokens, cost_usd: cost,
+    context_snapshot: { id: 'context-design', estimated_input_units: units.reduce((a, b) => a + b, 0), reported_input_units: inputTokens, measurement_status: 'reported',
+      usable_input_budget: budget, utilization: inputTokens / budget, manifest: { metrics: { context_fit_status: 'FIT' } },
       contributions: units.map((value, index) => ({ source_type: ['SYSTEM', 'USER_INPUT', 'TOOL', 'KNOWLEDGE'][index] ?? 'MEMORY', source_ref: null, materialized_units: value })),
     },
   }] : []))

@@ -25,6 +25,9 @@ for (const factor of [1.25, 1.5, 2]) test(`workspaces remain operable at native 
       await expect(page.getByLabel('Theme', { exact: true })).toBeInViewport({ ratio: 1 })
       expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1)
       if (path === playgroundPath) {
+        const introduction = page.getByRole('heading', { name: 'Test your Agent', exact: true })
+        await introduction.scrollIntoViewIfNeeded()
+        await expect(introduction).toBeInViewport({ ratio: 1 })
         await page.getByLabel('Message', { exact: true }).fill(`Unsent text at ${factor}`)
         await page.getByLabel('Theme', { exact: true }).selectOption('light')
         await expect(page.getByLabel('Message', { exact: true })).toHaveValue(`Unsent text at ${factor}`)

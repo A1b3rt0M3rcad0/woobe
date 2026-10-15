@@ -126,7 +126,7 @@ export function ChatCanvas({
   runtimeBlocked = false,
   runtimeBlockReason,
   emptyTitle = 'Test your Agent',
-  emptyDescription = 'Send a message to test this Draft. Review its configuration and inspect each Run from the panels.',
+  emptyDescription = 'Send a message to test this Agent. Review its configuration and inspect each Run from the panels.',
   suggestions = defaultSuggestions,
   composerValue,
   onComposerValueChange,
@@ -239,8 +239,8 @@ export function ChatCanvas({
           <SessionMessagesLoading compact={compact} />
         ) : isEmpty ? (
           <div className={compact
-            ? 'relative flex h-full min-w-0 flex-col items-center justify-center px-ui-md text-center'
-            : 'relative flex h-full min-w-0 flex-col items-center justify-center px-ui-xxl text-center'}>
+            ? 'relative flex min-h-full min-w-0 flex-col items-center justify-center px-ui-md py-ui-xl text-center'
+            : 'relative flex min-h-full min-w-0 flex-col items-center justify-center px-ui-xxl py-ui-xl text-center'}>
             <div className="mb-ui-md flex h-control-nav w-control-nav items-center justify-center rounded-control border border-border bg-control text-primary-light">
               <EmptyIcon className="h-icon-lg w-icon-lg" />
             </div>

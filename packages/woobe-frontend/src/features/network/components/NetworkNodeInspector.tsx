@@ -163,7 +163,7 @@ export function NetworkNodeInspector({
           <summary className="cursor-pointer list-none px-ui-md py-ui-md font-sans text-system-label font-medium uppercase tracking-ui-label text-muted-foreground [&::-webkit-details-marker]:hidden">Advanced <span className="float-right">›</span></summary>
           <div className="flex items-center gap-ui-sm border-t border-border px-ui-md py-ui-md">
             <p className="min-w-0 flex-1 break-all font-mono text-system-control text-slate-200">{delegationToolName(node)}</p>
-            <button type="button" onClick={() => void navigator.clipboard.writeText(delegationToolName(node))} className={networkInspectorAction}><Copy className="h-3 w-3" /></button>
+            <button type="button" aria-label="Copy delegation tool name" onClick={() => void navigator.clipboard.writeText(delegationToolName(node))} className={networkInspectorAction}><Copy className="h-3 w-3" /></button>
           </div>
         </details>
       </div>

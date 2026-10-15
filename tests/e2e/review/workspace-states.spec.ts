@@ -4,7 +4,7 @@ import { installApi, respond } from '../fixtures/control-plane'
 for (const theme of ['light', 'dark']) test(`operational conversation, structured results and deep traces in ${theme}`, async ({ page }) => {
   await installApi(page, { asacAgent: true })
   await page.route('**/network/executions/network-design/diagnostics?*', route => respond(route, {
-    schema_version: 1, execution_id: 'network-design', status: 'completed', network_wall_latency_ms: 2300,
+    schema_version: 1, execution_id: 'network-design', status: 'completed', network_wall_latency_ms: 18000,
     agent_work_latency_ms: 15210, llm_runtime_latency_ms: 14000, tool_work_latency_ms: 0,
     prepare_latency_ms: null, persistence_latency_ms: null, orchestration_latency_ms: null,
     agent_run_count: 9, delegation_count: 8, max_depth: 8, max_fan_out: 1,

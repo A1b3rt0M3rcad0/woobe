@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { mkdir } from 'node:fs/promises'
 import { resolve } from 'node:path'
-import { login } from '../fixtures/control-plane'
+import { login, productionAgent } from '../fixtures/control-plane'
 import { installWorkspaceRefinement, longNodeName, networkPath, playgroundPath } from '../fixtures/workspace-refinement'
 
 const viewports = [{ width: 1920, height: 1080 }, { width: 1440, height: 900 }, { width: 1366, height: 768 }, { width: 1024, height: 768 }]
@@ -95,4 +95,15 @@ test('larger Network retains keyboard selection, unsaved labels and viewport acr
   await page.getByRole('button', { name: 'Hide inspector', exact: true }).click()
   await page.getByRole('button', { name: 'Show inspector', exact: true }).click()
   await expect(label).toHaveValue('Unsaved readable entry label')
+})
+
+for (const width of [390, 768, 1024]) test(`Playground keeps its identity and Back action at ${width}px`, async ({ page }) => {
+  await page.setViewportSize({ width, height: 1100 })
+  await installWorkspaceRefinement(page); await login(page); await page.goto(playgroundPath)
+  await expect(page.getByRole('heading', { name: productionAgent.name, exact: true })).toBeInViewport({ ratio: 1 })
+  await expect(page.getByRole('button', { name: 'Back', exact: true })).toBeInViewport({ ratio: 1 })
+  await expect(page.getByRole('button', { name: 'Stage Agent', exact: true })).toBeInViewport({ ratio: 1 })
+  await expect(page.getByRole('button', { name: 'Manage Agent', exact: true })).toBeInViewport({ ratio: 1 })
+  await expect(page.getByRole('button', { name: 'API', exact: true })).toBeInViewport({ ratio: 1 })
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1)
 })

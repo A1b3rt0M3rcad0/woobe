@@ -79,7 +79,7 @@ export function PlaygroundHeader({
   return (
     <>
       <header className={`relative ${UI_LAYER_CLASS.playgroundChrome} flex min-h-workspace-header shrink-0 flex-wrap items-center justify-between gap-y-ui-sm py-ui-sm border-b border-border bg-surface/[0.92] px-ui-md`}>
-        <div className="flex min-w-0 flex-1 items-center gap-ui-sm">
+        <div className="flex w-full min-w-0 items-center gap-ui-sm xl:w-auto xl:flex-1">
           <button
             onClick={handleBack}
             className="flex h-control-sm shrink-0 items-center gap-ui-xs rounded-control border border-transparent px-ui-sm font-sans text-chrome-meta text-muted-foreground transition-colors hover:border-border hover:bg-control hover:text-slate-50"
@@ -94,7 +94,7 @@ export function PlaygroundHeader({
           </span>
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-ui-sm">
-              <span className="min-w-0 truncate font-mono text-entity-title font-medium text-slate-50" title={agent.name}>{agent.name}</span>
+              <h1 className="min-w-0 truncate font-mono text-entity-title font-medium text-slate-50" title={agent.name}>{agent.name}</h1>
               {releaseVersion ? (
                 <Badge variant={environment === 'production' ? 'success' : environment === 'staging' ? 'warning' : 'outline'} className="shrink-0">
                   {releaseVersion}
@@ -129,12 +129,12 @@ export function PlaygroundHeader({
             <PanelLeft className="h-icon w-icon" />
           </button>
 
-          <Button variant="outline" size="sm" disabled={environmentChangeDisabled} onClick={() => openManager()}>
+          <Button variant="outline" size="sm" aria-label="Manage Agent" title="Manage Agent" disabled={environmentChangeDisabled} onClick={() => openManager()}>
             <History className="h-icon w-icon" />
             <span className="hidden xl:inline">Manage Agent</span>
           </Button>
 
-          <Button variant="outline" size="sm" onClick={onApiClick}>
+          <Button variant="outline" size="sm" aria-label="API" title="API Reference" onClick={onApiClick}>
             <Code2 className="h-icon w-icon" />
             <span className="hidden xl:inline">API</span>
           </Button>

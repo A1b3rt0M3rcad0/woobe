@@ -16,7 +16,7 @@ function invocation(depth: number): NetworkAgentInvocation {
   }
 }
 const root = invocation(0)
-const execution: NetworkExecution = { id: 'network-design', traceId: null, environment: 'draft', status: 'success', startedAt: '2026-06-20T12:00:00Z', durationMs: 2300, costUsd: null, path: [], root }
+const execution: NetworkExecution = { id: 'network-design', traceId: null, environment: 'draft', status: 'success', startedAt: '2026-06-20T12:00:00Z', durationMs: 18000, costUsd: null, path: [], root }
 const trace = createNetworkTraceRecord({ execution, environment: 'draft', bindings: {}, networkSessionId: 'session-design', title: 'Review request', userMessage: 'Review request', answer: 'Reviewed' })
 export const originalStructuredValue = { intent: 'customer_context', evidence: Array.from({ length: 30 }, (_, i) => ({ id: i, text: 'Original identifier and a long structured value '.repeat(8) })), final_answer: 'Request reviewed.' }
 
