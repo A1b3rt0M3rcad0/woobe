@@ -44,3 +44,13 @@ For example, embedding execution uses `embedding.create`, has embedding output, 
 ## Release determinism
 
 Released Agents carry a frozen normalized ModelSpec snapshot/hash. Provider discovery may evolve after a release, but released execution semantics must not silently change. Legacy releases without a frozen spec remain supported through compatibility resolution.
+
+## Discovery evidence and reconciliation
+
+Normalize explicit provider metadata before applying the small, versioned provider enrichment and then explicit Project overrides. Missing capability evidence is unknown; it is distinct from an explicit false value. Generic `type=model` and substrings of a model name are not evidence of a language or embedding operation. Return an unclassified discovery item when operations/modalities cannot be established. Keep provider-specific features that Woobe does not execute in provenance.
+
+OpenRouter general discovery requests all output modalities; its separate embedding endpoint emits the same spec contract. Anthropic discovery follows bounded `after_id` pagination, deduplicates IDs and rejects missing/repeated cursors or partial-page failure. Lifecycle remains catalog provenance and never changes installed status. DeepSeek preserves effort and protocol constraints without merging Anthropic Messages capabilities into the OpenAI protocol used by Woobe. Missing per-model flags do not become universal support.
+
+Add deterministic fixtures for explicit true/false/unknown capabilities, non-language modalities, invalid numeric values, alias resolution and discovery failures. Pagination, embedding price units and protocol constraints need provider-specific coverage. Do not include authentication headers or upstream error bodies in diagnostics.
+
+Catalog refresh is explicit preview/apply as documented in [Model Runtime](MODEL_RUNTIME.md). Preserve the exact definition hash; use the semantic fingerprint only for comparison/reuse. New provider behavior must preserve identity locks, revision/digest checks, manual overrides and frozen primary/fallback destinations.
