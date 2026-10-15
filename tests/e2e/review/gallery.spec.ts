@@ -14,6 +14,12 @@ async function prepare(page: Page) {
   await installApi(page, { asacAgent: true })
   await page.route('**/*', async route => {
     const path = new URL(route.request().url()).pathname
+    if (path.endsWith('/configuration/keys')) {
+      const environment = new URL(route.request().url()).searchParams.get('environment') ?? 'draft'
+      return respond(route, { environment, items: [{ id:'config-demo', key:'SUPPORT_ENDPOINT', kind:'value', description:'Support endpoint', value_format:'url', definition_revision:1, origin:'manual', material:'present', used_by_count:0,
+        values:{[environment]:{configured:true,revision:1,material:'present',value_version:'opaque-version'}} }], total:1, offset:0, limit:50, has_next:false, permissions:{'value:write':true,'value:clear':true} })
+    }
+    if (path.endsWith('/configuration/keys/config-demo/deletion-check')) return respond(route, { key_id:'config-demo', definition_revision:1, scope:'all_environments', can_delete:true, blockers:{retained_resources:false,legacy_binding:false,active_run:false} })
     if (path.includes('/configuration/') && !path.includes('/src/')) return respond(route, { items: [], total: 0, offset: 0, limit: 50, permissions: { declare: true, 'value:write': true } })
     if (path.endsWith('/promotions/preview')) return respond(route, { nodes: [], actions: [], missing_agent_ids: [], ready: true, network_revision: 1, network_version_id: null, environment: 'staging' })
     if (path.startsWith('/ai/skills') || path.startsWith('/skills')) return respond(route, [])

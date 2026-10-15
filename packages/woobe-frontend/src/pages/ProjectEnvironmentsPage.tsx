@@ -9,6 +9,7 @@ import { ResourcePage } from '@/components/common/ResourcePage'
 import { ApiError } from '@/lib/api/errors'
 import { configurationReturnPath, listConfiguration, type ConfigurationKey } from '@/features/projects/configuration'
 import { ConfigurationKeyDeclarationDialog } from '@/features/projects/components/ConfigurationKeyDeclarationDialog'
+import { ConfigurationKeyDeletionDialog } from '@/features/projects/components/ConfigurationKeyDeletionDialog'
 import { ConfigurationUsageDialog } from '@/features/projects/components/ConfigurationUsageDialog'
 import { ConfigurationValueEditor } from '@/features/projects/components/ConfigurationValueEditor'
 import type { ProjectEnvironment } from '@/features/projects/types'
@@ -26,18 +27,23 @@ function EnvironmentWorkspace({ projectId }: { projectId: string }) {
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('all')
   const [offset, setOffset] = useState(0)
-  const [editing, setEditing] = useState<ConfigurationKey | null>(null)
+  const [editing, setEditing] = useState<{ item: ConfigurationKey; environment: ProjectEnvironment } | null>(null)
+  const [editingDefinition, setEditingDefinition] = useState<ConfigurationKey | null>(null)
+  const [deleting, setDeleting] = useState<ConfigurationKey | null>(null)
   const [usage, setUsage] = useState<ConfigurationKey | null>(null)
   const [creating, setCreating] = useState(false)
   const [batch, setBatch] = useState<ConfigurationKey[] | null>(null)
   const [view, setView] = useState<'keys' | 'compare' | 'legacy'>('keys')
-  useEffect(() => { setEditing(null); setBatch(null); setUsage(null); setCreating(false) }, [projectId, environment])
+  useEffect(() => { setEditing(null); setEditingDefinition(null); setDeleting(null); setBatch(null); setUsage(null); setCreating(false) }, [projectId, environment])
   const client = useQueryClient()
   const query = useQuery({ queryKey: ['project-configuration', projectId, environment, search, status, offset],
     queryFn: () => listConfiguration(projectId, environment, search, status, offset), retry: false })
   const refresh = () => {
     void client.invalidateQueries({ queryKey: ['project-configuration', projectId] })
     void client.invalidateQueries({ queryKey: ['configuration-readiness', projectId] })
+    void client.invalidateQueries({ queryKey: ['configuration-summary', projectId] })
+    void client.invalidateQueries({ queryKey: ['configuration-key-editor', projectId] })
+    void client.invalidateQueries({ queryKey: ['configuration-deletion', projectId] })
   }
   const permissions = query.data?.permissions ?? {}
   const selectEnvironment = (value: ProjectEnvironment) => { setOffset(0); setEditing(null); setParams({ environment: value, ...(returnTo ? { returnTo } : {}) }) }
@@ -63,15 +69,24 @@ function EnvironmentWorkspace({ projectId }: { projectId: string }) {
             <td className="p-ui-md"><span className="font-mono">{item.key}</span><p className="max-w-xl text-muted-foreground">{item.description}</p></td>
             <td className="p-ui-md">{item.kind} · {item.value_format}</td><td className="p-ui-md">{item.material === 'present' ? 'Configured' : item.material.replaceAll('_', ' ')}</td>
             <td className="p-ui-md"><Button variant="ghost" size="sm" onClick={() => setUsage(item)}>{item.used_by_count} consumers</Button></td>
-            <td className="p-ui-md">{(permissions['value:write'] || permissions['value:clear']) && <Button variant="outline" size="sm" onClick={() => setEditing(item)}>{item.material === 'present' ? 'Manage value' : 'Set value'}</Button>}</td>
+            <td className="p-ui-md"><div className="flex flex-wrap gap-ui-sm">
+              {(permissions['value:write'] || permissions['value:clear']) && <Button variant="outline" size="sm" onClick={() => setEditing({ item, environment })}>{item.material === 'present' ? 'Manage value' : 'Set value'}</Button>}
+              {permissions.declare && <>
+                <Button variant="outline" size="sm" onClick={() => setEditingDefinition(item)}>Edit key</Button>
+                <Button variant="outline" size="sm" disabled={item.used_by_count > 0} title={item.used_by_count > 0 ? 'This key is in use. Edit it instead of deleting it.' : 'Check usage before deleting this key'} onClick={() => setDeleting(item)} aria-label={`Delete ${item.key}`}>Delete</Button>
+                {item.used_by_count > 0 && <span className="self-center text-product-small text-muted-foreground">In use · edit only</span>}
+              </>}
+            </div></td>
           </tr>)}</tbody></table>
         {!query.data?.items.length && <p className="p-ui-lg text-muted-foreground">No configuration keys match this view.</p>}
       </div>
       <div className="flex justify-end gap-ui-sm"><Button variant="outline" disabled={!offset} onClick={() => setOffset(Math.max(0, offset - 50))}>Previous</Button><Button variant="outline" disabled={!query.data?.has_next} onClick={() => setOffset(offset + 50)}>Next</Button></div>
     </>}
     {batch && <ConfigurationBatchEditor key={`${projectId}:${environment}:batch`} projectId={projectId} environment={environment} keys={batch} onClose={() => setBatch(null)} onSaved={refresh} />}
-    {editing && <ConfigurationValueEditor key={`${projectId}:${environment}:${editing.id}`} projectId={projectId} item={editing} environment={environment} canWrite={!!permissions['value:write']} canClear={!!permissions['value:clear']} onClose={() => setEditing(null)} onSaved={refresh} />}
-    {creating && <ConfigurationKeyDeclarationDialog projectId={projectId} onClose={() => setCreating(false)} onSaved={refresh} />}
+    {editing && <ConfigurationValueEditor key={`${projectId}:${editing.item.id}`} projectId={projectId} item={editing.item} environment={editing.environment} onClose={() => setEditing(null)} onSaved={selected => { refresh(); selectEnvironment(selected) }} />}
+    {creating && <ConfigurationKeyDeclarationDialog projectId={projectId} environment={environment} onClose={() => setCreating(false)} onSaved={refresh} onConfigure={(item, selected) => { setSearch(item.key); setStatus('all'); setOffset(0); setEditing({ item, environment: selected }) }} />}
+    {editingDefinition && <ConfigurationKeyDeclarationDialog key={editingDefinition.id} projectId={projectId} item={editingDefinition} onClose={() => setEditingDefinition(null)} onSaved={refresh} />}
+    {deleting && <ConfigurationKeyDeletionDialog key={deleting.id} projectId={projectId} item={deleting} environment={environment} onClose={() => setDeleting(null)} onSaved={refresh} />}
     {usage && <ConfigurationUsageDialog projectId={projectId} item={usage} environment={environment} canApprove={!!permissions['use-policy:write']} onClose={() => setUsage(null)} />}
   </ResourcePage>
 }
