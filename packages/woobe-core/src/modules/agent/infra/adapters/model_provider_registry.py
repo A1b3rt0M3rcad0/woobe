@@ -667,7 +667,9 @@ def build_provider_registry() -> ProviderRegistry:
     # Historical custom credentials are OpenAI-compatible endpoints in the current
     # Woobe persistence/API contract. Keep them valid without making custom a second
     # implementation.
-    registry.register_alias("custom", "openai_compatible")
+    from modules.agent.domain.provider_identity import PROVIDER_ALIASES
+    for alias, target in PROVIDER_ALIASES.items():
+        registry.register_alias(alias, target)
     return registry
 
 

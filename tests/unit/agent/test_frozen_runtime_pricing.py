@@ -61,12 +61,15 @@ async def test_immutable_model_prices_win_over_changed_live_catalog(fallback, ha
     frozen = LegacyModelSpecResolver().resolve(model, provider='custom').as_dict()
     # A ModelSpec may also be imported without any native ProviderModel ID.
     agent = Agent(project_id=project, name='test', provider=Provider.custom, model='test')
+    agent.provider_credential_id = credential.id
     prefix = 'fallback_' if fallback else ''
     if fallback:
         agent.fallback_provider = Provider.custom; agent.fallback_model = 'test'
+        agent.fallback_credential_id = credential.id
     agent.settings = {prefix + 'model_spec': frozen, prefix + 'model_spec_frozen': True}
     resolver = ReleaseRuntimeResolver.__new__(ReleaseRuntimeResolver)
-    resolved = await resolver._resolve_provider_model_refs(SimpleNamespace(provider_models=None), agent)
+    resolved = await resolver._resolve_provider_model_refs(SimpleNamespace(provider_models=None,
+        provider_credentials=SimpleNamespace(get_by_id=AsyncMock(return_value=credential))), agent)
     snapshot = resolved.settings[prefix + 'model_pricing']
     assert cost(snapshot)['cost_status'] == ('known' if has_frozen_price else 'unknown_pricing')
     if has_frozen_price:

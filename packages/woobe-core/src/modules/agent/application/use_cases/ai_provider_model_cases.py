@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from copy import deepcopy
 from types import SimpleNamespace
 from typing import Any, Mapping
 from uuid import UUID
@@ -28,6 +29,8 @@ from modules.agent.domain.model_spec import (
     model_spec_hash,
 )
 from shared.contracts.errors import ValidationError
+from modules.agent.application.model_spec_definition import parse_model_spec_definition, validate_model_spec_binding, validate_spec_assertions
+from modules.agent.domain.provider_identity import canonical_provider_key, providers_equivalent
 
 
 _MISSING = object()
@@ -58,7 +61,7 @@ def _parse_model_spec(value: Any) -> ModelSpec | None:
     if not isinstance(value, Mapping):
         raise ValidationError("Provider model spec must be an object")
     try:
-        return ModelSpec.from_dict(value)
+        return parse_model_spec_definition(dict(value))
     except (TypeError, ValueError) as exc:
         raise ValidationError(f"Invalid Provider model spec: {exc}") from exc
 
@@ -189,7 +192,7 @@ def _manual_model_spec(
     )
     spec = LegacyModelSpecResolver().resolve(
         compatibility_model,
-        provider=_provider_value(provider),
+        provider=canonical_provider_key(provider),
     )
     spec = replace(spec, source="manual")
     return _apply_model_spec_overrides(spec, metadata)
@@ -276,6 +279,9 @@ class CreateProviderModelUseCase:
             )
         else:
             spec = _apply_model_spec_overrides(spec, metadata)
+        spec = parse_model_spec_definition(spec.as_dict())
+        validate_model_spec_binding(spec, credential, normalized_model, input_dto.model_type)
+        validate_spec_assertions(spec, spec_hash=input_dto.spec_hash, spec_version=input_dto.spec_version)
         _apply_normalized_spec(item, spec)
 
         return item
@@ -311,6 +317,7 @@ class UpdateProviderModelUseCase:
             from modules.agent.domain.errors import ModelConfigNotFoundError
 
             raise ModelConfigNotFoundError
+        item = deepcopy(item)
         data = input_dto.model_dump(exclude_unset=True)
         if "provider_credential_id" in data:
             credential = await self._load_credential(
@@ -337,11 +344,6 @@ class UpdateProviderModelUseCase:
             raise ValidationError("Provider model name is required")
         if not item.model:
             raise ValidationError("Provider model identifier is required")
-
-        if "spec_version" in data:
-            item.spec_version = data["spec_version"]
-        if "spec_hash" in data:
-            item.spec_hash = data["spec_hash"]
 
         explicit_spec = data.get("spec", _MISSING)
         should_re_resolve = (
@@ -372,7 +374,7 @@ class UpdateProviderModelUseCase:
                 and spec is not None
                 and (
                     spec.model_id != item.model
-                    or spec.provider != provider_key
+                    or not providers_equivalent(spec.provider, provider_key)
                     or (
                         "model_type" in data
                         and item.model_type is not None
@@ -397,6 +399,15 @@ class UpdateProviderModelUseCase:
                 spec,
                 clear_when_none=explicit_spec is None,
             )
+
+        if item.spec is None:
+            if data.get("spec_hash") is not None or data.get("spec_version") is not None:
+                raise ValidationError("ModelSpec hash/version requires a ModelSpec")
+        else:
+            spec = parse_model_spec_definition(item.spec)
+            validate_model_spec_binding(spec, credential, item.model, item.model_type)
+            validate_spec_assertions(spec, spec_hash=data.get("spec_hash"), spec_version=data.get("spec_version"))
+            _apply_normalized_spec(item, spec)
 
         if "status" in data and data["status"] is not None:
             item.status = data["status"]

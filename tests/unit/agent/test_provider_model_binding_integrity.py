@@ -9,6 +9,7 @@ from modules.agent.application.use_cases.ai_provider_model_cases import CreatePr
 from modules.agent.domain.entities import Agent, ProviderCredential, ProviderModel
 from modules.agent.infra.execution.release_runtime_resolver import ReleaseRuntimeResolver
 from shared.contracts.errors import ValidationError
+from modules.agent.application.model_spec_definition import parse_model_spec_definition
 from tests.unit.agent.test_model_provider_runtime_regressions import _language_spec
 
 
@@ -84,3 +85,27 @@ async def test_frozen_runtime_uses_snapshot_and_original_credential(fallback):
     await resolver._resolve_provider_model_refs(SimpleNamespace(provider_models=Models(model), provider_credentials=Credentials(credential)), agent)
     assert (agent.fallback_model if fallback else agent.model) == 'gpt-test'
     assert (agent.fallback_credential_id if fallback else agent.provider_credential_id) == credential.id
+
+
+@pytest.mark.parametrize('change', [
+    {'surprise': True}, {'operations': [' ']}, {'spec_version': 999},
+    {'capabilities': {'tool_calling': {'supported': 'false'}}},
+    {'pricing': {'input_cost_per_1m_tokens': float('nan')}},
+    {'pricing': {'output_cost_per_1m_tokens': float('inf')}},
+    {'limits': {'context_window': 0}},
+])
+def test_authoring_rejects_lossy_or_invalid_spec(change):
+    with pytest.raises(ValidationError):
+        parse_model_spec_definition({**_language_spec().as_dict(), **change})
+
+
+def test_custom_alias_is_valid_without_discarding_spec_capabilities():
+    credential = ProviderCredential(project_id=uuid4(), provider='custom')
+    spec = _language_spec().as_dict()
+    spec['provider'] = 'openai_compatible'
+    proposed = CreateProviderModelUseCase.prepare_definition(CreateProviderModelInput(
+        project_id=credential.project_id, provider_credential_id=credential.id,
+        name='Test', model='gpt-test', spec=spec,
+    ), credential)
+    assert proposed.spec['source'] == 'provider'
+    assert proposed.spec['capabilities']['tool_calling']['supported'] is True
