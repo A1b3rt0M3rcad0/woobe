@@ -14,7 +14,7 @@ The source guide distinguishes the traced vector artwork from editable component
 <WoobeLogo appearance="dark" />
 ```
 
-The login, Workspace/Project sidebars, context header, onboarding and authentication loading surface use this shared component. SVG geometry, proportions and transparency remain unchanged. The wordmark is outlined artwork, so it does not depend on a locally installed serif font. Interface text continues to use Inter, Georgia editorial headings and JetBrains Mono technical values.
+The login, Workspace/Project sidebars, onboarding and authentication loading surface use this shared component. The context header contains only Workspace/Project breadcrumbs and the mobile navigation action; branding stays in the sidebar. SVG geometry, proportions and transparency remain unchanged. The wordmark is outlined artwork, so it does not depend on a locally installed serif font. Interface text continues to use Inter, Georgia editorial headings and JetBrains Mono technical values.
 
 The frontend's public favicon, PNG fallbacks, Apple icon and 192/512 icons are byte-identical copies of the corresponding kit files. The browser manifest adds identity metadata while retaining browser display. Embed HTML references the shared symbol at build time; customer-configured ChatSurface appearance remains independent. Vite includes only referenced artwork in the runtime build, while the full kit remains available to developers.
 
