@@ -40,7 +40,7 @@ export function ResourceCard({
     >
       <span className="flex items-start justify-between gap-ui-md px-ui-panel-inset py-ui-lg">
         <span className="flex min-w-0 items-start gap-ui-sm">
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-control bg-[#ffe6d9] text-primary-light">{icon}</span>
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-control bg-selected text-primary-light">{icon}</span>
           <span className="min-w-0 pt-ui-hairline">
             <span className="block break-words font-mono text-product-label font-medium text-accent-foreground">{title}</span>
             {subtitle ? <span className="mt-ui-xs block break-words font-sans text-product-caption text-muted-foreground">{subtitle}</span> : null}

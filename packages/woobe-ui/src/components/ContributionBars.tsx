@@ -25,5 +25,6 @@ export function ContributionBars({ rows, unit }: { rows: ContributionRow[]; unit
         </div>
       </div>)}
     </dl>
+    {rows.some(row => row.share != null) && <p className="font-sans text-system-meta text-muted-foreground">Percentages are rounded and may not total 100%.</p>}
   </div>
 }

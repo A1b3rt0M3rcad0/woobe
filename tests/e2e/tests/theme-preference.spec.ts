@@ -67,7 +67,7 @@ for (const theme of ['light', 'dark'] as const) test(`${theme} semantic text and
     }
     const contrast = (a: string, b: string) => (Math.max(color(a), color(b)) + .05) / (Math.min(color(a), color(b)) + .05)
     return [
-      ...['surface', 'workspace', 'elevated', 'control'].flatMap(bg => ['ink', 'muted', 'link', 'success', 'warning', 'error', 'info', 'network'].map(ink => ({ pair: `${ink}/${bg}`, actual: contrast(ink, bg), minimum: 4.5 }))),
+      ...['surface', 'workspace', 'elevated', 'control', 'selected'].flatMap(bg => ['ink', 'muted', 'link', 'success', 'warning', 'error', 'info', 'network'].map(ink => ({ pair: `${ink}/${bg}`, actual: contrast(ink, bg), minimum: 4.5 }))),
       ...['surface', 'workspace', 'control'].map(bg => ({ pair: `control-border/${bg}`, actual: contrast('control-border', bg), minimum: 3 })),
       { pair: 'on-primary/primary', actual: contrast('on-primary', 'primary'), minimum: 4.5 },
     ]

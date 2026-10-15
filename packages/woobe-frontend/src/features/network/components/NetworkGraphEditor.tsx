@@ -84,7 +84,7 @@ function AgentNode({ data, selected }: NodeProps<AgentFlowNode>) {
           <span className={cn('rounded-technical border px-ui-xs py-ui-hairline font-mono text-system-meta font-medium uppercase', data.activeInRun ? 'border-emerald-500/30 bg-emerald-500/10 text-success' : data.isRoot ? 'border-primary/30 bg-primary/10 text-primary-light' : 'border-border text-muted-foreground')}>
             {data.activeInRun ? 'Executed' : data.isRoot ? 'Entry point' : 'Agent'}
           </span>
-          <span className={cn('h-2 w-2 shrink-0 rounded-full', data.agent?.status === 'active' ? 'bg-emerald-400' : 'bg-amber-400')} />
+          <span className="inline-flex items-center gap-ui-xs font-sans text-system-meta capitalize text-muted-foreground"><span aria-hidden="true" className={cn('h-2 w-2 shrink-0 rounded-full', data.agent?.status === 'active' ? 'bg-emerald-400' : 'bg-amber-400')} />{data.agent?.status || 'Unavailable'}</span>
         </div>
         {data.binding ? (
           <NetworkBindingBadge

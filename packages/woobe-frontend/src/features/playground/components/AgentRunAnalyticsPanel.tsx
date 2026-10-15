@@ -176,7 +176,7 @@ export function AgentRunAnalyticsPanel({ traceId, runId, finalizing = false }: {
   return (
     <div className="space-y-3 border-b border-border p-3">
       <div className="flex items-start justify-between gap-3">
-        <div><p className="font-sans text-product-body font-medium text-slate-50">Run Analytics</p><p className="mt-0.5 font-sans text-system-meta leading-4 text-muted-foreground">Run totals first; invocation detail remains available on demand.</p></div>
+        <div><p className="font-sans text-product-body font-medium text-slate-50">Run Analytics</p><p className="mt-0.5 font-sans text-system-meta leading-4 text-muted-foreground">Totals for this Agent Run.</p></div>
         {fallbackUsed ? <span className="rounded-technical border border-amber-500/25 bg-amber-500/[0.07] px-1.5 py-0.5 font-mono text-system-meta text-warning">Fallback used</span> : null}
       </div>
 

@@ -157,7 +157,7 @@ function AgentRunDetails({
             </div>
             <div className="shrink-0 text-right">
               <p className="font-mono text-system-label text-slate-300">{totalTokens == null ? '—' : formatTokens(totalTokens)}</p>
-              <p className="font-mono text-system-meta text-muted-foreground">{invocation.durationMs == null ? 'Running' : formatLatency(invocation.durationMs)} · {invocation.costUsd == null ? 'Unknown' : formatCurrency(invocation.costUsd)}</p>
+              <p className="font-mono text-system-meta text-muted-foreground">{invocation.durationMs == null ? (invocation.status === 'running' || invocation.status === 'pending' ? 'Running' : 'Unavailable') : formatLatency(invocation.durationMs)} · {invocation.costUsd == null ? 'Unknown' : formatCurrency(invocation.costUsd)}</p>
             </div>
           </button>
         )
@@ -258,7 +258,7 @@ export function NetworkRunDiagnosticsPanel({
       <div className="flex items-start justify-between gap-ui-md">
         <div>
           <p className="font-sans text-product-body font-medium text-foreground">Network Run Analytics</p>
-          <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">Network-level totals first; individual Agent Runs remain available on demand.</p>
+          <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">Totals for this Network Run.</p>
         </div>
         {data.fallback_count > 0 ? <span className="rounded-technical border border-amber-500/25 bg-amber-500/10 px-ui-sm py-ui-hairline font-mono text-system-meta text-warning">{data.fallback_count} fallback{data.fallback_count === 1 ? '' : 's'}</span> : null}
       </div>

@@ -109,6 +109,7 @@ export function NetworkTraceInvocation({ invocation, trace, depth, onOpenAgent }
             <p className="mt-ui-xs break-all font-mono text-system-meta text-muted-foreground">{invocation.provider || '—'}/{invocation.model || '—'} · {invocation.version}</p>
             {depth > 2 && <p className="font-sans text-system-meta text-muted-foreground">Delegation depth {depth}</p>}
             <div className="mt-ui-xs flex flex-wrap gap-x-ui-sm gap-y-ui-xs font-mono text-system-meta text-muted-foreground">
+              <span className="font-sans capitalize">{invocation.status}</span>
               {invocation.durationMs != null ? <span>{formatLatency(invocation.durationMs)}</span> : null}
               {invocation.usage ? <span>{formatNumber(invocation.usage.input_tokens, 0)} in / {formatNumber(invocation.usage.output_tokens, 0)} out</span> : null}
               {invocation.costUsd != null ? <span>{formatCurrency(invocation.costUsd)}</span> : null}
