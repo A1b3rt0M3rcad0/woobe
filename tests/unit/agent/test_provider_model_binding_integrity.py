@@ -1,0 +1,86 @@
+from copy import deepcopy
+from types import SimpleNamespace
+from uuid import uuid4
+
+import pytest
+
+from modules.agent.application.dtos.ai_dtos import CreateProviderModelInput, UpdateProviderModelInput
+from modules.agent.application.use_cases.ai_provider_model_cases import CreateProviderModelUseCase, UpdateProviderModelUseCase
+from modules.agent.domain.entities import Agent, ProviderCredential, ProviderModel
+from modules.agent.infra.execution.release_runtime_resolver import ReleaseRuntimeResolver
+from shared.contracts.errors import ValidationError
+from tests.unit.agent.test_model_provider_runtime_regressions import _language_spec
+
+
+class Models:
+    def __init__(self, item=None):
+        self.item = item
+        self.writes = 0
+
+    async def get_by_id(self, identifier):
+        return deepcopy(self.item) if self.item and identifier == self.item.id else None
+
+    async def save(self, item):
+        self.item = deepcopy(item)
+        self.writes += 1
+        return item
+
+    update = save
+
+
+class Credentials:
+    def __init__(self, item):
+        self.item = item
+
+    async def get_by_id(self, identifier):
+        return self.item if identifier == self.item.id else None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('field,value', [('provider', 'anthropic'), ('model_id', 'other'), ('model_type', 'embedding')])
+async def test_create_rejects_mismatched_spec_without_writing(field, value):
+    credential = ProviderCredential(project_id=uuid4(), provider='openai')
+    spec = _language_spec().as_dict()
+    spec[field] = value
+    models = Models()
+    with pytest.raises(ValidationError):
+        await CreateProviderModelUseCase(models, Credentials(credential)).execute(CreateProviderModelInput(
+            project_id=credential.project_id, provider_credential_id=credential.id,
+            name='Test', model='gpt-test', model_type='language', spec=spec,
+        ))
+    assert models.writes == 0
+
+
+@pytest.mark.asyncio
+async def test_hash_only_patch_cannot_replace_server_hash():
+    credential = ProviderCredential(project_id=uuid4(), provider='openai')
+    models = Models()
+    creator = CreateProviderModelUseCase(models, Credentials(credential))
+    output = await creator.execute(CreateProviderModelInput(
+        project_id=credential.project_id, provider_credential_id=credential.id,
+        name='Test', model='gpt-test', spec=_language_spec().as_dict(),
+    ))
+    with pytest.raises(ValidationError):
+        await UpdateProviderModelUseCase(models, Credentials(credential)).execute(output.id, UpdateProviderModelInput(spec_hash='forged'))
+    assert models.item.spec_hash == output.spec_hash
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('fallback', [False, True])
+async def test_frozen_runtime_uses_snapshot_and_original_credential(fallback):
+    credential = ProviderCredential(project_id=uuid4(), provider='openai')
+    model = ProviderModel(project_id=credential.project_id, provider_credential_id=uuid4(), model='retargeted')
+    agent = Agent(project_id=credential.project_id, model='gpt-test', provider='openai', provider_credential_id=credential.id)
+    key = 'fallback_model_spec' if fallback else 'model_spec'
+    agent.settings = {key: _language_spec().as_dict(), f'{key}_frozen': True}
+    if fallback:
+        agent.fallback_provider_model_id = model.id
+        agent.fallback_credential_id = credential.id
+        agent.fallback_provider = 'openai'
+        agent.fallback_model = 'gpt-test'
+    else:
+        agent.provider_model_id = model.id
+    resolver = object.__new__(ReleaseRuntimeResolver)
+    await resolver._resolve_provider_model_refs(SimpleNamespace(provider_models=Models(model), provider_credentials=Credentials(credential)), agent)
+    assert (agent.fallback_model if fallback else agent.model) == 'gpt-test'
+    assert (agent.fallback_credential_id if fallback else agent.provider_credential_id) == credential.id
