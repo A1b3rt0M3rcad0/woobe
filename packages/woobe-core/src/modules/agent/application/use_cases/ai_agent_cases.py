@@ -327,7 +327,9 @@ async def _resolve_implicit_provider_model_bindings(
         ]
         if matches:
             if len(matches) > 1:
-                raise ConflictError("Multiple Model definitions match; select provider_model_id explicitly")
+                from modules.agent.domain.model_spec import effective_model_semantic_fingerprint
+                if len({effective_model_semantic_fingerprint(_provider_model_spec(item, agent.provider)) for item in matches}) > 1:
+                    raise ConflictError("Multiple Model definitions match; select provider_model_id explicitly")
             agent.provider_model_id = sorted(matches, key=lambda item: str(item.id))[0].id
 
     if not agent.fallback_provider_model_id and agent.fallback_credential_id and agent.fallback_model:
@@ -342,7 +344,9 @@ async def _resolve_implicit_provider_model_bindings(
         ]
         if matches:
             if len(matches) > 1:
-                raise ConflictError("Multiple fallback Model definitions match; select fallback_provider_model_id explicitly")
+                from modules.agent.domain.model_spec import effective_model_semantic_fingerprint
+                if len({effective_model_semantic_fingerprint(_provider_model_spec(item, agent.fallback_provider)) for item in matches}) > 1:
+                    raise ConflictError("Multiple fallback Model definitions match; select fallback_provider_model_id explicitly")
             agent.fallback_provider_model_id = sorted(matches, key=lambda item: str(item.id))[0].id
 
 

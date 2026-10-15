@@ -103,7 +103,18 @@ def _candidate(scope, credential, remote, installed=None, configuration_revision
         }
     )
     common["candidate_digest"] = digest
-    if raw_spec is None or remote.normalization_status == "unsupported_execution":
+    expected_operation = {
+        "generation": "language.generate",
+        "embedding": "embedding.create",
+    }.get(scope.capability)
+    if (
+        raw_spec is None
+        or remote.normalization_status == "unsupported_execution"
+        or (
+            expected_operation
+            and expected_operation not in (raw_spec.get("operations") or [])
+        )
+    ):
         return {
             **common,
             "state": "unsupported/unclassified",
@@ -188,6 +199,34 @@ class PreviewProviderModelReconciliationUseCase:
             for item in await self.models.list_by_credential(credential.id)
             if item.project_id == scope.project_id
         ]
+        expected_operation = {
+            "generation": "language.generate",
+            "embedding": "embedding.create",
+        }.get(scope.capability)
+        if expected_operation:
+            from modules.agent.application.interfaces.model_spec_compatibility import (
+                LegacyModelSpecResolver,
+            )
+
+            local = [
+                item
+                for item in local
+                if expected_operation
+                in (
+                    ModelSpec.from_dict(item.spec)
+                    if item.spec
+                    else LegacyModelSpecResolver().resolve(
+                        item, provider=str(credential.provider)
+                    )
+                ).operations
+            ]
+            if scope.capability == "generation":
+                # Comparison retains diagnostic evidence excluded by the picker.
+                remote_models = [
+                    item
+                    for item in remote_models
+                    if "embedding.create" not in item.operations
+                ]
         result = []
         remote_ids = set()
         for remote in remote_models:

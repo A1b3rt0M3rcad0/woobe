@@ -31,7 +31,7 @@ def _json_get(url: str, api_key: str, *, timeout: int = 20) -> dict[str, Any]:
         raise ProviderModelDiscoveryError("OpenRouter embedding discovery timed out") from exc
 
     try:
-        data = json.loads(payload)
+        data = json.loads(payload, parse_constant=lambda _value: None)
     except json.JSONDecodeError as exc:
         raise ProviderModelDiscoveryError("OpenRouter embedding discovery returned invalid JSON") from exc
     if not isinstance(data, dict):

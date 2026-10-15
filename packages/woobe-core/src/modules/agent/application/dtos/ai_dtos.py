@@ -100,6 +100,7 @@ class ListProviderCredentialsOutput(BaseModel):
     metadata: dict[str, Any] = {}
     authentication: dict[str, Any] | None = None
     binding_revision: int = 1
+    supports_embedding: bool | None = None
 
 
 class CreateProviderModelInput(BaseModel):

@@ -217,15 +217,21 @@ class SQLAlchemyProviderModelRepository(
             from modules.agent.domain.errors import ModelConfigNotFoundError
 
             raise ModelConfigNotFoundError
+        old_runtime_metadata = (model.spec or {}).get("metadata") or {}
+        new_runtime_metadata = (provider_model.spec or {}).get("metadata") or {}
         if (model.model != provider_model.model or model.provider_credential_id != provider_model.provider_credential_id
-                or (model.meta or {}).get("base_url") != (provider_model.metadata or {}).get("base_url")):
+                or (model.meta or {}).get("base_url") != (provider_model.metadata or {}).get("base_url")
+                or any(old_runtime_metadata.get(key) != new_runtime_metadata.get(key) for key in ("base_url", "protocol"))):
             referenced = await self._session.scalar(select(AgentReleaseModel.id).where(or_(
                 AgentReleaseModel.provider_model_id == model.id,
                 AgentReleaseModel.fallback_provider_model_id == model.id,
             )).limit(1))
-            if referenced is not None:
+            from types import SimpleNamespace
+            from modules.agent.infra.database.provider_dependency_reader import SQLProviderDependencyReader
+            indexed = await SQLProviderDependencyReader(SimpleNamespace(session=self._session)).embedding_consumers(model.project_id, {model.id})
+            if referenced is not None or indexed:
                 from shared.contracts.errors import ConflictError
-                error = ConflictError("Create a new Model and explicitly rebind the Draft; released model identity is in use")
+                error = ConflictError("Create a new Model and explicitly rebind the Draft; published or indexed model identity is in use")
                 error.code = "MODEL_IDENTITY_IN_USE"
                 raise error
         model.provider_credential_id = provider_model.provider_credential_id

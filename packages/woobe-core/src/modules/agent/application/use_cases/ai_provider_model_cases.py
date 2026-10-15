@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from copy import deepcopy
+from modules.agent.application.model_spec_overrides import compose_model_spec as _apply_model_spec_overrides
 from types import SimpleNamespace
 from typing import Any, Mapping
 from uuid import UUID
@@ -22,9 +23,6 @@ from modules.agent.application.interfaces.repositories import ProviderCredential
 from modules.agent.domain.entities import ProviderCredential, ProviderModel
 from modules.agent.domain.enums import CredentialStatus, ProviderModelStatus
 from modules.agent.domain.model_spec import (
-    ModelCapability,
-    ModelCapabilityNames,
-    ModelLimits,
     ModelSpec,
     model_spec_hash,
 )
@@ -81,7 +79,6 @@ def _provider_value(value: Any) -> str:
     return str(getattr(value, "value", value))
 
 
-from modules.agent.application.model_spec_overrides import compose_model_spec as _apply_model_spec_overrides
 
 
 def _manual_model_spec(
@@ -91,6 +88,9 @@ def _manual_model_spec(
     explicit_model_type: str | None = None,
 ) -> ModelSpec:
     metadata = dict(item.metadata or {})
+    # Manual authoring defaults to the declared API family. Name inference is
+    # reserved for reading historical records through LegacyModelSpecResolver.
+    metadata.setdefault("model_type", explicit_model_type or metadata.get("capability") or "language")
     if explicit_model_type:
         normalized_type = explicit_model_type.strip().lower()
         if normalized_type not in {
@@ -242,6 +242,21 @@ class UpdateProviderModelUseCase:
         item = deepcopy(item)
         previous_metadata = deepcopy(item.metadata or {})
         data = input_dto.model_dump(exclude_unset=True)
+        if "spec" in data and data["spec"] is None:
+            raise ValidationError("ModelSpec cannot be cleared; submit a matching definition")
+        identity_changed = (
+            (data.get("model") is not None and data["model"].strip() != item.model)
+            or (data.get("provider_credential_id") is not None and data["provider_credential_id"] != item.provider_credential_id)
+        )
+        if identity_changed and item.spec is not None and "spec" not in data and _embedded_model_spec(data.get("metadata") or {}) is None:
+            raise ValidationError("Changing Model identity requires a new matching ModelSpec")
+        if identity_changed:
+            previous_metadata = {}
+            if "metadata" not in data:
+                item.metadata = {key: value for key, value in (item.metadata or {}).items() if key not in {
+                    "model_spec_baseline", "model_spec_overrides", "model_spec", "provider_model_raw", "catalog", "catalog_observation",
+                    "capabilities", "pricing", "context_window", "max_output_tokens", "base_url", "dimensions", "model_type", "capability", "type",
+                }}
         if "provider_credential_id" in data:
             credential = await self._load_credential(
                 data["provider_credential_id"],

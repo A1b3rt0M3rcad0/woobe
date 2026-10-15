@@ -315,7 +315,7 @@ class ModelExecutionCompatibilityResolver:
         # authoritative capability catalog. Preserve current behavior while surfacing
         # uncertainty. Provider/catalog specs fail closed when a required capability is
         # absent.
-        if capability is None and model.source in {"legacy", "manual"}:
+        if capability is None and model.source == "legacy":
             issues.append(
                 CompatibilityIssue(
                     code="model_capability_unknown",

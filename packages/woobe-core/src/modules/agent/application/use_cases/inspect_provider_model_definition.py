@@ -10,7 +10,6 @@ from modules.agent.application.use_cases.ai_provider_model_cases import (
 from modules.agent.application.model_spec_compatibility import LegacyModelSpecResolver
 from modules.agent.domain.enums import ProviderModelStatus
 from modules.agent.domain.model_spec import ModelSpec, model_spec_hash
-from shared.contracts.errors import ValidationError
 
 
 class InspectProviderModelDefinitionUseCase:

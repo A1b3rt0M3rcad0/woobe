@@ -46,7 +46,9 @@ class ProviderModelReconciliationHandler:
                     "project_id": str(dto.project_id),
                     "available_for_credential_id": str(dto.provider_credential_id),
                     "environment": dto.environment,
-                    "capability": dto.capability,
+                    "capability": "embedding"
+                    if dto.capability == "embedding"
+                    else None,
                 },
             )
         )

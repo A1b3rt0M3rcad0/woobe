@@ -6,6 +6,7 @@ from modules.agent.infra.adapters.openai_model_enrichment import OPENAI_MODEL_EV
 
 import asyncio
 import json
+from math import isfinite
 from typing import Any, Mapping
 from urllib.error import HTTPError, URLError
 from urllib.request import Request as UrlRequest, urlopen
@@ -50,9 +51,11 @@ def _positive_int(*values: Any) -> int | None:
     for value in values:
         if value is None or isinstance(value, bool):
             continue
+        if isinstance(value, float) and (not isfinite(value) or not value.is_integer()):
+            continue
         try:
             parsed = int(value)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):
             continue
         if parsed > 0:
             return parsed
@@ -78,9 +81,8 @@ def _json_get(
         with urlopen(request, timeout=timeout) as response:
             payload = response.read().decode("utf-8")
     except HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="replace")[:500]
         raise ProviderAdapterError(
-            f"Provider request failed with HTTP {exc.code}: {detail}"
+            f"Provider request failed with HTTP {exc.code}"
         ) from exc
     except URLError as exc:
         raise ProviderAdapterError(
@@ -90,7 +92,7 @@ def _json_get(
         raise ProviderAdapterError("Provider request timed out") from exc
 
     try:
-        result = json.loads(payload)
+        result = json.loads(payload, parse_constant=lambda _value: None)
     except json.JSONDecodeError as exc:
         raise ProviderAdapterError(
             "Provider returned invalid JSON"
@@ -227,7 +229,7 @@ def _common_discovery_capabilities(item: Any) -> dict[str, ModelCapability]:
         ] = ModelCapability(
             supported=bool(item.supports_json),
             config=(
-                {"formats": ["json_object"]}
+                {"formats": ["json_object", "json_schema"] if "structured_outputs" in (_mapping(getattr(item, "raw", None)).get("supported_parameters") or []) else ["json_object"]}
                 if item.supports_json
                 else {}
             ),
@@ -292,6 +294,16 @@ class _DiscoveryServiceProviderAdapter:
         outputs = _modality_set(raw.get("output_modalities", architecture.get("output_modalities")), default=set())
         explicit_type = raw.get("model_type") or raw.get("type")
         explicit_ops = raw.get("operations") or []
+        if explicit_type == "audio" and "audio" in inputs and "text" in outputs:
+            explicit_ops = ["audio.transcribe"]
+        operation_families = {"audio.transcribe": "audio", "audio.synthesize": "audio", "image.generate": "image",
+            "video.generate": "video", "rerank": "rerank", "realtime.session": "realtime"}
+        for operation in explicit_ops:
+            if operation in operation_families and inputs and outputs:
+                return ModelSpec(provider=self.provider_key, model_id=str(item.id), display_name=str(item.label or item.id),
+                    model_type=operation_families[operation], operations=frozenset({operation}),
+                    input_modalities=frozenset(inputs), output_modalities=frozenset(outputs),
+                    interaction=ModelInteractionSpec(mode="isolated"), source="provider", metadata={"provider_model_raw": original})
         if explicit_type in {"embedding", "embeddings"} or "embedding.create" in explicit_ops or "embedding" in outputs:
             spec = _embedding_spec(provider=self.provider_key, model_id=str(item.id), display_name=str(item.label or item.id),
                 max_input_tokens=item.context_window, raw=original,
@@ -345,6 +357,7 @@ class OpenAIProviderAdapter(_DiscoveryServiceProviderAdapter):
                     {"openai.chat_completions", "openai.responses"}
                 ),
                 supports_discovery=True,
+                supported_operations=frozenset({ModelOperations.LANGUAGE_GENERATE, ModelOperations.EMBEDDING_CREATE}),
             ),
             discovery,
         )
@@ -363,6 +376,7 @@ class OpenAICompatibleProviderAdapter(_DiscoveryServiceProviderAdapter):
                     {"openai.chat_completions"}
                 ),
                 supports_discovery=True,
+                supported_operations=frozenset({ModelOperations.LANGUAGE_GENERATE, ModelOperations.EMBEDDING_CREATE}),
                 metadata_schema={
                     "base_url": {"type": "string", "required": True},
                 },
@@ -384,6 +398,7 @@ class OpenRouterProviderAdapter(_DiscoveryServiceProviderAdapter):
                     {"openai.chat_completions"}
                 ),
                 supports_discovery=True,
+                supported_operations=frozenset({ModelOperations.LANGUAGE_GENERATE, ModelOperations.EMBEDDING_CREATE}),
             ),
             discovery,
         )

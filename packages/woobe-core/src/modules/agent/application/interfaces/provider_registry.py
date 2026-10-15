@@ -12,7 +12,9 @@ class UnclassifiedProviderModel:
     model_id: str
     display_name: str
     raw: Mapping[str, Any] = field(default_factory=dict)
-    issues: tuple[str, ...] = ("Insufficient operation/modality evidence; declare a manual ModelSpec",)
+    issues: tuple[str, ...] = (
+        "Insufficient operation/modality evidence; declare a manual ModelSpec",
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -23,6 +25,7 @@ class ProviderManifest:
     supports_discovery: bool = False
     credential_fields: tuple[str, ...] = ("api_key",)
     metadata_schema: Mapping[str, Any] = field(default_factory=dict)
+    supported_operations: frozenset[str] = frozenset()
 
     def __post_init__(self) -> None:
         if not self.key.strip():
@@ -33,9 +36,7 @@ class ProviderManifest:
             self,
             "protocols",
             frozenset(
-                value.strip()
-                for item in self.protocols
-                if (value := str(item).strip())
+                value.strip() for item in self.protocols if (value := str(item).strip())
             ),
         )
         object.__setattr__(
@@ -136,7 +137,9 @@ class ProviderRegistry:
 
     def canonical_key(self, key: str) -> str:
         normalized = self._key(key)
-        return self._aliases.get(normalized, normalized)
+        from modules.agent.domain.provider_identity import canonical_provider_key
+
+        return canonical_provider_key(normalized, aliases=self._aliases)
 
     def contains(self, key: str) -> bool:
         return self.canonical_key(key) in self._adapters
@@ -149,10 +152,7 @@ class ProviderRegistry:
         return adapter
 
     def manifests(self) -> tuple[ProviderManifest, ...]:
-        return tuple(
-            self._adapters[key].manifest
-            for key in sorted(self._adapters)
-        )
+        return tuple(self._adapters[key].manifest for key in sorted(self._adapters))
 
     def aliases(self) -> Mapping[str, str]:
         return dict(self._aliases)
@@ -168,4 +168,5 @@ __all__ = [
     "ProviderRegistry",
     "ProviderRegistryError",
     "UnknownProviderError",
+    "UnclassifiedProviderModel",
 ]

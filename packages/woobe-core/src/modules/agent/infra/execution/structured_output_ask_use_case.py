@@ -62,7 +62,8 @@ class StructuredOutputAskAgentUseCase(
 
     def _resolve_base_url_for_provider(self, provider_val, credential, settings):
         """Resolve OpenAI-compatible custom gateways without legacy model metadata."""
-        if provider_val == "custom":
+        from modules.agent.domain.provider_identity import canonical_provider_key
+        if canonical_provider_key(provider_val) == "openai_compatible":
             base_url = (
                 (settings or {}).get("base_url")
                 or (credential.metadata or {}).get("base_url")

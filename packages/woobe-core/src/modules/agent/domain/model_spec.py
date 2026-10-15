@@ -257,6 +257,9 @@ class ModelSpec:
         object.__setattr__(self, "capabilities", dict(self.capabilities or {}))
         object.__setattr__(self, "pricing", dict(self.pricing or {}))
         object.__setattr__(self, "metadata", dict(self.metadata or {}))
+        for name in ("operations", "input_modalities", "output_modalities"):
+            if not getattr(self, name):
+                raise ValueError(f"ModelSpec {name} must not be empty after normalization")
 
     def supports_operation(self, operation: str) -> bool:
         return operation in self.operations
@@ -391,8 +394,10 @@ def effective_model_semantic_fingerprint(spec: ModelSpec) -> str:
     def normalize(value):
         if isinstance(value, dict):
             return {key: normalize(item) for key, item in sorted(value.items())}
-        if isinstance(value, (list, tuple, set, frozenset)):
+        if isinstance(value, (set, frozenset)):
             return sorted((normalize(item) for item in value), key=lambda item: json.dumps(item, sort_keys=True))
+        if isinstance(value, (list, tuple)):
+            return [normalize(item) for item in value]
         if type(value) is float and value.is_integer():
             return int(value)
         return value
@@ -411,4 +416,5 @@ __all__ = [
     "ModelSpec",
     "ModelTypes",
     "model_spec_hash",
+    "effective_model_semantic_fingerprint",
 ]

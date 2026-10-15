@@ -45,7 +45,7 @@ def _json_get(url: str, api_key: str, *, timeout: int = 20) -> dict[str, Any]:
     except TimeoutError as exc:
         raise ProviderModelDiscoveryError("Provider model discovery timed out") from exc
     try:
-        data = json.loads(payload)
+        data = json.loads(payload, parse_constant=lambda _value: None)
     except json.JSONDecodeError as exc:
         raise ProviderModelDiscoveryError("Provider model discovery returned invalid JSON") from exc
     if not isinstance(data, dict):
@@ -83,9 +83,11 @@ def _positive_int_or_none(*values: Any) -> int | None:
     for value in values:
         if isinstance(value, bool) or value is None:
             continue
+        if isinstance(value, float) and (not isfinite(value) or not value.is_integer()):
+            continue
         try:
             parsed = int(value)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):
             continue
         if parsed > 0:
             return parsed
@@ -251,8 +253,8 @@ class ModelDiscoveryService:
                     input_cost_per_1m_tokens=_per_token_to_per_1m(pricing.get("prompt")),
                     output_cost_per_1m_tokens=_per_token_to_per_1m(pricing.get("completion")),
                     supports_tools=_supports_parameter(raw, {"tools", "tool_choice"}),
-                    supports_json=_supports_parameter(raw, {"response_format"}),
-                    supports_streaming=True,
+                    supports_json=_supports_parameter(raw, {"response_format", "structured_outputs"}),
+                    supports_streaming=raw.get("supports_streaming") if type(raw.get("supports_streaming")) is bool else True,
                     raw=raw,
                 )
             )
