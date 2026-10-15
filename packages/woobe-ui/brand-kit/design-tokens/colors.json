@@ -1,0 +1,106 @@
+{
+  "$schema": "https://design-tokens.github.io/community-group/format/",
+  "name": "Woobe UI — derived brand colors",
+  "colors": {
+    "orange": {
+      "$type": "color",
+      "$value": "#FF5500"
+    },
+    "orange-ink": {
+      "$type": "color",
+      "$value": "#AD3900"
+    },
+    "canvas": {
+      "$type": "color",
+      "$value": "#F8F7F5"
+    },
+    "surface": {
+      "$type": "color",
+      "$value": "#FFFEFD"
+    },
+    "ink": {
+      "$type": "color",
+      "$value": "#0F0F0F"
+    },
+    "body-ink": {
+      "$type": "color",
+      "$value": "#242321"
+    },
+    "muted": {
+      "$type": "color",
+      "$value": "#6B6863"
+    },
+    "faint": {
+      "$type": "color",
+      "$value": "#A09C95"
+    },
+    "border": {
+      "$type": "color",
+      "$value": "#E3E1DD"
+    },
+    "border-subtle": {
+      "$type": "color",
+      "$value": "#EFEEEB"
+    },
+    "peach": {
+      "$type": "color",
+      "$value": "#FFE4D6"
+    },
+    "mint": {
+      "$type": "color",
+      "$value": "#D9F7D6"
+    },
+    "success": {
+      "$type": "color",
+      "$value": "#197542"
+    },
+    "success-mark": {
+      "$type": "color",
+      "$value": "#24AD65"
+    },
+    "success-bg": {
+      "$type": "color",
+      "$value": "#E8F5EA"
+    },
+    "warning": {
+      "$type": "color",
+      "$value": "#9B5700"
+    },
+    "warning-mark": {
+      "$type": "color",
+      "$value": "#E58B16"
+    },
+    "warning-bg": {
+      "$type": "color",
+      "$value": "#FFF1DF"
+    },
+    "danger": {
+      "$type": "color",
+      "$value": "#B42318"
+    },
+    "danger-mark": {
+      "$type": "color",
+      "$value": "#EA554D"
+    },
+    "danger-bg": {
+      "$type": "color",
+      "$value": "#FFF0ED"
+    },
+    "info": {
+      "$type": "color",
+      "$value": "#2454A6"
+    },
+    "info-bg": {
+      "$type": "color",
+      "$value": "#ECF1FF"
+    },
+    "violet": {
+      "$type": "color",
+      "$value": "#7752D9"
+    },
+    "violet-bg": {
+      "$type": "color",
+      "$value": "#F2EEFE"
+    }
+  }
+}

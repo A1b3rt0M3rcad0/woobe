@@ -1,0 +1,271 @@
+{
+  "source": "Recreated/editable SVG components inspired by supplied Woobe brand and application boards. These are samples, not implemented production React components.",
+  "component_count": 53,
+  "components": [
+    {
+      "name": "agent-mini-deploy-bot",
+      "svg": "svg/agent-mini-deploy-bot.svg",
+      "png": "png/agent-mini-deploy-bot.png"
+    },
+    {
+      "name": "agent-mini-log-summariser",
+      "svg": "svg/agent-mini-log-summariser.svg",
+      "png": "png/agent-mini-log-summariser.png"
+    },
+    {
+      "name": "agent-mini-notify",
+      "svg": "svg/agent-mini-notify.svg",
+      "png": "png/agent-mini-notify.png"
+    },
+    {
+      "name": "agent-mini-pr-reviewer",
+      "svg": "svg/agent-mini-pr-reviewer.svg",
+      "png": "png/agent-mini-pr-reviewer.png"
+    },
+    {
+      "name": "badge-error",
+      "svg": "svg/badge-error.svg",
+      "png": "png/badge-error.png"
+    },
+    {
+      "name": "badge-idle",
+      "svg": "svg/badge-idle.svg",
+      "png": "png/badge-idle.png"
+    },
+    {
+      "name": "badge-production",
+      "svg": "svg/badge-production.svg",
+      "png": "png/badge-production.png"
+    },
+    {
+      "name": "badge-queued",
+      "svg": "svg/badge-queued.svg",
+      "png": "png/badge-queued.png"
+    },
+    {
+      "name": "badge-running",
+      "svg": "svg/badge-running.svg",
+      "png": "png/badge-running.png"
+    },
+    {
+      "name": "badge-staging",
+      "svg": "svg/badge-staging.svg",
+      "png": "png/badge-staging.png"
+    },
+    {
+      "name": "button-ghost",
+      "svg": "svg/button-ghost.svg",
+      "png": "png/button-ghost.png"
+    },
+    {
+      "name": "button-icon",
+      "svg": "svg/button-icon.svg",
+      "png": "png/button-icon.png"
+    },
+    {
+      "name": "button-orange",
+      "svg": "svg/button-orange.svg",
+      "png": "png/button-orange.png"
+    },
+    {
+      "name": "button-primary",
+      "svg": "svg/button-primary.svg",
+      "png": "png/button-primary.png"
+    },
+    {
+      "name": "button-secondary",
+      "svg": "svg/button-secondary.svg",
+      "png": "png/button-secondary.png"
+    },
+    {
+      "name": "color-swatch-border",
+      "svg": "svg/color-swatch-border.svg",
+      "png": "png/color-swatch-border.png"
+    },
+    {
+      "name": "color-swatch-canvas",
+      "svg": "svg/color-swatch-canvas.svg",
+      "png": "png/color-swatch-canvas.png"
+    },
+    {
+      "name": "color-swatch-danger",
+      "svg": "svg/color-swatch-danger.svg",
+      "png": "png/color-swatch-danger.png"
+    },
+    {
+      "name": "color-swatch-info",
+      "svg": "svg/color-swatch-info.svg",
+      "png": "png/color-swatch-info.png"
+    },
+    {
+      "name": "color-swatch-ink",
+      "svg": "svg/color-swatch-ink.svg",
+      "png": "png/color-swatch-ink.png"
+    },
+    {
+      "name": "color-swatch-mint",
+      "svg": "svg/color-swatch-mint.svg",
+      "png": "png/color-swatch-mint.png"
+    },
+    {
+      "name": "color-swatch-muted",
+      "svg": "svg/color-swatch-muted.svg",
+      "png": "png/color-swatch-muted.png"
+    },
+    {
+      "name": "color-swatch-orange",
+      "svg": "svg/color-swatch-orange.svg",
+      "png": "png/color-swatch-orange.png"
+    },
+    {
+      "name": "color-swatch-peach",
+      "svg": "svg/color-swatch-peach.svg",
+      "png": "png/color-swatch-peach.png"
+    },
+    {
+      "name": "color-swatch-success",
+      "svg": "svg/color-swatch-success.svg",
+      "png": "png/color-swatch-success.png"
+    },
+    {
+      "name": "color-swatch-surface",
+      "svg": "svg/color-swatch-surface.svg",
+      "png": "png/color-swatch-surface.png"
+    },
+    {
+      "name": "color-swatch-warning",
+      "svg": "svg/color-swatch-warning.svg",
+      "png": "png/color-swatch-warning.png"
+    },
+    {
+      "name": "dashboard-overview-composition",
+      "svg": "svg/dashboard-overview-composition.svg",
+      "png": "png/dashboard-overview-composition.png"
+    },
+    {
+      "name": "dashboard-stat-active-agents",
+      "svg": "svg/dashboard-stat-active-agents.svg",
+      "png": "png/dashboard-stat-active-agents.png"
+    },
+    {
+      "name": "dashboard-stat-median-latency",
+      "svg": "svg/dashboard-stat-median-latency.svg",
+      "png": "png/dashboard-stat-median-latency.png"
+    },
+    {
+      "name": "dashboard-stat-success-rate",
+      "svg": "svg/dashboard-stat-success-rate.svg",
+      "png": "png/dashboard-stat-success-rate.png"
+    },
+    {
+      "name": "dashboard-stat-total-runs",
+      "svg": "svg/dashboard-stat-total-runs.svg",
+      "png": "png/dashboard-stat-total-runs.png"
+    },
+    {
+      "name": "feature-agent-networks",
+      "svg": "svg/feature-agent-networks.svg",
+      "png": "png/feature-agent-networks.png"
+    },
+    {
+      "name": "feature-knowledge",
+      "svg": "svg/feature-knowledge.svg",
+      "png": "png/feature-knowledge.png"
+    },
+    {
+      "name": "feature-releases",
+      "svg": "svg/feature-releases.svg",
+      "png": "png/feature-releases.png"
+    },
+    {
+      "name": "feature-traces",
+      "svg": "svg/feature-traces.svg",
+      "png": "png/feature-traces.png"
+    },
+    {
+      "name": "field-default",
+      "svg": "svg/field-default.svg",
+      "png": "png/field-default.png"
+    },
+    {
+      "name": "field-focused",
+      "svg": "svg/field-focused.svg",
+      "png": "png/field-focused.png"
+    },
+    {
+      "name": "field-invalid",
+      "svg": "svg/field-invalid.svg",
+      "png": "png/field-invalid.png"
+    },
+    {
+      "name": "field-select-environment",
+      "svg": "svg/field-select-environment.svg",
+      "png": "png/field-select-environment.png"
+    },
+    {
+      "name": "landing-hero-illustration",
+      "svg": "svg/landing-hero-illustration.svg",
+      "png": "png/landing-hero-illustration.png"
+    },
+    {
+      "name": "metric-agent-runs",
+      "svg": "svg/metric-agent-runs.svg",
+      "png": "png/metric-agent-runs.png"
+    },
+    {
+      "name": "metric-network-runs",
+      "svg": "svg/metric-network-runs.svg",
+      "png": "png/metric-network-runs.png"
+    },
+    {
+      "name": "metric-runtime-cost",
+      "svg": "svg/metric-runtime-cost.svg",
+      "png": "png/metric-runtime-cost.png"
+    },
+    {
+      "name": "metric-success-rate",
+      "svg": "svg/metric-success-rate.svg",
+      "png": "png/metric-success-rate.png"
+    },
+    {
+      "name": "modal-deploy-confirmation",
+      "svg": "svg/modal-deploy-confirmation.svg",
+      "png": "png/modal-deploy-confirmation.png"
+    },
+    {
+      "name": "reliability-performance",
+      "svg": "svg/reliability-performance.svg",
+      "png": "png/reliability-performance.png"
+    },
+    {
+      "name": "segmented-control",
+      "svg": "svg/segmented-control.svg",
+      "png": "png/segmented-control.png"
+    },
+    {
+      "name": "table-agent-list",
+      "svg": "svg/table-agent-list.svg",
+      "png": "png/table-agent-list.png"
+    },
+    {
+      "name": "tabs-navigation",
+      "svg": "svg/tabs-navigation.svg",
+      "png": "png/tabs-navigation.png"
+    },
+    {
+      "name": "technical-dot-meter",
+      "svg": "svg/technical-dot-meter.svg",
+      "png": "png/technical-dot-meter.png"
+    },
+    {
+      "name": "terminal-cli-window",
+      "svg": "svg/terminal-cli-window.svg",
+      "png": "png/terminal-cli-window.png"
+    },
+    {
+      "name": "top-navigation",
+      "svg": "svg/top-navigation.svg",
+      "png": "png/top-navigation.png"
+    }
+  ]
+}

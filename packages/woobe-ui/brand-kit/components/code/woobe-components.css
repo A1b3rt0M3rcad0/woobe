@@ -1,0 +1,21 @@
+@import url('../../design-tokens/colors.css');
+@import url('../../design-tokens/typography.css');
+@import url('../../design-tokens/layout.css');
+.woobe-demo { font: 14px/1.5 var(--woobe-font-sans); color:var(--woobe-ink); background:var(--woobe-canvas); }
+.woobe-button { min-height:42px; display:inline-flex;align-items:center;justify-content:center;gap:12px;padding:0 18px;border-radius:8px;border:1px solid var(--woobe-border);font:500 14px var(--woobe-font-sans);cursor:pointer;background:var(--woobe-surface);color:var(--woobe-ink); }
+.woobe-button--primary { background:var(--woobe-ink);color:#fff;border-color:var(--woobe-ink); }
+.woobe-button--accent { background:var(--woobe-orange);color:#fff;border-color:var(--woobe-orange); }
+.woobe-card { padding:18px; background:var(--woobe-surface);border:1px solid var(--woobe-border);border-radius:10px;box-shadow:var(--woobe-shadow-panel); }
+.woobe-card__header { display:flex;justify-content:space-between;align-items:center;gap:12px;padding-bottom:14px;border-bottom:1px solid var(--woobe-border); }
+.woobe-label {font:500 12px/1.4 var(--woobe-font-mono); }
+.woobe-card__copy { color:var(--woobe-muted);font:400 14px/1.5 var(--woobe-font-sans); }
+.woobe-metric {font:400 32px/1.18 var(--woobe-font-mono);font-variant-numeric:tabular-nums;margin:20px 0;}
+.woobe-badge {display:inline-flex;align-items:center;gap:6px;border-radius:6px;padding:4px 8px;background:var(--woobe-success-bg);color:var(--woobe-success);font:400 12px var(--woobe-font-sans)}
+.woobe-badge::before { content:'';width:6px;height:6px;border-radius:50%;background:currentColor; }
+.woobe-badge--queued {background:var(--woobe-warning-bg);color:var(--woobe-warning)}
+.woobe-badge--idle {background:var(--woobe-border-subtle);color:var(--woobe-muted)}
+.woobe-input {font:400 14px var(--woobe-font-sans);border:1px solid var(--woobe-border);border-radius:8px;min-height:44px;background:var(--woobe-surface);padding:10px 12px;color:var(--woobe-ink)}
+.woobe-input:focus-visible,.woobe-button:focus-visible {outline:2px solid var(--woobe-orange-ink);outline-offset:2px}
+.woobe-dialog {width:min(95vw,490px);border-radius:10px;border:1px solid var(--woobe-border);background:var(--woobe-surface);padding:24px;box-shadow:0 6px 24px rgba(25,22,16,.08)}
+.woobe-dialog__title {font:400 28px/1.1 var(--woobe-font-serif);letter-spacing:-.04em;margin:0}
+.woobe-dialog__actions {display:flex;justify-content:flex-end;gap:10px;padding-top:16px;border-top:1px solid var(--woobe-border);margin-top:22px}
