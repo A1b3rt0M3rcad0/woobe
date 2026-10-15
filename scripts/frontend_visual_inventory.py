@@ -24,6 +24,7 @@ PAGE_FOLDERS = {
     'TracesPage': 'traces',
 }
 PRIMITIVE_GROUPS = {
+    'brand': ['WoobeLogo'],
     'buttons': ['Button'], 'badges': ['Badge', 'Separator', 'TechnicalListItem'],
     'fields': ['Field', 'Input', 'InputGroup', 'Select', 'Textarea', 'Checkbox', 'ReadOnlyField', 'FormActions'],
     'panels': ['DotMeter', 'ContributionBars', 'SectionBlock', 'PanelHeader', 'Card', 'MetricTile', 'OperationalResourceCard', 'CreateResourceCard'],

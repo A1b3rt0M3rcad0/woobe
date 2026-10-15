@@ -1,5 +1,10 @@
 # Woobe — Control Plane for Production AI Agents
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="packages/woobe-ui/brand-kit/brand/svg/woobe-lockup-orange-white.svg">
+  <img src="packages/woobe-ui/brand-kit/brand/svg/woobe-lockup-primary.svg" width="190" alt="Woobe">
+</picture>
+
 ![Woobe Control Plane — Project Overview](docs/screenshots/project-overview.png?v=7a71cde1bd72)
 
 **Define, version, test, deploy and operate AI agents like production software.**
@@ -281,6 +286,7 @@ See [`packages/README.md`](packages/README.md), [`tooling/README.md`](tooling/RE
 ## Resources
 
 - [Architecture](docs/ARCHITECTURE.md)
+- [Visual identity and brand kit](docs/design/BRAND.md)
 - [Self-hosting](docs/SELF_HOSTING.md)
 - [CLI installation and usage](docs/CLI.md)
 - [Qualified CLI deployment and recovery](docs/CLI_DEPLOYMENT.md)

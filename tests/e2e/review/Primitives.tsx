@@ -7,6 +7,7 @@ export function Primitives() {
   const [query, setQuery] = useState('')
   const [date, setDate] = useState(new Date('2026-10-20T12:00:00Z'))
   return <div className="review-grid">
+    <section className="review-sample" data-sample="brand"><h2>Woobe identity</h2><div className="review-stack"><UI.WoobeLogo /><UI.WoobeLogo variant="mark" /></div><div className="woobe-navigation mt-4 rounded-container bg-surface p-4"><UI.WoobeLogo /></div></section>
     <section className="review-sample review-wide" data-sample="fonts"><h2>Self-hosted typefaces</h2>
       <p data-font-probe="mono" className="font-mono font-medium">Usage Cap · PR Reviewer · $312.40 / $380 · 0123456789 · I l 1 O 0 · ação conexão utilização</p>
       <p data-font-probe="sans" className="font-sans font-normal">Informação, configuração e observação: texto explicativo em Inter.</p>

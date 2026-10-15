@@ -1,5 +1,6 @@
 @import './fonts.css';
 @import './guild-tokens.css';
+@import './brand.css';
 /* Operational themes. Guild reconstruction assets remain unchanged. */
 :root {
   color-scheme: light;

@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
+import { WoobeLogo } from './WoobeLogo'
 import { Loader2 } from 'lucide-react'
 import { Skeleton } from './Skeleton'
 import { cn } from '../lib/cn'
@@ -62,7 +63,7 @@ function PlaygroundSkeleton({ message }: { message: string }) {
 }
 
 function AuthSkeleton({ message, description }: { message: string; description?: string }) {
-  return <div className="flex min-h-screen items-center justify-center bg-background p-ui-xxl"><Surface className="w-full max-w-sm p-ui-xl"><p className="font-sans text-system-control uppercase tracking-ui-eyebrow text-primary-light">WOOBE / control plane</p><div className="mt-ui-lg flex items-center gap-ui-md"><LoadingMark /><div><p className="font-sans text-system-control font-medium text-accent-foreground">{message}</p>{description ? <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">{description}</p> : null}</div></div></Surface></div>
+  return <div className="flex min-h-screen items-center justify-center bg-background p-ui-xxl"><Surface className="w-full max-w-sm p-ui-xl"><WoobeLogo className="h-7" /><p className="mt-ui-xs font-sans text-system-control text-muted-foreground">Control plane</p><div className="mt-ui-lg flex items-center gap-ui-md"><LoadingMark /><div><p className="font-sans text-system-control font-medium text-accent-foreground">{message}</p>{description ? <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">{description}</p> : null}</div></div></Surface></div>
 }
 
 function renderLayout(layout: LoadingLayout, message: string) {

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { ArrowLeft, Check } from 'lucide-react'
-import { SectionBlock } from '@woobe/ui'
+import { SectionBlock, WoobeLogo } from '@woobe/ui'
 import { Button } from '@/components/ui/Button'
 
 export type FirstRunStage = 'project' | 'agent' | 'test'
@@ -27,7 +27,7 @@ export function FirstRunShell({ workspaceName, projectName, activeStage, onExit,
       <header className="shrink-0 border-b border-border bg-surface/55">
         <div className="mx-auto flex h-[58px] w-full max-w-[1320px] items-center justify-between gap-4 px-5 sm:px-8">
           <div className="min-w-0">
-            <p className="font-mono text-system-meta uppercase tracking-[0.18em] text-primary-light">WOOBE / first run</p>
+            <div className="flex items-center gap-ui-sm"><WoobeLogo variant="mark" className="h-4" /><p className="font-mono text-system-meta uppercase tracking-[0.18em] text-primary-light">First run</p></div>
             <h1 className="mt-1 font-serif text-editorial-section font-normal text-slate-100">Launch your first Agent</h1>
           </div>
           <Button type="button" size="sm" variant="outline" onClick={onExit}>

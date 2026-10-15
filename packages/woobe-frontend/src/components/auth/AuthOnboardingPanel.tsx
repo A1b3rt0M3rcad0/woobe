@@ -1,4 +1,5 @@
 import { Bot, Building2, FolderKanban } from 'lucide-react'
+import { WoobeLogo } from '@woobe/ui'
 
 const steps = [
   { icon: Building2, title: 'Create a workspace', description: 'Group members, billing and projects.' },
@@ -10,12 +11,9 @@ export function AuthOnboardingPanel() {
   return (
     <section className="hidden border-r border-border bg-surface/60 p-10 lg:flex lg:flex-col lg:justify-between">
       <div>
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">W</div>
-          <div>
-            <h1 className="text-xl font-medium text-foreground">Woobe</h1>
-            <p className="text-sm text-muted">Production runtime for AI agents</p>
-          </div>
+        <div>
+          <WoobeLogo className="h-9" />
+          <p className="mt-2 text-sm text-muted">Production runtime for AI agents</p>
         </div>
         <div className="mt-16 max-w-xl">
           <p className="font-mono text-xs font-medium uppercase tracking-[0.2em] text-primary-light">Workspace setup</p>

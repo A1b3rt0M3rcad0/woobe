@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
-import { Menu, ChevronRight, Orbit } from 'lucide-react'
-import { Button } from '@woobe/ui'
+import { Menu, ChevronRight } from 'lucide-react'
+import { Button, WoobeLogo } from '@woobe/ui'
 import { useWorkspace } from '@/features/workspace/WorkspaceProvider'
 
 /** Context chrome only. Project selection and authority remain with their owners. */
@@ -12,7 +12,7 @@ export function Topbar({ onOpenNavigation }: { onOpenNavigation: () => void }) {
         <Button variant="ghost" size="iconSm" onClick={onOpenNavigation} aria-label="Open navigation" className="shrink-0 lg:hidden">
           <Menu className="h-icon-lg w-icon-lg" aria-hidden="true" />
         </Button>
-        <Orbit className="hidden h-icon-lg w-icon-lg shrink-0 text-primary lg:block" aria-hidden="true" />
+        <WoobeLogo variant="mark" decorative className="hidden h-icon-lg lg:inline-flex" />
         <Link to={currentWorkspace ? `/workspaces/${currentWorkspace.id}/projects` : '/workspaces'} className="truncate text-muted-foreground hover:text-foreground">
           {currentWorkspace?.name ?? 'Workspaces'}
         </Link>

@@ -1,5 +1,6 @@
 import { Outlet } from 'react-router-dom'
-import { Orbit, GitBranch, FlaskConical, Activity } from 'lucide-react'
+import { GitBranch, FlaskConical, Activity } from 'lucide-react'
+import { WoobeLogo } from '@woobe/ui'
 
 const lifecycle = [
   { icon: GitBranch, title: 'Define', description: 'Version agents, instructions and connected resources.' },
@@ -11,10 +12,7 @@ export function AuthLayout() {
   return (
     <main className="grid min-h-svh bg-background lg:grid-cols-2">
       <section className="relative hidden flex-col justify-between overflow-hidden bg-background p-12 text-foreground lg:flex xl:p-16" aria-label="About Woobe">
-        <div className="flex items-center gap-ui-md" translate="no">
-          <Orbit className="h-8 w-8" strokeWidth={1.6} aria-hidden="true" />
-          <span className="text-brand-title font-medium tracking-tight">Woobe</span>
-        </div>
+        <WoobeLogo className="h-10 self-start" />
         <div className="relative my-16 max-w-lg">
           <p className="mb-6 text-product-small text-muted-foreground">Your agents. Your infrastructure.</p>
           <h2 className="font-serif text-5xl font-normal leading-[1.04] tracking-[-0.04em] xl:text-6xl">From a first draft<br />to production.</h2>
@@ -32,7 +30,7 @@ export function AuthLayout() {
       </section>
       <section className="flex min-w-0 flex-col justify-center border-l border-border bg-surface px-6 py-12 sm:px-12 lg:px-16">
         <div className="mx-auto w-full max-w-form-narrow">
-          <div className="mb-12 flex items-center gap-ui-sm text-foreground lg:hidden" translate="no"><Orbit className="h-7 w-7" aria-hidden="true" /><span className="text-brand-title font-medium">Woobe</span></div>
+          <WoobeLogo className="mb-12 lg:hidden" />
           <Outlet />
           <p className="mt-10 border-t border-border pt-5 text-product-caption text-muted-foreground">Control plane for production AI agents</p>
         </div>

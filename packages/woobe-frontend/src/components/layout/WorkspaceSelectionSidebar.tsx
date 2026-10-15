@@ -1,5 +1,6 @@
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Building2, FolderKanban, Orbit, type LucideIcon } from 'lucide-react'
+import { Building2, FolderKanban, type LucideIcon } from 'lucide-react'
+import { WoobeLogo } from '@woobe/ui'
 import { cn } from '@/lib/utils'
 import { SidebarUserCard } from './SidebarUserCard'
 
@@ -86,11 +87,8 @@ export function WorkspaceSelectionSidebar({ compact = false }: { compact?: boole
   return (
     <aside className="woobe-navigation flex w-project-sidebar shrink-0 flex-col border-r border-border bg-surface">
       <header className="flex h-project-sidebar-header shrink-0 items-center gap-ui-sm border-b border-border px-ui-xl">
-        <div className="flex h-control-sm w-control-sm items-center justify-center text-slate-50" aria-hidden="true">
-          <Orbit className="h-icon-brand w-icon-brand" strokeWidth={1.7} />
-        </div>
         <div className="min-w-0">
-          <p className="font-sans text-brand-title font-medium tracking-tight text-slate-50">WOOBE</p>
+          <WoobeLogo className="h-7" />
           <p className="mt-ui-hairline font-sans text-chrome-meta text-muted-foreground">control plane</p>
         </div>
       </header>
