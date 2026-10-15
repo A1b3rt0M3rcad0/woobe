@@ -5,12 +5,14 @@ import { installApi, login, respond, project, workspace, now } from '../fixtures
 import { installResources } from '../fixtures/resource-api'
 import { projectOverviewFixture } from '../../../packages/woobe-frontend/src/features/dashboard/fixtures'
 import { captureScrollSequence, resetCaptures } from './capture'
+import { installConfigurationReviewApi } from './configuration-api'
 
 for (const width of [1440, 768, 390]) test(`page-owned cost coverage and Skill installation at ${width}px`, async ({ page }) => {
   test.setTimeout(45_000)
   await page.setViewportSize({ width, height: 1100 })
   await installApi(page, { asacAgent: true })
   await installResources(page)
+  await installConfigurationReviewApi(page)
   const fixture = structuredClone(projectOverviewFixture)
   Object.assign(fixture.summary, { agent_run_cost_usd: null, unknown_agent_run_cost_count: 58, unknown_pricing_agent_runs: 58, terminal_agent_runs: 58, priced_agent_runs: 0 })
   await page.route('**/core/projects/project-a/overview*', route => respond(route, fixture))
@@ -45,6 +47,7 @@ for (const width of [1440, 768, 390]) test(`page-owned cost coverage and Skill i
   await expect(page.getByRole('dialog', { name: 'Choose an Agent' })).toBeVisible()
   await save('SkillChooseAgent')
   await page.goto('/review.html?case=ConfigurationValueEditor')
+  await expect(page.locator('#configuration-value')).toBeEnabled()
   await page.locator('#configuration-value').fill('synthetic-local-value')
   await page.getByRole('button',{name:'Cancel',exact:true}).click()
   await save('ConfigurationDiscardValue')
