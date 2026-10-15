@@ -211,7 +211,7 @@ def _modality_set(
         for value in values
         if str(value).strip()
     }
-    return normalized or set(default)
+    return normalized
 
 
 def _common_discovery_capabilities(item: Any) -> dict[str, ModelCapability]:

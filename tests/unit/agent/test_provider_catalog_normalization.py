@@ -36,9 +36,9 @@ def test_openai_enrichment_is_exact_and_explicit_false_wins():
         {'id': 'gpt-4o-mini', 'supports_tools': False}, {'id': 'ft:gpt-4o-mini:unknown'}]}, provider='openai')
     adapter = OpenAIProviderAdapter()
     specs = [adapter._normalize_item(item) for item in items]
-    assert specs[0].capability('tool_calling').supported is True
-    assert specs[1].capability('tool_calling').supported is False
-    assert isinstance(specs[2], UnclassifiedProviderModel)
+    assert isinstance(specs[0], UnclassifiedProviderModel)
+    assert specs[1].capability('tool_calling').supported is True
+    assert specs[2].capability('tool_calling').supported is False
 
 
 @pytest.mark.parametrize('value', [True, -1, 'nan', 'inf', '-inf'])

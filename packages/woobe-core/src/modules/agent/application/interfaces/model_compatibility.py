@@ -329,7 +329,7 @@ class ModelExecutionCompatibilityResolver:
 
         issues.append(
             CompatibilityIssue(
-                code="model_capability_not_supported",
+                code="model_capability_unknown" if capability is None else "model_capability_not_supported",
                 component=component,
                 requirement=capability_name,
                 actual=(
