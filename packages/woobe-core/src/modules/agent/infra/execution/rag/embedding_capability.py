@@ -67,11 +67,12 @@ class RuntimeEmbeddingCapability:
 
 
 def embedding_base_url(snapshot, provider_model, credential) -> str | None:
-    provider = snapshot.embedding_provider
+    from modules.agent.domain.provider_identity import canonical_provider_key
+    provider = canonical_provider_key(snapshot.embedding_provider)
     provider_metadata = provider_model.metadata or {}
     credential_metadata = credential.metadata or {}
 
-    if provider == "custom":
+    if provider == "openai_compatible":
         value = provider_metadata.get("base_url") or credential_metadata.get("base_url")
         if not value:
             raise ValidationError("Custom embedding provider requires base_url")
