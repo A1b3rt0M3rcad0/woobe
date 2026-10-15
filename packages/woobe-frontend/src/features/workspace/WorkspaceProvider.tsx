@@ -21,8 +21,12 @@ function readStored<T>(key: string): T | null {
 }
 
 function writeStored<T>(key: string, value: T | null) {
-  if (value) localStorage.setItem(key, JSON.stringify(value))
-  else localStorage.removeItem(key)
+  try {
+    if (value) localStorage.setItem(key, JSON.stringify(value))
+    else localStorage.removeItem(key)
+  } catch {
+    // Browser persistence is optional; the current selection stays in memory.
+  }
 }
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {

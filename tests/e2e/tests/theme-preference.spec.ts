@@ -48,9 +48,13 @@ for (const system of ['light', 'dark'] as const) test(`System follows ${system} 
 })
 
 test('invalid storage and denied storage fall back safely', async ({ page }) => {
+  const pageErrors: string[] = []
+  page.on('pageerror', error => pageErrors.push(error.message))
   await page.emulateMedia({ colorScheme: 'dark' })
   await installApi(page)
-  await page.addInitScript(() => localStorage.setItem('woobe.theme', 'invalid'))
+  await page.addInitScript(() => {
+    try { localStorage.setItem('woobe.theme', 'invalid') } catch { /* Storage may be blocked on reload. */ }
+  })
   await page.goto('/settings')
   await expect(page.getByLabel('Theme', { exact: true })).toHaveValue('system')
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
@@ -59,6 +63,10 @@ test('invalid storage and denied storage fall back safely', async ({ page }) => 
   await page.getByLabel('Theme', { exact: true }).selectOption('light')
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
   await expect(page.getByRole('dialog', { name: 'Account settings', exact: true })).toBeVisible()
+  await page.reload()
+  await expect(page.getByLabel('Theme', { exact: true })).toHaveValue('system')
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
+  expect(pageErrors).toEqual([])
 })
 
 test('theme preference synchronizes between tabs, including cleared storage', async ({ page, context }) => {
