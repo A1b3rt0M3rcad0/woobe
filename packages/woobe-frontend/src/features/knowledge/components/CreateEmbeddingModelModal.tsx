@@ -1,3 +1,4 @@
+import { buildProviderModelDefinition, effectiveModelPricing } from '@/features/provider-models/modelDefinition'
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { Check, Cpu, Plus, Search } from 'lucide-react'
 import { toast } from 'sonner'
@@ -82,9 +83,7 @@ function priceText(value: number | null, currency: string) {
 
 function pricingOf(model?: ProviderModel | null) {
   const metadata = metadataOf(model)
-  const raw = typeof metadata.pricing === 'object' && metadata.pricing !== null
-    ? metadata.pricing as Record<string, unknown>
-    : metadata
+  const raw = effectiveModelPricing(model)
   const input = numberOrNull(
     raw.input_cost_per_1m_tokens
     ?? raw.input_cost_usd_per_1m_tokens
@@ -210,7 +209,7 @@ export function CreateEmbeddingModelModal({ open, projectId, onClose, onCreated,
   const usableCredentials = useMemo(
     () => credentials.filter((credential) => (
       (!credential.status || credential.status === 'active')
-      && ['openai', 'custom', 'openrouter'].includes(credential.provider)
+      && ['openai', 'openai_compatible', 'custom', 'openrouter'].includes(credential.provider)
     )),
     [credentials],
   )
@@ -340,29 +339,19 @@ export function CreateEmbeddingModelModal({ open, projectId, onClose, onCreated,
     }
 
     try {
+    const definition = buildProviderModelDefinition({ projectId, credentialId: form.credentialId, name: resolvedName, modelId: resolvedModel, existing: model, catalog: selectedCatalogModel, metadata, modelType: 'embedding' })
+
       if (model) {
         const updated = await updateModel.mutateAsync({
           id: model.id,
-          data: {
-            provider_credential_id: form.credentialId,
-            name: resolvedName,
-            model: resolvedModel,
-            status: form.status,
-            metadata,
-          },
+          data: { ...definition, status: form.status },
         })
         toast.success('Embedding model updated')
         onCreated(updated.id)
         return
       }
 
-      const created = await createModel.mutateAsync({
-        project_id: projectId,
-        provider_credential_id: form.credentialId,
-        name: resolvedName,
-        model: resolvedModel,
-        metadata,
-      })
+      const created = await createModel.mutateAsync(definition)
       toast.success('Embedding model created')
       onCreated(created.id)
     } catch (err) {

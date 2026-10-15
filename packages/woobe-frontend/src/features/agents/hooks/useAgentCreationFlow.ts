@@ -1,3 +1,4 @@
+import { buildProviderModelDefinition, isAgentModel } from '@/features/provider-models/modelDefinition'
 import { behaviorFromSpec, behaviorToSpec } from '@/features/agents/behavior'
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
@@ -32,12 +33,7 @@ export function supportsModelCatalog(credential?: ProviderCredential | null) {
 }
 
 export function isEmbeddingProviderModel(model: ProviderModel) {
-  if (model.model_type) return model.model_type === 'embedding'
-  if (Array.isArray(model.spec?.operations) && model.spec.operations.includes('embedding.create')) return true
-  const metadata = model.metadata || {}
-  const capability = String(metadata.capability || metadata.type || '').trim().toLowerCase()
-  if (capability) return capability === 'embedding' || capability === 'embeddings'
-  return `${model.name} ${model.model}`.toLowerCase().includes('embed')
+  return !isAgentModel(model)
 }
 
 export function buildModelMetadata(catalogModel: AvailableProviderModel | null) {
@@ -277,18 +273,10 @@ export function useAgentCreationFlow({ projectId, onCreated, active = true }: Us
 
     try {
       const catalogModel = modelMode === 'catalog' ? selectedCatalogModel : null
-      const selectedSpec = catalogModel?.raw?.woobe_model_spec
-      const model = await createModel.mutateAsync({
-        project_id: projectId,
-        provider_credential_id: selectedCredential.id,
-        name: resolvedName,
-        model: resolvedModel,
-        model_type: catalogModel?.model_type || undefined,
-        spec: selectedSpec && typeof selectedSpec === 'object'
-          ? selectedSpec as Record<string, any>
-          : undefined,
-        metadata: buildModelMetadata(catalogModel),
-      })
+      const model = await createModel.mutateAsync(buildProviderModelDefinition({
+        projectId, credentialId: selectedCredential.id, name: resolvedName, modelId: resolvedModel,
+        catalog: catalogModel, metadata: buildModelMetadata(catalogModel),
+      }))
       setCreatedModel(model)
       setSelectedModelId(model.id)
       setStep('review')

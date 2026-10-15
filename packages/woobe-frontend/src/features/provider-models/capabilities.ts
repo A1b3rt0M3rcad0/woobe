@@ -22,6 +22,7 @@ function firstPositiveInteger(...values: unknown[]): number | null {
 // Keep the same explicit sources and precedence as shared/contracts/llm_cost.py.
 export function providerModelCapabilities(model: ProviderModel | null | undefined) {
   const spec = providerModelSpec(model)
+  if (spec) return { contextWindow: spec.limits.context_window, maxOutputTokens: spec.limits.max_output_tokens }
   const metadata = record(model?.metadata)
   const catalog = record(metadata.catalog)
   const capabilities = record(metadata.capabilities)
@@ -29,8 +30,6 @@ export function providerModelCapabilities(model: ProviderModel | null | undefine
   const rawTopProvider = record(raw.top_provider)
   return {
     contextWindow: firstPositiveInteger(
-      spec?.limits.context_window,
-      spec?.limits.max_input_tokens,
       metadata.context_window,
       metadata.context_length,
       metadata.max_context_tokens,
@@ -46,7 +45,6 @@ export function providerModelCapabilities(model: ProviderModel | null | undefine
       rawTopProvider.context_length,
     ),
     maxOutputTokens: firstPositiveInteger(
-      spec?.limits.max_output_tokens,
       metadata.max_output_tokens,
       capabilities.max_output_tokens,
       catalog.max_output_tokens,

@@ -19,6 +19,7 @@ export interface NormalizedFrontendModelSpec {
     supportsRealtime: boolean | null
   }
   capabilities: Record<string, boolean | null>
+  capabilitySources: Record<string, string | null>
   limits: Record<string, number | null>
   source: string | null
   defaultModelStrategy: string | null
@@ -96,6 +97,7 @@ export function normalizeModelSpec(value: unknown): NormalizedFrontendModelSpec 
       supportsRealtime: booleanValue(interaction.supports_realtime),
     },
     capabilities: normalizedCapabilities(spec.capabilities),
+    capabilitySources: Object.fromEntries(Object.entries(record(spec.capabilities)).map(([name, value]) => [name, stringValue(record(value).source)])),
     limits: {
       context_window: positiveInteger(limits.context_window),
       max_input_tokens: positiveInteger(limits.max_input_tokens),
@@ -115,7 +117,7 @@ export function providerModelSpec(model: ProviderModel | null | undefined): Norm
 
 export function catalogModelSpec(raw: unknown): NormalizedFrontendModelSpec | null {
   const payload = record(raw)
-  return normalizeModelSpec(payload.woobe_model_spec)
+  return normalizeModelSpec(payload.model_spec ?? record(payload.raw).woobe_model_spec ?? payload.woobe_model_spec)
 }
 
 export function modelCapabilityState(

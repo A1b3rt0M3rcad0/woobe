@@ -1,3 +1,4 @@
+import { buildProviderModelDefinition, effectiveModelPricing } from '@/features/provider-models/modelDefinition'
 import { useEffect, useMemo, useState } from 'react'
 import { Check, Cpu, KeyRound, Pencil, Plus, Search } from 'lucide-react'
 import { toast } from 'sonner'
@@ -80,7 +81,7 @@ export function AgentModelManagerModal({ open, projectId, selectedModelId, onClo
   }, [open])
 
   const openModel = (model?: ProviderModel) => {
-    const pricing = (model?.metadata?.pricing || {}) as Record<string, unknown>
+    const pricing = (effectiveModelPricing(model) || {}) as Record<string, unknown>
     setEditingModel(model || null)
     setCredentialId(model?.provider_credential_id || credentials.find((item) => item.status !== 'inactive')?.id || '')
     setModelId(model?.model || '')
@@ -143,7 +144,6 @@ export function AgentModelManagerModal({ open, projectId, selectedModelId, onClo
     if (!credentialId) return toast.error('Choose a provider connection')
     if (!resolvedId || !resolvedName) return toast.error('Model name and ID are required')
 
-    const selectedSpec = selectedCatalog?.raw?.woobe_model_spec
     const metadata = {
       ...(editingModel?.metadata || {}),
       capability: selectedCatalog?.model_type || editingModel?.model_type || 'generation',
@@ -158,28 +158,14 @@ export function AgentModelManagerModal({ open, projectId, selectedModelId, onClo
     }
 
     try {
+    const definition = buildProviderModelDefinition({ projectId, credentialId, name: resolvedName, modelId: resolvedId, existing: editingModel, catalog: selectedCatalog, metadata })
+
       const saved = editingModel
         ? await updateModel.mutateAsync({
             id: editingModel.id,
-            data: {
-              provider_credential_id: credentialId,
-              name: resolvedName,
-              model: resolvedId,
-              ...(selectedCatalog?.model_type ? { model_type: selectedCatalog.model_type } : {}),
-              ...(selectedSpec && typeof selectedSpec === 'object' ? { spec: selectedSpec as Record<string, any> } : {}),
-              status,
-              metadata,
-            },
+            data: { ...definition, status },
           })
-        : await createModel.mutateAsync({
-            project_id: projectId,
-            provider_credential_id: credentialId,
-            name: resolvedName,
-            model: resolvedId,
-            model_type: selectedCatalog?.model_type || undefined,
-            spec: selectedSpec && typeof selectedSpec === 'object' ? selectedSpec as Record<string, any> : undefined,
-            metadata,
-          })
+        : await createModel.mutateAsync(definition)
       await modelsQuery.refetch()
       onUseModel(saved, credentials.find((item) => item.id === credentialId) || selectedCredential)
       toast.success(editingModel ? 'Model updated and selected' : 'Model created and selected')
