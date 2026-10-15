@@ -5,7 +5,7 @@
   <img src="packages/woobe-ui/brand-kit/brand/svg/woobe-lockup-primary.svg" width="190" alt="Woobe">
 </picture>
 
-![Woobe Control Plane — Project Overview](docs/screenshots/project-overview.png?v=7a71cde1bd72)
+![Woobe Control Plane — Project Overview](docs/screenshots/project-overview.png?v=eff97086f35b)
 
 **Define, version, test, deploy and operate AI agents like production software.**
 
