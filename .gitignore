@@ -20,6 +20,7 @@ htmlcov/
 .ci/
 # Reproducible local code-navigation graph and extractor caches.
 graphify-out/
+.serena/
 
 # Notebook, editor and operating-system artifacts
 .ipynb_checkpoints/
