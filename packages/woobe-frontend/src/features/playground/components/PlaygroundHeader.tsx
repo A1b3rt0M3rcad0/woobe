@@ -1,4 +1,3 @@
-import { ThemeSelect } from '@/features/appearance/ThemeSelect'
 import { useState } from 'react'
 import { Badge, SegmentedControl } from '@woobe/ui'
 import { Button } from '@/components/ui/Button'
@@ -108,7 +107,6 @@ export function PlaygroundHeader({
         </div>
 
         <div className="flex max-w-full flex-wrap items-center gap-ui-xs">
-          <ThemeSelect />
           <SegmentedControl
             ariaLabel="Agent environment"
             value={environment}

@@ -85,13 +85,13 @@
   --woobe-editor-active: rgb(var(--woobe-panel-band));
 }
 .woobe-navigation {
-  --woobe-canvas: 21 22 19;
-  --woobe-surface: 21 22 19;
-  --woobe-panel-band: 29 31 27;
+  --woobe-surface: var(--woobe-canvas);
   --woobe-control: 37 39 33;
+  color: rgb(var(--woobe-ink));
 }
-.woobe-navigation {
-  color-scheme: dark;
+/* The light canvas retains its charcoal rail; dark navigation uses the
+   operational dark palette above, including its text, borders and focus. */
+:root:not([data-theme='dark']) .woobe-navigation {
   --woobe-canvas: 24 23 21;
   --woobe-surface: 36 35 33;
   --woobe-panel-band: 48 46 43;
@@ -102,10 +102,7 @@
   --woobe-secondary: 227 225 221;
   --woobe-muted: 192 187 179;
   --woobe-link: 255 174 133;
-}
-.woobe-navigation {
   --woobe-focus: #ffae85;
-  color: rgb(var(--woobe-ink));
 }
 .woobe-navigation :is(button,a,input,select,summary,[tabindex]):focus-visible {
   outline: 2px solid var(--woobe-focus);

@@ -1,6 +1,6 @@
 # Operational themes and workspaces
 
-The Control Plane offers Light, Dark and System in global navigation, authentication and the Agent/Network workspace headers. `woobe.theme` stores the preference locally; System is the default. The early same-origin `theme-init.js` applies it before application startup. The React provider follows system changes and storage events without replacing the application tree. Unavailable storage keeps the choice in memory.
+The Control Plane offers Light, Dark and System only in Account settings → Appearance. Open the modal from the sidebar account control; the existing `/settings` route opens the same modal. Headers and authentication pages have no theme control. `woobe.theme` stores the preference locally; System is the default. The early same-origin `theme-init.js` applies it before application startup. The React provider follows system changes and storage events without replacing the application tree. Unavailable storage keeps the choice in memory.
 
 `woobe-ui/src/styles/theme.css` owns operational color values. Tailwind aliases, CodeMirror, React Flow and portals use these variables. Existing Guild reconstruction assets remain intact. ChatSurface retains its independently configured consumer theme.
 
@@ -8,7 +8,7 @@ The Control Plane offers Light, Dark and System in global navigation, authentica
 
 Mode: operational, comfortable reading with compact technical summaries. Primary reference: the user's October 14 Guild Overview and Woobe Playground/Network captures (2560 × 1440 originals, displayed at 2048 × 1152). Supporting reference: `04-dark-agent-grid.png`, used for quiet dark surface separation. Archetypes: RunSummary/TraceList and operational AgentMiniCard, without marketing overlaps or invented optimization metrics.
 
-Light base: mineral `#efede8`, workspace `#f5f3ef`, panel `#fffdf9`, charcoal `#292620`, copper `#a7441d`. Dark base: `#191a17`, workspace `#1d1f1b`, panel `#252721`, off-white `#f0eee7`, copper `#f1a16f`. Navigation remains charcoal in both modes. Elevated surfaces, controls, selection, chart categories and syntax each have semantic roles; control borders are stronger than decorative separators.
+Light base: mineral `#efede8`, workspace `#f5f3ef`, panel `#fffdf9`, charcoal `#292620`, copper `#a7441d`. Dark base: `#191a17`, workspace `#1d1f1b`, panel `#252721`, off-white `#f0eee7`, copper `#f1a16f`. Light navigation retains its charcoal rail. In dark mode the rail uses the dark canvas `#191a17`, panel-colored controls `#252721` and the shared dark text, border, accent and focus colors. Elevated surfaces, controls, selection, chart categories and syntax each have semantic roles; control borders are stronger than decorative separators.
 
 Inter serves navigation, forms, labels and prose; Georgia stays on editorial headings; JetBrains Mono serves values, code and technical identities. Operational metadata starts at 12px, code at 13px, panel labels at 13–14px. Layout must adapt before reducing text size.
 

@@ -2,6 +2,7 @@ import { chromium, expect, test } from '@playwright/test'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { installWorkspaceRefinement, networkPath, playgroundPath } from '../fixtures/workspace-refinement'
 import { login } from '../fixtures/control-plane'
+import { themeSettingsFor } from '../support/appearance'
 
 for (const factor of [1.25, 1.5, 2]) test(`workspaces remain operable at native browser zoom ${factor * 100}%`, async ({}, info) => {
   // Chromium's persisted default zoom is a logarithmic zoom level. The default
@@ -18,18 +19,18 @@ for (const factor of [1.25, 1.5, 2]) test(`workspaces remain operable at native 
   try {
     const page = context.pages()[0]
     await installWorkspaceRefinement(page); await login(page)
+    const setTheme = await themeSettingsFor(page)
     for (const path of [playgroundPath, networkPath]) {
       await page.goto(`http://127.0.0.1:4173${path}`)
       expect(await page.evaluate(() => devicePixelRatio)).toBeCloseTo(factor, 1)
-      await page.getByLabel('Theme', { exact: true }).selectOption('dark')
-      await expect(page.getByLabel('Theme', { exact: true })).toBeInViewport({ ratio: 1 })
+      await setTheme('dark')
       expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1)
       if (path === playgroundPath) {
         const introduction = page.getByRole('heading', { name: 'Test your Agent', exact: true })
         await introduction.scrollIntoViewIfNeeded()
         await expect(introduction).toBeInViewport({ ratio: 1 })
         await page.getByLabel('Message', { exact: true }).fill(`Unsent text at ${factor}`)
-        await page.getByLabel('Theme', { exact: true }).selectOption('light')
+        await setTheme('light')
         await expect(page.getByLabel('Message', { exact: true })).toHaveValue(`Unsent text at ${factor}`)
         await expect(page.getByRole('button', { name: 'Send message', exact: true })).toBeInViewport({ ratio: 1 })
       } else {

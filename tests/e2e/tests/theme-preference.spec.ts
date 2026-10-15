@@ -1,10 +1,32 @@
 import { expect, test } from '@playwright/test'
-import { installApi } from '../fixtures/control-plane'
+import { installApi, login } from '../fixtures/control-plane'
+
+for (const width of [1440, 390]) test(`theme control is available only in account settings at ${width}px`, async ({ page }) => {
+  await page.setViewportSize({ width, height: 1100 })
+  await installApi(page)
+  for (const path of ['/register', '/login']) {
+    await page.goto(path)
+    await expect(page.getByLabel('Theme', { exact: true })).toHaveCount(0)
+  }
+  await login(page)
+  await expect(page.getByLabel('Theme', { exact: true })).toHaveCount(0)
+  if (width < 1024) await page.getByRole('button', { name: 'Open navigation', exact: true }).click()
+  await page.getByRole('button', { name: 'Open account settings', exact: true }).click()
+  const modal = page.getByRole('dialog', { name: 'Account settings', exact: true })
+  await expect(modal).toBeVisible()
+  await modal.getByLabel('Theme', { exact: true }).selectOption('dark')
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
+  await page.keyboard.press('Escape')
+  await expect(modal).toBeHidden()
+  await expect(page.getByRole('button', { name: 'Open account settings', exact: true })).toBeFocused()
+  await expect(page.getByLabel('Theme', { exact: true })).toHaveCount(0)
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
+})
 
 for (const system of ['light', 'dark'] as const) test(`System follows ${system} and explicit preferences survive reload`, async ({ page }) => {
   await page.emulateMedia({ colorScheme: system })
   await installApi(page)
-  await page.goto('/login')
+  await page.goto('/settings')
   const select = page.getByRole('combobox', { name: 'Theme', exact: true })
   await expect(select).toHaveValue('system')
   await expect(page.locator('html')).toHaveAttribute('data-theme', system)
@@ -12,10 +34,11 @@ for (const system of ['light', 'dark'] as const) test(`System follows ${system} 
   await expect(page.locator('html')).toHaveAttribute('data-theme', system === 'dark' ? 'light' : 'dark')
   for (const choice of ['light', 'dark'] as const) {
     await select.selectOption(choice)
-    await page.getByLabel('Email', { exact: true }).fill('unsaved@example.test')
+    await select.focus()
     await page.emulateMedia({ colorScheme: choice === 'dark' ? 'light' : 'dark' })
     await expect(page.locator('html')).toHaveAttribute('data-theme', choice)
-    await expect(page.getByLabel('Email', { exact: true })).toHaveValue('unsaved@example.test')
+    await expect(select).toBeFocused()
+    await expect(page.getByRole('dialog', { name: 'Account settings', exact: true })).toBeVisible()
     await page.reload()
     await expect(select).toHaveValue(choice)
     await expect(page.locator('html')).toHaveAttribute('data-theme', choice)
@@ -28,22 +51,22 @@ test('invalid storage and denied storage fall back safely', async ({ page }) => 
   await page.emulateMedia({ colorScheme: 'dark' })
   await installApi(page)
   await page.addInitScript(() => localStorage.setItem('woobe.theme', 'invalid'))
-  await page.goto('/login')
+  await page.goto('/settings')
   await expect(page.getByLabel('Theme', { exact: true })).toHaveValue('system')
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
   await page.addInitScript(() => Object.defineProperty(window, 'localStorage', { get() { throw new DOMException('Storage blocked', 'SecurityError') } }))
   await page.reload()
   await page.getByLabel('Theme', { exact: true }).selectOption('light')
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
-  await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible()
+  await expect(page.getByRole('dialog', { name: 'Account settings', exact: true })).toBeVisible()
 })
 
 test('theme preference synchronizes between tabs, including cleared storage', async ({ page, context }) => {
   await installApi(page)
-  await page.goto('/login')
+  await page.goto('/settings')
   const second = await context.newPage()
   await installApi(second)
-  await second.goto('/login')
+  await second.goto('/settings')
   await page.getByLabel('Theme', { exact: true }).selectOption('dark')
   await expect(second.getByLabel('Theme', { exact: true })).toHaveValue('dark')
   await expect(second.locator('html')).toHaveAttribute('data-theme', 'dark')
@@ -53,7 +76,7 @@ test('theme preference synchronizes between tabs, including cleared storage', as
 })
 
 for (const theme of ['light', 'dark'] as const) test(`${theme} semantic text and control contrast`, async ({ page }) => {
-  await installApi(page); await page.goto('/login')
+  await installApi(page); await page.goto('/settings')
   await page.getByLabel('Theme', { exact: true }).selectOption(theme)
   const results = await page.evaluate(() => {
     const color = (token: string) => {

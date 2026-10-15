@@ -26,7 +26,8 @@ async function navigation(page: Page, width: number, label: string) {
   return page.locator('aside.woobe-navigation:visible')
 }
 
-for (const width of [1440, 390]) test(`navigation keeps its dark surface and dialogs retain light surfaces at ${width}px`, async ({ page }) => {
+for (const theme of ['light', 'dark'] as const) for (const width of [1440, 390]) test(`navigation and account settings follow the ${theme} palette at ${width}px`, async ({ page }) => {
+  await page.emulateMedia({ colorScheme: theme })
   await page.setViewportSize({ width, height: 1100 })
   await installApi(page, { asacAgent: true })
   await page.route('**/core/projects/project-a/overview*', route => respond(route, projectOverviewFixture))
@@ -35,6 +36,17 @@ for (const width of [1440, 390]) test(`navigation keeps its dark surface and dia
   const workspaceNav = await navigation(page, width, 'Workspace navigation')
   const workspaceColors = await colors(workspaceNav)
   expect(luminance(workspaceColors.background)).toBeLessThan(0.06)
+  if (theme === 'dark') {
+    const canvas = await page.evaluate(() => {
+      const probe = document.createElement('span')
+      probe.style.backgroundColor = 'rgb(var(--woobe-canvas))'
+      document.body.appendChild(probe)
+      const color = getComputedStyle(probe).backgroundColor
+      probe.remove()
+      return color
+    })
+    expect(workspaceColors.background).toBe(canvas)
+  }
   if (width < 1024) await page.keyboard.press('Escape')
 
   await page.goto(`/workspaces/${workspace.id}/projects/${project.id}`)
@@ -48,7 +60,9 @@ for (const width of [1440, 390]) test(`navigation keeps its dark surface and dia
   await projectNav.getByRole('button', { name: 'Open account settings', exact: true }).click()
   const account = page.getByRole('dialog', { name: 'Account settings', exact: true })
   await expect(account).toBeVisible()
-  expect(luminance((await colors(account)).background)).toBeGreaterThan(0.85)
+  const accountLuminance = luminance((await colors(account)).background)
+  if (theme === 'light') expect(accountLuminance).toBeGreaterThan(0.85)
+  else expect(accountLuminance).toBeLessThan(0.06)
   const audit = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()
   expect(audit.violations).toEqual([])
   await page.keyboard.press('Escape')
