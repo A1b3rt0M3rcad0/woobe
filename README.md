@@ -32,7 +32,7 @@ Woobe provides the control plane and runtime between your application and its AI
 
 The Web UI brings Project resources, execution and delivery into one workspace. Use the Overview to inspect Run activity, reliability and cost, then open Agents or Networks to configure, test and release changes.
 
-![Woobe Control Plane — Project Overview](docs/screenshots/project-overview.png?v=4513f986f77f)
+![Woobe Control Plane — Project Overview](docs/screenshots/project-overview.png?v=aa9f3e03a607)
 
 ## Quick start
 

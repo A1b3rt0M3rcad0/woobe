@@ -2,7 +2,7 @@
 
 Updated Chromium captures of the production application, using synthetic API fixtures. Main pages are retained, with four comparable light/dark workspace captures requested for the theme refinement. Component and modal screenshots stay outside documentation.
 
-![Project Overview](project-overview.png?v=4513f986f77f)
+![Project Overview](project-overview.png?v=aa9f3e03a607)
 
 19 main pages × 3 widths + 4 theme comparisons = 61 images. Desktop 1440 × 1100, tablet 768 × 1100, mobile 390 × 1100.
 
@@ -11,7 +11,7 @@ Updated Chromium captures of the production application, using synthetic API fix
 | Sign in | [View](sign-in.png?v=fa38dc88988b) | [View](tablet/sign-in.png?v=d0b364f36dd6) | [View](mobile/sign-in.png?v=905bb2c8a867) |
 | Workspaces | [View](workspaces.png?v=ddc33c63b125) | [View](tablet/workspaces.png?v=79b787a4e276) | [View](mobile/workspaces.png?v=232221f4fe8f) |
 | Projects | [View](projects.png?v=b807f79ba212) | [View](tablet/projects.png?v=331d4dd64ad6) | [View](mobile/projects.png?v=301c0da5e26f) |
-| Project Overview | [View](project-overview.png?v=4513f986f77f) | [View](tablet/project-overview.png?v=f96e47a89763) | [View](mobile/project-overview.png?v=3fe52c7d6300) |
+| Project Overview | [View](project-overview.png?v=aa9f3e03a607) | [View](tablet/project-overview.png?v=a4fb77de6103) | [View](mobile/project-overview.png?v=0677341f61f1) |
 | First Agent setup | [View](first-agent-setup.png?v=069f7deee20c) | [View](tablet/first-agent-setup.png?v=35dfe8771ee2) | [View](mobile/first-agent-setup.png?v=e8dfc3d7929d) |
 | Agents | [View](agents.png?v=a06dfdf7d098) | [View](tablet/agents.png?v=9b60c6a1a875) | [View](mobile/agents.png?v=862193be80cd) |
 | Networks | [View](networks.png?v=d44afc6de8db) | [View](tablet/networks.png?v=af73554d015e) | [View](mobile/networks.png?v=8f04530655c4) |

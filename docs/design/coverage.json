@@ -3873,8 +3873,8 @@
       "path": "docs/screenshots/mobile/project-overview.png",
       "width": 390,
       "height": 1100,
-      "bytes": 67810,
-      "sha256": "3fe52c7d6300673b2228ec44c14035a281034be58de8f230f43144ba21b64187"
+      "bytes": 67776,
+      "sha256": "0677341f61f13a8f8cc3077428f26ed4895cc43a03e36140fe9365bb3b0beb53"
     },
     {
       "path": "docs/screenshots/mobile/projects.png",
@@ -3950,8 +3950,8 @@
       "path": "docs/screenshots/project-overview.png",
       "width": 1440,
       "height": 1100,
-      "bytes": 221391,
-      "sha256": "4513f986f77ff9be66f7d31cf46f4f1f34d780738b20dde9678decc5afbddefc"
+      "bytes": 220068,
+      "sha256": "aa9f3e03a607a3d52564c5441351aabcef432ad9becc3d50ee21d9d2249f5c8e"
     },
     {
       "path": "docs/screenshots/projects.png",
@@ -4055,8 +4055,8 @@
       "path": "docs/screenshots/tablet/project-overview.png",
       "width": 768,
       "height": 1100,
-      "bytes": 102318,
-      "sha256": "f96e47a89763891bb75ec2651095b34161a3ad00aa081fccdc2f30873f4642e5"
+      "bytes": 92753,
+      "sha256": "a4fb77de6103854e0cee3ce0947bc9f75f5638f438a4cd51a66f0d4e464222e0"
     },
     {
       "path": "docs/screenshots/tablet/projects.png",

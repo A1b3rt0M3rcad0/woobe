@@ -1,10 +1,9 @@
 {
-  "recorded_at": "2026-10-15T00:59:45.588500-03:00",
+  "recorded_at": "2026-10-15T01:15:02.948933-03:00",
   "timezone": "America/Sao_Paulo",
-  "implementation_commit": "8dc9d78378f2f459f8bd774512cf2e05d22e12e3",
-  "application_commit": "8dc9d78378f2f459f8bd774512cf2e05d22e12e3",
+  "implementation_commit": "0a62d7253249b2380628c04692e09904725710f1",
+  "application_commit": "0a62d7253249b2380628c04692e09904725710f1",
   "initial_browser_application_commit": "bdefe46c",
-  "browser_unique_cases_covered": 180,
   "base_commit": "2487e54c0eeb2d2bb0a610e5355c6f87aecd68fc",
   "branch": "feature/first-agent-provider-ux",
   "pr": null,
@@ -18,7 +17,7 @@
     "Provider forms show one option per provider family, support named connections and inline compatible-endpoint validation. Busy state clears before transitioning from a saved form.",
     "Returning to review or retrying Agent creation reuses the saved Model. Catalog failure retains manual entry and retry; configuration permission failure stays unavailable.",
     "Credential details distinguish enabled from validated access; actions wrap inside the modal and lifecycle controls retain impact checks.",
-    "Overview removes its second environment selector. The configuration notice follows the header selection; All explicitly checks Draft.",
+    "Overview removes the entire Project configuration banner and summary query. Environment filtering remains in its header.",
     "Main-page gallery adds first-Agent setup at three widths. All 61 page/theme captures regenerated; root README Overview cache hash updated."
   ],
   "checks": [
@@ -110,16 +109,23 @@
       "2026-10-15T00:44:33.963829-03:00",
       "2026-10-15T00:47:53.231819-03:00"
     ],
-    "readme_image_sha256": "4513f986f77ff9be66f7d31cf46f4f1f34d780738b20dde9678decc5afbddefc",
-    "readme_cache_key": "4513f986f77f",
+    "readme_image_sha256": "aa9f3e03a607a3d52564c5441351aabcef432ad9becc3d50ee21d9d2249f5c8e",
+    "readme_cache_key": "aa9f3e03a607",
     "sha256_inventory": "coverage.json",
-    "scope": "Main pages only, plus four existing workspace theme comparisons. Provider modal and detailed setup captures stay in ignored Playwright output."
+    "scope": "Main pages only, plus four existing workspace theme comparisons. Provider modal and detailed setup captures stay in ignored Playwright output.",
+    "latest_recaptured_pages": [
+      "project-overview.png",
+      "tablet/project-overview.png",
+      "mobile/project-overview.png"
+    ],
+    "overview_recaptured_at": "2026-10-15T01:13:43.073387-03:00"
   },
   "manual_visual_review": [
     "Owner setup/modal problem captures and the installed 04-dark-agent-grid.png surface reference.",
     "New first-Agent form in dark mode at 2560px and 390px; natural-height card, readable fields and nearby actions.",
     "New credential detail dialog in dark mode at 1440px; configuration controls and lifecycle actions fit within the dialog.",
-    "Committed light first-Agent setup page and updated Overview without a second selector."
+    "Committed light first-Agent setup page and updated Overview without a second selector.",
+    "Overview without the configuration banner at 1440px and 390px in the latest follow-up."
   ],
   "design_contracts": [
     "SETUP_UX.md",
@@ -143,5 +149,33 @@
     "Synthetic API fixtures do not qualify a live backend or model-provider deployment.",
     "Selected contrast, keyboard and browser checks are not complete accessibility certification.",
     "Local Chromium 154 and installed Georgia may rasterize differently from pinned CI Chromium and other client fonts."
-  ]
+  ],
+  "preceding_checks_source_commit": "8dc9d78378f2f459f8bd774512cf2e05d22e12e3",
+  "preceding_browser_unique_cases_covered": 180,
+  "latest_followup": {
+    "source_commit": "0a62d7253249b2380628c04692e09904725710f1",
+    "scope": "Remove the entire Overview configuration banner. Shared target-specific readiness components and configuration editors remain at their existing owners.",
+    "checks": [
+      {
+        "name": "Production Overview regression, accessibility and documentation captures",
+        "result": "passed",
+        "tests": 14,
+        "duration": "1.0m",
+        "command": "cd tests/e2e && CI=true WOOBE_CAPTURE_DOCS=1 WOOBE_REQUIRE_GEORGIA=1 PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/chromium PLAYWRIGHT_BROWSERS_PATH=/workspace/.playwright npx playwright test --config playwright.config.ts overview-refinement.spec.ts setup-ux.spec.ts surface-coverage.spec.ts --grep 'overview hierarchy|activity uses|a new environment|failed refresh|reported zero|seven-day filter|Overview filters|complete surface overview' --workers=2",
+        "scope": "Five responsive/axe cases (320–1440px), filtering without configuration summary requests, chart/keyboard intervals, loading and refresh failure, seven-day range and three updated Overview captures. Frontend and Embed production builds completed."
+      },
+      {
+        "name": "AST knowledge graph update",
+        "result": "passed"
+      },
+      {
+        "name": "Screenshot inventory",
+        "result": "passed",
+        "main_pages": 19,
+        "pngs": 61
+      }
+    ],
+    "retired_test": "The Overview-specific configuration blocker case was removed with the banner. Existing shared ProjectConfigurationNotice unit tests remain. Earlier full-suite and workflow evidence is retained above with its preceding source commit; it was not rerun in full for this deletion.",
+    "visual_review": "Updated desktop (1440px) and mobile (390px) Overview captures inspected; metrics follow the header without the configuration strip."
+  }
 }
