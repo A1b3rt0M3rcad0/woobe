@@ -1,3 +1,4 @@
+from modules.agent.entrypoint import ReconciliationScope, ApplyProviderModelReconciliationInput, provider_model_reconciliation_composer
 from typing import Literal
 from modules.agent.entrypoint import CreateReleaseInput
 from modules.agent.entrypoint import ExecuteReleaseTestInput, build_release_test_execution_handler
@@ -134,6 +135,16 @@ async def list_provider_models(request: FastAPIRequest):
     handler = list_available_provider_models_composer() if request.query_params.get("available_for_credential_id") else list_provider_models_composer()
     response = await request_adapter(request, handler)
     return response_adapter(response)
+
+
+@router.get("/provider-models/sync-preview", openapi_extra=query_parameter_contract(ReconciliationScope, "/ai/provider-models/sync-preview"))
+async def preview_provider_model_reconciliation(request: FastAPIRequest):
+    return response_adapter(await request_adapter(request, provider_model_reconciliation_composer()))
+
+
+@router.post("/provider-models/sync-apply", openapi_extra=request_body_contract(ApplyProviderModelReconciliationInput, "/ai/provider-models/sync-apply", "post", required=True))
+async def apply_provider_model_reconciliation(request: FastAPIRequest):
+    return response_adapter(await request_adapter(request, provider_model_reconciliation_composer(apply=True)))
 
 
 @router.get("/provider-models/{provider_model_id}")

@@ -16,6 +16,10 @@ class ProviderModelRepository(ABC):
         """Reserve mutable reuse preconditions within the owner transaction."""
         raise NotImplementedError("Model row locking is required for imported models")
 
+    async def record_catalog_observation(self, provider_model_id: UUID, evidence: dict) -> None:
+        """Record provenance without changing definition fields or its revision time."""
+        raise NotImplementedError("Catalog evidence persistence is required for reconciliation")
+
     @abstractmethod
     async def list_by_project(self, project_id: UUID) -> list[ProviderModel]: ...
 

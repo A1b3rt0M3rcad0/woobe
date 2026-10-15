@@ -8,10 +8,10 @@ from modules.agent.infra.adapters.provider_discovery_adapters import EmbeddingMo
 from modules.agent.infra.adapters.provider_discovery_handler import ProviderDiscoveryHandler
 
 
-def list_available_provider_models_composer() -> Callable:
+def list_available_provider_models_composer(*, additional_permissions=()) -> Callable:
     """Discovery commits authorization/pins, releases SQL, then calls the provider."""
     return ProviderDiscoveryHandler(build_agent_uow,
         discovery=ProviderModelDiscoveryAdapter(ModelDiscoveryService()),
         embedding_discovery=EmbeddingModelDiscoveryAdapter(OpenRouterEmbeddingModelDiscoveryService()),
         secret_resolver=ProviderSecretResolver(SETTINGS.encryption_key),
-        use_case_factory=ListAvailableProviderModelsUseCase)
+        use_case_factory=ListAvailableProviderModelsUseCase, additional_permissions=additional_permissions)
