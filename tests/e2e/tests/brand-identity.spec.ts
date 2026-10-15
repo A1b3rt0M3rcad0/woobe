@@ -58,3 +58,21 @@ test('browser brand assets are real images with transparent backgrounds', async 
     expect(image.cornerAlpha).toBe(0)
   }
 })
+
+test('mobile navigation opens after delayed post-login Project selection', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 1100 })
+  await installApi(page)
+  let delayedSelection = false
+  await page.route(/\/core\/projects(?:\?|$)/, async route => {
+    delayedSelection = true
+    // Keep the intermediate /dashboard route observable while context loads.
+    await new Promise(resolve => setTimeout(resolve, 500))
+    await route.fallback()
+  })
+  await login(page)
+  expect(delayedSelection).toBe(true)
+  expect(new URL(page.url()).pathname).toMatch(/^\/workspaces\/workspace-a\/projects\/project-a(?:\/|$)/)
+  await page.getByRole('button', { name: 'Open navigation', exact: true }).click()
+  const navigation = page.getByRole('dialog', { name: 'Navigation', exact: true })
+  await visibleLockup(navigation.getByRole('img', { name: 'Woobe', exact: true }), 'orange-white')
+})

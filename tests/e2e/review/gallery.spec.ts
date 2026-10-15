@@ -3,6 +3,7 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import cases from './overlay-cases.json'
 import { captureScrollSequence, resetCaptures } from './capture'
+import { installConfigurationReviewApi } from './configuration-api'
 import { installApi, respond, productionAgent, selectedRelease, project, workspace, now } from '../fixtures/control-plane'
 import { DEFAULT_CHAT_SURFACE_APPEARANCE } from '../../../packages/woobe-frontend/src/features/chat-surfaces/appearance'
 import { hasRenderedFont, platformFontFamily } from '../support/font-evidence'
@@ -25,6 +26,7 @@ async function prepare(page: Page) {
     if (path.startsWith('/chat-surfaces/')) return respond(route, [])
     await route.fallback()
   })
+  await installConfigurationReviewApi(page)
 }
 
 async function fonts(page: Page) {

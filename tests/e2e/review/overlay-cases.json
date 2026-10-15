@@ -1,5 +1,10 @@
 [
   {
+    "id": "ConfigurationKeyDeletionDialog",
+    "source": "packages/woobe-frontend/src/features/projects/components/ConfigurationKeyDeletionDialog.tsx",
+    "export": "ConfigurationKeyDeletionDialog"
+  },
+  {
     "id": "Dialog",
     "source": "packages/woobe-ui/src/components/Dialog.tsx"
   },

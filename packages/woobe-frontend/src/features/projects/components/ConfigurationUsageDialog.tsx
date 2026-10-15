@@ -1,13 +1,13 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Button, Dialog } from '@woobe/ui'
+import { Button, Dialog, Field, FieldLabel, Select } from '@woobe/ui'
 import { configurationUsage, listConfigurationPolicies, grantConfigurationUse, revokeConfigurationUse,
   type ConfigurationKey, type ConfigurationConsumer, type ConfigurationUsePolicy } from '../configuration'
 import type { ProjectEnvironment } from '../types'
 
-interface Props { projectId: string; item: ConfigurationKey; environment: ProjectEnvironment; canApprove: boolean; onClose: () => void }
+interface Props { projectId: string; item: ConfigurationKey; environment: ProjectEnvironment; canApprove: boolean; onEnvironmentChange?: (environment: ProjectEnvironment) => void; onClose: () => void }
 
-export function ConfigurationUsageDialog({ projectId, item, environment, canApprove, onClose }: Props) {
+export function ConfigurationUsageDialog({ projectId, item, environment, canApprove, onEnvironmentChange, onClose }: Props) {
   const [offset, setOffset] = useState(0)
   const [policyOffset, setPolicyOffset] = useState(0)
   const [pending, setPending] = useState(false)
@@ -30,6 +30,7 @@ export function ConfigurationUsageDialog({ projectId, item, environment, canAppr
   }
   return <Dialog open onClose={onClose} title={`Usage · ${item.key}`}>
     <div className="space-y-ui-lg p-ui-lg">
+      {onEnvironmentChange && <Field><FieldLabel htmlFor="configuration-usage-environment">Environment for approvals</FieldLabel><Select id="configuration-usage-environment" value={environment} disabled={pending || !!approval || !!revocation} onChange={event => onEnvironmentChange(event.target.value as ProjectEnvironment)} options={['draft', 'staging', 'production'].map(value => ({ value, label: value[0].toUpperCase() + value.slice(1) }))} /></Field>}
       <section className="space-y-ui-sm"><h3 className="text-product-label">Consumers</h3>
         {usage.isLoading ? <p>Loading consumers…</p> : usage.isError ? <p role="alert">Consumer information is unavailable.</p> : <>
           <ul className="divide-y divide-border">{usage.data?.items.map(row => <li key={`${row.consumer_kind}:${row.consumer_id}:${row.definition_revision}:${row.field_path}`} className="flex flex-wrap items-center justify-between gap-ui-md py-ui-sm">

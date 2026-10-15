@@ -19,7 +19,7 @@ _PERMISSIONS = {
     "readiness": "read", "summary": "read",
     "list_use_policies": "read",
     "capabilities": "read",
-    "list_keys": "read", "usage": "read", "declare": "declare", "patch": "declare",
+    "list_keys": "read", "usage": "read", "deletion_check": "read", "declare": "declare", "patch": "declare",
     "remove_key": "declare", "write_value": "value:write", "write_batch": "value:write",
     "grant_use": "use-policy:write", "revoke_use": "use-policy:write",
 }
@@ -182,7 +182,7 @@ class ProjectConfigurationService:
                 result.update({"target_kind": arguments["target_kind"], "target_id": str(arguments["target_id"]),
                                "selection": closure["selection"]})
                 return result
-            if action not in {"list_keys", "usage", "list_use_policies", "legacy_bindings"}:
+            if action not in {"list_keys", "usage", "deletion_check", "list_use_policies", "legacy_bindings"}:
                 arguments["actor"] = actor
             store = LegacyConfigurationStore(session, encryption_key=self.encryption_key)
             result = await getattr(store, action)(project_id=project_id, **arguments)

@@ -1,14 +1,14 @@
-import { ConfigurationBatchEditor } from '@/features/projects/components/ConfigurationBatchEditor'
 import { ConfigurationEnvironmentComparison } from '@/features/projects/components/ConfigurationEnvironmentComparison'
 import { ConfigurationLegacyPanel } from '@/features/projects/components/ConfigurationLegacyPanel'
 import { useEffect, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQueries, useQueryClient } from '@tanstack/react-query'
 import { Button, Field, FieldLabel, Input, Select } from '@woobe/ui'
 import { ResourcePage } from '@/components/common/ResourcePage'
 import { ApiError } from '@/lib/api/errors'
-import { configurationReturnPath, listConfiguration, type ConfigurationKey } from '@/features/projects/configuration'
+import { configurationReturnPath, listConfiguration, type ConfigurationKey, type ConfigurationPage } from '@/features/projects/configuration'
 import { ConfigurationKeyDeclarationDialog } from '@/features/projects/components/ConfigurationKeyDeclarationDialog'
+import { ConfigurationKeyDeletionDialog } from '@/features/projects/components/ConfigurationKeyDeletionDialog'
 import { ConfigurationUsageDialog } from '@/features/projects/components/ConfigurationUsageDialog'
 import { ConfigurationValueEditor } from '@/features/projects/components/ConfigurationValueEditor'
 import type { ProjectEnvironment } from '@/features/projects/types'
@@ -18,61 +18,99 @@ export default function ProjectEnvironmentsPage() {
   return projectId ? <EnvironmentWorkspace key={projectId} projectId={projectId} /> : null
 }
 
+const environments: ProjectEnvironment[] = ['draft', 'staging', 'production']
+const environmentLabel = (environment: ProjectEnvironment) => environment[0].toUpperCase() + environment.slice(1)
+const materialLabels = { present: 'Configured', missing: 'Not set', invalid_format: 'Invalid format', revoked: 'Revoked', unavailable: 'Unavailable' }
+
 function EnvironmentWorkspace({ projectId }: { projectId: string }) {
-  const [params, setParams] = useSearchParams()
+  const [params] = useSearchParams()
   const returnTo = configurationReturnPath(params.get('returnTo'), projectId, window.location.origin)
   const selected = params.get('environment')
-  const environment: ProjectEnvironment = selected === 'staging' || selected === 'production' ? selected : 'draft'
+  const initialEnvironment: ProjectEnvironment = selected === 'staging' || selected === 'production' ? selected : 'draft'
+  const [preferredEnvironment, setPreferredEnvironment] = useState(initialEnvironment)
   const [search, setSearch] = useState('')
-  const [status, setStatus] = useState('all')
   const [offset, setOffset] = useState(0)
-  const [editing, setEditing] = useState<ConfigurationKey | null>(null)
-  const [usage, setUsage] = useState<ConfigurationKey | null>(null)
+  const [editing, setEditing] = useState<{ item: ConfigurationKey; environment: ProjectEnvironment } | null>(null)
+  const [editingDefinition, setEditingDefinition] = useState<ConfigurationKey | null>(null)
+  const [deleting, setDeleting] = useState<ConfigurationKey | null>(null)
+  const [usage, setUsage] = useState<{ item: ConfigurationKey; environment: ProjectEnvironment } | null>(null)
   const [creating, setCreating] = useState(false)
-  const [batch, setBatch] = useState<ConfigurationKey[] | null>(null)
   const [view, setView] = useState<'keys' | 'compare' | 'legacy'>('keys')
-  useEffect(() => { setEditing(null); setBatch(null); setUsage(null); setCreating(false) }, [projectId, environment])
+  useEffect(() => { setPreferredEnvironment(initialEnvironment) }, [initialEnvironment])
   const client = useQueryClient()
-  const query = useQuery({ queryKey: ['project-configuration', projectId, environment, search, status, offset],
-    queryFn: () => listConfiguration(projectId, environment, search, status, offset), retry: false })
+  // Each response is authorized independently. All requests use the same shared
+  // declaration ordering/page; denied environments never borrow another's state.
+  const queries = useQueries({ queries: environments.map(environment => ({
+    queryKey: ['project-configuration', projectId, environment, search, 'all', offset],
+    queryFn: () => listConfiguration(projectId, environment, search, 'all', offset), retry: false,
+  })) })
+  const sourceIndex = queries.findIndex(query => query.isSuccess)
+  const catalog = queries[sourceIndex]?.data
+  const sourceEnvironment = environments[sourceIndex] ?? 'draft'
+  const permissionsFor = (environment: ProjectEnvironment): ConfigurationPage['permissions'] => {
+    const query = queries[environments.indexOf(environment)]
+    return query.isSuccess ? query.data.permissions : {}
+  }
+  const canDeclare = environments.some(environment => permissionsFor(environment).declare)
+  const canManageValues = environments.some(environment => permissionsFor(environment)['value:write'] || permissionsFor(environment)['value:clear'])
   const refresh = () => {
     void client.invalidateQueries({ queryKey: ['project-configuration', projectId] })
     void client.invalidateQueries({ queryKey: ['configuration-readiness', projectId] })
+    void client.invalidateQueries({ queryKey: ['configuration-summary', projectId] })
+    void client.invalidateQueries({ queryKey: ['configuration-key-editor', projectId] })
+    void client.invalidateQueries({ queryKey: ['configuration-deletion', projectId] })
   }
-  const permissions = query.data?.permissions ?? {}
-  const selectEnvironment = (value: ProjectEnvironment) => { setOffset(0); setEditing(null); setParams({ environment: value, ...(returnTo ? { returnTo } : {}) }) }
   return <ResourcePage title="Environments" description="Declare shared configuration, then set values for each environment.">
     {returnTo && <a href={returnTo} className="text-product-small text-primary underline underline-offset-2">Return to execution · no automatic Run</a>}
     <div className="flex flex-wrap items-end justify-between gap-ui-md rounded-technical border border-border bg-card p-ui-md">
       <div className="flex flex-wrap items-end gap-ui-sm">
-        <Field><FieldLabel htmlFor="configuration-environment">Environment</FieldLabel><Select id="configuration-environment" value={environment} onChange={event => selectEnvironment(event.target.value as ProjectEnvironment)} options={['draft', 'staging', 'production'].map(value => ({ value, label: value[0].toUpperCase() + value.slice(1) }))} /></Field>
         <Field><FieldLabel htmlFor="configuration-search">Search keys</FieldLabel><Input id="configuration-search" value={search} onChange={e => { setSearch(e.target.value); setOffset(0) }} placeholder="Name or description" /></Field>
-        <Field><FieldLabel htmlFor="configuration-status">Status</FieldLabel><Select id="configuration-status" value={status} onChange={event => { setStatus(event.target.value); setOffset(0) }} options={['all', 'configured', 'missing', 'attention', 'legacy'].map(value => ({ value, label: value[0].toUpperCase() + value.slice(1) }))} /></Field>
       </div>
-      {permissions.declare && <Button onClick={() => setCreating(true)}>Add key</Button>}
+      {canDeclare && <Button onClick={() => setCreating(true)}>Add key</Button>}
     </div>
-    <div className="flex flex-wrap gap-ui-sm" aria-label="Configuration views">{(['keys', 'compare', 'legacy'] as const).map(item => <Button key={item} variant={view === item ? 'default' : 'outline'} onClick={() => { setView(item); setOffset(0); setStatus('all') }}>{item === 'keys' ? 'Keys' : item === 'compare' ? 'Compare environments' : 'Legacy mappings'}</Button>)}</div>
-    {view === 'compare' ? <ConfigurationEnvironmentComparison projectId={projectId} search={search} /> : view === 'legacy' ? <ConfigurationLegacyPanel key={`${projectId}:${environment}`} projectId={projectId} environment={environment} canConvert={!!permissions.migrate && !!permissions['value:write']} onSaved={refresh} /> : query.isLoading ? <p role="status">Loading configuration…</p> : query.isError ? <div role="alert" className="rounded-technical border border-border p-ui-lg">
-      <p>{query.error instanceof ApiError && query.error.status === 403 ? 'You do not have access to this environment’s configuration.' : 'Configuration is unavailable. Readiness cannot be confirmed.'}</p>
-      <Button variant="outline" onClick={() => void query.refetch()}>Retry</Button>
+    <div className="flex flex-wrap gap-ui-sm" aria-label="Configuration views">{(['keys', 'compare', 'legacy'] as const).map(item => <Button key={item} variant={view === item ? 'default' : 'outline'} onClick={() => { setView(item); setOffset(0) }}>{item === 'keys' ? 'Keys' : item === 'compare' ? 'Compare environments' : 'Legacy mappings'}</Button>)}</div>
+    {view === 'compare' ? <ConfigurationEnvironmentComparison projectId={projectId} search={search} /> : view === 'legacy' ? <>
+      <Field className="max-w-xs"><FieldLabel htmlFor="configuration-legacy-environment">Environment for legacy mappings</FieldLabel><Select id="configuration-legacy-environment" value={preferredEnvironment} onChange={event => setPreferredEnvironment(event.target.value as ProjectEnvironment)} options={environments.map(value => ({ value, label: environmentLabel(value) }))} /></Field>
+      <ConfigurationLegacyPanel key={`${projectId}:${preferredEnvironment}`} projectId={projectId} environment={preferredEnvironment} canConvert={!!permissionsFor(preferredEnvironment).migrate && !!permissionsFor(preferredEnvironment)['value:write']} onSaved={refresh} />
+    </> : !catalog && queries.some(query => query.isPending) ? <p role="status">Loading configuration…</p> : !catalog ? <div role="alert" className="rounded-technical border border-border p-ui-lg">
+      <p>{queries.some(query => query.error instanceof ApiError && query.error.status === 403) ? 'You do not have access to this project’s configuration.' : 'Configuration is unavailable. Readiness cannot be confirmed.'}</p>
+      <Button variant="outline" onClick={() => queries.forEach(query => void query.refetch())}>Retry</Button>
     </div> : <>
-      <div className="flex flex-wrap items-center justify-between gap-ui-sm"><p className="text-product-small text-muted-foreground">{query.data?.total ?? 0} keys · {environment} · Values are never displayed</p>{permissions['value:write'] && query.data?.items.some(item => item.material !== 'present') && <Button variant="outline" onClick={() => setBatch(query.data!.items.filter(item => item.material !== 'present'))}>Configure pending on this page</Button>}</div>
-      <div className="overflow-x-auto rounded-technical border border-border bg-card">
-        <table className="w-full text-left text-product-small"><thead className="border-b border-border bg-muted/30"><tr>{['Key', 'Format', 'Status', 'Used by', 'Actions'].map(label => <th key={label} className="p-ui-md font-medium">{label}</th>)}</tr></thead>
-          <tbody>{query.data?.items.map(item => <tr key={item.id} className="border-b border-border last:border-0">
-            <td className="p-ui-md"><span className="font-mono">{item.key}</span><p className="max-w-xl text-muted-foreground">{item.description}</p></td>
-            <td className="p-ui-md">{item.kind} · {item.value_format}</td><td className="p-ui-md">{item.material === 'present' ? 'Configured' : item.material.replaceAll('_', ' ')}</td>
-            <td className="p-ui-md"><Button variant="ghost" size="sm" onClick={() => setUsage(item)}>{item.used_by_count} consumers</Button></td>
-            <td className="p-ui-md">{(permissions['value:write'] || permissions['value:clear']) && <Button variant="outline" size="sm" onClick={() => setEditing(item)}>{item.material === 'present' ? 'Manage value' : 'Set value'}</Button>}</td>
+      <p className="text-product-small text-muted-foreground">{catalog.total} keys · All environments · Choose the environment inside the value editor. Values are never displayed.</p>
+      {queries.some(query => query.isError) && <p role="status" className="text-product-small text-muted-foreground">Some environments are unavailable or restricted.</p>}
+      <div className="min-w-0 overflow-x-auto rounded-technical border border-border bg-card" role="region" aria-label="Configuration keys" tabIndex={0}>
+        <table className="w-full min-w-[64rem] table-fixed text-left text-product-small"><thead className="border-b border-border bg-muted/30"><tr>
+          <th className="w-56 p-ui-md font-medium">Key</th><th className="w-28 p-ui-md font-medium">Format</th>
+          {environments.map(environment => <th key={environment} scope="col" className="w-32 p-ui-md font-medium">{environmentLabel(environment)}</th>)}
+          <th className="w-32 p-ui-md font-medium">Used by</th><th className="w-56 p-ui-md font-medium">Actions</th>
+        </tr></thead>
+          <tbody>{catalog.items.map(item => <tr key={item.id} className="border-b border-border last:border-0">
+            <td className="p-ui-md"><div role="region" aria-label={`Key ${item.key}`} tabIndex={0} className="overflow-x-auto whitespace-nowrap font-mono focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/30" title={item.key}>{item.key}</div><p className="mt-ui-xs break-words text-muted-foreground [overflow-wrap:anywhere]">{item.description}</p></td>
+            <td className="p-ui-md">{item.kind} · {item.value_format}</td>
+            {queries.map((query, index) => {
+              const metadata = query.data?.items.find(key => key.id === item.id)
+              const status = query.isPending ? 'Loading…' : query.isError ? 'Unavailable or restricted' : metadata ? materialLabels[metadata.material] : 'Unavailable on this page'
+              return <td key={environments[index]} className="p-ui-md" aria-label={`${environmentLabel(environments[index])} status: ${status}`}>{status}</td>
+            })}
+            <td className="p-ui-md"><Button variant="ghost" size="sm" onClick={() => setUsage({ item, environment: preferredEnvironment })}>{item.used_by_count} consumers</Button></td>
+            <td className="p-ui-md"><div className="flex flex-wrap gap-ui-sm">
+              {canManageValues && <Button variant="outline" size="sm" onClick={() => setEditing({ item, environment: preferredEnvironment })}>Manage values</Button>}
+              {canDeclare && <>
+                <Button variant="outline" size="sm" onClick={() => setEditingDefinition(item)}>Edit key</Button>
+                <Button variant="outline" size="sm" disabled={item.used_by_count > 0} title={item.used_by_count > 0 ? 'This key is in use. Edit it instead of deleting it.' : 'Check usage before deleting this key'} onClick={() => setDeleting(item)} aria-label={`Delete ${item.key}`}>Delete</Button>
+                {item.used_by_count > 0 && <span className="self-center text-product-small text-muted-foreground">In use · edit only</span>}
+              </>}
+            </div></td>
           </tr>)}</tbody></table>
-        {!query.data?.items.length && <p className="p-ui-lg text-muted-foreground">No configuration keys match this view.</p>}
+        {!catalog.items.length && <p className="p-ui-lg text-muted-foreground">No configuration keys match this view.</p>}
       </div>
-      <div className="flex justify-end gap-ui-sm"><Button variant="outline" disabled={!offset} onClick={() => setOffset(Math.max(0, offset - 50))}>Previous</Button><Button variant="outline" disabled={!query.data?.has_next} onClick={() => setOffset(offset + 50)}>Next</Button></div>
+      <div className="flex justify-end gap-ui-sm"><Button variant="outline" disabled={!offset} onClick={() => setOffset(Math.max(0, offset - 50))}>Previous</Button><Button variant="outline" disabled={!catalog.has_next} onClick={() => setOffset(offset + 50)}>Next</Button></div>
     </>}
-    {batch && <ConfigurationBatchEditor key={`${projectId}:${environment}:batch`} projectId={projectId} environment={environment} keys={batch} onClose={() => setBatch(null)} onSaved={refresh} />}
-    {editing && <ConfigurationValueEditor key={`${projectId}:${environment}:${editing.id}`} projectId={projectId} item={editing} environment={environment} canWrite={!!permissions['value:write']} canClear={!!permissions['value:clear']} onClose={() => setEditing(null)} onSaved={refresh} />}
-    {creating && <ConfigurationKeyDeclarationDialog projectId={projectId} onClose={() => setCreating(false)} onSaved={refresh} />}
-    {usage && <ConfigurationUsageDialog projectId={projectId} item={usage} environment={environment} canApprove={!!permissions['use-policy:write']} onClose={() => setUsage(null)} />}
+    {editing && <ConfigurationValueEditor key={`${projectId}:${editing.item.id}`} projectId={projectId} item={editing.item} environment={editing.environment} onClose={() => setEditing(null)} onSaved={selected => { refresh(); setPreferredEnvironment(selected) }} />}
+    {creating && <ConfigurationKeyDeclarationDialog projectId={projectId} environment={preferredEnvironment} onClose={() => setCreating(false)} onSaved={refresh} onConfigure={(item, selected) => { setSearch(item.key); setOffset(0); setEditing({ item, environment: selected }) }} />}
+    {editingDefinition && <ConfigurationKeyDeclarationDialog key={editingDefinition.id} projectId={projectId} item={editingDefinition} onClose={() => setEditingDefinition(null)} onSaved={refresh} />}
+    {deleting && <ConfigurationKeyDeletionDialog key={deleting.id} projectId={projectId} item={deleting} environment={sourceEnvironment} onClose={() => setDeleting(null)} onSaved={refresh} />}
+    {usage && <ConfigurationUsageDialog projectId={projectId} item={usage.item} environment={usage.environment} onEnvironmentChange={environment => setUsage({ ...usage, environment })} canApprove={!!permissionsFor(usage.environment)['use-policy:write']} onClose={() => setUsage(null)} />}
   </ResourcePage>
 }
 

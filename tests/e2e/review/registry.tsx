@@ -56,6 +56,7 @@ import { ReleaseLibraryModal as Overlay49 } from '../../../packages/woobe-fronte
 import { ReleaseSnapshotModal as Overlay50 } from '../../../packages/woobe-frontend/src/features/playground/components/ReleaseSnapshotModal'
 import { StageDraftSnapshotModal as Overlay51 } from '../../../packages/woobe-frontend/src/features/playground/components/StageDraftSnapshotModal'
 import { ConfigurationKeyDeclarationDialog as Overlay52 } from '../../../packages/woobe-frontend/src/features/projects/components/ConfigurationKeyDeclarationDialog'
+import { ConfigurationKeyDeletionDialog } from '../../../packages/woobe-frontend/src/features/projects/components/ConfigurationKeyDeletionDialog'
 import { ConfigurationUsageDialog as Overlay53 } from '../../../packages/woobe-frontend/src/features/projects/components/ConfigurationUsageDialog'
 import { ProjectSettingsDialog as Overlay54 } from '../../../packages/woobe-frontend/src/features/projects/components/ProjectSettingsDialog'
 import { AddProviderCredentialModal as Overlay55 } from '../../../packages/woobe-frontend/src/features/provider-credentials/components/AddProviderCredentialModal'
@@ -148,7 +149,8 @@ export const overlayCases: { id: string; source: string; component: ComponentTyp
   { id: 'ReleaseLibraryModal', source: 'packages/woobe-frontend/src/features/playground/components/ReleaseLibraryModal.tsx', component: Overlay49 as ComponentType<any> },
   { id: 'ReleaseSnapshotModal', source: 'packages/woobe-frontend/src/features/playground/components/ReleaseSnapshotModal.tsx', component: Overlay50 as ComponentType<any> },
   { id: 'StageDraftSnapshotModal', source: 'packages/woobe-frontend/src/features/playground/components/StageDraftSnapshotModal.tsx', component: Overlay51 as ComponentType<any> },
-  { id: 'ConfigurationKeyDeclarationDialog', source: 'packages/woobe-frontend/src/features/projects/components/ConfigurationKeyDeclarationDialog.tsx', component: Overlay52 as ComponentType<any> },
+  { id: 'ConfigurationKeyDeclarationDialog', source: 'packages/woobe-frontend/src/features/projects/components/ConfigurationKeyDeclarationDialog.tsx', component: Overlay52 as ComponentType<any>, props: { item: undefined, onConfigure: () => {} } },
+  { id: 'ConfigurationKeyDeletionDialog', source: 'packages/woobe-frontend/src/features/projects/components/ConfigurationKeyDeletionDialog.tsx', component: ConfigurationKeyDeletionDialog as ComponentType<any> },
   { id: 'ConfigurationUsageDialog', source: 'packages/woobe-frontend/src/features/projects/components/ConfigurationUsageDialog.tsx', component: Overlay53 as ComponentType<any> },
   { id: 'ProjectSettingsDialog', source: 'packages/woobe-frontend/src/features/projects/components/ProjectSettingsDialog.tsx', component: Overlay54 as ComponentType<any> },
   { id: 'AddProviderCredentialModal', source: 'packages/woobe-frontend/src/features/provider-credentials/components/AddProviderCredentialModal.tsx', component: Overlay55 as ComponentType<any> },

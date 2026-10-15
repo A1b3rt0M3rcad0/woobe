@@ -1,4 +1,4 @@
-import { del, get, post, put } from '@/lib/api/client'
+import { del, get, patch, post, put } from '@/lib/api/client'
 import type { ProjectEnvironment } from './types'
 
 export type ConfigurationMaterial = 'missing' | 'present' | 'invalid_format' | 'revoked' | 'unavailable'
@@ -29,6 +29,41 @@ export function listConfiguration(project: string, environment: ProjectEnvironme
 }
 export function declareConfiguration(project: string, declaration: Pick<ConfigurationKey, 'key' | 'kind' | 'description' | 'value_format'>) {
   return post<ConfigurationKey>(`${configurationPath(project)}/keys`, declaration)
+}
+export function updateConfiguration(project: string, key: ConfigurationKey, changes: Pick<ConfigurationKey, 'description' | 'value_format'>) {
+  return patch<ConfigurationKey>(`${configurationPath(project)}/keys/${key.id}`,
+    { ...changes, expected_revision: key.definition_revision })
+}
+export interface ConfigurationDeletionCheck {
+  key_id: string
+  definition_revision: number
+  can_delete: boolean
+  scope: 'all_environments'
+  blockers: { retained_resources: boolean; legacy_binding: boolean; active_run: boolean }
+}
+export async function checkConfigurationDeletion(project: string, key: ConfigurationKey, environment: ProjectEnvironment) {
+  const result = await get<ConfigurationDeletionCheck>(`${configurationPath(project)}/keys/${key.id}/deletion-check`, { params: { environment } })
+  if (!result || result.key_id !== key.id || result.scope !== 'all_environments'
+    || !Number.isSafeInteger(result.definition_revision) || result.definition_revision < 1
+    || typeof result.can_delete !== 'boolean' || !result.blockers
+    || ['retained_resources', 'legacy_binding', 'active_run'].some(name => typeof result.blockers[name as keyof typeof result.blockers] !== 'boolean')
+    || result.can_delete !== !Object.values(result.blockers).some(Boolean)) {
+    throw new Error('Configuration usage could not be verified.')
+  }
+  return result
+}
+export function deleteConfiguration(project: string, key: ConfigurationKey) {
+  return del(`${configurationPath(project)}/keys/${key.id}`, { params: { expected_revision: key.definition_revision } })
+}
+export async function configurationKeyMetadata(project: string, key: ConfigurationKey, environment: ProjectEnvironment) {
+  for (let offset = 0; ; offset += 50) {
+    const page = await listConfiguration(project, environment, key.key, 'all', offset)
+    if (!page || page.environment !== environment || !Array.isArray(page.items)
+      || !page.permissions || typeof page.permissions !== 'object') throw new Error('Configuration environment could not be verified.')
+    const item = page.items.find(candidate => candidate.id === key.id)
+    if (item) return { item, permissions: page.permissions }
+    if (!page.has_next) throw new Error('Configuration key is no longer available.')
+  }
 }
 export function writeConfiguration(project: string, key: ConfigurationKey, environment: ProjectEnvironment, value: string) {
   // Direct sensitive request: never retain input in a mutation cache or logs.

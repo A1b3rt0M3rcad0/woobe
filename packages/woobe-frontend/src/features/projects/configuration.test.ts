@@ -1,7 +1,7 @@
 import { expect, it, vi } from 'vitest'
-vi.mock('@/lib/api/client', () => ({ del: vi.fn(), get: vi.fn(), post: vi.fn(), put: vi.fn() }))
-import { configurationReturnPath, getConfigurationReadiness } from './configuration'
-import { get } from '@/lib/api/client'
+vi.mock('@/lib/api/client', () => ({ del: vi.fn(), get: vi.fn(), patch: vi.fn(), post: vi.fn(), put: vi.fn() }))
+import { checkConfigurationDeletion, configurationKeyMetadata, configurationReturnPath, deleteConfiguration, getConfigurationReadiness, updateConfiguration, type ConfigurationKey } from './configuration'
+import { del, get, patch } from '@/lib/api/client'
 it('keeps execution return navigation in the same Project', () => {
   const origin = 'https://woobe.test'
   expect(configurationReturnPath('/projects/p', 'p', origin)).toBe('/projects/p')
@@ -31,4 +31,29 @@ it('accepts a partial summary as unknown without promoting page readiness', asyn
   expect(await getConfigurationSummary('p', 'draft')).toEqual(summary)
   vi.mocked(get).mockResolvedValue({ ...summary, state: 'ready', complete: true })
   await expect(getConfigurationSummary('p', 'draft')).rejects.toThrow('summary is incomplete')
+})
+
+const key: ConfigurationKey = { id: 'key-a', key: 'API_KEY', kind: 'secret', description: '', value_format: 'token',
+  definition_revision: 7, origin: 'manual', material: 'missing', used_by_count: 0, values: {} }
+it('sends definition revisions for metadata edits and deletion', async () => {
+  await updateConfiguration('p', key, { description: 'Updated', value_format: 'token' })
+  expect(patch).toHaveBeenCalledWith('/core/projects/p/configuration/keys/key-a', { description: 'Updated', value_format: 'token', expected_revision: 7 })
+  await deleteConfiguration('p', key)
+  expect(del).toHaveBeenCalledWith('/core/projects/p/configuration/keys/key-a', { params: { expected_revision: 7 } })
+})
+
+it.each([null, {}, { key_id: 'other', can_delete: true },
+  { key_id: 'key-a', definition_revision: 7, scope: 'all_environments', can_delete: true, blockers: { retained_resources: true, legacy_binding: false, active_run: false } },
+])('rejects incomplete or contradictory deletion checks (%j)', async result => {
+  vi.mocked(get).mockResolvedValue(result)
+  await expect(checkConfigurationDeletion('p', key, 'staging')).rejects.toThrow('could not be verified')
+})
+
+it('finds the exact key across metadata pages and rejects a response for another environment', async () => {
+  vi.mocked(get).mockResolvedValueOnce({ environment: 'staging', items: [], permissions: {}, has_next: true })
+    .mockResolvedValueOnce({ environment: 'staging', items: [key], permissions: { 'value:write': true }, has_next: false })
+  expect((await configurationKeyMetadata('p', key, 'staging')).item).toEqual(key)
+  expect(get).toHaveBeenLastCalledWith('/core/projects/p/configuration/keys', { params: { environment: 'staging', search: 'API_KEY', status: 'all', offset: 50, limit: 50 } })
+  vi.mocked(get).mockResolvedValue({ environment: 'production', items: [key] })
+  await expect(configurationKeyMetadata('p', key, 'staging')).rejects.toThrow('could not be verified')
 })

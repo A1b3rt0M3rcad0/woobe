@@ -28,6 +28,7 @@ _REVIEWED = [
     ("POST", "/core/projects/{project_id}/configuration/keys", "project:environment:declare"),
     ("PATCH", "/core/projects/{project_id}/configuration/keys/{key_id}", "project:environment:declare"),
     ("DELETE", "/core/projects/{project_id}/configuration/keys/{key_id}", "project:environment:declare"),
+    ("GET", "/core/projects/{project_id}/configuration/keys/{key_id}/deletion-check", "project:environment:read"),
     ("PUT", "/core/projects/{project_id}/configuration/keys/{key_id}/values/{environment}", "project:environment:value:write"),
     ("DELETE", "/core/projects/{project_id}/configuration/keys/{key_id}/values/{environment}", "project:environment:value:clear"),
     ("POST", "/core/projects/{project_id}/configuration/value-batches", "project:environment:value:write"),

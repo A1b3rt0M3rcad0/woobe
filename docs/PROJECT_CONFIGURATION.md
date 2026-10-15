@@ -10,13 +10,58 @@ values are separate. A development operator can declare and bind a key without
 receiving its value; an authorized configuration operator fills the value in
 **Project → Environments** and approves its consumer and destination.
 
-The central page supports search, paginated status, comparison between authorized
-environments, individual replacement/clear, atomic batch entry, usage and legacy
+The central page supports search, paginated keys, comparison between authorized
+environments, individual replacement/clear, usage and legacy
 mapping review. Editors start blank. Sensitive requests do not enter React Query
 mutation caches. Leaving an editor requires discard confirmation; reload or close
 warns about unsaved input. Submission failures clear input and show a sanitized
 message, never an upstream body. Broader navigation and accessibility qualification
 is still in progress.
+
+### Creating, editing and deleting keys
+
+The key list has no global Environment or Environment-specific status filter.
+Draft, Staging and Production metadata is requested independently and shown next
+to each shared key. A restricted or unavailable Environment is labelled as such;
+its state and permissions are never borrowed from another Environment. Table
+headers show Environment names; **Manage values** in each key's row opens its editor.
+Legacy mapping review retains its own scoped Environment selector, and usage
+approvals choose their Environment inside the usage dialog.
+
+In **Add key**, choose the Environment for the value inside the modal. Creating
+the shared declaration opens its value editor in that Environment. Cancelling
+value entry leaves the declared key available without a new value. The value editor also has its own Environment
+selector. Changing it with unsaved input requires discarding that input, then
+loads the chosen Environment's metadata, revision and permissions. Values never
+carry over automatically. Saving refreshes the shared list and remembers the
+chosen Environment for the next editor without filtering the list. An Environment
+in an incoming URL supplies the initial modal choice only.
+
+Value editors use a full-width layout with a single-line, horizontally scrollable
+key name and a footer that remains visible on small screens. Tokens and URLs use
+single-line fields; text, JSON and PEM use resizable multiline fields with local
+scrolling. Input spaces, indentation and line breaks are preserved. The server
+validates the declared format; changing the editor layout does not relax it.
+
+**Edit key** updates description and format through the revision-checked metadata
+API. Key identity, name and kind remain stable. Existing material must validate
+against a changed format. In-use keys remain editable, including replacement of
+an Environment value by an authorized operator.
+
+**Delete** is unavailable for keys with registered consumers. Before confirming
+another deletion, the Web requests
+`GET /core/projects/{project_id}/configuration/keys/{key_id}/deletion-check?environment=draft`.
+This metadata-only observation reports `can_delete`, `definition_revision`,
+`scope: all_environments` and boolean blockers for retained resource definitions,
+legacy bindings and live Run leases. Unknown usage, an unreadable response or a
+changed revision prevents confirmation. It does not decrypt material or reserve
+the key for deletion.
+
+The DELETE transaction repeats the same checks under the key lock and enforces
+the expected definition revision. A consumer added after the preview still
+blocks deletion. An unused key can be deleted together with its values in all
+three Environments. Value revocation remains a separate, explicitly authorized
+operation; existing release/history and live-lease protections are preserved.
 
 Provider creation and the current HTTP/MCP Tool form accept references. Tools
 support API key, Bearer, Basic, named headers and explicit public access. Save the

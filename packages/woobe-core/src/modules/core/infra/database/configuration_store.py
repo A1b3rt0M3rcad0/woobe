@@ -262,21 +262,32 @@ class ConfigurationStore:
                          request_id=request_id, request_mac=digest, response=response))
         return response
 
+    async def _deletion_blockers(self, key):
+        references = await self.session.scalar(select(ConfigurationReferenceModel.id).where(
+            ConfigurationReferenceModel.key_id == key.id, ConfigurationReferenceModel.retained.is_(True)).limit(1))
+        alias = await self.session.scalar(select(LegacyConfigurationAliasModel.id).where(LegacyConfigurationAliasModel.key_id == key.id).limit(1))
+        # Retention alone is not a consumer: unused keys remain deletable.
+        # A live Run lease protects both its current and archived material.
+        lease = await self.session.scalar(select(ConfigurationLeaseModel.id).where(
+            ConfigurationLeaseModel.project_id == key.project_id, ConfigurationLeaseModel.expires_at > now(),
+            ConfigurationLeaseModel.pins.contains([{"key_id": str(key.id)}])).limit(1))
+        return {"retained_resources": references is not None, "legacy_binding": alias is not None,
+                "active_run": lease is not None}
+
+    async def deletion_check(self, *, project_id, key_id, environment):
+        normalize_runtime_environment(environment)
+        key = await self.key(project_id, key_id)
+        blockers = await self._deletion_blockers(key)
+        return {"key_id": str(key.id), "definition_revision": key.definition_revision,
+                "can_delete": not any(blockers.values()), "blockers": blockers,
+                "scope": "all_environments"}
+
     async def remove_key(self, *, project_id, key_id, expected_revision, actor):
         key = await self.key(project_id, key_id, lock=True)
         if key.definition_revision != expected_revision:
             raise ConfigurationError("CONFIG_REVISION_CONFLICT", key=key.key)
-        references = await self.session.scalar(select(ConfigurationReferenceModel.id).where(
-            ConfigurationReferenceModel.key_id == key.id, ConfigurationReferenceModel.retained.is_(True)).limit(1))
-        alias = await self.session.scalar(select(LegacyConfigurationAliasModel.id).where(LegacyConfigurationAliasModel.key_id == key.id).limit(1))
-        if references or alias:
-            raise ConfigurationError("CONFIG_REFERENCE_IN_USE", key=key.key)
-        # Retention alone is not a consumer: unused keys remain deletable.
-        # A live Run lease protects both its current and archived material.
-        lease = await self.session.scalar(select(ConfigurationLeaseModel.id).where(
-            ConfigurationLeaseModel.project_id == project_id, ConfigurationLeaseModel.expires_at > now(),
-            ConfigurationLeaseModel.pins.contains([{"key_id": str(key.id)}])).limit(1))
-        if lease:
+        # Recheck under the key lock: a successful preview is not delete authority.
+        if any((await self._deletion_blockers(key)).values()):
             raise ConfigurationError("CONFIG_REFERENCE_IN_USE", key=key.key)
         await self.session.execute(delete(ConfigurationUsePolicyModel).where(ConfigurationUsePolicyModel.key_id == key.id))
         await self.session.execute(delete(ConfigurationReferenceModel).where(ConfigurationReferenceModel.key_id == key.id))

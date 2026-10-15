@@ -888,6 +888,11 @@
   ],
   "direct_overlays": [
     {
+      "id": "ConfigurationKeyDeletionDialog",
+      "source": "packages/woobe-frontend/src/features/projects/components/ConfigurationKeyDeletionDialog.tsx",
+      "export": "ConfigurationKeyDeletionDialog"
+    },
+    {
       "id": "Dialog",
       "source": "packages/woobe-ui/src/components/Dialog.tsx"
     },
@@ -1396,6 +1401,7 @@
     "packages/woobe-frontend/src/features/playground/components/StageDraftSnapshotModal.tsx",
     "packages/woobe-frontend/src/features/projects/components/ConfigurationBatchEditor.tsx",
     "packages/woobe-frontend/src/features/projects/components/ConfigurationKeyDeclarationDialog.tsx",
+    "packages/woobe-frontend/src/features/projects/components/ConfigurationKeyDeletionDialog.tsx",
     "packages/woobe-frontend/src/features/projects/components/ConfigurationLegacyPanel.tsx",
     "packages/woobe-frontend/src/features/projects/components/ConfigurationUsageDialog.tsx",
     "packages/woobe-frontend/src/features/projects/components/ConfigurationValueEditor.tsx",
@@ -1652,6 +1658,7 @@
     "packages/woobe-frontend/src/features/projects/components/ConfigurationBatchEditor.tsx",
     "packages/woobe-frontend/src/features/projects/components/ConfigurationEnvironmentComparison.tsx",
     "packages/woobe-frontend/src/features/projects/components/ConfigurationKeyDeclarationDialog.tsx",
+    "packages/woobe-frontend/src/features/projects/components/ConfigurationKeyDeletionDialog.tsx",
     "packages/woobe-frontend/src/features/projects/components/ConfigurationLegacyPanel.tsx",
     "packages/woobe-frontend/src/features/projects/components/ConfigurationReadinessNotice.tsx",
     "packages/woobe-frontend/src/features/projects/components/ConfigurationReferenceSelector.tsx",
@@ -3020,6 +3027,12 @@
     {
       "source": "packages/woobe-frontend/src/features/projects/components/ConfigurationKeyDeclarationDialog.tsx",
       "explicit_sans_uses": 0,
+      "explicit_mono_uses": 1,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/projects/components/ConfigurationKeyDeletionDialog.tsx",
+      "explicit_sans_uses": 0,
       "explicit_mono_uses": 0,
       "explicit_serif_uses": 0
     },
@@ -3050,7 +3063,7 @@
     {
       "source": "packages/woobe-frontend/src/features/projects/components/ConfigurationValueEditor.tsx",
       "explicit_sans_uses": 0,
-      "explicit_mono_uses": 2,
+      "explicit_mono_uses": 4,
       "explicit_serif_uses": 0
     },
     {

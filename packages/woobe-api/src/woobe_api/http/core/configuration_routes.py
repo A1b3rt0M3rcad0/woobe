@@ -166,6 +166,11 @@ async def remove(request: Request, project_id: UUID, key_id: UUID, expected_revi
     return await execute(request, project_id, "remove_key", key_id=key_id, expected_revision=expected_revision)
 
 
+@router.get("/keys/{key_id}/deletion-check")
+async def deletion_check(request: Request, project_id: UUID, key_id: UUID, environment: Environment = "draft"):
+    return await execute(request, project_id, "deletion_check", key_id=key_id, environment=environment)
+
+
 @router.put("/keys/{key_id}/values/{environment}")
 async def write(request: Request, project_id: UUID, key_id: UUID, environment: Environment, body: WriteValue):
     return await execute(request, project_id, "write_value", key_id=key_id, environment=environment, **body.model_dump())
