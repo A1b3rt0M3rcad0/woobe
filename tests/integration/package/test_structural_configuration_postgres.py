@@ -54,6 +54,10 @@ async def test_structural_package_installs_before_remote_values_exist(cli, tmp_p
         network_package(files, network_source)
         for name, document in files.items():
             (source / name).write_text(json.dumps(document))
+    from tests.fakes.provider_model_fixtures import declare_language_model_evidence
+    declare_language_model_evidence(files)
+    for name, document in files.items():
+        (source / name).write_text(json.dumps(document))
     with snapshot_directory(source) as captured:
         archive = io.BytesIO()
         captured.archive(archive, include_lock=True)

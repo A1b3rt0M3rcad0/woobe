@@ -76,6 +76,8 @@ On update, an omitted field preserves its override. `{"action":"inherit"}` or `{
 
 New manual definitions must affirm required capabilities: unknown tool calling fails closed when Tools are enabled, with `model_capability_unknown` rather than an unsupported claim. Historical legacy resolution retains its diagnostic warning behavior.
 
+Fresh portable Agent definitions that use Tools should include a `model_spec_hint` affirming tool calling for their Model. The same rule applies to local YAML development and structural installation; declaring remote references does not imply model capability support. Exported historical specs and records resolved through legacy compatibility keep their original evidence.
+
 ### Explicit catalog comparison and application
 
 `GET /ai/provider-models/sync-preview` accepts `project_id`, `provider_credential_id`, `environment` (default `draft`) and optional `capability` (`generation` or `embedding`). It does not change Models or runtime bindings. Each candidate includes installed and proposed specs, `candidate_digest`, expected credential/model revisions and a change classification: new, unchanged, semantic/pricing/display/provenance change, manual override, unsupported/unclassified or not discovered. Missing catalog entries never imply archival.
