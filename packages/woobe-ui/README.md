@@ -69,6 +69,8 @@ Examples:
 
 - `Button` is a primitive.
 - `SectionBlock`, `TechnicalListItem`, `Stepper` and `EmptyStatePanel` are shared presentation compositions.
+
+`TechnicalListItem` renders optional children below its summary across all columns; use that area for related actions or supporting details. `DialogFooter` wraps metadata and action groups to the available dialog width, including compact dialogs on desktop viewports.
 - `RuntimeAssetCard`, `NetworkGraphInspector` and Knowledge build workflows are feature components.
 
 Do not move a component into `woobe-ui` merely because it is visually complex. It belongs here only when it is presentation-only, domain-agnostic and has demonstrated reuse. Domain concepts such as Agent, Network, Run, Knowledge Collection, Release or Tool must not leak into this package.

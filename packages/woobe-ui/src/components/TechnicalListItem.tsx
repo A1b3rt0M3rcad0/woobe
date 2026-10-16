@@ -33,6 +33,7 @@ const TechnicalListItem = forwardRef<HTMLDivElement, TechnicalListItemProps>(
     onClick,
     onKeyDown,
     title,
+    children,
     ...props
   }, ref) => {
     const interactive = Boolean(onClick)
@@ -144,6 +145,7 @@ const TechnicalListItem = forwardRef<HTMLDivElement, TechnicalListItemProps>(
           ) : null}
         </span>
         {trailing ? <span className="shrink-0">{trailing}</span> : null}
+        {children ? <div className="col-span-full min-w-0">{children}</div> : null}
       </div>
     )
   },
