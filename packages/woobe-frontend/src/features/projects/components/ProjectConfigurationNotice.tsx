@@ -30,7 +30,7 @@ export function ProjectConfigurationNotice({ projectId, workspaceId, environment
     : query.isError ? 'Configuration check unavailable. Retry to verify the selected targets.'
     : data?.scope === 'current_selections_page' || (data?.state === 'unknown' && data.has_next) ? `Partial configuration check · ${data.inspected_target_count} targets inspected. Check the exact Agent or Network before running.`
     : !data || data.state === 'unknown' ? 'Execution readiness is unverified. Check the exact Agent or Network before running.'
-    : data.state === 'blocked' ? `Configuration blocks ${data.affected_target_count} selected ${data.affected_target_count === 1 ? 'target' : 'targets'} · ${data.blocked_key_count} required ${data.blocked_key_count === 1 ? 'key needs' : 'keys need'} attention`
+    : data.state === 'blocked' ? `Configuration blocks ${data.affected_target_count} selected ${data.affected_target_count === 1 ? 'target' : 'targets'} · ${data.blocked_key_count} required ${data.blocked_key_count === 1 ? 'key needs' : 'keys need'} attention. Review values and connection use approvals.`
     : data.inspected_target_count === data.unselected_target_count ? 'No active selections in this environment.'
     : data.state === 'ready_with_notices' ? 'Required values available · connection checks or legacy review remain'
     : 'Required configuration is available for inspected selections.'

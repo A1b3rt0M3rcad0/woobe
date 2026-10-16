@@ -290,6 +290,7 @@ function ReadOnlyValue({ label, value, mono = false }: { label: string; value: s
 
 function CatalogList({
   projectId,
+  credentialId,
   models,
   selectedId,
   loading,
@@ -299,6 +300,7 @@ function CatalogList({
   onManual,
 }: {
   projectId: string
+  credentialId: string
   models: AvailableProviderModel[]
   selectedId: string
   loading: boolean
@@ -325,7 +327,7 @@ function CatalogList({
   }
 
   if (error) {
-    return <ProviderDiscoveryErrorNotice projectId={projectId} error={error} onRetry={onRetry} onManual={onManual} />
+    return <ProviderDiscoveryErrorNotice projectId={projectId} credentialId={credentialId} error={error} onRetry={onRetry} onManual={onManual} />
   }
 
   return (
@@ -795,6 +797,7 @@ export function ModelSettingsModal({
               {shouldUseCatalog ? (
                 <CatalogList
                   projectId={projectId}
+                  credentialId={credentialId}
                   models={availableModels}
                   selectedId={catalogModelId}
                   loading={availableModelsQuery.isLoading}

@@ -315,7 +315,7 @@ export function AgentModelManagerModal({ open, projectId, selectedModelId, onClo
                       </Button>
                     </div>
 
-                    {!editingModel && credentialId && catalogQuery.isError && <ProviderDiscoveryErrorNotice projectId={projectId} error={catalogQuery.error} onRetry={() => { void catalogQuery.refetch() }} />}
+                    {!editingModel && credentialId && catalogQuery.isError && <ProviderDiscoveryErrorNotice projectId={projectId} credentialId={credentialId} error={catalogQuery.error} onRetry={() => { void catalogQuery.refetch() }} />}
                     {!editingModel && credentialId && (catalogQuery.data?.length || 0) > 0 ? (
                       <Field>
                         <FieldLabel>Provider catalog</FieldLabel>

@@ -1,7 +1,7 @@
 """Real configuration authority and provider discovery for every credential kind."""
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from threading import Thread
 from uuid import UUID, uuid4
@@ -182,6 +182,75 @@ async def test_catalog_requires_exact_consumer_and_environment_approval(
                 json={**grant, "consumer_scope": credential_id},
             )
             assert approval.is_success, approval.text
+            usage_path = prefix + f"/keys/{key_id}/usage"
+            usage = await client.get(
+                usage_path,
+                params={
+                    "environment": "draft",
+                    "consumer_kind": "provider_credential",
+                    "consumer_id": credential_id,
+                },
+            )
+            assert usage.is_success, usage.text
+            access = usage.json()["data"]["items"]
+            assert len(access) == 1 and access[0]["consumer_id"] == credential_id
+            assert access[0]["approval"]["state"] == "approved"
+            assert access[0]["approval"]["update_policy"]["revision"] == 1
+            assert (
+                access[0]["approval"]["update_policy"]["destination"]
+                == destination + "/"
+            )
+            assert value not in usage.text
+            staging_usage = await client.get(
+                usage_path,
+                params={"environment": "staging", "consumer_id": credential_id},
+            )
+            assert (
+                staging_usage.json()["data"]["items"][0]["approval"]["state"]
+                == "approval_required"
+            )
+            if provider == "deepseek":
+                _, limited = await cli.issue(
+                    "workspace",
+                    "control-key",
+                    "create",
+                    body={
+                        "name": "Draft metadata reader",
+                        "expires_at": (
+                            datetime.now(UTC) + timedelta(minutes=30)
+                        ).isoformat(),
+                        "on_project_create_permissions": [],
+                        "project_grants": [
+                            {
+                                "project_id": cli.project_id,
+                                "permissions": [
+                                    "project:read",
+                                    "project:environment:read",
+                                ],
+                                "conditions": {"environments": ["draft"]},
+                            }
+                        ],
+                    },
+                )
+                limited_headers = {"Authorization": "Bearer " + limited}
+                draft_keys = await client.get(
+                    prefix + "/keys",
+                    params={"environment": "draft"},
+                    headers=limited_headers,
+                )
+                assert draft_keys.is_success, draft_keys.text
+                assert (
+                    draft_keys.json()["data"]["items"][0]["approval"]["state"]
+                    == "approved"
+                )
+                # Editing evidence includes the full policy's environment set;
+                # a Draft-only read must not reveal that unscoped metadata.
+                limited_usage = await client.get(
+                    usage_path, params={"environment": "draft"}, headers=limited_headers
+                )
+                assert limited_usage.status_code == 403
+                limited_policies = await client.get(prefix + f"/keys/{key_id}/use-policies", headers=limited_headers)
+                assert limited_policies.status_code == 403
             # Exercise the complete composed handler for all six providers;
             # only the upstream URL is a fixture, including native OpenAI.
             engine = create_engine(Settings())

@@ -3064,7 +3064,7 @@
     },
     {
       "source": "packages/woobe-frontend/src/features/projects/components/ConfigurationUsageDialog.tsx",
-      "explicit_sans_uses": 2,
+      "explicit_sans_uses": 0,
       "explicit_mono_uses": 0,
       "explicit_serif_uses": 0
     },

@@ -24,6 +24,8 @@ import { RotateProviderCredentialDialog } from '@/features/provider-credentials/
 import { useCredentials, useUpdateCredential } from '@/features/provider-credentials/hooks'
 import type { ProviderCredential } from '@/features/provider-credentials/types'
 import { modelProviderLabel } from '@/features/provider-credentials/providers'
+import { ConfigurationUsageDialog } from '@/features/projects/components/ConfigurationUsageDialog'
+import type { ProjectEnvironment } from '@/features/projects/types'
 import { useProviderModels } from '@/features/provider-models/hooks'
 import type { ProviderModel } from '@/features/provider-models/types'
 import { get } from '@/lib/api/client'
@@ -191,7 +193,10 @@ function CredentialDetailsDialog({
   onArchive: () => void
   onRevoke: () => void
 }) {
+  const [accessOpen, setAccessOpen] = useState(false)
+  const [accessEnvironment, setAccessEnvironment] = useState<ProjectEnvironment>('draft')
   if (!credential) return null
+  const keyName = credential.authentication?.fields.api_key.key
   const baseUrl = String(metadataOf(credential).base_url || 'Default provider endpoint')
   const generationModels = attachedModels.filter((model) => !isEmbeddingModel(model) && !isArchived(model))
   const embeddingModels = attachedModels.filter((model) => isEmbeddingModel(model) && !isArchived(model))
@@ -235,12 +240,14 @@ function CredentialDetailsDialog({
           actions={(
             <>
               <Button type="button" variant="outline" onClick={onEdit}><Pencil className="h-icon w-icon" />Edit</Button>
-              <Button type="button" variant="outline" onClick={onRotate} disabled={credential.status !== 'active'}><RotateCcw className="h-icon w-icon" />{credential.authentication ? 'Configure environments' : 'Rotate'}</Button>
+              {keyName && <Button type="button" variant="outline" onClick={() => setAccessOpen(true)}>Manage approvals</Button>}
+              <Button type="button" variant="outline" onClick={onRotate} disabled={credential.status !== 'active'}><RotateCcw className="h-icon w-icon" />{credential.authentication ? 'Manage key values' : 'Rotate'}</Button>
               <Button type="button" variant="outline" onClick={onRevoke} disabled={credential.status === 'revoked'} className="text-warning hover:text-warning"><ShieldOff className="h-icon w-icon" />Revoke</Button>
               <Button type="button" variant="outline" onClick={onArchive} className="text-error hover:text-error"><Trash2 className="h-icon w-icon" />Archive</Button>
             </>
           )}
         />
+        {accessOpen && keyName && <ConfigurationUsageDialog projectId={credential.project_id} keyName={keyName} environment={accessEnvironment} onEnvironmentChange={setAccessEnvironment} consumer={{ kind: 'provider_credential', id: credential.id }} layer="nestedModal" onClose={() => setAccessOpen(false)} />}
       </div>
     </Dialog>
   )

@@ -127,6 +127,7 @@ function getCredentialLabel(credential?: ProviderCredential | null) {
 
 function EmbeddingModelCatalogPicker({
   projectId,
+  credentialId,
   models,
   selectedModelId,
   loading,
@@ -136,6 +137,7 @@ function EmbeddingModelCatalogPicker({
   onRetry,
 }: {
   projectId: string
+  credentialId: string
   models: AvailableProviderModel[]
   selectedModelId: string
   loading: boolean
@@ -176,7 +178,7 @@ function EmbeddingModelCatalogPicker({
       {loading ? (
         <EmptyStatePanel compact title="Loading embedding models" description="Reading the provider model catalog." />
       ) : error ? (
-        <ProviderDiscoveryErrorNotice projectId={projectId} error={error} onRetry={onRetry} onManual={onManualMode} />
+        <ProviderDiscoveryErrorNotice projectId={projectId} credentialId={credentialId} error={error} onRetry={onRetry} onManual={onManualMode} />
       ) : visibleModels.length === 0 ? (
         <EmptyStatePanel compact title="No embedding models found" description="Change the search or enter the model identifier manually." />
       ) : (
@@ -445,6 +447,7 @@ export function CreateEmbeddingModelModal({ open, projectId, onClose, onCreated,
                       {shouldUseCatalog ? (
                         <EmbeddingModelCatalogPicker
                           projectId={projectId}
+                          credentialId={form.credentialId}
                           models={embeddingCatalog}
                           selectedModelId={form.selectedCatalogModelId}
                           loading={catalogQuery.isLoading}

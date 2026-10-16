@@ -33,9 +33,9 @@ it('distinguishes revoked authority from a missing value without invoking a Run'
   query.data = { state: 'blocked', missing_key_count: 0, affected_consumer_count: 1,
     dependencies: [{ key: 'SUPPORT', code: 'CONFIG_USAGE_NOT_AUTHORIZED', material: 'present' }] }
   await render()
-  expect(container.textContent).toContain('Configuration required · 1 blocked connections')
+  expect(container.textContent).toContain('Connection use needs approval in production')
   expect(container.textContent).not.toContain('0 missing keys')
-  expect(container.querySelector('a')?.textContent).toBe('Configure to run')
+  expect(container.querySelector('a')?.textContent).toBe('Manage approvals')
   expect(query.refetch).not.toHaveBeenCalled()
 })
 it('does not turn unreadable or stale status into ready or echo errors', async () => {

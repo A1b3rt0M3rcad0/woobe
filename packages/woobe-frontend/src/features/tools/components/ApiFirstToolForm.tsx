@@ -753,7 +753,7 @@ export function ApiFirstToolForm({
 
         {step === 'details' ? (
           <div className="space-y-5">
-            {projectId && authentication && <ConfigurationAuthenticationEditor projectId={projectId} value={authentication} onChange={setAuthentication} />}
+            {projectId && authentication && <ConfigurationAuthenticationEditor projectId={projectId} toolId={initialTool?.id} value={authentication} onChange={setAuthentication} />}
             <FieldError message={errors.authentication} />
             {initialTool && !authentication && <p className="text-xs text-muted">This connection uses legacy authentication. Review its mapping in Project → Environments before converting it.</p>}
             <div className="flex items-start gap-3">
@@ -984,7 +984,7 @@ export function ApiFirstToolForm({
                   </div>
                   <p className="text-xs text-muted">Route keys are authorized for this path. No authentication sends this route without the connection’s private headers.</p>
                 </div>
-                {routeEditor.draft.authentication && <ConfigurationAuthenticationEditor projectId={projectId}
+                {routeEditor.draft.authentication && <ConfigurationAuthenticationEditor projectId={projectId} toolId={initialTool?.id}
                   value={routeEditor.draft.authentication} onChange={authentication => updateRouteDraft({ authentication })} />}
                 <FieldError message={routeErrors.authentication} />
               </div>}

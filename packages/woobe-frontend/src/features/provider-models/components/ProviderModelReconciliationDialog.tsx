@@ -33,7 +33,7 @@ export function ProviderModelReconciliationDialog({ projectId, credentialId, onC
         <option value="generation">Language generation</option><option value="embedding">Embeddings · Vector Snapshots require 1536 dimensions</option>
       </select></label>
       {preview.isPending && <p>Loading provider catalog…</p>}
-      {preview.error && <ProviderDiscoveryErrorNotice projectId={projectId} error={preview.error} onRetry={() => { void preview.refetch() }} />}
+      {preview.error && <ProviderDiscoveryErrorNotice projectId={projectId} credentialId={credentialId} error={preview.error} onRetry={() => { void preview.refetch() }} />}
       {preview.data && <div className="max-h-[55vh] overflow-auto"><table className="w-full text-left text-product-caption">
         <thead><tr><th>Select</th><th>Model / operation</th><th>Change / source</th><th>Input / output price per 1M tokens</th></tr></thead>
         <tbody>{preview.data.items.map((item, index) => <tr key={`${item.model_id}:${item.installed_model_id}`} className="border-t">

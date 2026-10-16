@@ -3,6 +3,7 @@ import { mkdir } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { captureScrollSequence, resetCaptures } from './capture'
 import { installResources } from '../fixtures/resource-api'
+import { installConfigurationReviewApi } from './configuration-api'
 import { respond } from '../fixtures/control-plane'
 import { installApi } from '../fixtures/control-plane'
 
@@ -68,13 +69,15 @@ for(const width of [1440,768,390])test(`secondary confirmations and input bindin
   await page.getByRole('button',{name:'Delete Support handbook',exact:true}).click()
   await expect(page.getByRole('dialog',{name:'Delete document',exact:true})).toBeVisible()
   await capture('CollectionDeleteDocument')
-  await page.route('**/configuration/keys/config-demo/**',route=>respond(route,{items:new URL(route.request().url()).pathname.endsWith('/usage') ? [{consumer_kind:'tool',consumer_id:'tool-demo',definition_revision:'1',field_path:'config.url',required:true,destination:'https://example.test/support'}] : [{id:'policy-demo',consumer_kind:'tool',consumer_scope:'tool-demo',destination:'https://example.test/support',field_paths:['config.url'],environments:['draft'],revision:1,revoked:false}],total:1,offset:0,limit:50}))
+  await installConfigurationReviewApi(page)
   await page.goto('/review.html?case=ConfigurationUsageDialog')
-  await page.getByRole('button',{name:'Approve for draft',exact:true}).click()
-  await expect(page.getByRole('dialog',{name:'Approve use in draft?'})).toBeVisible()
+  await expect(page.getByRole('button',{name:'Approve use in Draft',exact:true})).toBeVisible()
+  await expect(page.getByRole('dialog')).toHaveCount(1)
   await capture('ConfigurationApproveUse')
-  await page.keyboard.press('Escape')
-  await page.getByRole('button',{name:'Revoke',exact:true}).click()
-  await expect(page.getByRole('dialog',{name:'Revoke this approval?'})).toBeVisible()
+  await page.getByRole('button',{name:'Approve use in Draft',exact:true}).click()
+  await expect(page.getByText('Use approved in Draft',{exact:true})).toBeVisible()
+  await page.getByRole('button',{name:'Revoke access',exact:true}).click()
+  await expect(page.getByRole('region',{name:'Confirm access revocation'})).toBeVisible()
+  await expect(page.getByRole('dialog')).toHaveCount(1)
   await capture('ConfigurationRevokeUse')
 })
