@@ -1,4 +1,6 @@
 """Explicit transport-neutral public surface for Agent hosts."""
+from modules.agent.application.dtos.provider_model_reconciliation_dtos import ReconciliationScope, ApplyProviderModelReconciliationInput
+from modules.agent.composition.composers.provider_model_reconciliation_composer import provider_model_reconciliation_composer, apply_provider_model_reconciliation_composer
 from modules.agent.composition.factories.provider_dependency_reader_factory import configure_provider_dependency_readers
 from modules.agent.composition.factories.release_test_execution_factory import build_release_test_execution_handler
 from modules.agent.application.dtos.ai_dtos import ExecuteReleaseTestInput
@@ -608,3 +610,5 @@ __all__ += ["inventory_configuration_sources", "migrate_configuration_source"]
 
 from modules.agent.infra.database.configuration_targets import configuration_targets
 __all__.append('configuration_targets')
+
+__all__ += ["ReconciliationScope", "ApplyProviderModelReconciliationInput", "provider_model_reconciliation_composer", "apply_provider_model_reconciliation_composer"]

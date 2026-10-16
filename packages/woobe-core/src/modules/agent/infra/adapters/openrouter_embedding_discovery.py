@@ -24,15 +24,14 @@ def _json_get(url: str, api_key: str, *, timeout: int = 20) -> dict[str, Any]:
         with urlopen(request, timeout=timeout) as response:
             payload = response.read().decode("utf-8")
     except HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="replace")[:500]
-        raise ProviderModelDiscoveryError(f"OpenRouter embedding discovery failed with HTTP {exc.code}: {detail}") from exc
+        raise ProviderModelDiscoveryError(f"OpenRouter embedding discovery failed with HTTP {exc.code}") from exc
     except URLError as exc:
         raise ProviderModelDiscoveryError(f"OpenRouter embedding discovery failed: {exc.reason}") from exc
     except TimeoutError as exc:
         raise ProviderModelDiscoveryError("OpenRouter embedding discovery timed out") from exc
 
     try:
-        data = json.loads(payload)
+        data = json.loads(payload, parse_constant=lambda _value: None)
     except json.JSONDecodeError as exc:
         raise ProviderModelDiscoveryError("OpenRouter embedding discovery returned invalid JSON") from exc
     if not isinstance(data, dict):
@@ -51,20 +50,12 @@ class OpenRouterEmbeddingModelDiscoveryService:
         if not isinstance(items, list):
             raise ProviderModelDiscoveryError("OpenRouter embedding discovery response has no data array")
 
-        models: list[AvailableProviderModelOutput] = []
-        for raw in items:
-            if not isinstance(raw, dict):
-                continue
-            model_id = str(raw.get("id") or "").strip()
-            if not model_id:
-                continue
-            models.append(
-                AvailableProviderModelOutput(
-                    id=model_id,
-                    label=str(raw.get("name") or model_id),
-                    provider="openrouter",
-                    context_window=int(raw["context_length"]) if isinstance(raw.get("context_length"), int) else None,
-                    raw=raw,
-                )
-            )
+        from modules.agent.infra.adapters.model_discovery import ModelDiscoveryService
+        from modules.agent.infra.adapters.model_provider_registry import OpenRouterProviderAdapter
+        from modules.agent.infra.adapters.model_discovery_output import _spec_to_available_output
+        normalized = ModelDiscoveryService()._normalize_openrouter({"data": [
+            {**raw, "model_type": "embedding"} for raw in items if isinstance(raw, dict)
+        ]})
+        adapter = OpenRouterProviderAdapter()
+        models = [_spec_to_available_output(adapter._normalize_item(item), provider="openrouter") for item in normalized]
         return sorted(models, key=lambda item: item.label.lower())

@@ -4,11 +4,12 @@ from modules.agent.infra.database.repositories import SQLAlchemyProviderCredenti
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 from modules.agent.presentation.controllers.list_provider_credentials_controller import ListProviderCredentialsController
 from shared.infra.transactional_handler import TransactionalHandler
+from modules.agent.infra.adapters.model_provider_registry import build_provider_registry
 
 
 def list_provider_credentials_composer() -> TransactionalHandler:
     uow = AgentUnitOfWork(DATABASE_ENGINE)
     repo = SQLAlchemyProviderCredentialRepository(uow)
-    use_case = ListProviderCredentialsUseCase(repo)
+    use_case = ListProviderCredentialsUseCase(repo, build_provider_registry())
     controller = ListProviderCredentialsController(use_case)
     return TransactionalHandler(uow, controller.handle)

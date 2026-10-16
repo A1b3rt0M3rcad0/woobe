@@ -31,6 +31,7 @@ from shared.contracts.errors import NotFoundError
 from shared.contracts.project_configuration import ConfigurationDependency, ConfigurationError
 from shared.infra.crypto import decrypt_secret, encrypt_secret
 from shared.runtime_environment import normalize_runtime_environment
+from modules.core.infra.database.configuration_access_metadata import approval_metadata, approval_summary
 from modules.core.domain.configuration_protocol_metadata import validate_protocol_metadata
 
 
@@ -156,12 +157,17 @@ class ConfigurationStore:
         slots = (await self.session.execute(select(Value.key_id, Value.environment, Value.revision,
                 Value.value_version, Value.material_state, Value.revoked, Value.updated_at, Value.writer)
                 .where(Value.key_id.in_(ids)))).mappings().all() if ids else []
-        uses = (await self.session.execute(select(ConfigurationReferenceModel.key_id,
-                func.count(func.distinct(ConfigurationReferenceModel.consumer_id)))
+        uses = (await self.session.scalars(select(ConfigurationReferenceModel)
                 .where(ConfigurationReferenceModel.project_id == project_id,
-                       ConfigurationReferenceModel.key_id.in_(ids), ConfigurationReferenceModel.retained.is_(True))
-                .group_by(ConfigurationReferenceModel.key_id))).all() if ids else []
-        use_counts = dict(uses)
+                       ConfigurationReferenceModel.key_id.in_(ids), ConfigurationReferenceModel.retained.is_(True)))).all() if ids else []
+        policies = (await self.session.scalars(select(ConfigurationUsePolicyModel).where(
+            ConfigurationUsePolicyModel.project_id == project_id,
+            ConfigurationUsePolicyModel.key_id.in_(ids)))).all() if ids else []
+        by_key, policies_by_key = {}, {}
+        for reference in uses:
+            by_key.setdefault(reference.key_id, []).append(reference)
+        for policy in policies:
+            policies_by_key.setdefault(policy.key_id, []).append(policy)
         by_id = {}
         for row in slots:
             by_id.setdefault(row["key_id"], {})[row["environment"]] = {
@@ -178,7 +184,9 @@ class ConfigurationStore:
             item["values"] = {env: dict(by_id.get(key.id, {}).get(env, empty)) for env in ("draft", "staging", "production")}
             item["selected_environment"] = environment
             item["material"] = item["values"][environment]["material"]
-            item["used_by_count"] = use_counts.get(key.id, 0)
+            references = by_key.get(key.id, [])
+            item["used_by_count"] = len({row.consumer_id for row in references})
+            item["approval"] = approval_summary(references, policies_by_key.get(key.id, []), environment)
             items.append(item)
         return {"items": items, "total": total, "limit": limit, "offset": offset,
                 "has_next": offset + len(items) < total, "environment": environment}
@@ -355,21 +363,31 @@ class ConfigurationStore:
                 "consumer_kind": consumer_kind, "consumer_scope": consumer_scope,
                 "destination": destination, "environments": environments, "field_paths": row.field_paths}
 
-    async def usage(self, *, project_id, key_id, limit=50, offset=0):
+    async def usage(self, *, project_id, key_id, limit=50, offset=0, environment="draft", consumer_kind=None, consumer_id=None):
         key = await self.key(project_id, key_id)
+        environment = normalize_runtime_environment(environment)
         if not 1 <= limit <= 200 or offset < 0:
             raise ConfigurationError("CONFIG_DEFINITION_INVALID")
-        filters = (ConfigurationReferenceModel.project_id == project_id,
-                   ConfigurationReferenceModel.key_id == key.id, ConfigurationReferenceModel.retained.is_(True))
+        filters = [ConfigurationReferenceModel.project_id == project_id,
+                   ConfigurationReferenceModel.key_id == key.id, ConfigurationReferenceModel.retained.is_(True)]
+        if consumer_kind is not None:
+            if consumer_kind not in {"provider_credential", "tool", "secret", "mcp_oauth"}:
+                raise ConfigurationError("CONFIG_BINDING_INVALID")
+            filters.append(ConfigurationReferenceModel.consumer_kind == consumer_kind)
+        if consumer_id is not None:
+            filters.append(ConfigurationReferenceModel.consumer_id == consumer_id)
         count = await self.session.scalar(select(func.count()).select_from(ConfigurationReferenceModel).where(*filters))
         rows = (await self.session.scalars(select(ConfigurationReferenceModel).where(*filters)
                 .order_by(ConfigurationReferenceModel.consumer_kind, ConfigurationReferenceModel.consumer_id,
                           ConfigurationReferenceModel.definition_revision, ConfigurationReferenceModel.field_path)
                 .offset(offset).limit(limit))).all()
+        policies = (await self.session.scalars(select(ConfigurationUsePolicyModel).where(
+            ConfigurationUsePolicyModel.project_id == project_id, ConfigurationUsePolicyModel.key_id == key.id))).all()
         return {"items": [{"consumer_kind": row.consumer_kind, "consumer_id": str(row.consumer_id),
                            "definition_revision": row.definition_revision, "field_path": row.field_path,
-                           "required": row.required, "destination": row.destination} for row in rows],
-                "total": count, "offset": offset, "limit": limit}
+                           "required": row.required, "destination": row.destination,
+                           "approval": approval_metadata(row, policies, environment)} for row in rows],
+                "total": count, "offset": offset, "limit": limit, "environment": environment}
 
     async def list_use_policies(self, *, project_id, key_id, limit=50, offset=0):
         key = await self.key(project_id, key_id)

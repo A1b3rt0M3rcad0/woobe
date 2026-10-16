@@ -151,6 +151,8 @@ async def test_managed_agent_pull_edit_push_keeps_native_identity_and_rejects_st
             "kind": "Network",
             "ref": "network",
         }
+    from tests.fakes.provider_model_fixtures import declare_language_model_evidence
+    declare_language_model_evidence(documents)
     for path, document in documents.items():
         document.update(format="woobe-package", schema_version="1.0")
         (source / path).write_text(yaml.safe_dump(document))

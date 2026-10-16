@@ -30,4 +30,7 @@ class AvailableProviderModelOutput(BaseModel):
     input_modalities: list[str] = []
     output_modalities: list[str] = []
     capabilities: dict[str, Any] = {}
+    model_spec: dict[str, Any] | None = None
+    normalization_status: str = "unclassified"
+    normalization_issues: list[str] = []
     raw: dict[str, Any] = {}

@@ -25,8 +25,11 @@ Draft, Staging and Production metadata is requested independently and shown next
 to each shared key. A restricted or unavailable Environment is labelled as such;
 its state and permissions are never borrowed from another Environment. Table
 headers show Environment names; **Manage values** in each key's row opens its editor.
+**Value saved** reports material only. Each Environment also shows **Approval
+required** or **Use approved** for the saved connections that reference the key.
+**Manage approvals** is an explicit action beside value management.
 Legacy mapping review retains its own scoped Environment selector, and usage
-approvals choose their Environment inside the usage dialog.
+approvals choose their Environment inside **Access approvals**.
 
 In **Add key**, choose the Environment for the value inside the modal. Creating
 the shared declaration opens its value editor in that Environment. Cancelling
@@ -67,6 +70,61 @@ Provider creation and the current HTTP/MCP Tool form accept references. Tools
 support API key, Bearer, Basic, named headers and explicit public access. Save the
 connection first; MCP discovery is a separate action after values and use approvals
 are available. Existing legacy connections retain their migration boundary.
+
+### Provider catalog authorization
+
+Saving a Provider connection with a typed key reference does not approve delivery
+of that value. Catalog discovery in model creation uses Draft. A
+`CONFIG_USAGE_NOT_AUTHORIZED` response identifies an outstanding approval for the
+selected connection, destination and Environment, even when the key is configured.
+This applies to OpenAI, Anthropic, DeepSeek, OpenRouter, OpenAI Compatible and the
+historical `custom` alias.
+
+Model catalog notices distinguish configuration blockers from provider outages.
+**Approve use in Draft** opens the access dialog directly, scoped to the reported
+key and selected connection. Review its destination and Environment, then choose
+**Approve use in Draft**. This is the explicit approval action; it does not require
+a second modal. After the server confirms approval, the dialog and catalog notice
+show **Use approved in Draft**. Choose **Load catalog** to perform discovery.
+An already-approved connection shows its current status and offers revocation
+instead of another approval. Revocation requires inline confirmation of the
+affected destination and Environments.
+
+The same access dialog is available from Environments, saved provider connections
+and saved Tool authentication references. Connection creation explains the order:
+save the connection, set the key value, then approve connection use. Runtime
+readiness notices identify missing use approvals separately from missing values.
+Approving use refreshes configuration status without initiating a Run, discovery
+or other external call. Missing values have a separate configuration notice.
+Entering a model ID manually does not authorize use of the connection.
+
+Approval status comes from Core's runtime policy matcher, including canonical URL
+identity, destination child paths, consumer scope, field paths, Environment and
+revocation. Editable policy evidence includes the current revision of the exact
+canonical destination, even when it is not on the visible policy-list page.
+The UI preserves existing Environments and fields when extending that approval.
+Reapproving a revoked policy uses its current revision but authorizes only the
+selected Environment and field; previously revoked Environments stay revoked.
+A concurrent approval refreshes status; an already-completed approval is shown as
+approved. Other revision conflicts require review rather than an automatic write.
+
+Key metadata includes an `approval` summary for the requested Environment only.
+`GET /core/projects/{project_id}/configuration/keys/{key_id}/usage` accepts
+`environment`, `consumer_kind` and `consumer_id` to return scoped connection rows
+with effective approval and exact-destination update evidence. That editable
+evidence requires configuration-read permission in all three Environments because
+a policy can cover multiple Environments. The policy-list endpoint enforces the
+same requirement. Selected-Environment key summaries remain
+available under Environment-limited read permissions. These reads never decrypt
+values or contact providers.
+
+Regression coverage exercises this browser recovery for every provider identifier
+and the real configuration/discovery handler against a local HTTP provider.
+Those integration cases check missing approval, another connection's approval,
+successful Draft approval, canonical trailing slashes, extending an existing
+approval, Environment isolation and revocation. UI cases cover stale failures,
+concurrent approval, explicit actions and responsive layouts. Synthetic keys and
+catalogs make these tests independent of live provider accounts.
 
 With a compatible CLI:
 

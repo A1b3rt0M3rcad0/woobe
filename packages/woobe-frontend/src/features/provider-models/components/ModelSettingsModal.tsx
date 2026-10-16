@@ -1,3 +1,6 @@
+import { ProviderModelReconciliationDialog } from './ProviderModelReconciliationDialog'
+import { ProviderDiscoveryErrorNotice } from './ProviderDiscoveryErrorNotice'
+import { buildProviderModelDefinition, effectiveModelPricing } from '../modelDefinition'
 import { useEffect, useMemo, useState } from 'react'
 import {
   AlertTriangle,
@@ -10,7 +13,6 @@ import {
   Info,
   KeyRound,
   Plus,
-  RefreshCw,
   Search,
   ShieldCheck,
 } from 'lucide-react'
@@ -154,9 +156,9 @@ function capabilitiesOf(model?: ProviderModel | null) {
   return {
     contextWindow,
     maxOutputTokens,
-    supportsTools: capabilityChoice(specCapability('tool_calling') ?? capabilities.supports_tools),
-    supportsJson: capabilityChoice(specCapability('structured_output') ?? capabilities.supports_json),
-    supportsStreaming: capabilityChoice(specCapability('streaming') ?? capabilities.supports_streaming),
+    supportsTools: capabilityChoice(spec ? specCapability('tool_calling') : capabilities.supports_tools),
+    supportsJson: capabilityChoice(spec ? specCapability('structured_output') : capabilities.supports_json),
+    supportsStreaming: capabilityChoice(spec ? specCapability('streaming') : capabilities.supports_streaming),
     source: spec?.source || (typeof metadata.capability_source === 'string'
       ? metadata.capability_source
       : catalog.context_window != null ? 'provider_catalog' : 'manual'),
@@ -165,9 +167,7 @@ function capabilitiesOf(model?: ProviderModel | null) {
 
 function pricingOf(model?: ProviderModel | null) {
   const metadata = metadataOf(model)
-  const raw = typeof metadata.pricing === 'object' && metadata.pricing !== null
-    ? metadata.pricing as Record<string, unknown>
-    : metadata
+  const raw = effectiveModelPricing(model)
   return {
     input: numberOrNull(raw.input_cost_per_1m_tokens),
     output: numberOrNull(raw.output_cost_per_1m_tokens),
@@ -289,6 +289,8 @@ function ReadOnlyValue({ label, value, mono = false }: { label: string; value: s
 }
 
 function CatalogList({
+  projectId,
+  credentialId,
   models,
   selectedId,
   loading,
@@ -297,10 +299,12 @@ function CatalogList({
   onRetry,
   onManual,
 }: {
+  projectId: string
+  credentialId: string
   models: AvailableProviderModel[]
   selectedId: string
   loading: boolean
-  error: boolean
+  error: unknown
   onSelect: (model: AvailableProviderModel) => void
   onRetry: () => void
   onManual: () => void
@@ -323,18 +327,7 @@ function CatalogList({
   }
 
   if (error) {
-    return (
-      <Alert variant="warning">
-        <AlertTitle>Provider catalog unavailable</AlertTitle>
-        <AlertDescription>Retry discovery or enter the model ID manually.</AlertDescription>
-        <div className="mt-ui-md flex flex-wrap gap-ui-sm">
-          <Button type="button" size="sm" variant="outline" onClick={onRetry}>
-            <RefreshCw className="mr-2 h-icon w-icon" />Retry
-          </Button>
-          <Button type="button" size="sm" variant="ghost" onClick={onManual}>Enter model ID manually</Button>
-        </div>
-      </Alert>
-    )
+    return <ProviderDiscoveryErrorNotice projectId={projectId} credentialId={credentialId} error={error} onRetry={onRetry} onManual={onManual} />
   }
 
   return (
@@ -454,6 +447,8 @@ export function ModelSettingsModal({
   const [catalogModelId, setCatalogModelId] = useState('')
   const [manualMode, setManualMode] = useState(false)
   const [modelId, setModelId] = useState('')
+  const [inheritCatalog, setInheritCatalog] = useState(false)
+  const [compareOpen, setCompareOpen] = useState(false)
   const [displayName, setDisplayName] = useState('')
   const [status, setStatus] = useState('active')
   const [inputCost, setInputCost] = useState('')
@@ -490,12 +485,13 @@ export function ModelSettingsModal({
   const modelProvider = credential?.provider || selectedModel?.provider || null
   const providerName = modelProviderLabel(modelProvider)
   const normalizedSpec = catalogModel
-    ? catalogModelSpec(catalogModel.raw)
+    ? catalogModelSpec(catalogModel)
     : providerModelSpec(selectedModel)
 
   useEffect(() => {
     if (!open) return
     setCreatedCredential(null)
+    setInheritCatalog(false)
     setCredentialPending(false)
     setCatalogModelId('')
     setArchiveModel(null)
@@ -607,33 +603,18 @@ export function ModelSettingsModal({
       supportsStreaming,
       capabilitiesChanged,
     )
-    const selectedSpec = catalogModel?.raw?.woobe_model_spec
-
     try {
+    const definition = buildProviderModelDefinition({ projectId, credentialId: credential.id, name: resolvedName, modelId: resolvedModel, existing: selectedModel, catalog: catalogModel, metadata, inheritCatalog })
+
+
       if (selectedModel) {
         await updateModel.mutateAsync({
           id: selectedModel.id,
-          data: {
-            provider_credential_id: credential.id,
-            name: resolvedName,
-            model: resolvedModel,
-            ...(catalogModel?.model_type ? { model_type: catalogModel.model_type } : {}),
-            ...(selectedSpec && typeof selectedSpec === 'object' ? { spec: selectedSpec as Record<string, any> } : {}),
-            status,
-            metadata,
-          },
+          data: { ...definition, status },
         })
         toast.success('Model updated')
       } else {
-        await createModel.mutateAsync({
-          project_id: projectId,
-          provider_credential_id: credential.id,
-          name: resolvedName,
-          model: resolvedModel,
-          model_type: catalogModel?.model_type || undefined,
-          spec: selectedSpec && typeof selectedSpec === 'object' ? selectedSpec as Record<string, any> : undefined,
-          metadata,
-        })
+        await createModel.mutateAsync(definition)
         toast.success('Model created')
       }
       refreshParent()
@@ -815,10 +796,12 @@ export function ModelSettingsModal({
             >
               {shouldUseCatalog ? (
                 <CatalogList
+                  projectId={projectId}
+                  credentialId={credentialId}
                   models={availableModels}
                   selectedId={catalogModelId}
                   loading={availableModelsQuery.isLoading}
-                  error={availableModelsQuery.isError}
+                  error={availableModelsQuery.error}
                   onSelect={(model) => setCatalogModelId(model.id)}
                   onRetry={() => { void availableModelsQuery.refetch() }}
                   onManual={() => {
@@ -952,7 +935,7 @@ export function ModelSettingsModal({
               <div className="mt-ui-sm flex flex-wrap gap-ui-xs">
                 {Object.keys(normalizedSpec.capabilities).length ? Object.entries(normalizedSpec.capabilities).map(([name, supported]) => (
                   <Badge key={name} variant={supported === true ? 'success' : 'outline'} size="compact">
-                    {name}: {supported === null ? 'unknown' : supported ? 'yes' : 'no'}
+                    {name}: {supported === null ? 'unknown' : supported ? 'yes' : 'no'} · {normalizedSpec.capabilitySources[name] || 'Unknown source'}
                   </Badge>
                 )) : <span className="font-mono text-product-caption text-muted-foreground">No capabilities declared.</span>}
               </div>
@@ -1105,6 +1088,19 @@ export function ModelSettingsModal({
             meta={<p className="max-w-2xl font-sans text-product-caption text-muted-foreground">{footerHint}</p>}
             actions={(
               <>
+                {credential && step === 'model' && <Button variant="outline" onClick={() => setCompareOpen(true)}>Compare with provider</Button>}
+                {selectedModel?.metadata?.model_spec_baseline && step === 'model' && <Button variant="outline" onClick={() => {
+                  const base = selectedModel.metadata!.model_spec_baseline
+                  setInheritCatalog(true)
+                  setCurrency(base.pricing?.currency || 'USD')
+                  setInputCost(base.pricing?.input_cost_per_1m_tokens == null ? '' : String(base.pricing.input_cost_per_1m_tokens))
+                  setOutputCost(base.pricing?.output_cost_per_1m_tokens == null ? '' : String(base.pricing.output_cost_per_1m_tokens))
+                  setContextWindow(base.limits?.context_window == null ? '' : String(base.limits.context_window))
+                  setMaxOutputTokens(base.limits?.max_output_tokens == null ? '' : String(base.limits.max_output_tokens))
+                  setSupportsTools(capabilityChoice(base.capabilities?.tool_calling?.supported))
+                  setSupportsJson(capabilityChoice(base.capabilities?.structured_output?.supported))
+                  setSupportsStreaming(capabilityChoice(base.capabilities?.streaming?.supported))
+                }}>Restore catalog values</Button>}
                 {step === 'credential' && usableCredentials.length > 0 ? (
                   <Button type="button" variant="outline" disabled={busy} onClick={() => setStep('model')}>Back</Button>
                 ) : (
@@ -1126,6 +1122,7 @@ export function ModelSettingsModal({
         </div>
       </Dialog>
 
+      {compareOpen && credential && <ProviderModelReconciliationDialog projectId={projectId} credentialId={credential.id} onClose={() => setCompareOpen(false)} />}
       <ArchiveDialog
         model={archiveModel}
         usage={archiveUsage}

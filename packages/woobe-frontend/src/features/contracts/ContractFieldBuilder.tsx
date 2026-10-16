@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { FileText, Plus, Trash2 } from 'lucide-react'
 import { Button, Checkbox, Dialog, Input, Select, Textarea } from '@woobe/ui'
+import './contract-field-builder.css'
 
 import {
   CONTRACT_FIELD_TYPE_OPTIONS,
@@ -65,8 +66,8 @@ export function ContractFieldBuilder({
     const descriptionRow = descriptionFieldIndex === null ? null : rows[descriptionFieldIndex] ?? null
 
     return (
-      <div className="min-w-0">
-        <div className="grid grid-cols-[minmax(88px,1fr)_78px_82px_42px_46px_28px_28px] items-center gap-ui-xs border-b border-border px-ui-xs pb-ui-xs font-mono text-system-label uppercase tracking-system-label text-muted-foreground">
+      <div className="contract-external-fields min-w-0">
+        <div aria-hidden="true" className="contract-external-header contract-external-columns grid items-center gap-ui-xs border-b border-border px-ui-xs pb-ui-xs font-mono text-system-label uppercase tracking-system-label text-muted-foreground">
           <span>Name</span>
           <span>Type</span>
           <span>Scope</span>
@@ -80,81 +81,98 @@ export function ContractFieldBuilder({
           {rows.map((row, index) => (
             <div
               key={index}
-              className="grid min-h-control grid-cols-[minmax(88px,1fr)_78px_82px_42px_46px_28px_28px] items-center gap-ui-xs px-ui-xs py-ui-xs"
+              className="contract-external-row contract-external-columns grid min-h-control items-center gap-ui-xs px-ui-xs py-ui-xs"
             >
-              <Input
-                value={row.name}
-                disabled={disabled}
-                spellCheck={false}
-                onChange={(event) => update(index, { name: event.target.value })}
-                aria-label={`Field ${index + 1} name`}
-              />
+              <label className="contract-field-name grid min-w-0 gap-ui-xs">
+                <span className="contract-field-label">Name</span>
+                <Input
+                  value={row.name}
+                  disabled={disabled}
+                  spellCheck={false}
+                  onChange={(event) => update(index, { name: event.target.value })}
+                  aria-label={`Field ${index + 1} name`}
+                />
+              </label>
 
-              <Select
-                value={row.type}
-                disabled={disabled}
-                options={CONTRACT_FIELD_TYPE_OPTIONS}
-                className="pl-ui-xs pr-5"
-                onChange={(event) => update(index, { type: event.target.value as ContractFieldType })}
-                aria-label={`Field ${row.name || index + 1} type`}
-              />
+              <label className="grid min-w-0 gap-ui-xs">
+                <span className="contract-field-label">Type</span>
+                <Select
+                  value={row.type}
+                  disabled={disabled}
+                  options={CONTRACT_FIELD_TYPE_OPTIONS}
+                  className="pl-ui-xs pr-5"
+                  onChange={(event) => update(index, { type: event.target.value as ContractFieldType })}
+                  aria-label={`Field ${row.name || index + 1} type`}
+                />
+              </label>
 
-              <Select
-                value={row.scope ?? 'run'}
-                disabled={disabled}
-                options={[
-                  { value: 'run', label: 'Run' },
-                  { value: 'session', label: 'Session' },
-                ]}
-                className="pl-ui-xs pr-5"
-                onChange={(event) => update(index, { scope: event.target.value as ExternalContextScope })}
-                aria-label={`Field ${row.name || index + 1} scope`}
-              />
+              <label className="grid min-w-0 gap-ui-xs">
+                <span className="contract-field-label">Scope</span>
+                <Select
+                  value={row.scope ?? 'run'}
+                  disabled={disabled}
+                  options={[
+                    { value: 'run', label: 'Run' },
+                    { value: 'session', label: 'Session' },
+                  ]}
+                  className="pl-ui-xs pr-5"
+                  onChange={(event) => update(index, { scope: event.target.value as ExternalContextScope })}
+                  aria-label={`Field ${row.name || index + 1} scope`}
+                />
+              </label>
 
-              <div className="flex justify-center" title="Required at runtime">
+              <label className="contract-field-toggle flex items-center justify-center gap-ui-xs" title="Required at runtime">
                 <Checkbox
                   checked={row.required}
                   disabled={disabled}
                   onChange={(event) => update(index, { required: event.target.checked })}
                   aria-label={`Field ${row.name || index + 1} required`}
                 />
-              </div>
+                <span className="contract-field-label">Required</span>
+              </label>
 
-              <div className="flex justify-center" title="Expose to model">
+              <label className="contract-field-toggle flex items-center justify-center gap-ui-xs" title="Expose to model">
                 <Checkbox
                   checked={row.expose}
                   disabled={disabled}
                   onChange={(event) => update(index, { expose: event.target.checked })}
                   aria-label={`Field ${row.name || index + 1} model visibility`}
                 />
+                <span className="contract-field-label">Visible to model</span>
+              </label>
+
+              <div className="flex items-center gap-ui-xs">
+                <Button
+                  type="button"
+                  size="iconXs"
+                  variant="ghost"
+                  disabled={disabled}
+                  onClick={() => setDescriptionFieldIndex(index)}
+                  aria-label={`Edit ${row.name || `field ${index + 1}`} description`}
+                  title={row.description?.trim() ? 'Edit description' : 'Add description'}
+                  className={row.description?.trim()
+                    ? 'text-primary-light hover:text-primary-light'
+                    : 'text-muted-foreground hover:text-slate-100'}
+                >
+                  <FileText className="h-icon-sm w-icon-sm" />
+                </Button>
+                <span className="contract-field-label">Description</span>
               </div>
 
-              <Button
-                type="button"
-                size="iconXs"
-                variant="ghost"
-                disabled={disabled}
-                onClick={() => setDescriptionFieldIndex(index)}
-                aria-label={`Edit ${row.name || `field ${index + 1}`} description`}
-                title={row.description?.trim() ? 'Edit description' : 'Add description'}
-                className={row.description?.trim()
-                  ? 'text-primary-light hover:text-primary-light'
-                  : 'text-muted-foreground hover:text-slate-100'}
-              >
-                <FileText className="h-icon-sm w-icon-sm" />
-              </Button>
-
-              <Button
-                type="button"
-                size="iconXs"
-                variant="ghost"
-                disabled={disabled}
-                onClick={() => remove(index)}
-                aria-label={`Remove ${row.name || `field ${index + 1}`}`}
-                className="text-muted-foreground hover:text-destructive"
-              >
-                <Trash2 className="h-icon-sm w-icon-sm" />
-              </Button>
+              <div className="flex items-center gap-ui-xs">
+                <Button
+                  type="button"
+                  size="iconXs"
+                  variant="ghost"
+                  disabled={disabled}
+                  onClick={() => remove(index)}
+                  aria-label={`Remove ${row.name || `field ${index + 1}`}`}
+                  className="text-muted-foreground hover:text-destructive"
+                >
+                  <Trash2 className="h-icon-sm w-icon-sm" />
+                </Button>
+                <span className="contract-field-label">Remove</span>
+              </div>
             </div>
           ))}
         </div>

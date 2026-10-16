@@ -38,7 +38,7 @@ function Summary({
   }
 
   return (
-    <div className="border-t border-border p-ui-md">
+    <div role="group" aria-label={`${title} model`} className="border-t border-border p-ui-md">
       <TechnicalListItem
         label={model.name}
         description={model.model !== model.name ? model.model : `${title} model`}
@@ -51,8 +51,8 @@ function Summary({
         trailing={<Badge variant={model.status === 'active' ? 'success' : 'outline'} size="compact">{model.status}</Badge>}
       >
         <div className="mt-ui-sm flex flex-wrap gap-ui-sm border-t border-border pt-ui-sm">
-          <Button size="sm" variant="outline" onClick={onChange}>Change</Button>
-          <Button size="sm" variant="ghost" onClick={onRemove}>
+          <Button size="sm" variant="outline" aria-label={`Change ${title.toLowerCase()} model`} onClick={onChange}>Change</Button>
+          <Button size="sm" variant="ghost" aria-label={`Remove ${title.toLowerCase()} model`} onClick={onRemove}>
             <Trash2 className="h-icon-sm w-icon-sm text-error" />Remove
           </Button>
         </div>

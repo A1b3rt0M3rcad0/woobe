@@ -17,11 +17,12 @@ export function ConfigurationReadinessNotice({ projectId, targetKind, targetId, 
     retry: false, staleTime: 15_000, refetchInterval: 30_000, refetchOnWindowFocus: 'always' })
   const forbidden = query.error instanceof ApiError && query.error.status === 403
   const data = query.isError ? undefined : query.data
+  const needsApproval = data?.dependencies.some(item => item.code === 'CONFIG_USAGE_NOT_AUTHORIZED' || item.code === 'CONFIG_DESTINATION_CHANGED')
   if (!query.isFetching && !query.isError && data?.state === 'ready' && !unsaved) return null
   const message = query.isFetching ? 'Checking configuration…'
     : forbidden ? 'Configuration status requires permission.'
     : query.isError || !data || data.state === 'unknown' ? 'Configuration status is unavailable or incomplete.'
-    : data.state === 'blocked' ? data.missing_key_count > 0
+    : data.state === 'blocked' ? needsApproval ? `Connection use needs approval in ${environment}. Open Environments → Manage approvals.` : data.missing_key_count > 0
       ? `${data.missing_key_count} missing keys · ${data.affected_consumer_count} affected connections`
       : `Configuration required · ${data.affected_consumer_count} blocked connections`
     : data.state === 'ready_with_notices' ? 'Configuration is present; connection checks or legacy review remain.'
@@ -35,7 +36,7 @@ export function ConfigurationReadinessNotice({ projectId, targetKind, targetId, 
       <span className="font-medium capitalize">{environment}</span>
       <span role="status" className="text-muted-foreground">{message}</span>
       {unsaved && <span className="text-muted-foreground">Saved definition only; unsaved changes are checked when sent.</span>}
-      {!forbidden && <a href={href} className="ml-auto text-primary underline underline-offset-2">{data?.state === 'blocked' ? 'Configure to run' : 'Review configuration'}</a>}
+      {!forbidden && <a href={href} className="ml-auto text-primary underline underline-offset-2">{needsApproval ? 'Manage approvals' : data?.state === 'blocked' ? 'Configure to run' : 'Review configuration'}</a>}
       <Button variant="ghost" size="sm" disabled={query.isFetching} onClick={() => { void query.refetch() }}>Refresh status</Button>
     </div>
     {!!data?.dependencies.some(item => item.code) && <details className="mt-ui-xs">

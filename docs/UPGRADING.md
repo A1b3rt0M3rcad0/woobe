@@ -10,6 +10,8 @@ This gate complements fresh-install migration tests. A green upgrade check means
 
 ## Before upgrading
 
+Provider Model integrity changes require no database migration or historical rehash. Existing `custom` credentials and `raw.woobe_model_spec` discovery readers remain supported. New authoring writes reject mismatched specs, unsupported fields and invalid numeric/capability values; hash/version inputs are assertions. Identity changes under published bindings now return deliberate conflicts: create a new Model/credential and rebind the Draft. Secret rotation remains available. New manual specs must explicitly affirm required capabilities; historical legacy specs retain compatibility diagnostics. Catalog comparison/apply is opt-in and leaves published bindings unchanged. See [Model Runtime](MODEL_RUNTIME.md) for override inheritance and the new reconciliation API.
+
 1. Read the release notes and migration compatibility notes for the target version.
 2. Back up PostgreSQL using the documented backup procedure.
 3. Back up Knowledge files or configured object-storage data.

@@ -33,6 +33,9 @@ export interface AvailableProviderModel {
   input_modalities?: string[]
   output_modalities?: string[]
   capabilities?: Record<string, any>
+  model_spec?: Record<string, any> | null
+  normalization_status?: 'normalized' | 'unclassified' | 'unsupported_execution'
+  normalization_issues?: string[]
   raw?: Record<string, any>
 }
 

@@ -200,6 +200,24 @@ class SQLAlchemyProviderCredentialRepository(
         if not model:
             from modules.agent.domain.errors import CredentialNotFoundError
             raise CredentialNotFoundError(credential.id)
+        from modules.agent.domain.provider_identity import providers_equivalent
+        from modules.agent.infra.database.provider_model_models import ProviderModelModel
+        old_endpoint = (model.meta or {}).get("base_url")
+        new_endpoint = (credential.metadata or {}).get("base_url")
+        old_endpoint_binding = ((model.authentication or {}).get("fields") or {}).get("base_url")
+        new_endpoint_binding = ((credential.authentication or {}).get("fields") or {}).get("base_url")
+        if (not providers_equivalent(model.provider, credential.provider) or old_endpoint != new_endpoint
+                or old_endpoint_binding != new_endpoint_binding):
+            dependent_model = await self._session.scalar(select(ProviderModelModel.id).where(
+                ProviderModelModel.provider_credential_id == credential.id).limit(1))
+            dependent_release = await self._session.scalar(select(AgentReleaseModel.id).where(
+                (AgentReleaseModel.provider_credential_id == credential.id)
+                | (AgentReleaseModel.fallback_credential_id == credential.id)).limit(1))
+            if dependent_model is not None or dependent_release is not None:
+                from shared.contracts.errors import ConflictError
+                error = ConflictError("Create a new credential for a different provider or endpoint; credential identity is in use")
+                error.code = "CREDENTIAL_IDENTITY_IN_USE"
+                raise error
         if credential.encrypted_secret and model.authentication is not None:
             from modules.agent.application.interfaces.project_configuration import configuration_for_session
             from shared.contracts.project_configuration import ConfigurationError

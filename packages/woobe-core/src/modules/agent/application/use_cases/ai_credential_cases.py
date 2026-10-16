@@ -48,10 +48,19 @@ class UpdateProviderCredentialUseCase:
 
 
 class ListProviderCredentialsUseCase:
-    def __init__(self, credential_repo: ProviderCredentialRepository) -> None:
+    def __init__(self, credential_repo: ProviderCredentialRepository, provider_registry=None) -> None:
         self._credential_repo = credential_repo
+        self._provider_registry = provider_registry
+
+    def _supports_embedding(self, provider):
+        if self._provider_registry is None:
+            return None
+        from modules.agent.domain.model_spec import ModelOperations
+        from modules.agent.domain.provider_identity import canonical_provider_key
+        provider = canonical_provider_key(provider)
+        return self._provider_registry.contains(provider) and ModelOperations.EMBEDDING_CREATE in self._provider_registry.resolve(provider).manifest.supported_operations
 
     async def execute(self, input_dto: ListProviderCredentialsInput) -> list[ListProviderCredentialsOutput]:
         if not input_dto.project_id:
             return []
-        return [ListProviderCredentialsOutput(id=item.id, project_id=item.project_id, provider=item.provider, name=item.name, status=item.status, created_at=item.created_at, metadata=item.metadata, authentication=item.authentication, binding_revision=item.binding_revision) for item in await self._credential_repo.list_by_project(input_dto.project_id)]
+        return [ListProviderCredentialsOutput(id=item.id, project_id=item.project_id, provider=item.provider, name=item.name, status=item.status, created_at=item.created_at, metadata=item.metadata, authentication=item.authentication, binding_revision=item.binding_revision, supports_embedding=self._supports_embedding(item.provider)) for item in await self._credential_repo.list_by_project(input_dto.project_id)]
