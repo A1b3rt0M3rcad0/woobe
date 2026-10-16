@@ -17,6 +17,22 @@ async function prepare(page: Page) {
   await installResources(page)
   const saves: Record<string, any>[] = []
   const agent = { ...productionAgent, provider: 'deepseek', model: original.model, provider_model_id: original.id, provider_credential_id: connection.id, settings: { external_context_contract: {} } }
+  await page.route('**/configuration/**', async route => {
+    const url = new URL(route.request().url()), environment = url.searchParams.get('environment') || 'draft'
+    if (url.pathname.endsWith('/keys')) return respond(route, {
+      environment, items: [{ id: 'provider-key', key: 'DEEPSEEK_API_KEY', kind: 'secret', value_format: 'token',
+        description: 'Provider key', definition_revision: 1, material: 'present', origin: 'manual', used_by_count: 1,
+        values: { [environment]: { configured: true, material: 'present', revision: 1, value_version: 'opaque' } } }],
+      total: 1, offset: 0, limit: 50, has_next: false, permissions: { declare: true, 'use-policy:write': true },
+    })
+    if (url.pathname.endsWith('/usage')) return respond(route, { environment, items: [{
+      consumer_kind: 'provider_credential', consumer_id: connection.id, definition_revision: '1',
+      field_path: '/authentication/fields/api_key', required: true, destination: connection.metadata.base_url,
+      approval: { state: 'approval_required', policy: null, update_policy: null },
+    }], total: 1, offset: 0, limit: 50 })
+    if (url.pathname.endsWith('/use-policies')) return respond(route, { items: [], total: 0 })
+    return route.fallback()
+  })
   await page.route('**/ai/**', async route => {
     const path = new URL(route.request().url()).pathname
     if (path === '/ai/credentials') return respond(route, [connection])
@@ -99,22 +115,73 @@ for (const width of [1440, 768, 390]) {
     await inside(card, card.getByRole('button'))
   })
 
-  test(`Credential actions stay inside the modal at ${width}px`, async ({ page }) => {
+  test(`Credential workspace matches Models and keeps every action reachable at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 1100 })
+    await page.emulateMedia({ colorScheme: width === 768 ? 'light' : 'dark' })
     await prepare(page)
+    await page.goto(`${root}/models`)
+    await page.getByRole('button', { name: `Open Model ${original.name}`, exact: true }).click()
+    const reference = page.getByRole('dialog', { name: 'Model settings', exact: true })
+    await expect(reference).toBeVisible()
+    const referenceWidth = (await reference.boundingBox())!.width
     await page.goto(`${root}/credentials`)
     await page.getByRole('button', { name: 'Open provider connection DeepSeek', exact: true }).click()
-    const dialog = page.getByRole('dialog', { name: 'DeepSeek', exact: true })
+    const dialog = page.getByRole('dialog', { name: 'Credential settings', exact: true })
     await expect(dialog).toBeVisible()
     await page.evaluate(() => document.fonts.ready)
+    expect((await dialog.boundingBox())!.width).toBeCloseTo(referenceWidth, 0)
     await inside(dialog, dialog.getByRole('button'))
-    for (const name of ['Edit', 'Manage approvals', 'Manage key values', 'Revoke', 'Archive']) {
-      await expect(dialog.getByRole('button', { name, exact: true })).toBeInViewport({ ratio: 1 })
-    }
+    await expect(dialog.getByRole('region', { name: 'Connection overview', exact: true })).toBeVisible()
+    await expect(dialog.getByText('Use requires a saved key value and approval for this connection in the same environment.', { exact: true })).toBeVisible()
+    await expect(dialog.getByRole('button', { name: 'Edit connection', exact: true })).toBeInViewport({ ratio: 1 })
+    await expect(dialog.getByRole('button', { name: 'Close', exact: true })).toBeInViewport({ ratio: 1 })
     const metadata = dialog.getByText('2 generation · 0 embedding', { exact: true })
     expect((await metadata.boundingBox())!.height).toBeLessThan(40)
     await capture(page, 'credential', width)
+    await dialog.getByRole('button', { name: 'Connected models', exact: true }).click()
+    await expect(dialog.getByRole('region', { name: 'Connected models', exact: true })).toContainText(original.name)
+    await expect(dialog.getByText('No embedding models.', { exact: true })).toBeVisible()
+    await inside(dialog, dialog.getByRole('button'))
+    await capture(page, 'credential-models', width)
+    await dialog.getByRole('button', { name: 'Lifecycle', exact: true }).click()
+    for (const name of ['Revoke', 'Archive']) await expect(dialog.getByRole('button', { name, exact: true })).toBeInViewport({ ratio: 1 })
+    await inside(dialog, dialog.getByRole('button'))
+    await capture(page, 'credential-lifecycle', width)
+    await dialog.getByRole('button', { name: 'Close', exact: true }).click()
+    await page.getByRole('button', { name: 'Open provider connection DeepSeek', exact: true }).click()
+    await expect(dialog.getByRole('region', { name: 'Connection overview', exact: true })).toBeVisible()
     await dialog.getByRole('button', { name: 'Manage approvals', exact: true }).click()
-    await expect(page.getByRole('dialog', { name: 'Access approvals · DEEPSEEK_API_KEY', exact: true })).toBeVisible()
+    const approvals = page.getByRole('dialog', { name: 'Access approvals · DEEPSEEK_API_KEY', exact: true })
+    await expect(approvals).toBeVisible()
+    await expect(approvals.getByRole('button', { name: 'Approve use in Draft', exact: true })).toBeVisible()
+    await approvals.getByRole('button', { name: 'Close dialog', exact: true }).click()
+    await expect(dialog.getByRole('button', { name: 'Manage approvals', exact: true })).toBeFocused()
+    await dialog.getByRole('button', { name: 'Edit connection', exact: true }).click()
+    const edit = page.getByRole('dialog', { name: 'Edit Provider Credential', exact: true })
+    await expect(edit).toBeVisible()
+    await edit.getByRole('button', { name: 'Cancel', exact: true }).click()
+    await page.getByRole('button', { name: 'Open provider connection DeepSeek', exact: true }).click()
+    await page.setViewportSize({ width, height: 720 })
+    await expect(dialog.getByRole('button', { name: 'Edit connection', exact: true })).toBeInViewport({ ratio: 1 })
+    await expect(dialog.getByRole('button', { name: 'Close', exact: true })).toBeInViewport({ ratio: 1 })
+    await dialog.getByRole('button', { name: 'Manage key values', exact: true }).click()
+    await expect(page).toHaveURL(`${root}/environments`)
   })
 }
+
+test('Credential workspace contains long connection names and endpoints on a short mobile screen', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 720 })
+  await page.emulateMedia({ colorScheme: 'dark' })
+  await prepare(page)
+  const name = 'ProductionConnection'.repeat(5)
+  const endpoint = `https://provider.example.test/${'connection-path/'.repeat(20)}`
+  await page.route('**/ai/credentials*', route => respond(route, [{ ...connection, name, metadata: { base_url: endpoint } }]))
+  await page.goto(`${root}/credentials`)
+  await page.getByRole('button', { name: `Open provider connection ${name}`, exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: 'Credential settings', exact: true })
+  await expect(dialog.getByRole('heading', { name, exact: true })).toBeVisible()
+  await inside(dialog, dialog.getByRole('button'))
+  await expect(dialog.getByRole('button', { name: 'Edit connection', exact: true })).toBeInViewport({ ratio: 1 })
+  await dialog.getByRole('button', { name: 'Manage approvals', exact: true }).click()
+  await expect(page.getByRole('dialog', { name: 'Access approvals · DEEPSEEK_API_KEY', exact: true })).toBeVisible()
+})
