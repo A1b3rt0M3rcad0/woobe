@@ -28,7 +28,9 @@ function EnvironmentWorkspace({ projectId }: { projectId: string }) {
   const selected = params.get('environment')
   const initialEnvironment: ProjectEnvironment = selected === 'staging' || selected === 'production' ? selected : 'draft'
   const [preferredEnvironment, setPreferredEnvironment] = useState(initialEnvironment)
-  const [search, setSearch] = useState('')
+  const requestedKey = params.get('key')
+  const initialSearch = requestedKey && /^[A-Za-z_][A-Za-z0-9_]{0,127}$/.test(requestedKey) ? requestedKey : ''
+  const [search, setSearch] = useState(initialSearch)
   const [offset, setOffset] = useState(0)
   const [editing, setEditing] = useState<{ item: ConfigurationKey; environment: ProjectEnvironment } | null>(null)
   const [editingDefinition, setEditingDefinition] = useState<ConfigurationKey | null>(null)

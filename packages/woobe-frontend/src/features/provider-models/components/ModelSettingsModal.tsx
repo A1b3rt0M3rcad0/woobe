@@ -1,4 +1,5 @@
 import { ProviderModelReconciliationDialog } from './ProviderModelReconciliationDialog'
+import { ProviderDiscoveryErrorNotice } from './ProviderDiscoveryErrorNotice'
 import { buildProviderModelDefinition, effectiveModelPricing } from '../modelDefinition'
 import { useEffect, useMemo, useState } from 'react'
 import {
@@ -12,7 +13,6 @@ import {
   Info,
   KeyRound,
   Plus,
-  RefreshCw,
   Search,
   ShieldCheck,
 } from 'lucide-react'
@@ -289,6 +289,7 @@ function ReadOnlyValue({ label, value, mono = false }: { label: string; value: s
 }
 
 function CatalogList({
+  projectId,
   models,
   selectedId,
   loading,
@@ -297,10 +298,11 @@ function CatalogList({
   onRetry,
   onManual,
 }: {
+  projectId: string
   models: AvailableProviderModel[]
   selectedId: string
   loading: boolean
-  error: boolean
+  error: unknown
   onSelect: (model: AvailableProviderModel) => void
   onRetry: () => void
   onManual: () => void
@@ -323,18 +325,7 @@ function CatalogList({
   }
 
   if (error) {
-    return (
-      <Alert variant="warning">
-        <AlertTitle>Provider catalog unavailable</AlertTitle>
-        <AlertDescription>Retry discovery or enter the model ID manually.</AlertDescription>
-        <div className="mt-ui-md flex flex-wrap gap-ui-sm">
-          <Button type="button" size="sm" variant="outline" onClick={onRetry}>
-            <RefreshCw className="mr-2 h-icon w-icon" />Retry
-          </Button>
-          <Button type="button" size="sm" variant="ghost" onClick={onManual}>Enter model ID manually</Button>
-        </div>
-      </Alert>
-    )
+    return <ProviderDiscoveryErrorNotice projectId={projectId} error={error} onRetry={onRetry} onManual={onManual} />
   }
 
   return (
@@ -803,10 +794,11 @@ export function ModelSettingsModal({
             >
               {shouldUseCatalog ? (
                 <CatalogList
+                  projectId={projectId}
                   models={availableModels}
                   selectedId={catalogModelId}
                   loading={availableModelsQuery.isLoading}
-                  error={availableModelsQuery.isError}
+                  error={availableModelsQuery.error}
                   onSelect={(model) => setCatalogModelId(model.id)}
                   onRetry={() => { void availableModelsQuery.refetch() }}
                   onManual={() => {

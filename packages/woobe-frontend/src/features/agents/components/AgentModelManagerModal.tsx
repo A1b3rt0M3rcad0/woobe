@@ -1,4 +1,5 @@
 import { ModelSettingsModal } from '@/features/provider-models/components/ModelSettingsModal'
+import { ProviderDiscoveryErrorNotice } from '@/features/provider-models/components/ProviderDiscoveryErrorNotice'
 import { buildProviderModelDefinition, effectiveModelPricing, isAgentModel } from '@/features/provider-models/modelDefinition'
 import { useEffect, useMemo, useState } from 'react'
 import { Check, Cpu, KeyRound, Pencil, Plus, Search } from 'lucide-react'
@@ -314,6 +315,7 @@ export function AgentModelManagerModal({ open, projectId, selectedModelId, onClo
                       </Button>
                     </div>
 
+                    {!editingModel && credentialId && catalogQuery.isError && <ProviderDiscoveryErrorNotice projectId={projectId} error={catalogQuery.error} onRetry={() => { void catalogQuery.refetch() }} />}
                     {!editingModel && credentialId && (catalogQuery.data?.length || 0) > 0 ? (
                       <Field>
                         <FieldLabel>Provider catalog</FieldLabel>

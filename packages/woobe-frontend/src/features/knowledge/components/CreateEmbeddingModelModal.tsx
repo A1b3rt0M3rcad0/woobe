@@ -1,4 +1,5 @@
 import { buildProviderModelDefinition, effectiveModelPricing } from '@/features/provider-models/modelDefinition'
+import { ProviderDiscoveryErrorNotice } from '@/features/provider-models/components/ProviderDiscoveryErrorNotice'
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { Check, Cpu, Plus, Search } from 'lucide-react'
 import { toast } from 'sonner'
@@ -125,19 +126,23 @@ function getCredentialLabel(credential?: ProviderCredential | null) {
 }
 
 function EmbeddingModelCatalogPicker({
+  projectId,
   models,
   selectedModelId,
   loading,
   error,
   onSelect,
   onManualMode,
+  onRetry,
 }: {
+  projectId: string
   models: AvailableProviderModel[]
   selectedModelId: string
   loading: boolean
-  error: boolean
+  error: unknown
   onSelect: (model: AvailableProviderModel) => void
   onManualMode: () => void
+  onRetry: () => void
 }) {
   const [query, setQuery] = useState('')
   const normalizedQuery = query.trim().toLowerCase()
@@ -171,9 +176,7 @@ function EmbeddingModelCatalogPicker({
       {loading ? (
         <EmptyStatePanel compact title="Loading embedding models" description="Reading the provider model catalog." />
       ) : error ? (
-        <Alert variant="warning">
-          <AlertDescription>Could not load embedding models. Use manual model entry.</AlertDescription>
-        </Alert>
+        <ProviderDiscoveryErrorNotice projectId={projectId} error={error} onRetry={onRetry} onManual={onManualMode} />
       ) : visibleModels.length === 0 ? (
         <EmptyStatePanel compact title="No embedding models found" description="Change the search or enter the model identifier manually." />
       ) : (
@@ -441,10 +444,12 @@ export function CreateEmbeddingModelModal({ open, projectId, onClose, onCreated,
 
                       {shouldUseCatalog ? (
                         <EmbeddingModelCatalogPicker
+                          projectId={projectId}
                           models={embeddingCatalog}
                           selectedModelId={form.selectedCatalogModelId}
                           loading={catalogQuery.isLoading}
-                          error={catalogQuery.isError}
+                          error={catalogQuery.error}
+                          onRetry={() => { void catalogQuery.refetch() }}
                           onSelect={handleCatalogSelect}
                           onManualMode={handleManualMode}
                         />

@@ -1678,6 +1678,7 @@
     "packages/woobe-frontend/src/features/provider-credentials/components/ProviderSecretInput.tsx",
     "packages/woobe-frontend/src/features/provider-credentials/components/RotateProviderCredentialDialog.tsx",
     "packages/woobe-frontend/src/features/provider-models/components/ModelSettingsModal.tsx",
+    "packages/woobe-frontend/src/features/provider-models/components/ProviderDiscoveryErrorNotice.tsx",
     "packages/woobe-frontend/src/features/provider-models/components/ProviderModelReconciliationDialog.tsx",
     "packages/woobe-frontend/src/features/runtime-reference/RuntimeApiReferenceModal.tsx",
     "packages/woobe-frontend/src/features/skills/AgentSkillsSection.tsx",
@@ -3119,6 +3120,12 @@
       "source": "packages/woobe-frontend/src/features/provider-models/components/ModelSettingsModal.tsx",
       "explicit_sans_uses": 1,
       "explicit_mono_uses": 9,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/provider-models/components/ProviderDiscoveryErrorNotice.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
       "explicit_serif_uses": 0
     },
     {

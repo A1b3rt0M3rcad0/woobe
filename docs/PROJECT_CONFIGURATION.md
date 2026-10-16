@@ -68,6 +68,29 @@ support API key, Bearer, Basic, named headers and explicit public access. Save t
 connection first; MCP discovery is a separate action after values and use approvals
 are available. Existing legacy connections retain their migration boundary.
 
+### Provider catalog authorization
+
+Saving a Provider connection with a typed key reference does not approve delivery
+of that value. Catalog discovery in model creation uses Draft. A
+`CONFIG_USAGE_NOT_AUTHORIZED` response identifies an outstanding approval for the
+selected connection, destination and Environment, even when the key is configured.
+This applies to OpenAI, Anthropic, DeepSeek, OpenRouter, OpenAI Compatible and the
+historical `custom` alias.
+
+Model catalog notices distinguish configuration blockers from provider outages.
+**Review Draft authorization** opens Environments with the reported key selected
+in search. Open its **consumers**, review the connection and destination, choose
+**Approve for draft**, and confirm **Approve use**. Return to Models and retry
+discovery. The approval requires use-policy write permission; following the link
+does not grant it. Missing values have a separate configuration notice. Entering
+a model ID manually does not authorize use of the connection.
+
+Regression coverage exercises this browser recovery for every provider identifier
+and the real configuration/discovery handler against a local HTTP provider.
+Those integration cases check missing approval, another connection's approval,
+successful Draft approval, Environment isolation and revocation. Synthetic keys
+and catalogs make these tests independent of live provider accounts.
+
 With a compatible CLI:
 
 ```sh

@@ -363,6 +363,7 @@ export function useAgentCreationFlow({ projectId, onCreated, active = true }: Us
     inventoryError: credentialsQuery.isError || modelsQuery.isError,
     catalogLoading: availableModelsQuery.isLoading,
     catalogError: availableModelsQuery.isError,
+    catalogErrorDetails: availableModelsQuery.error,
     retryInventory: () => {
       void credentialsQuery.refetch()
       void modelsQuery.refetch()
