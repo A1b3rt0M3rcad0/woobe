@@ -84,3 +84,9 @@ it('shows access restrictions and requires explicit confirmation for revocation'
   expect(document.body.textContent).toContain('Approval required in Draft')
   expect(approved).toHaveBeenLastCalledWith(false)
 })
+
+it.each(['constructor', 'toString'])('shows a custom header named %s as connection metadata', async field => {
+  row = { ...row, consumer_kind: 'tool', field_path: `/authentication/fields/${field}` }
+  await render()
+  expect(document.body.textContent).toContain(`Tool connection · ${field}`)
+})

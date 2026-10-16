@@ -16,7 +16,7 @@ const label = (environment: string) => environment[0].toUpperCase() + environmen
 const connectionLabel = (kind: string) => ({ provider_credential: 'Provider connection', tool: 'Tool connection', secret: 'Secret connection', mcp_oauth: 'MCP connection' }[kind] ?? 'Connection')
 const fieldLabel = (path: string) => {
   const field = path.split('/').pop() ?? ''
-  return { api_key: 'API key', token: 'Token', access_token: 'Access token', refresh_token: 'Refresh token', username: 'Username', password: 'Password', client_secret: 'Client secret' }[field] ?? field
+  return Object.entries({ api_key: 'API key', token: 'Token', access_token: 'Access token', refresh_token: 'Refresh token', username: 'Username', password: 'Password', client_secret: 'Client secret' }).find(([name]) => name === field)?.[1] ?? field
 }
 
 export function ConfigurationUsageDialog({ projectId, item, keyName, environment, canApprove, consumer, layer = 'modal', onEnvironmentChange, onClose, onApprovalChange }: Props) {
