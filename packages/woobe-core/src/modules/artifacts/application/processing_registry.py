@@ -22,6 +22,8 @@ class ComponentDescriptor:
     available: bool = False
     diagnostic: str = 'implementation_unavailable'
     supports_ocr: bool = False
+    languages: tuple[str, ...] = ()
+    default_languages: tuple[str, ...] = ()
 
     def __post_init__(self):
         ComponentReference(name=self.name, version=self.version)
@@ -32,6 +34,8 @@ class ComponentDescriptor:
             raise ValueError('Processing component has an incompatible output contract')
         if min(self.max_bytes, self.max_pages, self.timeout_seconds) < 1:
             raise ValueError('Component limits must be positive')
+        if any(language not in self.languages for language in self.default_languages):
+            raise ValueError('Default processing languages must be supported')
 
 
 class ProcessingRegistry:
@@ -67,13 +71,21 @@ class ProcessingRegistry:
         expected = tuple(sorted(libraries.values(), key=lambda pin: pin.name))
         if recipe.libraries and set(recipe.libraries) != set(expected):
             raise ValueError('Recipe library pins do not match the registered components')
-        return recipe.model_copy(update={'libraries': expected})
+        parameters = recipe.parameters
+        if recipe.ocr is not None and not parameters.languages:
+            defaults = self._components[('ocr', recipe.ocr.name, recipe.ocr.version)].default_languages
+            parameters = parameters.model_copy(update={'languages': defaults})
+        return recipe.model_copy(update={'libraries': expected, 'parameters': parameters})
 
     def readiness(self, recipe: ProcessingRecipe, *, content_type: str | None = None, model_binding_ready=False):
         recipe = self.normalize(recipe)
         diagnostics = []
         if recipe.model is not None and not model_binding_ready:
             diagnostics.append('model_binding_not_verified')
+        if recipe.ocr is not None:
+            descriptor = self._components[('ocr', recipe.ocr.name, recipe.ocr.version)]
+            if any(language not in descriptor.languages for language in recipe.parameters.languages):
+                diagnostics.append('ocr:unsupported_language')
         for role in ('processor', 'indexer', 'ocr', 'enricher'):
             selected = getattr(recipe, role)
             if selected is None:
@@ -92,7 +104,8 @@ class ProcessingRegistry:
                       'media_types': sorted(item.media_types) if item.available else [],
                       'input_kind': item.input_kind, 'output_kind': item.output_kind,
                       'max_bytes': item.max_bytes, 'max_pages': item.max_pages,
-                      'timeout_seconds': item.timeout_seconds}
+                      'timeout_seconds': item.timeout_seconds, 'languages': list(item.languages) if item.available else [],
+                      'default_languages': list(item.default_languages) if item.available else []}
                      for item in sorted(self._components.values(), key=lambda value: (value.role, value.name, value.version)))
 
 

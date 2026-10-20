@@ -4,6 +4,7 @@ import platform
 from modules.artifacts.application.contracts.processing import LibraryPin
 from modules.artifacts.application.processing_registry import ComponentDescriptor
 from modules.artifacts.infra.processing.docling_manifest import docling_readiness
+from modules.artifacts.infra.processing.ocr_manifest import ocr_readiness
 
 
 MEDIA_TYPES = frozenset({'text/plain', 'text/markdown', 'text/x-markdown', 'application/json', 'text/json', 'text/csv', 'application/csv'})
@@ -36,3 +37,25 @@ def docling_native_descriptor():
         frozenset({'application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'}),
         libraries=(*native_pdf_descriptor().libraries, *libraries, LibraryPin(name='docling-native-manifest', version=digest)),
         available=ready, diagnostic=diagnostic or ('' if ready else 'isolated_worker_requires_linux'))
+
+
+def native_document_descriptor():
+    return ComponentDescriptor('native-document', '1', 'processor', 'original', 'canonical',
+        frozenset({'application/pdf', 'image/png', 'image/jpeg'}), libraries=native_pdf_descriptor().libraries,
+        available=platform.system() == 'Linux', supports_ocr=True,
+        diagnostic='' if platform.system() == 'Linux' else 'isolated_worker_requires_linux')
+
+
+def tesseract_descriptor(directory, executable):
+    ready, diagnostic, receipt, manifest, digest = ocr_readiness(directory, executable)
+    libraries = [LibraryPin(name='tesseract', version=manifest['engine_version']),
+                 LibraryPin(name='tesseract-data-manifest', version=digest)]
+    libraries.extend(LibraryPin(name='tesseract-data-' + entry['path'].removesuffix('.traineddata'), version=entry['sha256'])
+                     for entry in manifest['models'][0]['files'])
+    if receipt is not None:
+        libraries.extend([LibraryPin(name='tesseract-binary', version=receipt['executable_identity']['sha256']),
+                          LibraryPin(name='tesseract-build', version=receipt['engine_build_sha256'])])
+    return ComponentDescriptor('native-tesseract', '1', 'ocr', 'original', 'canonical',
+        frozenset({'application/pdf', 'image/png', 'image/jpeg'}), libraries=tuple(libraries),
+        available=ready and platform.system() == 'Linux', languages=('eng', 'por'), default_languages=('por', 'eng'),
+        diagnostic=diagnostic or ('' if ready and platform.system() == 'Linux' else 'isolated_worker_requires_linux'))

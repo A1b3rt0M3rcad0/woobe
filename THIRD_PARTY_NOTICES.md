@@ -129,3 +129,19 @@ file; its original upstream MIT notice is retained from commit
 `902beef9cb7794183c1114b0b09b27b5695ad252` in
 https://github.com/roniemartinez/latex2mathml, with the notice digest recorded in
 the license manifest.
+
+## Optional native OCR
+
+The native OCR profile invokes Tesseract 5.5.0 (Apache-2.0) and uses the official
+tessdata_fast eng, por and osd artifacts from commit
+`87416418657359cb625c412a48b6e1d6d41c29bd` (Apache-2.0). Source URLs, file sizes and
+SHA-256 digests are retained in the packaged tesseract-fast-v1 manifest. The full
+[upstream model license](docs/licenses/tesseract-tessdata-fast-Apache-2.0.txt) is
+retained. Engine/system dependency notices remain in their original installed
+distribution, including Tesseract and Leptonica package documentation; this
+profile does not replace those terms.
+
+Sources: https://github.com/tesseract-ocr/tesseract,
+https://github.com/tesseract-ocr/tessdata_fast and https://github.com/DanBloomberg/leptonica.
+Synthetic OCR fixtures use locally installed DejaVu Sans to render first-party
+test text; no font binary is copied into the repository.

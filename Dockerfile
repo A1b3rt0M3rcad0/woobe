@@ -17,8 +17,8 @@ COPY pyproject.toml uv.lock ./
 ARG WOOBE_PROCESSING_PROFILE=base
 RUN --mount=type=cache,target=/root/.cache/uv \
     case "$WOOBE_PROCESSING_PROFILE" in \
-      base) uv sync --frozen --no-dev --no-install-project ;; \
-      docling-native) uv sync --frozen --no-dev --no-install-project --extra docling-processing ;; \
+      base|native-ocr) uv sync --frozen --no-dev --no-install-project ;; \
+      docling-native|docling-ocr) uv sync --frozen --no-dev --no-install-project --extra docling-processing ;; \
       *) echo "Unsupported processing profile" >&2; exit 2 ;; \
     esac
 RUN --mount=type=cache,target=/root/.cache/uv \
@@ -53,11 +53,13 @@ ARG WOOBE_PROCESSING_PROFILE=base
 
 ENV PATH="/opt/venv/bin:$PATH" \
     PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    WOOBE_ARTIFACT_OCR_DATA_DIR=/opt/woobe/models/tesseract-fast
 
 RUN apt-get update \
     && apt-get upgrade -y \
-    && if [ "$WOOBE_PROCESSING_PROFILE" = docling-native ]; then apt-get install -y --no-install-recommends libstdc++6; fi \
+    && if [ "$WOOBE_PROCESSING_PROFILE" != base ]; then apt-get install -y --no-install-recommends libstdc++6; fi \
+    && case "$WOOBE_PROCESSING_PROFILE" in native-ocr|docling-ocr) apt-get install -y --no-install-recommends tesseract-ocr ;; esac \
     && rm -rf /var/lib/apt/lists/* \
     && python -m pip uninstall --yes pip \
     && groupadd --system --gid 10001 woobe \
@@ -67,6 +69,13 @@ WORKDIR /app
 COPY THIRD_PARTY_NOTICES.md /usr/share/doc/woobe/THIRD_PARTY_NOTICES.md
 COPY docs/licenses/ /usr/share/doc/woobe/third-party/
 COPY --chown=woobe:woobe packages/woobe-core/ packages/woobe-core/
+COPY scripts/processing/ /app/scripts/processing/
+RUN case "$WOOBE_PROCESSING_PROFILE" in \
+      native-ocr|docling-ocr) \
+        python scripts/processing/acquire_models.py --manifest packages/woobe-core/src/modules/artifacts/infra/processing/manifests/tesseract-fast-v1.json --destination "$WOOBE_ARTIFACT_OCR_DATA_DIR" --download \
+        && python scripts/processing/qualify_tesseract.py --directory "$WOOBE_ARTIFACT_OCR_DATA_DIR" \
+        && chown -R woobe:woobe /opt/woobe/models ;; \
+    esac
 COPY --chown=woobe:woobe scripts/docker-entrypoint.sh /usr/local/bin/woobe-entrypoint
 
 RUN sed -i 's/\r$//' /usr/local/bin/woobe-entrypoint \

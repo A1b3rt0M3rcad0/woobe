@@ -162,6 +162,7 @@
             "pattern": "^[A-Za-z]{2,3}(?:[-_][A-Za-z]{2,4})?$",
             "type": "string"
           },
+          "maxItems": 8,
           "title": "Languages",
           "type": "array"
         },

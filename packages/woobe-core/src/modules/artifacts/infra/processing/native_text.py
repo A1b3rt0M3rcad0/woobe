@@ -232,7 +232,7 @@ class NativeTextProcessor:
     name, version = 'native-text', '1'
     media_types = MEDIA_TYPES
 
-    async def process(self, revision: Revision, content, profile: ProcessingRecipe):
+    async def process(self, revision: Revision, content, profile: ProcessingRecipe, *, publish_asset=None):
         if revision.size_bytes > profile.limits.max_bytes:
             raise ArtifactError('ARTIFACT_LIMIT_EXCEEDED', 'Original exceeds the text processor byte limit')
         buffer, digest = bytearray(), hashlib.sha256()

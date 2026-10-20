@@ -26,8 +26,10 @@ its binding has been explicitly verified by the governed model integration.
 
 The production registry includes qualified native-text version 1 for TXT, Markdown,
 JSON and CSV, native-pdf version 1, and optional model-free docling-native 2.140.0
-when its exact processing extra is installed. Store_only remains available. OCR
-and index adapters are registered in their dedicated steps after qualification.
+when its exact processing extra is installed. Native-document version 1 provides
+static PNG/JPEG/PDF visuals and selectively supports native-tesseract version 1
+when its actual engine and pinned models are qualified. Store_only remains
+available. Index adapters are registered in their dedicated steps after qualification.
 Historical profile configuration stays readable and unready when
 an optional component is removed or its compatible limits/library pins change.
 

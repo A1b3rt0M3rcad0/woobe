@@ -161,6 +161,7 @@ class Locator:
     char_space: str = 'original_decoded_text'
     source_encoding: str | None = None
     text_normalization: str = 'none'
+    image_bbox: tuple[float, float, float, float] | None = None
 
     def __post_init__(self):
         if self.block_id is not None:
@@ -189,6 +190,10 @@ class Locator:
             or self.bbox[0] > self.bbox[2] or self.bbox[1] > self.bbox[3]
         ):
             raise ValueError('Bounding box requires a page and normalized coordinates')
+        if self.image_bbox is not None and (len(self.image_bbox) != 4
+            or not all(0 <= x <= 1 for x in self.image_bbox)
+            or self.image_bbox[0] > self.image_bbox[2] or self.image_bbox[1] > self.image_bbox[3]):
+            raise ValueError('Image bounding box requires normalized coordinates')
 
 
 @dataclass(frozen=True)
@@ -329,11 +334,17 @@ class DocumentBlock:
     data_json: str | None = None
     title: str | None = None
     parent_id: str | None = None
+    extraction_method: str = 'native'
+    asset_ids: tuple[str, ...] = ()
 
     def __post_init__(self):
         opaque_id(self.id)
         if self.parent_id is not None:
             opaque_id(self.parent_id)
+        if self.extraction_method not in {'native', 'ocr', 'model'}:
+            raise ValueError('Invalid extraction method')
+        for asset_id in self.asset_ids:
+            opaque_id(asset_id)
         if self.kind not in {'heading', 'paragraph', 'table', 'figure', 'page', 'warning', 'code', 'list', 'json'}:
             raise ValueError('Unknown canonical block kind')
         if self.heading_level is not None and (self.kind != 'heading' or not 1 <= self.heading_level <= 6):
@@ -360,8 +371,30 @@ class DocumentPage:
             raise ValueError('Invalid page dimensions')
         if self.text_characters < 0 or len(self.label) > 128:
             raise ValueError('Invalid page metadata')
-        if self.status not in {'text', 'empty', 'needs_ocr', 'failed'}:
+        if self.status not in {'text', 'mixed', 'ocr', 'empty', 'needs_ocr', 'failed'}:
             raise ValueError('Invalid page extraction status')
+
+
+@dataclass(frozen=True)
+class DocumentAsset:
+    id: str
+    content_type: str
+    size_bytes: int
+    sha256: str
+    width_pixels: int
+    height_pixels: int
+    locator: Locator
+    role: str = 'source_visual'
+
+    def __post_init__(self):
+        opaque_id(self.id)
+        sha256_digest(self.sha256)
+        if self.content_type not in {'image/png', 'image/jpeg'} or not 0 < self.size_bytes <= 67_108_864:
+            raise ValueError('Invalid canonical visual asset')
+        if not 0 < self.width_pixels * self.height_pixels <= 16_000_000 or min(self.width_pixels, self.height_pixels) < 1:
+            raise ValueError('Visual asset exceeds its pixel limit')
+        if self.role != 'source_visual':
+            raise ValueError('Unknown canonical visual role')
 
 
 @dataclass(frozen=True)
@@ -377,6 +410,7 @@ class CanonicalDocument:
     trust_level: str = 'untrusted_source'
     page_count: int | None = None
     pages: tuple[DocumentPage, ...] = ()
+    assets: tuple[DocumentAsset, ...] = ()
 
     def __post_init__(self):
         if self.source_encoding not in {None, 'utf-8', 'utf-16-le', 'utf-16-be', 'latin-1'}:
@@ -397,6 +431,14 @@ class CanonicalDocument:
         object.__setattr__(self, 'coverage', Coverage(self.coverage))
         if len({block.id for block in self.blocks}) != len(self.blocks):
             raise ValueError('Duplicate block IDs in representation')
+        asset_ids = {asset.id for asset in self.assets}
+        if len(asset_ids) != len(self.assets) or any(asset_id not in asset_ids for block in self.blocks for asset_id in block.asset_ids):
+            raise ValueError('Canonical visual asset references are incomplete or duplicated')
+        if self.page_count is not None and any(
+            locator.page_index is not None and locator.page_index >= self.page_count
+            for locator in (*[block.locator for block in self.blocks], *[asset.locator for asset in self.assets])
+        ):
+            raise ValueError('Canonical source locator exceeds the physical page count')
         parents = {block.id: block.parent_id for block in self.blocks}
         resolved = set()
         for block in self.blocks:

@@ -489,9 +489,9 @@ async def test_native_extraction_real_background_factory_resumes_committed_canon
     calls = []
     original = NativeTextProcessor.process
 
-    async def counted(self, *args):
+    async def counted(self, *args, **kwargs):
         calls.append(True)
-        return await original(self, *args)
+        return await original(self, *args, **kwargs)
 
     monkeypatch.setattr(NativeTextProcessor, 'process', counted)
     monkeypatch.setattr(processing, 'upload_storage', lambda profile: object_store)

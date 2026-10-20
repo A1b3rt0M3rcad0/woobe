@@ -1,0 +1,71 @@
+name: Selective OCR qualification
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - 'packages/woobe-core/src/modules/artifacts/**'
+      - 'packages/woobe-core/src/shared/infra/config/**'
+      - 'tests/unit/artifacts/**'
+      - 'tests/integration/artifacts/**'
+      - 'tests/fixtures/artifacts/**'
+      - 'scripts/processing/**'
+      - '.github/workflows/artifacts-ocr.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  real-ocr:
+    runs-on: ubuntu-24.04
+    container: python:3.14-slim
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: artifact_test
+          POSTGRES_PASSWORD: artifact_test
+          POSTGRES_DB: postgres
+        options: >-
+          --health-cmd "pg_isready -U artifact_test -d postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      WOOBE_ENVIRONMENT: test
+      WOOBE_RUN_PERSISTENCE_MODE: legacy_finalization
+      WOOBE_ARTIFACT_TEST_POSTGRES_URL: postgresql://artifact_test:artifact_test@postgres:5432/postgres
+      WOOBE_ARTIFACT_TEST_S3_CONFIG_FILE: /tmp/woobe-artifact-s3/test-credentials.json
+      WOOBE_ARTIFACT_TEST_OCR_DATA_DIR: /tmp/woobe-ocr-models
+    steps:
+      - name: Install the native OCR engine and fixture font
+        run: apt-get update && apt-get install -y --no-install-recommends git ca-certificates tesseract-ocr fonts-dejavu-core libstdc++6
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
+      - name: Install frozen test dependencies
+        run: uv sync --frozen --all-groups --extra test --no-install-project
+      - name: Generate ephemeral application configuration
+        run: |
+          python - <<'PY'
+          import base64
+          import os
+          import secrets
+          with open(os.environ['GITHUB_ENV'], 'a') as target:
+              target.write('WOOBE_SECRET_KEY=' + secrets.token_urlsafe(48) + '\n')
+              target.write('WOOBE_ENCRYPTION_KEY=' + base64.urlsafe_b64encode(secrets.token_bytes(32)).decode() + '\n')
+          PY
+      - name: Acquire and qualify exact native language artifacts
+        run: |
+          .venv/bin/python scripts/processing/acquire_models.py --manifest packages/woobe-core/src/modules/artifacts/infra/processing/manifests/tesseract-fast-v1.json --destination "$WOOBE_ARTIFACT_TEST_OCR_DATA_DIR" --download
+          .venv/bin/python scripts/processing/qualify_tesseract.py --directory "$WOOBE_ARTIFACT_TEST_OCR_DATA_DIR"
+      - name: Start verified private S3-compatible storage
+        run: .venv/bin/python scripts/ci/artifact_s3_test_server.py
+      - name: Qualify actual OCR, provenance, cancellation and durable recovery
+        run: .venv/bin/python -m pytest -q tests/unit/artifacts/test_native_ocr.py tests/integration/artifacts/test_ocr_postgres.py
+      - name: Stop only the owned storage process
+        if: always()
+        run: |
+          if [ -x .venv/bin/python ]; then
+            .venv/bin/python scripts/ci/artifact_s3_test_server.py --stop
+          fi

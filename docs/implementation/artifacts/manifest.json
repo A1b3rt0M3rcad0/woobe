@@ -629,8 +629,34 @@
         16,
         17
       ],
-      "status": "not_started",
-      "checks": []
+      "status": "completed",
+      "checks": [
+        {
+          "command": "real native Tesseract Portuguese/PNG/JPEG/EXIF/rotation/hybrid-region/cancellation/receipt qualification",
+          "outcome": "passed",
+          "evidence": "12 real/resource/metadata unit cases passed with the qualified 5.5.0 engine and pinned eng/por/osd files; 166 combined Artifacts/guard/boundary cases passed; artifacts-step18-unit-final.log"
+        },
+        {
+          "command": "full real PostgreSQL Artifacts integration on local and real S3-compatible storage, fresh/populated upgrades",
+          "outcome": "passed",
+          "evidence": "263 passed in 264.23s; includes 20 OCR job/asset/original/recovery/cancellation cases; artifacts-step18-integration-final.log and artifacts-step18-ocr-integration-final.log"
+        },
+        {
+          "command": "full mocked backend regression with actual local OCR tests enabled",
+          "outcome": "passed",
+          "evidence": "3258 passed plus 10 subtests in 67.79s; artifacts-step18-regression-final.log; no external LLM/provider smoke is implied"
+        },
+        {
+          "command": "nine architecture policies, canonical schema drift check, Ruff, actionlint processing workflows, git diff --check",
+          "outcome": "passed",
+          "evidence": "zero architecture violations; native OCR and optional Docling workflows pass actionlint; schema contracts are current"
+        },
+        {
+          "command": "actual wheel manifest checks and plain-Python native engine qualification",
+          "outcome": "passed",
+          "evidence": "both exact processing manifests are present in the built Core wheel; standalone qualification works without venv dependencies; model receipt survives filesystem copies and rejects same-size corruption; full optional product Docker image build remains unqualified locally"
+        }
+      ]
     },
     {
       "id": 19,

@@ -36,6 +36,7 @@ class SourceLocator(Contract):
     char_space: Literal['original_decoded_text', 'page_extracted_text', 'canonical_block_text'] = 'original_decoded_text'
     source_encoding: Literal['utf-8', 'utf-16-le', 'utf-16-be', 'latin-1'] | None = None
     text_normalization: Literal['none', 'lf'] = 'none'
+    image_bbox: tuple[float, float, float, float] | None = None
 
     @model_validator(mode='after')
     def validate_locator(self):

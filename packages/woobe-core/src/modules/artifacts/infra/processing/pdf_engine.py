@@ -125,9 +125,19 @@ def render_pdf(path, *, page_index, max_pages, dpi=150, max_pixels=16_000_000):
     finally:
         reader.close()
     document = pdfium.PdfDocument(path)
-    page = bitmap = image = None
+    page = None
     try:
         page = document[page_index]
+        return render_page_png(page, dpi=dpi, max_pixels=max_pixels)
+    finally:
+        if page is not None:
+            page.close()
+        document.close()
+
+
+def render_page_png(page, *, dpi=150, max_pixels=16_000_000):
+    bitmap = image = None
+    try:
         width, height = page.get_size()
         if not all(math.isfinite(value) and 0 < value <= 100_000 for value in (width, height)):
             raise ArtifactError('ARTIFACT_LIMIT_EXCEEDED', 'PDF page dimensions exceed the supported limit')
@@ -148,6 +158,3 @@ def render_pdf(path, *, page_index, max_pages, dpi=150, max_pixels=16_000_000):
             image.close()
         if bitmap is not None:
             bitmap.close()
-        if page is not None:
-            page.close()
-        document.close()

@@ -1,11 +1,11 @@
 """Version 1 capability ports. Hosts inject adapters through composition."""
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import Protocol
 
 from modules.artifacts.application.contracts.processing import ProcessingRecipe
 from modules.artifacts.domain.models import (
-    Action, Artifact, ArtifactRef, CanonicalDocument, DocumentIndex, Page,
+    Action, Artifact, ArtifactRef, CanonicalDocument, DocumentAsset, DocumentIndex, Page,
     ProcessingJob, ProcessingProfile, Revision, Scope, Workspace,
 )
 from shared.security.principal import SecurityPrincipal
@@ -34,7 +34,8 @@ class DocumentProcessor(Protocol):
     media_types: frozenset[str]
 
     async def process(self, revision: Revision, content: AsyncIterator[bytes],
-                      profile: ProcessingRecipe) -> CanonicalDocument: ...
+                      profile: ProcessingRecipe, *,
+                      publish_asset: Callable[[DocumentAsset, AsyncIterator[bytes]], Awaitable[None]] | None = None) -> CanonicalDocument: ...
 
 
 class DocumentModelGateway(Protocol):

@@ -3,10 +3,20 @@ import hashlib
 import json
 import math
 
-from modules.artifacts.domain.models import ArtifactError, ArtifactRef, CanonicalDocument, Coverage, DocumentBlock, DocumentPage, Locator
+from modules.artifacts.domain.models import ArtifactError, ArtifactRef, CanonicalDocument, Coverage, DocumentAsset, DocumentBlock, DocumentPage, Locator
 
 
 CANONICAL_SCHEMA_VERSION = '1'
+
+
+def decode_asset(value):
+    fields = dict(value)
+    coordinates = dict(fields['locator'])
+    for field in ('bbox', 'image_bbox'):
+        if coordinates.get(field) is not None:
+            coordinates[field] = tuple(coordinates[field])
+    fields['locator'] = Locator(**coordinates)
+    return DocumentAsset(**fields)
 
 
 def canonical_value(document):
@@ -71,14 +81,17 @@ def decode_canonical(content):
         blocks = []
         for block in value.pop('blocks'):
             coordinates = block['locator']
-            if coordinates.get('bbox') is not None:
-                coordinates['bbox'] = tuple(coordinates['bbox'])
+            for field in ('bbox', 'image_bbox'):
+                if coordinates.get(field) is not None:
+                    coordinates[field] = tuple(coordinates[field])
             block['locator'] = Locator(**coordinates)
+            block['asset_ids'] = tuple(block.get('asset_ids', ()))
             blocks.append(DocumentBlock(**block))
         value['diagnostics'] = tuple(value.get('diagnostics', ()))
         value['coverage'] = Coverage(value['coverage'])
         value['pages'] = tuple(DocumentPage(**{**page, 'diagnostics': tuple(page.get('diagnostics', ()))})
                                for page in value.get('pages', ()))
+        value['assets'] = tuple(decode_asset(asset) for asset in value.get('assets', ()))
         return CanonicalDocument(revision, tuple(blocks), **value)
     except (KeyError, TypeError, ValueError, RecursionError) as error:
         raise ArtifactError('UPLOAD_INTEGRITY_MISMATCH', 'Stored canonical document is invalid') from error
