@@ -34,7 +34,10 @@ passed. See AUTHORIZATION.md. Step 06 is complete: independent idempotent Worksp
 CAS metadata/lifecycle operations, scoped grants, signed SQL-filtered pagination
 and public short-transaction composers are validated. 36 real PostgreSQL cases,
 55 domain/guard tests and 3159 mocked regressions (plus 10 subtests) passed.
-See WORKSPACES.md. Step 07 generic object storage extraction is next.
+See WORKSPACES.md. Step 07 is complete: shared streaming object storage contract, local implementation
+and Knowledge compatibility facade are validated with 9 targeted tests and 3165
+mocked regressions (plus 10 subtests), with architecture checks passing.
+See OBJECT_STORAGE.md. Step 08 atomic local publication/fault hardening is next.
 
 The stage commit carries `Plan-Step: 01/60`; a file never records its own containing
 commit SHA. CI reconciles commit subjects/trailers against the execution manifest.

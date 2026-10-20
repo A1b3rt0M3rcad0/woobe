@@ -247,8 +247,24 @@
         3,
         4
       ],
-      "status": "not_started",
-      "checks": []
+      "status": "completed",
+      "checks": [
+        {
+          "command": ".venv/bin/python -m pytest -q tests/unit/artifacts/test_object_storage.py tests/unit/agent/test_portable_document_storage.py",
+          "outcome": "passed",
+          "evidence": "9 passed in 0.17s: zero/small/large streaming, metadata restart, range, bounded/early close, integrity, immutability, exact legacy key/replacement and existing local/S3 export boundaries"
+        },
+        {
+          "command": "WOOBE_RUN_PERSISTENCE_MODE=legacy_finalization WOOBE_DATABASE_URL=sqlite+aiosqlite:////workspace/.onboarding/mocked.db .venv/bin/python -m pytest -q tests/unit tests/fakes/test_openai_provider.py",
+          "outcome": "passed",
+          "evidence": "3165 passed, 10 subtests passed, 6 warnings in 41.05s; all legacy Knowledge/package/export/snapshot selections remain enabled"
+        },
+        {
+          "command": "Ruff changed storage/contract/facade files and tests; all architecture policies",
+          "outcome": "passed",
+          "evidence": "All Ruff checks and nine architecture policies passed; shared generic port removes Collection identity from Artifacts storage dependencies"
+        }
+      ]
     },
     {
       "id": 8,
