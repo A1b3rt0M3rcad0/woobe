@@ -273,8 +273,34 @@
       "dependencies": [
         7
       ],
-      "status": "not_started",
-      "checks": []
+      "status": "completed",
+      "checks": [
+        {
+          "command": ".venv/bin/python -m pytest -q -s tests/unit/artifacts/test_local_storage_faults.py tests/unit/artifacts/test_object_storage.py tests/unit/agent/test_portable_document_storage.py",
+          "outcome": "passed",
+          "evidence": "29 passed in 0.66s, including deterministic paused link-promotion/read overlap plus subprocess crash, cancellation, disk-full, integrity, ACK-loss and resource cleanup cases"
+        },
+        {
+          "command": "Generated 64 MiB streaming upload with tracemalloc and full SHA-256 verification",
+          "outcome": "passed",
+          "evidence": "67108864 streamed bytes; final targeted traced Python heap peak 148478 bytes (<8 MiB); not an RSS/throughput claim"
+        },
+        {
+          "command": "WOOBE_RUN_PERSISTENCE_MODE=legacy_finalization WOOBE_DATABASE_URL=sqlite+aiosqlite:////workspace/.onboarding/mocked.db .venv/bin/python -m pytest -q tests/unit tests/fakes/test_openai_provider.py",
+          "outcome": "passed",
+          "evidence": "3185 passed plus 10 subtests, 6 warnings in 40.53s after the directory-publication-lock correction"
+        },
+        {
+          "command": "Ruff changed files and all architecture policies",
+          "outcome": "passed",
+          "evidence": "Ruff and nine module architecture policies passed; local factory uses dedicated artifact root and explicit driver capability"
+        },
+        {
+          "command": "100 concurrent immutable publication pairs on real local filesystem",
+          "outcome": "passed",
+          "evidence": "Each pair returned exactly one winner and one explicit conflict; no transient hard-link observation error"
+        }
+      ]
     },
     {
       "id": 9,

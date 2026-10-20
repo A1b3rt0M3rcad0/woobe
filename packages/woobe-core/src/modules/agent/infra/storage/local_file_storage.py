@@ -25,7 +25,7 @@ class LocalFileStorage:
 
     def __init__(self, base_dir: str | Path):
         self._base_dir = Path(base_dir).expanduser()
-        self._objects = LocalObjectStorage(self._base_dir)
+        self._objects = LocalObjectStorage(self._base_dir, legacy_keys=True)
 
     async def save_document(self, *, content: bytes, project_id: UUID,
                             collection_id: UUID, document_id: UUID,

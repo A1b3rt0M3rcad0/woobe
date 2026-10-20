@@ -29,13 +29,20 @@ class ObjectMetadata:
     version_id: str | None = None
 
 
-def validate_object_key(key: str) -> str:
+def validate_object_key(key: str, *, legacy: bool = False) -> str:
     if (not isinstance(key, str) or len(key) > 1024
             or re.fullmatch(r'[A-Za-z0-9_.\-/]+', key) is None
             or any(part in {'', '.', '..'} for part in key.split('/'))):
         raise ObjectStorageError('invalid_key', 'Invalid object storage key')
     if key.split('/')[0] == '.woobe-object-metadata':
         raise ObjectStorageError('invalid_key', 'Reserved object storage key')
+    for part in key.split('/'):
+        if part.startswith('.woobe-staging-'):
+            raise ObjectStorageError('invalid_key', 'Unpublished staging is not addressable')
+        if not legacy and (part.endswith('.') or re.fullmatch(
+            r'(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\..*)?', part, re.I
+        )):
+            raise ObjectStorageError('invalid_key', 'Nonportable object storage key')
     return key
 
 

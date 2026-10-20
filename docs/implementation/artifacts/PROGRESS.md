@@ -37,7 +37,12 @@ and public short-transaction composers are validated. 36 real PostgreSQL cases,
 See WORKSPACES.md. Step 07 is complete: shared streaming object storage contract, local implementation
 and Knowledge compatibility facade are validated with 9 targeted tests and 3165
 mocked regressions (plus 10 subtests), with architecture checks passing.
-See OBJECT_STORAGE.md. Step 08 atomic local publication/fault hardening is next.
+See OBJECT_STORAGE.md. Step 08 is complete: atomic closed-handle promotion, immutable retry/metadata
+reconciliation, cancellation-safe OS resources, staging cleanup and private scratch
+passed 29 targeted/fault tests, including a deterministic reader/promotion race. A 64 MiB stream used under 8 MiB traced Python heap.
+Full mocked regressions passed 3185 tests plus 10 subtests after the publication-lock
+correction; 100 additional concurrent immutable-write pairs each had one winner
+and one explicit conflict. Step 09 S3/multipart qualification is next.
 
 The stage commit carries `Plan-Step: 01/60`; a file never records its own containing
 commit SHA. CI reconciles commit subjects/trailers against the execution manifest.

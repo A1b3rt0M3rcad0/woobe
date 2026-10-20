@@ -135,6 +135,13 @@ class ArtifactRef:
         opaque_id(self.revision_id)
 
 
+def artifact_object_key(scope: Scope, workspace_id: str, reference: ArtifactRef) -> str:
+    opaque_id(workspace_id)
+    return (f'projects/{scope.project_id}/environments/{scope.environment.value}/'
+            f'artifact-workspaces/{workspace_id}/artifacts/{reference.artifact_id}/'
+            f'revisions/{reference.revision_id}/original')
+
+
 @dataclass(frozen=True)
 class Locator:
     block_id: str | None = None
