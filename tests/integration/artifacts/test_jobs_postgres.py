@@ -466,3 +466,73 @@ async def test_public_background_factory_uses_the_worker_owned_engine_and_phase_
     await coordinator.run_once('public-background-factory')
     complete = await execute(engine, 'read', read_request(request, job))
     assert complete.status == 'succeeded' and complete.result.processing_performed is False
+
+
+async def test_native_extraction_real_background_factory_resumes_committed_canonical_without_reparse(engine, artifacts_database, object_store, monkeypatch):
+    from modules.artifacts.application.contracts.processing import ComponentReference, ProcessingRecipe, ProfileCreate, ProfileDefault
+    from modules.artifacts.application.document_codec import decode_canonical
+    from modules.artifacts.background_boundary import build_processing_runner
+    from modules.artifacts.composition import processing
+    from modules.artifacts.infra.processing.native_text import NativeTextProcessor
+    from shared.contracts.object_storage import read_bounded
+    from woobe_workers.settings import WorkerSettings
+
+    files, request = await setup(engine, artifacts_database['project_id'], object_store)
+    registry = processing.PROCESSING_REGISTRY
+    recipe = registry.normalize(ProcessingRecipe(mode='extract', processor=ComponentReference(name='native-text', version='1')))
+    profile_id = uuid4().hex
+    async with ArtifactsUnitOfWork(engine) as uow:
+        await ProfileRepository(uow).create(request.scope, ProfileCreate(id=profile_id, revision=1, recipe=recipe))
+        await ProfileRepository(uow).bind(request.scope, request.workspace_id,
+            ProfileDefault(expected_version=1, profile_id=profile_id, profile_revision=1))
+    job = await execute(engine, 'request', request, registry=registry)
+    calls = []
+    original = NativeTextProcessor.process
+
+    async def counted(self, *args):
+        calls.append(True)
+        return await original(self, *args)
+
+    monkeypatch.setattr(NativeTextProcessor, 'process', counted)
+    monkeypatch.setattr(processing, 'upload_storage', lambda profile: object_store)
+    phase = processing._worker_phase
+
+    def lose_ack(engine, settings, method):
+        handler = phase(engine, settings, method)
+        async def wrapped(command):
+            result = await handler(command)
+            if method == 'checkpoint' and command.stage == 'extract':
+                raise ConnectionError('injected after durable native extraction checkpoint')
+            return result
+        return wrapped
+
+    monkeypatch.setattr(processing, '_worker_phase', lose_ack)
+    await build_processing_runner(engine, WorkerSettings.model_validate({})).run_once('native-first')
+    async with ArtifactsUnitOfWork(engine) as uow:
+        row = await uow.session.get(ProcessingJobModel, job.id)
+        assert row.status == 'queued'
+        checkpoint = row.checkpoints['extract']
+        row.available_at = datetime.now(UTC) - timedelta(seconds=1)
+    canonical_bytes = await read_bounded(object_store, checkpoint['key'], max_bytes=1_048_576)
+    import hashlib
+    assert hashlib.sha256(canonical_bytes).hexdigest() == checkpoint['sha256']
+    document = decode_canonical(canonical_bytes)
+    assert document.blocks[0].text == 'Texto com acentuação\n'
+    assert document.page_count is None
+    from modules.artifacts.infra.database.models import RevisionModel
+    async with ArtifactsUnitOfWork(engine) as uow:
+        source = await uow.session.get(RevisionModel, request.definition.revision_id)
+        source_key = source.object_key
+    locator = document.blocks[0].locator
+    stream = object_store.open(source_key, start=locator.byte_start, end=locator.byte_end)
+    try:
+        ranged = b''.join([chunk async for chunk in stream])
+    finally:
+        await stream.aclose()
+    assert ranged.decode('utf-8') == document.blocks[0].text
+    monkeypatch.setattr(processing, '_worker_phase', phase)
+    await build_processing_runner(engine, WorkerSettings.model_validate({})).run_once('native-resumed')
+    complete = await execute(engine, 'read', read_request(request, job), registry=registry)
+    assert complete.status == 'succeeded' and complete.result.processing_performed
+    assert set(complete.completed_stages) == {'verify_original', 'extract'} and len(calls) == 1
+    assert complete.result.source_sha256 == checkpoint['source_sha256']

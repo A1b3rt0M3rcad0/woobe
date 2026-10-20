@@ -24,10 +24,10 @@ Optional implementation/dependency absence produces ready=false with public safe
 diagnostics and no ready media formats. A model reference remains unready until
 its binding has been explicitly verified by the governed model integration.
 
-At this stage the production registry has no converter implementation registered;
-store_only is ready and no extraction/indexing format is advertised. Native text,
-PDF, Docling, OCR and index adapters are registered in their dedicated steps after
-qualification. Historical profile configuration stays readable and unready when
+The production registry now includes the qualified native-text version 1 converter
+for TXT, Markdown, JSON and CSV; store_only remains available. PDF, Docling, OCR
+and index adapters are registered in their dedicated steps after qualification.
+Historical profile configuration stays readable and unready when
 an optional component is removed or its compatible limits/library pins change.
 
 Profile revisions are scoped by Project/Environment, immutable JSON plus SHA-256,

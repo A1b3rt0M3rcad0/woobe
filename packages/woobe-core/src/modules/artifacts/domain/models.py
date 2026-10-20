@@ -153,6 +153,11 @@ class Locator:
     char_start: int | None = None
     char_end: int | None = None
     bbox: tuple[float, float, float, float] | None = None
+    byte_start: int | None = None
+    byte_end: int | None = None
+    char_space: str = 'original_decoded_text'
+    source_encoding: str | None = None
+    text_normalization: str = 'none'
 
     def __post_init__(self):
         if self.block_id is not None:
@@ -163,11 +168,18 @@ class Locator:
             if self.page_index is None or self.page_number != self.page_index + 1:
                 raise ValueError('Display page must match its physical page')
         for start, end, minimum in ((self.line_start, self.line_end, 1),
-                                    (self.char_start, self.char_end, 0)):
+                                    (self.char_start, self.char_end, 0),
+                                    (self.byte_start, self.byte_end, 0)):
             if (start is None) != (end is None):
                 raise ValueError('Locator intervals need both endpoints')
             if start is not None and (start < minimum or end < start):
                 raise ValueError('Invalid locator interval')
+        if self.char_space not in {'original_decoded_text', 'page_extracted_text', 'canonical_block_text'}:
+            raise ValueError('Unknown character coordinate space')
+        if self.source_encoding not in {None, 'utf-8', 'utf-16-le', 'utf-16-be', 'latin-1'}:
+            raise ValueError('Unsupported source locator encoding')
+        if self.text_normalization not in {'none', 'lf'}:
+            raise ValueError('Unsupported text locator normalization')
         if self.bbox is not None and (
             self.page_index is None or len(self.bbox) != 4
             or not all(0 <= x <= 1 for x in self.bbox)
@@ -188,6 +200,9 @@ class SourceRef:
     excerpt_sha256: str | None = None
 
     def __post_init__(self):
+        if (self.locator is not None and self.locator.char_start is not None
+            and self.locator.char_space != 'original_decoded_text' and self.representation_set_id is None):
+            raise ValueError('Derived character coordinates require a representation generation')
         ArtifactRef(self.artifact_id, self.revision_id)
         sha256_digest(self.source_sha256)
         for value in (self.representation_set_id, self.document_index_id, self.node_id):
@@ -306,11 +321,19 @@ class DocumentBlock:
     text: str
     locator: Locator
     inferred: bool = False
+    heading_level: int | None = None
+    language: str | None = None
+    data_json: str | None = None
+    title: str | None = None
 
     def __post_init__(self):
         opaque_id(self.id)
-        if self.kind not in {'heading', 'paragraph', 'table', 'figure', 'page', 'warning'}:
+        if self.kind not in {'heading', 'paragraph', 'table', 'figure', 'page', 'warning', 'code', 'list', 'json'}:
             raise ValueError('Unknown canonical block kind')
+        if self.heading_level is not None and (self.kind != 'heading' or not 1 <= self.heading_level <= 6):
+            raise ValueError('Heading level requires a real heading')
+        if self.language is not None and (self.kind != 'code' or len(self.language) > 64):
+            raise ValueError('Language hints belong only to code blocks')
 
 
 @dataclass(frozen=True)
@@ -319,8 +342,26 @@ class CanonicalDocument:
     blocks: tuple[DocumentBlock, ...]
     coverage: Coverage
     diagnostics: tuple[str, ...] = ()
+    source_encoding: str | None = None
+    source_size_bytes: int | None = None
+    source_character_count: int | None = None
+    text_normalization: str = 'none'
+    trust_level: str = 'untrusted_source'
+    page_count: int | None = None
 
     def __post_init__(self):
+        if self.source_encoding not in {None, 'utf-8', 'utf-16-le', 'utf-16-be', 'latin-1'}:
+            raise ValueError('Unsupported canonical source encoding')
+        if self.text_normalization not in {'none', 'lf'}:
+            raise ValueError('Unsupported canonical text normalization')
+        if self.trust_level != 'untrusted_source':
+            raise ValueError('Document source content cannot become trusted instructions')
+        if self.source_size_bytes is not None and self.source_size_bytes < 0:
+            raise ValueError('Invalid source byte length')
+        if self.source_character_count is not None and self.source_character_count < 0:
+            raise ValueError('Invalid source character count')
+        if self.page_count is not None and self.page_count < 0:
+            raise ValueError('Invalid physical page count')
         object.__setattr__(self, 'coverage', Coverage(self.coverage))
         if len({block.id for block in self.blocks}) != len(self.blocks):
             raise ValueError('Duplicate block IDs in representation')

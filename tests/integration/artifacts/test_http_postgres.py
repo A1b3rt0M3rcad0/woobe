@@ -169,7 +169,7 @@ async def test_http_cursor_ranges_limits_capabilities_cors_and_revocation(http_c
     assert response.status_code == 200 and response.content == b'abcdef'
     response = await client.get('/v1/artifact-capabilities')
     assert response.status_code == 200, response.text
-    assert response.json()['processors'] == [] and not response.json()['signed_upload_urls']
+    assert 'native-text' in response.json()['processors'] and not response.json()['signed_upload_urls']
     preflight = await client.options(path, headers={'Origin': 'http://localhost:5173',
         'Access-Control-Request-Method': 'GET', 'Access-Control-Request-Headers': 'authorization,range,if-range'})
     assert preflight.status_code == 200, preflight.text

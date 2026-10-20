@@ -510,8 +510,34 @@
         13,
         14
       ],
-      "status": "not_started",
-      "checks": []
+      "status": "completed",
+      "checks": [
+        {
+          "command": ".venv/bin/python -m pytest -q tests/unit/artifacts tests/architecture/test_artifacts_plan_guard.py",
+          "outcome": "passed",
+          "evidence": "117 passed, including 23 native format/encoding/golden/codec cases; artifacts-step15-unit.log"
+        },
+        {
+          "command": "WOOBE_ARTIFACT_TEST_S3_CONFIG_FILE=<private-path> .venv/bin/python /workspace/.onboarding/run_artifact_tests.py -q tests/integration/artifacts",
+          "outcome": "passed",
+          "evidence": "227 passed across real PostgreSQL fresh/populated upgrades and local/real S3-compatible storage; artifacts-step15-integration.log"
+        },
+        {
+          "command": "real PostgreSQL native extraction range/ACK recovery qualification",
+          "outcome": "passed",
+          "evidence": "4 passed after final actual ranged source read assertion, both adapters/upgrades; artifacts-step15-native-range.log"
+        },
+        {
+          "command": "native mocked backend regression",
+          "outcome": "passed",
+          "evidence": "3219 passed plus 10 subtests; 2 subsequently added unit cases passed in final 117-case unit run; artifacts-step15-regression.log"
+        },
+        {
+          "command": "Ruff, nine architecture policies, agent/worker boundaries, uv pip check, public import isolation, git diff --check",
+          "outcome": "passed",
+          "evidence": "zero architecture violations; 12 boundary tests; all installed packages compatible; no converter loaded by public entrypoint"
+        }
+      ]
     },
     {
       "id": 16,

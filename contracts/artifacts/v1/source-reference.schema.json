@@ -44,6 +44,30 @@
           "default": null,
           "title": "Block Id"
         },
+        "byte_end": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Byte End"
+        },
+        "byte_start": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Byte Start"
+        },
         "char_end": {
           "anyOf": [
             {
@@ -55,6 +79,16 @@
           ],
           "default": null,
           "title": "Char End"
+        },
+        "char_space": {
+          "default": "original_decoded_text",
+          "enum": [
+            "original_decoded_text",
+            "page_extracted_text",
+            "canonical_block_text"
+          ],
+          "title": "Char Space",
+          "type": "string"
         },
         "char_start": {
           "anyOf": [
@@ -115,6 +149,33 @@
           ],
           "default": null,
           "title": "Page Number"
+        },
+        "source_encoding": {
+          "anyOf": [
+            {
+              "enum": [
+                "utf-8",
+                "utf-16-le",
+                "utf-16-be",
+                "latin-1"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Encoding"
+        },
+        "text_normalization": {
+          "default": "none",
+          "enum": [
+            "none",
+            "lf"
+          ],
+          "title": "Text Normalization",
+          "type": "string"
         }
       },
       "title": "SourceLocator",

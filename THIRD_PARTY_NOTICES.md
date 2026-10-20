@@ -73,3 +73,15 @@ https://github.com/rsms/inter and https://github.com/JetBrains/JetBrainsMono.
 The Guild-inspired v2 reconstruction token values were supplied by the repository
 owner in `guild-inspired-enterprise-ui-v2.zip`. Reference screenshots remain
 review inputs only and are not shipped as Woobe product assets.
+
+## Native document Markdown parsing
+
+The native document processor uses markdown-it-py 4.0.0 (MIT, copyright 2020
+ExecutableBookProject) and mdurl 0.1.2 (MIT, copyright 2015 Vitaly Puzrin/Alex
+Kocharin and 2021 Taneli Hukkinen). Both are pinned in uv.lock and remain governed
+by their upstream licenses. Full notices are preserved in
+[markdown-it-py](docs/licenses/markdown-it-py-4.0.0.txt) and
+[mdurl](docs/licenses/mdurl-0.1.2.txt), as well as installed distribution metadata.
+Sources: https://github.com/executablebooks/markdown-it-py and
+https://github.com/executablebooks/mdurl. Parsing disables HTML rendering and
+performs no remote-resource fetch or script execution.

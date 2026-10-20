@@ -3,6 +3,7 @@
 from collections.abc import AsyncIterator
 from typing import Protocol
 
+from modules.artifacts.application.contracts.processing import ProcessingRecipe
 from modules.artifacts.domain.models import (
     Action, Artifact, ArtifactRef, CanonicalDocument, DocumentIndex, Page,
     ProcessingJob, ProcessingProfile, Revision, Scope, Workspace,
@@ -33,7 +34,7 @@ class DocumentProcessor(Protocol):
     media_types: frozenset[str]
 
     async def process(self, revision: Revision, content: AsyncIterator[bytes],
-                      profile: ProcessingProfile) -> CanonicalDocument: ...
+                      profile: ProcessingRecipe) -> CanonicalDocument: ...
 
 
 class DocumentModelGateway(Protocol):
@@ -46,7 +47,7 @@ class DocumentIndexer(Protocol):
     version: str
 
     async def index(self, document: CanonicalDocument, *, representation_set_id: str,
-                    profile: ProcessingProfile,
+                    profile: ProcessingRecipe,
                     model: DocumentModelGateway | None = None) -> DocumentIndex: ...
 
 

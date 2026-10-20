@@ -15,6 +15,7 @@ dependencies = [
     "langgraph-sdk>=0.4.4",
     "langchain-openai>=0.3.0",
     "langsmith>=0.8.18",
+    "markdown-it-py==4.0.0",
     "pgvector>=0.4.2",
     "psycopg2-binary>=2.9.12",
     "pydantic>=2.13.4",

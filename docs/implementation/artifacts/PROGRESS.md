@@ -71,7 +71,12 @@ Project/Workspace selection passed 211 integration cases plus 12 final pipeline/
 retry/factory cases. Actual process-death recovery passed on both adapters.
 Full mocked regression passed 3198 tests plus 10 subtests. Store-only verification
 is qualified; format adapters are delivered next. See PROCESSING_JOBS.md.
-Step 15 native TXT/Markdown/JSON/CSV processing is next.
+Step 15 is complete: deterministic native TXT/Markdown/JSON/CSV extraction, strict
+encoding, original byte/Unicode/line provenance, structured untrusted data and
+streamed private canonical checkpoints passed 117 unit/guard cases, 227 real
+integration cases and 4 final ranged-read/ACK-recovery cases. Full mocked regression
+passed 3219 tests plus 10 subtests before two additional passing unit cases. All
+nine architecture policies passed. See NATIVE_TEXT.md. Step 16 PDF processing is next.
 
 The stage commit carries `Plan-Step: 01/60`; a file never records its own containing
 commit SHA. CI reconciles commit subjects/trailers against the execution manifest.

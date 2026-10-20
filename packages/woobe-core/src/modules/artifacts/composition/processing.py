@@ -1,6 +1,9 @@
 from modules.artifacts.application.authorization import ArtifactAuthorization
 from modules.artifacts.application.cursors import CursorCodec
 from modules.artifacts.application.services.processing_runner import ProcessingRunner
+from modules.artifacts.application.services.document_pipeline import DocumentPipeline
+from modules.artifacts.infra.processing.native_text import NativeTextProcessor
+from shared.infra.object_storage.io import run_blocking
 from modules.artifacts.application.use_cases.jobs import ProcessingJobUseCases
 from modules.artifacts.application.use_cases.profiles import ProfileUseCases
 from modules.artifacts.composition.resources import PROCESSING_REGISTRY
@@ -34,6 +37,7 @@ def build_processing_runner(engine, settings):
     return ProcessingRunner(_worker_phase(engine, settings, 'deliver'), _worker_phase(engine, settings, 'claim'),
         _worker_phase(engine, settings, 'prepare'), _worker_phase(engine, settings, 'heartbeat'),
         _worker_phase(engine, settings, 'checkpoint'), _worker_phase(engine, settings, 'finish'), upload_storage,
+        pipeline=DocumentPipeline({('native-text', '1'): NativeTextProcessor()}, run_blocking),
         lease_seconds=settings.artifact_processing_lease_seconds,
         project_limit=settings.artifact_processing_project_slots,
         workspace_limit=min(settings.artifact_processing_workspace_slots, settings.artifact_processing_project_slots))

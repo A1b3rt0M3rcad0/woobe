@@ -2,6 +2,7 @@ import hashlib
 
 from modules.artifacts.application.contracts.uploads import CommitUpload, RecordPart, UploadPart
 from modules.artifacts.domain.models import ArtifactError, UploadStatus
+from modules.artifacts.domain.text_encoding import text_encoding
 from shared.contracts.object_storage import ObjectStorageError
 
 
@@ -28,8 +29,9 @@ def validate_media(prefix: bytes, declared: str):
             # A prefix may end mid-codepoint. The incremental decoder accepts
             # that boundary, but rejects invalid bytes and embedded NUL content.
             import codecs
-            codecs.getincrementaldecoder('utf-8')().decode(prefix, final=False)
-            valid = b'\x00' not in prefix
+            encoding, skip = text_encoding(prefix, declared)
+            decoded = codecs.getincrementaldecoder(encoding)().decode(prefix[skip:], final=False)
+            valid = '\x00' not in decoded
         except UnicodeDecodeError:
             valid = False
     else:
