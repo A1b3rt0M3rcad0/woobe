@@ -1,0 +1,937 @@
+{
+  "schema_version": 1,
+  "base_commit": "3dbcb3e1a7559f4a50ebca320e411933d46e8012",
+  "branch": "feat/artifact-workspaces-document-runtime",
+  "source_document": "WOOBE_PLANO_IMPLEMENTACAO_ARTIFACT_WORKSPACES.md",
+  "source_sha256": "43c041cb5ad2d10a405bf37197a033bce9098250bd4e804dde52338efdbcf353",
+  "pull_request": {
+    "number": 220,
+    "url": "https://github.com/A1b3rt0M3rcad0/woobe/pull/220",
+    "state": "open",
+    "draft": true,
+    "auto_merge": false
+  },
+  "steps": [
+    {
+      "id": 1,
+      "title": "Congelar baseline, decisões e execução em Draft",
+      "commit_subject": "docs(artifacts): freeze baseline and single-draft implementation workflow",
+      "dependencies": [],
+      "status": "completed",
+      "checks": [
+        {
+          "command": ".venv/bin/python -m pytest -q tests/architecture/test_artifacts_plan_guard.py",
+          "outcome": "passed",
+          "evidence": "14 passed in 0.04s; baseline exact SHA recorded in BASELINE.md"
+        },
+        {
+          "command": ".venv/bin/ruff check scripts/validate_artifacts_plan.py tests/architecture/test_artifacts_plan_guard.py",
+          "outcome": "passed",
+          "evidence": "All checks passed"
+        },
+        {
+          "command": "go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7 -shellcheck= .github/workflows/artifacts-plan.yml",
+          "outcome": "passed",
+          "evidence": "exit 0; new read-only workflow accepted by actionlint v1.7.7"
+        },
+        {
+          "command": "PYTHONPATH=tooling/quality-gate/src .venv/bin/python -m quality_gate.architecture.checker --policy-dir tooling/quality-gate/src/quality_gate/architecture/policies",
+          "outcome": "passed",
+          "evidence": "8 governed modules PASS; zero violations; /workspace/.onboarding/artifacts-baseline-architecture.log"
+        },
+        {
+          "command": ".venv/bin/python -m pytest -q tests/quality_gate tests/architecture/test_artifacts_plan_guard.py tests/architecture/test_runtime_process_composition_packaging.py tests/architecture/test_primary_release_units.py",
+          "outcome": "passed",
+          "evidence": "117 passed in 7.73s; /workspace/.onboarding/artifacts-step01-tests.log"
+        },
+        {
+          "command": "git push -u origin feat/artifact-workspaces-document-runtime",
+          "outcome": "passed",
+          "evidence": "Only feature branch created; remote master unchanged"
+        },
+        {
+          "command": "gh pr create --draft; gh pr view 220 --json state,isDraft,autoMergeRequest",
+          "outcome": "passed",
+          "evidence": "PR 220 OPEN, isDraft true, autoMergeRequest null; initial CONNECT denial resolved after network draft update"
+        },
+        {
+          "command": "python3 scripts/validate_artifacts_plan.py --base 3dbcb3e1a7559f4a50ebca320e411933d46e8012",
+          "outcome": "passed",
+          "evidence": "One nonempty implementation commit with exact step 01 subject/trailer"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Consolidar fontes de CLI e SDKs no mesmo repositório",
+      "commit_subject": "chore(clients): import pinned CLI and SDK sources for atomic delivery",
+      "dependencies": [
+        1
+      ],
+      "status": "not_started",
+      "checks": []
+    },
+    {
+      "id": 3,
+      "title": "Criar o boundary Artifacts e os contratos canônicos",
+      "commit_subject": "feat(artifacts): establish domain boundary and versioned contracts",
+      "dependencies": [
+        1,
+        2
+      ],
+      "status": "not_started",
+      "checks": []
+    },
+    {
+      "id": 4,
+      "title": "Persistir catálogo, revisões e histórico de visibilidade",
+      "commit_subject": "feat(artifacts): persist workspace catalog and immutable revisions",
+      "dependencies": [
+        3
+      ],
+      "status": "not_started",
+      "checks": []
+    },
+    {
+      "id": 5,
+      "title": "Integrar autorização e revogação à autoridade existente",
+      "commit_subject": "feat(auth): authorize artifact operations through scoped grants",
+      "dependencies": [
+        3,
+        4
+      ],
+      "status": "not_started",
+      "checks": []
+    },
+    {
+      "id": 6,
+      "title": "Provisionar e resolver Workspaces independentes",
+      "commit_subject": "feat(artifacts): add idempotent workspace lifecycle and resolution",
+      "dependencies": [
+        4,
+        5
+      ],
+      "status": "not_started",
+      "checks": []
+    },
+    {
+      "id": 7,
+      "title": "Extrair object storage genérico com compatibilidade de Knowledge",
+      "commit_subject": "refactor(storage): introduce object storage without breaking knowledge",
+      "dependencies": [
+        3,
+        4
+      ],
+      "status": "not_started",
+      "checks": []
+    },
+    {
+      "id": 8,
+      "title": "Implementar storage local com publicação atômica",
+      "commit_subject": "feat(storage): add safe streaming local artifact storage",
+      "dependencies": [
+        7
+      ],
+      "status": "not_started",
+      "checks": []
+    },
+    {
+      "id": 9,
+      "title": "Implementar storage S3 e multipart controlado",
+      "commit_subject": "feat(storage): add streamed S3 artifact persistence and integrity",
+      "dependencies": [
+        7,
+        8
+      ],
+      "status": "not_started",
+      "checks": []
+    },
+    {
+      "id": 10,
+      "title": "Construir upload retomável e finalização idempotente",
+      "commit_subject": "feat(artifacts): implement resumable uploads and durable receipts",
+      "dependencies": [
+        5,
+        6,
+        8,
+        9
+      ],
+      "status": "not_started",
+      "checks": []
+    },
+    {
+      "id": 11,
+      "title": "Operar arquivos e diretórios com CAS e proveniência",
+      "commit_subject": "feat(artifacts): add file mutations revisions and logical directories",
+      "dependencies": [
+        4,
+        5,
+        6,
+        10
+      ],
+      "status": "not_started",
+      "checks": []
+    },
+    {
+      "id": 12,
+      "title": "Expor APIs diretas de Artifacts e downloads autorizados",
+      "commit_subject": "feat(api): expose artifact workspace and file operations",
+      "dependencies": [
+        5,
+        6,
+        10,
+        11
+      ],
+      "status": "not_started",
+      "checks": []
+    },
+    {
+      "id": 13,
+      "title": "Definir receitas e registro de processamento",
+      "commit_subject": "feat(processing): define versioned processor and indexer profiles",
+      "dependencies": [
+        3,
+        4,
+        12
+      ],
+      "status": "not_started",
+      "checks": []
+    },
+    {
+      "id": 14,
+      "title": "Executar processamento durável nos Workers existentes",
+      "commit_subject": "feat(workers): orchestrate durable artifact processing jobs",
+      "dependencies": [
+        4,
+        5,
+        13
+      ],
+      "status": "not_started",
+      "checks": []
+    },
+    {
+      "id": 15,
+      "title": "Processar formatos textuais com origem preservada",
+      "commit_subject": "feat(processing): normalize text markdown JSON and CSV sources",
+      "dependencies": [
+        13,
+        14
+      ],
+      "status": "not_started",
+      "checks": []
+    },
+    {
+      "id": 16,
+      "title": "Extrair PDFs textuais e preservar páginas",
+      "commit_subject": "feat(processing): extract PDF text with page-level provenance",
+      "dependencies": [
+        13,
+        14,
+        15
+      ],
+      "status": "not_started",
+      "checks": []
+    },
+    {
+      "id": 17,
+      "title": "Adicionar Docling como perfil opcional de extração",
+      "commit_subject": "feat(processing): integrate optional Docling document conversion",
+      "dependencies": [
+        13,
+        14,
+        16
+      ],
+      "status": "not_started",
+      "checks": []
+    },
+    {
+      "id": 18,
+      "title": "Adicionar OCR seletivo e cobertura visual",
+      "commit_subject": "feat(processing): add selective OCR and visual coverage diagnostics",
+      "dependencies": [
+        14,
+        16,
+        17
+      ],
+      "status": "not_started",
+      "checks": []
+    },
+    {
+      "id": 19,
+      "title": "Publicar derivados e mapa de fontes atomicamente",
+      "commit_subject": "feat(artifacts): publish coherent representation sets and source maps",
+      "dependencies": [
+        14,
+        15,
+        16,
+        17,
+        18
+      ],
+      "status": "not_started",
+      "checks": []
+    },
+    {
+      "id": 20,
+      "title": "Construir índice hierárquico nativo",
+      "commit_subject": "feat(indexing): build versioned structural document trees",
+      "dependencies": [
+        13,
+        19
+      ],
+      "status": "not_started",
+      "checks": []
+    },
+    {
+      "id": 21,
+      "title": "Instrumentar enriquecimento por modelo no processamento",
+      "commit_subject": "feat(processing): govern model-assisted indexing through runtime ports",
+      "dependencies": [
+        13,
+        14,
+        20
+      ],
+      "status": "not_started",
+      "checks": []
+    },
+    {
+      "id": 22,
+      "title": "Integrar PageIndex local como indexador substituível",
+      "commit_subject": "feat(indexing): add a pinned local PageIndex adapter",
+      "dependencies": [
+        19,
+        20,
+        21
+      ],
+      "status": "not_started",
+      "checks": []
+    },
+    {
+      "id": 23,
+      "title": "Implementar busca textual e descoberta de documentos",
+      "commit_subject": "feat(search): add scoped workspace and document text retrieval",
+      "dependencies": [
+        4,
+        5,
+        19,
+        20,
+        22
+      ],
+      "status": "not_started",
+      "checks": []
+    },
+    {
+      "id": 24,
+      "title": "Expor navegação, leitura e resolução de fontes",
+      "commit_subject": "feat(api): expose document outlines bounded reads and citations",
+      "dependencies": [
+        12,
+        19,
+        20,
+        22,
+        23
+      ],
+      "status": "not_started",
+      "checks": []
+    },
+    {
+      "id": 25,
+      "title": "Versionar bindings e permissões nas definições de Agents",
+      "commit_subject": "feat(agent): version artifact bindings and runtime policies",
+      "dependencies": [
+        3,
+        6,
+        13,
+        24
+      ],
+      "status": "not_started",
+      "checks": []
+    },
+    {
+      "id": 26,
+      "title": "Resolver Workspace na Acceptance pelo External Context",
+      "commit_subject": "feat(runtime): bind authorized workspaces through external context",
+      "dependencies": [
+        5,
+        6,
+        25
+      ],
+      "status": "not_started",
+      "checks": []
+    },
+    {
+      "id": 27,
+      "title": "Propagar escopo e permissões dentro de Networks",
+      "commit_subject": "feat(network): constrain artifact access per node and child run",
+      "dependencies": [
+        25,
+        26
+      ],
+      "status": "not_started",
+      "checks": []
+    },
+    {
+      "id": 28,
+      "title": "Congelar fontes utilizadas sem copiar o Workspace inteiro",
+      "commit_subject": "feat(runtime): pin artifact source manifests to run catalog versions",
+      "dependencies": [
+        4,
+        19,
+        24,
+        26,
+        27
+      ],
+      "status": "not_started",
+      "checks": []
+    },
+    {
+      "id": 29,
+      "title": "Aceitar mensagens com partes e referências tipadas",
+      "commit_subject": "feat(runtime): add backward-compatible multimodal content parts",
+      "dependencies": [
+        12,
+        24,
+        25,
+        26,
+        28
+      ],
+      "status": "not_started",
+      "checks": []
+    },
+    {
+      "id": 30,
+      "title": "Disponibilizar capacidades internas de navegação e escrita",
+      "commit_subject": "feat(agent): expose governed artifact and document tools",
+      "dependencies": [
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29
+      ],
+      "status": "not_started",
+      "checks": []
+    },
+    {
+      "id": 31,
+      "title": "Controlar orçamento de leitura e montagem de contexto",
+      "commit_subject": "feat(context): budget artifact exploration and preserve source fidelity",
+      "dependencies": [
+        28,
+        29,
+        30
+      ],
+      "status": "not_started",
+      "checks": []
+    },
+    {
+      "id": 32,
+      "title": "Persistir artefatos de saída e projetá-los no streaming",
+      "commit_subject": "feat(runtime): persist artifact outputs and resumable stream projections",
+      "dependencies": [
+        11,
+        28,
+        29,
+        30,
+        31
+      ],
+      "status": "not_started",
+      "checks": []
+    },
+    {
+      "id": 33,
+      "title": "Transferir arquivos por Tools HTTP configuradas",
+      "commit_subject": "feat(tools): bind artifact inputs to authorized HTTP transfers",
+      "dependencies": [
+        5,
+        12,
+        25,
+        28,
+        30,
+        32
+      ],
+      "status": "not_started",
+      "checks": []
+    },
+    {
+      "id": 34,
+      "title": "Transferir arquivos por MCP conforme o contrato negociado",
+      "commit_subject": "feat(mcp): support schema-bound artifact transfer and resource results",
+      "dependencies": [
+        28,
+        30,
+        32,
+        33
+      ],
+      "status": "not_started",
+      "checks": []
+    },
+    {
+      "id": 35,
+      "title": "Ingerir outputs externos e reconciliar operações demoradas",
+      "commit_subject": "feat(artifacts): ingest external tool outputs with durable provenance",
+      "dependencies": [
+        14,
+        19,
+        32,
+        33,
+        34
+      ],
+      "status": "not_started",
+      "checks": []
+    },
+    {
+      "id": 36,
+      "title": "Executar entrada visual sobre referências autorizadas",
+      "commit_subject": "feat(models): resolve artifact images for vision-capable providers",
+      "dependencies": [
+        19,
+        25,
+        28,
+        29,
+        31,
+        32
+      ],
+      "status": "not_started",
+      "checks": []
+    },
+    {
+      "id": 37,
+      "title": "Executar geração de imagem com output persistente",
+      "commit_subject": "feat(models): generate images into artifact workspaces",
+      "dependencies": [
+        25,
+        26,
+        29,
+        32,
+        36
+      ],
+      "status": "not_started",
+      "checks": []
+    },
+    {
+      "id": 38,
+      "title": "Tornar recuperação legada opcional sem quebrar Releases",
+      "commit_subject": "feat(knowledge): allow artifact-only agents with legacy RAG compatibility",
+      "dependencies": [
+        25,
+        30,
+        31,
+        36,
+        37
+      ],
+      "status": "not_started",
+      "checks": []
+    },
+    {
+      "id": 39,
+      "title": "Criar Skill de exploração documental fundamentada",
+      "commit_subject": "feat(skills): add bounded evidence-based document exploration",
+      "dependencies": [
+        24,
+        30,
+        31,
+        38
+      ],
+      "status": "not_started",
+      "checks": []
+    },
+    {
+      "id": 40,
+      "title": "Ampliar SDK Go para acesso direto aos Workspaces",
+      "commit_subject": "feat(sdk-go): add workspace artifact and processing clients",
+      "dependencies": [
+        2,
+        12,
+        24
+      ],
+      "status": "not_started",
+      "checks": []
+    },
+    {
+      "id": 41,
+      "title": "Ampliar SDK Go para multimodalidade e eventos",
+      "commit_subject": "feat(sdk-go): support artifact-aware runs and stream recovery",
+      "dependencies": [
+        29,
+        32,
+        36,
+        37,
+        40
+      ],
+      "status": "not_started",
+      "checks": []
+    },
+    {
+      "id": 42,
+      "title": "Entregar paridade no SDK Python",
+      "commit_subject": "feat(sdk-python): add artifact workspaces multimodal parts and receipts",
+      "dependencies": [
+        2,
+        12,
+        24,
+        29,
+        32,
+        36,
+        37,
+        40,
+        41
+      ],
+      "status": "not_started",
+      "checks": []
+    },
+    {
+      "id": 43,
+      "title": "Operar Artifacts pela CLI",
+      "commit_subject": "feat(cli): add workspace artifact upload and document commands",
+      "dependencies": [
+        2,
+        12,
+        24,
+        40,
+        41
+      ],
+      "status": "not_started",
+      "checks": []
+    },
+    {
+      "id": 44,
+      "title": "Atualizar autoria CLI, pacotes e skill de desenvolvimento",
+      "commit_subject": "feat(cli): author artifact bindings and multimodal runtime manifests",
+      "dependencies": [
+        25,
+        29,
+        38,
+        39,
+        41,
+        43
+      ],
+      "status": "not_started",
+      "checks": []
+    },
+    {
+      "id": 45,
+      "title": "Estender o runtime-client compartilhado do navegador",
+      "commit_subject": "feat(runtime-client): decode artifact content and stream state",
+      "dependencies": [
+        29,
+        32,
+        41,
+        42
+      ],
+      "status": "not_started",
+      "checks": []
+    },
+    {
+      "id": 46,
+      "title": "Criar Explorer de Workspaces e arquivos",
+      "commit_subject": "feat(ui): add paginated artifact workspace explorer",
+      "dependencies": [
+        12,
+        24,
+        45
+      ],
+      "status": "not_started",
+      "checks": []
+    },
+    {
+      "id": 47,
+      "title": "Criar leitor documental com árvore e fontes",
+      "commit_subject": "feat(ui): add document reader with hierarchy and source provenance",
+      "dependencies": [
+        24,
+        46
+      ],
+      "status": "not_started",
+      "checks": []
+    },
+    {
+      "id": 48,
+      "title": "Configurar Artifacts nos editores de Agent e Network",
+      "commit_subject": "feat(ui): configure artifact bindings profiles and permissions",
+      "dependencies": [
+        25,
+        26,
+        27,
+        38,
+        46
+      ],
+      "status": "not_started",
+      "checks": []
+    },
+    {
+      "id": 49,
+      "title": "Integrar upload, menções e resultados no Playground",
+      "commit_subject": "feat(ui): add artifact mentions attachments and output previews",
+      "dependencies": [
+        29,
+        32,
+        36,
+        37,
+        45,
+        46,
+        47,
+        48
+      ],
+      "status": "not_started",
+      "checks": []
+    },
+    {
+      "id": 50,
+      "title": "Integrar Explorer e artefatos ao fluxo visual de Networks",
+      "commit_subject": "feat(ui): expose network artifact scope and node outputs",
+      "dependencies": [
+        27,
+        32,
+        45,
+        46,
+        47,
+        48,
+        49
+      ],
+      "status": "not_started",
+      "checks": []
+    },
+    {
+      "id": 51,
+      "title": "Entregar paridade no ChatSurface/Embed",
+      "commit_subject": "feat(embed): add scoped artifact conversations and downloads",
+      "dependencies": [
+        26,
+        29,
+        32,
+        45,
+        47,
+        49,
+        50
+      ],
+      "status": "not_started",
+      "checks": []
+    },
+    {
+      "id": 52,
+      "title": "Instrumentar operações, custos e auditoria passiva",
+      "commit_subject": "feat(observability): trace artifact processing retrieval and transfer",
+      "dependencies": [
+        14,
+        21,
+        28,
+        32,
+        35,
+        37,
+        51
+      ],
+      "status": "not_started",
+      "checks": []
+    },
+    {
+      "id": 53,
+      "title": "Empacotar perfis de execução e capacidades opcionais",
+      "commit_subject": "chore(deploy): add optional document worker profiles and capability probes",
+      "dependencies": [
+        13,
+        14,
+        17,
+        18,
+        22,
+        36,
+        37,
+        52
+      ],
+      "status": "not_started",
+      "checks": []
+    },
+    {
+      "id": 54,
+      "title": "Preparar upgrade e rollback compatíveis",
+      "commit_subject": "feat(compat): preserve legacy runtime and package contracts during rollout",
+      "dependencies": [
+        25,
+        29,
+        32,
+        38,
+        40,
+        41,
+        42,
+        44,
+        51,
+        53
+      ],
+      "status": "not_started",
+      "checks": []
+    },
+    {
+      "id": 55,
+      "title": "Validar dois acessos com consumidor de referência",
+      "commit_subject": "test(integration): qualify direct and agentic workspace access end to end",
+      "dependencies": [
+        24,
+        26,
+        27,
+        28,
+        32,
+        35,
+        37,
+        39,
+        41,
+        42,
+        44,
+        51,
+        54
+      ],
+      "status": "not_started",
+      "checks": []
+    },
+    {
+      "id": 56,
+      "title": "Concluir retenção, purga, exportação e restauração",
+      "commit_subject": "feat(operations): manage artifact retention garbage collection and restore",
+      "dependencies": [
+        6,
+        10,
+        11,
+        19,
+        23,
+        28,
+        35,
+        52,
+        53,
+        54,
+        55
+      ],
+      "status": "not_started",
+      "checks": []
+    },
+    {
+      "id": 57,
+      "title": "Ensaiar alta cardinalidade, concorrência e falhas",
+      "commit_subject": "perf(artifacts): qualify scale bounds backpressure and recovery",
+      "dependencies": [
+        14,
+        23,
+        24,
+        28,
+        32,
+        35,
+        51,
+        52,
+        53,
+        56
+      ],
+      "status": "not_started",
+      "checks": []
+    },
+    {
+      "id": 58,
+      "title": "Avaliar qualidade de recuperação e geração fundamentada",
+      "commit_subject": "test(retrieval): benchmark hierarchical navigation and grounded outputs",
+      "dependencies": [
+        16,
+        17,
+        18,
+        20,
+        21,
+        22,
+        23,
+        24,
+        31,
+        39,
+        55,
+        57
+      ],
+      "status": "not_started",
+      "checks": []
+    },
+    {
+      "id": 59,
+      "title": "Concluir documentação operacional, APIs e guias de clientes",
+      "commit_subject": "docs(artifacts): publish developer integration and operations guides",
+      "dependencies": [
+        39,
+        40,
+        41,
+        42,
+        43,
+        44,
+        48,
+        51,
+        54,
+        55,
+        56,
+        57,
+        58
+      ],
+      "status": "not_started",
+      "checks": []
+    },
+    {
+      "id": 60,
+      "title": "Auditar a entrega e encerrar mantendo o PR em Draft",
+      "commit_subject": "chore(artifacts): finalize acceptance evidence and retain draft status",
+      "dependencies": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        38,
+        39,
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47,
+        48,
+        49,
+        50,
+        51,
+        52,
+        53,
+        54,
+        55,
+        56,
+        57,
+        58,
+        59
+      ],
+      "status": "not_started",
+      "checks": []
+    }
+  ]
+}
