@@ -25,7 +25,12 @@ canonical schemas/fixtures and the Artifacts architecture policy are validated.
 Persistence, authorization and adapters are not advertised as implemented. Step 04 is complete: additive PostgreSQL migration 0107, scoped catalog/revision
 repositories and transactional Unit of Work passed 14 real PostgreSQL tests across
 fresh and populated-upgrade paths. The native mocked regression passed 3135 tests
-and 10 subtests. Stage 05 authorization is next. See PERSISTENCE.md.
+and 10 subtests. See PERSISTENCE.md.
+
+Step 05 is complete: shared current-principal authority, explicit Artifacts Runtime
+interface/actions, scoped live grants and restrictive Release/node intersection are
+validated. 399 authority/Core/Artifacts regressions and 14 real PostgreSQL cases
+passed. See AUTHORIZATION.md. Step 06 independent Workspace operations are next.
 
 The stage commit carries `Plan-Step: 01/60`; a file never records its own containing
 commit SHA. CI reconciles commit subjects/trailers against the execution manifest.

@@ -188,8 +188,24 @@
         3,
         4
       ],
-      "status": "not_started",
-      "checks": []
+      "status": "completed",
+      "checks": [
+        {
+          "command": "WOOBE_RUN_PERSISTENCE_MODE=legacy_finalization .venv/bin/python -m pytest -q tests/unit/security tests/unit/core tests/unit/artifacts",
+          "outcome": "passed",
+          "evidence": "399 passed in 3.47s; operation/scope/interface/expiry/revocation/policy/lifecycle matrix and existing human/control/runtime authority regressions"
+        },
+        {
+          "command": ".venv/bin/python /workspace/.onboarding/run_artifact_tests.py -q tests/integration/artifacts/test_authorization_postgres.py",
+          "outcome": "passed",
+          "evidence": "14 real PostgreSQL cases passed in 10.56s across fresh/populated migrations; persisted grant and current credential revocation/expiry/interface/environment/delegation changes deny retained principals"
+        },
+        {
+          "command": "Ruff changed security/Artifacts/test files; architecture checker all policies",
+          "outcome": "passed",
+          "evidence": "Ruff and nine governed module policies passed; shared TenantAuthorizer reused; no cross-module ORM imports or new credential system"
+        }
+      ]
     },
     {
       "id": 6,

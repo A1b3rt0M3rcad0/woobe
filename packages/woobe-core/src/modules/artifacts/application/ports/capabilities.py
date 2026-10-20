@@ -8,6 +8,7 @@ from modules.artifacts.domain.models import (
     Action, Artifact, ArtifactRef, CanonicalDocument, DocumentIndex, Page,
     ProcessingJob, ProcessingProfile, Revision, Scope, Workspace,
 )
+from shared.security.principal import SecurityPrincipal
 
 
 @dataclass(frozen=True)
@@ -34,8 +35,8 @@ class ObjectStorage(Protocol):
 
 
 class WorkspaceAuthorizer(Protocol):
-    async def authorize(self, principal_id: str, scope: Scope, workspace_id: str,
-                        action: Action) -> None: ...
+    async def authorize(self, principal: SecurityPrincipal, scope: Scope, workspace_id: str,
+                        action: Action) -> Workspace: ...
 
 
 class ArtifactGateway(Protocol):

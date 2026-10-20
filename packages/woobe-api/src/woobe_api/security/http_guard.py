@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Mapping, Sequence
 from hmac import compare_digest
 from typing import Any
@@ -44,6 +45,15 @@ _ALLOWED_SAME_SITE = {"lax", "strict", "none"}
 _CSRF_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
 
+def is_artifacts_runtime_path(path: str) -> bool:
+    return re.fullmatch(
+        r'/v1/(?:artifact-workspaces(?:/[A-Za-z0-9_-]+(?:/(?:artifacts|uploads|search)(?:/[A-Za-z0-9_-]+(?:/(?:parts|finalize))?)?)?)?'
+        r'|artifacts/[A-Za-z0-9_-]+/(?:revisions/[A-Za-z0-9_-]+(?:/content)?|processing|representations)(?:/[A-Za-z0-9_-]+)?'
+        r'|document-indexes/[A-Za-z0-9_-]+(?:/nodes(?:/[A-Za-z0-9_-]+(?:/content)?)?)?'
+        r'|source-references/resolve|artifact-capabilities)', path,
+    ) is not None
+
+
 def _configuration_permissions(method, path, body, path_params):
     """Additional authority; never infer it from a client-supplied marker."""
     if not isinstance(body, dict):
@@ -79,6 +89,8 @@ def _is_public_run_cancel(method: str, path: str) -> bool:
 
 def public_runtime_interface(method: str, path: str) -> str | None:
     normalized_method = method.upper()
+    if normalized_method in {'GET', 'POST', 'PUT', 'PATCH', 'DELETE'} and is_artifacts_runtime_path(path):
+        return 'artifacts'
     if normalized_method == "POST" and path == "/v1/run":
         return "http"
     if normalized_method == "POST" and path == "/v1/run/stream":
@@ -108,7 +120,8 @@ def public_runtime_interface(method: str, path: str) -> str | None:
 
 def is_runtime_path(path: str) -> bool:
     return (
-        path.startswith("/runtime/")
+        is_artifacts_runtime_path(path)
+        or path.startswith("/runtime/")
         or path.startswith("/agent/runtime/")
         or path == "/v1/run"
         or path == "/v1/run/stream"

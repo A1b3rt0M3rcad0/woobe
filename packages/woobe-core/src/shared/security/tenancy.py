@@ -14,7 +14,7 @@ from shared.infra.errors import (
     ConflictError,
     NotFoundError,
 )
-from shared.security.principal import AuthenticatedPrincipal, ControlPlanePrincipal
+from shared.security.principal import AuthenticatedPrincipal, ControlPlanePrincipal, ProjectApiPrincipal
 from shared.security.control_plane import (
     PROJECT_CONTROL_PERMISSIONS,
     WORKSPACE_CONTROL_PERMISSIONS,
@@ -159,6 +159,48 @@ def _uuid(value: Any) -> UUID | None:
 class TenantAuthorizer:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
+
+    async def require_active_runtime(self, actor: ProjectApiPrincipal, *, interface: str) -> None:
+        """Revalidate a retained Runtime principal without retaining its raw key."""
+        statement = """SELECT keys.project_id, keys.kind, keys.status, keys.revoked_at,
+            keys.expires_at, keys.delegation_expires_at, keys.environment,
+            keys.interfaces, keys.scopes, keys.target_type, keys.target_id,
+            projects.status AS project_status
+            FROM core.api_keys AS keys JOIN core.projects AS projects
+            ON projects.id = keys.project_id WHERE keys.id = :id"""
+        if self._session.bind is not None and self._session.bind.dialect.name == 'postgresql':
+            statement += ' FOR SHARE OF keys, projects'
+        row = (await self._session.execute(
+            text(statement).bindparams(bindparam('id', type_=Uuid())),
+            {'id': actor.api_key_id},
+        )).mappings().first()
+        if row is None or actor.kind != 'runtime' or row['kind'] != 'runtime':
+            raise AuthenticationError('Runtime credential is inactive')
+        if row['status'] != 'active' or row['revoked_at'] is not None or row['project_status'] != 'active':
+            raise AuthenticationError('Runtime credential is inactive')
+        now = datetime.now(UTC)
+        for field in ('expires_at', 'delegation_expires_at'):
+            expiry = row[field]
+            if isinstance(expiry, str):
+                expiry = datetime.fromisoformat(expiry)
+            if expiry is not None and expiry.replace(tzinfo=expiry.tzinfo or UTC) <= now:
+                raise AuthenticationError('Runtime credential is expired')
+        import json
+        interfaces = row['interfaces']
+        scopes = row['scopes']
+        if isinstance(interfaces, str):
+            interfaces = json.loads(interfaces)
+        if isinstance(scopes, str):
+            scopes = json.loads(scopes)
+        if (str(row['project_id']) != str(actor.project_id)
+                or row['environment'] != actor.environment
+                or row['target_type'] != actor.target_type
+                or str(row['target_id']) != str(actor.target_id)
+                or 'runtime:execute' not in scopes
+                or not actor.has_scope('runtime:execute')
+                or actor.target_type not in {'agent', 'network'} or actor.target_id is None
+                or interface not in interfaces or interface not in actor.interfaces):
+            raise AuthorizationError('Runtime credential scope changed or is insufficient')
 
     async def require_active_human(self, actor: AuthenticatedPrincipal) -> None:
         """Revalidate durable administrative work against the current session lineage."""

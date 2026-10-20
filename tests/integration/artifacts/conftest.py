@@ -10,9 +10,19 @@ import psycopg2
 from psycopg2 import sql
 import pytest
 from sqlalchemy.engine import make_url
+from sqlalchemy.ext.asyncio import create_async_engine
 
 
 ROOT = Path(__file__).resolve().parents[3]
+
+
+@pytest.fixture
+async def engine(artifacts_database):
+    engine = create_async_engine(artifacts_database['url'])
+    try:
+        yield engine
+    finally:
+        await engine.dispose()
 
 
 @pytest.fixture(scope='module', params=['fresh', 'populated'])
