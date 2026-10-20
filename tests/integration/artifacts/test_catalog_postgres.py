@@ -42,7 +42,7 @@ def test_baseline_data_survives_additive_migration_and_ledger_is_current(artifac
             cursor.execute('SELECT name FROM core.projects WHERE id=%s', (artifacts_database['project_id'],))
             assert cursor.fetchone()[0] == 'Baseline retained'
             cursor.execute('SELECT version_num FROM alembic_version')
-            assert cursor.fetchone()[0] == '0107'
+            assert cursor.fetchone()[0] == artifacts_database['current_head']
 
 
 async def test_catalog_visibility_and_immutable_revision_history(engine, artifacts_database):

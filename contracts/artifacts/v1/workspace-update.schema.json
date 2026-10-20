@@ -8,6 +8,22 @@
       "title": "Expected Version",
       "type": "integer"
     },
+    "labels": {
+      "anyOf": [
+        {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "maxProperties": 32,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Labels"
+    },
     "name": {
       "anyOf": [
         {

@@ -49,6 +49,7 @@ class ArtifactWorkspaceModel(ArtifactRecord):
     reserved_bytes: Mapped[int] = mapped_column(BigInteger, default=0)
     retention_days: Mapped[int] = mapped_column(Integer, default=30)
     labels: Mapped[dict] = mapped_column(JSONB, default=dict)
+    creation_fingerprint: Mapped[str | None] = mapped_column(String(64))
 
 
 class ArtifactModel(ArtifactRecord):

@@ -9,6 +9,8 @@ from uuid import uuid4
 import psycopg2
 from psycopg2 import sql
 import pytest
+from alembic.config import Config
+from alembic.script import ScriptDirectory
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import create_async_engine
 
@@ -57,7 +59,8 @@ def artifacts_database(request):
         migrate('head')
         migrate('head')
         yield {'url': url.set(drivername='postgresql+asyncpg').render_as_string(hide_password=False),
-               'sync_url': url.render_as_string(hide_password=False), 'project_id': str(project)}
+               'sync_url': url.render_as_string(hide_password=False), 'project_id': str(project),
+               'current_head': ScriptDirectory.from_config(Config(str(ROOT / 'packages/woobe-core/alembic.ini'))).get_current_head()}
     finally:
         cursor.execute(sql.SQL('DROP DATABASE {} WITH (FORCE)').format(sql.Identifier(database)))
         cursor.close()

@@ -1,15 +1,17 @@
 """Scoped catalog persistence. Callers own a short ArtifactsUnitOfWork."""
 
-from dataclasses import asdict
+from dataclasses import asdict, replace
+from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import or_, select, update
+from sqlalchemy import exists, or_, select, update
+from sqlalchemy.dialects.postgresql import insert
 
 from modules.artifacts.domain.models import (
     Artifact, ArtifactError, ArtifactRef, Revision, Scope, Workspace, logical_path,
 )
 from modules.artifacts.infra.database.models import (
-    ArtifactModel, HeadHistoryModel, RevisionModel, WorkspaceModel,
+    ArtifactModel, GrantModel, HeadHistoryModel, RevisionModel, WorkspaceModel,
 )
 from modules.artifacts.infra.database.unit_of_work import ArtifactsUnitOfWork
 
@@ -22,6 +24,7 @@ def workspace_entity(row: WorkspaceModel) -> Workspace:
         version=row.version, catalog_version=row.catalog_version,
         quota_bytes=row.quota_bytes, used_bytes=row.used_bytes,
         reserved_bytes=row.reserved_bytes, retention_days=row.retention_days,
+        labels=tuple(sorted(row.labels.items())),
     )
 
 
@@ -56,10 +59,80 @@ class CatalogRepository:
         values = asdict(workspace)
         values.pop('scope')
         values['status'] = workspace.status.value
+        values['labels'] = dict(workspace.labels)
         row = WorkspaceModel(**values, project_id=UUID(workspace.scope.project_id),
                              environment=workspace.scope.environment.value)
         self._uow.session.add(row)
         await self._uow.session.flush()
+        return workspace_entity(row)
+
+    async def provision_workspace(self, workspace: Workspace, fingerprint: str) -> tuple[Workspace, bool]:
+        values = asdict(workspace)
+        values.pop('scope')
+        values.update(project_id=UUID(workspace.scope.project_id),
+                      environment=workspace.scope.environment.value,
+                      status=workspace.status.value, labels=dict(workspace.labels),
+                      creation_fingerprint=fingerprint)
+        created = (await self._uow.session.execute(insert(WorkspaceModel).values(**values)
+                   .on_conflict_do_nothing(constraint='uq_artifact_workspace_external')
+                   .returning(WorkspaceModel.id))).scalar_one_or_none()
+        row = (await self._uow.session.execute(self._workspace_query(workspace.scope).where(
+            WorkspaceModel.external_namespace == workspace.external_namespace,
+            WorkspaceModel.external_key == workspace.external_key,
+        ).with_for_update().execution_options(populate_existing=True))).scalar_one()
+        if row.creation_fingerprint != fingerprint:
+            raise ArtifactError('ARTIFACT_IDEMPOTENCY_CONFLICT', 'Workspace identity already has a different creation request')
+        return workspace_entity(row), created is not None
+
+    async def resolve_workspace(self, scope: Scope, namespace: str, key: str) -> Workspace:
+        row = (await self._uow.session.execute(self._workspace_query(scope).where(
+            WorkspaceModel.external_namespace == namespace,
+            WorkspaceModel.external_key == key, WorkspaceModel.status != 'purged',
+        ))).scalar_one_or_none()
+        if row is None:
+            raise ArtifactError('ARTIFACT_ACCESS_DENIED', 'Artifact access is denied')
+        return workspace_entity(row)
+
+    async def accessible_workspaces(self, scope: Scope, principal_id: str, *,
+                                     limit: int, after_id: str | None = None,
+                                     namespace: str | None = None) -> tuple[Workspace, ...]:
+        if not 1 <= limit <= 201:
+            raise ValueError('Workspace page limit out of range')
+        permitted = exists(select(GrantModel.id).where(
+            GrantModel.project_id == WorkspaceModel.project_id,
+            GrantModel.environment == WorkspaceModel.environment,
+            GrantModel.principal_id == principal_id, GrantModel.revoked.is_(False),
+            GrantModel.actions.contains(['read']),
+            or_(GrantModel.expires_at.is_(None), GrantModel.expires_at > datetime.now(UTC)),
+            or_(GrantModel.workspace_id == WorkspaceModel.id,
+                GrantModel.external_namespace == WorkspaceModel.external_namespace),
+        ))
+        query = self._workspace_query(scope).where(permitted, WorkspaceModel.status.in_(['active', 'archived']))
+        if after_id is not None:
+            query = query.where(WorkspaceModel.id > after_id)
+        if namespace is not None:
+            query = query.where(WorkspaceModel.external_namespace == namespace)
+        rows = (await self._uow.session.execute(query.order_by(WorkspaceModel.id).limit(limit))).scalars()
+        return tuple(workspace_entity(row) for row in rows)
+
+    async def update_workspace(self, scope: Scope, workspace_id: str, *, expected_version: int,
+                               name: str | None = None, status: str | None = None,
+                               labels: dict[str, str] | None = None) -> Workspace:
+        row = await self.workspace_row(scope, workspace_id, lock=True)
+        if row.version != expected_version:
+            raise ArtifactError('WORKSPACE_REVISION_CONFLICT', 'Workspace version changed')
+        if row.status == 'deletion_pending' and status not in {None, 'deletion_pending'}:
+            raise ArtifactError('WORKSPACE_REVISION_CONFLICT', 'Deletion cannot be undone by a metadata update')
+        current = workspace_entity(row)
+        candidate = replace(current, name=name if name is not None else current.name,
+                            status=status if status is not None else current.status,
+                            labels=tuple(sorted(labels.items())) if labels is not None else current.labels)
+        if candidate != current:
+            row.name = candidate.name
+            row.status = candidate.status.value
+            row.labels = dict(candidate.labels)
+            row.version += 1
+            await self._uow.session.flush()
         return workspace_entity(row)
 
     async def list_workspaces(self, scope: Scope, *, limit: int = 50,

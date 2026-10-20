@@ -215,8 +215,29 @@
         4,
         5
       ],
-      "status": "not_started",
-      "checks": []
+      "status": "completed",
+      "checks": [
+        {
+          "command": ".venv/bin/python /workspace/.onboarding/run_artifact_tests.py -q tests/integration/artifacts/test_workspaces_postgres.py tests/integration/artifacts/test_catalog_postgres.py tests/integration/artifacts/test_authorization_postgres.py",
+          "outcome": "passed",
+          "evidence": "36 real PostgreSQL cases passed in 34.47s across fresh and populated-upgrade paths, including concurrent idempotent creation, conflicting requests, CAS, renamed receipt replay, signed SQL-filtered pagination and real public composer"
+        },
+        {
+          "command": ".venv/bin/python -m pytest -q tests/unit/artifacts tests/architecture/test_artifacts_plan_guard.py",
+          "outcome": "passed",
+          "evidence": "55 passed; domain, schemas, authorization, signed cursor scope/tampering and ordered delivery guards"
+        },
+        {
+          "command": "WOOBE_RUN_PERSISTENCE_MODE=legacy_finalization WOOBE_DATABASE_URL=sqlite+aiosqlite:////workspace/.onboarding/mocked.db .venv/bin/python -m pytest -q tests/unit tests/fakes/test_openai_provider.py",
+          "outcome": "passed",
+          "evidence": "3159 passed, 10 subtests passed, 6 warnings in 41.17s"
+        },
+        {
+          "command": "Ruff Artifacts and tests; all architecture policies",
+          "outcome": "passed",
+          "evidence": "All Ruff checks and nine module architecture policies passed, including strict short transactional composers; no Session/Run/Agent execution needed for Workspace operations"
+        }
+      ]
     },
     {
       "id": 7,

@@ -89,6 +89,7 @@ class ErrorCode(StrEnum):
     SOURCE_UNAVAILABLE = 'SOURCE_UNAVAILABLE'
     WORKSPACE_BINDING_CONFLICT = 'WORKSPACE_BINDING_CONFLICT'
     REVISION_CONFLICT = 'ARTIFACT_REVISION_CONFLICT'
+    WORKSPACE_REVISION_CONFLICT = 'WORKSPACE_REVISION_CONFLICT'
     PATH_CONFLICT = 'ARTIFACT_PATH_CONFLICT'
     IDEMPOTENCY_CONFLICT = 'ARTIFACT_IDEMPOTENCY_CONFLICT'
     QUOTA_EXCEEDED = 'QUOTA_EXCEEDED'
@@ -207,6 +208,7 @@ class Workspace:
     used_bytes: int = 0
     reserved_bytes: int = 0
     retention_days: int = 30
+    labels: tuple[tuple[str, str], ...] = ()
 
     def __post_init__(self):
         opaque_id(self.id)
@@ -222,6 +224,11 @@ class Workspace:
             raise ValueError('Negative quota accounting')
         if self.used_bytes + self.reserved_bytes > self.quota_bytes:
             raise ValueError('Quota accounting exceeds its limit')
+        if len(self.labels) > 32 or len(dict(self.labels)) != len(self.labels):
+            raise ValueError('Invalid workspace labels')
+        for key, value in self.labels:
+            if not key or len(key) > 64 or len(value) > 1024 or '\x00' in key + value:
+                raise ValueError('Invalid workspace label')
 
 
 @dataclass(frozen=True)

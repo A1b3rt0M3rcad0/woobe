@@ -29,6 +29,14 @@
       "title": "External Namespace",
       "type": "string"
     },
+    "labels": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "maxProperties": 32,
+      "title": "Labels",
+      "type": "object"
+    },
     "name": {
       "maxLength": 255,
       "minLength": 1,
@@ -37,6 +45,7 @@
     },
     "quota_bytes": {
       "default": 1073741824,
+      "maximum": 9223372036854775807,
       "minimum": 0,
       "title": "Quota Bytes",
       "type": "integer"

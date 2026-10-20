@@ -60,8 +60,9 @@ class WorkspaceCreate(Contract):
     external_key: str = Field(min_length=1, max_length=255)
     name: str = Field(min_length=1, max_length=255)
     storage_profile: Identifier = 'local'
-    quota_bytes: int = Field(default=1_073_741_824, ge=0)
+    quota_bytes: int = Field(default=1_073_741_824, ge=0, le=9_223_372_036_854_775_807)
     retention_days: int = Field(default=30, ge=0, le=36500)
+    labels: dict[str, str] = Field(default_factory=dict, max_length=32)
 
     @model_validator(mode='after')
     def validate_names(self):
@@ -75,6 +76,7 @@ class WorkspaceUpdate(Contract):
     expected_version: int = Field(ge=1)
     name: str | None = Field(default=None, min_length=1, max_length=255)
     status: Literal['active', 'archived', 'deletion_pending'] | None = None
+    labels: dict[str, str] | None = Field(default=None, max_length=32)
 
 
 class UploadCreate(Contract):

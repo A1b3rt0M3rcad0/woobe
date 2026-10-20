@@ -12,4 +12,33 @@ from modules.artifacts.application.contracts.api import (
 from modules.artifacts.domain.models import ArtifactError as ArtifactError
 
 
+from modules.artifacts.composition.composers.create_workspace import create_workspace_composer as create_workspace_composer
+
+from modules.artifacts.composition.composers.get_workspace import get_workspace_composer as get_workspace_composer
+
+from modules.artifacts.composition.composers.resolve_workspace import resolve_workspace_composer as resolve_workspace_composer
+
+from modules.artifacts.composition.composers.list_workspaces import list_workspaces_composer as list_workspaces_composer
+
+from modules.artifacts.composition.composers.update_workspace import update_workspace_composer as update_workspace_composer
+
+from modules.artifacts.composition.composers.create_workspace_grant import create_workspace_grant_composer as create_workspace_grant_composer
+
+from modules.artifacts.composition.composers.revoke_workspace_grant import revoke_workspace_grant_composer as revoke_workspace_grant_composer
+
+from modules.artifacts.application.contracts.workspaces import CreateWorkspace as CreateWorkspace
+
+from modules.artifacts.application.contracts.workspaces import ReadWorkspace as ReadWorkspace
+
+from modules.artifacts.application.contracts.workspaces import ResolveWorkspace as ResolveWorkspace
+
+from modules.artifacts.application.contracts.workspaces import ListWorkspaces as ListWorkspaces
+
+from modules.artifacts.application.contracts.workspaces import ChangeWorkspace as ChangeWorkspace
+
+from modules.artifacts.application.contracts.workspaces import CreateWorkspaceGrant as CreateWorkspaceGrant
+
+from modules.artifacts.application.contracts.workspaces import RevokeWorkspaceGrant as RevokeWorkspaceGrant
+
+
 CONTRACT_VERSION = '1'
