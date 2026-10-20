@@ -22,11 +22,15 @@ remain unchanged. CLI make check/build, both Go SDK modes, Python SDK 34 tests,
 Ruff/build/Twine, source hashes and the new workflow validation passed. Step 03 is complete: domain identities/lifecycles, versioned DTOs, capability ports,
 canonical schemas/fixtures and the Artifacts architecture policy are validated.
 31 combined domain/contract/guard tests, Ruff and all nine architecture policies pass.
-Persistence, authorization and adapters are not advertised as implemented. Step 04 is next.
+Persistence, authorization and adapters are not advertised as implemented. Step 04 is complete: additive PostgreSQL migration 0107, scoped catalog/revision
+repositories and transactional Unit of Work passed 14 real PostgreSQL tests across
+fresh and populated-upgrade paths. The native mocked regression passed 3135 tests
+and 10 subtests. Stage 05 authorization is next. See PERSISTENCE.md.
 
 The stage commit carries `Plan-Step: 01/60`; a file never records its own containing
 commit SHA. CI reconciles commit subjects/trailers against the execution manifest.
-No functionality in steps 02–60 or final acceptance is claimed at this stage.
+No final acceptance is claimed. Runtime capabilities are exposed only when their
+authorization, service and adapter steps are implemented and validated.
 
 ## Validation and resumption
 

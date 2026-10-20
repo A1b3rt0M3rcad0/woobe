@@ -156,8 +156,29 @@
       "dependencies": [
         3
       ],
-      "status": "not_started",
-      "checks": []
+      "status": "completed",
+      "checks": [
+        {
+          "command": ".venv/bin/python /workspace/.onboarding/run_artifact_tests.py -q tests/integration/artifacts/test_catalog_postgres.py",
+          "outcome": "passed",
+          "evidence": "14 real PostgreSQL cases passed in 12.89s; both fresh/upgrade paths; additive migrations, uniqueness, immutable revisions, rollback, concurrent CAS, historical visibility, scope, FK ownership and usable indexes; disposable databases removed"
+        },
+        {
+          "command": "WOOBE_RUN_PERSISTENCE_MODE=legacy_finalization WOOBE_DATABASE_URL=sqlite+aiosqlite:////workspace/.onboarding/mocked.db .venv/bin/python -m pytest -q tests/unit tests/fakes/test_openai_provider.py",
+          "outcome": "passed",
+          "evidence": "3135 passed, 10 subtests passed, 6 warnings in 41.30s; no legacy test disabled"
+        },
+        {
+          "command": ".venv/bin/ruff check packages/woobe-core/src/modules/artifacts tests/integration/artifacts; architecture checker all policies",
+          "outcome": "passed",
+          "evidence": "Ruff passed; nine module architecture policies PASS with zero violations; no cross-context ORM imports"
+        },
+        {
+          "command": "pytest tests/unit/artifacts/test_catalog_registry.py tests/integration/artifacts/test_catalog_postgres.py with explicit disposable PostgreSQL fixture",
+          "outcome": "passed",
+          "evidence": "16 passed across two ORM import orders and fresh/populated migration/catalog paths; unique ArtifactWorkspaceModel registry name prevents collision with Identity WorkspaceModel observed in full backend integration CI"
+        }
+      ]
     },
     {
       "id": 5,
