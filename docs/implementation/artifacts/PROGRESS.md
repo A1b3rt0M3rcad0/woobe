@@ -42,7 +42,11 @@ reconciliation, cancellation-safe OS resources, staging cleanup and private scra
 passed 29 targeted/fault tests, including a deterministic reader/promotion race. A 64 MiB stream used under 8 MiB traced Python heap.
 Full mocked regressions passed 3185 tests plus 10 subtests after the publication-lock
 correction; 100 additional concurrent immutable-write pairs each had one winner
-and one explicit conflict. Step 09 S3/multipart qualification is next.
+and one explicit conflict. Step 09 is complete: shared S3 streaming/conditional multipart, verified SHA-256,
+ACK reconciliation, safe abort and Knowledge facade passed 40 targeted tests
+(including 11 against a real pinned S3-compatible service), architecture, Ruff and
+actionlint. The full mocked regression passed 3185 tests plus 10 subtests.
+No real AWS qualification is claimed. Step 10 resumable upload orchestration is next.
 
 The stage commit carries `Plan-Step: 01/60`; a file never records its own containing
 commit SHA. CI reconciles commit subjects/trailers against the execution manifest.

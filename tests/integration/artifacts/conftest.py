@@ -1,6 +1,7 @@
 """Real PostgreSQL tests use disposable databases, never the application DB."""
 
 import os
+import json
 from pathlib import Path
 import subprocess
 import sys
@@ -13,9 +14,46 @@ from alembic.config import Config
 from alembic.script import ScriptDirectory
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import create_async_engine
+import botocore.session
+from botocore.config import Config as S3Config
 
 
 ROOT = Path(__file__).resolve().parents[3]
+
+
+@pytest.fixture(scope='module')
+def s3_backend():
+    filename = os.environ.get('WOOBE_ARTIFACT_TEST_S3_CONFIG_FILE')
+    if not filename:
+        pytest.skip('Explicit local S3-compatible test configuration required')
+    configuration = json.loads(Path(filename).read_text())
+    session = botocore.session.Session()
+    # Explicit test credentials must not use an unrelated ambient AWS profile.
+    session.get_component('config_store').set_config_variable('profile', None)
+    session.set_credentials(configuration['access_key'], configuration['secret_key'])
+    client = session.create_client('s3', endpoint_url=configuration['endpoint'],
+        region_name='us-east-1', config=S3Config(signature_version='s3v4',
+            s3={'addressing_style': 'path'}, connect_timeout=5, read_timeout=10,
+            retries={'mode': 'standard', 'max_attempts': 1}))
+    bucket = 'woobe-artifacts-tests-' + uuid4().hex
+    created = False
+    try:
+        client.create_bucket(Bucket=bucket)
+        created = True
+        yield client, bucket
+    finally:
+        if created:
+            for upload in client.list_multipart_uploads(Bucket=bucket).get('Uploads', []):
+                client.abort_multipart_upload(Bucket=bucket, Key=upload['Key'], UploadId=upload['UploadId'])
+            while True:
+                page = client.list_objects_v2(Bucket=bucket)
+                objects = page.get('Contents', [])
+                if not objects:
+                    break
+                for obj in objects:
+                    client.delete_object(Bucket=bucket, Key=obj['Key'])
+            client.delete_bucket(Bucket=bucket)
+        client.close()
 
 
 @pytest.fixture

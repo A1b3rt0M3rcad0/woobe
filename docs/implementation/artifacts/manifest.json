@@ -310,8 +310,29 @@
         7,
         8
       ],
-      "status": "not_started",
-      "checks": []
+      "status": "completed",
+      "checks": [
+        {
+          "command": "WOOBE_ARTIFACT_TEST_S3_CONFIG_FILE=<private local fixture> .venv/bin/python -m pytest -q tests/unit/artifacts/test_local_storage_faults.py tests/unit/artifacts/test_object_storage.py tests/unit/agent/test_portable_document_storage.py tests/integration/artifacts/test_s3_storage.py",
+          "outcome": "passed",
+          "evidence": "40 passed in 2.02s; 11 real S3-compatible cases including read retry, failed part, bounded concurrency, multipart ACK loss and abort; SeaweedFS 4.48 pinned verified official binary; no AWS account qualification"
+        },
+        {
+          "command": "native full mocked backend regression (baseline command)",
+          "outcome": "passed",
+          "evidence": "3185 passed, 10 subtests passed, 6 warnings in 42.54s; /workspace/.onboarding/artifacts-step09-regression.log; subsequent change only bounds S3 concurrent uploads, covered by real-service regression"
+        },
+        {
+          "command": "Ruff changed storage/composition/tests/helper; architecture policy checker; actionlint v1.7.7 artifacts-storage.yml",
+          "outcome": "passed",
+          "evidence": "All checks passed; nine modules zero violations; workflow accepted"
+        },
+        {
+          "command": "artifact_s3_test_server.py start; repeated start; --stop; restart",
+          "outcome": "passed",
+          "evidence": "Authenticated local S3 readiness, owned-process shutdown and repeatable restart; private credential paths only in output"
+        }
+      ]
     },
     {
       "id": 10,

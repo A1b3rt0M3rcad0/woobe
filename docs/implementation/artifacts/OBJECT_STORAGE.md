@@ -63,3 +63,41 @@ A generated 64 MiB stream measured under 8 MiB peak traced Python heap (the firs
 recorded run measured 148,894 bytes); this demonstrates absence of a full Python
 upload buffer, not total RSS or production throughput. Measurements are local
 adapter evidence, not S3 or multi-node qualification.
+
+Step 09 adds the shared S3 adapter and the legacy Knowledge facade. Immutable
+publication uses conditional multipart completion (or conditional empty-object
+put), actual streamed SHA-256/size verification and reconciliation after a lost
+completion response. ETag is never interpreted as a content checksum. Uploads
+are bounded to four concurrent streams per adapter with sequential 8 MiB parts;
+part size is configurable within 5–64 MiB and the 10,000-part ceiling is enforced.
+The factory retains the existing boto3 credential chain, SigV4, TLS verification,
+endpoint/region/path-style configuration and configured server-side encryption.
+Credentials and multipart IDs remain server-side. Storage receipts contain only
+key, verified metadata and an optional backend VersionId.
+
+Range reads close their bodies on completion, interruption and early consumption.
+A failed read is explicitly retryable from the caller's contracted offset, without
+silently appending a restarted body. Cleanup lists only an owned prefix, requires
+a grace period and checks the current owner's active state before aborting private
+multipart uploads. No upload URL exists that could mutate a completed object.
+Unsupported conditional-write endpoints fail closed. Artifacts composition now
+supports configured local and S3 profiles; configuration membership alone does not
+advertise readiness or a public upload capability.
+
+The real compatibility suite uses SeaweedFS 4.48, upstream commit
+`530be3e37337488ecc34d58441e0bc476e121c93`, under Apache-2.0. The optional development
+helper `scripts/ci/artifact_s3_test_server.py` downloads its official Linux amd64
+release and checks SHA-256
+`4a7d108384d044d95212d1342cdda9533fa55842c1c9b41f606ca3c8a9561124`
+before execution. The binary is external test infrastructure, never bundled in a
+product artifact. Sources/license: https://github.com/seaweedfs/seaweedfs/tree/4.48.
+Generated credentials and state stay outside the checkout, private and bound to
+localhost. Startup validates authenticated S3 access; stop checks process ownership.
+The read-only `artifacts-storage.yml` workflow repeats these real-service tests.
+
+Qualification covers empty and 11 MiB multipart objects, SHA-256 metadata, Range,
+immutable races, failed checksum/input/part, aborted staging, completion ACK loss,
+safe read retry, active-owner expiry protection, bounded upload concurrency and
+legacy keys/attributes/overwrite. This is local S3-compatible evidence. No real AWS
+account, KMS integration, replicated production service or SSE behavior was tested;
+these features are not claimed as qualified by this suite.

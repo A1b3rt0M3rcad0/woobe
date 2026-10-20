@@ -8,16 +8,7 @@ from modules.agent.application.interfaces.file_storage import (
 )
 from shared.contracts.object_storage import ObjectStorageError, read_bounded
 from shared.infra.object_storage.local import LocalObjectStorage
-
-
-def _legacy_error(error: ObjectStorageError):
-    if error.code in {'invalid_key', 'invalid_object', 'range', 'integrity'}:
-        return ValueError(str(error))
-    if isinstance(error.__cause__, OSError):
-        return error.__cause__
-    if error.code == 'not_found':
-        return FileNotFoundError('Document is unavailable')
-    return OSError(str(error))
+from modules.agent.infra.storage.errors import legacy_document_error
 
 
 class LocalFileStorage:
@@ -43,20 +34,20 @@ class LocalFileStorage:
             await self._objects.put(key, chunks(), size_bytes=len(content), sha256=digest,
                                     content_type=content_type, replace=True)
         except ObjectStorageError as error:
-            raise _legacy_error(error) from error
+            raise legacy_document_error(error) from error
         return StoredFile(key, safe_name, content_type, len(content), digest)
 
     async def read_document(self, storage_key: str) -> bytes:
         try:
             return b''.join([chunk async for chunk in self._objects.open(storage_key)])
         except ObjectStorageError as error:
-            raise _legacy_error(error) from error
+            raise legacy_document_error(error) from error
 
     async def read_document_bounded(self, storage_key: str, *, max_bytes: int) -> bytes:
         try:
             return await read_bounded(self._objects, storage_key, max_bytes=max_bytes)
         except ObjectStorageError as error:
-            raise _legacy_error(error) from error
+            raise legacy_document_error(error) from error
 
     async def delete(self, storage_key: str):
         try:
@@ -64,4 +55,4 @@ class LocalFileStorage:
         except ObjectStorageError as error:
             if error.code == 'invalid_key' or isinstance(error.__cause__, IsADirectoryError):
                 return
-            raise _legacy_error(error) from error
+            raise legacy_document_error(error) from error

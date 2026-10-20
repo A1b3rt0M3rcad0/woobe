@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 from contextlib import contextmanager
 from dataclasses import asdict
 import fcntl
@@ -13,6 +12,8 @@ import re
 import stat
 import time
 from uuid import uuid4
+
+from shared.infra.object_storage.io import run_blocking
 
 from shared.contracts.object_storage import (
     CHUNK_BYTES, ObjectMetadata, ObjectStorageError, validate_object_key,
@@ -29,24 +30,7 @@ class LocalObjectStorage:
     def _key(self, key):
         return validate_object_key(key, legacy=self._legacy_keys)
 
-    @staticmethod
-    async def _io(function, *args, on_cancel=None, **kwargs):
-        """Wait for owned OS work before cancellation closes/reuses its descriptors."""
-        task = asyncio.create_task(asyncio.to_thread(function, *args, **kwargs))
-        cancelled = False
-        while True:
-            try:
-                result = await asyncio.shield(task)
-                break
-            except asyncio.CancelledError:
-                if task.cancelled():
-                    raise
-                cancelled = True
-        if cancelled:
-            if on_cancel is not None:
-                await LocalObjectStorage._io(on_cancel, result)
-            raise asyncio.CancelledError
-        return result
+    _io = staticmethod(run_blocking)
 
     @contextmanager
     def _parent(self, key: str, *, create: bool = False):
