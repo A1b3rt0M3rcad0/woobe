@@ -344,8 +344,29 @@
         8,
         9
       ],
-      "status": "not_started",
-      "checks": []
+      "status": "completed",
+      "checks": [
+        {
+          "command": "Explicit disposable PostgreSQL + local/private S3: pytest tests/integration/artifacts tests/unit/artifacts/test_catalog_registry.py",
+          "outcome": "passed",
+          "evidence": "89 passed, 8 warnings in 62.58s; 40 upload cases across fresh/populated and local/real-S3 paths; /workspace/.onboarding/artifacts-step10-postgres.log"
+        },
+        {
+          "command": "Existing security integration suite + Artifacts authorization using an isolated migrated PostgreSQL database",
+          "outcome": "passed",
+          "evidence": "40 passed, 2 warnings in 23.93s; rerun with exact test trusted host after initial environment-only Invalid host header; proves shared ORM coexistence under existing security/HTTP use; /workspace/.onboarding/artifacts-registry-security-regression.log"
+        },
+        {
+          "command": "Native full mocked backend regression (baseline selection)",
+          "outcome": "passed",
+          "evidence": "3187 passed, 10 subtests passed, 6 warnings in 47.91s; /workspace/.onboarding/artifacts-step10-regression.log"
+        },
+        {
+          "command": "Ruff; nine architecture policies; actionlint artifacts-storage.yml; plan guard tests",
+          "outcome": "passed",
+          "evidence": "No lint errors; zero architecture violations; valid read-only real PostgreSQL/S3 integration CI; 14 plan guards passed"
+        }
+      ]
     },
     {
       "id": 11,

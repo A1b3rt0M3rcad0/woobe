@@ -39,3 +39,8 @@ from modules.artifacts.composition.public_api import ChangeWorkspace as ChangeWo
 from modules.artifacts.composition.public_api import CreateWorkspaceGrant as CreateWorkspaceGrant
 
 from modules.artifacts.composition.public_api import RevokeWorkspaceGrant as RevokeWorkspaceGrant
+
+from modules.artifacts.composition.public_api import (
+    build_upload_service as build_upload_service, BeginUpload as BeginUpload,
+    UploadRequest as UploadRequest, UploadPart as UploadPart, UploadView as UploadView,
+)

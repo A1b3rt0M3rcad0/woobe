@@ -46,7 +46,12 @@ and one explicit conflict. Step 09 is complete: shared S3 streaming/conditional 
 ACK reconciliation, safe abort and Knowledge facade passed 40 targeted tests
 (including 11 against a real pinned S3-compatible service), architecture, Ruff and
 actionlint. The full mocked regression passed 3185 tests plus 10 subtests.
-No real AWS qualification is claimed. Step 10 resumable upload orchestration is next.
+No real AWS qualification is claimed. Step 10 is complete: owner-scoped resumable proxy parts, quota reservations,
+short database phases, immutable verified finalization, durable receipt/outbox and
+concurrent abort/expiry/CAS reconciliation passed 89 integration/registry tests.
+The existing security integration suite plus Artifacts authority passed 40 tests;
+full mocked regression passed 3187 tests plus 10 subtests. See UPLOADS.md.
+Step 11 file mutations and logical directories is next.
 
 The stage commit carries `Plan-Step: 01/60`; a file never records its own containing
 commit SHA. CI reconciles commit subjects/trailers against the execution manifest.

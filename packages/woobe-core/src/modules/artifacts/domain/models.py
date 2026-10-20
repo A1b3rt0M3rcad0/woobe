@@ -270,6 +270,7 @@ class Revision:
     sha256: str
     origin: str
     producer_id: str | None = None
+    storage_version_id: str | None = None
 
     def __post_init__(self):
         ArtifactRef(self.artifact_id, self.id)

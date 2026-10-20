@@ -96,6 +96,7 @@ class RevisionModel(ArtifactRecord):
     sha256: Mapped[str] = mapped_column(String(64))
     origin: Mapped[str] = mapped_column(String(32))
     producer_id: Mapped[str | None] = mapped_column(String(128))
+    storage_version_id: Mapped[str | None] = mapped_column(String(1024))
 
 
 class HeadHistoryModel(ArtifactRecord):
@@ -164,6 +165,7 @@ class UploadModel(ArtifactRecord):
     path: Mapped[str] = mapped_column(String(1024))
     artifact_id: Mapped[str | None] = mapped_column(String(128))
     expected_revision: Mapped[str | None] = mapped_column(String(128))
+    planned_revision_id: Mapped[str] = mapped_column(String(128))
     offset: Mapped[int] = mapped_column(BigInteger, default=0)
     status: Mapped[str] = mapped_column(String(16), default='created')
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
@@ -174,3 +176,18 @@ class UploadModel(ArtifactRecord):
 # Keep repository-local imports stable without registering a second ORM class
 # named WorkspaceModel alongside the Identity bounded context.
 WorkspaceModel = ArtifactWorkspaceModel
+
+
+class ArtifactEventModel(ArtifactRecord):
+    __tablename__ = 'events'
+    __table_args__ = (
+        UniqueConstraint('workspace_id', 'operation_id', 'kind', name='uq_artifact_event_operation'),
+        Index('ix_artifact_events_delivery', 'delivered_at', 'created_at', 'id'),
+        {'schema': 'artifacts'},
+    )
+
+    workspace_id: Mapped[str] = mapped_column(ForeignKey('artifacts.workspaces.id', ondelete='RESTRICT'))
+    operation_id: Mapped[str] = mapped_column(String(128))
+    kind: Mapped[str] = mapped_column(String(128))
+    payload: Mapped[dict] = mapped_column(JSONB)
+    delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

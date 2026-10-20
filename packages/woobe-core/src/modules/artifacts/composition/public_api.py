@@ -41,4 +41,9 @@ from modules.artifacts.application.contracts.workspaces import CreateWorkspaceGr
 from modules.artifacts.application.contracts.workspaces import RevokeWorkspaceGrant as RevokeWorkspaceGrant
 
 
+from modules.artifacts.composition.uploads import build_upload_service as build_upload_service
+from modules.artifacts.application.contracts.uploads import (
+    BeginUpload as BeginUpload, UploadRequest as UploadRequest, UploadPart as UploadPart, UploadView as UploadView,
+)
+
 CONTRACT_VERSION = '1'

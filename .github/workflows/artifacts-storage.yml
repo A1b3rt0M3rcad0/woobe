@@ -20,10 +20,22 @@ jobs:
   local-and-s3:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: artifact_test
+          POSTGRES_PASSWORD: artifact_test
+          POSTGRES_DB: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U artifact_test -d postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 12
     env:
       WOOBE_ENVIRONMENT: test
       WOOBE_RUN_PERSISTENCE_MODE: legacy_finalization
       WOOBE_ARTIFACT_TEST_S3_CONFIG_FILE: /tmp/woobe-artifact-s3/test-credentials.json
+      WOOBE_ARTIFACT_TEST_POSTGRES_URL: postgresql://artifact_test:artifact_test@localhost:5432/postgres
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
@@ -34,6 +46,16 @@ jobs:
       - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
       - name: Install frozen test dependencies
         run: uv sync --frozen --all-groups --extra test --no-install-project
+      - name: Generate ephemeral application configuration
+        run: |
+          python - <<'PY'
+          import base64
+          import os
+          import secrets
+          with open(os.environ['GITHUB_ENV'], 'a') as target:
+              target.write('WOOBE_SECRET_KEY=' + secrets.token_urlsafe(48) + '\n')
+              target.write('WOOBE_ENCRYPTION_KEY=' + base64.urlsafe_b64encode(secrets.token_bytes(32)).decode() + '\n')
+          PY
       - name: Start a verified private S3-compatible server
         run: .venv/bin/python scripts/ci/artifact_s3_test_server.py
       - name: Qualify local faults and real S3 operations
@@ -42,7 +64,7 @@ jobs:
           tests/unit/artifacts/test_object_storage.py
           tests/unit/artifacts/test_local_storage_faults.py
           tests/unit/agent/test_portable_document_storage.py
-          tests/integration/artifacts/test_s3_storage.py
+          tests/integration/artifacts
       - name: Stop only the owned qualification process
         if: always()
         run: |
