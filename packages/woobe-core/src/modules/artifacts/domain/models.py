@@ -105,6 +105,8 @@ class ErrorCode(StrEnum):
     INVALID_RANGE = 'ARTIFACT_INVALID_RANGE'
     LIMIT_EXCEEDED = 'ARTIFACT_LIMIT_EXCEEDED'
     STORAGE_UNAVAILABLE = 'ARTIFACT_STORAGE_UNAVAILABLE'
+    PDF_PASSWORD_REQUIRED = 'PDF_PASSWORD_REQUIRED'
+    PDF_INVALID_DOCUMENT = 'PDF_INVALID_DOCUMENT'
 
 
 class ArtifactError(Exception):
@@ -337,6 +339,28 @@ class DocumentBlock:
 
 
 @dataclass(frozen=True)
+class DocumentPage:
+    page_index: int
+    page_number: int
+    label: str
+    width_points: float
+    height_points: float
+    text_characters: int
+    status: str
+    diagnostics: tuple[str, ...] = ()
+
+    def __post_init__(self):
+        if self.page_index < 0 or self.page_number != self.page_index + 1:
+            raise ValueError('Invalid physical page identity')
+        if not 0 < self.width_points <= 100_000 or not 0 < self.height_points <= 100_000:
+            raise ValueError('Invalid page dimensions')
+        if self.text_characters < 0 or len(self.label) > 128:
+            raise ValueError('Invalid page metadata')
+        if self.status not in {'text', 'empty', 'needs_ocr', 'failed'}:
+            raise ValueError('Invalid page extraction status')
+
+
+@dataclass(frozen=True)
 class CanonicalDocument:
     revision: ArtifactRef
     blocks: tuple[DocumentBlock, ...]
@@ -348,6 +372,7 @@ class CanonicalDocument:
     text_normalization: str = 'none'
     trust_level: str = 'untrusted_source'
     page_count: int | None = None
+    pages: tuple[DocumentPage, ...] = ()
 
     def __post_init__(self):
         if self.source_encoding not in {None, 'utf-8', 'utf-16-le', 'utf-16-be', 'latin-1'}:
@@ -362,6 +387,9 @@ class CanonicalDocument:
             raise ValueError('Invalid source character count')
         if self.page_count is not None and self.page_count < 0:
             raise ValueError('Invalid physical page count')
+        if self.pages and (self.page_count != len(self.pages)
+                           or tuple(page.page_index for page in self.pages) != tuple(range(len(self.pages)))):
+            raise ValueError('Canonical pages must preserve complete physical order')
         object.__setattr__(self, 'coverage', Coverage(self.coverage))
         if len({block.id for block in self.blocks}) != len(self.blocks):
             raise ValueError('Duplicate block IDs in representation')

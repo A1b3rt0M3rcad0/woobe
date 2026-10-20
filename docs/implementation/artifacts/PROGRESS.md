@@ -76,7 +76,14 @@ encoding, original byte/Unicode/line provenance, structured untrusted data and
 streamed private canonical checkpoints passed 117 unit/guard cases, 227 real
 integration cases and 4 final ranged-read/ACK-recovery cases. Full mocked regression
 passed 3219 tests plus 10 subtests before two additional passing unit cases. All
-nine architecture policies passed. See NATIVE_TEXT.md. Step 16 PDF processing is next.
+nine architecture policies passed. See NATIVE_TEXT.md. Step 16 is complete: resource-bounded isolated PDF extraction/rendering, physical
+pages/printed labels, precise protected/invalid errors and explicit partial/OCR
+coverage passed 139 targeted cases and 235 integration cases. The final renderer
+dependencies also passed 8 repeated real PostgreSQL/storage PDF cases and 3229
+mocked regressions plus 10 subtests. See NATIVE_PDF.md. Step 17 optional Docling
+integration is next. Hugging Face model acquisition is currently refused by the
+network proxy; a narrowly scoped network draft is saved and awaits environment
+configuration activation. No weight-based profile is represented as qualified.
 
 The stage commit carries `Plan-Step: 01/60`; a file never records its own containing
 commit SHA. CI reconciles commit subjects/trailers against the execution manifest.

@@ -3,7 +3,7 @@ import hashlib
 import json
 import math
 
-from modules.artifacts.domain.models import ArtifactError, ArtifactRef, CanonicalDocument, Coverage, DocumentBlock, Locator
+from modules.artifacts.domain.models import ArtifactError, ArtifactRef, CanonicalDocument, Coverage, DocumentBlock, DocumentPage, Locator
 
 
 CANONICAL_SCHEMA_VERSION = '1'
@@ -77,6 +77,8 @@ def decode_canonical(content):
             blocks.append(DocumentBlock(**block))
         value['diagnostics'] = tuple(value.get('diagnostics', ()))
         value['coverage'] = Coverage(value['coverage'])
+        value['pages'] = tuple(DocumentPage(**{**page, 'diagnostics': tuple(page.get('diagnostics', ()))})
+                               for page in value.get('pages', ()))
         return CanonicalDocument(revision, tuple(blocks), **value)
     except (KeyError, TypeError, ValueError, RecursionError) as error:
         raise ArtifactError('UPLOAD_INTEGRITY_MISMATCH', 'Stored canonical document is invalid') from error

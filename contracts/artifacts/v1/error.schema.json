@@ -20,7 +20,9 @@
         "ARTIFACT_INVALID_CURSOR",
         "ARTIFACT_INVALID_RANGE",
         "ARTIFACT_LIMIT_EXCEEDED",
-        "ARTIFACT_STORAGE_UNAVAILABLE"
+        "ARTIFACT_STORAGE_UNAVAILABLE",
+        "PDF_PASSWORD_REQUIRED",
+        "PDF_INVALID_DOCUMENT"
       ],
       "title": "ErrorCode",
       "type": "string"

@@ -548,8 +548,29 @@
         14,
         15
       ],
-      "status": "not_started",
-      "checks": []
+      "status": "completed",
+      "checks": [
+        {
+          "command": ".venv/bin/python -m pytest -q tests/unit/artifacts tests/architecture/test_artifacts_plan_guard.py tests/architecture/test_agent_boundaries.py tests/architecture/test_worker_locations.py",
+          "outcome": "passed",
+          "evidence": "139 passed; includes 10 real isolated PDF parser/render/resource cases and reviewed physical-page golden; artifacts-step16-unit-final.log"
+        },
+        {
+          "command": "real PostgreSQL full Artifacts integration, local and real S3-compatible adapters, fresh/populated upgrades",
+          "outcome": "passed",
+          "evidence": "235 passed; artifacts-step16-integration.log; 8 PDF cases additionally repeated against final Pillow 12.3.0 in artifacts-step16-pdf-final.log"
+        },
+        {
+          "command": "full native mocked backend regression",
+          "outcome": "passed",
+          "evidence": "3229 passed plus 10 subtests with final Pillow 12.3.0; two additional nontext-page tests subsequently passed in 139-case final targeted run; artifacts-step16-regression-final.log"
+        },
+        {
+          "command": "nine architecture policies, Ruff, uv pip check, converter-free public import, git diff --check",
+          "outcome": "passed",
+          "evidence": "zero architecture violations; all installed packages compatible; API public import loads neither PDFium nor Pillow; complete upstream binary notices retained"
+        }
+      ]
     },
     {
       "id": 17,

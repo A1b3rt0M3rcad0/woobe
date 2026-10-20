@@ -85,3 +85,21 @@ by their upstream licenses. Full notices are preserved in
 Sources: https://github.com/executablebooks/markdown-it-py and
 https://github.com/executablebooks/mdurl. Parsing disables HTML rendering and
 performs no remote-resource fetch or script execution.
+
+## Native PDF extraction and rendering
+
+The isolated native PDF adapter uses pypdf 6.19.0 (BSD-3-Clause), pypdfium2 5.14.0
+(Apache-2.0/BSD-3-Clause), its PDFium 156.0.8076.0 binary and Pillow 12.3.0
+(MIT-CMU). Exact wheels and hashes are locked in uv.lock. Full original notices,
+including the PDFium build dependencies and Pillow's bundled dependency notices,
+are retained under [docs/licenses](docs/licenses). PDFium build notices include
+FreeType, ICU, libjpeg-turbo, libpng, OpenJPEG, lcms, zlib, Abseil, AGG, fast_float,
+simdutf and llvm-libc; those components retain their individual upstream terms.
+The pypdfium2 distribution's CC-BY-4.0 documentation notice is also preserved.
+No PyMuPDF/MuPDF component is included in this implementation.
+
+Sources: https://github.com/py-pdf/pypdf,
+https://github.com/pypdfium2-team/pypdfium2,
+https://pdfium.googlesource.com/pdfium/ and https://github.com/python-pillow/Pillow.
+The original FreeType attribution is: "Portions of this software are copyright
+© The FreeType Project (www.freetype.org). All rights reserved."

@@ -42,7 +42,8 @@ class DocumentPipeline:
                 'content_type': metadata.content_type, 'version_id': metadata.version_id,
                 'source_sha256': context.source.sha256, 'coverage': document.coverage.value,
                 'block_count': len(document.blocks), 'page_count': document.page_count or 0,
-                'diagnostics': list(document.diagnostics), 'canonical_schema_version': '1'}
+                'diagnostics': list(document.diagnostics[:32]),
+                'diagnostic_count': len(document.diagnostics), 'canonical_schema_version': '1'}
 
     def result(self, context):
         canonical = context.checkpoints['extract']
