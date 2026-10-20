@@ -59,3 +59,9 @@ def tesseract_descriptor(directory, executable):
         frozenset({'application/pdf', 'image/png', 'image/jpeg'}), libraries=tuple(libraries),
         available=ready and platform.system() == 'Linux', languages=('eng', 'por'), default_languages=('por', 'eng'),
         diagnostic=diagnostic or ('' if ready and platform.system() == 'Linux' else 'isolated_worker_requires_linux'))
+
+
+def structural_index_descriptor():
+    # First-party algorithm version, not an external Python distribution pin.
+    return ComponentDescriptor('structural', '1', 'indexer', 'canonical', 'index', frozenset(),
+        libraries=(LibraryPin(name='woobe-structural-index', version='1'),), available=True, diagnostic='')

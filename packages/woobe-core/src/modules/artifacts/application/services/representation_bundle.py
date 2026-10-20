@@ -75,6 +75,8 @@ async def build_bundle(context):
     document = decode_canonical(await verified_read(context, extracted, maximum))
     if document.revision.artifact_id != context.source.artifact_id or document.revision.revision_id != context.source.id:
         raise ArtifactError('UPLOAD_INTEGRITY_MISMATCH', 'Canonical representation source differs')
+    if context.lease.recipe.mode == 'extract_index':
+        context.transient['canonical_document'] = document
     prefix = (f'projects/{context.lease.scope.project_id}/environments/{context.lease.scope.environment.value}/'
               f'artifact-workspaces/{workspace}/processing/{context.lease.id}/attempts/{context.lease.fencing_token}/')
     entries, blocks, segments = [], [], []

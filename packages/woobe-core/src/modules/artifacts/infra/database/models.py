@@ -364,3 +364,8 @@ from modules.artifacts.infra.database.representation_models import (  # noqa: E4
     ArtifactSourceSegmentModel as ArtifactSourceSegmentModel,
     ArtifactStoredObjectModel as ArtifactStoredObjectModel,
 )
+
+from modules.artifacts.infra.database.index_models import (  # noqa: E402
+    ArtifactDocumentIndexModel as ArtifactDocumentIndexModel,
+    ArtifactDocumentNodeModel as ArtifactDocumentNodeModel,
+)

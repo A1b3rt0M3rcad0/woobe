@@ -23,6 +23,8 @@ from modules.artifacts.entrypoint import (
     ReadRepresentation, ListRepresentations, ReadSource, SourceReadDefinition, SourceReadView,
     RepresentationSetView, RepresentationEntryPage, CopyRepresentation, CopyRepresentationDefinition,
     build_representation_service,
+    ReadIndex, ReadIndexNode, ListIndexNodes, DocumentIndexView, DocumentNodeView, DocumentNodePage,
+    get_document_index_composer, get_document_node_composer, list_document_nodes_composer,
 )
 from shared.contracts.object_storage import ObjectStorageError
 from woobe_api.http.artifacts.contracts import FileCreate, FileMove, GrantCreate, Identifier, TextUpdate
@@ -385,3 +387,31 @@ async def download_representation(artifact_id: Identifier, revision_id: Identifi
         headers['Content-Range'] = f'bytes {start}-{stop - 1}/{size}'
     return ArtifactDownloadResponse(content(), owned_stream=stream, status_code=206 if range_header else 200,
         media_type=entry.content_type, headers=headers)
+
+
+@router.get('/document-indexes/{document_index_id}', response_model=DocumentIndexView)
+async def get_document_index(document_index_id: Identifier, artifact_workspace_id: Identifier, ctx: Context):
+    return await get_document_index_composer()(ReadIndex(*ctx, artifact_workspace_id, document_index_id))
+
+
+@router.get('/document-indexes/{document_index_id}/nodes', response_model=DocumentNodePage)
+async def list_document_nodes(document_index_id: Identifier, artifact_workspace_id: Identifier, ctx: Context,
+                               parent_id: Identifier | None = None, limit: int = Query(default=50, ge=1, le=200),
+                               cursor: str | None = Query(default=None, max_length=4096)):
+    return await list_document_nodes_composer()(ListIndexNodes(*ctx, artifact_workspace_id,
+        document_index_id, parent_id, limit, cursor))
+
+
+@router.get('/document-indexes/{document_index_id}/nodes/{node_id}', response_model=DocumentNodeView)
+async def get_document_node(document_index_id: Identifier, node_id: Identifier, artifact_workspace_id: Identifier, ctx: Context):
+    return await get_document_node_composer()(ReadIndexNode(*ctx, artifact_workspace_id, document_index_id, node_id))
+
+
+@router.get('/document-indexes/{document_index_id}/nodes/{node_id}/content', response_model=SourceReadView)
+async def read_document_node(document_index_id: Identifier, node_id: Identifier, artifact_workspace_id: Identifier, ctx: Context,
+                              offset: int = Query(default=0, ge=0), max_chars: int = Query(default=8192, ge=1, le=65_536)):
+    node = await get_document_node_composer()(ReadIndexNode(*ctx, artifact_workspace_id, document_index_id, node_id))
+    if node.source is None:
+        raise ArtifactError('SOURCE_UNAVAILABLE', 'This container has no own text; list its children')
+    return await build_representation_service().read_source(ReadSource(*ctx, artifact_workspace_id,
+        SourceReadDefinition(source=node.source, offset=offset, max_chars=max_chars)))

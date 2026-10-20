@@ -711,8 +711,29 @@
         13,
         19
       ],
-      "status": "not_started",
-      "checks": []
+      "status": "completed",
+      "checks": [
+        {
+          "command": "full real PostgreSQL Artifacts integration, native text/PDF/Docling, local and real S3-compatible storage, fresh/populated migrations",
+          "outcome": "passed",
+          "evidence": "332 passed, 26 warnings in 476.44s; artifacts-step20-integration-first.log; includes 24 native tree/source/pagination/recovery/failure cases and 8 real large Docling extraction/indexing hierarchy cases"
+        },
+        {
+          "command": "full mocked backend regression with actual local OCR tests enabled",
+          "outcome": "passed",
+          "evidence": "3275 passed plus 10 subtests, 6 warnings in 72.71s; artifacts-step20-regression-first.log"
+        },
+        {
+          "command": "Artifacts, security operation catalog and plan guard targeted cases; late exact node provenance",
+          "outcome": "passed",
+          "evidence": "229 passed in 30.97s; artifacts-step20-targeted-first.log; latest native PDF node provenance flags: 4 passed in 25.92s, artifacts-step20-node-provenance-final.log; actual S3 metadata HEAD issues no GET and strong stat verifies payload"
+        },
+        {
+          "command": "nine architecture policies, current 31 public schemas, Ruff, actionlint and git diff --check",
+          "outcome": "passed",
+          "evidence": "zero architecture violations; generated schema drift check passes; changed Python paths pass Ruff; extended read-only optional Docling PG/S3 workflow passes actionlint v1.7.7; whitespace check clean"
+        }
+      ]
     },
     {
       "id": 21,

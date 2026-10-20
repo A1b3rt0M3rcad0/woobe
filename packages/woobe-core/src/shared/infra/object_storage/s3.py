@@ -107,6 +107,21 @@ class S3ObjectStorage:
             if body is not None:
                 await run_blocking(body.close)
 
+    async def head(self, key: str):
+        physical = self._physical_key(key)
+        try:
+            response = await run_blocking(self._client.head_object, Bucket=self._bucket, Key=physical)
+            digest = response.get('Metadata', {}).get('sha256')
+            size = response.get('ContentLength')
+            content_type = response.get('ContentType') or 'application/octet-stream'
+            if (not isinstance(digest, str) or re.fullmatch(r'[0-9a-f]{64}', digest) is None
+                or type(size) is not int or size < 0 or '/' not in content_type
+                or '\r' in content_type or '\n' in content_type):
+                raise ObjectStorageError('integrity', 'Immutable S3 receipt metadata is unavailable or invalid')
+            return ObjectMetadata(key, size, digest, content_type, response.get('VersionId'))
+        except (BotoCoreError, ClientError, OSError) as error:
+            raise _storage_error(error) from error
+
     async def stat(self, key: str):
         physical = self._physical_key(key)
         try:

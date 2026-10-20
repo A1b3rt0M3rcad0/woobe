@@ -81,3 +81,8 @@ verified downloads and new-Artifact editable copies described in
 [REPRESENTATIONS.md](REPRESENTATIONS.md). Revision metadata includes optional
 source_representation_set_id/source_representation_entry_id lineage. Internal
 processing output keys and backend versions remain private.
+
+Stage 20 adds the native structural index metadata, child-page, node and bounded
+own-text endpoints in [INDEXES.md](INDEXES.md). Their exact reviewed permissions
+remain artifacts:read, with the artifacts interface and no runtime execution
+permit. Index-aware SourceRefs cannot select blocks outside their pinned node.

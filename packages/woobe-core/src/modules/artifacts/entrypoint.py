@@ -90,3 +90,11 @@ from modules.artifacts.composition.public_api import (
     CopyRepresentationDefinition as CopyRepresentationDefinition,
     build_representation_service as build_representation_service,
 )
+
+from modules.artifacts.composition.public_api import (
+    ReadIndex as ReadIndex, ReadIndexNode as ReadIndexNode, ListIndexNodes as ListIndexNodes,
+    DocumentIndexView as DocumentIndexView, DocumentNodeView as DocumentNodeView, DocumentNodePage as DocumentNodePage,
+    get_document_index_composer as get_document_index_composer,
+    get_document_node_composer as get_document_node_composer,
+    list_document_nodes_composer as list_document_nodes_composer,
+)

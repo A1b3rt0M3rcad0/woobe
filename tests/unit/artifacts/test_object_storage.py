@@ -73,3 +73,22 @@ async def test_bounded_consumption_and_early_close_do_not_read_whole_stream(tmp_
     with pytest.raises(ValueError, match='bounded'):
         await read_bounded(storage, 'large', max_bytes=10)
     assert await storage.stat('large')
+
+
+async def test_local_head_returns_only_declared_receipt_and_stat_still_verifies_payload(tmp_path):
+    storage = LocalObjectStorage(tmp_path)
+    content = b'x' * 1_048_576
+    receipt = await storage.put('revision/text', chunks(content), size_bytes=len(content),
+        sha256=compute_sha256(content), content_type='text/plain')
+    assert await storage.head(receipt.key) == receipt
+    # The distinction is intentional: bounded readers authenticate independent
+    # segment hashes, whereas publication/original verification uses strong stat.
+    (tmp_path / receipt.key).write_bytes(b'y' * len(content))
+    assert await storage.head(receipt.key) == receipt
+    with pytest.raises(ObjectStorageError) as failure:
+        await storage.stat(receipt.key)
+    assert failure.value.code == 'integrity'
+    (tmp_path / receipt.key).write_bytes(b'truncated')
+    with pytest.raises(ObjectStorageError) as failure:
+        await storage.head(receipt.key)
+    assert failure.value.code == 'integrity'

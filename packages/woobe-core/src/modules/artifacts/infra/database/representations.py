@@ -8,6 +8,7 @@ from modules.artifacts.application.contracts.representations import Representati
 from modules.artifacts.domain.models import ArtifactError, ArtifactRef, RepresentationSet
 from modules.artifacts.application.document_codec import serialized_identity
 from modules.artifacts.infra.database.catalog import CatalogRepository
+from modules.artifacts.infra.database.index_models import ArtifactDocumentIndexModel, ArtifactDocumentNodeModel
 from modules.artifacts.infra.database.models import ArtifactEventModel, ProcessingJobModel
 from modules.artifacts.infra.database.representation_models import (
     ArtifactRepresentationEntryModel as Entry,
@@ -320,7 +321,7 @@ class RepresentationRepository:
         lookup = ReadRepresentation(request.principal, request.scope, request.workspace_id,
             ref.artifact_id, ref.revision_id, ref.representation_set_id)
         workspace, source, generation = await self.resolve(lookup)
-        if ref.representation_set_id is None or source.sha256 != ref.source_sha256 or ref.document_index_id or ref.node_id:
+        if ref.representation_set_id is None or source.sha256 != ref.source_sha256:
             raise ArtifactError('SOURCE_UNAVAILABLE', 'Source reference requires its exact published generation')
         locator = ref.locator
         if locator is None or locator.block_id is None:
@@ -329,6 +330,16 @@ class RepresentationRepository:
             Block.representation_set_id == generation.id, Block.block_id == locator.block_id))).scalar_one_or_none()
         if block is None:
             raise ArtifactError('SOURCE_UNAVAILABLE', 'Source block is unavailable')
+        if ref.document_index_id is not None:
+            index = await self._uow.session.get(ArtifactDocumentIndexModel, ref.document_index_id)
+            if (index is None or (index.workspace_id, index.representation_set_id, index.status,
+                index.source_sha256) != (workspace.id, generation.id, 'ready', source.sha256)):
+                raise ArtifactError('SOURCE_UNAVAILABLE', 'Exact SourceRef document index is unavailable')
+            if ref.node_id is not None:
+                node = await self._uow.session.get(ArtifactDocumentNodeModel, ref.node_id)
+                if (node is None or node.document_index_id != index.id
+                    or not any(low <= block.ordinal < high for low, high in node.source_ranges)):
+                    raise ArtifactError('SOURCE_UNAVAILABLE', 'Source block is outside its exact index node')
         supplied = locator.model_dump(mode='json')
         original = block.source_locator
         canonical = supplied['char_space'] == 'canonical_block_text'

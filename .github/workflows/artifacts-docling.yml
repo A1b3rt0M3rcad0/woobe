@@ -6,12 +6,15 @@ on:
     paths:
       - 'packages/woobe-core/src/modules/artifacts/**'
       - 'packages/woobe-core/pyproject.toml'
+      - 'packages/woobe-core/migrations/**'
       - 'packages/woobe-workers/src/woobe_workers/settings.py'
       - 'pyproject.toml'
       - 'uv.lock'
       - 'tests/unit/artifacts/**'
       - 'tests/fixtures/artifacts/**'
+      - 'tests/integration/artifacts/**'
       - 'scripts/ci/check_docling_optional.py'
+      - 'scripts/ci/artifact_s3_test_server.py'
       - '.github/workflows/artifacts-docling.yml'
 
 permissions:
@@ -20,10 +23,24 @@ permissions:
 jobs:
   optional-converter:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: artifact_test
+          POSTGRES_PASSWORD: artifact_test
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U artifact_test -d postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 12
     env:
       WOOBE_ENVIRONMENT: test
       WOOBE_RUN_PERSISTENCE_MODE: legacy_finalization
+      WOOBE_ARTIFACT_TEST_POSTGRES_URL: postgresql://artifact_test:artifact_test@127.0.0.1:5432/postgres
+      WOOBE_ARTIFACT_TEST_S3_CONFIG_FILE: /tmp/woobe-artifact-s3/test-credentials.json
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
@@ -54,3 +71,15 @@ jobs:
         run: |
           .venv/bin/python scripts/ci/check_docling_optional.py --available
           .venv/bin/python -m pytest -q tests/unit/artifacts/test_docling_processing.py tests/unit/artifacts/test_native_pdf.py
+      - name: Start verified private S3-compatible storage
+        run: .venv/bin/python scripts/ci/artifact_s3_test_server.py
+      - name: Qualify actual PDF and large hierarchical DOCX publication and indexing
+        run: |
+          .venv/bin/python -m pytest -q tests/integration/artifacts/test_pdf_postgres.py
+          .venv/bin/python -m pytest -q tests/integration/artifacts/test_representations_postgres.py -k hierarchy_larger
+      - name: Stop only the owned storage process
+        if: always()
+        run: |
+          if [ -x .venv/bin/python ]; then
+            .venv/bin/python scripts/ci/artifact_s3_test_server.py --stop
+          fi

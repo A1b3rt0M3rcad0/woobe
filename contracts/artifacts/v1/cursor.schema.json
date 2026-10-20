@@ -20,7 +20,8 @@
         "search",
         "nodes",
         "profiles",
-        "representation_entries"
+        "representation_entries",
+        "index_nodes"
       ],
       "title": "Purpose",
       "type": "string"

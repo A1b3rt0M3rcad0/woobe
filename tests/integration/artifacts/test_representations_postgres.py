@@ -333,7 +333,8 @@ async def test_cancellation_after_sealing_prevents_ready_and_live_authority_is_r
     assert (await client.post('/v1/artifact-sources/read', params=params, json={'source': source})).status_code == 403
 
 
-async def test_real_docling_hierarchy_larger_than_metadata_batch_keeps_parent_foreign_keys_valid(http_client, engine, object_store, monkeypatch):
+@pytest.mark.parametrize('indexed', [False, True])
+async def test_real_docling_hierarchy_larger_than_metadata_batch_keeps_parent_foreign_keys_valid(http_client, engine, object_store, monkeypatch, indexed):
     from modules.artifacts.infra.processing.docling_manifest import docling_readiness
     if not docling_readiness()[0]:
         pytest.skip('optional actual Docling converter is unavailable')
@@ -360,8 +361,11 @@ async def test_real_docling_hierarchy_larger_than_metadata_batch_keeps_parent_fo
     published = await client.post(upload_base + '/' + intent.json()['id'] + '/finalize')
     assert published.status_code == 200, published.text
     ref = published.json()['receipt']
-    profile = await create_profile(client, http_client[4], recipe={'mode': 'extract',
-        'processor': {'name': 'docling-native', 'version': '2.140.0'}})
+    recipe = {'mode': 'extract_index' if indexed else 'extract',
+              'processor': {'name': 'docling-native', 'version': '2.140.0'}}
+    if indexed:
+        recipe['indexer'] = {'name': 'structural', 'version': '1'}
+    profile = await create_profile(client, http_client[4], recipe=recipe)
     assert profile.status_code == 201, profile.text
     path = '/v1/artifacts/' + ref['artifact_id'] + '/processing'
     requested = await client.post(path, params=params, json={'operation_id': uuid4().hex,
@@ -371,6 +375,11 @@ async def test_real_docling_hierarchy_larger_than_metadata_batch_keeps_parent_fo
     complete = await completed(client, path, requested.json(), params)
     assert complete['status'] == 'succeeded', complete
     assert complete['result']['block_count'] == 210
+    if indexed:
+        from modules.artifacts.infra.database.index_models import ArtifactDocumentIndexModel
+        async with ArtifactsUnitOfWork(engine) as index_uow:
+            tree = await index_uow.session.get(ArtifactDocumentIndexModel, complete['result']['document_index_id'])
+            assert tree.status == 'ready' and tree.tree_kind == 'canonical' and tree.node_count == 211
     async with ArtifactsUnitOfWork(engine) as uow:
         from modules.artifacts.infra.database.representation_models import ArtifactSourceBlockModel
         rows = (await uow.session.execute(select(ArtifactSourceBlockModel).where(

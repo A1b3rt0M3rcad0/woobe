@@ -16,6 +16,7 @@ from modules.artifacts.infra.database.catalog import CatalogRepository
 from modules.artifacts.infra.database.jobs import ProcessingJobRepository
 from modules.artifacts.infra.database.profiles import ProfileRepository
 from modules.artifacts.infra.database.representations import RepresentationRepository
+from modules.artifacts.infra.database.indexes import DocumentIndexRepository
 from modules.artifacts.infra.database.unit_of_work import ArtifactsUnitOfWork
 from shared.infra.transactional_handler import TransactionalHandler
 
@@ -33,13 +34,14 @@ def _worker_phase(engine, settings, method):
     authorization = ArtifactAuthorization(authority, grants)
     profiles = ProfileUseCases(profile_store, authorization, PROCESSING_REGISTRY,
                               CursorCodec(settings.secret_key.encode()))
-    use_case = ProcessingJobUseCases(jobs, catalog, profiles, authorization, PROCESSING_REGISTRY, RepresentationRepository(uow))
+    use_case = ProcessingJobUseCases(jobs, catalog, profiles, authorization, PROCESSING_REGISTRY, RepresentationRepository(uow), DocumentIndexRepository(uow))
     return TransactionalHandler(uow, getattr(use_case, method))
 
 
 def build_processing_runner(engine, settings):
     phases = {name: _worker_phase(engine, settings, name) for name in (
-        'reserve_output', 'record_output', 'prepare_bundle', 'metadata_bundle', 'seal_bundle')}
+        'reserve_output', 'record_output', 'prepare_bundle', 'metadata_bundle', 'seal_bundle',
+        'prepare_index', 'metadata_index', 'seal_index')}
 
     async def publication_phase(name, request):
         return await phases[name](request)

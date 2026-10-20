@@ -3,6 +3,7 @@ from dataclasses import asdict
 from modules.artifacts.application.contracts.jobs import ProcessingJobResult
 from modules.artifacts.application.contracts.representations import BundlePhase
 from modules.artifacts.application.services.representation_bundle import build_bundle, put_output
+from modules.artifacts.application.services.index_pipeline import build_index
 from modules.artifacts.application.document_codec import canonical_value, json_chunks, serialized_identity
 from modules.artifacts.application.ports.processing import ProcessingStage
 from modules.artifacts.domain.models import ArtifactError
@@ -18,12 +19,16 @@ class DocumentPipeline:
             context.transient['bundle'] = await context.publication_phase('prepare_bundle', BundlePhase(context.lease))
 
     def stages(self, recipe):
-        if recipe.mode != 'extract' or recipe.processor is None or any((recipe.indexer, recipe.enricher)):
+        if (recipe.mode not in {'extract', 'extract_index'} or recipe.processor is None or recipe.enricher is not None
+            or (recipe.indexer is not None and (recipe.indexer.name, recipe.indexer.version) != ('structural', '1'))):
             raise ArtifactError('PROCESSOR_UNAVAILABLE', 'Requested document pipeline stages are unavailable')
         processor = self._processors.get((recipe.processor.name, recipe.processor.version))
         if recipe.ocr is not None and not getattr(processor, 'supports_ocr', False):
             raise ArtifactError('PROCESSOR_UNAVAILABLE', 'Selected document processor does not support selective OCR')
-        return (ProcessingStage('extract', self._extract), ProcessingStage('build_bundle', self._build_bundle))
+        stages = (ProcessingStage('extract', self._extract), ProcessingStage('build_bundle', self._build_bundle))
+        if recipe.mode == 'extract_index':
+            stages += (ProcessingStage('build_index', self._build_index),)
+        return stages
 
     async def _extract(self, context):
         bundle = context.transient.get('bundle', {})
@@ -91,15 +96,22 @@ class DocumentPipeline:
             return {'publication_enabled': False}
         return await build_bundle(context)
 
+    async def _build_index(self, context):
+        if context.publication_phase is None:
+            raise ArtifactError('PROCESSOR_UNAVAILABLE', 'Structural index publication is unavailable')
+        return await build_index(context, self._blocking_io)
+
     def result(self, context):
         canonical = context.checkpoints['extract']
         publication = context.transient.get('bundle', {})
         if not (publication.get('reused') or publication.get('sealed')):
             publication = context.checkpoints.get('build_bundle', {})
         if publication.get('representation_set_id'):
+            publication = {**publication, **context.checkpoints.get('build_index', {})}
             context.transient['publication'] = publication
         return ProcessingJobResult(mode=context.lease.recipe.mode, processing_performed=True,
             source_sha256=context.source.sha256, coverage=canonical['coverage'],
             representation_set_id=publication.get('representation_set_id'),
+            document_index_id=publication.get('document_index_id'),
             block_count=canonical['block_count'], page_count=canonical['page_count'],
             diagnostics=tuple(canonical['diagnostics'])[:32])

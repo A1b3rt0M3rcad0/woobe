@@ -27,11 +27,17 @@ from modules.artifacts.application.contracts.representations import (  # noqa: E
 )
 
 
+from modules.artifacts.application.contracts.indexes import DocumentIndexView, DocumentNodeView, DocumentNodePage  # noqa: E402
+
+
 def generate(*, check=False):
     destination = ROOT / 'contracts/artifacts/v1'
     if not check:
         destination.mkdir(parents=True, exist_ok=True)
     for filename, model in {
+        'document-index': DocumentIndexView,
+        'document-node': DocumentNodeView,
+        'document-node-page': DocumentNodePage,
         'representation-set': RepresentationSetView,
         'representation-entry': RepresentationEntryView,
         'representation-entry-page': RepresentationEntryPage,

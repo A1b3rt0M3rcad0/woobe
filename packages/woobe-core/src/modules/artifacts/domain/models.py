@@ -465,6 +465,32 @@ class DocumentNode:
     block_ids: tuple[str, ...]
     parent_id: str | None = None
     summary: str | None = None
+    kind: str = 'block'
+    ordinal: int = 0
+    source_ranges: tuple[tuple[int, int], ...] = ()
+    block_sha256: str | None = None
+    page_index: int | None = None
+    depth: int = 0
+
+    def __post_init__(self):
+        opaque_id(self.id)
+        if self.parent_id is not None:
+            opaque_id(self.parent_id)
+        for block in self.block_ids:
+            opaque_id(block)
+        if len(self.block_ids) > 1 or len(self.title) > 512 or self.kind not in {'root', 'section', 'page', 'block'}:
+            raise ValueError('Invalid structural node identity or title')
+        if self.ordinal < 0 or not 0 <= self.depth <= 64 or (self.page_index is not None and self.page_index < 0):
+            raise ValueError('Invalid structural node bounds')
+        end = -1
+        for low, high in self.source_ranges:
+            if not 0 <= low < high or low <= end:
+                raise ValueError('Source ranges must be ordered, non-overlapping and coalesced')
+            end = high
+        if len(self.source_ranges) > 1000:
+            raise ValueError('Structural node has too many source intervals')
+        if self.block_sha256 is not None:
+            sha256_digest(self.block_sha256)
 
 
 @dataclass(frozen=True)
@@ -474,22 +500,57 @@ class DocumentIndex:
     engine: str
     engine_version: str
     nodes: tuple[DocumentNode, ...]
+    tree_kind: str = 'headings'
+    source_block_count: int = 0
+    coverage: Coverage = Coverage.PARTIAL
 
     def __post_init__(self):
         opaque_id(self.id)
         opaque_id(self.representation_set_id)
+        object.__setattr__(self, 'coverage', Coverage(self.coverage))
         by_id = {node.id: node for node in self.nodes}
         if not self.engine or not self.engine_version or len(by_id) != len(self.nodes):
             raise ValueError('Invalid document index identity')
+        if self.tree_kind not in {'headings', 'canonical', 'pages', 'blocks', 'empty'} or not 0 <= self.source_block_count <= 100_000:
+            raise ValueError('Invalid structural tree kind or source bound')
+        if not self.nodes or len(self.nodes) > 110_001:
+            raise ValueError('Structural tree must have a bounded root')
+        roots = [node for node in self.nodes if node.parent_id is None]
+        if len(roots) != 1 or roots[0].kind != 'root':
+            raise ValueError('Structural tree requires one root')
+        if self.source_block_count == 0 and self.coverage == Coverage.COMPLETE:
+            raise ValueError('Empty structural tree cannot claim complete coverage')
+        if len({node.ordinal for node in self.nodes}) != len(self.nodes):
+            raise ValueError('Structural node ordering must be unique')
+        resolved = {}
         for node in self.nodes:
-            opaque_id(node.id)
-            seen = {node.id}
-            parent = node.parent_id
-            while parent is not None:
-                if parent in seen or parent not in by_id:
+            parent, path, seen = node.id, [], set()
+            while parent is not None and parent not in resolved:
+                if parent not in by_id or parent in seen:
                     raise ValueError('Invalid index parent or cycle')
                 seen.add(parent)
+                path.append(parent)
                 parent = by_id[parent].parent_id
+                if len(path) > 65:
+                    raise ValueError('Structural tree exceeds its depth limit')
+            depth = resolved[parent] + 1 if parent is not None else 0
+            for item in reversed(path):
+                if depth > 64 or by_id[item].depth != depth:
+                    raise ValueError('Structural node depth does not match its parent')
+                resolved[item] = depth
+                depth += 1
+            for low, high in node.source_ranges:
+                if high > self.source_block_count:
+                    raise ValueError('Structural source interval exceeds the canonical document')
+        expected = ((0, self.source_block_count),) if self.source_block_count else ()
+        if roots[0].source_ranges != expected:
+            raise ValueError('Structural root must cover the complete canonical source')
+        for node in self.nodes:
+            if node.parent_id is not None:
+                parent = by_id[node.parent_id]
+                if any(not any(p <= low and high <= q for p, q in parent.source_ranges)
+                       for low, high in node.source_ranges):
+                    raise ValueError('Structural child source lies outside its parent')
 
 
 @dataclass(frozen=True)

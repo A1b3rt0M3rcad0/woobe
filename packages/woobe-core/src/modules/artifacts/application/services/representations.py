@@ -3,6 +3,7 @@ import hashlib
 from modules.artifacts.application.contracts.api import SourceReference
 from modules.artifacts.application.contracts.representations import SourceReadView
 from modules.artifacts.domain.models import ArtifactError
+from shared.contracts.object_storage import ObjectStorageError
 
 
 class RepresentationService:
@@ -10,10 +11,23 @@ class RepresentationService:
         self.resolve, self.list_entries, self._source, self._storage = read, entries, source, storage
         self._uploads = uploads
 
+    @staticmethod
+    def _storage_failure(error):
+        code = {'not_found': 'SOURCE_UNAVAILABLE', 'integrity': 'UPLOAD_INTEGRITY_MISMATCH',
+                'range': 'ARTIFACT_INVALID_RANGE', 'invalid_object': 'SOURCE_UNAVAILABLE'}.get(
+                    error.code, 'ARTIFACT_STORAGE_UNAVAILABLE')
+        return ArtifactError(code, 'Artifact storage content is unavailable', retryable=error.code == 'unavailable')
+
     async def read_source(self, request):
+        try:
+            return await self._read_source(request)
+        except ObjectStorageError as error:
+            raise self._storage_failure(error) from error
+
+    async def _read_source(self, request):
         proof = await self._source(request)
         storage = self._storage(proof['storage_profile'])
-        metadata = await storage.stat(proof['key'])
+        metadata = await storage.head(proof['key'])
         if (metadata.version_id, metadata.size_bytes, metadata.sha256) != (
                 proof['version_id'], proof['size_bytes'], proof['sha256']):
             raise ArtifactError('UPLOAD_INTEGRITY_MISMATCH', 'Source text object changed')
@@ -67,7 +81,10 @@ class RepresentationService:
         if not 0 <= start <= stop <= entry.size_bytes:
             raise ArtifactError('ARTIFACT_INVALID_RANGE', 'Invalid representation byte interval')
         storage = self._storage(snapshot.storage_profile)
-        metadata = await storage.stat(entry.object_key)
+        try:
+            metadata = await storage.head(entry.object_key)
+        except ObjectStorageError as error:
+            raise self._storage_failure(error) from error
         if (metadata.sha256, metadata.size_bytes, metadata.version_id) != (entry.sha256, entry.size_bytes, entry.storage_version_id):
             raise ArtifactError('UPLOAD_INTEGRITY_MISMATCH', 'Representation download object receipt differs')
         return snapshot, storage.open(entry.object_key, start=start, end=stop)

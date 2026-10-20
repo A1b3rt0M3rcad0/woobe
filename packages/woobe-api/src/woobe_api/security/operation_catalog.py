@@ -504,6 +504,12 @@ _REVIEWED += [
     ('POST', '/v1/artifacts/{artifact_id}/revisions/{revision_id}/representations/{representation_set_id}/entries/{entry_id}/copy', 'artifacts:write'),
     ('POST', '/v1/artifact-sources/read', 'artifacts:read'),
 ]
+_REVIEWED += [
+    ('GET', '/v1/document-indexes/{document_index_id}', 'artifacts:read'),
+    ('GET', '/v1/document-indexes/{document_index_id}/nodes', 'artifacts:read'),
+    ('GET', '/v1/document-indexes/{document_index_id}/nodes/{node_id}', 'artifacts:read'),
+    ('GET', '/v1/document-indexes/{document_index_id}/nodes/{node_id}/content', 'artifacts:read'),
+]
 _COMPILED = [
     (method, path, permission, compile_path(path)[0])
     for method, path, permission in _REVIEWED

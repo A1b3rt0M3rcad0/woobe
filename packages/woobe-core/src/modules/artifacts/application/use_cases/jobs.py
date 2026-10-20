@@ -8,10 +8,10 @@ from modules.artifacts.domain.models import Action, ArtifactError, ArtifactRef
 
 class ProcessingJobUseCases:
     def __init__(self, jobs: ProcessingJobStore, catalog, profiles,
-                 authorization: ArtifactAuthorization, registry: ProcessingRegistry, representations=None):
+                 authorization: ArtifactAuthorization, registry: ProcessingRegistry, representations=None, indexes=None):
         self._jobs, self._catalog, self._profiles = jobs, catalog, profiles
         self._authorization, self._registry = authorization, registry
-        self._representations = representations
+        self._representations, self._indexes = representations, indexes
 
     async def request(self, request):
         definition = request.definition
@@ -78,7 +78,11 @@ class ProcessingJobUseCases:
             await self._authorize_lease(phase.lease)
             ProcessingJobResult.model_validate(phase.result)
             if phase.publication is not None:
+                if phase.result['mode'] == 'extract_index' and (self._indexes is None or not phase.publication.get('document_index_id')):
+                    raise ArtifactError('REPRESENTATION_NOT_READY', 'Indexed extraction requires its coherent document index')
                 await self._representations.commit_ready(phase.lease, phase.publication, phase.result)
+                if phase.result['mode'] == 'extract_index':
+                    await self._indexes.commit_ready(phase.lease, phase.publication, phase.result)
         return await self._jobs.finish(phase)
 
     async def reserve_output(self, request):
@@ -105,3 +109,18 @@ class ProcessingJobUseCases:
         await self._representations.lock_scope(request.lease.scope, request.lease.workspace_id)
         await self._authorize_lease(request.lease)
         return await self._representations.seal(request)
+
+    async def prepare_index(self, request):
+        await self._representations.lock_scope(request.lease.scope, request.lease.workspace_id)
+        await self._authorize_lease(request.lease)
+        return await self._indexes.prepare(request)
+
+    async def metadata_index(self, request):
+        await self._representations.lock_scope(request.lease.scope, request.lease.workspace_id)
+        await self._authorize_lease(request.lease)
+        return await self._indexes.metadata(request)
+
+    async def seal_index(self, request):
+        await self._representations.lock_scope(request.lease.scope, request.lease.workspace_id)
+        await self._authorize_lease(request.lease)
+        return await self._indexes.seal(request)

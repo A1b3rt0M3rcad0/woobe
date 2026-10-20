@@ -276,6 +276,10 @@ def test_configuration_snapshot_query_uses_its_owner_scope(kind, expected):
     ('GET', '/v1/artifacts/a/revisions/r/representations/g/entries/e/content', 'artifacts:read'),
     ('POST', '/v1/artifacts/a/revisions/r/representations/g/entries/e/copy', 'artifacts:write'),
     ('POST', '/v1/artifact-sources/read', 'artifacts:read'),
+    ('GET', '/v1/document-indexes/i', 'artifacts:read'),
+    ('GET', '/v1/document-indexes/i/nodes', 'artifacts:read'),
+    ('GET', '/v1/document-indexes/i/nodes/n', 'artifacts:read'),
+    ('GET', '/v1/document-indexes/i/nodes/n/content', 'artifacts:read'),
 ])
 def test_representation_operations_require_artifacts_authority_without_runtime_execution(method, path, permission):
     from woobe_api.security.http_guard import is_runtime_execution_request, public_runtime_interface

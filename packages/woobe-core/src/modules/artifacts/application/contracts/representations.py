@@ -12,7 +12,7 @@ from shared.contracts.object_storage import ObjectMetadata, validate_object_key
 
 
 REPRESENTATION_ROLES = frozenset({'markdown', 'structure', 'source_map', 'table', 'figure',
-    'rendering', 'summary', 'outline', 'block_text', 'asset_manifest', 'manifest'})
+    'rendering', 'summary', 'outline', 'block_text', 'asset_manifest', 'manifest', 'document_index'})
 
 
 @dataclass(frozen=True)

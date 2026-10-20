@@ -101,3 +101,12 @@ safe read retry, active-owner expiry protection, bounded upload concurrency and
 legacy keys/attributes/overwrite. This is local S3-compatible evidence. No real AWS
 account, KMS integration, replicated production service or SSE behavior was tested;
 these features are not claimed as qualified by this suite.
+
+Stage 20 adds metadata-only head(key) to the internal streaming contract for
+bounded proof-based SourceRef reads. It returns the declared immutable-write
+receipt (and checks the local object's size) without claiming payload integrity.
+S3 issues HeadObject without GetObject; local storage reads only safe file metadata
+and the bounded private receipt. Strong stat retains full SHA-256 byte verification.
+Readers authenticate selected independently hashed canonical text segments; see
+[INDEXES.md](INDEXES.md). No signed/public storage URL or ETag-as-SHA substitution
+is introduced.

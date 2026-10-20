@@ -196,3 +196,17 @@ async def test_upload_concurrency_is_bounded_before_consuming_sources(s3_backend
     assert not second_entered.is_set()
     release.set()
     assert all(isinstance(result, ObjectMetadata) for result in await asyncio.gather(first, second))
+
+
+async def test_real_s3_head_uses_no_get_and_keeps_strong_stat_payload_verification(s3_backend, monkeypatch):
+    store = storage(s3_backend)
+    content = b'bounded source ' * 100_000
+    receipt = await put(store, 'source/text', content)
+    client, _ = s3_backend
+    get_object = client.get_object
+    def forbidden_get(**kwargs):
+        raise AssertionError('metadata HEAD must not download any object bytes')
+    monkeypatch.setattr(client, 'get_object', forbidden_get)
+    assert await store.head(receipt.key) == receipt
+    monkeypatch.setattr(client, 'get_object', get_object)
+    assert await store.stat(receipt.key) == receipt

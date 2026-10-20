@@ -95,4 +95,13 @@ from modules.artifacts.application.contracts.representations import (
 )
 from modules.artifacts.composition.representations import build_representation_service as build_representation_service
 
+
+from modules.artifacts.application.contracts.indexes import (
+    ReadIndex as ReadIndex, ReadIndexNode as ReadIndexNode, ListIndexNodes as ListIndexNodes,
+    DocumentIndexView as DocumentIndexView, DocumentNodeView as DocumentNodeView, DocumentNodePage as DocumentNodePage,
+)
+from modules.artifacts.composition.composers.get_document_index import get_document_index_composer as get_document_index_composer
+from modules.artifacts.composition.composers.get_document_node import get_document_node_composer as get_document_node_composer
+from modules.artifacts.composition.composers.list_document_nodes import list_document_nodes_composer as list_document_nodes_composer
+
 CONTRACT_VERSION = '1'

@@ -236,6 +236,25 @@ class LocalObjectStorage:
             if resource is not None:
                 await self._io(self._discard, resource)
 
+    def _head(self, key: str):
+        stream, size = self._open_read(key)
+        stream.close()
+        metadata = self._read_metadata(key)
+        if (metadata is None or metadata['size_bytes'] != size
+            or re.fullmatch(r'[0-9a-f]{64}', metadata['sha256']) is None
+            or metadata.get('version_id') is not None or '/' not in metadata['content_type']):
+            raise ObjectStorageError('integrity', 'Immutable object receipt metadata is unavailable or invalid')
+        return ObjectMetadata(key, size, metadata['sha256'], metadata['content_type'])
+
+    async def head(self, key: str):
+        self._key(key)
+        try:
+            return await self._io(self._head, key)
+        except (ValueError, KeyError, TypeError) as error:
+            raise ObjectStorageError('integrity', 'Object receipt metadata is invalid') from error
+        except OSError as error:
+            raise ObjectStorageError('unavailable', 'Object storage is unavailable') from error
+
     def _stat(self, key: str):
         stream, size = self._open_read(key)
         digest = hashlib.sha256()

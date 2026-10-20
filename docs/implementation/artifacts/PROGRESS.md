@@ -104,7 +104,14 @@ quota intents keep failed/orphan outputs invisible and charged. 218 targeted cas
 late source/result/copy integrity checks and actual Docling figures also passed.
 Four additional real Docling cases verify 210-block/105-parent hierarchies across
 metadata batch commits on both adapters and migration paths.
-See REPRESENTATIONS.md. Step 20 native structural document trees is next.
+See REPRESENTATIONS.md. Step 20 is complete: deterministic native structural trees,
+explicit heading/canonical/page/block fallback, immutable versioned graph manifests,
+signed child pages and bounded index-aware source reads passed 229 targeted cases,
+332 real integration cases and 3275 mocked regressions plus 10 subtests. Generation,
+index and job success share one fenced transaction; recovery, exact historical
+sources and real large Docling hierarchies were verified. See INDEXES.md. Step 21
+governed model enrichment is next; live provider qualification still requires the
+secure environment credential binding, never a credential value in chat.
 
 The stage commit carries `Plan-Step: 01/60`; a file never records its own containing
 commit SHA. CI reconciles commit subjects/trailers against the execution manifest.
