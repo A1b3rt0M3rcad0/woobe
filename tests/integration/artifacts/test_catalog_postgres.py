@@ -124,9 +124,16 @@ async def test_live_paths_and_revision_ownership_are_enforced_by_postgres(engine
         repo = CatalogRepository(uow)
         await repo.publish_revision(ws.scope, ws.id, path='first.txt', revision=first, expected_revision=None)
         await repo.publish_revision(ws.scope, ws.id, path='second.txt', revision=second, expected_revision=None)
-    with pytest.raises(IntegrityError):
+    with pytest.raises(ArtifactError) as failure:
         async with ArtifactsUnitOfWork(engine) as uow:
             await CatalogRepository(uow).publish_revision(ws.scope, ws.id, path='first.txt', revision=revision(), expected_revision=None)
+    assert failure.value.code == 'ARTIFACT_PATH_CONFLICT'
+    # Application normalization is additive: PostgreSQL still independently
+    # enforces the partial unique index if a writer bypasses the repository.
+    with pytest.raises(IntegrityError):
+        async with ArtifactsUnitOfWork(engine) as uow:
+            await uow.session.execute(text("INSERT INTO artifacts.artifacts (id,workspace_id,path,kind,version,deleted) VALUES (:id,:workspace,'first.txt','file',1,false)"),
+                {'id': str(uuid4()), 'workspace': ws.id})
     with pytest.raises(IntegrityError):
         async with ArtifactsUnitOfWork(engine) as uow:
             await uow.session.execute(text('UPDATE artifacts.artifacts SET revision_id=:revision WHERE id=:artifact'),

@@ -271,6 +271,9 @@ class Revision:
     origin: str
     producer_id: str | None = None
     storage_version_id: str | None = None
+    operation_id: str | None = None
+    run_id: str | None = None
+    node_id: str | None = None
 
     def __post_init__(self):
         ArtifactRef(self.artifact_id, self.id)
@@ -280,6 +283,11 @@ class Revision:
             raise ValueError('Invalid revision size or MIME')
         if self.origin not in {'upload', 'application', 'agent', 'tool', 'processing', 'copy'}:
             raise ValueError('Unknown revision provenance')
+        for value in (self.operation_id, self.run_id, self.node_id):
+            if value is not None:
+                opaque_id(value)
+        if self.node_id is not None and self.run_id is None:
+            raise ValueError('Node provenance requires a Run identity')
 
 
 @dataclass(frozen=True)

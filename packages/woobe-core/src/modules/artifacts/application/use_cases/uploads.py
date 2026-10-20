@@ -3,7 +3,7 @@ from modules.artifacts.application.contracts.uploads import (
     BeginUpload, CommitUpload, RecordPart, UploadRequest,
 )
 from modules.artifacts.application.ports.uploads import UploadStore
-from modules.artifacts.domain.models import Action, ArtifactError
+from modules.artifacts.domain.models import Action, ArtifactError, opaque_id
 
 
 class UploadUseCases:
@@ -22,6 +22,13 @@ class UploadUseCases:
 
     async def begin(self, request: BeginUpload):
         subject = await self._authorize(request)
+        if request.origin not in {'upload', 'application', 'agent', 'tool', 'processing', 'copy'}:
+            raise ValueError('Invalid publication origin')
+        for value in (request.run_id, request.node_id):
+            if value is not None:
+                opaque_id(value)
+        if request.node_id is not None and request.run_id is None:
+            raise ValueError('Node provenance requires a Run identity')
         if request.definition.size_bytes > self._maximum:
             raise ArtifactError('ARTIFACT_LIMIT_EXCEEDED', 'Upload exceeds the configured byte limit')
         return await self._store.begin(request, subject)

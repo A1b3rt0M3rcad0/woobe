@@ -12,6 +12,9 @@ class BeginUpload:
     scope: Scope
     workspace_id: str
     definition: UploadCreate
+    origin: str = 'upload'
+    run_id: str | None = None
+    node_id: str | None = None
 
 
 @dataclass(frozen=True)

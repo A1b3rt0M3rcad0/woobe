@@ -49,7 +49,11 @@ class UploadRepository:
     async def begin(self, request, subject):
         workspace = await self._catalog.workspace_row(request.scope, request.workspace_id, lock=True)
         definition = request.definition
-        fingerprint = hashlib.sha256(json.dumps(definition.model_dump(mode='json'),
+        payload = definition.model_dump(mode='json')
+        if request.origin != 'upload' or request.run_id is not None or request.node_id is not None:
+            payload = {'definition': payload, 'origin': request.origin,
+                       'run_id': request.run_id, 'node_id': request.node_id}
+        fingerprint = hashlib.sha256(json.dumps(payload,
             sort_keys=True, separators=(',', ':')).encode()).hexdigest()
         previous = (await self._uow.session.execute(select(UploadModel).where(
             UploadModel.workspace_id == workspace.id,
@@ -78,7 +82,8 @@ class UploadRepository:
             content_type=definition.content_type, path=definition.path,
             artifact_id=definition.artifact_id or str(uuid4()), planned_revision_id=str(uuid4()),
             expected_revision=definition.expected_revision, offset=0, status='created',
-            expires_at=datetime.now(UTC) + timedelta(hours=24), parts=[])
+            expires_at=datetime.now(UTC) + timedelta(hours=24), parts=[], origin=request.origin,
+            run_id=request.run_id, node_id=request.node_id)
         workspace.reserved_bytes += definition.size_bytes
         self._uow.session.add(row)
         await self._uow.session.flush()
@@ -138,8 +143,8 @@ class UploadRepository:
         workspace.reserved_bytes -= row.expected_size
         await self._catalog.publish_revision(request.scope, workspace.id, path=row.path,
             revision=Revision(row.planned_revision_id, row.artifact_id, snapshot.object_key,
-                row.content_type, row.expected_size, row.expected_sha256, 'upload', subject,
-                request.version_id), expected_revision=row.expected_revision)
+                row.content_type, row.expected_size, row.expected_sha256, row.origin, subject,
+                request.version_id, row.operation_id, row.run_id, row.node_id), expected_revision=row.expected_revision)
         row.status = 'committed'
         row.receipt = {'artifact_id': row.artifact_id, 'revision_id': row.planned_revision_id}
         self._uow.session.add(ArtifactEventModel(id=str(uuid4()), workspace_id=workspace.id,

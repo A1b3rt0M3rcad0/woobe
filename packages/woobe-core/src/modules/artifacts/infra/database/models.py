@@ -97,6 +97,9 @@ class RevisionModel(ArtifactRecord):
     origin: Mapped[str] = mapped_column(String(32))
     producer_id: Mapped[str | None] = mapped_column(String(128))
     storage_version_id: Mapped[str | None] = mapped_column(String(1024))
+    operation_id: Mapped[str | None] = mapped_column(String(128))
+    run_id: Mapped[str | None] = mapped_column(String(128))
+    node_id: Mapped[str | None] = mapped_column(String(128))
 
 
 class HeadHistoryModel(ArtifactRecord):
@@ -166,6 +169,9 @@ class UploadModel(ArtifactRecord):
     artifact_id: Mapped[str | None] = mapped_column(String(128))
     expected_revision: Mapped[str | None] = mapped_column(String(128))
     planned_revision_id: Mapped[str] = mapped_column(String(128))
+    origin: Mapped[str] = mapped_column(String(32), default='upload')
+    run_id: Mapped[str | None] = mapped_column(String(128))
+    node_id: Mapped[str | None] = mapped_column(String(128))
     offset: Mapped[int] = mapped_column(BigInteger, default=0)
     status: Mapped[str] = mapped_column(String(16), default='created')
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
@@ -191,3 +197,17 @@ class ArtifactEventModel(ArtifactRecord):
     kind: Mapped[str] = mapped_column(String(128))
     payload: Mapped[dict] = mapped_column(JSONB)
     delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class CatalogOperationModel(ArtifactRecord):
+    __tablename__ = 'catalog_operations'
+    __table_args__ = (
+        UniqueConstraint('workspace_id', 'operation_id', name='uq_artifact_catalog_operation'),
+        {'schema': 'artifacts'},
+    )
+
+    workspace_id: Mapped[str] = mapped_column(ForeignKey('artifacts.workspaces.id', ondelete='RESTRICT'))
+    principal_id: Mapped[str] = mapped_column(String(128))
+    operation_id: Mapped[str] = mapped_column(String(128))
+    request_fingerprint: Mapped[str] = mapped_column(String(64))
+    receipt: Mapped[dict] = mapped_column(JSONB)

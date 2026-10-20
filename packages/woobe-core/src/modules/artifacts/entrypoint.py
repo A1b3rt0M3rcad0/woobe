@@ -44,3 +44,8 @@ from modules.artifacts.composition.public_api import (
     build_upload_service as build_upload_service, BeginUpload as BeginUpload,
     UploadRequest as UploadRequest, UploadPart as UploadPart, UploadView as UploadView,
 )
+
+from modules.artifacts.composition.public_api import (
+    build_file_service as build_file_service, ReadFile as ReadFile, CopyFile as CopyFile, ListFiles as ListFiles,
+    MutateFile as MutateFile, WriteText as WriteText,
+)

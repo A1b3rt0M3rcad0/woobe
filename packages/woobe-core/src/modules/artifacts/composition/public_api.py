@@ -46,4 +46,9 @@ from modules.artifacts.application.contracts.uploads import (
     BeginUpload as BeginUpload, UploadRequest as UploadRequest, UploadPart as UploadPart, UploadView as UploadView,
 )
 
+from modules.artifacts.composition.files import build_file_service as build_file_service
+from modules.artifacts.application.contracts.files import (
+    ReadFile as ReadFile, CopyFile as CopyFile, ListFiles as ListFiles, MutateFile as MutateFile, WriteText as WriteText,
+)
+
 CONTRACT_VERSION = '1'

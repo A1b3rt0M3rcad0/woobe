@@ -378,8 +378,29 @@
         6,
         10
       ],
-      "status": "not_started",
-      "checks": []
+      "status": "completed",
+      "checks": [
+        {
+          "command": "Explicit disposable PostgreSQL and local/private real S3: pytest tests/integration/artifacts",
+          "outcome": "passed",
+          "evidence": "123 passed, 10 warnings in 71.73s; includes 36 file/lineage/copy/composition cases, both fresh/populated migration paths and both storage adapters; /workspace/.onboarding/artifacts-step11-postgres.log"
+        },
+        {
+          "command": "Native full mocked backend regression (baseline selection)",
+          "outcome": "passed",
+          "evidence": "3187 passed, 10 subtests passed, 6 warnings in 44.87s; /workspace/.onboarding/artifacts-step11-regression.log"
+        },
+        {
+          "command": "pytest tests/unit/artifacts tests/architecture/test_artifacts_plan_guard.py; Ruff; nine architecture policies",
+          "outcome": "passed",
+          "evidence": "83 passed; no lint errors; all modules zero architecture violations; /workspace/.onboarding/artifacts-step11-architecture.log"
+        },
+        {
+          "command": "Real PostgreSQL catalog + file suite after public path-conflict normalization",
+          "outcome": "passed",
+          "evidence": "50 passed in 30.87s; typed public collision error and separate direct SQL unique-index/FK enforcement remain tested"
+        }
+      ]
     },
     {
       "id": 12,

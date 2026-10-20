@@ -169,7 +169,8 @@ class CatalogRepository:
         if row is None:
             raise ArtifactError('SOURCE_UNAVAILABLE', 'Artifact revision is unavailable')
         return Revision(row.id, row.artifact_id, row.object_key, row.content_type,
-                        row.size_bytes, row.sha256, row.origin, row.producer_id, row.storage_version_id)
+                        row.size_bytes, row.sha256, row.origin, row.producer_id, row.storage_version_id,
+                        row.operation_id, row.run_id, row.node_id)
 
     async def visible_artifacts(self, scope: Scope, workspace_id: str, *,
                                 catalog_version: int, limit: int = 50,
@@ -193,12 +194,47 @@ class CatalogRepository:
         return tuple(Artifact(row.artifact_id, workspace_id, row.path, row.kind,
                               row.revision_id, row.artifact_version) for row in rows)
 
+    async def validate_path(self, workspace_id: str, path: str, *, kind: str,
+                            ignore_id: str | None = None):
+        logical_path(path)
+        segments = path.split('/')
+        ancestors = ['/'.join(segments[:index]) for index in range(1, len(segments))]
+        query = select(ArtifactModel.id).where(ArtifactModel.workspace_id == workspace_id,
+            ArtifactModel.deleted.is_(False), or_(ArtifactModel.path == path,
+                (ArtifactModel.path.in_(ancestors) & (ArtifactModel.kind == 'file')),
+                ArtifactModel.path.startswith(path + '/', autoescape=True)))
+        if ignore_id is not None:
+            query = query.where(ArtifactModel.id != ignore_id)
+        if (await self._uow.session.execute(query.limit(1))).scalar_one_or_none() is not None:
+            raise ArtifactError('ARTIFACT_PATH_CONFLICT', 'Artifact path conflicts with a file or directory')
+
+    async def ensure_parents(self, workspace, path: str):
+        segments = path.split('/')
+        for index in range(1, len(segments)):
+            parent = '/'.join(segments[:index])
+            existing = (await self._uow.session.execute(select(ArtifactModel).where(
+                ArtifactModel.workspace_id == workspace.id, ArtifactModel.path == parent,
+                ArtifactModel.deleted.is_(False)))).scalar_one_or_none()
+            if existing is not None:
+                if existing.kind != 'directory':
+                    raise ArtifactError('ARTIFACT_PATH_CONFLICT', 'A file cannot be a directory')
+                continue
+            row = ArtifactModel(id=str(uuid4()), workspace_id=workspace.id, path=parent,
+                                kind='directory', version=1, deleted=False)
+            self._uow.session.add(row)
+            await self._uow.session.flush()
+            self._uow.session.add(HeadHistoryModel(id=str(uuid4()), workspace_id=workspace.id,
+                artifact_id=row.id, from_catalog_version=workspace.catalog_version,
+                until_catalog_version=None, path=parent, kind='directory', revision_id=None,
+                artifact_version=1, deleted=False))
+
     async def publish_revision(self, scope: Scope, workspace_id: str, *, path: str,
                                revision: Revision, expected_revision: str | None) -> Artifact:
         logical_path(path)
         workspace = await self.workspace_row(scope, workspace_id, lock=True)
         if workspace.status != 'active':
             raise ArtifactError('ARTIFACT_ACCESS_DENIED', 'Workspace does not accept writes')
+        await self.validate_path(workspace_id, path, kind='file', ignore_id=revision.artifact_id)
         existing = (await self._uow.session.execute(select(ArtifactModel).where(
             ArtifactModel.id == revision.artifact_id,
             ArtifactModel.workspace_id == workspace_id,
@@ -221,6 +257,7 @@ class CatalogRepository:
         await self._uow.session.flush()
         workspace.used_bytes += revision.size_bytes
         workspace.catalog_version += 1
+        await self.ensure_parents(workspace, path)
         existing.revision_id = revision.id
         if expected_revision is not None:
             existing.version += 1
