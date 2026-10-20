@@ -19,7 +19,10 @@ PR #219 remains unrelated and untouched.
 Step 02 is complete: exact pinned client snapshots, source/hash/license manifest,
 local Go workspace and read-only client CI are included. Original client repositories
 remain unchanged. CLI make check/build, both Go SDK modes, Python SDK 34 tests,
-Ruff/build/Twine, source hashes and the new workflow validation passed. Step 03 is next.
+Ruff/build/Twine, source hashes and the new workflow validation passed. Step 03 is complete: domain identities/lifecycles, versioned DTOs, capability ports,
+canonical schemas/fixtures and the Artifacts architecture policy are validated.
+31 combined domain/contract/guard tests, Ruff and all nine architecture policies pass.
+Persistence, authorization and adapters are not advertised as implemented. Step 04 is next.
 
 The stage commit carries `Plan-Step: 01/60`; a file never records its own containing
 commit SHA. CI reconciles commit subjects/trailers against the execution manifest.

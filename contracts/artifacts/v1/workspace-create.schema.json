@@ -1,0 +1,72 @@
+{
+  "$defs": {
+    "Environment": {
+      "enum": [
+        "draft",
+        "staging",
+        "production"
+      ],
+      "title": "Environment",
+      "type": "string"
+    }
+  },
+  "$id": "urn:woobe:artifacts:v1:workspace-create",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "environment": {
+      "$ref": "#/$defs/Environment"
+    },
+    "external_key": {
+      "maxLength": 255,
+      "minLength": 1,
+      "title": "External Key",
+      "type": "string"
+    },
+    "external_namespace": {
+      "maxLength": 255,
+      "minLength": 1,
+      "title": "External Namespace",
+      "type": "string"
+    },
+    "name": {
+      "maxLength": 255,
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+    },
+    "quota_bytes": {
+      "default": 1073741824,
+      "minimum": 0,
+      "title": "Quota Bytes",
+      "type": "integer"
+    },
+    "retention_days": {
+      "default": 30,
+      "maximum": 36500,
+      "minimum": 0,
+      "title": "Retention Days",
+      "type": "integer"
+    },
+    "schema_version": {
+      "const": "1",
+      "default": "1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "storage_profile": {
+      "default": "local",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$",
+      "title": "Storage Profile",
+      "type": "string"
+    }
+  },
+  "required": [
+    "environment",
+    "external_namespace",
+    "external_key",
+    "name"
+  ],
+  "title": "WorkspaceCreate",
+  "type": "object"
+}

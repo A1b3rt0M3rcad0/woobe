@@ -1,0 +1,68 @@
+{
+  "$id": "urn:woobe:artifacts:v1:capabilities",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "indexers": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Indexers",
+      "type": "array"
+    },
+    "max_page_size": {
+      "exclusiveMinimum": 0,
+      "maximum": 1000,
+      "title": "Max Page Size",
+      "type": "integer"
+    },
+    "max_read_bytes": {
+      "exclusiveMinimum": 0,
+      "title": "Max Read Bytes",
+      "type": "integer"
+    },
+    "max_upload_bytes": {
+      "minimum": 0,
+      "title": "Max Upload Bytes",
+      "type": "integer"
+    },
+    "media_types": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Media Types",
+      "type": "array"
+    },
+    "processors": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Processors",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "1",
+      "default": "1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "transfer_modes": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Transfer Modes",
+      "type": "array"
+    }
+  },
+  "required": [
+    "max_upload_bytes",
+    "max_read_bytes",
+    "max_page_size"
+  ],
+  "title": "CapabilityDescriptor",
+  "type": "object"
+}

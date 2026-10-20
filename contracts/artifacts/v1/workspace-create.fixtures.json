@@ -1,0 +1,33 @@
+{
+  "valid": [
+    {
+      "schema_version": "1",
+      "environment": "draft",
+      "external_namespace": "consumer",
+      "external_key": "opaque-study",
+      "name": "Documents"
+    }
+  ],
+  "invalid": [
+    {
+      "environment": "other",
+      "external_namespace": "app",
+      "external_key": "key",
+      "name": "Docs"
+    },
+    {
+      "schema_version": "2",
+      "environment": "draft",
+      "external_namespace": "app",
+      "external_key": "key",
+      "name": "Docs"
+    },
+    {
+      "environment": "draft",
+      "external_namespace": "app",
+      "external_key": "key",
+      "name": "Docs",
+      "session_id": "not-owned"
+    }
+  ]
+}

@@ -11,6 +11,7 @@ This document routes coding agents to the current owner of a Woobe concept. It i
 | External Context | Agent and Network application/domain boundaries | `docs/ARCHITECTURE.md` |
 | Skills | `packages/woobe-core/src/modules/agent/domain/skills.py` and Agent application services | `docs/skills/` |
 | Knowledge, Collections, Documents, Vector Snapshots, RAG | Agent bounded context | `packages/woobe-core/src/modules/agent/application/rag/README.md`, `docs/ARCHITECTURE.md` |
+| ArtifactWorkspaces, immutable file revisions, document representations | `packages/woobe-core/src/modules/artifacts/` | `docs/adr/0006-artifact-workspaces-document-runtime.md`, `contracts/artifacts/v1/` |
 | Tools, HTTP Tools, MCP Tools | Agent bounded context | `docs/runtime/MCP_TOOLS.md` |
 | Providers, credentials and provider models | Agent bounded context | `docs/CONTRIBUTING_PROVIDERS.md` |
 | ChatSurface | `packages/woobe-core/src/modules/chat_surface/` plus `packages/woobe-embed/` | `docs/runtime/CHAT_SURFACE.md` |
