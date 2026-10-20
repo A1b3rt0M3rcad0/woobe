@@ -73,11 +73,16 @@ from modules.artifacts.composition.composers.bind_processing_profile import bind
 from modules.artifacts.composition.composers.select_processing_profile import select_processing_profile_composer as select_processing_profile_composer
 
 from modules.artifacts.application.contracts.processing import ProfilePage as ProfilePage, ProcessingSelection as ProcessingSelection
-from modules.artifacts.composition.resources import PROCESSING_REGISTRY
 
 
-def processing_component_capabilities():
-    return PROCESSING_REGISTRY.capabilities()
+from modules.artifacts.application.contracts.jobs import (
+    ProcessingRequest as ProcessingRequest, ProcessingJobView as ProcessingJobView,
+    RequestProcessing as RequestProcessing, ReadProcessingJob as ReadProcessingJob,
+)
+from modules.artifacts.composition.composers.request_processing import request_processing_composer as request_processing_composer
+from modules.artifacts.composition.composers.get_processing_job import get_processing_job_composer as get_processing_job_composer
+from modules.artifacts.composition.composers.cancel_processing_job import cancel_processing_job_composer as cancel_processing_job_composer
 
+from modules.artifacts.composition.processing_profiles import processing_component_capabilities as processing_component_capabilities
 
 CONTRACT_VERSION = '1'

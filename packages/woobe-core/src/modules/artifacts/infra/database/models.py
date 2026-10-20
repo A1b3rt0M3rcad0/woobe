@@ -10,6 +10,8 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
+from shared.infra.database.outbox import OutboxEventModel as SharedOutboxEventModel
+from shared.infra.database.inbox import InboxEventModel as SharedInboxEventModel
 from shared.infra.database.base import Base
 
 
@@ -24,6 +26,7 @@ class ArtifactWorkspaceModel(ArtifactRecord):
     __tablename__ = 'workspaces'
     __table_args__ = (
         UniqueConstraint('project_id', 'environment', 'external_namespace', 'external_key', name='uq_artifact_workspace_external'),
+        UniqueConstraint('project_id', 'environment', 'id', name='uq_artifact_workspace_scope_identity'),
         CheckConstraint("environment IN ('draft','staging','production')", name='ck_artifact_workspace_environment'),
         CheckConstraint("status IN ('active','archived','deletion_pending','purged')", name='ck_artifact_workspace_status'),
         CheckConstraint('version >= 1 AND catalog_version >= 0', name='ck_artifact_workspace_version'),
@@ -234,3 +237,101 @@ class ProcessingProfileModel(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     fingerprint: Mapped[str] = mapped_column(String(64))
     recipe: Mapped[dict] = mapped_column(JSONB)
+
+
+class ProcessingJobModel(ArtifactRecord):
+    __tablename__ = 'processing_jobs'
+    __table_args__ = (
+        UniqueConstraint('workspace_id', 'operation_id', name='uq_artifact_processing_operation'),
+        ForeignKeyConstraint(['project_id', 'environment', 'workspace_id'],
+            ['artifacts.workspaces.project_id', 'artifacts.workspaces.environment', 'artifacts.workspaces.id'], name='fk_artifact_job_scope'),
+        CheckConstraint('(profile_id IS NULL) = (profile_revision IS NULL)', name='ck_artifact_job_profile_pair'),
+        ForeignKeyConstraint(['workspace_id', 'artifact_id'], ['artifacts.artifacts.workspace_id', 'artifacts.artifacts.id'], name='fk_artifact_job_owner'),
+        ForeignKeyConstraint(['artifact_id', 'revision_id'], ['artifacts.revisions.artifact_id', 'artifacts.revisions.id'], name='fk_artifact_job_source'),
+        ForeignKeyConstraint(['project_id', 'environment', 'profile_id', 'profile_revision'],
+            ['artifacts.processing_profiles.project_id', 'artifacts.processing_profiles.environment', 'artifacts.processing_profiles.id', 'artifacts.processing_profiles.revision'], name='fk_artifact_job_profile'),
+        CheckConstraint("status IN ('queued','running','succeeded','failed','cancel_requested','cancelled','uncertain')", name='ck_artifact_job_status'),
+        CheckConstraint('attempt >= 0 AND fencing_token >= 0 AND max_attempts >= 1', name='ck_artifact_job_attempt'),
+        Index('ix_artifact_processing_expired_lease', 'status', 'lease_until', 'id'),
+        Index('ix_artifact_processing_claim', 'status', 'available_at', 'created_at', 'id'),
+        Index('ix_artifact_processing_project_budget', 'project_id', 'status', 'lease_until'),
+        Index('ix_artifact_processing_workspace_budget', 'workspace_id', 'status', 'lease_until'),
+        {'schema': 'artifacts'},
+    )
+
+    project_id: Mapped[UUID]
+    environment: Mapped[str] = mapped_column(String(16))
+    workspace_id: Mapped[str] = mapped_column(ForeignKey('artifacts.workspaces.id', ondelete='RESTRICT'))
+    artifact_id: Mapped[str] = mapped_column(String(128))
+    revision_id: Mapped[str] = mapped_column(String(128))
+    principal_id: Mapped[str] = mapped_column(String(128))
+    principal_snapshot: Mapped[dict] = mapped_column(JSONB)
+    operation_id: Mapped[str] = mapped_column(String(128))
+    request_fingerprint: Mapped[str] = mapped_column(String(64))
+    processing_fingerprint: Mapped[str] = mapped_column(String(64))
+    profile_id: Mapped[str | None] = mapped_column(String(128))
+    profile_revision: Mapped[int | None] = mapped_column(BigInteger)
+    recipe: Mapped[dict] = mapped_column(JSONB)
+    recipe_fingerprint: Mapped[str] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(32), default='queued')
+    attempt: Mapped[int] = mapped_column(Integer, default=0)
+    max_attempts: Mapped[int] = mapped_column(Integer, default=3)
+    fencing_token: Mapped[int] = mapped_column(BigInteger, default=0)
+    worker_id: Mapped[str | None] = mapped_column(String(128))
+    lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    available_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    cancel_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    checkpoints: Mapped[dict] = mapped_column(JSONB, default=dict)
+    result: Mapped[dict | None] = mapped_column(JSONB(none_as_null=True))
+    error_code: Mapped[str | None] = mapped_column(String(128))
+    retryable: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class ProcessingAttemptModel(ArtifactRecord):
+    __tablename__ = 'processing_attempts'
+    __table_args__ = (
+        UniqueConstraint('job_id', 'fencing_token', name='uq_artifact_processing_attempt_fence'),
+        {'schema': 'artifacts'},
+    )
+
+    job_id: Mapped[str] = mapped_column(ForeignKey('artifacts.processing_jobs.id', ondelete='RESTRICT'))
+    fencing_token: Mapped[int] = mapped_column(BigInteger)
+    worker_id: Mapped[str] = mapped_column(String(128))
+    status: Mapped[str] = mapped_column(String(32), default='running')
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    error_code: Mapped[str | None] = mapped_column(String(128))
+
+
+class ArtifactProcessingOutboxModel(SharedOutboxEventModel):
+    __tablename__ = 'processing_outbox'
+    __table_args__ = (
+        UniqueConstraint('idempotency_key', name='uq_artifact_processing_outbox_idempotency'),
+        Index('ix_artifact_processing_outbox_pending', 'status', 'available_at', 'created_at'),
+        {'schema': 'artifacts'},
+    )
+
+
+class ArtifactProcessingInboxModel(SharedInboxEventModel):
+    __tablename__ = 'processing_inbox'
+    __table_args__ = (
+        Index('ix_artifact_processing_inbox_job', text("(payload ->> 'job_id')")),
+        UniqueConstraint('message_id', 'consumer_module', name='uq_artifact_processing_inbox_message'),
+        UniqueConstraint('idempotency_key', name='uq_artifact_processing_inbox_idempotency'),
+        {'schema': 'artifacts'},
+    )
+
+
+class ProcessingProjectQueueModel(Base):
+    __tablename__ = 'processing_project_queue'
+    __table_args__ = {'schema': 'artifacts'}
+
+    project_id: Mapped[UUID] = mapped_column(primary_key=True)
+    last_claim_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ProcessingWorkspaceQueueModel(Base):
+    __tablename__ = 'processing_workspace_queue'
+    __table_args__ = {'schema': 'artifacts'}
+
+    workspace_id: Mapped[str] = mapped_column(String(128), ForeignKey('artifacts.workspaces.id', ondelete='RESTRICT'), primary_key=True)
+    last_claim_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

@@ -65,6 +65,7 @@ class JobStatus(StrEnum):
     FAILED = 'failed'
     CANCEL_REQUESTED = 'cancel_requested'
     CANCELLED = 'cancelled'
+    UNCERTAIN = 'uncertain'
 
 
 class Coverage(StrEnum):

@@ -64,7 +64,14 @@ readiness contracts, exact Workspace defaults/CAS and reproducible reuse identit
 passed 155 integration cases, then 12 final profile/constraint cases; full mocked
 regression passed 3198 tests plus 10 subtests. Store-only remains available and no
 unimplemented parser/indexer is advertised. See PROCESSING_PROFILES.md.
-Step 14 durable processing Workers is next.
+Step 14 is complete: existing Worker process integration, standard durable outbox/
+inbox delivery, fenced attempts/checkpoints/heartbeats, current authority checks,
+reconciled cancellation/uncertainty, bounded admission/concurrency and fair
+Project/Workspace selection passed 211 integration cases plus 12 final pipeline/
+retry/factory cases. Actual process-death recovery passed on both adapters.
+Full mocked regression passed 3198 tests plus 10 subtests. Store-only verification
+is qualified; format adapters are delivered next. See PROCESSING_JOBS.md.
+Step 15 native TXT/Markdown/JSON/CSV processing is next.
 
 The stage commit carries `Plan-Step: 01/60`; a file never records its own containing
 commit SHA. CI reconciles commit subjects/trailers against the execution manifest.

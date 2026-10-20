@@ -478,8 +478,29 @@
         5,
         13
       ],
-      "status": "not_started",
-      "checks": []
+      "status": "completed",
+      "checks": [
+        {
+          "command": "Explicit disposable PostgreSQL + real local/S3: pytest tests/integration/artifacts",
+          "outcome": "passed",
+          "evidence": "211 passed, 18 warnings in 171.40s; /workspace/.onboarding/artifacts-step14-integration.log; subsequent pipeline/retry/public-factory qualification adds 12 passing cases"
+        },
+        {
+          "command": "Real Worker process termination before/after checkpoint; pipeline ACK loss; finite retries; public background factory",
+          "outcome": "passed",
+          "evidence": "8 actual os._exit crash cases passed; 8 extraction-stage fixture/finite-retry cases passed in 16.06s; 4 public background-factory cases passed in 14.55s. Fixture stage proves orchestration, not a native converter; source size/hash verified against real adapters."
+        },
+        {
+          "command": "Native full mocked backend regression (baseline selection)",
+          "outcome": "passed",
+          "evidence": "3198 passed, 10 subtests passed, 6 warnings in 43.48s; /workspace/.onboarding/artifacts-step14-regression.log"
+        },
+        {
+          "command": "Artifact/security/API/runtime/guard units; existing Worker registry/location contracts; Ruff; architecture policies",
+          "outcome": "passed",
+          "evidence": "753 passed; 25 Worker/plan contracts passed; no lint/policy violations. Worker AST reader now accepts valid UTF-8 BOM exactly like Python and guards the new Artifacts module; no allowlist exclusions."
+        }
+      ]
     },
     {
       "id": 15,

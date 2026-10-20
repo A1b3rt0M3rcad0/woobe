@@ -10,6 +10,8 @@ class WorkerSettings(Settings):
     """Worker-host settings layered over product/runtime configuration."""
 
     service_role: str = "worker"
+    artifact_processing_worker_slots: int = Field(default=1, ge=1, le=8)
+    artifact_processing_lease_seconds: int = Field(default=30, ge=3, le=300)
     network_worker_prefetch: int = Field(default=4, ge=1, le=100)
     network_worker_slots: int = Field(default=4, ge=1, le=100)
     worker_interval: float = Field(default=5.0, gt=0)

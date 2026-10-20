@@ -12,6 +12,7 @@ from woobe_workers.contracts import ModuleWorkerEntry, WorkerRegistryProtocol
 logger = logging.getLogger(__name__)
 
 CORE_CONSUMER_MODULES: tuple[str, ...] = (
+    "artifacts",
     "agent",
     "core",
     "identity",

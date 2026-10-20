@@ -17,6 +17,8 @@ from modules.artifacts.application.contracts.processing import (  # noqa: E402
     ProcessingRecipe, ProfileCreate, ProfileDefault, ProfileView, ProfilePage, ProcessingSelection,
 )
 
+from modules.artifacts.application.contracts.jobs import ProcessingRequest, ProcessingJobView  # noqa: E402
+
 
 def generate():
     destination = ROOT / 'contracts/artifacts/v1'
@@ -42,6 +44,8 @@ def generate():
         'profile': ProfileView,
         'profile-page': ProfilePage,
         'processing-selection': ProcessingSelection,
+        'processing-request': ProcessingRequest,
+        'processing-job': ProcessingJobView,
     }.items():
         schema = model.model_json_schema()
         schema['$schema'] = 'https://json-schema.org/draft/2020-12/schema'

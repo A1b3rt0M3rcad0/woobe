@@ -491,6 +491,11 @@ _REVIEWED += [
     ('GET', '/v1/artifact-workspaces/{artifact_workspace_id}/processing-profile', 'artifacts:process'),
     ('GET', '/v1/artifact-processing-capabilities', 'artifacts:read'),
 ]
+_REVIEWED += [
+    ('POST', '/v1/artifacts/{artifact_id}/processing', 'artifacts:process'),
+    ('GET', '/v1/artifacts/{artifact_id}/processing/{job_id}', 'artifacts:read'),
+    ('POST', '/v1/artifacts/{artifact_id}/processing/{job_id}/cancel', 'artifacts:process'),
+]
 _COMPILED = [
     (method, path, permission, compile_path(path)[0])
     for method, path, permission in _REVIEWED

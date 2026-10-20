@@ -73,3 +73,11 @@ from modules.artifacts.composition.public_api import (
     ProfilePage as ProfilePage, ProcessingSelection as ProcessingSelection,
     processing_component_capabilities as processing_component_capabilities,
 )
+
+from modules.artifacts.composition.public_api import (
+    ProcessingRequest as ProcessingRequest, ProcessingJobView as ProcessingJobView,
+    RequestProcessing as RequestProcessing, ReadProcessingJob as ReadProcessingJob,
+    request_processing_composer as request_processing_composer,
+    get_processing_job_composer as get_processing_job_composer,
+    cancel_processing_job_composer as cancel_processing_job_composer,
+)

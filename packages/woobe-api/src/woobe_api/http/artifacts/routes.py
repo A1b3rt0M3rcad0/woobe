@@ -18,6 +18,8 @@ from modules.artifacts.entrypoint import (
     CreateProcessingProfile, ReadProcessingProfile, ListProcessingProfiles, BindProcessingProfile, SelectProcessingProfile,
     create_processing_profile_composer, get_processing_profile_composer, list_processing_profiles_composer,
     bind_processing_profile_composer, select_processing_profile_composer, processing_component_capabilities,
+    ProcessingRequest, ProcessingJobView, RequestProcessing, ReadProcessingJob,
+    request_processing_composer, get_processing_job_composer, cancel_processing_job_composer,
 )
 from shared.contracts.object_storage import ObjectStorageError
 from woobe_api.http.artifacts.contracts import FileCreate, FileMove, GrantCreate, Identifier, TextUpdate
@@ -277,3 +279,20 @@ async def select_processing_profile(artifact_workspace_id: Identifier, ctx: Cont
 async def processing_capabilities(ctx: Context):
     await list_processing_profiles_composer()(ListProcessingProfiles(*ctx, limit=1))
     return {'schema_version': '1', 'components': processing_component_capabilities(), 'store_only': True}
+
+
+@router.post('/artifacts/{artifact_id}/processing', status_code=202, response_model=ProcessingJobView)
+async def request_processing(artifact_id: Identifier, artifact_workspace_id: Identifier,
+                             body: ProcessingRequest, request: Request, ctx: Context):
+    idempotency(request, body.operation_id)
+    return await request_processing_composer()(RequestProcessing(*ctx, artifact_workspace_id, artifact_id, body))
+
+
+@router.get('/artifacts/{artifact_id}/processing/{job_id}', response_model=ProcessingJobView)
+async def processing_job(artifact_id: Identifier, job_id: Identifier, artifact_workspace_id: Identifier, ctx: Context):
+    return await get_processing_job_composer()(ReadProcessingJob(*ctx, artifact_workspace_id, job_id, artifact_id))
+
+
+@router.post('/artifacts/{artifact_id}/processing/{job_id}/cancel', status_code=202, response_model=ProcessingJobView)
+async def cancel_processing_job(artifact_id: Identifier, job_id: Identifier, artifact_workspace_id: Identifier, ctx: Context):
+    return await cancel_processing_job_composer()(ReadProcessingJob(*ctx, artifact_workspace_id, job_id, artifact_id))
