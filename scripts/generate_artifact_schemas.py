@@ -13,6 +13,10 @@ from modules.artifacts.application.contracts.api import (  # noqa: E402
     ArtifactView, RevisionView, UploadStatusView, WorkspacePage, ArtifactPage,
 )
 
+from modules.artifacts.application.contracts.processing import (  # noqa: E402
+    ProcessingRecipe, ProfileCreate, ProfileDefault, ProfileView, ProfilePage, ProcessingSelection,
+)
+
 
 def generate():
     destination = ROOT / 'contracts/artifacts/v1'
@@ -32,6 +36,12 @@ def generate():
         'upload-status': UploadStatusView,
         'workspace-page': WorkspacePage,
         'artifact-page': ArtifactPage,
+        'processing-recipe': ProcessingRecipe,
+        'profile-create': ProfileCreate,
+        'profile-default': ProfileDefault,
+        'profile': ProfileView,
+        'profile-page': ProfilePage,
+        'processing-selection': ProcessingSelection,
     }.items():
         schema = model.model_json_schema()
         schema['$schema'] = 'https://json-schema.org/draft/2020-12/schema'

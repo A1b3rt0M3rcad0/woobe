@@ -25,6 +25,7 @@ def workspace_entity(row: WorkspaceModel) -> Workspace:
         quota_bytes=row.quota_bytes, used_bytes=row.used_bytes,
         reserved_bytes=row.reserved_bytes, retention_days=row.retention_days,
         labels=tuple(sorted(row.labels.items())),
+        default_profile_id=row.default_profile_id, default_profile_revision=row.default_profile_revision,
     )
 
 

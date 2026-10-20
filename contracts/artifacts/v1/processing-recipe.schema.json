@@ -1,0 +1,292 @@
+{
+  "$defs": {
+    "ComponentReference": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$",
+          "title": "Name",
+          "type": "string"
+        },
+        "version": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9.+_-]{0,63}$",
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version"
+      ],
+      "title": "ComponentReference",
+      "type": "object"
+    },
+    "LibraryPin": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$",
+          "title": "Name",
+          "type": "string"
+        },
+        "version": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9.+_-]{0,63}$",
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version"
+      ],
+      "title": "LibraryPin",
+      "type": "object"
+    },
+    "ProcessingLimits": {
+      "additionalProperties": false,
+      "properties": {
+        "max_blocks": {
+          "default": 20000,
+          "maximum": 100000,
+          "minimum": 1,
+          "title": "Max Blocks",
+          "type": "integer"
+        },
+        "max_bytes": {
+          "default": 52428800,
+          "maximum": 536870912,
+          "minimum": 1,
+          "title": "Max Bytes",
+          "type": "integer"
+        },
+        "max_output_tokens": {
+          "default": 4096,
+          "maximum": 32768,
+          "minimum": 1,
+          "title": "Max Output Tokens",
+          "type": "integer"
+        },
+        "max_pages": {
+          "default": 500,
+          "maximum": 10000,
+          "minimum": 1,
+          "title": "Max Pages",
+          "type": "integer"
+        },
+        "timeout_seconds": {
+          "default": 120,
+          "maximum": 3600,
+          "minimum": 1,
+          "title": "Timeout Seconds",
+          "type": "integer"
+        }
+      },
+      "title": "ProcessingLimits",
+      "type": "object"
+    },
+    "ProcessingModelReference": {
+      "additionalProperties": false,
+      "properties": {
+        "configuration_key_id": {
+          "format": "uuid",
+          "title": "Configuration Key Id",
+          "type": "string"
+        },
+        "configuration_revision": {
+          "minimum": 1,
+          "title": "Configuration Revision",
+          "type": "integer"
+        },
+        "model_id": {
+          "format": "uuid",
+          "title": "Model Id",
+          "type": "string"
+        },
+        "model_revision": {
+          "minimum": 1,
+          "title": "Model Revision",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "configuration_key_id",
+        "configuration_revision",
+        "model_id",
+        "model_revision"
+      ],
+      "title": "ProcessingModelReference",
+      "type": "object"
+    },
+    "ProcessingParameters": {
+      "additionalProperties": false,
+      "properties": {
+        "csv_dialect": {
+          "default": "excel",
+          "enum": [
+            "excel",
+            "excel-tab",
+            "unix"
+          ],
+          "title": "Csv Dialect",
+          "type": "string"
+        },
+        "csv_max_columns": {
+          "default": 256,
+          "maximum": 1024,
+          "minimum": 1,
+          "title": "Csv Max Columns",
+          "type": "integer"
+        },
+        "encoding": {
+          "default": "auto",
+          "enum": [
+            "auto",
+            "utf-8",
+            "utf-8-sig",
+            "utf-16",
+            "latin-1"
+          ],
+          "title": "Encoding",
+          "type": "string"
+        },
+        "json_max_depth": {
+          "default": 64,
+          "maximum": 128,
+          "minimum": 1,
+          "title": "Json Max Depth",
+          "type": "integer"
+        },
+        "languages": {
+          "default": [],
+          "items": {
+            "pattern": "^[A-Za-z]{2,3}(?:[-_][A-Za-z]{2,4})?$",
+            "type": "string"
+          },
+          "title": "Languages",
+          "type": "array"
+        },
+        "max_heading_depth": {
+          "default": 6,
+          "maximum": 6,
+          "minimum": 1,
+          "title": "Max Heading Depth",
+          "type": "integer"
+        },
+        "max_line_chars": {
+          "default": 65536,
+          "maximum": 1048576,
+          "minimum": 1,
+          "title": "Max Line Chars",
+          "type": "integer"
+        },
+        "ocr_dpi": {
+          "default": 150,
+          "maximum": 300,
+          "minimum": 72,
+          "title": "Ocr Dpi",
+          "type": "integer"
+        },
+        "preserve_blank_lines": {
+          "default": true,
+          "title": "Preserve Blank Lines",
+          "type": "boolean"
+        }
+      },
+      "title": "ProcessingParameters",
+      "type": "object"
+    }
+  },
+  "$id": "urn:woobe:artifacts:v1:processing-recipe",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "enricher": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ComponentReference"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "indexer": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ComponentReference"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "libraries": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/LibraryPin"
+      },
+      "maxItems": 32,
+      "title": "Libraries",
+      "type": "array"
+    },
+    "limits": {
+      "$ref": "#/$defs/ProcessingLimits"
+    },
+    "mode": {
+      "default": "store_only",
+      "enum": [
+        "store_only",
+        "extract",
+        "extract_index"
+      ],
+      "title": "Mode",
+      "type": "string"
+    },
+    "model": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ProcessingModelReference"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "ocr": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ComponentReference"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "parameters": {
+      "$ref": "#/$defs/ProcessingParameters"
+    },
+    "processor": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ComponentReference"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "schema_version": {
+      "const": "1",
+      "default": "1",
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "title": "ProcessingRecipe",
+  "type": "object"
+}

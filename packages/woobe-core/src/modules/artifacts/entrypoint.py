@@ -56,3 +56,20 @@ from modules.artifacts.composition.public_api import (
     WorkspaceView as WorkspaceView, ArtifactView as ArtifactView, RevisionView as RevisionView,
     UploadStatusView as UploadStatusView, WorkspacePage as WorkspacePage, ArtifactPage as ArtifactPage,
 )
+
+from modules.artifacts.composition.public_api import (
+    ProcessingRecipe as ProcessingRecipe, ProfileCreate as ProfileCreate, ProfileDefault as ProfileDefault, ProfileView as ProfileView,
+    CreateProcessingProfile as CreateProcessingProfile, ReadProcessingProfile as ReadProcessingProfile,
+    ListProcessingProfiles as ListProcessingProfiles, BindProcessingProfile as BindProcessingProfile,
+    SelectProcessingProfile as SelectProcessingProfile,
+    create_processing_profile_composer as create_processing_profile_composer,
+    get_processing_profile_composer as get_processing_profile_composer,
+    list_processing_profiles_composer as list_processing_profiles_composer,
+    bind_processing_profile_composer as bind_processing_profile_composer,
+    select_processing_profile_composer as select_processing_profile_composer,
+)
+
+from modules.artifacts.composition.public_api import (
+    ProfilePage as ProfilePage, ProcessingSelection as ProcessingSelection,
+    processing_component_capabilities as processing_component_capabilities,
+)

@@ -43,7 +43,9 @@ async def http_client(engine, artifacts_database, object_store, monkeypatch):
              'permissions': json.dumps(['artifacts:' + value for value in ('read','write','delete','manage','process','search','transfer')])})
     for name in ('create_workspace','get_workspace','list_workspaces','resolve_workspace','update_workspace',
                  'create_workspace_grant','revoke_workspace_grant','get_file','list_files','mutate_file',
-                 'begin_upload','get_upload','admit_upload','record_upload','verify_upload','commit_upload','abort_upload'):
+                 'begin_upload','get_upload','admit_upload','record_upload','verify_upload','commit_upload','abort_upload',
+                 'create_processing_profile','get_processing_profile','list_processing_profiles',
+                 'bind_processing_profile','select_processing_profile'):
         module = importlib.import_module('modules.artifacts.composition.composers.' + name)
         monkeypatch.setattr(module, 'DATABASE_ENGINE', engine)
     for name in ('files', 'uploads'):

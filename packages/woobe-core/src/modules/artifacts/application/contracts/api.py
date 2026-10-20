@@ -114,7 +114,7 @@ class CursorEnvelope(Contract):
     scope_fingerprint: Digest
     last_id: Identifier
     catalog_version: int = Field(ge=0)
-    purpose: Literal['workspaces', 'artifacts', 'search', 'nodes']
+    purpose: Literal['workspaces', 'artifacts', 'search', 'nodes', 'profiles']
 
 
 class CapabilityDescriptor(Contract):
@@ -136,6 +136,8 @@ class CapabilityDescriptor(Contract):
 
 
 class WorkspaceView(WorkspaceCreate):
+    default_profile_id: Identifier | None = None
+    default_profile_revision: int | None = Field(default=None, ge=1)
     id: Identifier
     project_id: Identifier
     status: Literal['active', 'archived', 'deletion_pending', 'purged']

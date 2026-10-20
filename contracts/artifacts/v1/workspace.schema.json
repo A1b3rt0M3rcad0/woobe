@@ -19,6 +19,32 @@
       "title": "Catalog Version",
       "type": "integer"
     },
+    "default_profile_id": {
+      "anyOf": [
+        {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Default Profile Id"
+    },
+    "default_profile_revision": {
+      "anyOf": [
+        {
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Default Profile Revision"
+    },
     "environment": {
       "$ref": "#/$defs/Environment"
     },

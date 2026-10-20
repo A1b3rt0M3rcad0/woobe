@@ -59,7 +59,12 @@ all architecture policies passed. See FILES.md. Step 12 is complete: direct Work
 Control permissions, Artifacts Runtime interface, scoped errors/response schemas,
 proxy Range/CORS and live logout/grant/key revocation passed 147 integration tests.
 Full mocked regression passed 3187 tests plus 10 subtests; native API/Workers are
-reloaded and healthy. See HTTP_API.md. Step 13 versioned processing profiles is next.
+reloaded and healthy. See HTTP_API.md. Step 13 is complete: immutable scoped recipes, passive component/library/model
+readiness contracts, exact Workspace defaults/CAS and reproducible reuse identity
+passed 155 integration cases, then 12 final profile/constraint cases; full mocked
+regression passed 3198 tests plus 10 subtests. Store-only remains available and no
+unimplemented parser/indexer is advertised. See PROCESSING_PROFILES.md.
+Step 14 durable processing Workers is next.
 
 The stage commit carries `Plan-Step: 01/60`; a file never records its own containing
 commit SHA. CI reconciles commit subjects/trailers against the execution manifest.

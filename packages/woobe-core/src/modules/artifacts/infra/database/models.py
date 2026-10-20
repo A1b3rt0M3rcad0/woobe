@@ -29,6 +29,9 @@ class ArtifactWorkspaceModel(ArtifactRecord):
         CheckConstraint('version >= 1 AND catalog_version >= 0', name='ck_artifact_workspace_version'),
         CheckConstraint('quota_bytes >= 0 AND used_bytes >= 0 AND reserved_bytes >= 0 AND used_bytes + reserved_bytes <= quota_bytes', name='ck_artifact_workspace_quota'),
         CheckConstraint('retention_days >= 0', name='ck_artifact_workspace_retention'),
+        ForeignKeyConstraint(['project_id', 'environment', 'default_profile_id', 'default_profile_revision'],
+            ['artifacts.processing_profiles.project_id', 'artifacts.processing_profiles.environment', 'artifacts.processing_profiles.id', 'artifacts.processing_profiles.revision'], name='fk_artifact_workspace_profile'),
+        CheckConstraint('(default_profile_id IS NULL) = (default_profile_revision IS NULL)', name='ck_artifact_workspace_profile_pair'),
         Index('ix_artifact_workspaces_scope_page', 'project_id', 'environment', 'id'),
         {'schema': 'artifacts'},
     )
@@ -50,6 +53,8 @@ class ArtifactWorkspaceModel(ArtifactRecord):
     retention_days: Mapped[int] = mapped_column(Integer, default=30)
     labels: Mapped[dict] = mapped_column(JSONB, default=dict)
     creation_fingerprint: Mapped[str | None] = mapped_column(String(64))
+    default_profile_id: Mapped[str | None] = mapped_column(String(128))
+    default_profile_revision: Mapped[int | None] = mapped_column(BigInteger)
 
 
 class ArtifactModel(ArtifactRecord):
@@ -211,3 +216,21 @@ class CatalogOperationModel(ArtifactRecord):
     operation_id: Mapped[str] = mapped_column(String(128))
     request_fingerprint: Mapped[str] = mapped_column(String(64))
     receipt: Mapped[dict] = mapped_column(JSONB)
+
+
+class ProcessingProfileModel(Base):
+    __tablename__ = 'processing_profiles'
+    __table_args__ = (
+        CheckConstraint("environment IN ('draft','staging','production')", name='ck_artifact_processing_profile_environment'),
+        CheckConstraint('revision >= 1', name='ck_artifact_processing_profile_revision'),
+        CheckConstraint("fingerprint ~ '^[0-9a-f]{64}$'", name='ck_artifact_processing_profile_fingerprint'),
+        {'schema': 'artifacts'},
+    )
+
+    project_id: Mapped[UUID] = mapped_column(primary_key=True)
+    environment: Mapped[str] = mapped_column(String(16), primary_key=True)
+    id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    revision: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    fingerprint: Mapped[str] = mapped_column(String(64))
+    recipe: Mapped[dict] = mapped_column(JSONB)

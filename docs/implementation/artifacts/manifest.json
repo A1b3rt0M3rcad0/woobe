@@ -445,8 +445,29 @@
         4,
         12
       ],
-      "status": "not_started",
-      "checks": []
+      "status": "completed",
+      "checks": [
+        {
+          "command": "Explicit real PostgreSQL/local/S3: pytest tests/integration/artifacts",
+          "outcome": "passed",
+          "evidence": "155 passed, 14 warnings in 122.23s; /workspace/.onboarding/artifacts-step13-integration.log"
+        },
+        {
+          "command": "Real HTTP/PostgreSQL profiles after bigint/environment guards: pytest tests/integration/artifacts/test_profiles_postgres.py",
+          "outcome": "passed",
+          "evidence": "12 passed, 2 warnings in 22.22s across both migration/storage paths; immutable revisions, missing optional plugin, scoped defaults/CAS, safe import/readiness, pagination and SQL constraints; /workspace/.onboarding/artifacts-step13-profiles.log"
+        },
+        {
+          "command": "Native full mocked backend regression (baseline selection)",
+          "outcome": "passed",
+          "evidence": "3198 passed, 10 subtests passed, 6 warnings in 43.75s; /workspace/.onboarding/artifacts-step13-regression.log"
+        },
+        {
+          "command": "Artifact/security/API/guard unit selection; targeted profile/plan tests; Ruff; nine architecture policies",
+          "outcome": "passed",
+          "evidence": "708 passed; final targeted profile/plan run 25 passed; no lint errors; zero architecture violations; no converter/model/network work occurs when configuration is created or imported"
+        }
+      ]
     },
     {
       "id": 14,

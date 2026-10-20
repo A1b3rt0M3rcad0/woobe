@@ -483,6 +483,14 @@ _REVIEWED += [
     ('GET', '/v1/artifacts/{artifact_id}/revisions/{revision_id}/content', 'artifacts:read'),
     ('GET', '/v1/artifact-capabilities', 'artifacts:read'),
 ]
+_REVIEWED += [
+    ('POST', '/v1/artifact-processing-profiles', 'artifacts:manage'),
+    ('GET', '/v1/artifact-processing-profiles', 'artifacts:read'),
+    ('GET', '/v1/artifact-processing-profiles/{profile_id}/revisions/{profile_revision}', 'artifacts:read'),
+    ('PUT', '/v1/artifact-workspaces/{artifact_workspace_id}/processing-profile', 'artifacts:manage'),
+    ('GET', '/v1/artifact-workspaces/{artifact_workspace_id}/processing-profile', 'artifacts:process'),
+    ('GET', '/v1/artifact-processing-capabilities', 'artifacts:read'),
+]
 _COMPILED = [
     (method, path, permission, compile_path(path)[0])
     for method, path, permission in _REVIEWED

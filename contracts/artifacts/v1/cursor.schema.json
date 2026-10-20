@@ -18,7 +18,8 @@
         "workspaces",
         "artifacts",
         "search",
-        "nodes"
+        "nodes",
+        "profiles"
       ],
       "title": "Purpose",
       "type": "string"

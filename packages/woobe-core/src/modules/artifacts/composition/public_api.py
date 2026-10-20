@@ -58,4 +58,26 @@ from modules.artifacts.application.contracts.api import (
     UploadStatusView as UploadStatusView, WorkspacePage as WorkspacePage, ArtifactPage as ArtifactPage,
 )
 
+from modules.artifacts.application.contracts.processing import (
+    ProcessingRecipe as ProcessingRecipe, ProfileCreate as ProfileCreate, ProfileDefault as ProfileDefault, ProfileView as ProfileView,
+)
+from modules.artifacts.application.contracts.profiles import (
+    CreateProcessingProfile as CreateProcessingProfile, ReadProcessingProfile as ReadProcessingProfile,
+    ListProcessingProfiles as ListProcessingProfiles, BindProcessingProfile as BindProcessingProfile,
+    SelectProcessingProfile as SelectProcessingProfile,
+)
+from modules.artifacts.composition.composers.create_processing_profile import create_processing_profile_composer as create_processing_profile_composer
+from modules.artifacts.composition.composers.get_processing_profile import get_processing_profile_composer as get_processing_profile_composer
+from modules.artifacts.composition.composers.list_processing_profiles import list_processing_profiles_composer as list_processing_profiles_composer
+from modules.artifacts.composition.composers.bind_processing_profile import bind_processing_profile_composer as bind_processing_profile_composer
+from modules.artifacts.composition.composers.select_processing_profile import select_processing_profile_composer as select_processing_profile_composer
+
+from modules.artifacts.application.contracts.processing import ProfilePage as ProfilePage, ProcessingSelection as ProcessingSelection
+from modules.artifacts.composition.resources import PROCESSING_REGISTRY
+
+
+def processing_component_capabilities():
+    return PROCESSING_REGISTRY.capabilities()
+
+
 CONTRACT_VERSION = '1'

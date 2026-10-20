@@ -4,7 +4,7 @@ from typing import Annotated
 from urllib.parse import quote
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, Query, Request
+from fastapi import APIRouter, Depends, Header, Path, Query, Request
 from fastapi.responses import Response
 
 from modules.artifacts.entrypoint import (
@@ -14,7 +14,10 @@ from modules.artifacts.entrypoint import (
     WorkspaceCreate, WorkspacePage, WorkspaceUpdate, WorkspaceView, WriteText, RevisionView, UploadStatusView, build_file_service, build_upload_service,
     create_workspace_composer, create_workspace_grant_composer, get_workspace_composer,
     list_workspaces_composer, resolve_workspace_composer, revoke_workspace_grant_composer,
-    update_workspace_composer,
+    update_workspace_composer, ProfileCreate, ProfileDefault, ProfileView, ProfilePage, ProcessingSelection,
+    CreateProcessingProfile, ReadProcessingProfile, ListProcessingProfiles, BindProcessingProfile, SelectProcessingProfile,
+    create_processing_profile_composer, get_processing_profile_composer, list_processing_profiles_composer,
+    bind_processing_profile_composer, select_processing_profile_composer, processing_component_capabilities,
 )
 from shared.contracts.object_storage import ObjectStorageError
 from woobe_api.http.artifacts.contracts import FileCreate, FileMove, GrantCreate, Identifier, TextUpdate
@@ -226,10 +229,51 @@ async def capabilities(request: Request, ctx: Context):
     # probe or configuration values are exposed by discovery.
     await list_workspaces_composer()(ListWorkspaces(*ctx, limit=1))
     settings = request.app.state.settings
-    return CapabilityDescriptor.model_validate({'schema_version': '1', 'processors': [], 'indexers': [],
-        'media_types': [], 'transfer_modes': ['proxy', 'resumable-offset'],
+    components = processing_component_capabilities()
+    ready = [item for item in components if item['ready']]
+    return CapabilityDescriptor.model_validate({'schema_version': '1',
+        'processors': [item['name'] for item in ready if item['role'] == 'processor'],
+        'indexers': [item['name'] for item in ready if item['role'] == 'indexer'],
+        'media_types': sorted({kind for item in ready if item['role'] == 'processor' for kind in item['media_types']}), 'transfer_modes': ['proxy', 'resumable-offset'],
         'max_upload_bytes': settings.upload_max_mb * 1024 * 1024, 'max_read_bytes': 262144,
         'max_request_bytes': min(settings.request_max_bytes, settings.runtime_max_request_bytes),
         'max_upload_part_bytes': min(settings.request_max_bytes, settings.runtime_max_request_bytes, 8 * 1024 * 1024),
         'max_upload_parts': 4096, 'max_inline_bytes': 262144, 'max_page_size': 200,
         'downloads': ['proxy-range'], 'signed_upload_urls': False, 'storage_readiness': 'not_probed'})
+
+
+@router.post('/artifact-processing-profiles', status_code=201, response_model=ProfileView)
+async def create_processing_profile(body: ProfileCreate, ctx: Context):
+    return await create_processing_profile_composer()(CreateProcessingProfile(*ctx, body))
+
+
+@router.get('/artifact-processing-profiles', response_model=ProfilePage)
+async def list_processing_profiles(ctx: Context, limit: int = Query(default=50, ge=1, le=200),
+                                   cursor: str | None = Query(default=None, max_length=4096)):
+    page = await list_processing_profiles_composer()(ListProcessingProfiles(*ctx, limit, cursor))
+    return {'schema_version': '1', 'items': page.items, 'has_more': page.has_more,
+            'next_cursor': page.next_cursor, 'truncated': page.truncated}
+
+
+@router.get('/artifact-processing-profiles/{profile_id}/revisions/{profile_revision}', response_model=ProfileView)
+async def get_processing_profile(profile_id: Identifier, profile_revision: Annotated[int, Path(ge=1, le=9_223_372_036_854_775_807)], ctx: Context):
+    return await get_processing_profile_composer()(ReadProcessingProfile(*ctx, profile_id, profile_revision))
+
+
+@router.put('/artifact-workspaces/{artifact_workspace_id}/processing-profile', response_model=WorkspaceView)
+async def bind_processing_profile(artifact_workspace_id: Identifier, body: ProfileDefault, request: Request, ctx: Context):
+    expected_version(request, body.expected_version)
+    return workspace_payload(await bind_processing_profile_composer()(BindProcessingProfile(*ctx, artifact_workspace_id, body)))
+
+
+@router.get('/artifact-workspaces/{artifact_workspace_id}/processing-profile', response_model=ProcessingSelection)
+async def select_processing_profile(artifact_workspace_id: Identifier, ctx: Context,
+                                    profile_id: Identifier | None = None,
+                                    profile_revision: int | None = Query(default=None, ge=1, le=9_223_372_036_854_775_807)):
+    return await select_processing_profile_composer()(SelectProcessingProfile(*ctx, artifact_workspace_id, profile_id, profile_revision))
+
+
+@router.get('/artifact-processing-capabilities')
+async def processing_capabilities(ctx: Context):
+    await list_processing_profiles_composer()(ListProcessingProfiles(*ctx, limit=1))
+    return {'schema_version': '1', 'components': processing_component_capabilities(), 'store_only': True}

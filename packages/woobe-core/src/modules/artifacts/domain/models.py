@@ -216,6 +216,8 @@ class Workspace:
     reserved_bytes: int = 0
     retention_days: int = 30
     labels: tuple[tuple[str, str], ...] = ()
+    default_profile_id: str | None = None
+    default_profile_revision: int | None = None
 
     def __post_init__(self):
         opaque_id(self.id)
@@ -225,6 +227,12 @@ class Workspace:
             value = getattr(self, name)
             if not value.strip() or len(value) > 255 or '\x00' in value:
                 raise ValueError(f'Invalid workspace {name}')
+        if (self.default_profile_id is None) != (self.default_profile_revision is None):
+            raise ValueError('Default processing profile requires identity and revision')
+        if self.default_profile_id is not None:
+            opaque_id(self.default_profile_id)
+            if self.default_profile_revision < 1:
+                raise ValueError('Default profile revision must be positive')
         if self.version < 1 or self.catalog_version < 0 or self.retention_days < 0:
             raise ValueError('Invalid workspace version/retention')
         if min(self.quota_bytes, self.used_bytes, self.reserved_bytes) < 0:
