@@ -412,8 +412,29 @@
         10,
         11
       ],
-      "status": "not_started",
-      "checks": []
+      "status": "completed",
+      "checks": [
+        {
+          "command": "Explicit disposable PostgreSQL + real local/S3 fixtures: pytest tests/integration/artifacts",
+          "outcome": "passed",
+          "evidence": "147 passed, 12 warnings in 101.28s; includes 24 complete FastAPI/SQL authentication HTTP cases on fresh/populated and local/real-S3 paths; /workspace/.onboarding/artifacts-step12-integration.log"
+        },
+        {
+          "command": "Native full mocked backend regression (baseline selection)",
+          "outcome": "passed",
+          "evidence": "3187 passed, 10 subtests passed, 6 warnings in 42.73s; /workspace/.onboarding/artifacts-step12-regression.log"
+        },
+        {
+          "command": "Artifact/security/API unit selection; explicit contract/plan guards; host boundary tests; Ruff; architecture policies",
+          "outcome": "passed",
+          "evidence": "697 passed; 31 contracts/plan guards passed; 21 host/core/plan boundary tests passed; zero lint/policy violations. Existing negative Agent boundary fixture did not recognize the host import it expected to reject; shared predicate now protects both real source checks and the negative fixture, without allowlist expansion."
+        },
+        {
+          "command": "Native application migrate/restart; GET /ready; OpenAPI; Workers health check",
+          "outcome": "passed",
+          "evidence": "App database migrated additively 0106→0110; owned API/Workers reloaded; native API ready; 15 Artifacts paths and typed response components published; worker health valid; local frontend CORS port added while preserving existing origins. ASGI transport used for authenticated end-to-end tests; no production deployment."
+        }
+      ]
     },
     {
       "id": 13,

@@ -22,6 +22,13 @@
       "size_bytes": -1,
       "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "content_type": "text/plain"
+    },
+    {
+      "operation_id": "operation-1",
+      "path": "folder/doc.md",
+      "size_bytes": 12,
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "content_type": "image/☃"
     }
   ]
 }

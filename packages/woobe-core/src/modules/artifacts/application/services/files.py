@@ -73,3 +73,13 @@ class FileService:
             await self._uploads.append(UploadPart(request.principal, request.scope, request.workspace_id,
                 view.id, 0, content))
         return await self._uploads.finalize(upload)
+
+    async def open_content(self, request, *, start=0, end=None):
+        snapshot = await self.resolve(request)
+        if snapshot.revision is None:
+            raise ArtifactError('SOURCE_UNAVAILABLE', 'Directory content is unavailable')
+        stop = snapshot.revision.size_bytes if end is None else end
+        if not 0 <= start <= stop <= snapshot.revision.size_bytes:
+            raise ArtifactError('ARTIFACT_INVALID_RANGE', 'Invalid artifact byte range')
+        return snapshot, self._storage(snapshot.storage_profile).open(
+            snapshot.revision.object_key, start=start, end=stop)

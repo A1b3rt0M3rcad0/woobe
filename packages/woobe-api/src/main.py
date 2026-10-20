@@ -50,6 +50,7 @@ from woobe_api.http.chat_surface.reattach_routes import (
 )
 from woobe_api.http.chat_surface.routes import router as chat_surface_router
 from woobe_api.http.core.routes import router as core_router
+from woobe_api.http.artifacts.routes import router as artifacts_router
 from woobe_api.http.identity.instance_routes import router as instance_router
 from woobe_api.http.identity.routes import router as identity_router
 from woobe_api.http.identity.authority_routes import router as authority_router
@@ -235,11 +236,17 @@ def create_app() -> FastAPI:
             "X-Correlation-ID",
             "Last-Event-ID",
             "Idempotency-Key",
+            "Range",
+            "If-Range",
             "If-Match",
             "If-None-Match",
             "X-Woobe-Host-Origin",
         ],
         expose_headers=[
+            "Content-Range",
+            "Content-Disposition",
+            "Accept-Ranges",
+            "X-Woobe-Source-Sha256",
             "ETag",
             "Idempotency-Replayed",
             "X-Request-ID",
@@ -308,6 +315,7 @@ def create_app() -> FastAPI:
         app.include_router(identity_router)
         app.include_router(authority_router)
         app.include_router(core_router)
+        app.include_router(artifacts_router)
         app.include_router(chat_surface_router)
         app.include_router(chat_surface_reattach_router)
         app.include_router(public_runtime_router)

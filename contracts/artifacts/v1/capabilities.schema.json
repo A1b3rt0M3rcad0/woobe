@@ -3,6 +3,14 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
+    "downloads": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Downloads",
+      "type": "array"
+    },
     "indexers": {
       "default": [],
       "items": {
@@ -10,6 +18,13 @@
       },
       "title": "Indexers",
       "type": "array"
+    },
+    "max_inline_bytes": {
+      "default": 262144,
+      "exclusiveMinimum": 0,
+      "maximum": 262144,
+      "title": "Max Inline Bytes",
+      "type": "integer"
     },
     "max_page_size": {
       "exclusiveMinimum": 0,
@@ -22,9 +37,30 @@
       "title": "Max Read Bytes",
       "type": "integer"
     },
+    "max_request_bytes": {
+      "default": 262144,
+      "exclusiveMinimum": 0,
+      "maximum": 8388608,
+      "title": "Max Request Bytes",
+      "type": "integer"
+    },
     "max_upload_bytes": {
       "minimum": 0,
       "title": "Max Upload Bytes",
+      "type": "integer"
+    },
+    "max_upload_part_bytes": {
+      "default": 262144,
+      "exclusiveMinimum": 0,
+      "maximum": 8388608,
+      "title": "Max Upload Part Bytes",
+      "type": "integer"
+    },
+    "max_upload_parts": {
+      "default": 4096,
+      "exclusiveMinimum": 0,
+      "maximum": 4096,
+      "title": "Max Upload Parts",
       "type": "integer"
     },
     "media_types": {
@@ -47,6 +83,21 @@
       "const": "1",
       "default": "1",
       "title": "Schema Version",
+      "type": "string"
+    },
+    "signed_upload_urls": {
+      "default": false,
+      "title": "Signed Upload Urls",
+      "type": "boolean"
+    },
+    "storage_readiness": {
+      "default": "not_probed",
+      "enum": [
+        "not_probed",
+        "ready",
+        "unavailable"
+      ],
+      "title": "Storage Readiness",
       "type": "string"
     },
     "transfer_modes": {

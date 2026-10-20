@@ -57,6 +57,11 @@ class UploadService:
     async def status(self, request):
         return (await self._status(request)).view
 
+    async def admit(self, request):
+        snapshot = await self._admit(request)
+        self._live(snapshot)
+        return snapshot.view
+
     async def abort(self, request):
         return (await self._abort(request)).view
 

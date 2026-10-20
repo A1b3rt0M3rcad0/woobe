@@ -460,6 +460,29 @@ _REVIEWED = [
     (method, path, "tool:read" if path == "/tools/mcp/oauth/status" else permission)
     for method, path, permission in _REVIEWED
 ]
+_REVIEWED += [
+    ('POST', '/v1/artifact-workspaces', 'artifacts:manage'),
+    ('GET', '/v1/artifact-workspaces', 'artifacts:read'),
+    ('GET', '/v1/artifact-workspaces/resolve', 'artifacts:read'),
+    ('GET', '/v1/artifact-workspaces/{artifact_workspace_id}', 'artifacts:read'),
+    ('PATCH', '/v1/artifact-workspaces/{artifact_workspace_id}', 'artifacts:manage'),
+    ('POST', '/v1/artifact-workspace-grants', 'artifacts:manage'),
+    ('DELETE', '/v1/artifact-workspace-grants/{grant_id}', 'artifacts:manage'),
+    ('GET', '/v1/artifact-workspaces/{artifact_workspace_id}/artifacts', 'artifacts:read'),
+    ('POST', '/v1/artifact-workspaces/{artifact_workspace_id}/artifacts', 'artifacts:write'),
+    ('GET', '/v1/artifact-workspaces/{artifact_workspace_id}/artifacts/{artifact_id}', 'artifacts:read'),
+    ('PATCH', '/v1/artifact-workspaces/{artifact_workspace_id}/artifacts/{artifact_id}', 'artifacts:write'),
+    ('PUT', '/v1/artifact-workspaces/{artifact_workspace_id}/artifacts/{artifact_id}/content', 'artifacts:write'),
+    ('DELETE', '/v1/artifact-workspaces/{artifact_workspace_id}/artifacts/{artifact_id}', 'artifacts:delete'),
+    ('POST', '/v1/artifact-workspaces/{artifact_workspace_id}/uploads', 'artifacts:write'),
+    ('GET', '/v1/artifact-workspaces/{artifact_workspace_id}/uploads/{upload_id}', 'artifacts:read'),
+    ('PUT', '/v1/artifact-workspaces/{artifact_workspace_id}/uploads/{upload_id}/parts', 'artifacts:write'),
+    ('POST', '/v1/artifact-workspaces/{artifact_workspace_id}/uploads/{upload_id}/finalize', 'artifacts:write'),
+    ('DELETE', '/v1/artifact-workspaces/{artifact_workspace_id}/uploads/{upload_id}', 'artifacts:write'),
+    ('GET', '/v1/artifacts/{artifact_id}/revisions/{revision_id}', 'artifacts:read'),
+    ('GET', '/v1/artifacts/{artifact_id}/revisions/{revision_id}/content', 'artifacts:read'),
+    ('GET', '/v1/artifact-capabilities', 'artifacts:read'),
+]
 _COMPILED = [
     (method, path, permission, compile_path(path)[0])
     for method, path, permission in _REVIEWED
@@ -636,6 +659,10 @@ def verified_query_context(
     method: str, path: str, path_params: dict[str, Any], query_params: dict[str, Any]
 ) -> dict[str, Any]:
     """Expose only filters that the exact reviewed collection handler consumes."""
+    permission, _ = resolve_operation(method, path)
+    if permission is not None and permission.startswith('artifacts:'):
+        return {**path_params, **{name: query_params[name] for name in
+            ('project_id', 'environment') if query_params.get(name) is not None}}
     if method.upper() == "GET" and path == "/ai/provider-models" and query_params.get("available_for_credential_id"):
         return {**path_params, "credential_id": query_params["available_for_credential_id"],
                 "environment": query_params.get("environment") or "draft"}

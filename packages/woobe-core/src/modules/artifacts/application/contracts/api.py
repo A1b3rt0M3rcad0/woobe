@@ -2,7 +2,7 @@
 
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
 from modules.artifacts.domain.models import (
     Environment, ErrorCode, ID_PATTERN, Locator, SHA256_PATTERN, SourceRef, logical_path,
@@ -85,14 +85,16 @@ class UploadCreate(Contract):
     path: str = Field(max_length=1024)
     size_bytes: int = Field(ge=0)
     sha256: Digest
-    content_type: str = Field(min_length=3, max_length=255)
+    content_type: str = Field(min_length=3, max_length=255,
+        pattern=r"^[!#$%&'*+.^_`|~0-9A-Za-z-]+/[!#$%&'*+.^_`|~0-9A-Za-z-]+(?:;[ -~]+)?$")
     artifact_id: Identifier | None = None
     expected_revision: Identifier | None = None
 
     @model_validator(mode='after')
     def validate_upload(self):
         logical_path(self.path)
-        if '/' not in self.content_type or '\r' in self.content_type or '\n' in self.content_type:
+        if (not self.content_type.isascii() or '/' not in self.content_type
+                or any(ord(character) < 32 or ord(character) == 127 for character in self.content_type)):
             raise ValueError('Invalid declared content type')
         if (self.artifact_id is None) != (self.expected_revision is None):
             raise ValueError('Updating content requires artifact identity and expected revision')
@@ -124,3 +126,74 @@ class CapabilityDescriptor(Contract):
     max_upload_bytes: int = Field(ge=0)
     max_read_bytes: int = Field(gt=0)
     max_page_size: int = Field(gt=0, le=1000)
+    max_upload_part_bytes: int = Field(default=262144, gt=0, le=8388608)
+    max_upload_parts: int = Field(default=4096, gt=0, le=4096)
+    max_inline_bytes: int = Field(default=262144, gt=0, le=262144)
+    max_request_bytes: int = Field(default=262144, gt=0, le=8388608)
+    downloads: tuple[str, ...] = ()
+    signed_upload_urls: bool = False
+    storage_readiness: Literal['not_probed', 'ready', 'unavailable'] = 'not_probed'
+
+
+class WorkspaceView(WorkspaceCreate):
+    id: Identifier
+    project_id: Identifier
+    status: Literal['active', 'archived', 'deletion_pending', 'purged']
+    version: int = Field(ge=1)
+    catalog_version: int = Field(ge=0)
+    used_bytes: int = Field(ge=0)
+    reserved_bytes: int = Field(ge=0)
+
+
+class RevisionView(Contract):
+    schema_version: Literal['1'] = '1'
+    id: Identifier
+    artifact_id: Identifier
+    content_type: str
+    size_bytes: int = Field(ge=0)
+    sha256: Digest
+    origin: Literal['upload', 'application', 'agent', 'tool', 'processing', 'copy']
+    producer_id: Identifier | None = None
+    operation_id: Identifier | None = None
+    run_id: Identifier | None = None
+    node_id: Identifier | None = None
+
+
+class ArtifactView(Contract):
+    schema_version: Literal['1'] = '1'
+    id: Identifier
+    workspace_id: Identifier
+    path: str
+    kind: Literal['file', 'directory']
+    revision_id: Identifier | None = None
+    version: int = Field(ge=1)
+    deleted: bool = False
+    revision: RevisionView | None = None
+
+
+class UploadStatusView(Contract):
+    schema_version: Literal['1'] = '1'
+    id: Identifier
+    workspace_id: Identifier
+    operation_id: Identifier
+    expected_size: int = Field(ge=0)
+    offset: int = Field(ge=0)
+    status: Literal['created', 'uploading', 'verifying', 'committed', 'failed', 'aborted', 'expired']
+    expires_at: AwareDatetime
+    receipt: ArtifactReference | None = None
+
+
+class WorkspacePage(Contract):
+    schema_version: Literal['1'] = '1'
+    items: tuple[WorkspaceView, ...]
+    has_more: bool
+    next_cursor: str | None = None
+    truncated: bool = False
+
+
+class ArtifactPage(Contract):
+    schema_version: Literal['1'] = '1'
+    items: tuple[ArtifactView, ...]
+    has_more: bool
+    next_cursor: str | None = None
+    truncated: bool = False

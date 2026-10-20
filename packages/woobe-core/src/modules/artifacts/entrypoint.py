@@ -49,3 +49,10 @@ from modules.artifacts.composition.public_api import (
     build_file_service as build_file_service, ReadFile as ReadFile, CopyFile as CopyFile, ListFiles as ListFiles,
     MutateFile as MutateFile, WriteText as WriteText,
 )
+
+from modules.artifacts.composition.public_api import Scope as Scope, Environment as Environment, Action as Action
+
+from modules.artifacts.composition.public_api import (
+    WorkspaceView as WorkspaceView, ArtifactView as ArtifactView, RevisionView as RevisionView,
+    UploadStatusView as UploadStatusView, WorkspacePage as WorkspacePage, ArtifactPage as ArtifactPage,
+)

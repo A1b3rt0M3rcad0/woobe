@@ -16,6 +16,10 @@ async def _security_body(request: Request) -> Any:
         # Authority for this endpoint is fully identified by the project path.
         # Authenticate before parsing the bounded archive upload.
         return None
+    if request.method == 'PUT' and getattr(route, 'path', None) == '/v1/artifact-workspaces/{artifact_workspace_id}/uploads/{upload_id}/parts':
+        # Binary parts are consumed only after authentication, within the route's
+        # explicit bounded stream reader. They are not JSON authority input.
+        return None
     content_type = request.headers.get("content-type", "").lower()
     if "multipart/form-data" in content_type or "application/x-www-form-urlencoded" in content_type:
         try:

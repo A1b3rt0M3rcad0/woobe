@@ -9,7 +9,8 @@ sys.path.insert(0, str(ROOT / 'packages/woobe-core/src'))
 
 from modules.artifacts.application.contracts.api import (  # noqa: E402
     ArtifactReference, CapabilityDescriptor, CursorEnvelope, ErrorEnvelope,
-    SourceReference, UploadCreate, WorkspaceCreate, WorkspaceUpdate,
+    SourceReference, UploadCreate, WorkspaceCreate, WorkspaceUpdate, WorkspaceView,
+    ArtifactView, RevisionView, UploadStatusView, WorkspacePage, ArtifactPage,
 )
 
 
@@ -25,6 +26,12 @@ def generate():
         'error': ErrorEnvelope,
         'cursor': CursorEnvelope,
         'capabilities': CapabilityDescriptor,
+        'workspace': WorkspaceView,
+        'artifact': ArtifactView,
+        'revision': RevisionView,
+        'upload-status': UploadStatusView,
+        'workspace-page': WorkspacePage,
+        'artifact-page': ArtifactPage,
     }.items():
         schema = model.model_json_schema()
         schema['$schema'] = 'https://json-schema.org/draft/2020-12/schema'

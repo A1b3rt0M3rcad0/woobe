@@ -55,7 +55,11 @@ Step 11 is complete: idempotent bounded text publication, immutable provenance,
 logical directories, atomic CAS rename/tree move/delete, historical directory
 pages and editable copy identity passed 123 real integration cases. Full mocked
 regression passed 3187 tests plus 10 subtests; 83 domain/storage/guard tests and
-all architecture policies passed. See FILES.md. Step 12 HTTP APIs is next.
+all architecture policies passed. See FILES.md. Step 12 is complete: direct Workspace/file/upload/download APIs, exact reviewed
+Control permissions, Artifacts Runtime interface, scoped errors/response schemas,
+proxy Range/CORS and live logout/grant/key revocation passed 147 integration tests.
+Full mocked regression passed 3187 tests plus 10 subtests; native API/Workers are
+reloaded and healthy. See HTTP_API.md. Step 13 versioned processing profiles is next.
 
 The stage commit carries `Plan-Step: 01/60`; a file never records its own containing
 commit SHA. CI reconciles commit subjects/trailers against the execution manifest.
