@@ -84,6 +84,13 @@ mocked regressions plus 10 subtests. See NATIVE_PDF.md. Step 17 optional Docling
 integration is next. Hugging Face model acquisition is currently refused by the
 network proxy; a narrowly scoped network draft is saved and awaits environment
 configuration activation. No weight-based profile is represented as qualified.
+Step 17 is complete: official optional model-free Docling NativePdf/SimplePipeline
+adapters, upstream hierarchy/table/figure evidence, version-fenced manifests,
+resource/isolation controls and actual base-without-extra behavior passed 153
+targeted cases, 243 real integration cases and 3245 mocked regressions plus 10
+subtests. Controlled asset acquisition additionally verified 3 real pinned OCR
+training files for next-step preparation; Docling native needs no model weights.
+See DOCLING.md. Step 18 selective OCR is next.
 
 The stage commit carries `Plan-Step: 01/60`; a file never records its own containing
 commit SHA. CI reconciles commit subjects/trailers against the execution manifest.

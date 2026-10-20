@@ -12,6 +12,8 @@ class WorkerSettings(Settings):
     service_role: str = "worker"
     artifact_processing_worker_slots: int = Field(default=1, ge=1, le=8)
     artifact_processing_lease_seconds: int = Field(default=30, ge=3, le=300)
+    artifact_docling_memory_mib: int = Field(default=2048, ge=512, le=8192)
+    artifact_docling_threads: int = Field(default=2, ge=1, le=8)
     network_worker_prefetch: int = Field(default=4, ge=1, le=100)
     network_worker_slots: int = Field(default=4, ge=1, le=100)
     worker_interval: float = Field(default=5.0, gt=0)

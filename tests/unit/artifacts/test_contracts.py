@@ -19,6 +19,11 @@ from modules.artifacts.domain.models import (
 ROOT = Path(__file__).resolve().parents[3]
 
 
+def test_committed_wire_schemas_match_all_canonical_contracts():
+    from scripts.generate_artifact_schemas import generate
+    generate(check=True)
+
+
 @pytest.mark.parametrize('path', ['', '/etc/passwd', '../secret', 'a/../b',
                                   'a//b', 'a\\b', 'a\x00b', 'e\u0301.txt', 'a/'])
 def test_ambiguous_logical_paths_are_rejected(path):

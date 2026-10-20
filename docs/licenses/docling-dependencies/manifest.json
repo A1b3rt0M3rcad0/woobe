@@ -1,0 +1,182 @@
+[
+  {
+    "name": "docling-slim",
+    "version": "2.140.0",
+    "license": "MIT",
+    "notices": [
+      "docling_slim-2.140.0.dist-info/licenses/LICENSE"
+    ]
+  },
+  {
+    "name": "docling-core",
+    "version": "2.103.1",
+    "license": "MIT",
+    "notices": [
+      "docling_core-2.103.1.dist-info/licenses/LICENSE"
+    ]
+  },
+  {
+    "name": "docling-parse",
+    "version": "7.22.1",
+    "license": "MIT",
+    "notices": [
+      "docling_parse-7.22.1.dist-info/licenses/LICENSE",
+      "docling_parse/pdf_resources/cmap-resources/LICENSE.md"
+    ]
+  },
+  {
+    "name": "doclang",
+    "version": "0.7.3",
+    "license": "Apache-2.0",
+    "notices": [
+      "doclang-0.7.3.dist-info/licenses/LICENSE"
+    ]
+  },
+  {
+    "name": "python-docx",
+    "version": "1.2.0",
+    "license": "MIT",
+    "notices": [
+      "python_docx-1.2.0.dist-info/licenses/LICENSE"
+    ]
+  },
+  {
+    "name": "lxml",
+    "version": "6.1.3",
+    "license": "BSD-3-Clause",
+    "notices": [
+      "lxml-6.1.3.dist-info/licenses/LICENSE.txt",
+      "lxml-6.1.3.dist-info/licenses/LICENSES.txt"
+    ]
+  },
+  {
+    "name": "numpy",
+    "version": "2.4.6",
+    "license": "BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0",
+    "notices": [
+      "numpy-2.4.6.dist-info/licenses/LICENSE.txt",
+      "numpy-2.4.6.dist-info/licenses/numpy/_core/include/numpy/libdivide/LICENSE.txt",
+      "numpy-2.4.6.dist-info/licenses/numpy/_core/src/common/pythoncapi-compat/COPYING",
+      "numpy-2.4.6.dist-info/licenses/numpy/_core/src/highway/LICENSE",
+      "numpy-2.4.6.dist-info/licenses/numpy/_core/src/multiarray/dragon4_LICENSE.txt",
+      "numpy-2.4.6.dist-info/licenses/numpy/_core/src/npysort/x86-simd-sort/LICENSE.md",
+      "numpy-2.4.6.dist-info/licenses/numpy/_core/src/umath/svml/LICENSE",
+      "numpy-2.4.6.dist-info/licenses/numpy/fft/pocketfft/LICENSE.md",
+      "numpy-2.4.6.dist-info/licenses/numpy/linalg/lapack_lite/LICENSE.txt",
+      "numpy-2.4.6.dist-info/licenses/numpy/ma/LICENSE",
+      "numpy-2.4.6.dist-info/licenses/numpy/random/LICENSE.md",
+      "numpy-2.4.6.dist-info/licenses/numpy/random/src/distributions/LICENSE.md",
+      "numpy-2.4.6.dist-info/licenses/numpy/random/src/mt19937/LICENSE.md",
+      "numpy-2.4.6.dist-info/licenses/numpy/random/src/pcg64/LICENSE.md",
+      "numpy-2.4.6.dist-info/licenses/numpy/random/src/philox/LICENSE.md",
+      "numpy-2.4.6.dist-info/licenses/numpy/random/src/sfc64/LICENSE.md",
+      "numpy-2.4.6.dist-info/licenses/numpy/random/src/splitmix64/LICENSE.md",
+      "numpy/_core/include/numpy/random/LICENSE.txt",
+      "numpy/ma/LICENSE",
+      "numpy/random/LICENSE.md"
+    ]
+  },
+  {
+    "name": "scipy",
+    "version": "1.18.1",
+    "license": "Copyright (c) 2001-2002 Enthought, Inc. 2003, SciPy Developers.",
+    "notices": [
+      "scipy-1.18.1.dist-info/LICENSE.txt",
+      "scipy/_lib/_uarray/LICENSE",
+      "scipy/fft/_duccfft/LICENSE.md",
+      "scipy/spatial/qhull_src/COPYING_QHULL.txt",
+      "scipy/integrate/LICENSE_DOP"
+    ]
+  },
+  {
+    "name": "rtree",
+    "version": "1.4.1",
+    "license": "MIT",
+    "notices": [
+      "rtree-1.4.1.dist-info/licenses/LICENSE.txt"
+    ]
+  },
+  {
+    "name": "pandas",
+    "version": "3.0.6",
+    "license": "BSD 3-Clause License",
+    "notices": [
+      "pandas-3.0.6.dist-info/LICENSE"
+    ]
+  },
+  {
+    "name": "latex2mathml",
+    "version": "3.81.1",
+    "license": "MIT",
+    "notices": [
+      "LICENSE"
+    ],
+    "notice_source_sha256": "4ac1e1da07f6b343d54191c5e1716840534e08591b3f9eaec90d6800cdc47543",
+    "notice_source_commit": "902beef9cb7794183c1114b0b09b27b5695ad252"
+  },
+  {
+    "name": "jsonref",
+    "version": "1.1.0",
+    "license": "MIT",
+    "notices": [
+      "jsonref-1.1.0.dist-info/licenses/LICENSE"
+    ]
+  },
+  {
+    "name": "filetype",
+    "version": "1.2.0",
+    "license": "MIT",
+    "notices": [
+      "filetype-1.2.0.dist-info/LICENSE"
+    ]
+  },
+  {
+    "name": "langcodes",
+    "version": "3.5.1",
+    "license": "MIT (retained upstream notice)",
+    "notices": [
+      "langcodes-3.5.1.dist-info/licenses/LICENSE.txt"
+    ]
+  },
+  {
+    "name": "rich",
+    "version": "15.0.0",
+    "license": "MIT",
+    "notices": [
+      "rich-15.0.0.dist-info/licenses/LICENSE"
+    ]
+  },
+  {
+    "name": "shellingham",
+    "version": "1.5.4",
+    "license": "ISC License",
+    "notices": [
+      "shellingham-1.5.4.dist-info/LICENSE"
+    ]
+  },
+  {
+    "name": "tabulate",
+    "version": "0.10.0",
+    "license": "MIT",
+    "notices": [
+      "tabulate-0.10.0.dist-info/licenses/LICENSE"
+    ]
+  },
+  {
+    "name": "typer",
+    "version": "0.26.8",
+    "license": "MIT",
+    "notices": [
+      "typer-0.26.8.dist-info/licenses/LICENSE",
+      "typer/_click/LICENSE.txt"
+    ]
+  },
+  {
+    "name": "defusedxml",
+    "version": "0.7.1",
+    "license": "PSFL",
+    "notices": [
+      "defusedxml-0.7.1.dist-info/LICENSE"
+    ]
+  }
+]

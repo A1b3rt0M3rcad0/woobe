@@ -581,8 +581,44 @@
         14,
         16
       ],
-      "status": "not_started",
-      "checks": []
+      "status": "completed",
+      "checks": [
+        {
+          "command": "real offline Docling conversion, source hierarchy/locators, macro/external refusal and frozen manifest fence",
+          "outcome": "passed",
+          "evidence": "6 Docling cases passed, including real DOCX/table/figure and multicolumn PDF subprocess conversion; final targeted suite 153 passed in artifacts-step17-unit-final.log"
+        },
+        {
+          "command": "full real PostgreSQL Artifacts integration on local/S3 and fresh/populated upgrade paths",
+          "outcome": "passed",
+          "evidence": "243 passed with final immutable manifest; artifacts-step17-integration-final.log; 16 PDF/Docling Worker cases also passed separately before final pin expansion"
+        },
+        {
+          "command": "full mocked backend regression",
+          "outcome": "passed",
+          "evidence": "3245 passed plus 10 subtests in 54.75s; artifacts-step17-regression-final.log"
+        },
+        {
+          "command": "API import and actual unavailable execution in separate frozen base venv; available optional venv; wheel/resource/extras checks",
+          "outcome": "passed",
+          "evidence": "base API converter-free ready=false and execution PROCESSOR_UNAVAILABLE; extra API converter-free ready=true; final wheel contains exact manifest and pinned extra metadata"
+        },
+        {
+          "command": "controlled model asset acquisition and offline integrity replay",
+          "outcome": "passed",
+          "evidence": "8 fault/pinning unit cases; additionally acquired and SHA-256 verified 3 real Apache-2.0 Tesseract training files pinned to upstream commit 87416418657359cb625c412a48b6e1d6d41c29bd for next-step OCR preparation; this is not a Docling ML-weight qualification"
+        },
+        {
+          "command": "nine architecture policies, Ruff, actionlint optional workflow, uv pip check, git diff --check",
+          "outcome": "passed",
+          "evidence": "zero architecture violations; all installed packages compatible; frozen optional profile and image build argument added; full optional Docker image build is not claimed"
+        },
+        {
+          "command": ".venv/bin/python scripts/generate_artifact_schemas.py --check; pytest contracts and real Docling",
+          "outcome": "passed",
+          "evidence": "24 passed after reconciling new PDF/Docling error schemas into responsible stage commits; read-only schema drift guard added; artifacts-step17-schema-reconciliation.log"
+        }
+      ]
     },
     {
       "id": 18,

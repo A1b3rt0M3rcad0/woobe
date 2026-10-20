@@ -103,3 +103,29 @@ https://github.com/pypdfium2-team/pypdfium2,
 https://pdfium.googlesource.com/pdfium/ and https://github.com/python-pillow/Pillow.
 The original FreeType attribution is: "Portions of this software are copyright
 © The FreeType Project (www.freetype.org). All rights reserved."
+
+## Optional model-free Docling conversion
+
+The `docling-processing` extra uses the official Docling Slim 2.140.0 distribution,
+Docling Core 2.103.1 and Docling Parse 7.22.1, licensed under MIT. The selected
+NativePdfPipeline and DOCX SimplePipeline use no model weights, Torch or implicit
+model downloads. Model-based layout/OCR/enrichment is not enabled by this profile.
+
+Exact parser dependencies are pinned and inventoried in
+[the license manifest](docs/licenses/docling-dependencies/manifest.json), together
+with their retained upstream notices. They include Python Docx, lxml, Doclang,
+NumPy, SciPy, pandas, Rtree, tabulate, defusedxml and latex2mathml. Optional binary
+dependency notices include their own bundled components; in particular SciPy's
+compiler runtime is covered by its retained GCC Runtime Library Exception.
+The first-party Woobe license does not replace these upstream terms.
+
+Upstream sources: https://github.com/docling-project/docling,
+https://github.com/docling-project/docling-core,
+https://github.com/docling-project/docling-parse, https://github.com/python-openxml/python-docx,
+https://github.com/lxml/lxml, https://github.com/numpy/numpy,
+https://github.com/scipy/scipy, https://github.com/pandas-dev/pandas and
+https://github.com/Toblerity/rtree. latex2mathml's source and wheel omit the license
+file; its original upstream MIT notice is retained from commit
+`902beef9cb7794183c1114b0b09b27b5695ad252` in
+https://github.com/roniemartinez/latex2mathml, with the notice digest recorded in
+the license manifest.

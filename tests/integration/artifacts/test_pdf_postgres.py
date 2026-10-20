@@ -12,6 +12,7 @@ from modules.artifacts.composition import processing
 from modules.artifacts.infra.database.models import ProcessingJobModel, RevisionModel
 from modules.artifacts.infra.database.profiles import ProfileRepository
 from modules.artifacts.infra.database.unit_of_work import ArtifactsUnitOfWork
+from modules.artifacts.infra.processing.docling_manifest import docling_readiness
 from shared.contracts.object_storage import read_bounded
 from tests.fixtures.artifacts.pdf_sources import synthetic_pdf
 from tests.integration.artifacts.test_jobs_postgres import execute, read_request
@@ -20,7 +21,9 @@ from woobe_workers.settings import WorkerSettings
 
 
 @pytest.mark.parametrize('protected', [False, True])
-async def test_real_pdf_upload_worker_canonical_provenance_and_protection_error(engine, artifacts_database, object_store, monkeypatch, protected):
+@pytest.mark.parametrize('processor', ['native-pdf', pytest.param('docling-native',
+    marks=pytest.mark.skipif(not docling_readiness()[0], reason='optional real Docling extra is not installed'))])
+async def test_real_pdf_upload_worker_canonical_provenance_and_protection_error(engine, artifacts_database, object_store, monkeypatch, protected, processor):
     content = synthetic_pdf(encrypted=protected)
     api, begin, upload = await setup(engine, artifacts_database['project_id'], object_store, content, quota=1_048_576)
     await api.abort(upload)
@@ -31,7 +34,8 @@ async def test_real_pdf_upload_worker_canonical_provenance_and_protection_error(
     await api.append(part(upload, 0, content))
     receipt = (await api.finalize(upload)).receipt
     registry = processing.PROCESSING_REGISTRY
-    recipe = registry.normalize(ProcessingRecipe(mode='extract', processor=ComponentReference(name='native-pdf', version='1')))
+    recipe = registry.normalize(ProcessingRecipe(mode='extract', processor=ComponentReference(name=processor,
+        version='1' if processor == 'native-pdf' else '2.140.0')))
     profile_id = uuid4().hex
     async with ArtifactsUnitOfWork(engine) as uow:
         await ProfileRepository(uow).create(begin.scope, ProfileCreate(id=profile_id, revision=1, recipe=recipe))

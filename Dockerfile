@@ -14,8 +14,13 @@ ENV UV_COMPILE_BYTECODE=1 \
 WORKDIR /app
 
 COPY pyproject.toml uv.lock ./
+ARG WOOBE_PROCESSING_PROFILE=base
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev --no-install-project
+    case "$WOOBE_PROCESSING_PROFILE" in \
+      base) uv sync --frozen --no-dev --no-install-project ;; \
+      docling-native) uv sync --frozen --no-dev --no-install-project --extra docling-processing ;; \
+      *) echo "Unsupported processing profile" >&2; exit 2 ;; \
+    esac
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install --python /opt/venv/bin/python \
     "python-multipart>=0.0.20" \
@@ -44,6 +49,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     && uv pip check --python /opt/venv/bin/python
 
 FROM python:${PYTHON_VERSION}-slim AS runtime-base
+ARG WOOBE_PROCESSING_PROFILE=base
 
 ENV PATH="/opt/venv/bin:$PATH" \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -51,12 +57,15 @@ ENV PATH="/opt/venv/bin:$PATH" \
 
 RUN apt-get update \
     && apt-get upgrade -y \
+    && if [ "$WOOBE_PROCESSING_PROFILE" = docling-native ]; then apt-get install -y --no-install-recommends libstdc++6; fi \
     && rm -rf /var/lib/apt/lists/* \
     && python -m pip uninstall --yes pip \
     && groupadd --system --gid 10001 woobe \
     && useradd --system --uid 10001 --gid woobe --home-dir /app --shell /usr/sbin/nologin woobe
 
 WORKDIR /app
+COPY THIRD_PARTY_NOTICES.md /usr/share/doc/woobe/THIRD_PARTY_NOTICES.md
+COPY docs/licenses/ /usr/share/doc/woobe/third-party/
 COPY --chown=woobe:woobe packages/woobe-core/ packages/woobe-core/
 COPY --chown=woobe:woobe scripts/docker-entrypoint.sh /usr/local/bin/woobe-entrypoint
 

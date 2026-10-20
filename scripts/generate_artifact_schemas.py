@@ -1,5 +1,6 @@
 """Generate the public version 1 Artifacts DTO schemas from canonical contracts."""
 
+import argparse
 import json
 from pathlib import Path
 import sys
@@ -20,9 +21,10 @@ from modules.artifacts.application.contracts.processing import (  # noqa: E402
 from modules.artifacts.application.contracts.jobs import ProcessingRequest, ProcessingJobView  # noqa: E402
 
 
-def generate():
+def generate(*, check=False):
     destination = ROOT / 'contracts/artifacts/v1'
-    destination.mkdir(parents=True, exist_ok=True)
+    if not check:
+        destination.mkdir(parents=True, exist_ok=True)
     for filename, model in {
         'artifact-reference': ArtifactReference,
         'source-reference': SourceReference,
@@ -50,10 +52,16 @@ def generate():
         schema = model.model_json_schema()
         schema['$schema'] = 'https://json-schema.org/draft/2020-12/schema'
         schema['$id'] = f'urn:woobe:artifacts:v1:{filename}'
-        (destination / f'{filename}.schema.json').write_text(
-            json.dumps(schema, indent=2, sort_keys=True) + '\n'
-        )
+        target = destination / f'{filename}.schema.json'
+        expected = json.dumps(schema, indent=2, sort_keys=True) + '\n'
+        if check:
+            if not target.is_file() or target.read_text() != expected:
+                raise ValueError(f'Committed Artifacts schema is stale: {filename}')
+        else:
+            target.write_text(expected)
 
 
 if __name__ == '__main__':
-    generate()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--check', action='store_true', help='Verify committed schemas without changing files')
+    generate(check=parser.parse_args().check)

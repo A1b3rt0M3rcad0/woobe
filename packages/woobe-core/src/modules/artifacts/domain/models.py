@@ -107,6 +107,7 @@ class ErrorCode(StrEnum):
     STORAGE_UNAVAILABLE = 'ARTIFACT_STORAGE_UNAVAILABLE'
     PDF_PASSWORD_REQUIRED = 'PDF_PASSWORD_REQUIRED'
     PDF_INVALID_DOCUMENT = 'PDF_INVALID_DOCUMENT'
+    DOCUMENT_CONVERSION_FAILED = 'DOCUMENT_CONVERSION_FAILED'
 
 
 class ArtifactError(Exception):
@@ -327,9 +328,12 @@ class DocumentBlock:
     language: str | None = None
     data_json: str | None = None
     title: str | None = None
+    parent_id: str | None = None
 
     def __post_init__(self):
         opaque_id(self.id)
+        if self.parent_id is not None:
+            opaque_id(self.parent_id)
         if self.kind not in {'heading', 'paragraph', 'table', 'figure', 'page', 'warning', 'code', 'list', 'json'}:
             raise ValueError('Unknown canonical block kind')
         if self.heading_level is not None and (self.kind != 'heading' or not 1 <= self.heading_level <= 6):
@@ -393,6 +397,16 @@ class CanonicalDocument:
         object.__setattr__(self, 'coverage', Coverage(self.coverage))
         if len({block.id for block in self.blocks}) != len(self.blocks):
             raise ValueError('Duplicate block IDs in representation')
+        parents = {block.id: block.parent_id for block in self.blocks}
+        resolved = set()
+        for block in self.blocks:
+            parent, seen = block.id, set()
+            while parent is not None and parent not in resolved:
+                if parent not in parents or parent in seen:
+                    raise ValueError('Canonical block hierarchy is cyclic or incomplete')
+                seen.add(parent)
+                parent = parents[parent]
+            resolved.update(seen)
         if not self.blocks and self.coverage == Coverage.COMPLETE:
             raise ValueError('An empty extraction cannot claim complete coverage')
 

@@ -22,7 +22,8 @@
         "ARTIFACT_LIMIT_EXCEEDED",
         "ARTIFACT_STORAGE_UNAVAILABLE",
         "PDF_PASSWORD_REQUIRED",
-        "PDF_INVALID_DOCUMENT"
+        "PDF_INVALID_DOCUMENT",
+        "DOCUMENT_CONVERSION_FAILED"
       ],
       "title": "ErrorCode",
       "type": "string"

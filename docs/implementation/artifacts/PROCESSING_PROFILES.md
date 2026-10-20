@@ -24,8 +24,9 @@ Optional implementation/dependency absence produces ready=false with public safe
 diagnostics and no ready media formats. A model reference remains unready until
 its binding has been explicitly verified by the governed model integration.
 
-The production registry now includes the qualified native-text version 1 converter
-for TXT, Markdown, JSON and CSV; store_only remains available. PDF, Docling, OCR
+The production registry includes qualified native-text version 1 for TXT, Markdown,
+JSON and CSV, native-pdf version 1, and optional model-free docling-native 2.140.0
+when its exact processing extra is installed. Store_only remains available. OCR
 and index adapters are registered in their dedicated steps after qualification.
 Historical profile configuration stays readable and unready when
 an optional component is removed or its compatible limits/library pins change.
@@ -47,8 +48,9 @@ The HTTP host exposes artifact-processing-profiles (POST, paged GET, exact revis
 GET), Workspace processing-profile (CAS PUT and explicit/default selection GET),
 and passive artifact-processing-capabilities. These use the same exact reviewed
 Control/Artifacts Runtime permissions and versioned DTOs as direct file operations.
-Selection/configuration never schedules work. Manual durable processing is the
-next worker step; this profile step does not claim extraction or index completion.
+Selection/configuration never schedules work. Explicit requests use the durable
+processing Job protocol; installed converters are qualified separately from
+configuration and index publication.
 
 Qualification covers secret-bearing/invalid configuration, incompatible limits,
 missing optional dependency, unsupported MIME, separate OCR/index/model contracts,

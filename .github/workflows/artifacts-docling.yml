@@ -1,0 +1,56 @@
+name: Optional Docling qualification
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - 'packages/woobe-core/src/modules/artifacts/**'
+      - 'packages/woobe-core/pyproject.toml'
+      - 'packages/woobe-workers/src/woobe_workers/settings.py'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - 'tests/unit/artifacts/**'
+      - 'tests/fixtures/artifacts/**'
+      - 'scripts/ci/check_docling_optional.py'
+      - '.github/workflows/artifacts-docling.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  optional-converter:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      WOOBE_ENVIRONMENT: test
+      WOOBE_RUN_PERSISTENCE_MODE: legacy_finalization
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.14'
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
+      - name: Generate ephemeral application configuration
+        run: |
+          python - <<'PY'
+          import base64
+          import os
+          import secrets
+          with open(os.environ['GITHUB_ENV'], 'a') as target:
+              target.write('WOOBE_SECRET_KEY=' + secrets.token_urlsafe(48) + '\n')
+              target.write('WOOBE_ENCRYPTION_KEY=' + base64.urlsafe_b64encode(secrets.token_bytes(32)).decode() + '\n')
+          PY
+      - name: Install frozen base without the optional converter
+        run: |
+          uv sync --frozen --all-groups --extra test --no-install-project
+          uv pip install --python .venv/bin/python --no-deps -e packages/woobe-core -e packages/woobe-api -e packages/woobe-workers
+      - name: Verify API startup imports and actual unavailable execution
+        run: .venv/bin/python scripts/ci/check_docling_optional.py
+      - name: Install the frozen optional processing profile
+        run: uv sync --frozen --all-groups --extra test --extra docling-processing --no-install-project --inexact
+      - name: Qualify actual offline Docling conversion and isolation
+        run: |
+          .venv/bin/python scripts/ci/check_docling_optional.py --available
+          .venv/bin/python -m pytest -q tests/unit/artifacts/test_docling_processing.py tests/unit/artifacts/test_native_pdf.py

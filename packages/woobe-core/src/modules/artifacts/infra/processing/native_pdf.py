@@ -15,19 +15,29 @@ from shared.infra.object_storage.io import run_blocking
 class NativePdfProcessor:
     name, version = 'native-pdf', '1'
     media_types = frozenset({'application/pdf'})
+    child_module = 'modules.artifacts.infra.processing.pdf_child'
+    failure_code = 'PDF_INVALID_DOCUMENT'
+
+    def __init__(self, *, memory_bytes=1_610_612_736, threads=2):
+        if not 536_870_912 <= memory_bytes <= 8_589_934_592 or not 1 <= threads <= 8:
+            raise ValueError('Invalid isolated document worker resource budget')
+        self.memory_bytes, self.threads = memory_bytes, threads
+
+    def source_name(self, revision):
+        return 'source.pdf'
 
     async def _execute(self, revision, content, recipe, operation, **options):
         if revision.content_type.split(';', 1)[0].strip().lower() not in self.media_types:
-            raise ArtifactError('PROCESSOR_UNAVAILABLE', 'PDF processor requires application/pdf')
+            raise ArtifactError('PROCESSOR_UNAVAILABLE', 'Document processor does not support the declared media type')
         if revision.size_bytes > recipe.limits.max_bytes:
-            raise ArtifactError('ARTIFACT_LIMIT_EXCEEDED', 'PDF original exceeds its byte limit')
-        with artifact_scratch('pdf') as scratch:
+            raise ArtifactError('ARTIFACT_LIMIT_EXCEEDED', 'Document original exceeds its byte limit')
+        with artifact_scratch(self.name) as scratch:
             digest, size = hashlib.sha256(), 0
             try:
-                with (scratch / 'source.pdf').open('wb') as output:
+                with (scratch / self.source_name(revision)).open('wb') as output:
                     async for chunk in content:
                         if not isinstance(chunk, bytes) or size + len(chunk) > revision.size_bytes:
-                            raise ArtifactError('UPLOAD_INTEGRITY_MISMATCH', 'PDF stream exceeds its declared size')
+                            raise ArtifactError('UPLOAD_INTEGRITY_MISMATCH', 'Document stream exceeds its declared size')
                         await run_blocking(output.write, chunk)
                         digest.update(chunk)
                         size += len(chunk)
@@ -36,13 +46,17 @@ class NativePdfProcessor:
                 if close is not None:
                     await close()
             if size != revision.size_bytes or digest.hexdigest() != revision.sha256:
-                raise ArtifactError('UPLOAD_INTEGRITY_MISMATCH', 'PDF original failed integrity verification')
+                raise ArtifactError('UPLOAD_INTEGRITY_MISMATCH', 'Document original failed integrity verification')
             command = {'operation': operation, 'revision': asdict(revision),
-                       'recipe': recipe.model_dump(mode='json'), **options}
+                       'recipe': recipe.model_dump(mode='json'), 'source_name': self.source_name(revision),
+                       'memory_bytes': self.memory_bytes, 'threads': self.threads, **options}
             (scratch / 'command.json').write_text(json.dumps(command))
             spawn = asyncio.create_task(asyncio.create_subprocess_exec(sys.executable, '-m',
-                'modules.artifacts.infra.processing.pdf_child', str(scratch),
-                env={'PATH': os.environ.get('PATH', '/usr/bin:/bin'), 'LANG': 'C.UTF-8'},
+                self.child_module, str(scratch),
+                env={'PATH': os.environ.get('PATH', '/usr/bin:/bin'), 'LANG': 'C.UTF-8',
+                     'OMP_NUM_THREADS': str(self.threads), 'OPENBLAS_NUM_THREADS': str(self.threads),
+                     'MKL_NUM_THREADS': str(self.threads), 'NUMEXPR_MAX_THREADS': str(self.threads),
+                     'HF_HUB_OFFLINE': '1', 'TRANSFORMERS_OFFLINE': '1'},
                 stdin=asyncio.subprocess.DEVNULL, stdout=asyncio.subprocess.DEVNULL,
                 stderr=asyncio.subprocess.DEVNULL, start_new_session=True))
             process = None
@@ -62,15 +76,15 @@ class NativePdfProcessor:
             error_path = scratch / 'error.json'
             if error_path.exists():
                 if error_path.stat().st_size > 4096:
-                    raise ArtifactError('PDF_INVALID_DOCUMENT', 'PDF subprocess returned invalid diagnostics')
+                    raise ArtifactError(self.failure_code, 'Document subprocess returned invalid diagnostics')
                 error = json.loads(error_path.read_bytes())
                 raise ArtifactError(error['code'], error['message'])
             output = scratch / 'output'
             maximum = min(536_870_912, recipe.limits.max_bytes * 16 + 1_048_576) if operation == 'extract' else 67_108_864
             if process.returncode != 0 or not output.is_file():
-                raise ArtifactError('PDF_INVALID_DOCUMENT', 'PDF subprocess exceeded its resource budget or failed')
+                raise ArtifactError(self.failure_code, 'Document subprocess exceeded its resource budget or failed')
             if output.stat().st_size > maximum:
-                raise ArtifactError('ARTIFACT_LIMIT_EXCEEDED', 'PDF output exceeds its bounded byte limit')
+                raise ArtifactError('ARTIFACT_LIMIT_EXCEEDED', 'Document output exceeds its bounded byte limit')
             return await run_blocking(output.read_bytes)
 
     async def process(self, revision, content, profile):

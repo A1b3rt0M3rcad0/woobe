@@ -4,6 +4,7 @@ from modules.artifacts.application.services.processing_runner import ProcessingR
 from modules.artifacts.application.services.document_pipeline import DocumentPipeline
 from modules.artifacts.infra.processing.native_text import NativeTextProcessor
 from modules.artifacts.infra.processing.native_pdf import NativePdfProcessor
+from modules.artifacts.infra.processing.docling_native import DoclingNativeProcessor
 from shared.infra.object_storage.io import run_blocking
 from modules.artifacts.application.use_cases.jobs import ProcessingJobUseCases
 from modules.artifacts.application.use_cases.profiles import ProfileUseCases
@@ -39,7 +40,10 @@ def build_processing_runner(engine, settings):
         _worker_phase(engine, settings, 'prepare'), _worker_phase(engine, settings, 'heartbeat'),
         _worker_phase(engine, settings, 'checkpoint'), _worker_phase(engine, settings, 'finish'), upload_storage,
         pipeline=DocumentPipeline({('native-text', '1'): NativeTextProcessor(),
-                                   ('native-pdf', '1'): NativePdfProcessor()}, run_blocking),
+                                   ('native-pdf', '1'): NativePdfProcessor(),
+                                   ('docling-native', '2.140.0'): DoclingNativeProcessor(
+                                       memory_bytes=settings.artifact_docling_memory_mib * 1_048_576,
+                                       threads=settings.artifact_docling_threads)}, run_blocking),
         lease_seconds=settings.artifact_processing_lease_seconds,
         project_limit=settings.artifact_processing_project_slots,
         workspace_limit=min(settings.artifact_processing_workspace_slots, settings.artifact_processing_project_slots))
