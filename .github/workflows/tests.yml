@@ -62,6 +62,7 @@ jobs:
         working-directory: .ci/woobe-cli
         env:
           CGO_ENABLED: '0'
+          GOWORK: 'off'
         run: |
           go mod verify
           go build -trimpath -ldflags '-X github.com/A1b3rt0M3rcad0/woobe-cli/internal/cli.Commit=a44c0804143a86576479c5c5e83836c595a496b4' -o ../../.test-artifacts/woobe ./cmd/woobe
@@ -71,6 +72,7 @@ jobs:
         working-directory: .ci/woobe-cli-configuration
         env:
           CGO_ENABLED: '0'
+          GOWORK: 'off'
         run: |
           go mod verify
           go build -trimpath -ldflags '-X github.com/A1b3rt0M3rcad0/woobe-cli/internal/cli.Commit=813b2d88d5ff2891ca4f9d49b3ffb460264da563' -o ../../.test-artifacts/woobe-configuration ./cmd/woobe

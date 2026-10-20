@@ -1,0 +1,39 @@
+name: Feature request
+description: Propose a focused SDK capability or API improvement.
+title: "[Feature]: "
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What application-level problem cannot be solved cleanly with the current SDK?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed SDK behavior
+      description: Describe the smallest public behavior that would solve it.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: boundary
+    attributes:
+      label: Primary area
+      options:
+        - Public API
+        - Streaming / reattach
+        - Contracts
+        - Events / results
+        - Transport
+        - Packaging / documentation
+    validations:
+      required: true
+
+  - type: textarea
+    id: server
+    attributes:
+      label: Server-side dependency
+      description: Note whether the request requires a Woobe Runtime/API change.

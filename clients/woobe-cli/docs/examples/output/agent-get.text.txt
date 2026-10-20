@@ -1,0 +1,9 @@
+name: Suporte
+status: draft
+model: gpt-4.1-mini
+provider: openai
+type: LLM
+description: Agent de suporte
+id: 00000000-0000-7000-8000-000000000001
+project_id: 00000000-0000-7000-8000-000000000010
+Details: --wide | --fields FIELD,... | --output json

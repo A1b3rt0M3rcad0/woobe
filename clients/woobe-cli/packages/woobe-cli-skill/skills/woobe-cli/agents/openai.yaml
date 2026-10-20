@@ -1,0 +1,4 @@
+interface:
+  display_name: "Woobe CLI"
+  short_description: "Develop Woobe Agents and Networks with YAML"
+  default_prompt: "Use $woobe-cli to inspect the selected connection and complete the requested Woobe workflow."

@@ -1,0 +1,55 @@
+name: Bug report
+description: Report reproducible incorrect behavior in Woobe SDK.
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not include Runtime Keys, credentials, customer data or private vulnerability details.
+        Security issues must follow SECURITY.md.
+
+  - type: input
+    id: version
+    attributes:
+      label: SDK version
+      placeholder: "0.1.0a1"
+    validations:
+      required: true
+
+  - type: input
+    id: python
+    attributes:
+      label: Python version
+      placeholder: "3.13"
+    validations:
+      required: true
+
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Observed behavior
+      description: What happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should have happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: Include the smallest safe example that reproduces the problem.
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Runtime target kind, relevant event types, traceback or other non-secret details.

@@ -1,0 +1,5 @@
+NAME     STATUS  MODEL         ID
+Suporte  draft   gpt-4.1-mini  00000000-0000-7000-8000-000000000001
+Vendas   active  gpt-4.1       00000000-0000-7000-8000-000000000002
+2 results.
+Details: --wide | --fields FIELD,... | --output json

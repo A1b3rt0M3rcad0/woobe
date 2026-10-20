@@ -1,0 +1,114 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        go: ['1.22.x', '1.23.x']
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+          cache: false
+      - name: Check formatting of changed Go files
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [[ -z "$BASE_SHA" || "$BASE_SHA" =~ ^0+$ ]]; then
+            BASE_SHA="$(git rev-parse HEAD^)"
+          fi
+          mapfile -t files < <(git diff --name-only "$BASE_SHA" "$GITHUB_SHA" -- '*.go')
+          if (( ${#files[@]} == 0 )); then
+            echo "No Go files changed."
+            exit 0
+          fi
+          gofmt -w "${files[@]}"
+          git diff --exit-code -- "${files[@]}"
+      - name: Vet
+        run: go vet ./...
+      - name: Test with race detector
+        run: go test -race -coverprofile=coverage.out ./...
+      - name: Validate semantic release policy
+        run: python3 -m unittest scripts/test_semantic_release.py
+
+  release:
+    name: Semantic release
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch release tags
+        run: git fetch --force --tags origin
+
+      - name: Resolve Semantic Version
+        id: semver
+        run: |
+          python3 scripts/semantic_release.py \
+            --output "$GITHUB_OUTPUT" \
+            --notes release-notes.md
+          cat release-notes.md
+
+      - name: Create immutable version tag
+        if: steps.semver.outputs.publish_release == 'true' && steps.semver.outputs.create_tag == 'true'
+        env:
+          TAG: ${{ steps.semver.outputs.tag }}
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists remotely; refusing to move it."
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" "$GITHUB_SHA" -m "Woobe SDK for Go $TAG"
+          git push origin "refs/tags/$TAG"
+
+      - name: Create or verify GitHub Release
+        if: steps.semver.outputs.publish_release == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.semver.outputs.tag }}
+        run: |
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "GitHub Release $TAG already exists."
+          else
+            gh release create "$TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --verify-tag \
+              --title "Woobe SDK for Go $TAG" \
+              --notes-file release-notes.md
+          fi
+
+      - name: Release summary
+        if: steps.semver.outputs.publish_release == 'true'
+        run: |
+          {
+            echo "### Woobe SDK for Go ${{ steps.semver.outputs.tag }}"
+            echo
+            echo "- Version: `${{ steps.semver.outputs.version }}`"
+            echo "- Bump: `${{ steps.semver.outputs.bump }}`"
+            echo "- Previous tag: `${{ steps.semver.outputs.previous_tag || 'none' }}`"
+            echo "- Commit: `$GITHUB_SHA`"
+          } >> "$GITHUB_STEP_SUMMARY"

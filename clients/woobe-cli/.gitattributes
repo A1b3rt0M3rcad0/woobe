@@ -1,0 +1,7 @@
+# Package catalog bytes must match the pinned compatibility digest.
+internal/packagefmt/schemas/v1/catalog.json text eol=lf
+internal/packagefmt/schemas/v1/catalog.sha256 text eol=lf
+
+# The skill tarball must match reviewed source on every native runner.
+packages/woobe-cli-skill/** text eol=lf
+docs/AGENT_SKILL.md text eol=lf

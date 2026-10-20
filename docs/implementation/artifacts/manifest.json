@@ -68,8 +68,49 @@
       "dependencies": [
         1
       ],
-      "status": "not_started",
-      "checks": []
+      "status": "completed",
+      "checks": [
+        {
+          "command": "git archive source HEAD; compare SHA-256 of every imported tracked file to clients/SOURCES.json",
+          "outcome": "passed",
+          "evidence": "525 CLI, 21 Go SDK, 52 Python SDK files match pinned originals; no .git, .state, .venv, node_modules or untracked source imported"
+        },
+        {
+          "command": "go list -m -json github.com/A1b3rt0M3rcad0/woobe-sdk-go",
+          "outcome": "passed",
+          "evidence": "Main=true; Dir=/workspace/woobe/clients/woobe-sdk-go; module path unchanged"
+        },
+        {
+          "command": "cd clients/woobe-cli && make check && make build",
+          "outcome": "passed",
+          "evidence": "Node installer, 64 Python tests, version/completeness/format/modules/vet and full Go race suites passed; binary built; /workspace/.onboarding/artifacts-import-cli.log"
+        },
+        {
+          "command": "cd clients/woobe-sdk-go && go test -race ./... && GOWORK=off go test -race ./...",
+          "outcome": "passed",
+          "evidence": "SDK root and SSE tests passed in both local workspace and standalone modes"
+        },
+        {
+          "command": "cd clients/woobe-sdk-python && .venv/bin/pytest -q && .venv/bin/ruff check . && .venv/bin/python -m build --outdir /workspace/.onboarding/import-sdk-dist && .venv/bin/twine check /workspace/.onboarding/import-sdk-dist/*",
+          "outcome": "passed",
+          "evidence": "34 tests, Ruff, wheel, sdist and both metadata checks passed"
+        },
+        {
+          "command": "actionlint v1.7.7 .github/workflows/artifacts-clients.yml",
+          "outcome": "passed",
+          "evidence": "New root workflow accepted; read-only permissions; nested source workflows inert; no mirror/publication jobs"
+        },
+        {
+          "command": "Build and execute a real independent nested CLI archive with GOWORK=off; actionlint tests.yml and artifacts-clients.yml",
+          "outcome": "passed",
+          "evidence": "Nested CLI build/version exit 0; both reviewed CI pins opt out of the root workspace; both workflows accepted by actionlint"
+        },
+        {
+          "command": "Verify all source hashes; gitleaks v8.30.1 stdin --redact on clients/SOURCES.json",
+          "outcome": "passed",
+          "evidence": "All 598 upstream source files still match; split sha256/path records remove scanner false positives without exclusions"
+        }
+      ]
     },
     {
       "id": 3,

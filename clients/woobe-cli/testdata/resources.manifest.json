@@ -1,0 +1,51 @@
+{
+  "schema_version": "2",
+  "project_id": "project-id",
+  "resources": [
+    {
+      "key": "agent",
+      "kind": "Agent",
+      "action": "create",
+      "spec": {
+        "name": "Tutor"
+      }
+    },
+    {
+      "key": "prompt",
+      "kind": "AgentPrompt",
+      "action": "create",
+      "parents": {
+        "agent": "${resources.agent.id}"
+      },
+      "depends_on": [
+        "agent"
+      ],
+      "spec": {
+        "content": "Teach the selected topic"
+      }
+    },
+    {
+      "key": "network",
+      "kind": "Network",
+      "action": "create",
+      "spec": {
+        "name": "Study network"
+      }
+    },
+    {
+      "key": "draft",
+      "kind": "NetworkDraft",
+      "action": "update",
+      "resource_id": "${resources.network.id}",
+      "depends_on": [
+        "agent",
+        "network"
+      ],
+      "spec": {
+        "agents": [
+          "${resources.agent.id}"
+        ]
+      }
+    }
+  ]
+}

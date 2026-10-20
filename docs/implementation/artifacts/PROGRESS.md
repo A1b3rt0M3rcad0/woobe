@@ -14,7 +14,12 @@ Step 01 is complete. Baseline, ADR, ledger and CI guards are committed. The sing
 [PR #220](https://github.com/A1b3rt0M3rcad0/woobe/pull/220) is OPEN, Draft and has no
 auto-merge. GitHub API connectivity recovered after the environment network draft
 update; existing platform authentication worked without adding credentials.
-PR #219 remains unrelated and untouched. Step 02 is next.
+PR #219 remains unrelated and untouched.
+
+Step 02 is complete: exact pinned client snapshots, source/hash/license manifest,
+local Go workspace and read-only client CI are included. Original client repositories
+remain unchanged. CLI make check/build, both Go SDK modes, Python SDK 34 tests,
+Ruff/build/Twine, source hashes and the new workflow validation passed. Step 03 is next.
 
 The stage commit carries `Plan-Step: 01/60`; a file never records its own containing
 commit SHA. CI reconciles commit subjects/trailers against the execution manifest.

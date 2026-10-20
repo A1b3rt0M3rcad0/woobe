@@ -1,0 +1,37 @@
+# Configuration for GitHub automatically generated release notes.
+# Generated notes complement the curated CHANGELOG and RELEASING procedure.
+
+changelog:
+  exclude:
+    labels:
+      - ignore-for-release
+
+  categories:
+    - title: Breaking Changes
+      labels:
+        - breaking-change
+        - semver-major
+
+    - title: New Features
+      labels:
+        - feature
+        - enhancement
+        - semver-minor
+
+    - title: Bug Fixes
+      labels:
+        - bug
+        - fix
+
+    - title: Documentation
+      labels:
+        - documentation
+        - docs
+
+    - title: Dependencies
+      labels:
+        - dependencies
+
+    - title: Other Changes
+      labels:
+        - "*"

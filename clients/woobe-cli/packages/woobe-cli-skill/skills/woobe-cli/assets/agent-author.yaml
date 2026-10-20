@@ -1,0 +1,17 @@
+# Replace registered-model-key with a real key from woobe resources list.
+# This is an author template, not a ready-to-apply server DTO.
+format: woobe-package
+schema_version: "1.0"
+kind: Agent
+metadata:
+  key: support
+  name: Support
+spec:
+  legacy_system_prompt: |-
+    Help the user with the requested support task.
+    Report uncertainty and use only verified information.
+  model:
+    primary:
+      ref: registered-model-key
+  session:
+    mode: stateful

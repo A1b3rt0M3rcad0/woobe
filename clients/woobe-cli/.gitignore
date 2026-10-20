@@ -1,0 +1,9 @@
+/bin/
+/dist
+*.test
+coverage.out
+.woobe/
+__pycache__/
+*.pyc
+/.woobe-lab/
+/.woobe-init.lock

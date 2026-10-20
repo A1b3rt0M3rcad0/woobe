@@ -1,0 +1,16 @@
+{
+  "files": {
+    "woobe.yaml": "{\"kind\": \"Package\", \"metadata\": {\"name\": \"Support\", \"version\": \"1.0.0\"}, \"spec\": {\"entrypoint\": {\"kind\": \"Agent\", \"ref\": \"agent\"}, \"resources\": [\"agent.yaml\", \"model.yaml\"], \"configuration\": {\"keys\": [{\"key\": \"PRIMARY_KEY\", \"kind\": \"secret\", \"value_format\": \"token\"}, {\"key\": \"UNUSED_DECLARATION\", \"kind\": \"value\", \"value_format\": \"string\"}]}, \"connections\": {\"primary\": {\"provider\": \"openai\", \"name\": \"Primary\", \"authentication\": {\"type\": \"api_key\", \"fields\": {\"api_key\": {\"source\": \"project_environment\", \"key\": \"PRIMARY_KEY\"}}}}}}, \"format\": \"woobe-package\", \"schema_version\": \"2.0\"}",
+    "agent.yaml": "{\"kind\": \"Agent\", \"metadata\": {\"key\": \"agent\", \"name\": \"Support\"}, \"spec\": {\"legacy_system_prompt\": \"Help\", \"model\": {\"primary\": {\"ref\": \"model\"}}}, \"format\": \"woobe-package\", \"schema_version\": \"2.0\"}",
+    "model.yaml": "{\"kind\": \"Model\", \"metadata\": {\"key\": \"model\", \"name\": \"Model\"}, \"spec\": {\"provider\": \"openai\", \"model\": \"gpt-4o-mini\", \"credential\": {\"ref\": \"primary\"}}, \"format\": \"woobe-package\", \"schema_version\": \"2.0\"}"
+  },
+  "definition_digest": "sha256:eeef4f0f51096936461cfbac18dbe8546a6b0cf8ddf6f3dfac71de34b7bf9b56",
+  "definition_digest_scope": "woobe-portable-definition@2.0",
+  "components": {
+    "model": "sha256:c97b27ab1b0b87634149ee5f6af1ae844cec66750a315ad36177060f301ee1ff",
+    "agent": "sha256:50fe2d944722727960a26b886a52a60163cb17099c029c90b0951d43129539a9"
+  },
+  "providers": {
+    "primary": "sha256:b469492ba9e7fb32bdc46e170aefd17cbc983f4777a8120841056b0b37697346"
+  }
+}

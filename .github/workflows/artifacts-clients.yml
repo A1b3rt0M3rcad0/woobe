@@ -1,0 +1,53 @@
+name: Artifact client compatibility
+
+on:
+  pull_request:
+    branches: [master]
+    paths: ['clients/**', 'go.work', 'go.work.sum', '.github/workflows/artifacts-clients.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  clients:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: '1.27.1'
+          cache-dependency-path: clients/woobe-cli/go.sum
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
+      - name: Confirm local SDK resolution
+        run: |
+          python3 - <<'PY'
+          import json, pathlib, subprocess
+          module = json.loads(subprocess.check_output(['go', 'list', '-m', '-json', 'github.com/A1b3rt0M3rcad0/woobe-sdk-go'], text=True))
+          assert pathlib.Path(module['Dir']).resolve() == pathlib.Path('clients/woobe-sdk-go').resolve()
+          assert module['Main'] is True
+          PY
+      - name: Go SDK workspace and standalone
+        working-directory: clients/woobe-sdk-go
+        run: go test -race ./... && GOWORK=off go test -race ./...
+      - name: CLI development checks and build
+        working-directory: clients/woobe-cli
+        run: make check && make build && bin/woobe version
+      - name: Python SDK isolated dependencies
+        working-directory: clients/woobe-sdk-python
+        run: uv venv --python 3.13 .venv && uv pip install --python .venv/bin/python -e '.[dev]'
+      - name: Python SDK regression and package checks
+        working-directory: clients/woobe-sdk-python
+        run: |
+          .venv/bin/pytest -q
+          .venv/bin/ruff check .
+          .venv/bin/python -m build
+          .venv/bin/twine check dist/*

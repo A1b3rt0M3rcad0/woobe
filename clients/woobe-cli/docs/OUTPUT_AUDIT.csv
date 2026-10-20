@@ -1,0 +1,360 @@
+command,kind,previous_bytes,compact_bytes,reduction_percent,scenario,note
+agent,alias,,,,delegated,Alias; use the corresponding canonical operation row
+auth credential import,local,142,35,75.4,local/diagnostic scenario,
+auth credential list,local,143,36,74.8,local/diagnostic scenario,
+auth credential remove,local,142,35,75.4,local/diagnostic scenario,
+auth invite accept,http,450,175,61.1,HTTP presentation fixture,
+auth invite list,http,452,177,60.8,HTTP presentation fixture,
+auth key inspect,http,796,240,69.8,HTTP presentation fixture,
+auth login,http,450,247,45.1,HTTP presentation fixture,
+auth logout,http-session,170,63,62.9,local/diagnostic scenario,
+auth refresh,http,450,175,61.1,HTTP presentation fixture,
+auth register,http,450,175,61.1,HTTP presentation fixture,
+auth status,http,1027,437,57.4,HTTP presentation fixture,
+completion bash,shell-completion,,,,preserved script,"Shell script, not a JSON response; compact does not apply"
+completion fish,shell-completion,,,,preserved script,"Shell script, not a JSON response; compact does not apply"
+completion powershell,shell-completion,,,,preserved script,"Shell script, not a JSON response; compact does not apply"
+completion zsh,shell-completion,,,,preserved script,"Shell script, not a JSON response; compact does not apply"
+config check,local,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+config show,local,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+context create,local,153,46,69.9,local/diagnostic scenario,
+context credential attach,local,154,47,69.5,local/diagnostic scenario,
+context credential detach,local,154,47,69.5,local/diagnostic scenario,
+context delete,local,154,47,69.5,local/diagnostic scenario,
+context list,local,311,183,41.2,local/diagnostic scenario,
+context project select,local,202,95,53.0,local/diagnostic scenario,Dry-run selection; authentication/project mutation is not executed
+context runtime-credential attach,local,154,47,69.5,local/diagnostic scenario,
+context runtime-credential detach,local,154,47,69.5,local/diagnostic scenario,
+context set,local,151,44,70.9,local/diagnostic scenario,
+context show,local,330,151,54.2,local/diagnostic scenario,
+context unset,local,154,47,69.5,local/diagnostic scenario,
+context update,local,154,47,69.5,local/diagnostic scenario,
+context use,local,151,44,70.9,local/diagnostic scenario,
+control-key,alias,,,,delegated,Alias; use the corresponding canonical operation row
+develop agent activate,development,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop agent archive,development,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop agent bindings,development,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop agent candidate,development,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop agent checkout,development,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop agent create,development,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop agent current,development-http,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop agent delete,development,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop agent deployment,development,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop agent diff,development,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop agent draft,development,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop agent evaluation,development,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop agent git-attest,development,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop agent git-proof,development,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop agent heads,development,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop agent history,development,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop agent lease,development,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop agent publication,development,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop agent publish,development,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop agent pull,development-http,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop agent push,development-http,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop agent rebase,development,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop agent receipt,development,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop agent reconcile,development,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop agent revision,development,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop agent rollback,development,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop agent stage,development,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop agent status,development,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop agent test,development,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop agent validate,development,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop network activate,development,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop network bindings,development,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop network candidate,development,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop network checkout,development,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop network create,development,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop network current,development-http,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop network deployment,development,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop network diff,development,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop network draft,development,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop network evaluation,development,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop network git-attest,development,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop network git-proof,development,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop network heads,development,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop network history,development,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop network lease,development,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop network publication,development,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop network publish,development,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop network pull,development-http,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop network push,development-http,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop network rebase,development,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop network receipt,development,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop network reconcile,development,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop network revision,development,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop network rollback,development,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop network stage,development,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop network status,development,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop network test,development,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop network validate,development,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop surface create,development,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop surface diff,development,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop surface pull,development-http,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop surface push,development-http,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop surface status,development,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+develop surface validate,development,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+doctor,diagnostic-http,56735,224,99.6,local/diagnostic scenario,
+export,http-projection,,,,not measured,Requires a dedicated operation/recovery/SDK scenario; no invented reduction
+help,local,1431110,40577,97.2,local/diagnostic scenario,
+init,local,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+instance bootstrap,http,450,175,61.1,HTTP presentation fixture,
+instance status,http,450,175,61.1,HTTP presentation fixture,
+knowledge,local,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+manifest apply,composition,,,,not measured,Requires a dedicated operation/recovery/SDK scenario; no invented reduction
+manifest capture,http-projection,,,,not measured,Requires a dedicated operation/recovery/SDK scenario; no invented reduction
+manifest compile,local,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+manifest diff,composition,,,,not measured,Requires a dedicated operation/recovery/SDK scenario; no invented reduction
+manifest export,http-projection,,,,not measured,Requires a dedicated operation/recovery/SDK scenario; no invented reduction
+manifest kinds,local,2005,1898,5.3,local/diagnostic scenario,
+manifest plan,local,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+manifest preflight,diagnostic-http,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+manifest reconcile,composition,,,,not measured,Requires a dedicated operation/recovery/SDK scenario; no invented reduction
+manifest status,local,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+manifest validate,local,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+model,local,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+network,alias,,,,delegated,Alias; use the corresponding canonical operation row
+package bindings,local,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+package cancel,package-http,,,,not measured,Requires a dedicated operation/recovery/SDK scenario; no invented reduction
+package doctor,diagnostic-http,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+package edit,local,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+package export agent,package-http,,,,not measured,Requires a dedicated operation/recovery/SDK scenario; no invented reduction
+package export network,package-http,,,,not measured,Requires a dedicated operation/recovery/SDK scenario; no invented reduction
+package import,package-http,,,,not measured,Requires a dedicated operation/recovery/SDK scenario; no invented reduction
+package plan,package-http,,,,not measured,Requires a dedicated operation/recovery/SDK scenario; no invented reduction
+package resume,package-http,,,,not measured,Requires a dedicated operation/recovery/SDK scenario; no invented reduction
+package seal,local,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+package status,package-http,,,,not measured,Requires a dedicated operation/recovery/SDK scenario; no invented reduction
+package validate,local,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+permission check,http,450,175,61.1,HTTP presentation fixture,
+permission effective,http,450,175,61.1,HTTP presentation fixture,
+permission explain,http,450,175,61.1,HTTP presentation fixture,
+permission list,http,452,177,60.8,HTTP presentation fixture,
+project access grant,http,450,175,61.1,HTTP presentation fixture,
+project access revoke,http,450,175,61.1,HTTP presentation fixture,
+project agent contract create,http,450,175,61.1,HTTP presentation fixture,
+project agent contract get,http,450,175,61.1,HTTP presentation fixture,
+project agent contract list,http,452,177,60.8,HTTP presentation fixture,
+project agent contract update,http,450,175,61.1,HTTP presentation fixture,
+project agent create,http,969,230,76.3,HTTP presentation fixture,
+project agent delete,http,450,175,61.1,HTTP presentation fixture,
+project agent environment list,http,452,177,60.8,HTTP presentation fixture,
+project agent environment update,http,450,175,61.1,HTTP presentation fixture,
+project agent export,http-projection,,,,not measured,Requires a dedicated operation/recovery/SDK scenario; no invented reduction
+project agent get,http,969,230,76.3,HTTP presentation fixture,
+project agent git-attestation create,http,450,175,61.1,HTTP presentation fixture,
+project agent git-attestation get,http,450,175,61.1,HTTP presentation fixture,
+project agent knowledge bind,http,450,175,61.1,HTTP presentation fixture,
+project agent knowledge list,http,452,177,60.8,HTTP presentation fixture,
+project agent knowledge unbind,http,450,175,61.1,HTTP presentation fixture,
+project agent knowledge version-create,http,450,175,61.1,HTTP presentation fixture,
+project agent knowledge version-list,http,450,175,61.1,HTTP presentation fixture,
+project agent list,http,1722,212,87.7,HTTP presentation fixture,
+project agent model-config create,http,450,175,61.1,HTTP presentation fixture,
+project agent model-config get,http,450,175,61.1,HTTP presentation fixture,
+project agent model-config list,http,452,177,60.8,HTTP presentation fixture,
+project agent prompt create,http,450,175,61.1,HTTP presentation fixture,
+project agent prompt get,http,450,175,61.1,HTTP presentation fixture,
+project agent prompt list,http,452,177,60.8,HTTP presentation fixture,
+project agent release activations,http,450,175,61.1,HTTP presentation fixture,
+project agent release create,http,450,175,61.1,HTTP presentation fixture,
+project agent release delete,http,450,175,61.1,HTTP presentation fixture,
+project agent release get,http,450,175,61.1,HTTP presentation fixture,
+project agent release list,http,452,111,75.4,HTTP presentation fixture,
+project agent release promote,http,450,175,61.1,HTTP presentation fixture,
+project agent release rollback,http,450,175,61.1,HTTP presentation fixture,
+project agent release run-test,http,450,175,61.1,HTTP presentation fixture,
+project agent release test,http,450,175,61.1,HTTP presentation fixture,
+project agent release tests,http,450,175,61.1,HTTP presentation fixture,
+project agent signed-receipt get,http,450,175,61.1,HTTP presentation fixture,
+project agent tool list,http,452,177,60.8,HTTP presentation fixture,
+project agent update,http,969,230,76.3,HTTP presentation fixture,
+project agent usage daily,http,450,175,61.1,HTTP presentation fixture,
+project api-key create,http,450,175,61.1,HTTP presentation fixture,
+project api-key list,http,452,177,60.8,HTTP presentation fixture,
+project api-key revoke,http,450,175,61.1,HTTP presentation fixture,
+project api-key rotate,http,450,175,61.1,HTTP presentation fixture,
+project api-key update,http,450,175,61.1,HTTP presentation fixture,
+project catalog context-assemblers,http,450,175,61.1,HTTP presentation fixture,
+project catalog execution-strategies,http,450,175,61.1,HTTP presentation fixture,
+project catalog knowledge-strategies,http,450,175,61.1,HTTP presentation fixture,
+project catalog rag-strategies,http,450,175,61.1,HTTP presentation fixture,
+project create,http,450,175,61.1,HTTP presentation fixture,
+project env list,http,452,177,60.8,HTTP presentation fixture,
+project env set,http,450,175,61.1,HTTP presentation fixture,
+project env unset,http,450,175,61.1,HTTP presentation fixture,
+project get,http,450,175,61.1,HTTP presentation fixture,
+project knowledge collection create,http,450,175,61.1,HTTP presentation fixture,
+project knowledge collection get,http,450,175,61.1,HTTP presentation fixture,
+project knowledge collection list,http,452,177,60.8,HTTP presentation fixture,
+project knowledge collection overview,http,450,175,61.1,HTTP presentation fixture,
+project knowledge collection update,http,450,175,61.1,HTTP presentation fixture,
+project knowledge collection vector-preview,http,450,175,61.1,HTTP presentation fixture,
+project knowledge document create,http,450,175,61.1,HTTP presentation fixture,
+project knowledge document delete,http,450,175,61.1,HTTP presentation fixture,
+project knowledge document get,http,450,175,61.1,HTTP presentation fixture,
+project knowledge document list,http,452,177,60.8,HTTP presentation fixture,
+project knowledge document upload,multipart-http,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+project knowledge search,http,450,175,61.1,HTTP presentation fixture,
+project knowledge snapshot create,http,450,175,61.1,HTTP presentation fixture,
+project knowledge snapshot get,http,450,175,61.1,HTTP presentation fixture,
+project knowledge snapshot list,http,452,177,60.8,HTTP presentation fixture,
+project lifecycle operation,http,450,175,61.1,HTTP presentation fixture,
+project lifecycle show,http,450,175,61.1,HTTP presentation fixture,
+project lifecycle update,http,450,175,61.1,HTTP presentation fixture,
+project list,http,452,177,60.8,HTTP presentation fixture,
+project member grant,http,450,175,61.1,HTTP presentation fixture,
+project member list,http,452,177,60.8,HTTP presentation fixture,
+project member revoke,http,450,175,61.1,HTTP presentation fixture,
+project network activation create,http,450,175,61.1,HTTP presentation fixture,
+project network activation list,http,452,177,60.8,HTTP presentation fixture,
+project network create,http,450,175,61.1,HTTP presentation fixture,
+project network draft update,http,450,175,61.1,HTTP presentation fixture,
+project network environment list,http,452,177,60.8,HTTP presentation fixture,
+project network environment update,http,450,175,61.1,HTTP presentation fixture,
+project network execution cancel,http,450,175,61.1,HTTP presentation fixture,
+project network execution diagnostics,http,450,175,61.1,HTTP presentation fixture,
+project network execution events,http,450,175,61.1,HTTP presentation fixture,
+project network execution snapshot,http,450,175,61.1,HTTP presentation fixture,
+project network get,http,450,175,61.1,HTTP presentation fixture,
+project network git-attestation create,http,450,175,61.1,HTTP presentation fixture,
+project network git-attestation get,http,450,175,61.1,HTTP presentation fixture,
+project network list,http,452,97,78.5,HTTP presentation fixture,
+project network management external-context,http,450,175,61.1,HTTP presentation fixture,
+project network management versions,http,450,175,61.1,HTTP presentation fixture,
+project network promotion create,http,450,175,61.1,HTTP presentation fixture,
+project network promotion preview,http,450,175,61.1,HTTP presentation fixture,
+project network rollback,http,450,175,61.1,HTTP presentation fixture,
+project network session create,http,450,175,61.1,HTTP presentation fixture,
+project network session list,http,452,177,60.8,HTTP presentation fixture,
+project network session messages,http,452,177,60.8,HTTP presentation fixture,
+project network session reset-context,http,450,175,61.1,HTTP presentation fixture,
+project network signed-receipt get,http,450,175,61.1,HTTP presentation fixture,
+project network update,http,450,175,61.1,HTTP presentation fixture,
+project network version list,http,452,93,79.4,HTTP presentation fixture,
+project overview,http,450,175,61.1,HTTP presentation fixture,
+project provider-credential create,http,450,175,61.1,HTTP presentation fixture,
+project provider-credential list,http,452,177,60.8,HTTP presentation fixture,
+project provider-credential revoke,http,450,175,61.1,HTTP presentation fixture,
+project provider-credential rotate,http,450,175,61.1,HTTP presentation fixture,
+project provider-credential update,http,450,175,61.1,HTTP presentation fixture,
+project provider-credential usage,http,450,175,61.1,HTTP presentation fixture,
+project provider-model create,http,450,175,61.1,HTTP presentation fixture,
+project provider-model get,http,450,175,61.1,HTTP presentation fixture,
+project provider-model list,http,452,177,60.8,HTTP presentation fixture,
+project provider-model update,http,450,175,61.1,HTTP presentation fixture,
+project provider-model usage,http,450,175,61.1,HTTP presentation fixture,
+project run list,http,452,177,60.8,HTTP presentation fixture,
+project runtime-key create,http,450,175,61.1,HTTP presentation fixture,
+project skill create,http,450,175,61.1,HTTP presentation fixture,
+project skill list,http,452,177,60.8,HTTP presentation fixture,
+project skill version create,http,450,175,61.1,HTTP presentation fixture,
+project skill version get,http,450,175,61.1,HTTP presentation fixture,
+project skill version list,http,452,177,60.8,HTTP presentation fixture,
+project surface access-key create,http,450,175,61.1,HTTP presentation fixture,
+project surface access-key list,http,452,177,60.8,HTTP presentation fixture,
+project surface access-key revoke,http,450,175,61.1,HTTP presentation fixture,
+project surface access-key rotate,http,450,175,61.1,HTTP presentation fixture,
+project surface activate,http,450,175,61.1,HTTP presentation fixture,
+project surface activity,http,450,175,61.1,HTTP presentation fixture,
+project surface archive,http,450,175,61.1,HTTP presentation fixture,
+project surface create,http,450,175,61.1,HTTP presentation fixture,
+project surface disable,http,450,175,61.1,HTTP presentation fixture,
+project surface get,http,450,175,61.1,HTTP presentation fixture,
+project surface list,http,452,177,60.8,HTTP presentation fixture,
+project surface release,http,450,175,61.1,HTTP presentation fixture,
+project surface sessions,http,452,177,60.8,HTTP presentation fixture,
+project surface test-sessions,http,450,175,61.1,HTTP presentation fixture,
+project surface update,http,450,175,61.1,HTTP presentation fixture,
+project tool create,http,450,175,61.1,HTTP presentation fixture,
+project tool delete,http,450,175,61.1,HTTP presentation fixture,
+project tool execute,http,450,175,61.1,HTTP presentation fixture,
+project tool list,http,452,177,60.8,HTTP presentation fixture,
+project tool mcp bulk,http,450,175,61.1,HTTP presentation fixture,
+project tool mcp discover,http,450,175,61.1,HTTP presentation fixture,
+project tool mcp oauth complete,http,450,175,61.1,HTTP presentation fixture,
+project tool mcp oauth device-poll,http,450,175,61.1,HTTP presentation fixture,
+project tool mcp oauth device-start,http,450,175,61.1,HTTP presentation fixture,
+project tool mcp oauth disconnect,http,450,175,61.1,HTTP presentation fixture,
+project tool mcp oauth start,http,450,175,61.1,HTTP presentation fixture,
+project tool mcp oauth status,http,450,175,61.1,HTTP presentation fixture,
+project tool mcp refresh,http,450,175,61.1,HTTP presentation fixture,
+project tool mcp set,http,450,175,61.1,HTTP presentation fixture,
+project tool status,http,450,175,61.1,HTTP presentation fixture,
+project tool test,http,450,175,61.1,HTTP presentation fixture,
+project tool update,http,450,175,61.1,HTTP presentation fixture,
+project tool usage-impact,http,450,175,61.1,HTTP presentation fixture,
+project trace get,http,450,175,61.1,HTTP presentation fixture,
+project trace list,http,452,177,60.8,HTTP presentation fixture,
+project update,http,450,175,61.1,HTTP presentation fixture,
+project usage daily,http,450,175,61.1,HTTP presentation fixture,
+project usage summary,http,450,175,61.1,HTTP presentation fixture,
+provider,local,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+receipt verify,local,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+request,generic-http,450,175,61.1,local/diagnostic scenario,
+request-pages,generic-http,737,368,50.1,local/diagnostic scenario,
+resources alias,local,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+resources bind,local,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+resources clone,local,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+resources create,local,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+resources diff,local,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+resources list,local,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+resources move,local,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+resources prune,local,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+resources push,local,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+resources register,local,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+resources unregister,local,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+resources used-by,local,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+resources validate,local,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+runtime agent sessions,http,692,400,42.2,HTTP presentation fixture,
+runtime run cancel,http,450,175,61.1,HTTP presentation fixture,
+runtime run get,http,450,175,61.1,HTTP presentation fixture,
+runtime run invocations,http,450,175,61.1,HTTP presentation fixture,
+runtime run list,http,452,177,60.8,HTTP presentation fixture,
+runtime run rerun,http,450,175,61.1,HTTP presentation fixture,
+runtime session create,http,450,175,61.1,HTTP presentation fixture,
+runtime session messages,http,452,177,60.8,HTTP presentation fixture,
+runtime target active,runtime-sdk,,,,not measured,Requires a dedicated operation/recovery/SDK scenario; no invented reduction
+runtime target cancel,runtime-sdk,,,,not measured,Requires a dedicated operation/recovery/SDK scenario; no invented reduction
+runtime target observe,runtime-sdk,,,,preserved stream,JSONL event protocol; compact is intentionally unsupported
+runtime target run,runtime-sdk,,,,not measured,Requires a dedicated operation/recovery/SDK scenario; no invented reduction
+runtime target stream,runtime-sdk,,,,preserved stream,JSONL event protocol; compact is intentionally unsupported
+schema,local,6968,6907,0.9,local/diagnostic scenario,
+server-schema,diagnostic-http,5903,5842,1.0,local/diagnostic scenario,
+skill,local,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+skills agents,local,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+skills install,local,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+skills status,local,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+skills uninstall,local,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+surface,local,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+tool,local,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+trust pin,local,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+trust refresh,local,,,,not measured,Requires a dedicated valid input/state scenario; no invented reduction
+validate-input,diagnostic-http,549,370,32.6,local/diagnostic scenario,
+version,local,261,133,49.0,local/diagnostic scenario,
+workspace authority audit,http,692,400,42.2,HTTP presentation fixture,
+workspace authority category archive,http,450,175,61.1,HTTP presentation fixture,
+workspace authority category clone,http,450,175,61.1,HTTP presentation fixture,
+workspace authority category create,http,450,175,61.1,HTTP presentation fixture,
+workspace authority category delete,http,450,175,61.1,HTTP presentation fixture,
+workspace authority category diff,composition,,,,not measured,Requires a dedicated operation/recovery/SDK scenario; no invented reduction
+workspace authority category get,http,450,175,61.1,HTTP presentation fixture,
+workspace authority category history,http,694,402,42.1,HTTP presentation fixture,
+workspace authority category list,http,692,400,42.2,HTTP presentation fixture,
+workspace authority category update,http,450,175,61.1,HTTP presentation fixture,
+workspace control-key create,http,450,175,61.1,HTTP presentation fixture,
+workspace control-key list,http,452,177,60.8,HTTP presentation fixture,
+workspace control-key revoke,http,450,175,61.1,HTTP presentation fixture,
+workspace control-key rotate,http,450,175,61.1,HTTP presentation fixture,
+workspace control-key update,http,450,175,61.1,HTTP presentation fixture,
+workspace create,http,450,175,61.1,HTTP presentation fixture,
+workspace get,http,450,175,61.1,HTTP presentation fixture,
+workspace invite cancel,http,450,175,61.1,HTTP presentation fixture,
+workspace invite create,http,450,175,61.1,HTTP presentation fixture,
+workspace invite list,http,452,177,60.8,HTTP presentation fixture,
+workspace list,http,452,177,60.8,HTTP presentation fixture,
+workspace member list,http,452,177,60.8,HTTP presentation fixture,
+workspace member remove,http,450,175,61.1,HTTP presentation fixture,
+workspace project-access list,http,452,177,60.8,HTTP presentation fixture,
+workspace update,http,450,175,61.1,HTTP presentation fixture,
