@@ -87,6 +87,8 @@ class ProcessingJobRepository:
             project_id=UUID(request.scope.project_id)).on_conflict_do_nothing())
         await self._uow.session.execute(insert(ProcessingWorkspaceQueueModel).values(
             workspace_id=workspace.id).on_conflict_do_nothing())
+        if recipe.mode != 'store_only':
+            workspace.processing_sequence += 1
         row = ProcessingJobModel(id=str(uuid4()), project_id=UUID(request.scope.project_id),
             environment=request.scope.environment.value, workspace_id=workspace.id,
             artifact_id=request.artifact_id, revision_id=source.id,
@@ -95,6 +97,7 @@ class ProcessingJobRepository:
             processing_fingerprint=processing_fingerprint(sha256=source.sha256, size_bytes=source.size_bytes,
                 content_type=source.content_type, recipe=recipe), profile_id=profile_id, profile_revision=profile_revision,
             recipe=recipe.model_dump(mode='json'), recipe_fingerprint=recipe.fingerprint(),
+            generation_number=workspace.processing_sequence if recipe.mode != 'store_only' else 0,
             status='queued', attempt=0, max_attempts=3, fencing_token=0, checkpoints={}, retryable=False)
         self._uow.session.add(row)
         self._uow.session.add(ArtifactProcessingOutboxModel(id=uuid4(), aggregate_type='artifact-processing-job',
@@ -239,7 +242,7 @@ class ProcessingJobRepository:
                 row.workspace_id, actor, row.fencing_token,
                 row.lease_until, request.lease_seconds, recipe,
                 ArtifactReference(artifact_id=row.artifact_id, revision_id=row.revision_id),
-                row.profile_id, row.profile_revision, dict(row.checkpoints))
+                row.profile_id, row.profile_revision, dict(row.checkpoints), row.generation_number)
         return None
 
     async def _lease_row(self, lease):
@@ -250,6 +253,7 @@ class ProcessingJobRepository:
         ).with_for_update().execution_options(populate_existing=True))).scalar_one_or_none()
         attempt = await self._uow.session.get(ProcessingAttemptModel, lease.attempt_id)
         if (row is None or attempt is None or row.fencing_token != lease.fencing_token
+                or row.generation_number != lease.generation_number
                 or (row.worker_id != lease.worker_id and row.status not in {'succeeded', 'failed', 'cancelled'})
                 or attempt.job_id != row.id
                 or attempt.fencing_token != lease.fencing_token or attempt.worker_id != lease.worker_id):

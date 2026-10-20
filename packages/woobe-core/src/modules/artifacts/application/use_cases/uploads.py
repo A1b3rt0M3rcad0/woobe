@@ -29,6 +29,12 @@ class UploadUseCases:
                 opaque_id(value)
         if request.node_id is not None and request.run_id is None:
             raise ValueError('Node provenance requires a Run identity')
+        if (request.source_representation_set_id is None) != (request.source_representation_entry_id is None):
+            raise ValueError('Representation copy requires its exact generation and entry')
+        if request.source_representation_set_id is not None:
+            if request.origin != 'copy' or request.definition.artifact_id is not None:
+                raise ValueError('Representation copies must create a new Artifact')
+            await self._authorize(request, Action.READ)
         if request.definition.size_bytes > self._maximum:
             raise ArtifactError('ARTIFACT_LIMIT_EXCEEDED', 'Upload exceeds the configured byte limit')
         return await self._store.begin(request, subject)
@@ -46,7 +52,11 @@ class UploadUseCases:
         return await self._store.verify(request, await self._authorize(request))
 
     async def commit(self, request: CommitUpload):
-        return await self._store.commit(request, await self._authorize(request))
+        subject = await self._authorize(request)
+        snapshot = await self._store.load(request, subject)
+        if snapshot.source_representation_set_id is not None:
+            await self._authorize(request, Action.READ)
+        return await self._store.commit(request, subject)
 
     async def abort(self, request: UploadRequest):
         return await self._store.abort(request, await self._authorize(request))

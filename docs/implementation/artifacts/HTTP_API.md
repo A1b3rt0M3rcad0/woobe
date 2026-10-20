@@ -75,3 +75,9 @@ body limits, grant operations/CAS, browser password login/session logout (includ
 replay of the revoked token), CORS and revocation before download. Transport is
 in-process ASGI; native API/Workers readiness and OpenAPI are checked separately.
 No extraction, index or signed-URL readiness is advertised before implementation.
+
+Stage 19 adds the exact-revision read-only representation and SourceRef routes,
+verified downloads and new-Artifact editable copies described in
+[REPRESENTATIONS.md](REPRESENTATIONS.md). Revision metadata includes optional
+source_representation_set_id/source_representation_entry_id lineage. Internal
+processing output keys and backend versions remain private.

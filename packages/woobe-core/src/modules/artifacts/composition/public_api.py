@@ -85,4 +85,14 @@ from modules.artifacts.composition.composers.cancel_processing_job import cancel
 
 from modules.artifacts.composition.processing_profiles import processing_component_capabilities as processing_component_capabilities
 
+
+from modules.artifacts.application.contracts.representations import (
+    ReadRepresentation as ReadRepresentation, ListRepresentations as ListRepresentations,
+    ReadSource as ReadSource, SourceReadDefinition as SourceReadDefinition, SourceReadView as SourceReadView,
+    RepresentationSetView as RepresentationSetView, RepresentationEntryView as RepresentationEntryView,
+    RepresentationEntryPage as RepresentationEntryPage, CopyRepresentation as CopyRepresentation,
+    CopyRepresentationDefinition as CopyRepresentationDefinition,
+)
+from modules.artifacts.composition.representations import build_representation_service as build_representation_service
+
 CONTRACT_VERSION = '1'

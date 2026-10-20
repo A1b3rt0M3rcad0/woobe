@@ -8,9 +8,10 @@ from modules.artifacts.domain.models import Action, ArtifactError, ArtifactRef
 
 class ProcessingJobUseCases:
     def __init__(self, jobs: ProcessingJobStore, catalog, profiles,
-                 authorization: ArtifactAuthorization, registry: ProcessingRegistry):
+                 authorization: ArtifactAuthorization, registry: ProcessingRegistry, representations=None):
         self._jobs, self._catalog, self._profiles = jobs, catalog, profiles
         self._authorization, self._registry = authorization, registry
+        self._representations = representations
 
     async def request(self, request):
         definition = request.definition
@@ -68,10 +69,39 @@ class ProcessingJobUseCases:
         return await self._jobs.checkpoint(phase)
 
     async def finish(self, phase):
+        if phase.publication is not None:
+            await self._representations.lock_scope(phase.lease.scope, phase.lease.workspace_id)
         replay = await self._jobs.terminal_ack(phase)
         if replay is not None:
             return replay
         if phase.status == 'succeeded':
             await self._authorize_lease(phase.lease)
             ProcessingJobResult.model_validate(phase.result)
+            if phase.publication is not None:
+                await self._representations.commit_ready(phase.lease, phase.publication, phase.result)
         return await self._jobs.finish(phase)
+
+    async def reserve_output(self, request):
+        await self._representations.lock_scope(request.lease.scope, request.lease.workspace_id)
+        await self._authorize_lease(request.lease)
+        return await self._representations.reserve(request)
+
+    async def record_output(self, request):
+        # Accounting acknowledges previously admitted I/O even after authority
+        # changes. It cannot publish or admit another write.
+        return await self._representations.record(request)
+
+    async def prepare_bundle(self, request):
+        await self._representations.lock_scope(request.lease.scope, request.lease.workspace_id)
+        _, source = await self._authorize_lease(request.lease)
+        return await self._representations.prepare(request, source)
+
+    async def metadata_bundle(self, request):
+        await self._representations.lock_scope(request.lease.scope, request.lease.workspace_id)
+        await self._authorize_lease(request.lease)
+        return await self._representations.metadata(request)
+
+    async def seal_bundle(self, request):
+        await self._representations.lock_scope(request.lease.scope, request.lease.workspace_id)
+        await self._authorize_lease(request.lease)
+        return await self._representations.seal(request)

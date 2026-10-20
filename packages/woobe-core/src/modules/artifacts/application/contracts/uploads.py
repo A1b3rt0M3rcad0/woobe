@@ -15,6 +15,8 @@ class BeginUpload:
     origin: str = 'upload'
     run_id: str | None = None
     node_id: str | None = None
+    source_representation_set_id: str | None = None
+    source_representation_entry_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -55,6 +57,8 @@ class UploadSnapshot:
     object_key: str
     parts: tuple[dict, ...]
     expected_revision: str | None
+    source_representation_set_id: str | None = None
+    source_representation_entry_id: str | None = None
 
 
 @dataclass(frozen=True)

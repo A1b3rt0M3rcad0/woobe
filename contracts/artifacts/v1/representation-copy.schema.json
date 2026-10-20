@@ -1,0 +1,24 @@
+{
+  "$id": "urn:woobe:artifacts:v1:representation-copy",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "operation_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$",
+      "title": "Operation Id",
+      "type": "string"
+    },
+    "path": {
+      "maxLength": 1024,
+      "minLength": 1,
+      "title": "Path",
+      "type": "string"
+    }
+  },
+  "required": [
+    "operation_id",
+    "path"
+  ],
+  "title": "CopyRepresentationDefinition",
+  "type": "object"
+}

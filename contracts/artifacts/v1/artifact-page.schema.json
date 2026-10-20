@@ -172,6 +172,32 @@
           "minimum": 0,
           "title": "Size Bytes",
           "type": "integer"
+        },
+        "source_representation_entry_id": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Representation Entry Id"
+        },
+        "source_representation_set_id": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Representation Set Id"
         }
       },
       "required": [

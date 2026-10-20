@@ -15,6 +15,7 @@ from modules.artifacts.infra.database.authorization import ExistingPrincipalAuth
 from modules.artifacts.infra.database.catalog import CatalogRepository
 from modules.artifacts.infra.database.jobs import ProcessingJobRepository
 from modules.artifacts.infra.database.profiles import ProfileRepository
+from modules.artifacts.infra.database.representations import RepresentationRepository
 from modules.artifacts.infra.database.unit_of_work import ArtifactsUnitOfWork
 from shared.infra.transactional_handler import TransactionalHandler
 
@@ -32,14 +33,21 @@ def _worker_phase(engine, settings, method):
     authorization = ArtifactAuthorization(authority, grants)
     profiles = ProfileUseCases(profile_store, authorization, PROCESSING_REGISTRY,
                               CursorCodec(settings.secret_key.encode()))
-    use_case = ProcessingJobUseCases(jobs, catalog, profiles, authorization, PROCESSING_REGISTRY)
+    use_case = ProcessingJobUseCases(jobs, catalog, profiles, authorization, PROCESSING_REGISTRY, RepresentationRepository(uow))
     return TransactionalHandler(uow, getattr(use_case, method))
 
 
 def build_processing_runner(engine, settings):
+    phases = {name: _worker_phase(engine, settings, name) for name in (
+        'reserve_output', 'record_output', 'prepare_bundle', 'metadata_bundle', 'seal_bundle')}
+
+    async def publication_phase(name, request):
+        return await phases[name](request)
+
     return ProcessingRunner(_worker_phase(engine, settings, 'deliver'), _worker_phase(engine, settings, 'claim'),
         _worker_phase(engine, settings, 'prepare'), _worker_phase(engine, settings, 'heartbeat'),
         _worker_phase(engine, settings, 'checkpoint'), _worker_phase(engine, settings, 'finish'), upload_storage,
+        publication_phase=publication_phase,
         pipeline=DocumentPipeline({('native-text', '1'): NativeTextProcessor(),
                                    ('native-pdf', '1'): NativePdfProcessor(),
                                    ('native-document', '1'): NativeDocumentProcessor(

@@ -120,7 +120,7 @@ class CursorEnvelope(Contract):
     scope_fingerprint: Digest
     last_id: Identifier
     catalog_version: int = Field(ge=0)
-    purpose: Literal['workspaces', 'artifacts', 'search', 'nodes', 'profiles']
+    purpose: Literal['workspaces', 'artifacts', 'search', 'nodes', 'profiles', 'representation_entries']
 
 
 class CapabilityDescriptor(Contract):
@@ -165,6 +165,8 @@ class RevisionView(Contract):
     operation_id: Identifier | None = None
     run_id: Identifier | None = None
     node_id: Identifier | None = None
+    source_representation_set_id: Identifier | None = None
+    source_representation_entry_id: Identifier | None = None
 
 
 class ArtifactView(Contract):

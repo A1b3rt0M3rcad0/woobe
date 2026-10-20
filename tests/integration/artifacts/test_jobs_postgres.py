@@ -481,7 +481,11 @@ async def test_native_extraction_real_background_factory_resumes_committed_canon
     registry = processing.PROCESSING_REGISTRY
     recipe = registry.normalize(ProcessingRecipe(mode='extract', processor=ComponentReference(name='native-text', version='1')))
     profile_id = uuid4().hex
+    from modules.artifacts.infra.database.models import WorkspaceModel
     async with ArtifactsUnitOfWork(engine) as uow:
+        # This fixture qualifies parsing/recovery; persisted derivatives now
+        # consume the same real byte quota as the original.
+        (await uow.session.get(WorkspaceModel, request.workspace_id)).quota_bytes = 1_048_576
         await ProfileRepository(uow).create(request.scope, ProfileCreate(id=profile_id, revision=1, recipe=recipe))
         await ProfileRepository(uow).bind(request.scope, request.workspace_id,
             ProfileDefault(expected_version=1, profile_id=profile_id, profile_revision=1))
@@ -534,5 +538,6 @@ async def test_native_extraction_real_background_factory_resumes_committed_canon
     await build_processing_runner(engine, WorkerSettings.model_validate({})).run_once('native-resumed')
     complete = await execute(engine, 'read', read_request(request, job), registry=registry)
     assert complete.status == 'succeeded' and complete.result.processing_performed
-    assert set(complete.completed_stages) == {'verify_original', 'extract'} and len(calls) == 1
+    assert set(complete.completed_stages) == {'verify_original', 'extract', 'build_bundle'} and len(calls) == 1
+    assert complete.result.representation_set_id is not None
     assert complete.result.source_sha256 == checkpoint['source_sha256']

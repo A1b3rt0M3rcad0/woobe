@@ -21,11 +21,28 @@ def inputs(content, media):
     return revision, stream(), recipe
 
 
+async def convert_with_verified_assets(content, media):
+    published = {}
+    async def publish(asset, chunks):
+        content = bytearray()
+        async for chunk in chunks:
+            content.extend(chunk)
+        assert len(content) == asset.size_bytes
+        assert hashlib.sha256(content).hexdigest() == asset.sha256
+        assert content.startswith(b'\x89PNG\r\n\x1a\n')
+        published[asset.id] = asset
+    document = await DoclingNativeProcessor(memory_bytes=2_147_483_648).process(
+        *inputs(content, media), publish_asset=publish)
+    assert {asset.id: asset for asset in document.assets} == published
+    assert all(block.asset_ids for block in document.blocks if block.kind == 'figure')
+    return document
+
+
 @pytest.mark.skipif(not READY, reason='optional real Docling processing extra is not installed')
 @pytest.mark.asyncio
 async def test_real_docling_docx_preserves_headings_hierarchy_table_figure_and_unicode():
     from tests.fixtures.artifacts.docx_sources import synthetic_docx
-    document = await DoclingNativeProcessor(memory_bytes=2_147_483_648).process(*inputs(synthetic_docx(), DOCX_MEDIA_TYPE))
+    document = await convert_with_verified_assets(synthetic_docx(), DOCX_MEDIA_TYPE)
     assert document.page_count is None and document.pages == ()
     assert document.coverage == Coverage.PARTIAL and 'figure_content_not_transcribed' in document.diagnostics
     headings = [b for b in document.blocks if b.kind == 'heading']
@@ -46,7 +63,7 @@ async def test_real_docling_docx_preserves_headings_hierarchy_table_figure_and_u
 @pytest.mark.asyncio
 async def test_real_docling_multicolumn_pdf_preserves_boxes_physical_pages_and_explicit_partial_layout():
     from tests.fixtures.artifacts.pdf_sources import synthetic_pdf
-    document = await DoclingNativeProcessor(memory_bytes=2_147_483_648).process(*inputs(synthetic_pdf(), 'application/pdf'))
+    document = await convert_with_verified_assets(synthetic_pdf(), 'application/pdf')
     assert document.coverage == Coverage.PARTIAL and document.page_count == 12
     assert 'native_pdf_layout_not_inferred' in document.diagnostics
     assert document.pages[3].status == 'empty' and document.pages[4].status == 'needs_ocr'

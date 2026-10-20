@@ -171,7 +171,7 @@ class CatalogRepository:
             raise ArtifactError('SOURCE_UNAVAILABLE', 'Artifact revision is unavailable')
         return Revision(row.id, row.artifact_id, row.object_key, row.content_type,
                         row.size_bytes, row.sha256, row.origin, row.producer_id, row.storage_version_id,
-                        row.operation_id, row.run_id, row.node_id)
+                        row.operation_id, row.run_id, row.node_id, row.source_representation_set_id, row.source_representation_entry_id)
 
     async def visible_artifacts(self, scope: Scope, workspace_id: str, *,
                                 catalog_version: int, limit: int = 50,

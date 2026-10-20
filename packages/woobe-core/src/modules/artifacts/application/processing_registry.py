@@ -115,4 +115,6 @@ def processing_fingerprint(*, sha256: str, size_bytes: int, content_type: str, r
         raise ValueError('Processing identity requires a nonnegative source size')
     payload = {'source_sha256': sha256, 'size_bytes': size_bytes,
                'content_type': content_type, 'recipe_fingerprint': recipe.fingerprint()}
+    if recipe.mode != 'store_only':
+        payload['representation_format_version'] = '1'
     return hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(',', ':')).encode()).hexdigest()

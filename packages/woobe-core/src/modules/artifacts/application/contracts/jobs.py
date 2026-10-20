@@ -87,6 +87,7 @@ class JobLease:
     profile_id: str | None
     profile_revision: int | None
     checkpoints: dict
+    generation_number: int = 0
 
 
 @dataclass(frozen=True)
@@ -98,6 +99,7 @@ class WorkerPhase:
     status: str | None = None
     error_code: str | None = None
     retryable: bool = False
+    publication: dict | None = None
 
 
 @dataclass(frozen=True)

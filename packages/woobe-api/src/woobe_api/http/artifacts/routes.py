@@ -20,6 +20,9 @@ from modules.artifacts.entrypoint import (
     bind_processing_profile_composer, select_processing_profile_composer, processing_component_capabilities,
     ProcessingRequest, ProcessingJobView, RequestProcessing, ReadProcessingJob,
     request_processing_composer, get_processing_job_composer, cancel_processing_job_composer,
+    ReadRepresentation, ListRepresentations, ReadSource, SourceReadDefinition, SourceReadView,
+    RepresentationSetView, RepresentationEntryPage, CopyRepresentation, CopyRepresentationDefinition,
+    build_representation_service,
 )
 from shared.contracts.object_storage import ObjectStorageError
 from woobe_api.http.artifacts.contracts import FileCreate, FileMove, GrantCreate, Identifier, TextUpdate
@@ -296,3 +299,89 @@ async def processing_job(artifact_id: Identifier, job_id: Identifier, artifact_w
 @router.post('/artifacts/{artifact_id}/processing/{job_id}/cancel', status_code=202, response_model=ProcessingJobView)
 async def cancel_processing_job(artifact_id: Identifier, job_id: Identifier, artifact_workspace_id: Identifier, ctx: Context):
     return await cancel_processing_job_composer()(ReadProcessingJob(*ctx, artifact_workspace_id, job_id, artifact_id))
+
+
+@router.get('/artifacts/{artifact_id}/revisions/{revision_id}/representations', response_model=RepresentationSetView)
+async def current_representations(artifact_id: Identifier, revision_id: Identifier, artifact_workspace_id: Identifier, ctx: Context):
+    snapshot = await build_representation_service().resolve(ReadRepresentation(*ctx, artifact_workspace_id, artifact_id, revision_id))
+    return snapshot.public_view
+
+
+@router.get('/artifacts/{artifact_id}/revisions/{revision_id}/representations/{representation_set_id}', response_model=RepresentationSetView)
+async def get_representations(artifact_id: Identifier, revision_id: Identifier, representation_set_id: Identifier,
+                              artifact_workspace_id: Identifier, ctx: Context):
+    snapshot = await build_representation_service().resolve(ReadRepresentation(*ctx, artifact_workspace_id,
+        artifact_id, revision_id, representation_set_id))
+    return snapshot.public_view
+
+
+@router.get('/artifacts/{artifact_id}/revisions/{revision_id}/representations/{representation_set_id}/entries', response_model=RepresentationEntryPage)
+async def representation_entries(artifact_id: Identifier, revision_id: Identifier, representation_set_id: Identifier,
+                                  artifact_workspace_id: Identifier, ctx: Context,
+                                  limit: int = Query(default=50, ge=1, le=200),
+                                  cursor: str | None = Query(default=None, max_length=4096),
+                                  directory: str = Query(default='', max_length=1024)):
+    return await build_representation_service().list_entries(ListRepresentations(*ctx, artifact_workspace_id,
+        artifact_id, revision_id, representation_set_id, None, limit, cursor, directory))
+
+
+@router.post('/artifact-sources/read', response_model=SourceReadView)
+async def read_source(body: SourceReadDefinition, artifact_workspace_id: Identifier, ctx: Context):
+    return await build_representation_service().read_source(ReadSource(*ctx, artifact_workspace_id, body))
+
+
+@router.post('/artifacts/{artifact_id}/revisions/{revision_id}/representations/{representation_set_id}/entries/{entry_id}/copy', response_model=UploadStatusView)
+async def copy_representation(artifact_id: Identifier, revision_id: Identifier, representation_set_id: Identifier,
+                              entry_id: Identifier, artifact_workspace_id: Identifier, request: Request,
+                              body: CopyRepresentationDefinition, ctx: Context):
+    idempotency(request, body.operation_id)
+    result = await build_representation_service().copy(CopyRepresentation(*ctx, artifact_workspace_id,
+        artifact_id, revision_id, representation_set_id, entry_id, body.operation_id, body.path))
+    return {'schema_version': '1', **asdict(result)}
+
+
+@router.get('/artifacts/{artifact_id}/revisions/{revision_id}/representations/{representation_set_id}/entries/{entry_id}/content', response_class=Response,
+    responses={status: {'content': {'application/octet-stream': {'schema': {'type': 'string', 'format': 'binary'}}}}
+               for status in (200, 206)})
+async def download_representation(artifact_id: Identifier, revision_id: Identifier, representation_set_id: Identifier,
+                                  entry_id: Identifier, artifact_workspace_id: Identifier, request: Request, ctx: Context):
+    service = build_representation_service()
+    command = ReadRepresentation(*ctx, artifact_workspace_id, artifact_id, revision_id, representation_set_id, entry_id)
+    snapshot = await service.resolve(command)
+    entry = snapshot.entry
+    size, digest = entry.size_bytes, entry.sha256
+    range_header = request.headers.get('range')
+    if request.headers.get('if-range') not in {None, f'"{digest}"'}:
+        range_header = None
+    start, stop = 0, size
+    if range_header:
+        try:
+            start, stop = byte_range(range_header, size)
+        except ArtifactError as error:
+            response = error_response(error)
+            response.headers['Content-Range'] = f'bytes */{size}'
+            return response
+    _, stream = await service.open_content(command, start=start, end=stop)
+    try:
+        first = await anext(stream, b'')
+    except ObjectStorageError as error:
+        raise ArtifactError('ARTIFACT_STORAGE_UNAVAILABLE', 'Representation content is unavailable', retryable=True) from error
+
+    async def content():
+        try:
+            yield first
+            async for chunk in stream:
+                yield chunk
+        finally:
+            await stream.aclose()
+
+    filename = entry.path.rsplit('/', 1)[-1]
+    fallback = re.sub(r'[^A-Za-z0-9._-]', '_', filename)[:150] or 'representation'
+    headers = {'Cache-Control': 'private, no-store', 'Accept-Ranges': 'bytes',
+        'Content-Length': str(stop - start), 'ETag': f'"{digest}"', 'X-Content-Type-Options': 'nosniff',
+        'Content-Disposition': f'attachment; filename="{fallback}"; filename*=UTF-8\'\'{quote(filename, safe="")}',
+        'X-Woobe-Source-Sha256': snapshot.generation.source_sha256}
+    if range_header:
+        headers['Content-Range'] = f'bytes {start}-{stop - 1}/{size}'
+    return ArtifactDownloadResponse(content(), owned_stream=stream, status_code=206 if range_header else 200,
+        media_type=entry.content_type, headers=headers)

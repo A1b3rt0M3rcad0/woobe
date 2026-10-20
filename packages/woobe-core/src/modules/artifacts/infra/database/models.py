@@ -30,6 +30,7 @@ class ArtifactWorkspaceModel(ArtifactRecord):
         CheckConstraint("environment IN ('draft','staging','production')", name='ck_artifact_workspace_environment'),
         CheckConstraint("status IN ('active','archived','deletion_pending','purged')", name='ck_artifact_workspace_status'),
         CheckConstraint('version >= 1 AND catalog_version >= 0', name='ck_artifact_workspace_version'),
+        CheckConstraint('processing_sequence >= 0', name='ck_artifact_workspace_processing_sequence'),
         CheckConstraint('quota_bytes >= 0 AND used_bytes >= 0 AND reserved_bytes >= 0 AND used_bytes + reserved_bytes <= quota_bytes', name='ck_artifact_workspace_quota'),
         CheckConstraint('retention_days >= 0', name='ck_artifact_workspace_retention'),
         ForeignKeyConstraint(['project_id', 'environment', 'default_profile_id', 'default_profile_revision'],
@@ -58,6 +59,7 @@ class ArtifactWorkspaceModel(ArtifactRecord):
     creation_fingerprint: Mapped[str | None] = mapped_column(String(64))
     default_profile_id: Mapped[str | None] = mapped_column(String(128))
     default_profile_revision: Mapped[int | None] = mapped_column(BigInteger)
+    processing_sequence: Mapped[int] = mapped_column(BigInteger, default=0)
 
 
 class ArtifactModel(ArtifactRecord):
@@ -86,6 +88,7 @@ class RevisionModel(ArtifactRecord):
     __tablename__ = 'revisions'
     __table_args__ = (
         UniqueConstraint('artifact_id', 'id', name='uq_artifact_revision_identity'),
+        UniqueConstraint('workspace_id', 'artifact_id', 'id', name='uq_artifact_revision_scoped_identity'),
         UniqueConstraint('object_key', name='uq_artifact_revision_object_key'),
         ForeignKeyConstraint(['workspace_id', 'artifact_id'], ['artifacts.artifacts.workspace_id', 'artifacts.artifacts.id'],
                              name='fk_artifact_revision_owner', ondelete='RESTRICT'),
@@ -93,6 +96,10 @@ class RevisionModel(ArtifactRecord):
         CheckConstraint("sha256 ~ '^[0-9a-f]{64}$'", name='ck_artifact_revision_sha256'),
         CheckConstraint("origin IN ('upload','application','agent','tool','processing','copy')", name='ck_artifact_revision_origin'),
         Index('ix_artifact_revisions_page', 'workspace_id', 'artifact_id', 'id'),
+        CheckConstraint('(source_representation_set_id IS NULL) = (source_representation_entry_id IS NULL)', name='ck_artifact_revisions_representation_pair'),
+        ForeignKeyConstraint(['workspace_id', 'source_representation_set_id', 'source_representation_entry_id'],
+            ['artifacts.representation_entries.workspace_id', 'artifacts.representation_entries.representation_set_id', 'artifacts.representation_entries.id'],
+            name='fk_artifact_revisions_representation', use_alter=True),
         {'schema': 'artifacts'},
     )
 
@@ -108,6 +115,8 @@ class RevisionModel(ArtifactRecord):
     operation_id: Mapped[str | None] = mapped_column(String(128))
     run_id: Mapped[str | None] = mapped_column(String(128))
     node_id: Mapped[str | None] = mapped_column(String(128))
+    source_representation_set_id: Mapped[str | None] = mapped_column(String(128))
+    source_representation_entry_id: Mapped[str | None] = mapped_column(String(128))
 
 
 class HeadHistoryModel(ArtifactRecord):
@@ -163,6 +172,10 @@ class UploadModel(ArtifactRecord):
         CheckConstraint("status IN ('created','uploading','verifying','committed','failed','aborted','expired')", name='ck_artifact_upload_status'),
         CheckConstraint("(status = 'committed') = (receipt IS NOT NULL)", name='ck_artifact_upload_receipt'),
         Index('ix_artifact_upload_expiration', 'status', 'expires_at'),
+        CheckConstraint('(source_representation_set_id IS NULL) = (source_representation_entry_id IS NULL)', name='ck_artifact_uploads_representation_pair'),
+        ForeignKeyConstraint(['workspace_id', 'source_representation_set_id', 'source_representation_entry_id'],
+            ['artifacts.representation_entries.workspace_id', 'artifacts.representation_entries.representation_set_id', 'artifacts.representation_entries.id'],
+            name='fk_artifact_uploads_representation', use_alter=True),
         {'schema': 'artifacts'},
     )
 
@@ -180,6 +193,8 @@ class UploadModel(ArtifactRecord):
     origin: Mapped[str] = mapped_column(String(32), default='upload')
     run_id: Mapped[str | None] = mapped_column(String(128))
     node_id: Mapped[str | None] = mapped_column(String(128))
+    source_representation_set_id: Mapped[str | None] = mapped_column(String(128))
+    source_representation_entry_id: Mapped[str | None] = mapped_column(String(128))
     offset: Mapped[int] = mapped_column(BigInteger, default=0)
     status: Mapped[str] = mapped_column(String(16), default='created')
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
@@ -243,6 +258,8 @@ class ProcessingJobModel(ArtifactRecord):
     __tablename__ = 'processing_jobs'
     __table_args__ = (
         UniqueConstraint('workspace_id', 'operation_id', name='uq_artifact_processing_operation'),
+        UniqueConstraint('project_id', 'environment', 'workspace_id', 'id', name='uq_artifact_job_scoped_identity'),
+        UniqueConstraint('workspace_id', 'artifact_id', 'revision_id', 'id', name='uq_artifact_job_source_identity'),
         ForeignKeyConstraint(['project_id', 'environment', 'workspace_id'],
             ['artifacts.workspaces.project_id', 'artifacts.workspaces.environment', 'artifacts.workspaces.id'], name='fk_artifact_job_scope'),
         CheckConstraint('(profile_id IS NULL) = (profile_revision IS NULL)', name='ck_artifact_job_profile_pair'),
@@ -252,6 +269,7 @@ class ProcessingJobModel(ArtifactRecord):
             ['artifacts.processing_profiles.project_id', 'artifacts.processing_profiles.environment', 'artifacts.processing_profiles.id', 'artifacts.processing_profiles.revision'], name='fk_artifact_job_profile'),
         CheckConstraint("status IN ('queued','running','succeeded','failed','cancel_requested','cancelled','uncertain')", name='ck_artifact_job_status'),
         CheckConstraint('attempt >= 0 AND fencing_token >= 0 AND max_attempts >= 1', name='ck_artifact_job_attempt'),
+        CheckConstraint('generation_number >= 0', name='ck_artifact_job_generation'),
         Index('ix_artifact_processing_expired_lease', 'status', 'lease_until', 'id'),
         Index('ix_artifact_processing_claim', 'status', 'available_at', 'created_at', 'id'),
         Index('ix_artifact_processing_project_budget', 'project_id', 'status', 'lease_until'),
@@ -273,6 +291,7 @@ class ProcessingJobModel(ArtifactRecord):
     profile_revision: Mapped[int | None] = mapped_column(BigInteger)
     recipe: Mapped[dict] = mapped_column(JSONB)
     recipe_fingerprint: Mapped[str] = mapped_column(String(64))
+    generation_number: Mapped[int] = mapped_column(BigInteger, default=0)
     status: Mapped[str] = mapped_column(String(32), default='queued')
     attempt: Mapped[int] = mapped_column(Integer, default=0)
     max_attempts: Mapped[int] = mapped_column(Integer, default=3)
@@ -335,3 +354,13 @@ class ProcessingWorkspaceQueueModel(Base):
 
     workspace_id: Mapped[str] = mapped_column(String(128), ForeignKey('artifacts.workspaces.id', ondelete='RESTRICT'), primary_key=True)
     last_claim_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+from modules.artifacts.infra.database.representation_models import (  # noqa: E402
+    ArtifactRepresentationEntryModel as ArtifactRepresentationEntryModel,
+    ArtifactRepresentationHeadModel as ArtifactRepresentationHeadModel,
+    ArtifactRepresentationSetModel as ArtifactRepresentationSetModel,
+    ArtifactSourceBlockModel as ArtifactSourceBlockModel,
+    ArtifactSourceSegmentModel as ArtifactSourceSegmentModel,
+    ArtifactStoredObjectModel as ArtifactStoredObjectModel,
+)

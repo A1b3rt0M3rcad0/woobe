@@ -81,3 +81,12 @@ from modules.artifacts.composition.public_api import (
     get_processing_job_composer as get_processing_job_composer,
     cancel_processing_job_composer as cancel_processing_job_composer,
 )
+
+from modules.artifacts.composition.public_api import (
+    ReadRepresentation as ReadRepresentation, ListRepresentations as ListRepresentations,
+    ReadSource as ReadSource, SourceReadDefinition as SourceReadDefinition, SourceReadView as SourceReadView,
+    RepresentationSetView as RepresentationSetView, RepresentationEntryView as RepresentationEntryView,
+    RepresentationEntryPage as RepresentationEntryPage, CopyRepresentation as CopyRepresentation,
+    CopyRepresentationDefinition as CopyRepresentationDefinition,
+    build_representation_service as build_representation_service,
+)

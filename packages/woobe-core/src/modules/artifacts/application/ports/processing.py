@@ -1,5 +1,5 @@
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Protocol
 
 from modules.artifacts.application.contracts.jobs import JobLease, ProcessingJobResult
@@ -15,6 +15,8 @@ class ProcessingExecution:
     storage: ObjectStorage
     checkpoints: dict[str, dict]
     reauthorize: Callable[[], Awaitable[dict]]
+    publication_phase: Callable[[str, object], Awaitable[dict]] | None = None
+    transient: dict = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

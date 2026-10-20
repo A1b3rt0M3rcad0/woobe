@@ -95,9 +95,16 @@ models, selective page/image-region OCR, raw confidence/orientation provenance,
 portable integrity receipts, bounded streaming assets and real descendant cleanup
 passed 166 targeted cases, 263 integration cases and 3258 mocked regressions plus
 10 subtests. Original bytes, durable recovery and cancellation were verified on
-both storage adapters. See OCR.md. Step 19 coherent public representation bundles,
-source maps and derived-object accounting is next; current visual outputs are
-private checkpoints, not public ready generations.
+both storage adapters. See OCR.md. Step 19 is complete: immutable coherent representation bundles,
+source maps, bounded verified Unicode reads, read-only Range downloads and
+new-Artifact editable-copy lineage are published through current authority. Ready
+state, head CAS, event and job success commit atomically; sealed recovery and
+quota intents keep failed/orphan outputs invisible and charged. 218 targeted cases,
+299 real integration cases and 3258 mocked regressions plus 10 subtests passed;
+late source/result/copy integrity checks and actual Docling figures also passed.
+Four additional real Docling cases verify 210-block/105-parent hierarchies across
+metadata batch commits on both adapters and migration paths.
+See REPRESENTATIONS.md. Step 20 native structural document trees is next.
 
 The stage commit carries `Plan-Step: 01/60`; a file never records its own containing
 commit SHA. CI reconciles commit subjects/trailers against the execution manifest.

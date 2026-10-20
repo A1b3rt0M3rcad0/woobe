@@ -73,3 +73,8 @@ portable/corrupt model receipts, raw score provenance, live-engine cancellation,
 durable lost-ACK recovery and cancellation acknowledgement. Blank/unreadable scans
 keep their visual instead of claiming complete extraction. Test fixtures are
 first-party authored; DejaVu is used only to render synthetic fixture glyphs.
+
+Stage 19 publishes verified visual outputs inside coherent read-only generations;
+see [REPRESENTATIONS.md](REPRESENTATIONS.md). Every persisted derivative now has a
+durable quota intent and receipt. The private checkpoint boundary above describes
+the stage 18 implementation, rather than the current public publication surface.

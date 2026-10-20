@@ -14,10 +14,11 @@ class ProcessingRunner:
     """One claimed job per existing Worker poll, with independent short phases."""
 
     def __init__(self, deliver, claim, prepare, heartbeat, checkpoint, finish, storage,
-                 *, pipeline: ProcessingPipeline | None = None, lease_seconds=30, project_limit=4, workspace_limit=2):
+                 *, pipeline: ProcessingPipeline | None = None, lease_seconds=30, project_limit=4, workspace_limit=2, publication_phase=None):
         self._deliver, self._claim, self._prepare = deliver, claim, prepare
         self._heartbeat, self._checkpoint, self._finish = heartbeat, checkpoint, finish
         self._storage, self._pipeline = storage, pipeline
+        self._publication_phase = publication_phase
         self._lease_seconds = lease_seconds
         self._project_limit, self._workspace_limit = project_limit, workspace_limit
 
@@ -44,12 +45,16 @@ class ProcessingRunner:
                 raise ArtifactError('UPLOAD_INTEGRITY_MISMATCH', 'Processing original failed integrity verification')
             await checkpoint('verify_original', {'sha256': actual.sha256,
                 'size_bytes': actual.size_bytes, 'version_id': actual.version_id})
+        publication = None
         if lease.recipe.mode == 'store_only':
             result = ProcessingJobResult(mode='store_only', processing_performed=False, source_sha256=source.sha256)
         elif self._pipeline is None:
             raise ArtifactError('PROCESSOR_UNAVAILABLE', 'Pinned processing implementation is unavailable')
         else:
-            context = ProcessingExecution(lease, source, store, checkpoints, reauthorize)
+            context = ProcessingExecution(lease, source, store, checkpoints, reauthorize, self._publication_phase)
+            initialize = getattr(self._pipeline, 'initialize', None)
+            if initialize is not None:
+                await initialize(context)
             stages = self._pipeline.stages(lease.recipe)
             if len(stages) > 63 or len({stage.name for stage in stages}) != len(stages):
                 raise ValueError('Processing pipeline stages must be unique and bounded')
@@ -60,7 +65,8 @@ class ProcessingRunner:
                 if stage.name not in checkpoints:
                     await checkpoint(stage.name, await stage.execute(context))
             result = ProcessingJobResult.model_validate(self._pipeline.result(context))
-        await self._finish(WorkerPhase(lease, status='succeeded', result=result.model_dump(mode='json')))
+            publication = context.transient.get('publication')
+        await self._finish(WorkerPhase(lease, status='succeeded', result=result.model_dump(mode='json'), publication=publication))
 
     async def _keep_alive(self, lease, operation):
         while True:

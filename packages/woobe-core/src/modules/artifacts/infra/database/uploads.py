@@ -11,6 +11,7 @@ from modules.artifacts.domain.models import (
 )
 from modules.artifacts.infra.database.catalog import CatalogRepository
 from modules.artifacts.infra.database.models import ArtifactEventModel, ArtifactModel, UploadModel
+from modules.artifacts.infra.database.representation_models import ArtifactRepresentationEntryModel, ArtifactRepresentationSetModel, ArtifactStoredObjectModel
 from modules.artifacts.infra.database.unit_of_work import ArtifactsUnitOfWork
 
 
@@ -30,7 +31,8 @@ class UploadRepository:
                                   ArtifactRef(row.artifact_id, row.planned_revision_id))
         return UploadSnapshot(view, row.artifact_id, row.planned_revision_id, row.path,
             row.expected_sha256, row.content_type, workspace.storage_profile, key,
-            tuple(dict(part) for part in row.parts), row.expected_revision)
+            tuple(dict(part) for part in row.parts), row.expected_revision,
+            row.source_representation_set_id, row.source_representation_entry_id)
 
     async def _load(self, request, subject):
         # A single workspace lock serializes quota, cancellation and publication.
@@ -46,13 +48,35 @@ class UploadRepository:
             row.status = 'expired'
         return row, workspace
 
+    async def _validate_lineage(self, workspace_id, generation_id, entry_id, size, digest, content_type):
+        if generation_id is None:
+            return
+        statement = select(ArtifactRepresentationEntryModel.id).join(ArtifactRepresentationSetModel,
+            ArtifactRepresentationSetModel.id == ArtifactRepresentationEntryModel.representation_set_id).join(
+            ArtifactStoredObjectModel, ArtifactStoredObjectModel.id == ArtifactRepresentationEntryModel.object_id).join(
+            ArtifactModel, ArtifactModel.id == ArtifactRepresentationSetModel.artifact_id).where(
+            ArtifactRepresentationEntryModel.id == entry_id,
+            ArtifactRepresentationEntryModel.representation_set_id == generation_id,
+            ArtifactRepresentationEntryModel.workspace_id == workspace_id,
+            ArtifactRepresentationEntryModel.visible.is_(True), ArtifactModel.deleted.is_(False),
+            ArtifactRepresentationSetModel.status == 'ready', ArtifactStoredObjectModel.state == 'referenced',
+            ArtifactStoredObjectModel.size_bytes == size, ArtifactStoredObjectModel.sha256 == digest,
+            ArtifactStoredObjectModel.content_type == content_type)
+        if await self._uow.session.scalar(statement) is None:
+            raise ArtifactError('SOURCE_UNAVAILABLE', 'Representation copy lineage is unavailable or differs')
+
     async def begin(self, request, subject):
         workspace = await self._catalog.workspace_row(request.scope, request.workspace_id, lock=True)
         definition = request.definition
+        await self._validate_lineage(workspace.id, request.source_representation_set_id,
+            request.source_representation_entry_id, definition.size_bytes, definition.sha256, definition.content_type)
         payload = definition.model_dump(mode='json')
         if request.origin != 'upload' or request.run_id is not None or request.node_id is not None:
             payload = {'definition': payload, 'origin': request.origin,
                        'run_id': request.run_id, 'node_id': request.node_id}
+        if request.source_representation_set_id is not None:
+            payload = {'request': payload, 'source_representation_set_id': request.source_representation_set_id,
+                       'source_representation_entry_id': request.source_representation_entry_id}
         fingerprint = hashlib.sha256(json.dumps(payload,
             sort_keys=True, separators=(',', ':')).encode()).hexdigest()
         previous = (await self._uow.session.execute(select(UploadModel).where(
@@ -83,7 +107,9 @@ class UploadRepository:
             artifact_id=definition.artifact_id or str(uuid4()), planned_revision_id=str(uuid4()),
             expected_revision=definition.expected_revision, offset=0, status='created',
             expires_at=datetime.now(UTC) + timedelta(hours=24), parts=[], origin=request.origin,
-            run_id=request.run_id, node_id=request.node_id)
+            run_id=request.run_id, node_id=request.node_id,
+            source_representation_set_id=request.source_representation_set_id,
+            source_representation_entry_id=request.source_representation_entry_id)
         workspace.reserved_bytes += definition.size_bytes
         self._uow.session.add(row)
         await self._uow.session.flush()
@@ -135,6 +161,8 @@ class UploadRepository:
             or (request.size, request.sha256, request.content_type) != (
                 row.expected_size, row.expected_sha256, row.content_type)):
             raise ArtifactError('UPLOAD_INTEGRITY_MISMATCH', 'Verified upload metadata does not match the intent')
+        await self._validate_lineage(workspace.id, row.source_representation_set_id, row.source_representation_entry_id,
+            row.expected_size, row.expected_sha256, row.content_type)
         if row.expected_revision is None:
             await self._path_available(workspace.id, row.path)
         snapshot = self._snapshot(request, row, workspace)
@@ -144,7 +172,7 @@ class UploadRepository:
         await self._catalog.publish_revision(request.scope, workspace.id, path=row.path,
             revision=Revision(row.planned_revision_id, row.artifact_id, snapshot.object_key,
                 row.content_type, row.expected_size, row.expected_sha256, row.origin, subject,
-                request.version_id, row.operation_id, row.run_id, row.node_id), expected_revision=row.expected_revision)
+                request.version_id, row.operation_id, row.run_id, row.node_id, row.source_representation_set_id, row.source_representation_entry_id), expected_revision=row.expected_revision)
         row.status = 'committed'
         row.receipt = {'artifact_id': row.artifact_id, 'revision_id': row.planned_revision_id}
         self._uow.session.add(ArtifactEventModel(id=str(uuid4()), workspace_id=workspace.id,

@@ -496,6 +496,14 @@ _REVIEWED += [
     ('GET', '/v1/artifacts/{artifact_id}/processing/{job_id}', 'artifacts:read'),
     ('POST', '/v1/artifacts/{artifact_id}/processing/{job_id}/cancel', 'artifacts:process'),
 ]
+_REVIEWED += [
+    ('GET', '/v1/artifacts/{artifact_id}/revisions/{revision_id}/representations', 'artifacts:read'),
+    ('GET', '/v1/artifacts/{artifact_id}/revisions/{revision_id}/representations/{representation_set_id}', 'artifacts:read'),
+    ('GET', '/v1/artifacts/{artifact_id}/revisions/{revision_id}/representations/{representation_set_id}/entries', 'artifacts:read'),
+    ('GET', '/v1/artifacts/{artifact_id}/revisions/{revision_id}/representations/{representation_set_id}/entries/{entry_id}/content', 'artifacts:read'),
+    ('POST', '/v1/artifacts/{artifact_id}/revisions/{revision_id}/representations/{representation_set_id}/entries/{entry_id}/copy', 'artifacts:write'),
+    ('POST', '/v1/artifact-sources/read', 'artifacts:read'),
+]
 _COMPILED = [
     (method, path, permission, compile_path(path)[0])
     for method, path, permission in _REVIEWED

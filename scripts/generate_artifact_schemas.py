@@ -21,11 +21,23 @@ from modules.artifacts.application.contracts.processing import (  # noqa: E402
 from modules.artifacts.application.contracts.jobs import ProcessingRequest, ProcessingJobView  # noqa: E402
 
 
+from modules.artifacts.application.contracts.representations import (  # noqa: E402
+    RepresentationSetView, RepresentationEntryView, RepresentationEntryPage,
+    SourceReadDefinition, SourceReadView, CopyRepresentationDefinition,
+)
+
+
 def generate(*, check=False):
     destination = ROOT / 'contracts/artifacts/v1'
     if not check:
         destination.mkdir(parents=True, exist_ok=True)
     for filename, model in {
+        'representation-set': RepresentationSetView,
+        'representation-entry': RepresentationEntryView,
+        'representation-entry-page': RepresentationEntryPage,
+        'source-read': SourceReadDefinition,
+        'source-read-result': SourceReadView,
+        'representation-copy': CopyRepresentationDefinition,
         'artifact-reference': ArtifactReference,
         'source-reference': SourceReference,
         'workspace-create': WorkspaceCreate,

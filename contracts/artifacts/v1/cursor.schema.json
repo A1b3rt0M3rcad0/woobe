@@ -19,7 +19,8 @@
         "artifacts",
         "search",
         "nodes",
-        "profiles"
+        "profiles",
+        "representation_entries"
       ],
       "title": "Purpose",
       "type": "string"

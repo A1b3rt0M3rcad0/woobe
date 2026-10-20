@@ -1,4 +1,6 @@
 """Offline Docling adapter. Imported only inside its owned conversion child."""
+from dataclasses import asdict
+import io
 import hashlib
 import json
 from pathlib import PurePosixPath
@@ -10,8 +12,10 @@ from docling.datamodel.pipeline_options import ConvertPipelineOptions, NativePdf
 from docling.document_converter import DocumentConverter, NativePdfFormatOption, WordFormatOption
 from docling.backend.msword_backend import MsWordDocumentBackend
 
-from modules.artifacts.domain.models import ArtifactError, ArtifactRef, CanonicalDocument, Coverage, DocumentBlock, Locator
-from modules.artifacts.infra.processing.pdf_engine import extract_pdf
+from PIL import Image
+
+from modules.artifacts.domain.models import DocumentAsset, ArtifactError, ArtifactRef, CanonicalDocument, Coverage, DocumentBlock, Locator
+from modules.artifacts.infra.processing.pdf_engine import extract_pdf, render_pdf
 
 
 class OfflineWordBackend(MsWordDocumentBackend):
@@ -86,6 +90,7 @@ def convert_docling(path, revision, recipe, *, threads):
     if result.status == ConversionStatus.PARTIAL_SUCCESS or result.errors:
         diagnostics.append('docling_partial_conversion')
     blocks, stack, characters = [], [], 0
+    assets, asset_entries, asset_bytes = [], [], 0
     for item, level in result.document.iterate_items():
         if len(blocks) >= recipe.limits.max_blocks:
             raise ArtifactError('ARTIFACT_LIMIT_EXCEEDED', 'Docling exceeds its canonical block limit')
@@ -122,6 +127,63 @@ def convert_docling(path, revision, recipe, *, threads):
             coordinates.update(page_index=page_index, page_number=page_index + 1,
                 bbox=(max(0, min(1, box.l / page.width_points)), max(0, min(1, box.t / page.height_points)),
                       max(0, min(1, box.r / page.width_points)), max(0, min(1, box.b / page.height_points))))
+        if kind == 'figure':
+            if len(assets) >= recipe.limits.max_pages:
+                raise ArtifactError('ARTIFACT_LIMIT_EXCEEDED', 'Docling exceeds its visual asset limit')
+            if is_pdf:
+                if 'bbox' not in coordinates:
+                    raise ArtifactError('DOCUMENT_CONVERSION_FAILED', 'PDF figure has no physical provenance')
+                image = Image.open(io.BytesIO(render_pdf(str(path), page_index=coordinates['page_index'],
+                    max_pages=recipe.limits.max_pages)))
+                box = coordinates['bbox']
+                if box[0] >= box[2] or box[1] >= box[3]:
+                    image.close()
+                    raise ArtifactError('DOCUMENT_CONVERSION_FAILED', 'PDF figure has no nonempty physical area')
+                try:
+                    picture = image.crop((int(box[0] * image.width), int(box[1] * image.height),
+                                          max(int(box[0] * image.width) + 1, int(box[2] * image.width)),
+                                          max(int(box[1] * image.height) + 1, int(box[3] * image.height))))
+                finally:
+                    image.close()
+            else:
+                picture = item.get_image(result.document)
+                if picture is None:
+                    raise ArtifactError('DOCUMENT_CONVERSION_FAILED', 'Office figure has no readable embedded visual')
+            try:
+                if not 0 < picture.width * picture.height <= 16_000_000:
+                    raise ArtifactError('ARTIFACT_LIMIT_EXCEEDED', 'Docling figure exceeds its pixel limit')
+                # Preserve palette/alpha appearance before stripping metadata.
+                rgba = picture.convert('RGBA')
+                background = Image.new('RGBA', picture.size, 'white')
+                encoded = io.BytesIO()
+                try:
+                    background.alpha_composite(rgba)
+                    rgb = background.convert('RGB')
+                    try:
+                        rgb.info.clear()
+                        rgb.save(encoded, format='PNG')
+                    finally:
+                        rgb.close()
+                finally:
+                    background.close()
+                    rgba.close()
+                data_bytes = encoded.getvalue()
+                digest = hashlib.sha256(data_bytes).hexdigest()
+                asset_id = 'asset-' + hashlib.sha256(f'{identity}:{digest}'.encode()).hexdigest()[:24]
+                asset = DocumentAsset(asset_id, 'image/png', len(data_bytes), digest,
+                    picture.width, picture.height, Locator(**coordinates))
+            finally:
+                picture.close()
+            asset_bytes += len(data_bytes)
+            if asset_bytes > min(536_870_912, recipe.limits.max_bytes * 16 + 1_048_576):
+                raise ArtifactError('ARTIFACT_LIMIT_EXCEEDED', 'Docling visual assets exceed their byte budget')
+            directory = path.parent / 'visual-assets'
+            directory.mkdir(exist_ok=True)
+            filename = asset_id + '.png'
+            (directory / filename).write_bytes(data_bytes)
+            assets.append(asset)
+            asset_entries.append({'asset': asdict(asset), 'file': filename})
+            metadata['asset_ids'] = (asset_id,)
         while stack and stack[-1][0] >= level:
             stack.pop()
         parent = stack[-1][1] if stack else None
@@ -134,7 +196,8 @@ def convert_docling(path, revision, recipe, *, threads):
     if not blocks:
         coverage = native_pdf.coverage if native_pdf is not None else Coverage.UNSUPPORTED
         diagnostics.append('empty_document')
+    (path.parent / 'assets.json').write_text(json.dumps(asset_entries))
     return CanonicalDocument(ArtifactRef(revision.artifact_id, revision.id), tuple(blocks), coverage,
         tuple(sorted(set(diagnostics))), source_size_bytes=revision.size_bytes,
         page_count=native_pdf.page_count if native_pdf is not None else None,
-        pages=native_pdf.pages if native_pdf is not None else ())
+        pages=native_pdf.pages if native_pdf is not None else (), assets=tuple(assets))

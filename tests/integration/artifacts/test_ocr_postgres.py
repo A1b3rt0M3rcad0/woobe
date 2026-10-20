@@ -84,7 +84,7 @@ async def test_real_ocr_job_preserves_original_and_publishes_verified_private_vi
         value = await read_bounded(object_store, entry['key'], max_bytes=67_108_864)
         assert hashlib.sha256(value).hexdigest() == entry['asset']['sha256']
         assert len(value) == entry['asset']['size_bytes']
-    assert complete.result.representation_set_id is None  # public coherent generation publication is step 19
+    assert complete.result.representation_set_id is not None  # coherent immutable bundle is now published
 
 
 async def test_lost_ocr_checkpoint_ack_resumes_without_rerunning_real_recognition(engine, artifacts_database, object_store, monkeypatch):

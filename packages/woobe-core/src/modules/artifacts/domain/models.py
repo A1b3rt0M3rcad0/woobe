@@ -306,6 +306,8 @@ class Revision:
     operation_id: str | None = None
     run_id: str | None = None
     node_id: str | None = None
+    source_representation_set_id: str | None = None
+    source_representation_entry_id: str | None = None
 
     def __post_init__(self):
         ArtifactRef(self.artifact_id, self.id)
@@ -315,11 +317,14 @@ class Revision:
             raise ValueError('Invalid revision size or MIME')
         if self.origin not in {'upload', 'application', 'agent', 'tool', 'processing', 'copy'}:
             raise ValueError('Unknown revision provenance')
-        for value in (self.operation_id, self.run_id, self.node_id):
+        for value in (self.operation_id, self.run_id, self.node_id, self.source_representation_set_id, self.source_representation_entry_id):
             if value is not None:
                 opaque_id(value)
         if self.node_id is not None and self.run_id is None:
             raise ValueError('Node provenance requires a Run identity')
+
+        if (self.source_representation_set_id is None) != (self.source_representation_entry_id is None):
+            raise ValueError('Representation lineage requires an exact entry and generation')
 
 
 @dataclass(frozen=True)
@@ -536,12 +541,30 @@ class ProcessingJob:
 @dataclass(frozen=True)
 class RepresentationSet:
     id: str
+    workspace_id: str
     revision: ArtifactRef
-    profile_id: str
-    profile_revision: int
-    document: CanonicalDocument
-    index: DocumentIndex
-    published_catalog_version: int
+    source_sha256: str
+    recipe_fingerprint: str
+    processing_fingerprint: str
+    generation_number: int
+    status: str
+    coverage: Coverage
+    manifest_sha256: str | None = None
+    profile_id: str | None = None
+    profile_revision: int | None = None
+
+    def __post_init__(self):
+        opaque_id(self.id)
+        opaque_id(self.workspace_id)
+        for digest in (self.source_sha256, self.recipe_fingerprint, self.processing_fingerprint):
+            sha256_digest(digest)
+        if self.manifest_sha256 is not None:
+            sha256_digest(self.manifest_sha256)
+        if self.status not in {'building', 'ready', 'deletion_pending', 'purged'} or self.generation_number < 0:
+            raise ValueError('Invalid representation publication state')
+        if (self.profile_id is None) != (self.profile_revision is None):
+            raise ValueError('Representation profile must be pinned or absent')
+        object.__setattr__(self, 'coverage', Coverage(self.coverage))
 
 
 @dataclass(frozen=True)
@@ -638,6 +661,11 @@ class ArtifactRepresentation:
     sha256: str
     size_bytes: int
     content_type: str
+    path: str = ''
+    visible: bool = True
+    asset_id: str | None = None
+    object_id: str | None = None
+    storage_version_id: str | None = None
 
     def __post_init__(self):
         opaque_id(self.id)
@@ -646,8 +674,13 @@ class ArtifactRepresentation:
         sha256_digest(self.sha256)
         if self.size_bytes < 0 or self.kind not in {
             'markdown', 'structure', 'source_map', 'table', 'figure', 'rendering', 'summary',
+            'outline', 'block_text', 'asset_manifest', 'manifest',
         }:
             raise ValueError('Invalid representation kind/size')
+        if self.path:
+            logical_path(self.path)
+        if self.asset_id is not None:
+            opaque_id(self.asset_id)
 
 
 @dataclass(frozen=True)
