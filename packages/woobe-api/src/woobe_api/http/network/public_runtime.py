@@ -7,13 +7,17 @@ from uuid import UUID
 from fastapi import Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, StreamingResponse
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from shared.contracts.content_parts import ContentPart, normalize_message_parts
+from shared.contracts.content_parts import serialize_content_parts
 
 from modules.network.entrypoint import NetworkBoundaryService, build_network_service
 from modules.network.entrypoint import NetworkEnvironment
 from woobe_api.http.network.reattach_routes import reattach_network_execution
 from shared.infra.errors import (
     AuthorizationError,
+    ConflictError,
     NotFoundError,
     RuntimeTimeoutError,
 )
@@ -24,13 +28,19 @@ from shared.security.principal import ProjectApiPrincipal
 class PublicNetworkRunRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    message: str = Field(min_length=1, max_length=32768)
+    message: str = Field(default="", max_length=32768)
+    content_parts: tuple[ContentPart, ...] | None = Field(default=None, max_length=32)
     session_id: UUID | None = None
     tenant_id: str | None = Field(default=None, max_length=128)
     user_id: str | None = Field(default=None, max_length=128)
     metadata: dict | None = None
     external_context: dict | None = None
     idempotency_key: str | None = Field(default=None, min_length=1, max_length=255)
+
+    @model_validator(mode="after")
+    def normalize_content(self):
+        self.message, _ = normalize_message_parts(self.message, self.content_parts)
+        return self
 
 
 def is_network_runtime_request(request: Request) -> bool:
@@ -122,6 +132,18 @@ async def _submit(
                 or existing_session.environment != principal.environment
             ):
                 raise NotFoundError("Network execution not found")
+            requested_parts = serialize_content_parts(payload.content_parts)
+            accepted_parts = list(getattr(existing, "input_content_parts", None) or ())
+            same_legacy = (
+                not accepted_parts
+                and existing.input_message == payload.message
+                and requested_parts == [{"type": "text", "text": payload.message}]
+            )
+            if not same_legacy and (
+                existing.input_message != payload.message
+                or accepted_parts != requested_parts
+            ):
+                raise ConflictError("Idempotency key was already used with different content")
             return principal, existing_session, existing
 
     network_session = await _resolve_session(request, principal, payload)
@@ -129,8 +151,10 @@ async def _submit(
         network_id=network_id,
         project_id=principal.project_id,
         network_session_id=network_session.id,
-        message=payload.message,
+        message="" if payload.content_parts is not None else payload.message,
+        content_parts=payload.content_parts,
         external_context=payload.external_context,
+        principal=principal,
         idempotency_key=idempotency_key,
     )
     return principal, network_session, execution

@@ -89,11 +89,18 @@ class NetworkRerunService:
                 network_session_id=source.network_session_id,
                 project_id=source.project_id,
                 input_message=source.input_message,
+                input_content_parts=deepcopy(getattr(source, "input_content_parts", None) or []),
                 draft_revision=source.draft_revision,
                 definition_snapshot=deepcopy(source.definition_snapshot),
                 resolved_bindings_snapshot=deepcopy(source.resolved_bindings_snapshot),
                 external_context_snapshot=deepcopy(
                     getattr(source, "external_context_snapshot", None)
+                ),
+                artifact_workspace_binding=deepcopy(
+                    getattr(source, "artifact_workspace_binding", None)
+                ),
+                runtime_principal_snapshot=deepcopy(
+                    getattr(source, "runtime_principal_snapshot", None)
                 ),
                 status="queued",
                 storage_version=self._run_storage_version,
@@ -126,7 +133,12 @@ class NetworkRerunService:
                         project_id=source.project_id,
                         role="user",
                         content=source.input_message,
-                        data=lineage,
+                        data={
+                            **lineage,
+                            "content_parts": deepcopy(
+                                getattr(source, "input_content_parts", None) or []
+                            ),
+                        },
                     ),
                     NetworkExecutionEventModel(
                         network_execution_id=rerun.id,
@@ -144,6 +156,9 @@ class NetworkRerunService:
                             "draft_revision": source.draft_revision,
                             "session_semantics": "continue_existing_session",
                             "storage_version": self._run_storage_version,
+                            "content_parts": deepcopy(
+                                getattr(source, "input_content_parts", None) or []
+                            ),
                         },
                     ),
                     NetworkOutboxEventModel(

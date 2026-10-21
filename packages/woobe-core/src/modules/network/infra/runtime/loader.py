@@ -60,6 +60,9 @@ class NetworkRuntimeLoader:
                 else model.resolved_bindings_snapshot
             ),
             status=str(model.status),
+            artifact_workspace_binding=deepcopy(model.artifact_workspace_binding),
+            runtime_principal_snapshot=deepcopy(model.runtime_principal_snapshot),
+            input_content_parts=tuple(deepcopy(model.input_content_parts or ())),
         )
 
     @staticmethod

@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import CheckConstraint, ForeignKey, Index, Integer, String, Text, Uuid
+from sqlalchemy import CheckConstraint, ForeignKey, Index, Integer, String, Text, Uuid, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -11,7 +11,6 @@ from modules.network.infra.database import models as network_models
 from modules.network.infra.database.models import (
     NetworkExecutionModel,
     NetworkInvocationModel,
-    NetworkSessionModel,
     NetworkVersionModel,
 )
 from shared.infra.database.base import BaseModel
@@ -96,6 +95,9 @@ _install_column(
 )
 _install_column(
     NetworkInvocationModel, "output_parse_error", mapped_column(Text, nullable=True)
+)
+_install_column(
+    NetworkInvocationModel, "output_artifacts", mapped_column(JSONB, nullable=False, server_default=text("'[]'::jsonb"))
 )
 
 

@@ -3,9 +3,10 @@ from __future__ import annotations
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from modules.network.domain.enums import NetworkEnvironment
+from shared.contracts.content_parts import ContentPart, normalize_message_parts
 
 
 class EnsureNetworkRequest(BaseModel):
@@ -46,7 +47,13 @@ class CreateNetworkSessionRequest(BaseModel):
 class RunNetworkRequest(BaseModel):
     project_id: UUID
     network_session_id: UUID
-    message: str = Field(min_length=1, max_length=32768)
+    message: str = Field(default="", max_length=32768)
+    content_parts: tuple[ContentPart, ...] | None = Field(default=None, max_length=32)
     external_context: dict[str, Any] | None = None
     idempotency_key: str | None = Field(default=None, min_length=1, max_length=255)
     expected_draft_revision: int | None = Field(default=None, ge=0)
+
+    @model_validator(mode="after")
+    def normalize_content(self):
+        self.message, _ = normalize_message_parts(self.message, self.content_parts)
+        return self

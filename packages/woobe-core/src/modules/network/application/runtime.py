@@ -33,6 +33,9 @@ class NetworkExecutionSnapshot:
     definition_snapshot: dict[str, Any] | None
     resolved_bindings_snapshot: dict[str, Any] | None
     status: str
+    artifact_workspace_binding: dict[str, Any] | None = None
+    runtime_principal_snapshot: dict[str, Any] | None = None
+    input_content_parts: tuple[dict[str, Any], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -128,6 +131,7 @@ class AgentInvocationResult:
     sources: list[dict[str, Any]] | None = None
     parsed_output: dict[str, Any] | None = None
     output_parse_error: str | None = None
+    output_artifacts: list[dict[str, Any]] | None = None
     execution_events: list[dict[str, Any]] | None = None
     streamed_output: bool = False
 
@@ -181,6 +185,7 @@ class AgentInvoker(Protocol):
         release_id: UUID | None,
         snapshot_override: dict[str, Any] | None,
         message: str,
+        content_parts: tuple[dict[str, Any], ...] | None = None,
         agent_session_id: UUID | None,
         execution_context: str,
         internal_tools: list[InternalDelegationTool],
@@ -309,6 +314,7 @@ class NetworkExecutor:
             message: str,
             depth: int,
             parent_invocation_id: UUID | None,
+            content_parts: tuple[dict[str, Any], ...] | None = None,
         ) -> AgentInvocationResult:
             nonlocal invocation_count
             if await self._store.is_cancel_requested(execution.id):
@@ -658,7 +664,7 @@ class NetworkExecutor:
                 )
 
             try:
-                result = await self._invoker.invoke(
+                invocation_arguments = dict(
                     project_id=execution.project_id,
                     agent_id=node.agent_id,
                     release_id=release_uuid,
@@ -687,9 +693,24 @@ class NetworkExecutor:
                         "depth": depth,
                         "draft_revision": execution.draft_revision,
                         "tool_result_max_chars": definition.limits.tool_result_max_chars,
+                        "artifact_workspace_binding": getattr(
+                            execution, "artifact_workspace_binding", None
+                        ),
+                        "artifact_workspace_policy": (
+                            definition.artifact_workspace_binding.to_dict()
+                            if definition.artifact_workspace_binding is not None
+                            else None
+                        ),
+                        "artifact_node_actions": list(node.artifact_actions),
+                        "runtime_principal_snapshot": getattr(
+                            execution, "runtime_principal_snapshot", None
+                        ),
                     },
                     stream_handler=stream_agent_event,
                 )
+                if content_parts:
+                    invocation_arguments["content_parts"] = content_parts
+                result = await self._invoker.invoke(**invocation_arguments)
             except NetworkExecutionCancelled:
                 # Cancellation is control flow, not an Agent failure. Keep the
                 # in-flight invocation non-terminal here so the execution owner can
@@ -753,6 +774,7 @@ class NetworkExecutor:
                     "sources": result.sources or [],
                     "parsed_output": result.parsed_output,
                     "output_parse_error": result.output_parse_error,
+                    "output_artifacts": result.output_artifacts or [],
                     "output": result.answer,
                 },
                 invocation_id=invocation.id,
@@ -766,6 +788,7 @@ class NetworkExecutor:
                     execution.input_message,
                     0,
                     None,
+                    getattr(execution, "input_content_parts", ()) or None,
                 )
         except TimeoutError as exc:
             raise NetworkBudgetExceeded(

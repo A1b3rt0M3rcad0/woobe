@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 from modules.network.application.portable_definition import inspect_portable_network_definition
+from shared.contracts.content_parts import (
+    normalize_message_parts,
+    serialize_content_parts,
+)
 
 from copy import deepcopy
 from datetime import datetime, timezone
@@ -506,11 +510,15 @@ class NetworkApplicationService:
         project_id: UUID,
         network_session_id: UUID,
         message: str,
+        content_parts=None,
         idempotency_key: str | None,
         expected_draft_revision: int | None = None,
     ) -> NetworkExecutionModel:
-        if not message.strip():
-            raise ValidationError("Network message cannot be blank")
+        try:
+            message, normalized_parts = normalize_message_parts(message, content_parts)
+        except ValueError as exc:
+            raise ValidationError(str(exc)) from exc
+        persisted_parts = serialize_content_parts(normalized_parts)
         async with self._session_factory() as session, session.begin():
             from modules.network.application.configuration_acceptance import lock_configuration
             await lock_configuration(session, project_id=project_id)
@@ -535,6 +543,17 @@ class NetworkApplicationService:
                     )
                 )
                 if existing is not None:
+                    existing_parts = list(getattr(existing, "input_content_parts", None) or ())
+                    same_legacy = (
+                        not existing_parts
+                        and existing.input_message == message
+                        and persisted_parts == [{"type": "text", "text": message}]
+                    )
+                    if not same_legacy and (
+                        existing.input_message != message
+                        or existing_parts != persisted_parts
+                    ):
+                        raise ConflictError("Idempotency key was already used with different content")
                     return existing
 
             active_execution = await session.scalar(
@@ -605,6 +624,7 @@ class NetworkApplicationService:
                 network_session_id=network_session_id,
                 project_id=project_id,
                 input_message=message.strip(),
+                input_content_parts=persisted_parts,
                 draft_revision=draft_revision,
                 definition_snapshot=definition_snapshot,
                 resolved_bindings_snapshot=bindings_snapshot,
@@ -622,7 +642,7 @@ class NetworkApplicationService:
                         project_id=project_id,
                         role="user",
                         content=message.strip(),
-                        data=None,
+                        data={"content_parts": persisted_parts},
                     ),
                     NetworkExecutionEventModel(
                         network_execution_id=execution.id,
@@ -638,6 +658,7 @@ class NetworkApplicationService:
                             else None,
                             "network_version": accepted_version,
                             "composition_hash": accepted_composition_hash,
+                            "content_parts": persisted_parts,
                             "root_node_id": str(definition.root_node_id),
                             "limits": {
                                 "max_depth": definition.limits.max_depth,

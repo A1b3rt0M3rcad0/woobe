@@ -13,11 +13,16 @@ from modules.agent.domain.external_context_contract import (
     compose_external_context_contracts,
 )
 from modules.agent.infra.database.models import AgentReleaseModel
+from shared.contracts.content_parts import (
+    normalize_message_parts,
+    serialize_content_parts,
+)
 from modules.network.infra.services.session_mode_binding_service import (
     NetworkApplicationService as SessionModeNetworkApplicationService,
 )
 from modules.network.domain.enums import NetworkEnvironment
 from modules.network.domain.external_context_contract import resolve_scoped_effective_external_context
+from shared.security.principal import ChatSurfaceRuntimePrincipal
 from modules.network.domain.graph import composition_hash
 from modules.network.infra.database.models import (
     NetworkExecutionEventModel,
@@ -28,7 +33,7 @@ from modules.network.infra.database.models import (
     NetworkSessionModel,
     NetworkVersionModel,
 )
-from shared.infra.errors import ConflictError, NotFoundError, ValidationError
+from shared.infra.errors import AuthorizationError, ConflictError, NotFoundError, ValidationError
 from shared.runtime.event_schema import LEGACY_STORAGE_VERSION
 
 
@@ -42,6 +47,17 @@ _TERMINAL_EXECUTION_STATUSES = {
 _ACTIVE_EXECUTION_STATUSES = {"queued", "running", "cancel_requested"}
 
 
+def _same_idempotent_input(existing, message: str, content_parts: list[dict]) -> bool:
+    stored_parts = list(getattr(existing, "input_content_parts", None) or ())
+    if stored_parts == content_parts and existing.input_message == message:
+        return True
+    return (
+        not stored_parts
+        and existing.input_message == message
+        and content_parts == [{"type": "text", "text": message}]
+    )
+
+
 class NetworkApplicationService(SessionModeNetworkApplicationService):
     """Executes every immutable Network Session against its opening version."""
 
@@ -50,6 +66,7 @@ class NetworkApplicationService(SessionModeNetworkApplicationService):
         *args,
         runtime_control: Any | None = None,
         run_storage_version: str = LEGACY_STORAGE_VERSION,
+        artifact_workspace_binding_resolver: Any | None = None,
         **kwargs,
     ) -> None:
         super().__init__(*args, **kwargs)
@@ -61,6 +78,7 @@ class NetworkApplicationService(SessionModeNetworkApplicationService):
             runtime_control = RedisNetworkExecutionStore(EXECUTION_STATE_STORE)
         self._runtime_control = runtime_control
         self._run_storage_version = run_storage_version
+        self._artifact_workspace_binding_resolver = artifact_workspace_binding_resolver
 
     async def _effective_external_context_contract(
         self,
@@ -142,6 +160,113 @@ class NetworkApplicationService(SessionModeNetworkApplicationService):
             persisted = getattr(version, "effective_external_context_contract", None)
             return dict(persisted or {})
 
+    async def _resolve_artifact_workspace_binding(
+        self,
+        *,
+        network_session: Any,
+        definition: Any,
+        project_id: UUID,
+        principal: Any | None,
+        external_context_contract: dict[str, Any],
+        external_context_snapshot: dict[str, Any],
+    ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+        policy = definition.artifact_workspace_binding
+        if not definition.artifacts_enabled:
+            return None, None
+        if policy is None:
+            raise ValidationError("Network Artifact Workspace binding is missing")
+        if principal is None:
+            raise AuthorizationError("Network Artifact access requires an authenticated principal")
+        if isinstance(principal, ChatSurfaceRuntimePrincipal) and policy.scope != "session":
+            raise AuthorizationError("ChatSurface Artifact access requires a Session-scoped Workspace binding")
+        if self._artifact_workspace_binding_resolver is None:
+            raise ValidationError("Network Artifact Workspace resolver is unavailable")
+
+        contract_fields = external_context_contract
+        if (
+            isinstance(contract_fields, dict)
+            and isinstance(contract_fields.get("fields"), dict)
+        ):
+            contract_fields = contract_fields["fields"]
+        declared = (
+            contract_fields.get(policy.field)
+            if isinstance(contract_fields, dict)
+            else None
+        )
+        consumers = declared.get("consumers", {}) if isinstance(declared, dict) else {}
+        consumer_contracts = [
+            item for item in consumers.values() if isinstance(item, dict)
+        ]
+        required = bool(
+            declared.get("required") is True
+            or any(item.get("required") is True for item in consumer_contracts)
+        ) if isinstance(declared, dict) else False
+        hidden = all(
+            not item.get("model", {}).get("expose", False)
+            for item in consumer_contracts
+        )
+        has_no_default = all("default" not in item for item in consumer_contracts)
+        if (
+            not isinstance(declared, dict)
+            or not required
+            or declared.get("scope", "run") != policy.scope
+            or declared.get("schema", {}).get("type") != "string"
+            or "default" in declared
+            or not hidden
+            or not has_no_default
+        ):
+            raise ValidationError(
+                "Network Artifact Workspace field must be required, hidden and correctly scoped"
+            )
+        external_key = external_context_snapshot.get(policy.field)
+        if not isinstance(external_key, str) or not external_key.strip():
+            raise ValidationError("Network Artifact Workspace key is missing or invalid")
+        try:
+            binding = await self._artifact_workspace_binding_resolver(
+                principal=principal,
+                project_id=project_id,
+                environment=network_session.environment,
+                external_namespace=policy.namespace,
+                external_key=external_key,
+                actions=policy.actions,
+                binding_scope=policy.scope,
+            )
+        except Exception as error:
+            if getattr(error, "code", None) == "ARTIFACT_ACCESS_DENIED":
+                raise AuthorizationError("Network Artifact access is denied") from error
+            raise ValidationError("Network Artifact Workspace binding is unavailable") from error
+
+        workspace_id = str(getattr(binding, "workspace_id", ""))
+        prior = getattr(network_session, "artifact_workspace_binding", None)
+        prior_workspace = prior.get("workspace_id") if isinstance(prior, dict) else None
+        if (
+            prior_workspace is not None
+            and prior_workspace != workspace_id
+            and (policy.scope == "session" or network_session.last_message_at is not None)
+        ):
+            raise ConflictError(
+                "Network Session cannot switch Artifact Workspaces after acceptance"
+            )
+        pinned_catalog_version = int(getattr(binding, "catalog_version", 0))
+        if (policy.scope == "session" and isinstance(prior, dict)
+            and prior_workspace == workspace_id and prior.get("binding_scope") == "session"):
+            # Keep the Session's first accepted catalog view; binding resolution
+            # above has already revalidated current Workspace grants.
+            pinned_catalog_version = int(prior.get("catalog_version", pinned_catalog_version))
+        actions = sorted(
+            action.value if hasattr(action, "value") else str(action)
+            for action in getattr(binding, "actions", policy.actions)
+        )
+        snapshot = {
+            "schema_version": 1,
+            "workspace_id": workspace_id,
+            "catalog_version": pinned_catalog_version,
+            "binding_scope": policy.scope,
+            "actions": actions,
+        }
+        network_session.artifact_workspace_binding = deepcopy(snapshot)
+        return snapshot, principal.model_dump(mode="json")
+
     async def submit_execution(
         self,
         *,
@@ -149,13 +274,18 @@ class NetworkApplicationService(SessionModeNetworkApplicationService):
         project_id: UUID,
         network_session_id: UUID,
         message: str,
+        content_parts=None,
         idempotency_key: str | None,
         expected_draft_revision: int | None = None,
         external_context: dict[str, Any] | None = None,
+        principal: Any | None = None,
         _candidate_evaluation: dict[str, Any] | None = None,
     ) -> NetworkExecutionModel:
-        if not message.strip():
-            raise ValidationError("Network message cannot be blank")
+        try:
+            message, normalized_parts = normalize_message_parts(message, content_parts)
+        except ValueError as exc:
+            raise ValidationError(str(exc)) from exc
+        persisted_parts = serialize_content_parts(normalized_parts)
 
         async with self._session_factory() as session, session.begin():
             from modules.network.application.configuration_acceptance import lock_configuration
@@ -191,6 +321,8 @@ class NetworkApplicationService(SessionModeNetworkApplicationService):
                     )
                 )
                 if existing is not None:
+                    if not _same_idempotent_input(existing, message, persisted_parts):
+                        raise ConflictError("Idempotency key was already used with different content")
                     return existing
 
             active_execution = await session.scalar(
@@ -296,6 +428,17 @@ class NetworkApplicationService(SessionModeNetworkApplicationService):
                     resolved_external_context.session_snapshot
                 )
 
+            artifact_workspace_binding, runtime_principal_snapshot = (
+                await self._resolve_artifact_workspace_binding(
+                    network_session=network_session,
+                    definition=definition,
+                    project_id=project_id,
+                    principal=principal,
+                    external_context_contract=effective_external_context_contract,
+                    external_context_snapshot=resolved_external_context.snapshot,
+                )
+            )
+
             if version is not None:
                 from modules.network.infra.database.asac_runtime_identity import network_publication_identity
                 bindings_snapshot["asac_run_identity"] = await network_publication_identity(
@@ -308,10 +451,13 @@ class NetworkApplicationService(SessionModeNetworkApplicationService):
                 network_session_id=network_session_id,
                 project_id=project_id,
                 input_message=message.strip(),
+                input_content_parts=persisted_parts,
                 draft_revision=draft_revision,
                 definition_snapshot=definition_snapshot,
                 resolved_bindings_snapshot=bindings_snapshot,
                 external_context_snapshot=(resolved_external_context.run_snapshot or None),
+                artifact_workspace_binding=artifact_workspace_binding,
+                runtime_principal_snapshot=runtime_principal_snapshot,
                 status="queued",
                 storage_version=self._run_storage_version,
                 idempotency_key=idempotency_key,
@@ -344,7 +490,10 @@ class NetworkApplicationService(SessionModeNetworkApplicationService):
                         project_id=project_id,
                         role="user",
                         content=message.strip(),
-                        data=attribution if chat_surface_id else None,
+                        data={
+                            **(attribution if chat_surface_id else {}),
+                            "content_parts": persisted_parts,
+                        },
                     ),
                     NetworkExecutionEventModel(
                         network_execution_id=execution.id,
@@ -362,6 +511,7 @@ class NetworkApplicationService(SessionModeNetworkApplicationService):
                             ),
                             "network_version": accepted_version,
                             "composition_hash": accepted_composition_hash,
+                            "content_parts": persisted_parts,
                             "root_node_id": str(definition.root_node_id),
                             "origin": network_session.origin,
                             "chat_surface_id": chat_surface_id,

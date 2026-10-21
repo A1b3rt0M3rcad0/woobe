@@ -242,6 +242,11 @@ class NetworkRuntimeFinalizer:
                     if isinstance(item.get("sources"), list)
                     else []
                 )
+                output_artifacts = (
+                    item.get("output_artifacts")
+                    if isinstance(item.get("output_artifacts"), list)
+                    else []
+                )
                 execution_events = (
                     item.get("execution_events")
                     if isinstance(item.get("execution_events"), list)
@@ -256,6 +261,7 @@ class NetworkRuntimeFinalizer:
                     "llm_calls": llm_calls,
                     "tool_calls": tool_calls,
                     "sources": sources,
+                    "output_artifacts": output_artifacts,
                     "parsed_output": item.get("parsed_output"),
                     "output_parse_error": item.get("output_parse_error"),
                     "execution_events": execution_events,
@@ -340,6 +346,8 @@ class NetworkRuntimeFinalizer:
                             "output_parse_error",
                             item.get("output_parse_error"),
                         )
+                    if hasattr(invocation, "output_artifacts"):
+                        setattr(invocation, "output_artifacts", output_artifacts)
                     session.add(invocation)
 
                 source = self._binding_source(environment, binding)
@@ -399,6 +407,7 @@ class NetworkRuntimeFinalizer:
                         "diagnostics": diagnostics,
                         "tool_calls": tool_calls,
                         "sources": sources,
+                        "output_artifacts": output_artifacts,
                         "parsed_output": item.get("parsed_output"),
                         "output_parse_error": item.get("output_parse_error"),
                         "execution_events": execution_events,

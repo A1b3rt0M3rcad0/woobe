@@ -59,6 +59,47 @@ class NetworkNode:
     position: dict[str, float] = field(default_factory=dict)
     binding: AgentBindingSelector = field(default_factory=AgentBindingSelector)
     portable_key: str | None = None
+    artifact_actions: tuple[str, ...] = ()
+
+
+_ARTIFACT_ACTIONS = frozenset({"read", "search", "write", "delete", "process", "transfer"})
+
+
+@dataclass(frozen=True)
+class NetworkArtifactWorkspaceBinding:
+    field: str
+    namespace: str
+    scope: str
+    actions: tuple[str, ...] = ("read", "search")
+
+    @classmethod
+    def from_dict(cls, value: Any) -> NetworkArtifactWorkspaceBinding:
+        if not isinstance(value, dict):
+            raise ValueError("Network artifact Workspace binding must be an object")
+        field_name = value.get("field")
+        namespace = value.get("namespace")
+        scope = value.get("scope")
+        actions = value.get("actions", ("read", "search"))
+        if not isinstance(field_name, str) or not field_name or len(field_name) > 128:
+            raise ValueError("Network artifact Workspace field is invalid")
+        if not isinstance(namespace, str) or not namespace or len(namespace) > 255:
+            raise ValueError("Network artifact Workspace namespace is invalid")
+        if scope not in {"run", "session"}:
+            raise ValueError("Network artifact Workspace scope is invalid")
+        if not isinstance(actions, (list, tuple)) or not actions:
+            raise ValueError("Network artifact actions must be a non-empty list")
+        normalized = tuple(str(action) for action in actions)
+        if len(set(normalized)) != len(normalized) or not set(normalized) <= _ARTIFACT_ACTIONS:
+            raise ValueError("Network artifact actions are invalid")
+        return cls(field=field_name, namespace=namespace, scope=scope, actions=normalized)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "field": self.field,
+            "namespace": self.namespace,
+            "scope": self.scope,
+            "actions": list(self.actions),
+        }
 
 
 @dataclass(frozen=True)
@@ -77,26 +118,50 @@ class NetworkDefinition:
     session_mode: str = "stateful"
     schema_version: int = 2
     author_metadata: dict[str, str] | None = None
+    artifacts_enabled: bool = False
+    artifact_workspace_binding: NetworkArtifactWorkspaceBinding | None = None
 
     @classmethod
     def from_dict(cls, value: dict[str, Any]) -> NetworkDefinition:
         settings = value.get("settings") or {}
+        artifacts_enabled = settings.get("artifacts_enabled", False)
+        if not isinstance(artifacts_enabled, bool):
+            raise ValueError("Network artifacts_enabled must be a boolean")
+        artifact_binding = settings.get("artifact_workspace_binding")
+        parsed_artifact_binding = (
+            NetworkArtifactWorkspaceBinding.from_dict(artifact_binding)
+            if artifact_binding is not None
+            else None
+        )
+        if artifacts_enabled != (parsed_artifact_binding is not None):
+            raise ValueError(
+                "Network artifacts_enabled requires an artifact Workspace binding"
+            )
+        nodes = tuple(
+            NetworkNode(
+                id=UUID(str(item["id"])),
+                agent_id=UUID(str(item["agent_id"])),
+                label=str(item.get("label") or "Agent"),
+                capability_description=str(item.get("capability_description") or "").strip(),
+                position=dict(item.get("position") or {}),
+                binding=AgentBindingSelector.from_dict(item.get("binding")),
+                portable_key=item.get("portable_key"),
+                artifact_actions=tuple(item.get("artifact_actions") or ()),
+            )
+            for item in value.get("nodes", [])
+        )
+        if parsed_artifact_binding is None:
+            if any(node.artifact_actions for node in nodes):
+                raise ValueError("Network Node artifact actions require Network Artifacts")
+        else:
+            for node in nodes:
+                if len(set(node.artifact_actions)) != len(node.artifact_actions):
+                    raise ValueError("Network Node artifact actions must be unique")
+                if not set(node.artifact_actions) <= set(parsed_artifact_binding.actions):
+                    raise ValueError("Network Node artifact actions exceed the Network policy")
         return cls(
             root_node_id=UUID(str(value["root_node_id"])),
-            nodes=tuple(
-                NetworkNode(
-                    id=UUID(str(item["id"])),
-                    agent_id=UUID(str(item["agent_id"])),
-                    label=str(item.get("label") or "Agent"),
-                    capability_description=str(
-                        item.get("capability_description") or ""
-                    ).strip(),
-                    position=dict(item.get("position") or {}),
-                    binding=AgentBindingSelector.from_dict(item.get("binding")),
-                    portable_key=item.get("portable_key"),
-                )
-                for item in value.get("nodes", [])
-            ),
+            nodes=nodes,
             edges=tuple(
                 NetworkEdge(
                     id=UUID(str(item["id"])),
@@ -118,6 +183,8 @@ class NetworkDefinition:
             author_metadata=dict(value["author_metadata"])
             if value.get("author_metadata") is not None
             else None,
+            artifacts_enabled=artifacts_enabled,
+            artifact_workspace_binding=parsed_artifact_binding,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -142,6 +209,7 @@ class NetworkDefinition:
                         if node.portable_key is not None
                         else {}
                     ),
+                    **({"artifact_actions": list(node.artifact_actions)} if node.artifact_actions else {}),
                 }
                 for node in self.nodes
             ],
@@ -159,6 +227,12 @@ class NetworkDefinition:
                 "max_invocations": self.limits.max_invocations,
                 "timeout_seconds": self.limits.timeout_seconds,
                 "tool_result_max_chars": self.limits.tool_result_max_chars,
+                **({"artifacts_enabled": True} if self.artifacts_enabled else {}),
+                **(
+                    {"artifact_workspace_binding": self.artifact_workspace_binding.to_dict()}
+                    if self.artifact_workspace_binding is not None
+                    else {}
+                ),
             },
         }
 

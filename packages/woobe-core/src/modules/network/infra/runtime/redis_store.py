@@ -373,6 +373,7 @@ class RedisNetworkExecutionStore:
                 "sources": result.sources or [],
                 "parsed_output": result.parsed_output,
                 "output_parse_error": result.output_parse_error,
+                "output_artifacts": result.output_artifacts or [],
                 "execution_events": list(result.execution_events or []),
                 "started_at": (
                     getattr(result, "started_at", None)
@@ -528,6 +529,7 @@ class RedisNetworkExecutionStore:
                     "trace_id": str(result.trace_id) if result.trace_id else None,
                     "parsed_output": result.parsed_output,
                     "output_parse_error": result.output_parse_error,
+                    "output_artifacts": result.output_artifacts or [],
                 }
             },
         )
@@ -778,6 +780,7 @@ class RedisNetworkExecutionStore:
                         "trace_id": terminal.get("trace_id") or root_result.get("trace_id"),
                         "parsed_output": root_result.get("parsed_output"),
                         "output_parse_error": root_result.get("output_parse_error"),
+                        "output_artifacts": root_result.get("output_artifacts") or [],
                     }
                 elif status == "cancelled":
                     event_type = "execution_cancelled"

@@ -74,6 +74,63 @@ def test_historical_networks_do_not_gain_portable_key_fields():
         }
     )
     assert "portable_key" not in definition.to_dict()["nodes"][0]
+    assert "artifacts_enabled" not in definition.to_dict()["settings"]
+
+
+def test_network_artifact_requirement_roundtrips_and_legacy_default_is_off():
+    identifier = uuid4()
+    definition = NetworkDefinition.from_dict(
+        {
+            "root_node_id": str(identifier),
+            "nodes": [
+                {"id": str(identifier), "agent_id": str(uuid4()), "label": "Support",
+                 "artifact_actions": ["read"]}
+            ],
+            "edges": [],
+            "settings": {
+                "artifacts_enabled": True,
+                "artifact_workspace_binding": {
+                    "field": "workspace", "namespace": "team-docs", "scope": "session",
+                    "actions": ["read", "search", "write"],
+                },
+            },
+        }
+    )
+    assert definition.artifacts_enabled is True
+    assert NetworkDefinition.from_dict(definition.to_dict()).artifacts_enabled is True
+    assert definition.to_dict()["settings"]["artifacts_enabled"] is True
+    assert definition.to_dict()["nodes"][0]["artifact_actions"] == ["read"]
+
+
+def test_network_artifact_setting_rejects_coercible_non_boolean_values():
+    identifier = uuid4()
+    with pytest.raises(ValueError, match="must be a boolean"):
+        NetworkDefinition.from_dict(
+            {
+                "root_node_id": str(identifier),
+                "nodes": [
+                    {"id": str(identifier), "agent_id": str(uuid4()), "label": "Support"}
+                ],
+                "edges": [],
+                "settings": {"artifacts_enabled": "true"},
+            }
+        )
+
+
+def test_network_node_cannot_expand_artifact_actions_above_network_policy():
+    identifier = uuid4()
+    with pytest.raises(ValueError, match="exceed the Network policy"):
+        NetworkDefinition.from_dict({
+            "root_node_id": str(identifier),
+            "nodes": [{"id": str(identifier), "agent_id": str(uuid4()),
+                       "artifact_actions": ["write"]}],
+            "edges": [],
+            "settings": {"artifacts_enabled": True,
+                         "artifact_workspace_binding": {
+                             "field": "workspace", "namespace": "team-docs",
+                             "scope": "session", "actions": ["read"],
+                         }},
+        })
 
 
 def test_invalid_or_duplicate_portable_keys_cannot_be_saved():

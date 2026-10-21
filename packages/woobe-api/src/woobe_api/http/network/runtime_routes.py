@@ -24,7 +24,6 @@ from shared.infra.errors import AuthorizationError
 from shared.runtime.contracts import runtime_state_frame
 from shared.runtime import (
     RunReference,
-    RuntimeFrame,
     RuntimeObserver,
     RuntimeStreamGapError,
 )
@@ -379,8 +378,10 @@ async def run_network_stream(
         network_id=network_id,
         project_id=payload.project_id,
         network_session_id=payload.network_session_id,
-        message=payload.message,
+        message="" if payload.content_parts is not None else payload.message,
+        content_parts=payload.content_parts,
         external_context=payload.external_context,
+        principal=getattr(getattr(request, "state", None), "principal", None),
         idempotency_key=payload.idempotency_key,
         expected_draft_revision=payload.expected_draft_revision,
     )

@@ -28,6 +28,8 @@ def build_network_service() -> JournalAwareNetworkBoundaryService:
     )
 
     install_network_service_extensions()
+    from shared.composition.artifact_runtime import runtime_artifact_workspace_binding_resolver
+
     return JournalAwareNetworkBoundaryService(
         SESSION_FACTORY,
         hard_max_depth=SETTINGS.network_max_depth_hard,
@@ -36,6 +38,7 @@ def build_network_service() -> JournalAwareNetworkBoundaryService:
         runtime_control=RedisNetworkExecutionStore(EXECUTION_STATE_STORE),
         run_storage_version=_run_storage_version(),
         run_event_journal=RUN_EVENT_JOURNAL,
+        artifact_workspace_binding_resolver=runtime_artifact_workspace_binding_resolver(),
     )
 
 

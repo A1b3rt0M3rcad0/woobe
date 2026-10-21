@@ -169,6 +169,7 @@ class NetworkSessionModel(BaseModel):
     external_session_id: Mapped[str | None] = mapped_column(String(255))
     status: Mapped[str] = mapped_column(String(32), default="active")
     external_context_snapshot: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    artifact_workspace_binding: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     last_message_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
@@ -259,6 +260,11 @@ class NetworkExecutionModel(BaseModel):
     )
     project_id: Mapped[UUID]
     input_message: Mapped[str] = mapped_column(Text)
+    input_content_parts: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB,
+        default=list,
+        server_default=text("'[]'::jsonb"),
+    )
     draft_revision: Mapped[int | None] = mapped_column(Integer, nullable=True)
     definition_snapshot: Mapped[dict[str, Any] | None] = mapped_column(
         JSONB, nullable=True
@@ -267,6 +273,12 @@ class NetworkExecutionModel(BaseModel):
         JSONB, nullable=True
     )
     external_context_snapshot: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB, nullable=True
+    )
+    artifact_workspace_binding: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB, nullable=True
+    )
+    runtime_principal_snapshot: Mapped[dict[str, Any] | None] = mapped_column(
         JSONB, nullable=True
     )
     output_message: Mapped[str | None] = mapped_column(Text)
