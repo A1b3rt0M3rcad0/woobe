@@ -104,6 +104,22 @@ https://pdfium.googlesource.com/pdfium/ and https://github.com/python-pillow/Pil
 The original FreeType attribution is: "Portions of this software are copyright
 © The FreeType Project (www.freetype.org). All rights reserved."
 
+## Optional local PageIndex Flash outline adapter
+
+The `pageindex-local` extra vendors the MIT-licensed PageIndex Flash PDF outline
+algorithm from VectifyAI/PageIndex 0.2.10 at commit
+`27f284291724fbbbbe6976388bd53eed4ebe7fca`; its upstream license and exact source
+manifest are retained in `packages/woobe-core/src/shared/infra/vendor/pageindex_flash`.
+The extra pins PyPDF2 3.0.1 (BSD-3-Clause), regex 2026.5.9 (Apache-2.0 with CNRI-Python
+derived-code terms) and sortedcontainers 2.4.0 (Apache-2.0). Their original
+notices are retained in [docs/licenses](docs/licenses). The exact selected package
+versions and hashes are in uv.lock. The adapter uses only the local PDF outline
+path; it does not enable PageIndex cloud, chat, storage or model clients.
+
+Sources: https://github.com/VectifyAI/PageIndex,
+https://github.com/py-pdf/PyPDF2, https://github.com/mrabarnett/mrab-regex and
+https://github.com/grantjenks/python-sortedcontainers.
+
 ## Optional model-free Docling conversion
 
 The `docling-processing` extra uses the official Docling Slim 2.140.0 distribution,

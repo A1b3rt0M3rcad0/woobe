@@ -23,7 +23,7 @@ ENV UV_COMPILE_BYTECODE=1 \
 WORKDIR /app
 COPY pyproject.toml uv.lock ./
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --all-groups --extra test --no-install-project
+    uv sync --frozen --all-groups --extra test --extra pageindex-local --no-install-project
 
 COPY packages/woobe-core/pyproject.toml packages/woobe-core/pyproject.toml
 COPY packages/woobe-core/src/ packages/woobe-core/src/

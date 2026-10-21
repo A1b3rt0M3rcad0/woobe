@@ -18,6 +18,7 @@ ARG WOOBE_PROCESSING_PROFILE=base
 RUN --mount=type=cache,target=/root/.cache/uv \
     case "$WOOBE_PROCESSING_PROFILE" in \
       base|native-ocr) uv sync --frozen --no-dev --no-install-project ;; \
+      pageindex-local) uv sync --frozen --no-dev --no-install-project --extra pageindex-local ;; \
       docling-native|docling-ocr) uv sync --frozen --no-dev --no-install-project --extra docling-processing ;; \
       *) echo "Unsupported processing profile" >&2; exit 2 ;; \
     esac

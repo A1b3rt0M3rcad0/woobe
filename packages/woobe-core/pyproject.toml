@@ -52,6 +52,12 @@ docling-processing = [
     "latex2mathml==3.81.1",
 ]
 
+pageindex-local = [
+    "PyPDF2==3.0.1",
+    "regex==2026.5.9",
+    "sortedcontainers==2.4.0",
+]
+
 [tool.setuptools]
 package-dir = {"" = "src"}
 
@@ -62,3 +68,4 @@ include = ["modules*", "shared*"]
 [tool.setuptools.package-data]
 "modules.package.domain.schemas" = ["*.json"]
 "modules.artifacts.infra.processing" = ["manifests/*.json"]
+"shared.infra.vendor.pageindex_flash" = ["data/*.json", "LICENSE", "UPSTREAM.md", "vendor-manifest.json"]

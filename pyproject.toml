@@ -62,6 +62,12 @@ docling-processing = [
     "latex2mathml==3.81.1",
 ]
 
+pageindex-local = [
+    "PyPDF2==3.0.1",
+    "regex==2026.5.9",
+    "sortedcontainers==2.4.0",
+]
+
 [dependency-groups]
 dev = [
     "pyright>=1.1.410",
@@ -77,6 +83,9 @@ extraPaths = [
     "tooling/woobe-mock/src",
     "tooling/quality-gate/src",
 ]
+
+[tool.ruff]
+extend-exclude = ["packages/woobe-core/src/shared/infra/vendor/pageindex_flash"]
 
 [tool.ruff.lint.per-file-ignores]
 "packages/woobe-core/src/modules/agent/application/mcp_oauth_flows.py" = ["F401"]
