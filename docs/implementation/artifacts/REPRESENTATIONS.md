@@ -66,6 +66,8 @@ require explicit project/environment and artifact_workspace_id scope.
 | `.../entries/{e}/content` | GET an authorized download with single Range/If-Range support |
 | `.../entries/{e}/copy` | POST operation_id/path; create a separate editable Artifact |
 | `/v1/artifact-sources/read` | POST a pinned SourceRef, offset and max_chars |
+| `/v1/artifact-sources/resolve` | POST up to 50 pinned refs for bounded citation previews |
+| `.../representations/{g}/pages/{p}/image` | GET an on-demand, pixel-bounded PNG from the exact PDF revision |
 
 Entries expose read_only=true. Internal source text, visual manifests, storage
 keys, backend versions, actor snapshots and worker fences are never listed or
@@ -84,8 +86,12 @@ length and checksums are checked. Returned character coordinates explicitly use
 canonical_block_text; original line/byte and page provenance remain separate.
 Whole-block checksums can authenticate a paged block read; a different excerpt
 checksum requires the exact bounded interval in one read. Original character
-subranges are not guessed across CRLF/normalization. Raw-original-only and index
-node resolution are expanded by their later reader/index steps.
+subranges are not guessed across CRLF/normalization. Page refs preserve physical
+index, one-based page number, printed PDF label and boxes only when the source
+contains them. Batch resolution reports unavailable refs without substituting a
+current revision. PDF page PNGs render on demand from the exact authorized
+revision under a ready representation and return private/no-store responses;
+figure PNGs remain readable only through their exact representation entry.
 
 Copy streams into the existing authorized resumable upload path, preserving
 immutable generation/entry lineage under scoped foreign keys. Upload idempotency

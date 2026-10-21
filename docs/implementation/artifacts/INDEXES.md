@@ -101,6 +101,9 @@ publication. This preserves bounded physical reads for a very large leaf rather
 than downloading it merely to check its metadata. Range downloads continue to
 provide the expected whole-object ETag; it is not a checksum of partial bytes.
 
+The optional local PageIndex Flash outline adapter, its exact upstream revision,
+installation profile, limits and licensing are documented in [PAGEINDEX.md](PAGEINDEX.md).
+
 ## Qualification
 
 Pure tests cover repeated/missing-level headings, non-Latin text, large leaves,
@@ -113,3 +116,6 @@ ready mutations, manifest failure, sealed recovery, stale fences and live access
 revocation. S3 HEAD is separately verified to issue no object GET while strong
 stat still verifies bytes. The optional Docling converter remains absent from API
 startup imports and is qualified separately from the lightweight base.
+
+The text catalog and immutable cursor snapshots used to locate these trees are
+documented in [SEARCH.md](SEARCH.md).
