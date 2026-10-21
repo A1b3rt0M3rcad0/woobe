@@ -4,7 +4,9 @@ import "testing"
 
 func TestDecoderMultilineData(t *testing.T) {
 	d := NewDecoder()
-	if d.Feed("event: token") != nil { t.Fatal("unexpected") }
+	if d.Feed("event: token") != nil {
+		t.Fatal("unexpected")
+	}
 	d.Feed("id: 7")
 	d.Feed("data: {\"a\":")
 	d.Feed("data: 1}")

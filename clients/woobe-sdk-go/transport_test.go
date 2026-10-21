@@ -24,22 +24,38 @@ func TestAgentStreamCapturesIdentityAndResult(t *testing.T) {
 	defer srv.Close()
 
 	client, err := New(WithBaseURL(srv.URL), WithReconnect(0, 0))
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	agent, err := client.Connect.Agent("support", "rk_test")
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	chat, err := agent.Chat("hello", nil)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	stream, err := chat.Stream(context.Background())
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	var count int
-	for range stream.Events { count++ }
-	if err := stream.Err(); err != nil { t.Fatal(err) }
-	if count != 2 { t.Fatalf("count=%d", count) }
+	for range stream.Events {
+		count++
+	}
+	if err := stream.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if count != 2 {
+		t.Fatalf("count=%d", count)
+	}
 	if stream.RunID() != "run-1" || stream.SessionID() != "sess-1" {
 		t.Fatalf("identity=%s/%s", stream.RunID(), stream.SessionID())
 	}
-	if stream.Result() == nil || stream.Result().Answer != "ok" { t.Fatalf("result=%#v", stream.Result()) }
+	if stream.Result() == nil || stream.Result().Answer != "ok" {
+		t.Fatalf("result=%#v", stream.Result())
+	}
 }
 
 func TestReattachAfterSequenceGap(t *testing.T) {
@@ -55,8 +71,7 @@ func TestReattachAfterSequenceGap(t *testing.T) {
 	mux.HandleFunc("/v1/runs/run-1/stream", func(w http.ResponseWriter, r *http.Request) {
 		gets.Add(1)
 		w.Header().Set("Content-Type", "text/event-stream")
-		fmt.Fprint(w, "id: 2\ndata: {\"protocol_version\":2,\"event_id\":\"s2\",\"run_id\":\"run-1\",\"session_id\":\"sess-1\",\"run_kind\":\"AGENT\",\"sequence\":2,\"type\":\"run.state\",\"occurred_at\":\"2026-09-30T00:00:02Z\",\"payload\":{\"status\":\"running\"}}\n\n")
-		fmt.Fprint(w, "id: 3\ndata: {\"protocol_version\":2,\"event_id\":\"e3\",\"run_id\":\"run-1\",\"session_id\":\"sess-1\",\"run_kind\":\"AGENT\",\"sequence\":3,\"type\":\"done\",\"occurred_at\":\"2026-09-30T00:00:03Z\",\"payload\":{\"answer\":\"recovered\"}}\n\n")
+		fmt.Fprint(w, "id: 2\ndata: {\"protocol_version\":2,\"event_id\":\"s2\",\"run_id\":\"run-1\",\"session_id\":\"sess-1\",\"run_kind\":\"AGENT\",\"sequence\":2,\"type\":\"run.state\",\"occurred_at\":\"2026-09-30T00:00:02Z\",\"payload\":{\"status\":\"completed\",\"answer\":\"recovered\",\"output_artifacts\":[{\"schema_version\":\"1\",\"ref\":{\"artifact_id\":\"artifact-1\",\"revision_id\":\"revision-1\"},\"path\":\"result.md\",\"content_type\":\"text/markdown\",\"size_bytes\":12,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"status\":\"available\",\"run_id\":\"run-1\",\"source_refs\":[{\"artifact_id\":\"source-1\",\"revision_id\":\"source-revision-1\",\"source_sha256\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"}]}],\"source_refs\":[{\"artifact_id\":\"source-1\",\"revision_id\":\"source-revision-1\",\"source_sha256\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"}]}}\n\n")
 	})
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
@@ -65,11 +80,23 @@ func TestReattachAfterSequenceGap(t *testing.T) {
 	agent, _ := client.Connect.Agent("a", "rk")
 	chat, _ := agent.Chat("x", nil)
 	stream, _ := chat.Stream(context.Background())
-	for range stream.Events {}
-	if err := stream.Err(); err != nil { t.Fatal(err) }
-	if posts.Load() != 1 { t.Fatalf("duplicate POSTs=%d", posts.Load()) }
-	if gets.Load() != 1 { t.Fatalf("reattach GETs=%d", gets.Load()) }
-	if stream.Result() == nil || stream.Result().Answer != "recovered" { t.Fatalf("result=%#v", stream.Result()) }
+	for range stream.Events {
+	}
+	if err := stream.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if posts.Load() != 1 {
+		t.Fatalf("duplicate POSTs=%d", posts.Load())
+	}
+	if gets.Load() != 1 {
+		t.Fatalf("reattach GETs=%d", gets.Load())
+	}
+	if stream.Result() == nil || stream.Result().Answer != "recovered" {
+		t.Fatalf("result=%#v", stream.Result())
+	}
+	if len(stream.Result().OutputArtifacts) != 1 || stream.Result().OutputArtifacts[0].Ref.RevisionID != "revision-1" || len(stream.Result().SourceRefs) != 1 {
+		t.Fatalf("reattached Artifact references=%#v source refs=%#v", stream.Result().OutputArtifacts, stream.Result().SourceRefs)
+	}
 }
 
 func TestAuthenticationError(t *testing.T) {
@@ -80,6 +107,10 @@ func TestAuthenticationError(t *testing.T) {
 	client, _ := New(WithBaseURL(srv.URL))
 	agent, _ := client.Connect.Agent("a", "bad")
 	_, err := agent.Run(context.Background(), "hello", nil)
-	if err == nil { t.Fatal("expected error") }
-	if _, ok := err.(*AuthenticationError); !ok { t.Fatalf("type=%T", err) }
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if _, ok := err.(*AuthenticationError); !ok {
+		t.Fatalf("type=%T", err)
+	}
 }

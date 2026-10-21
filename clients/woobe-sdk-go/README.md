@@ -111,6 +111,81 @@ validation, err := agent.ValidateContracts(ctx, woobe.ContractValidationRequest{
 })
 ```
 
+## Direct Artifact Workspaces
+
+The direct Artifacts client uses an explicit Runtime Key, Project ID, and
+Environment. The key must have the Artifacts interface and grants for the
+requested operations; the client never falls back to a Control Key. Every call
+rechecks authorization server-side and is independent of Agent Runs and
+Sessions.
+
+```go
+artifacts, err := client.Artifacts(
+    os.Getenv("WOOBE_PROJECT_ID"),
+    os.Getenv("WOOBE_RUNTIME_KEY"),
+    woobe.ArtifactStaging,
+)
+if err != nil { log.Fatal(err) }
+
+workspace, err := artifacts.ResolveWorkspace(ctx, "course-material", "cohort-42")
+if err != nil { log.Fatal(err) }
+
+page, err := artifacts.ListArtifacts(ctx, workspace.ID, "", 50, "")
+if err != nil { log.Fatal(err) }
+for _, item := range page.Items {
+    fmt.Println(item.Path, item.RevisionID)
+}
+```
+
+For an Agent or Network Run, pass exact revision references as typed content
+parts. The original string-based `Chat` and `Run` calls remain unchanged.
+
+```go
+chat, err := tutor.ChatParts([]woobe.ContentPart{
+    woobe.TextPart("Summarize this handout and cite its page."),
+    woobe.ArtifactPart(woobe.ArtifactRef{
+        ArtifactID: source.ArtifactID,
+        RevisionID: source.ID,
+    }, source.ContentType),
+}, &woobe.ChatOptions{
+    ExternalContext: map[string]any{"course": "course-17"},
+})
+```
+
+The SDK rejects mixed legacy text plus `content_parts`, malformed references,
+overlong content and more than 16 Artifact references before sending a request.
+The server still authorizes each exact revision. Streaming exposes typed
+`ArtifactOutput`, `SourceRef` and `ArtifactTransfer` metadata on the terminal
+result and helpers for incremental `artifact.available` and transfer events.
+`run.state` continues to replace prior state on reattach; receiving an output
+reference never downloads bytes. Call `ArtifactsClient.Download` explicitly for
+the exact revision you choose. Image-only terminal results are valid even with
+an empty text answer.
+
+`ArtifactsClient` provides workspace CRUD/resolution, paginated files, text
+mutations, resumable upload intents/parts/finalization, exact-revision downloads
+and ranges, processing profile selection, durable ProcessingJob status,
+document search, structural indexes/nodes and exact SourceRef reads. Uploads
+take an `io.Reader`, expected size and SHA-256, and use the server-advertised
+bounded part size. Downloads return an `io.ReadCloser`; callers own its lifetime.
+
+Mutations are never transparently retried. If the connection drops after an
+operation begins, use its operation ID/upload ID to inspect the existing receipt
+or upload status and resume only from the returned offset. The SDK does not
+download an entire file into memory, follow Artifact API redirects, fetch URLs
+from documents, or automatically execute an Agent Run. A cursor remains bound
+by the server to the Project/Environment/Workspace scope in which it was issued.
+
+The `examples/artifacts` program demonstrates creating a Project-scoped
+Workspace, streaming a local PDF, and asking the durable ProcessingJob API to
+build its document representation without creating a Session or Run. Export a
+Runtime Key only through your deployment's secret manager; do not place it in
+source code or command-line arguments.
+
+`examples/artifact-chat` demonstrates loading a handout revision into an Agent
+Run, displaying page citations, and lazily downloading an exact output revision.
+It reads aliases, IDs and Runtime Keys from environment variables.
+
 ## Existing Run observation and cancellation
 
 ```go

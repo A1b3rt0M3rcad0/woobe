@@ -37,7 +37,9 @@ func (e Event) Validate() error {
 	if e.RunKind != RunKindAgent && e.RunKind != RunKindNetwork {
 		return fmt.Errorf("invalid run_kind %q", e.RunKind)
 	}
-	if e.Sequence < 0 { return fmt.Errorf("invalid negative sequence") }
+	if e.Sequence < 0 {
+		return fmt.Errorf("invalid negative sequence")
+	}
 	return nil
 }
 
@@ -66,7 +68,11 @@ func decodeRuntimeFrame(data []byte) (Event, *ControlFrame, error) {
 	if err := json.Unmarshal(data, &e); err != nil {
 		return Event{}, nil, &ProtocolError{Message: "invalid runtime semantic event", Cause: err}
 	}
-	if err := e.Validate(); err != nil { return Event{}, nil, &ProtocolError{Message: err.Error()} }
-	if e.Payload == nil { e.Payload = map[string]any{} }
+	if err := e.Validate(); err != nil {
+		return Event{}, nil, &ProtocolError{Message: err.Error()}
+	}
+	if e.Payload == nil {
+		e.Payload = map[string]any{}
+	}
 	return e, nil, nil
 }

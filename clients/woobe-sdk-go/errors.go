@@ -24,8 +24,11 @@ type ConnectionError struct {
 	Message string
 	Cause   error
 }
+
 func (e *ConnectionError) Error() string {
-	if e.Cause != nil { return e.Message + ": " + e.Cause.Error() }
+	if e.Cause != nil {
+		return e.Message + ": " + e.Cause.Error()
+	}
 	return e.Message
 }
 func (e *ConnectionError) Unwrap() error { return e.Cause }
@@ -34,8 +37,11 @@ type ProtocolError struct {
 	Message string
 	Cause   error
 }
+
 func (e *ProtocolError) Error() string {
-	if e.Cause != nil { return e.Message + ": " + e.Cause.Error() }
+	if e.Cause != nil {
+		return e.Message + ": " + e.Cause.Error()
+	}
 	return e.Message
 }
 func (e *ProtocolError) Unwrap() error { return e.Cause }
@@ -44,13 +50,17 @@ type RecoveryError struct {
 	Message string
 	Cause   error
 }
+
 func (e *RecoveryError) Error() string {
-	if e.Cause != nil { return e.Message + ": " + e.Cause.Error() }
+	if e.Cause != nil {
+		return e.Message + ": " + e.Cause.Error()
+	}
 	return e.Message
 }
 func (e *RecoveryError) Unwrap() error { return e.Cause }
 
 type StreamGapError struct{ Expected, Received int64 }
+
 func (e *StreamGapError) Error() string {
 	return fmt.Sprintf("runtime event sequence gap: expected %d, received %d", e.Expected, e.Received)
 }
