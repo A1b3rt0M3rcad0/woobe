@@ -9,7 +9,7 @@ import ts from "typescript";
 async function loadRuntimeModule() {
   const directory = await mkdtemp(join(tmpdir(), "woobe-runtime-client-"));
   const sourceRoot = new URL("../../woobe-runtime-client/src/", import.meta.url);
-  for (const moduleName of ["types", "protocol", "sse", "observer", "operations", "index"]) {
+  for (const moduleName of ["types", "protocol", "sse", "observer", "operations", "artifacts", "index"]) {
     const source = await readFile(new URL(`${moduleName}.ts`, sourceRoot), "utf8");
     let output = ts.transpileModule(source, {
       compilerOptions: {
@@ -227,4 +227,144 @@ test("terminal state and terminal events are classified explicitly", () => {
   assert.equal(runtime.runtimeTerminalStatus(agentCancelled), "cancelled");
   assert.equal(runtime.runtimeTerminalStatus(timedOut), "timed_out");
   assert.equal(runtime.runtimeTerminalStatus(uncertain), "uncertain");
+});
+
+test("the shared Agent and Network artifact fixture stays byte-identical across SDKs", async () => {
+  const paths = [
+    "../../../specs/runtime/v2/artifact_run.json",
+    "../../../clients/woobe-sdk-go/testdata/artifact_run.json",
+    "../../../clients/woobe-sdk-python/tests/testdata/artifact_run.json",
+  ];
+  const [canonical, goSdk, pythonSdk] = await Promise.all(
+    paths.map(path => readFile(new URL(path, import.meta.url))),
+  );
+  assert.deepEqual(goSdk, canonical);
+  assert.deepEqual(pythonSdk, canonical);
+
+  const fixture = JSON.parse(canonical.toString("utf8"));
+  assert.deepEqual(
+    runtime.parseContentParts(fixture.agent_request.content_parts),
+    fixture.agent_request.content_parts,
+  );
+  assert.deepEqual(
+    runtime.parseContentParts(fixture.network_request.content_parts),
+    fixture.network_request.content_parts,
+  );
+
+  const event = fixture.artifact_available;
+  const availableFrame = runtime.parseRuntimeFrame(
+    `id: ${event.sequence}\nevent: ${event.type}\ndata: ${JSON.stringify(event)}`,
+  );
+  assert.ok(availableFrame);
+  assert.equal(runtime.artifactAvailableFromFrame(availableFrame).ref.revision_id, "revision-output-1");
+  assert.equal(runtime.artifactAvailableFromFrame(availableFrame).source_refs[0].locator.page_number, 3);
+
+  const completed = fixture.completed;
+  const completedFrame = runtime.parseRuntimeFrame(
+    `id: ${completed.sequence}\nevent: ${completed.type}\ndata: ${JSON.stringify(completed)}`,
+  );
+  assert.ok(completedFrame);
+  assert.equal(runtime.artifactOutputsFromFrame(completedFrame).length, 2);
+  assert.equal(runtime.artifactOutputsFromFrame(completedFrame)[1].content_type, "image/png");
+
+  const imageOnly = fixture.image_only_completed;
+  const imageFrame = runtime.parseRuntimeFrame(
+    `id: ${imageOnly.sequence}\nevent: ${imageOnly.type}\ndata: ${JSON.stringify(imageOnly)}`,
+  );
+  assert.ok(imageFrame);
+  assert.equal(imageFrame.payload.answer, "");
+  assert.equal(runtime.artifactOutputsFromFrame(imageFrame).length, 1);
+});
+
+test("Artifact parsing is metadata-only and preserves additive receipt fields", () => {
+  const originalFetch = globalThis.fetch;
+  let fetchCount = 0;
+  globalThis.fetch = async () => {
+    fetchCount++;
+    throw new Error("observation must not fetch artifact bytes");
+  };
+  try {
+    const frame = runtime.parseRuntimeFrame(semanticFrame({
+      type: "artifact.available",
+      sequence: 9,
+      payload: {
+        artifact_id: "artifact-1",
+        revision_id: "revision-1",
+        path: "output.txt",
+        content_type: "text/plain",
+        size_bytes: 1,
+        sha256: "a".repeat(64),
+        status: "available",
+        source_refs: [],
+        provenance_hint: "kept",
+      },
+    }));
+    assert.ok(frame);
+    const receipt = runtime.artifactAvailableFromFrame(frame);
+    assert.equal(receipt.provenance_hint, "kept");
+    assert.equal(receipt.run_id, "run-1");
+    assert.equal(fetchCount, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("queued processing, transfer and cursor primitives preserve state without issuing requests", () => {
+  const queued = runtime.parseArtifactProcessingJob({
+    id: "job-1",
+    source: { artifact_id: "artifact-1", revision_id: "revision-1" },
+    status: "queued",
+    completed_stages: [],
+    retryable: false,
+  });
+  assert.equal(queued.status, "queued");
+  const transfer = runtime.parseArtifactTransfer({
+    operation_id: "operation-1",
+    state: "completed",
+    input_refs: [{ artifact_id: "artifact-1", revision_id: "revision-1" }],
+    file_hashes: [{ sha256: "b".repeat(64), size_bytes: 9 }],
+  });
+  assert.equal(transfer.input_refs[0].revision_id, "revision-1");
+  const page = runtime.parseRuntimeCursorPage({
+    items: [{ artifact_id: "artifact-1", revision_id: "revision-1" }],
+    has_more: true,
+    next_cursor: "opaque-token",
+    truncated: false,
+  }, runtime.parseArtifactReference);
+  assert.equal(page.next_cursor, "opaque-token");
+  assert.equal(page.has_more, true);
+});
+
+test("run.state is replacement data and identity checks reject another Run", () => {
+  const state = { sequence: 0 };
+  const first = runtime.parseRuntimeFrame(semanticFrame({
+    type: "run.state",
+    sequence: 1,
+    payload: { status: "running", source_refs: [{ artifact_id: "old" }] },
+  }));
+  const replacement = runtime.parseRuntimeFrame(semanticFrame({
+    type: "run.state",
+    sequence: 2,
+    payload: { status: "running", source_refs: [] },
+  }));
+  assert.ok(first && replacement);
+  assert.equal(runtime.acceptRuntimeFrameSequence(first, state), true);
+  const oldSnapshot = runtime.runtimeRunStateSnapshot(first);
+  assert.equal(runtime.acceptRuntimeFrameSequence(replacement, state), true);
+  const newSnapshot = runtime.runtimeRunStateSnapshot(replacement);
+  assert.deepEqual(newSnapshot.source_refs, []);
+  assert.notDeepEqual(newSnapshot.source_refs, oldSnapshot.source_refs);
+
+  const otherRun = runtime.parseRuntimeFrame(semanticFrame({
+    type: "token",
+    sequence: 3,
+    runId: "run-2",
+    payload: { content: "wrong Run" },
+  }));
+  assert.ok(otherRun);
+  assert.throws(
+    () => runtime.acceptRuntimeFrameSequence(otherRun, state),
+    error => error?.name === "RuntimeStreamProtocolError",
+  );
+  assert.equal(state.sequence, 2);
 });

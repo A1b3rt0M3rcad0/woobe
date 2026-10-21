@@ -126,6 +126,7 @@ globalThis.__woobeIframeTest = {
       messages.push({ role, content });
       return {};
     },
+    appendOutputArtifacts() {},
     appendPendingAssistant() {
       return {};
     },
@@ -222,6 +223,32 @@ test("message submit forwards the current external context", async () => {
     },
   });
   assert.deepEqual(harness.errors, []);
+});
+
+test("Artifact messages keep exact revision references in typed content parts", async () => {
+  let submittedBody = null;
+  const harness = await loadIframeHarness(async (url, init = {}) => {
+    const path = new URL(String(url)).pathname;
+    if (path.endsWith("/messages:stream")) {
+      submittedBody = JSON.parse(String(init.body));
+      return sseDone("ready");
+    }
+    throw new Error(`Unexpected request: ${path}`);
+  });
+
+  await harness.sendMessage("", [
+    { type: "text", text: "Summarize this" },
+    { type: "artifact", ref: { artifact_id: "artifact-1", revision_id: "revision-7" } },
+  ]);
+
+  assert.deepEqual(JSON.parse(JSON.stringify(submittedBody)), {
+    message: "",
+    content_parts: [
+      { type: "text", text: "Summarize this" },
+      { type: "artifact", ref: { artifact_id: "artifact-1", revision_id: "revision-7" } },
+    ],
+    external_context: {},
+  });
 });
 
 test("completed Runs keep the current external context for the next message", async () => {

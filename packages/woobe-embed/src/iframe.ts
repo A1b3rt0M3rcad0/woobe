@@ -1,5 +1,10 @@
 import { normalizeAppearance } from "./appearance";
+import { bytesToHex } from "@noble/hashes/utils";
+import { sha256 } from "@noble/hashes/sha2";
 import {
+  type ArtifactOption,
+  type ArtifactOutput,
+  type ArtifactRef,
   createChatUi,
   DEFAULT_APPEARANCE,
   type ChatUi,
@@ -17,6 +22,7 @@ import {
   RuntimeStreamGapError,
   acceptRuntimeFrameSequence,
   parseRuntimeFrame,
+  runtimeRunStateSnapshot,
   runtimeTerminalStatus,
   waitForRuntimeRetry,
   type ParsedRuntimeFrame,
@@ -48,6 +54,22 @@ interface RuntimeObserverState {
   sequence: RuntimeSequenceState;
   terminalStatus: RuntimeTerminalStatus | null;
   terminalError: Record<string, unknown> | null;
+  outputArtifacts: ArtifactOutput[];
+}
+
+interface ArtifactCapabilities {
+  actions: string[];
+  max_upload_bytes: number;
+  max_upload_part_bytes: number;
+}
+
+interface PendingUpload {
+  file: File;
+  operationId: string;
+  uploadId: string | null;
+  offset: number;
+  sha256: string | null;
+  controller: AbortController | null;
 }
 
 class SessionExpiredError extends Error {
@@ -98,6 +120,8 @@ let externalContext: Record<string, unknown> = {};
 let sessionExternalContextFields = new Set<string>();
 let lockedExternalContextFields = new Set<string>();
 let appearance = DEFAULT_APPEARANCE;
+let artifactCapabilities: ArtifactCapabilities | null = null;
+let pendingUpload: PendingUpload | null = null;
 let submitting = false;
 let stopping = false;
 let initialized = false;
@@ -133,11 +157,29 @@ function ensureUi(nextAppearance = appearance): ChatUi {
   appearance = normalizeAppearance(nextAppearance);
   if (!ui) {
     ui = createChatUi(root, appearance, {
-      onSubmit(message) {
-        void sendMessage(message);
+      onSubmit(message, contentParts) {
+        void sendMessage(message, contentParts);
       },
       onStop() {
         void requestCancel();
+      },
+      onFile(file) {
+        void beginArtifactUpload(file);
+      },
+      onBrowseArtifacts() {
+        void browseArtifacts();
+      },
+      onCancelUpload() {
+        pendingUpload?.controller?.abort();
+      },
+      onResumeUpload() {
+        void resumeArtifactUpload();
+      },
+      onDiscardUpload() {
+        void discardArtifactUpload();
+      },
+      onDownloadArtifact(reference) {
+        void downloadArtifact(reference);
       },
     });
   } else {
@@ -224,6 +266,165 @@ function externalContextForRun(): Record<string, unknown> {
   );
 }
 
+function setArtifactCapabilities(capabilities: ArtifactCapabilities | null) {
+  artifactCapabilities = capabilities;
+  ensureUi().setArtifactCapabilities(
+    Boolean(capabilities?.actions.includes("read")),
+    Boolean(capabilities?.actions.includes("write")),
+  );
+}
+
+async function loadArtifactCapabilities() {
+  try {
+    const response = await api(`/v1/chat/sessions/${sessionId}/artifacts/capabilities`);
+    const payload = await response.json();
+    const data = payload.data as ArtifactCapabilities | undefined;
+    setArtifactCapabilities(data && Array.isArray(data.actions) ? data : null);
+  } catch {
+    setArtifactCapabilities(null);
+  }
+}
+
+async function browseArtifacts() {
+  if (!artifactCapabilities?.actions.includes("read")) return;
+  try {
+    const response = await api(`/v1/chat/sessions/${sessionId}/artifacts?limit=100`);
+    const payload = await response.json();
+    const items = Array.isArray(payload.data?.items) ? payload.data.items : [];
+    const options: ArtifactOption[] = items.flatMap((item: any) => {
+      if (!item || item.kind !== "file" || item.deleted || typeof item.revision_id !== "string") return [];
+      return [{
+        artifact_id: item.id,
+        revision_id: item.revision_id,
+        path: typeof item.path === "string" ? item.path : item.id,
+        size_bytes: item.revision?.size_bytes,
+        content_type: item.revision?.content_type,
+      }];
+    });
+    ensureUi().setArtifactOptions(options);
+  } catch (error) {
+    appendError(error);
+  }
+}
+
+async function hashFile(file: File): Promise<string> {
+  const hasher = sha256.create();
+  const chunkSize = 4 * 1024 * 1024;
+  for (let offset = 0; offset < file.size; offset += chunkSize) {
+    hasher.update(new Uint8Array(await file.slice(offset, Math.min(file.size, offset + chunkSize)).arrayBuffer()));
+  }
+  return bytesToHex(hasher.digest());
+}
+
+async function beginArtifactUpload(file: File) {
+  if (!artifactCapabilities?.actions.includes("write")) return;
+  if (file.size > artifactCapabilities.max_upload_bytes) {
+    appendError(`File exceeds the ${artifactCapabilities.max_upload_bytes} byte upload limit`);
+    return;
+  }
+  if (pendingUpload) {
+    appendError("Finish or discard the current file upload first");
+    return;
+  }
+  pendingUpload = {
+    file,
+    operationId: randomUuid(),
+    uploadId: null,
+    offset: 0,
+    sha256: null,
+    controller: null,
+  };
+  ensureUi().setUploadProgress({ name: file.name, loaded: 0, total: file.size, state: "paused" });
+  await resumeArtifactUpload();
+}
+
+async function resumeArtifactUpload() {
+  const upload = pendingUpload;
+  const maxPart = artifactCapabilities?.max_upload_part_bytes ?? 0;
+  if (!upload || !artifactCapabilities?.actions.includes("write") || maxPart < 1) return;
+  const controller = new AbortController();
+  upload.controller = controller;
+  ensureUi().setUploadProgress({ name: upload.file.name, loaded: upload.offset, total: upload.file.size, state: "uploading" });
+  try {
+    upload.sha256 ??= await hashFile(upload.file);
+    const path = upload.file.name.replace(/[\\/]/g, "_").trim() || "upload";
+    const beginResponse = await api(`/v1/chat/sessions/${sessionId}/artifacts/uploads`, {
+      method: "POST",
+      signal: controller.signal,
+      headers: { "Content-Type": "application/json", "Idempotency-Key": upload.operationId },
+      body: JSON.stringify({
+        schema_version: "1",
+        operation_id: upload.operationId,
+        path,
+        size_bytes: upload.file.size,
+        sha256: upload.sha256,
+        content_type: upload.file.type || "application/octet-stream",
+      }),
+    });
+    const beginPayload = await beginResponse.json();
+    upload.uploadId = beginPayload.data?.id;
+    upload.offset = beginPayload.data?.offset ?? upload.offset;
+    while (upload.offset < upload.file.size) {
+      const end = Math.min(upload.file.size, upload.offset + maxPart);
+      const bytes = await upload.file.slice(upload.offset, end).arrayBuffer();
+      const partResponse = await api(
+        `/v1/chat/sessions/${sessionId}/artifacts/uploads/${encodeURIComponent(upload.uploadId!)}/parts?offset=${upload.offset}`,
+        { method: "PUT", signal: controller.signal, headers: { "Content-Type": "application/octet-stream" }, body: bytes },
+      );
+      const partPayload = await partResponse.json();
+      upload.offset = partPayload.data?.offset ?? end;
+      ensureUi().setUploadProgress({ name: upload.file.name, loaded: upload.offset, total: upload.file.size, state: "uploading" });
+    }
+    const finishResponse = await api(
+      `/v1/chat/sessions/${sessionId}/artifacts/uploads/${encodeURIComponent(upload.uploadId!)}/finalize`,
+      { method: "POST", signal: controller.signal },
+    );
+    const finishPayload = await finishResponse.json();
+    const receipt = finishPayload.data?.receipt as ArtifactRef | null | undefined;
+    if (!receipt?.artifact_id || !receipt.revision_id) throw new Error("Upload completed without an Artifact revision receipt");
+    const reference: ArtifactOption = { ...receipt, path };
+    ensureUi().addArtifactReference(reference);
+    ensureUi().setUploadProgress({ name: upload.file.name, loaded: upload.file.size, total: upload.file.size, state: "complete" });
+    pendingUpload = null;
+    setTimeout(() => ui?.setUploadProgress(null), 2500);
+  } catch (error) {
+    upload.controller = null;
+    ensureUi().setUploadProgress({ name: upload.file.name, loaded: upload.offset, total: upload.file.size, state: "paused" });
+    if (!controller.signal.aborted && !(error instanceof SessionExpiredError)) appendError(error);
+  } finally {
+    if (pendingUpload === upload) upload.controller = null;
+  }
+}
+
+async function discardArtifactUpload() {
+  const upload = pendingUpload;
+  if (!upload) return;
+  upload.controller?.abort();
+  if (upload.uploadId) {
+    await api(`/v1/chat/sessions/${sessionId}/artifacts/uploads/${encodeURIComponent(upload.uploadId)}`, { method: "DELETE" }).catch(() => undefined);
+  }
+  pendingUpload = null;
+  ensureUi().setUploadProgress(null);
+}
+
+async function downloadArtifact(reference: ArtifactRef & { path?: string }) {
+  if (!artifactCapabilities?.actions.includes("read")) return;
+  try {
+    const response = await api(
+      `/v1/chat/sessions/${sessionId}/artifacts/${encodeURIComponent(reference.artifact_id)}/revisions/${encodeURIComponent(reference.revision_id)}/content`,
+    );
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = reference.path?.split(/[\\/]/).pop() || "artifact";
+    anchor.click();
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    appendError(error);
+  }
+}
+
 async function loadHistory() {
   const response = await api(`/v1/chat/sessions/${sessionId}/messages?limit=50`);
   const payload = await response.json();
@@ -234,7 +435,16 @@ async function loadHistory() {
   for (const item of items) {
     if (typeof item?.role === "string" && typeof item?.content === "string") {
       if (item.role === "user" || item.role === "assistant") {
-        const message = chatUi.appendMessage(item.role, item.content);
+        const storedParts = Array.isArray(item.data?.content_parts) ? item.data.content_parts : [];
+        const references = storedParts.flatMap((part: any) =>
+          part?.type === "artifact" && typeof part.ref?.artifact_id === "string" && typeof part.ref?.revision_id === "string"
+            ? [part.ref as ArtifactRef]
+            : [],
+        );
+        const outputs = Array.isArray(item.data?.output_artifacts)
+          ? item.data.output_artifacts.filter(isArtifactOutput)
+          : [];
+        const message = chatUi.appendMessage(item.role, item.content, false, references, outputs);
         if (item.role === "assistant" && Array.isArray(item.data?.tool_calls)) {
           for (const call of item.data.tool_calls) chatUi.updateSkillActivity(message, call);
         }
@@ -314,7 +524,20 @@ function createRuntimeObserver(): RuntimeObserverState {
     sequence: { sequence: null },
     terminalStatus: null,
     terminalError: null,
+    outputArtifacts: [],
   };
+}
+
+function isArtifactOutput(value: unknown): value is ArtifactOutput {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const output = value as Record<string, unknown>;
+  const ref = output.ref;
+  return Boolean(
+    ref && typeof ref === "object" && !Array.isArray(ref)
+    && typeof (ref as Record<string, unknown>).artifact_id === "string"
+    && typeof (ref as Record<string, unknown>).revision_id === "string"
+    && typeof output.path === "string",
+  );
 }
 
 function beginStreaming(observer: RuntimeObserverState) {
@@ -337,16 +560,32 @@ function applyRuntimeFrame(
 
   const { eventType, payload } = parsed;
   if (parsed.kind === "transport" && eventType !== "error") return null;
+  const nestedState = payload.payload && typeof payload.payload === "object" && !Array.isArray(payload.payload)
+    ? payload.payload as Record<string, unknown>
+    : payload;
+  const artifactOutputs = Array.isArray(payload.output_artifacts)
+    ? payload.output_artifacts
+    : Array.isArray(nestedState.output_artifacts)
+      ? nestedState.output_artifacts
+      : [];
+  for (const value of artifactOutputs) {
+    if (!isArtifactOutput(value)) continue;
+    const key = `${value.ref.artifact_id}:${value.ref.revision_id}`;
+    if (!observer.outputArtifacts.some((item) => `${item.ref.artifact_id}:${item.ref.revision_id}` === key)) {
+      observer.outputArtifacts.push(value);
+    }
+  }
   if (eventType === "error") observer.terminalError = { ...payload };
   if (eventType === "tool_call_started" || eventType === "tool_call_completed") {
     ensureUi().updateSkillActivity(observer.assistant, payload);
   }
   if (eventType === "run.state") {
-    replaceAnswer(observer, typeof payload.output === "string" ? payload.output : "");
-    for (const calls of [payload.tools, payload.active_tools]) {
+    const snapshot = runtimeRunStateSnapshot(parsed) ?? payload;
+    replaceAnswer(observer, typeof snapshot.output === "string" ? snapshot.output : "");
+    for (const calls of [snapshot.tools, snapshot.active_tools]) {
       if (Array.isArray(calls)) for (const call of calls) ensureUi().updateSkillActivity(observer.assistant, call);
     }
-    if (payload.status === "cancel_requested") {
+    if (snapshot.status === "cancel_requested") {
       const wasStopping = stopping;
       setStoppingState(true);
       if (!wasStopping) emit("run.stopping", { resumed: true });
@@ -446,6 +685,7 @@ function finalizeObserver(
   resumed: boolean,
 ) {
   const chatUi = ensureUi();
+  chatUi.appendOutputArtifacts(observer.assistant, observer.outputArtifacts);
   if (!observer.answer) {
     chatUi.removeMessage(observer.assistant);
   } else {
@@ -453,7 +693,7 @@ function finalizeObserver(
   }
 
   if (terminal === "completed") {
-    if (!observer.answer && !resumed) {
+    if (!observer.answer && !resumed && observer.outputArtifacts.length === 0) {
       throw new Error("The Run completed without a response");
     }
     emit("run.completed", { resumed });
@@ -571,6 +811,7 @@ async function bootstrap() {
     applyExternalContextConfiguration(configuration);
     appearance = normalizeAppearance(configuration.appearance);
     ensureUi(appearance).clearSessionExpired();
+    await loadArtifactCapabilities();
     await loadHistory();
     initialized = true;
     void resumeActiveRun();
@@ -582,14 +823,22 @@ async function bootstrap() {
   }
 }
 
-async function sendMessage(message: string) {
+async function sendMessage(message: string, contentParts: Array<Record<string, unknown>> = []) {
   if (submitting) return;
   const chatUi = ensureUi();
   submitting = true;
   stopping = false;
   chatUi.setStopping(false);
   chatUi.clearComposer();
-  chatUi.appendMessage("user", message, true);
+  const artifactParts = contentParts.filter((part) => part.type === "artifact");
+  const projectedText = contentParts.filter((part) => part.type === "text" && typeof part.text === "string").map((part) => part.text as string).join("");
+  const references = artifactParts.flatMap((part) => {
+    const ref = part.ref as Record<string, unknown> | undefined;
+    return typeof ref?.artifact_id === "string" && typeof ref.revision_id === "string"
+      ? [{ artifact_id: ref.artifact_id, revision_id: ref.revision_id }]
+      : [];
+  });
+  chatUi.appendMessage("user", projectedText || message, true, references);
   chatUi.setSubmitting(true);
   emit("message.sent");
   emit("run.started", { resumed: false });
@@ -604,7 +853,8 @@ async function sendMessage(message: string) {
           "Idempotency-Key": randomUuid(),
         },
         body: JSON.stringify({
-          message,
+          message: artifactParts.length ? "" : message,
+          ...(artifactParts.length ? { content_parts: contentParts } : {}),
           external_context: externalContextForRun(),
         }),
       });

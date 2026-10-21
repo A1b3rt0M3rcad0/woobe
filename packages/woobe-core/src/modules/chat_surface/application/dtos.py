@@ -5,7 +5,8 @@ import re
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
+from shared.contracts.content_parts import ContentPart, normalize_message_parts
 
 
 DEFAULT_CHAT_SURFACE_APPEARANCE: dict[str, Any] = {
@@ -623,6 +624,7 @@ class CreateSurfaceAccessKeyRequest(BaseModel):
 class CreateSurfaceSessionRequest(BaseModel):
     external_reference: str | None = Field(default=None, max_length=255)
     metadata: dict[str, Any] | None = None
+    external_context: dict[str, Any] | None = None
 
 
 class IssueSessionTokenRequest(BaseModel):
@@ -630,6 +632,12 @@ class IssueSessionTokenRequest(BaseModel):
 
 
 class StreamChatMessageRequest(BaseModel):
-    message: str = Field(min_length=1, max_length=32768)
+    message: str = Field(default="", max_length=32768)
+    content_parts: tuple[ContentPart, ...] | None = Field(default=None, max_length=32)
     metadata: dict[str, Any] | None = None
     external_context: dict[str, Any] | None = None
+
+    @model_validator(mode="after")
+    def normalize_parts(self):
+        self.message, self.content_parts = normalize_message_parts(self.message, self.content_parts)
+        return self

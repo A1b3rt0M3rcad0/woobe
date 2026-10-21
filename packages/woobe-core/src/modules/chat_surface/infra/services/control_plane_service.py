@@ -7,6 +7,8 @@ from uuid import UUID, uuid4
 from sqlalchemy import select
 
 from modules.agent.infra.database.models import AgentReleaseModel, SessionModel
+from modules.artifacts.composition.runtime_binding import resolve_runtime_artifact_workspace_binding
+from modules.artifacts.domain.models import Action, Environment
 from modules.chat_surface.application.runtime_gateway import (
     ChatMessageRequestSnapshot,
     ChatRuntimeGateway,
@@ -33,6 +35,7 @@ from shared.infra.errors import (
     NotFoundError,
 )
 from shared.runtime_environment import assert_runtime_environment_enabled
+from shared.security.principal import ChatSurfaceRuntimePrincipal
 
 
 CONTROL_PLANE_TEST_SOURCE = "control_plane_test"
@@ -277,6 +280,79 @@ class ControlPlaneChatSurfaceService(ChatSurfaceService):
             "external_context_session_fields": session_fields,
             "external_context_locked_fields": sorted(str(name) for name in snapshot),
         }
+
+    async def artifact_access(self, authorized: AuthorizedChatSession, *, action: Action):
+        """Resolve only the pinned, Session-scoped Artifact Workspace for this Surface."""
+        async with self._session_factory() as session:
+            if authorized.binding.target_type == "agent":
+                release = await session.get(AgentReleaseModel, authorized.binding.target_release_id)
+                runtime_config = getattr(release, "runtime_config", None) or {}
+                capability = runtime_config.get("artifacts", {}) if isinstance(runtime_config, dict) else {}
+                if not isinstance(capability, dict) or capability.get("enabled") is not True:
+                    raise AuthorizationError("Artifacts are not enabled for this ChatSurface Release")
+                raw_binding = capability.get("workspace_binding")
+                if not isinstance(raw_binding, dict):
+                    raise AuthorizationError("Artifact Workspace binding is unavailable")
+                actions = capability.get("actions", [])
+                namespace = raw_binding.get("namespace")
+                field_name = raw_binding.get("field")
+                binding_scope = raw_binding.get("scope")
+            else:
+                version = await session.get(NetworkVersionModel, authorized.binding.target_release_id)
+                definition = getattr(version, "definition", None) or {}
+                settings = definition.get("settings", {}) if isinstance(definition, dict) else {}
+                policy = settings.get("artifact_workspace_binding") if isinstance(settings, dict) else None
+                if not isinstance(settings, dict) or settings.get("artifacts_enabled") is not True or not isinstance(policy, dict):
+                    raise AuthorizationError("Artifacts are not enabled for this ChatSurface Release")
+                root_id = str(definition.get("root_node_id", ""))
+                root_binding = (version.resolved_bindings or {}).get(root_id, {})
+                snapshot = root_binding.get("snapshot_override", {}) if isinstance(root_binding, dict) else {}
+                release_id = snapshot.get("pinned_release_id") if isinstance(snapshot, dict) else None
+                root_release = await session.get(AgentReleaseModel, UUID(str(release_id))) if release_id else None
+                root_runtime = getattr(root_release, "runtime_config", None) or {}
+                root_capability = root_runtime.get("artifacts", {}) if isinstance(root_runtime, dict) else {}
+                root_actions = root_capability.get("actions", []) if isinstance(root_capability, dict) and root_capability.get("enabled") is True else []
+                root_artifact_binding = root_capability.get("workspace_binding") if isinstance(root_capability, dict) else None
+                policy_actions = policy.get("actions", [])
+                if (
+                    not isinstance(root_artifact_binding, dict)
+                    or root_artifact_binding.get("field") != policy.get("field")
+                    or root_artifact_binding.get("namespace") != policy.get("namespace")
+                    or root_artifact_binding.get("scope") != policy.get("scope")
+                ):
+                    raise AuthorizationError("Network root Agent Artifact binding is incompatible")
+                actions = sorted(set(policy_actions if isinstance(policy_actions, list) else ()) & set(root_actions if isinstance(root_actions, list) else ()))
+                namespace = policy.get("namespace")
+                field_name = policy.get("field")
+                binding_scope = policy.get("scope")
+
+        if binding_scope != "session" or not isinstance(namespace, str) or not namespace.strip() or not isinstance(field_name, str):
+            raise AuthorizationError("ChatSurface Artifacts require a Session-scoped Workspace binding")
+        if action.value not in actions:
+            raise AuthorizationError("ChatSurface Artifact action is not permitted by the pinned Release")
+        external_key = authorized.external_context_snapshot.get(field_name)
+        if not isinstance(external_key, str) or not external_key.strip():
+            raise AuthorizationError("ChatSurface Artifact identity was not supplied by its host")
+        principal = ChatSurfaceRuntimePrincipal(
+            api_key_id=authorized.claims.surface_credential_id,
+            project_id=authorized.claims.project_id,
+            surface_id=authorized.claims.chat_surface_id,
+            session_id=authorized.claims.session_id,
+            target_type=authorized.claims.target_type,
+            target_id=authorized.claims.target_id,
+            target_release_id=authorized.claims.target_release_id,
+            token_epoch=authorized.claims.token_epoch,
+            expires_at=authorized.claims.expires_at,
+        )
+        return await resolve_runtime_artifact_workspace_binding(
+            principal=principal,
+            project_id=authorized.claims.project_id,
+            environment=Environment.PRODUCTION.value,
+            external_namespace=namespace,
+            external_key=external_key,
+            actions=(action.value,),
+            binding_scope="session",
+        )
 
     async def _active_run_for_binding(
         self,

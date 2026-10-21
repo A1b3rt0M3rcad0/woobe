@@ -445,12 +445,129 @@ body {
 
 .chat__composer {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
   padding: var(--woobe-composer-padding);
   align-items: end;
   background: var(--woobe-composer-background-custom, var(--woobe-surface));
   border-top: 1px solid var(--woobe-composer-border-custom, var(--woobe-muted-border));
+}
+
+.composer__input-row {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.composer__input-row > button:not(.chat__send),
+.composer__artifact-picker button,
+.composer__upload button,
+.message__artifact-download {
+  min-height: 40px;
+  padding: 0 10px;
+  color: var(--woobe-text);
+  font: 500 12px var(--g-font-sans);
+  background: var(--woobe-control);
+  border: 1px solid var(--woobe-muted-border);
+  border-radius: var(--woobe-input-border-radius);
+  cursor: pointer;
+}
+
+.composer__input-row button[hidden],
+.composer__artifact-picker[hidden],
+.composer__upload[hidden],
+.composer__references[hidden] {
+  display: none;
+}
+
+.composer__artifact-picker,
+.composer__upload,
+.composer__references {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.composer__artifact-picker select {
+  min-width: 0;
+  min-height: 38px;
+  flex: 1;
+  color: var(--woobe-text);
+  background: var(--woobe-control);
+  border: 1px solid var(--woobe-muted-border);
+  border-radius: var(--woobe-input-border-radius);
+}
+
+.composer__reference-chip,
+.message__artifact-refs span {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  max-width: 100%;
+  padding: 4px 8px;
+  color: var(--woobe-text);
+  font: 12px var(--g-font-sans);
+  background: var(--woobe-control);
+  border: 1px solid var(--woobe-muted-border);
+  border-radius: 999px;
+}
+
+.composer__reference-chip > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.composer__reference-chip button {
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.composer__upload {
+  flex-wrap: wrap;
+  font: 12px var(--g-font-sans);
+}
+
+.composer__upload-name {
+  max-width: 36%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.composer__upload progress {
+  min-width: 64px;
+  flex: 1;
+}
+
+.composer__upload button {
+  min-height: 28px;
+}
+
+.composer__upload button[hidden] {
+  display: none;
+}
+
+.message__artifact-refs,
+.message__artifact-outputs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.message__artifact-outputs {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.message__artifact-download {
+  min-height: 32px;
 }
 
 textarea {
@@ -577,6 +694,16 @@ textarea:disabled {
 
   .chat__composer {
     padding: min(var(--woobe-composer-padding), 8px);
+  }
+
+  .composer__input-row {
+    grid-template-columns: auto auto minmax(0, 1fr) auto;
+    gap: 5px;
+  }
+
+  .composer__input-row > button:not(.chat__send) {
+    min-width: 34px;
+    padding: 0 7px;
   }
 }
 
