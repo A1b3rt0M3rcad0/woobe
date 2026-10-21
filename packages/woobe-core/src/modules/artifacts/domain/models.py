@@ -108,6 +108,9 @@ class ErrorCode(StrEnum):
     PDF_PASSWORD_REQUIRED = 'PDF_PASSWORD_REQUIRED'
     PDF_INVALID_DOCUMENT = 'PDF_INVALID_DOCUMENT'
     DOCUMENT_CONVERSION_FAILED = 'DOCUMENT_CONVERSION_FAILED'
+    MODEL_BINDING_UNAVAILABLE = 'MODEL_BINDING_UNAVAILABLE'
+    MODEL_BUDGET_EXCEEDED = 'MODEL_BUDGET_EXCEEDED'
+    MODEL_OUTPUT_INVALID = 'MODEL_OUTPUT_INVALID'
 
 
 class ArtifactError(Exception):
@@ -162,6 +165,7 @@ class Locator:
     source_encoding: str | None = None
     text_normalization: str = 'none'
     image_bbox: tuple[float, float, float, float] | None = None
+    page_label: str | None = None
 
     def __post_init__(self):
         if self.block_id is not None:
@@ -171,6 +175,8 @@ class Locator:
         if self.page_number is not None:
             if self.page_index is None or self.page_number != self.page_index + 1:
                 raise ValueError('Display page must match its physical page')
+        if self.page_label is not None and (self.page_index is None or len(self.page_label) > 128):
+            raise ValueError('Page labels require a bounded physical page reference')
         for start, end, minimum in ((self.line_start, self.line_end, 1),
                                     (self.char_start, self.char_end, 0),
                                     (self.byte_start, self.byte_end, 0)):
@@ -242,6 +248,7 @@ class Workspace:
     labels: tuple[tuple[str, str], ...] = ()
     default_profile_id: str | None = None
     default_profile_revision: int | None = None
+    archived_at: datetime | None = None
 
     def __post_init__(self):
         opaque_id(self.id)
@@ -308,6 +315,9 @@ class Revision:
     node_id: str | None = None
     source_representation_set_id: str | None = None
     source_representation_entry_id: str | None = None
+    external_operation_ref: str | None = None
+    source_refs: tuple[dict, ...] = ()
+    content_state: str = 'available'
 
     def __post_init__(self):
         ArtifactRef(self.artifact_id, self.id)
@@ -317,9 +327,20 @@ class Revision:
             raise ValueError('Invalid revision size or MIME')
         if self.origin not in {'upload', 'application', 'agent', 'tool', 'processing', 'copy'}:
             raise ValueError('Unknown revision provenance')
+        if self.content_state not in {'available', 'deletion_pending', 'purged'}:
+            raise ValueError('Unknown revision content state')
         for value in (self.operation_id, self.run_id, self.node_id, self.source_representation_set_id, self.source_representation_entry_id):
             if value is not None:
                 opaque_id(value)
+        if self.external_operation_ref is not None and (
+            not self.external_operation_ref or len(self.external_operation_ref) > 512
+            or any(ord(char) < 32 or ord(char) == 127 for char in self.external_operation_ref)
+        ):
+            raise ValueError('Invalid external operation reference')
+        for source in self.source_refs:
+            if not isinstance(source, dict):
+                raise ValueError('Invalid Artifact source lineage')
+            ArtifactRef(source.get('artifact_id'), source.get('revision_id'))
         if self.node_id is not None and self.run_id is None:
             raise ValueError('Node provenance requires a Run identity')
 

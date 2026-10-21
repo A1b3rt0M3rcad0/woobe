@@ -26,12 +26,21 @@ def workspace_entity(row: WorkspaceModel) -> Workspace:
         reserved_bytes=row.reserved_bytes, retention_days=row.retention_days,
         labels=tuple(sorted(row.labels.items())),
         default_profile_id=row.default_profile_id, default_profile_revision=row.default_profile_revision,
+        archived_at=row.archived_at,
     )
 
 
 def artifact_entity(row: ArtifactModel) -> Artifact:
     return Artifact(row.id, row.workspace_id, row.path, row.kind,
                     row.revision_id, row.version, row.deleted)
+
+
+def revision_entity(row: RevisionModel) -> Revision:
+    return Revision(row.id, row.artifact_id, row.object_key, row.content_type,
+                    row.size_bytes, row.sha256, row.origin, row.producer_id, row.storage_version_id,
+                    row.operation_id, row.run_id, row.node_id, row.source_representation_set_id,
+                    row.source_representation_entry_id, row.external_operation_ref,
+                    tuple(row.source_refs or ()), row.content_state)
 
 
 class CatalogRepository:
@@ -132,6 +141,14 @@ class CatalogRepository:
             row.name = candidate.name
             row.status = candidate.status.value
             row.labels = dict(candidate.labels)
+            if candidate.status.value == 'archived' and current.status.value != 'archived':
+                row.archived_at = datetime.now(UTC)
+                row.deletion_requested_at = None
+            elif candidate.status.value == 'active':
+                row.archived_at = None
+                row.deletion_requested_at = None
+            elif candidate.status.value == 'deletion_pending' and current.status.value != 'deletion_pending':
+                row.deletion_requested_at = datetime.now(UTC)
             row.version += 1
             await self._uow.session.flush()
         return workspace_entity(row)
@@ -146,22 +163,24 @@ class CatalogRepository:
         rows = (await self._uow.session.execute(query.order_by(WorkspaceModel.id).limit(limit))).scalars()
         return tuple(workspace_entity(row) for row in rows)
 
-    async def artifact_row(self, scope: Scope, workspace_id: str, artifact_id: str):
+    async def artifact_row(self, scope: Scope, workspace_id: str, artifact_id: str, *, include_deleted: bool = False):
         query = (select(ArtifactModel).join(WorkspaceModel,
                  WorkspaceModel.id == ArtifactModel.workspace_id).where(
             WorkspaceModel.project_id == UUID(scope.project_id),
             WorkspaceModel.environment == scope.environment.value,
             WorkspaceModel.status.in_(['active', 'archived']),
             ArtifactModel.workspace_id == workspace_id,
-            ArtifactModel.id == artifact_id, ArtifactModel.deleted.is_(False),
+            ArtifactModel.id == artifact_id,
         ))
+        if not include_deleted:
+            query = query.where(ArtifactModel.deleted.is_(False))
         row = (await self._uow.session.execute(query)).scalar_one_or_none()
         if row is None:
             raise ArtifactError('SOURCE_UNAVAILABLE', 'Artifact is unavailable')
         return row
 
-    async def revision(self, scope: Scope, workspace_id: str, reference: ArtifactRef) -> Revision:
-        artifact = await self.artifact_row(scope, workspace_id, reference.artifact_id)
+    async def revision(self, scope: Scope, workspace_id: str, reference: ArtifactRef, *, include_deleted: bool = False) -> Revision:
+        artifact = await self.artifact_row(scope, workspace_id, reference.artifact_id, include_deleted=include_deleted)
         row = (await self._uow.session.execute(select(RevisionModel).where(
             RevisionModel.workspace_id == workspace_id,
             RevisionModel.artifact_id == artifact.id,
@@ -169,9 +188,7 @@ class CatalogRepository:
         ))).scalar_one_or_none()
         if row is None:
             raise ArtifactError('SOURCE_UNAVAILABLE', 'Artifact revision is unavailable')
-        return Revision(row.id, row.artifact_id, row.object_key, row.content_type,
-                        row.size_bytes, row.sha256, row.origin, row.producer_id, row.storage_version_id,
-                        row.operation_id, row.run_id, row.node_id, row.source_representation_set_id, row.source_representation_entry_id)
+        return revision_entity(row)
 
     async def visible_artifacts(self, scope: Scope, workspace_id: str, *,
                                 catalog_version: int, limit: int = 50,

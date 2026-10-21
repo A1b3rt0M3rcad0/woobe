@@ -8,7 +8,7 @@ from modules.artifacts.infra.database.catalog import CatalogRepository
 from modules.artifacts.infra.database.models import GrantModel
 from modules.artifacts.infra.database.unit_of_work import ArtifactsUnitOfWork
 from shared.contracts.errors import AuthorizationError
-from shared.security.principal import AuthenticatedPrincipal, ControlPlanePrincipal, ProjectApiPrincipal
+from shared.security.principal import AuthenticatedPrincipal, ChatSurfaceRuntimePrincipal, ControlPlanePrincipal, ProjectApiPrincipal
 from shared.security.tenancy import TenantAuthorizer
 
 
@@ -35,6 +35,8 @@ class ExistingPrincipalAuthority:
                 path_params=path, query_params={}, body=context)
         elif isinstance(principal, ProjectApiPrincipal) and principal.kind == 'runtime':
             await authority.require_active_runtime(principal, interface='artifacts')
+        elif isinstance(principal, ChatSurfaceRuntimePrincipal):
+            await authority.require_active_chat_surface_runtime(principal, interface='artifacts')
         else:
             raise AuthorizationError('Artifact credential kind is not allowed')
 

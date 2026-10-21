@@ -48,13 +48,16 @@ from modules.artifacts.application.contracts.uploads import (
 
 from modules.artifacts.composition.files import build_file_service as build_file_service
 from modules.artifacts.application.contracts.files import (
-    ReadFile as ReadFile, CopyFile as CopyFile, ListFiles as ListFiles, MutateFile as MutateFile, WriteText as WriteText,
+    ReadFile as ReadFile, CopyFile as CopyFile, ListFiles as ListFiles, ListRevisions as ListRevisions,
+    RevisionHistoryEntry as RevisionHistoryEntry, MutateFile as MutateFile, WriteText as WriteText,
 )
+from modules.artifacts.composition.composers.list_revisions import list_revisions_composer as list_revisions_composer
 
 from modules.artifacts.domain.models import Scope as Scope, Environment as Environment, Action as Action
 
 from modules.artifacts.application.contracts.api import (
     WorkspaceView as WorkspaceView, ArtifactView as ArtifactView, RevisionView as RevisionView,
+    RevisionHistoryItem as RevisionHistoryItem, RevisionHistoryPage as RevisionHistoryPage,
     UploadStatusView as UploadStatusView, WorkspacePage as WorkspacePage, ArtifactPage as ArtifactPage,
 )
 
@@ -89,6 +92,8 @@ from modules.artifacts.composition.processing_profiles import processing_compone
 from modules.artifacts.application.contracts.representations import (
     ReadRepresentation as ReadRepresentation, ListRepresentations as ListRepresentations,
     ReadSource as ReadSource, SourceReadDefinition as SourceReadDefinition, SourceReadView as SourceReadView,
+    ResolveSourceBatch as ResolveSourceBatch, SourceResolveBatchDefinition as SourceResolveBatchDefinition,
+    SourceResolveBatchItem as SourceResolveBatchItem, SourceResolveBatchView as SourceResolveBatchView,
     RepresentationSetView as RepresentationSetView, RepresentationEntryView as RepresentationEntryView,
     RepresentationEntryPage as RepresentationEntryPage, CopyRepresentation as CopyRepresentation,
     CopyRepresentationDefinition as CopyRepresentationDefinition,
@@ -97,11 +102,18 @@ from modules.artifacts.composition.representations import build_representation_s
 
 
 from modules.artifacts.application.contracts.indexes import (
-    ReadIndex as ReadIndex, ReadIndexNode as ReadIndexNode, ListIndexNodes as ListIndexNodes,
+    ReadIndex as ReadIndex, ReadArtifactIndex as ReadArtifactIndex, ReadIndexNode as ReadIndexNode, ListIndexNodes as ListIndexNodes,
     DocumentIndexView as DocumentIndexView, DocumentNodeView as DocumentNodeView, DocumentNodePage as DocumentNodePage,
 )
 from modules.artifacts.composition.composers.get_document_index import get_document_index_composer as get_document_index_composer
+from modules.artifacts.composition.composers.get_latest_document_index import get_latest_document_index_composer as get_latest_document_index_composer
 from modules.artifacts.composition.composers.get_document_node import get_document_node_composer as get_document_node_composer
 from modules.artifacts.composition.composers.list_document_nodes import list_document_nodes_composer as list_document_nodes_composer
+
+from modules.artifacts.application.contracts.search import (
+    ArtifactSearchPage as ArtifactSearchPage, ArtifactSearchResult as ArtifactSearchResult,
+    SearchDocuments as SearchDocuments,
+)
+from modules.artifacts.composition.composers.search_documents import search_documents_composer as search_documents_composer
 
 CONTRACT_VERSION = '1'

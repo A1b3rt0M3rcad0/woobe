@@ -17,6 +17,9 @@ class BeginUpload:
     node_id: str | None = None
     source_representation_set_id: str | None = None
     source_representation_entry_id: str | None = None
+    producer_id: str | None = None
+    external_operation_ref: str | None = None
+    source_refs: tuple[dict, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -67,6 +70,8 @@ class RecordPart(UploadRequest):
     key: str
     size: int
     sha256: str
+    phase: str = 'stored'
+    version_id: str | None = None
 
 
 @dataclass(frozen=True)

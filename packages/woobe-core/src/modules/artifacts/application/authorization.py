@@ -4,7 +4,7 @@ from modules.artifacts.application.ports.authorization import GrantReader, Princ
 from modules.artifacts.domain.models import Action, ArtifactError, Scope, Workspace, WorkspaceGrant
 from shared.contracts.errors import AuthenticationError, AuthorizationError, NotFoundError
 from shared.security.principal import (
-    AuthenticatedPrincipal, ControlPlanePrincipal, ProjectApiPrincipal, SecurityPrincipal,
+    AuthenticatedPrincipal, ChatSurfaceRuntimePrincipal, ControlPlanePrincipal, ProjectApiPrincipal, SecurityPrincipal,
 )
 
 
@@ -14,6 +14,8 @@ def principal_identity(principal: SecurityPrincipal) -> str:
     if isinstance(principal, ControlPlanePrincipal):
         return f'control-{principal.api_key_id}'
     if isinstance(principal, ProjectApiPrincipal) and principal.kind == 'runtime':
+        return f'runtime-{principal.api_key_id}'
+    if isinstance(principal, ChatSurfaceRuntimePrincipal):
         return f'runtime-{principal.api_key_id}'
     raise ArtifactError('ARTIFACT_ACCESS_DENIED', 'Artifact access is denied')
 
@@ -37,6 +39,12 @@ class ArtifactAuthorization:
                         or principal.environment != scope.environment.value
                         or not principal.allows_interface('artifacts')):
                     raise AuthorizationError('Insufficient runtime scope')
+            if isinstance(principal, ChatSurfaceRuntimePrincipal) and (
+                str(principal.project_id) != scope.project_id
+                or principal.environment != scope.environment.value
+                or not principal.allows_interface('artifacts')
+            ):
+                raise AuthorizationError('Insufficient ChatSurface runtime scope')
             await self._authority.require(principal, scope, action)
         except (AuthenticationError, AuthorizationError, NotFoundError, ArtifactError) as error:
             raise ArtifactError('ARTIFACT_ACCESS_DENIED', 'Artifact access is denied') from error

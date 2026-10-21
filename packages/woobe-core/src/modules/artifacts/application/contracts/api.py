@@ -7,6 +7,7 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validato
 from modules.artifacts.domain.models import (
     Environment, ErrorCode, ID_PATTERN, Locator, SHA256_PATTERN, SourceRef, logical_path,
 )
+from shared.contracts.artifact_reference import ArtifactReference
 
 
 Identifier = Annotated[str, Field(pattern=f'^{ID_PATTERN}$')]
@@ -15,11 +16,6 @@ Digest = Annotated[str, Field(pattern=f'^{SHA256_PATTERN}$')]
 
 class Contract(BaseModel):
     model_config = ConfigDict(extra='forbid', frozen=True)
-
-
-class ArtifactReference(Contract):
-    artifact_id: Identifier
-    revision_id: Identifier
 
 
 class SourceLocator(Contract):
@@ -37,6 +33,7 @@ class SourceLocator(Contract):
     source_encoding: Literal['utf-8', 'utf-16-le', 'utf-16-be', 'latin-1'] | None = None
     text_normalization: Literal['none', 'lf'] = 'none'
     image_bbox: tuple[float, float, float, float] | None = None
+    page_label: str | None = Field(default=None, max_length=128)
 
     @model_validator(mode='after')
     def validate_locator(self):
@@ -120,7 +117,9 @@ class CursorEnvelope(Contract):
     scope_fingerprint: Digest
     last_id: Identifier
     catalog_version: int = Field(ge=0)
-    purpose: Literal['workspaces', 'artifacts', 'search', 'nodes', 'profiles', 'representation_entries', 'index_nodes']
+    score_rank: int | None = Field(default=None, ge=0)
+    search_version: int | None = Field(default=None, ge=0)
+    purpose: Literal['workspaces', 'artifacts', 'revisions', 'search', 'nodes', 'profiles', 'representation_entries', 'index_nodes']
 
 
 class CapabilityDescriptor(Contract):
@@ -167,6 +166,11 @@ class RevisionView(Contract):
     node_id: Identifier | None = None
     source_representation_set_id: Identifier | None = None
     source_representation_entry_id: Identifier | None = None
+    content_state: Literal['available', 'deletion_pending', 'purged'] = 'available'
+
+
+class RevisionHistoryItem(RevisionView):
+    created_at: AwareDatetime
 
 
 class ArtifactView(Contract):
@@ -204,6 +208,14 @@ class WorkspacePage(Contract):
 class ArtifactPage(Contract):
     schema_version: Literal['1'] = '1'
     items: tuple[ArtifactView, ...]
+    has_more: bool
+    next_cursor: str | None = None
+    truncated: bool = False
+
+
+class RevisionHistoryPage(Contract):
+    schema_version: Literal['1'] = '1'
+    items: tuple[RevisionHistoryItem, ...]
     has_more: bool
     next_cursor: str | None = None
     truncated: bool = False

@@ -47,3 +47,33 @@ def synthetic_pdf(*, pages=12, empty_page=3, image_page=4, two_columns=5, encryp
     buffer = io.BytesIO()
     writer.write(buffer)
     return buffer.getvalue()
+
+
+def pageindex_outline_pdf():
+    """Small first-party PDF with page and font evidence for PageIndex Flash."""
+    writer = PdfWriter()
+    font = DictionaryObject({NameObject('/Type'): NameObject('/Font'), NameObject('/Subtype'): NameObject('/Type1'),
+        NameObject('/BaseFont'): NameObject('/Helvetica'), NameObject('/Encoding'): NameObject('/WinAnsiEncoding')})
+    font_ref = writer._add_object(font)
+    pages = (
+        (("Sample Technical Report", 30, 72, 720), ("Executive Summary", 20, 72, 650),
+         ("This report explains the sample dataset and results.", 12, 72, 610)),
+        (("1 Introduction", 22, 72, 720), ("The introduction describes the problem and intended use.", 12, 72, 670),
+         ("The following sections define scope and method.", 12, 72, 650)),
+        (("2 Methods", 22, 72, 720), ("2.1 Data", 17, 72, 670),
+         ("Measurements use a fixed public sample and repeatable steps.", 12, 72, 630),
+         ("2.2 Review", 17, 72, 570), ("Results were reviewed against recorded source data.", 12, 72, 530)),
+    )
+    for lines in pages:
+        page = writer.add_blank_page(width=612, height=792)
+        page[NameObject('/Resources')] = DictionaryObject({NameObject('/Font'): DictionaryObject({NameObject('/F1'): font_ref})})
+        commands = []
+        for text, size, x, y in lines:
+            escaped = text.replace('\\', '\\\\').replace('(', '\\(').replace(')', '\\)')
+            commands.append(f'BT /F1 {size} Tf {x} {y} Td ({escaped}) Tj ET')
+        stream = DecodedStreamObject()
+        stream.set_data('\n'.join(commands).encode('ascii'))
+        page[NameObject('/Contents')] = writer._add_object(stream)
+    buffer = io.BytesIO()
+    writer.write(buffer)
+    return buffer.getvalue()

@@ -15,6 +15,9 @@ STATUS = {
     'UPLOAD_EXPIRED': 410, 'ARTIFACT_INVALID_RANGE': 416,
     'ARTIFACT_INVALID_CURSOR': 400, 'ARTIFACT_LIMIT_EXCEEDED': 413,
     'PROCESSOR_UNAVAILABLE': 503,
+    'MODEL_BINDING_UNAVAILABLE': 503,
+    'MODEL_BUDGET_EXCEEDED': 429,
+    'MODEL_OUTPUT_INVALID': 422,
     'UPLOAD_INTEGRITY_MISMATCH': 422, 'ARTIFACT_STORAGE_UNAVAILABLE': 503,
     'PDF_PASSWORD_REQUIRED': 422, 'PDF_INVALID_DOCUMENT': 422,
     'DOCUMENT_CONVERSION_FAILED': 422,
@@ -56,6 +59,10 @@ class ArtifactRoute(APIRoute):
 
 def workspace_payload(workspace):
     values = asdict(workspace)
+    # Lifecycle timestamps are persistence/worker state, not part of the
+    # stable Workspace response contract. Keep response projection explicit
+    # when the domain model gains internal lifecycle fields.
+    values.pop('archived_at', None)
     values.update(values.pop('scope'))
     values['labels'] = dict(workspace.labels)
     return {'schema_version': '1', **values}
@@ -64,8 +71,10 @@ def workspace_payload(workspace):
 def file_payload(snapshot):
     revision = asdict(snapshot.revision) if snapshot.revision is not None else None
     if revision is not None:
-        revision.pop('object_key')
-        revision.pop('storage_version_id')
+        for private_field in (
+            'object_key', 'storage_version_id', 'external_operation_ref', 'source_refs',
+        ):
+            revision.pop(private_field, None)
     return {'schema_version': '1', **asdict(snapshot.artifact), 'revision': revision}
 
 

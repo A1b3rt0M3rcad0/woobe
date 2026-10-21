@@ -30,6 +30,7 @@ class ArtifactWorkspaceModel(ArtifactRecord):
         CheckConstraint("environment IN ('draft','staging','production')", name='ck_artifact_workspace_environment'),
         CheckConstraint("status IN ('active','archived','deletion_pending','purged')", name='ck_artifact_workspace_status'),
         CheckConstraint('version >= 1 AND catalog_version >= 0', name='ck_artifact_workspace_version'),
+        CheckConstraint('search_version >= 0', name='ck_artifact_workspace_search_version'),
         CheckConstraint('processing_sequence >= 0', name='ck_artifact_workspace_processing_sequence'),
         CheckConstraint('quota_bytes >= 0 AND used_bytes >= 0 AND reserved_bytes >= 0 AND used_bytes + reserved_bytes <= quota_bytes', name='ck_artifact_workspace_quota'),
         CheckConstraint('retention_days >= 0', name='ck_artifact_workspace_retention'),
@@ -37,6 +38,7 @@ class ArtifactWorkspaceModel(ArtifactRecord):
             ['artifacts.processing_profiles.project_id', 'artifacts.processing_profiles.environment', 'artifacts.processing_profiles.id', 'artifacts.processing_profiles.revision'], name='fk_artifact_workspace_profile'),
         CheckConstraint('(default_profile_id IS NULL) = (default_profile_revision IS NULL)', name='ck_artifact_workspace_profile_pair'),
         Index('ix_artifact_workspaces_scope_page', 'project_id', 'environment', 'id'),
+        Index('ix_artifact_workspace_retention', 'status', 'archived_at', 'id'),
         {'schema': 'artifacts'},
     )
 
@@ -51,6 +53,7 @@ class ArtifactWorkspaceModel(ArtifactRecord):
     status: Mapped[str] = mapped_column(String(32), default='active')
     version: Mapped[int] = mapped_column(BigInteger, default=1)
     catalog_version: Mapped[int] = mapped_column(BigInteger, default=0)
+    search_version: Mapped[int] = mapped_column(BigInteger, default=0)
     quota_bytes: Mapped[int] = mapped_column(BigInteger, default=1_073_741_824)
     used_bytes: Mapped[int] = mapped_column(BigInteger, default=0)
     reserved_bytes: Mapped[int] = mapped_column(BigInteger, default=0)
@@ -59,6 +62,8 @@ class ArtifactWorkspaceModel(ArtifactRecord):
     creation_fingerprint: Mapped[str | None] = mapped_column(String(64))
     default_profile_id: Mapped[str | None] = mapped_column(String(128))
     default_profile_revision: Mapped[int | None] = mapped_column(BigInteger)
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    deletion_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     processing_sequence: Mapped[int] = mapped_column(BigInteger, default=0)
 
 
@@ -95,7 +100,9 @@ class RevisionModel(ArtifactRecord):
         CheckConstraint('size_bytes >= 0', name='ck_artifact_revision_size'),
         CheckConstraint("sha256 ~ '^[0-9a-f]{64}$'", name='ck_artifact_revision_sha256'),
         CheckConstraint("origin IN ('upload','application','agent','tool','processing','copy')", name='ck_artifact_revision_origin'),
+        CheckConstraint("content_state IN ('available','deletion_pending','purged')", name='ck_artifact_revision_content_state'),
         Index('ix_artifact_revisions_page', 'workspace_id', 'artifact_id', 'id'),
+        Index('ix_artifact_revision_retention', 'workspace_id', 'content_state', 'created_at', 'id'),
         CheckConstraint('(source_representation_set_id IS NULL) = (source_representation_entry_id IS NULL)', name='ck_artifact_revisions_representation_pair'),
         ForeignKeyConstraint(['workspace_id', 'source_representation_set_id', 'source_representation_entry_id'],
             ['artifacts.representation_entries.workspace_id', 'artifacts.representation_entries.representation_set_id', 'artifacts.representation_entries.id'],
@@ -117,6 +124,9 @@ class RevisionModel(ArtifactRecord):
     node_id: Mapped[str | None] = mapped_column(String(128))
     source_representation_set_id: Mapped[str | None] = mapped_column(String(128))
     source_representation_entry_id: Mapped[str | None] = mapped_column(String(128))
+    external_operation_ref: Mapped[str | None] = mapped_column(String(512))
+    source_refs: Mapped[list[dict]] = mapped_column(JSONB, default=list)
+    content_state: Mapped[str] = mapped_column(String(32), default='available', server_default='available')
 
 
 class HeadHistoryModel(ArtifactRecord):
@@ -130,6 +140,10 @@ class HeadHistoryModel(ArtifactRecord):
         CheckConstraint('from_catalog_version > 0 AND (until_catalog_version IS NULL OR until_catalog_version > from_catalog_version)', name='ck_artifact_history_interval'),
         Index('uq_artifact_history_current', 'artifact_id', unique=True, postgresql_where=text('until_catalog_version IS NULL')),
         Index('ix_artifact_history_visibility', 'workspace_id', 'from_catalog_version', 'until_catalog_version', 'artifact_id'),
+        Index('ix_artifact_history_search_path', text("to_tsvector('simple'::regconfig, normalize(regexp_replace(path, '[^[:alnum:]]+', ' ', 'g'), NFKC))"),
+              postgresql_using='gin'),
+        Index('ix_artifact_history_search_path_literal', 'path', postgresql_using='gin',
+              postgresql_ops={'path': 'gin_trgm_ops'}),
         {'schema': 'artifacts'},
     )
 
@@ -195,6 +209,9 @@ class UploadModel(ArtifactRecord):
     node_id: Mapped[str | None] = mapped_column(String(128))
     source_representation_set_id: Mapped[str | None] = mapped_column(String(128))
     source_representation_entry_id: Mapped[str | None] = mapped_column(String(128))
+    producer_id: Mapped[str | None] = mapped_column(String(128))
+    external_operation_ref: Mapped[str | None] = mapped_column(String(512))
+    source_refs: Mapped[list[dict]] = mapped_column(JSONB, default=list)
     offset: Mapped[int] = mapped_column(BigInteger, default=0)
     status: Mapped[str] = mapped_column(String(16), default='created')
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
@@ -291,6 +308,7 @@ class ProcessingJobModel(ArtifactRecord):
     profile_revision: Mapped[int | None] = mapped_column(BigInteger)
     recipe: Mapped[dict] = mapped_column(JSONB)
     recipe_fingerprint: Mapped[str] = mapped_column(String(64))
+    model_binding: Mapped[dict | None] = mapped_column(JSONB(none_as_null=True))
     generation_number: Mapped[int] = mapped_column(BigInteger, default=0)
     status: Mapped[str] = mapped_column(String(32), default='queued')
     attempt: Mapped[int] = mapped_column(Integer, default=0)
@@ -368,4 +386,11 @@ from modules.artifacts.infra.database.representation_models import (  # noqa: E4
 from modules.artifacts.infra.database.index_models import (  # noqa: E402
     ArtifactDocumentIndexModel as ArtifactDocumentIndexModel,
     ArtifactDocumentNodeModel as ArtifactDocumentNodeModel,
+)
+
+from modules.artifacts.infra.database.model_operation_models import ArtifactDocumentModelCallModel as ArtifactDocumentModelCallModel  # noqa: E402
+
+from modules.artifacts.infra.database.run_source_models import (  # noqa: E402
+    ArtifactRunSourceManifestModel as ArtifactRunSourceManifestModel,
+    ArtifactRunSourceModel as ArtifactRunSourceModel,
 )

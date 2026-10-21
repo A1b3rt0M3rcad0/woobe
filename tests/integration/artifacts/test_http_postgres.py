@@ -18,6 +18,25 @@ from tests.integration.artifacts.test_workspaces_postgres import prepare_namespa
 from tests.integration.security.test_control_key_guard_postgres import _guard
 
 
+def test_workspace_http_projection_does_not_expose_internal_retention_timestamps():
+    from datetime import UTC, datetime
+
+    from modules.artifacts.domain.models import Environment, Workspace
+    from woobe_api.http.artifacts.transport import workspace_payload
+
+    workspace = Workspace(
+        id="projection-workspace",
+        scope=Scope("projection-project", Environment.STAGING),
+        external_namespace="projection",
+        external_key="retention",
+        name="Projection",
+        archived_at=datetime.now(UTC),
+    )
+    payload = workspace_payload(workspace)
+    assert "archived_at" not in payload
+    assert "deletion_requested_at" not in payload
+
+
 @pytest.fixture
 async def http_client(engine, artifacts_database, object_store, monkeypatch):
     monkeypatch.setenv('WOOBE_TRUSTED_HOSTS', 'localhost,127.0.0.1,test')
@@ -106,7 +125,10 @@ async def test_real_http_provision_resume_download_rename_and_exact_history(http
     assert 'Content-Range' in response.headers['access-control-expose-headers']
     metadata = await client.get(base + f"/artifacts/{ref['artifact_id']}")
     assert metadata.status_code == 200, metadata.text
-    assert 'object_key' not in metadata.text and 'storage_version_id' not in metadata.text
+    assert all(field not in metadata.text for field in (
+        'object_key', 'storage_version_id', 'external_operation_ref', 'source_refs',
+        'archived_at', 'deletion_requested_at',
+    ))
     move = await client.patch(base + f"/artifacts/{ref['artifact_id']}", json={
         'operation_id': uuid4().hex, 'expected_version': 1, 'path': 'relatórios/renomeado.txt'})
     assert move.status_code == 200 and move.json()['id'] == ref['artifact_id'], move.text

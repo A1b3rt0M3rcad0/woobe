@@ -3,7 +3,7 @@ from modules.artifacts.application.contracts.uploads import (
     BeginUpload, CommitUpload, RecordPart, UploadRequest,
 )
 from modules.artifacts.application.ports.uploads import UploadStore
-from modules.artifacts.domain.models import Action, ArtifactError, opaque_id
+from modules.artifacts.domain.models import Action, ArtifactError, ArtifactRef, opaque_id
 
 
 class UploadUseCases:
@@ -27,6 +27,21 @@ class UploadUseCases:
         for value in (request.run_id, request.node_id):
             if value is not None:
                 opaque_id(value)
+        if request.producer_id is not None:
+            opaque_id(request.producer_id)
+        if request.origin == 'tool' and (request.producer_id is None or request.run_id is None):
+            raise ValueError('Tool output provenance requires a producer and Run identity')
+        if request.external_operation_ref is not None and (
+            not request.external_operation_ref or len(request.external_operation_ref) > 512
+            or any(ord(char) < 32 or ord(char) == 127 for char in request.external_operation_ref)
+        ):
+            raise ValueError('Invalid external operation reference')
+        if len(request.source_refs) > 32:
+            raise ArtifactError('ARTIFACT_LIMIT_EXCEEDED', 'External Tool output has too many source references')
+        for source in request.source_refs:
+            if not isinstance(source, dict):
+                raise ValueError('Artifact source lineage must contain reference objects')
+            ArtifactRef(source.get('artifact_id'), source.get('revision_id'))
         if request.node_id is not None and request.run_id is None:
             raise ValueError('Node provenance requires a Run identity')
         if (request.source_representation_set_id is None) != (request.source_representation_entry_id is None):

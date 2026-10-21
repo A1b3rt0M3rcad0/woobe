@@ -9,8 +9,10 @@ from sqlalchemy import func, select, text
 
 from modules.artifacts.application.authorization import ArtifactAuthorization, principal_identity
 from modules.artifacts.application.contracts.api import UploadCreate
+from modules.artifacts.application.contracts.files import WriteBytes
 from modules.artifacts.application.contracts.uploads import BeginUpload, UploadPart, UploadRequest
 from modules.artifacts.application.contracts.workspaces import CreateWorkspace
+from modules.artifacts.application.services.files import FileService
 from modules.artifacts.application.services.uploads import UploadService
 from modules.artifacts.application.use_cases.uploads import UploadUseCases
 from modules.artifacts.domain.models import Action, ArtifactError, WorkspaceGrant
@@ -107,6 +109,38 @@ async def test_lost_commit_ack_recovers_same_receipt_after_real_commit(engine, a
     recovered = await service(engine, object_store).finalize(request)
     assert recovered.receipt is not None
     assert await accounting(engine, request.workspace_id) == (12, 0, 1)
+
+
+async def test_external_output_replay_keeps_one_revision_and_durable_lineage(engine, artifacts_database, object_store):
+    actor, scope, definition = await prepare_namespace(engine, artifacts_database['project_id'])
+    workspace = await execute(engine, 'create', CreateWorkspace(actor, scope, definition))
+    content = b'# Generated report\n'
+    operation_id = str(uuid4())
+    run_id, tool_id = str(uuid4()), str(uuid4())
+    source = {'artifact_id': str(uuid4()), 'revision_id': str(uuid4())}
+    command = WriteBytes(
+        actor, scope, workspace.id, operation_id=operation_id,
+        path='generated/report.md', content=content, content_type='text/markdown',
+        producer_id=tool_id, external_operation_ref='provider-job-42',
+        source_refs=(source,), run_id=run_id,
+    )
+    first = await FileService(None, None, None, service(engine, object_store), object_store).write_external_output(command)
+    # Simulate losing the acknowledgement after publication and replaying the
+    # same ready response from the configured provider operation.
+    replay = await FileService(None, None, None, service(engine, object_store), object_store).write_external_output(command)
+    assert first.receipt == replay.receipt
+    assert await accounting(engine, workspace.id) == (len(content), 0, 1)
+    async with ArtifactsUnitOfWork(engine) as uow:
+        row = await uow.session.scalar(select(RevisionModel).where(
+            RevisionModel.workspace_id == workspace.id,
+            RevisionModel.artifact_id == first.receipt.artifact_id,
+        ))
+        assert row is not None
+        assert row.origin == 'tool'
+        assert row.producer_id == tool_id
+        assert row.run_id == run_id
+        assert row.external_operation_ref == 'provider-job-42'
+        assert row.source_refs == [source]
 
 
 async def test_quota_reservations_compete_and_abort_expiry_release_exactly_once(engine, artifacts_database, object_store):

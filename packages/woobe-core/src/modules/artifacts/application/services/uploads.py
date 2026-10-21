@@ -1,9 +1,11 @@
 import hashlib
+import time
 
 from modules.artifacts.application.contracts.uploads import CommitUpload, RecordPart, UploadPart
 from modules.artifacts.domain.models import ArtifactError, UploadStatus
 from modules.artifacts.domain.text_encoding import text_encoding
 from shared.contracts.object_storage import ObjectStorageError
+from shared.observability.metrics import runtime_metrics
 
 
 MAX_PART_BYTES = 8 * 1024 * 1024
@@ -68,6 +70,7 @@ class UploadService:
         return (await self._abort(request)).view
 
     async def append(self, request: UploadPart):
+        started = time.perf_counter()
         if (type(request.offset) is not int or request.offset < 0
                 or not isinstance(request.content, bytes) or not 1 <= len(request.content) <= MAX_PART_BYTES):
             raise ArtifactError('ARTIFACT_LIMIT_EXCEEDED', 'Upload part must contain 1–8388608 bytes at a nonnegative offset')
@@ -87,21 +90,34 @@ class UploadService:
             raise ArtifactError('UPLOAD_INTEGRITY_MISMATCH', 'Part exceeds the expected upload size')
         prefix = snapshot.object_key.rsplit('/artifacts/', 1)[0]
         key = f'{prefix}/uploads/{snapshot.view.id}/parts/{request.offset}-{digest}'
+        recorded_intent = await self._record(RecordPart(
+            request.principal, request.scope, request.workspace_id,
+            request.upload_id, request.offset, key, len(request.content), digest, 'reserve',
+        ))
+        self._live(recorded_intent)
 
         async def chunks():
             yield request.content
 
         try:
-            await self._storage(snapshot.storage_profile).put(key, chunks(),
+            metadata = await self._storage(snapshot.storage_profile).put(key, chunks(),
                 size_bytes=len(request.content), sha256=digest, content_type='application/octet-stream')
         except ObjectStorageError as error:
             raise ArtifactError('ARTIFACT_STORAGE_UNAVAILABLE', 'Upload part could not be stored', retryable=True) from error
-        recorded = await self._record(RecordPart(request.principal, request.scope, request.workspace_id,
-            request.upload_id, request.offset, key, len(request.content), digest))
+        recorded = await self._record(RecordPart(
+            request.principal, request.scope, request.workspace_id,
+            request.upload_id, request.offset, key, len(request.content), digest,
+            'stored', metadata.version_id,
+        ))
         self._live(recorded)
+        runtime_metrics.observe_artifact_operation(
+            operation="upload_part", outcome="success", duration_seconds=time.perf_counter() - started,
+            byte_count=len(request.content), byte_direction="transfer",
+        )
         return recorded.view
 
     async def finalize(self, request):
+        started = time.perf_counter()
         snapshot = await self._verify(request)
         self._live(snapshot)
         if snapshot.view.receipt is not None:
@@ -136,4 +152,8 @@ class UploadService:
         committed = await self._commit(CommitUpload(request.principal, request.scope, request.workspace_id,
             request.upload_id, metadata.size_bytes, metadata.sha256, metadata.content_type, metadata.version_id))
         self._live(committed)
+        runtime_metrics.observe_artifact_operation(
+            operation="publish", outcome="success", duration_seconds=time.perf_counter() - started,
+            byte_count=metadata.size_bytes, byte_direction="stored",
+        )
         return committed.view

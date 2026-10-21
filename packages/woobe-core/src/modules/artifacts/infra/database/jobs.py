@@ -67,7 +67,7 @@ class ProcessingJobRepository:
             raise ArtifactError('ARTIFACT_IDEMPOTENCY_CONFLICT', 'Processing operation has a different request')
         return job_view(row)
 
-    async def request(self, request, source, recipe, profile_id, profile_revision):
+    async def request(self, request, source, recipe, profile_id, profile_revision, *, model_binding=None):
         workspace = await self._catalog.workspace_row(request.scope, request.workspace_id, lock=True)
         if workspace.status != 'active':
             raise ArtifactError('ARTIFACT_ACCESS_DENIED', 'Workspace does not accept processing')
@@ -95,8 +95,9 @@ class ProcessingJobRepository:
             principal_id=principal_identity(request.principal), principal_snapshot=freeze_principal(request.principal),
             operation_id=request.definition.operation_id, request_fingerprint=request_fingerprint(request),
             processing_fingerprint=processing_fingerprint(sha256=source.sha256, size_bytes=source.size_bytes,
-                content_type=source.content_type, recipe=recipe), profile_id=profile_id, profile_revision=profile_revision,
-            recipe=recipe.model_dump(mode='json'), recipe_fingerprint=recipe.fingerprint(),
+                content_type=source.content_type, recipe=recipe,
+                model_binding_fingerprint=model_binding['fingerprint'] if model_binding else None), profile_id=profile_id, profile_revision=profile_revision,
+            recipe=recipe.model_dump(mode='json'), recipe_fingerprint=recipe.fingerprint(), model_binding=model_binding,
             generation_number=workspace.processing_sequence if recipe.mode != 'store_only' else 0,
             status='queued', attempt=0, max_attempts=3, fencing_token=0, checkpoints={}, retryable=False)
         self._uow.session.add(row)
@@ -145,6 +146,7 @@ class ProcessingJobRepository:
             raise ValueError('Processing delivery limit must be between 1 and 100')
         rows = (await self._uow.session.execute(select(ArtifactProcessingOutboxModel).where(
             ArtifactProcessingOutboxModel.status == 'pending',
+            ArtifactProcessingOutboxModel.event_type == EVENT,
             ArtifactProcessingOutboxModel.available_at <= datetime.now(UTC),
         ).order_by(ArtifactProcessingOutboxModel.created_at, ArtifactProcessingOutboxModel.id)
           .limit(limit).with_for_update(skip_locked=True))).scalars()
@@ -242,7 +244,7 @@ class ProcessingJobRepository:
                 row.workspace_id, actor, row.fencing_token,
                 row.lease_until, request.lease_seconds, recipe,
                 ArtifactReference(artifact_id=row.artifact_id, revision_id=row.revision_id),
-                row.profile_id, row.profile_revision, dict(row.checkpoints), row.generation_number)
+                row.profile_id, row.profile_revision, dict(row.checkpoints), row.generation_number, row.model_binding)
         return None
 
     async def _lease_row(self, lease):
@@ -254,7 +256,8 @@ class ProcessingJobRepository:
         attempt = await self._uow.session.get(ProcessingAttemptModel, lease.attempt_id)
         if (row is None or attempt is None or row.fencing_token != lease.fencing_token
                 or row.generation_number != lease.generation_number
-                or (row.worker_id != lease.worker_id and row.status not in {'succeeded', 'failed', 'cancelled'})
+                or row.model_binding != lease.model_binding
+                or (row.worker_id != lease.worker_id and row.status not in {'succeeded', 'failed', 'cancelled', 'uncertain'})
                 or attempt.job_id != row.id
                 or attempt.fencing_token != lease.fencing_token or attempt.worker_id != lease.worker_id):
             raise ProcessingLeaseLost('Processing lease is no longer current')
@@ -301,7 +304,7 @@ class ProcessingJobRepository:
             row, attempt = await self._lease_row(phase.lease)
         except ProcessingLeaseLost:
             return False
-        if row.status in {'succeeded', 'failed', 'cancelled'}:
+        if row.status in {'succeeded', 'failed', 'cancelled'} or (row.status == 'uncertain' and row.worker_id is None):
             return row.status == phase.status and (row.status != 'succeeded' or row.result == phase.result)
         return None
 
@@ -310,9 +313,15 @@ class ProcessingJobRepository:
             row, attempt = await self._lease_row(phase.lease)
         except ProcessingLeaseLost:
             return False
-        if row.status in {'succeeded', 'failed', 'cancelled'}:
+        if row.status in {'succeeded', 'failed', 'cancelled'} or (row.status == 'uncertain' and row.worker_id is None):
             return row.status == phase.status
-        if phase.status == 'succeeded':
+        from modules.artifacts.infra.database.model_operation_models import ArtifactDocumentModelCallModel
+        uncertain_call = await self._uow.session.scalar(select(exists().where(
+            ArtifactDocumentModelCallModel.job_id == row.id,
+            ArtifactDocumentModelCallModel.state.in_(['in_flight', 'uncertain']))))
+        if phase.status == 'uncertain' or (phase.status != 'succeeded' and uncertain_call):
+            row.status, row.result, row.retryable = 'uncertain', None, False
+        elif phase.status == 'succeeded':
             await self.guard(phase.lease)
             row.status, row.result, row.retryable = 'succeeded', phase.result, False
         elif row.status in {'cancel_requested', 'uncertain'} or phase.status == 'cancelled':
@@ -323,10 +332,10 @@ class ProcessingJobRepository:
             row.available_at = await self._now() + timedelta(seconds=min(30, 2 ** row.attempt))
         else:
             raise ValueError('Unsupported processing terminal state')
-        row.error_code = phase.error_code
+        row.error_code = 'EXTERNAL_OPERATION_UNCERTAIN' if uncertain_call and phase.status != 'succeeded' else phase.error_code
         row.lease_until = None
         row.worker_id = None
         attempt.status = 'failed' if row.status == 'queued' else row.status
         attempt.finished_at = await self._now()
-        attempt.error_code = phase.error_code
+        attempt.error_code = row.error_code
         return True

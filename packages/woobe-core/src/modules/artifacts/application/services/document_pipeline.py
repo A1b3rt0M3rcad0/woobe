@@ -1,5 +1,7 @@
 from dataclasses import asdict
 
+from modules.artifacts.application.services.model_enrichment import enrich_document
+
 from modules.artifacts.application.contracts.jobs import ProcessingJobResult
 from modules.artifacts.application.contracts.representations import BundlePhase
 from modules.artifacts.application.services.representation_bundle import build_bundle, put_output
@@ -11,21 +13,30 @@ from shared.contracts.object_storage import ObjectStorageError
 
 
 class DocumentPipeline:
-    def __init__(self, processors, blocking_io):
+    def __init__(self, processors, blocking_io, model_gateway=None, indexers=None):
         self._processors, self._blocking_io = processors, blocking_io
+        self._model_gateway = model_gateway
+        self._indexers = indexers or {}
 
     async def initialize(self, context):
         if context.publication_phase is not None:
             context.transient['bundle'] = await context.publication_phase('prepare_bundle', BundlePhase(context.lease))
 
     def stages(self, recipe):
-        if (recipe.mode not in {'extract', 'extract_index'} or recipe.processor is None or recipe.enricher is not None
-            or (recipe.indexer is not None and (recipe.indexer.name, recipe.indexer.version) != ('structural', '1'))):
+        if (recipe.mode not in {'extract', 'extract_index'} or recipe.processor is None
+            or (recipe.enricher is not None and ((recipe.enricher.name, recipe.enricher.version) != ('governed-model', '1')
+                or self._model_gateway is None))
+            or (recipe.indexer is not None and (recipe.indexer.name, recipe.indexer.version) != ('structural', '1')
+                and (recipe.indexer.name, recipe.indexer.version) not in self._indexers
+                and recipe.parameters.indexer_fallback != 'structural')):
             raise ArtifactError('PROCESSOR_UNAVAILABLE', 'Requested document pipeline stages are unavailable')
         processor = self._processors.get((recipe.processor.name, recipe.processor.version))
         if recipe.ocr is not None and not getattr(processor, 'supports_ocr', False):
             raise ArtifactError('PROCESSOR_UNAVAILABLE', 'Selected document processor does not support selective OCR')
-        stages = (ProcessingStage('extract', self._extract), ProcessingStage('build_bundle', self._build_bundle))
+        stages = (ProcessingStage('extract', self._extract),)
+        if recipe.enricher is not None:
+            stages += (ProcessingStage('model_enrich', self._model_enrich),)
+        stages += (ProcessingStage('build_bundle', self._build_bundle),)
         if recipe.mode == 'extract_index':
             stages += (ProcessingStage('build_index', self._build_index),)
         return stages
@@ -91,6 +102,9 @@ class DocumentPipeline:
                 'diagnostic_count': len(document.diagnostics), 'canonical_schema_version': '1',
                 'asset_count': len(document.assets), 'asset_manifest': asset_manifest}
 
+    async def _model_enrich(self, context):
+        return await enrich_document(context, self._model_gateway)
+
     async def _build_bundle(self, context):
         if context.publication_phase is None:
             return {'publication_enabled': False}
@@ -99,7 +113,7 @@ class DocumentPipeline:
     async def _build_index(self, context):
         if context.publication_phase is None:
             raise ArtifactError('PROCESSOR_UNAVAILABLE', 'Structural index publication is unavailable')
-        return await build_index(context, self._blocking_io)
+        return await build_index(context, self._blocking_io, self._indexers)
 
     def result(self, context):
         canonical = context.checkpoints['extract']

@@ -88,6 +88,7 @@ class JobLease:
     profile_revision: int | None
     checkpoints: dict
     generation_number: int = 0
+    model_binding: dict | None = None
 
 
 @dataclass(frozen=True)

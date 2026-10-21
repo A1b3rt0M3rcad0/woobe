@@ -47,6 +47,7 @@ from modules.artifacts.composition.public_api import (
 
 from modules.artifacts.composition.public_api import (
     build_file_service as build_file_service, ReadFile as ReadFile, CopyFile as CopyFile, ListFiles as ListFiles,
+    ListRevisions as ListRevisions, list_revisions_composer as list_revisions_composer,
     MutateFile as MutateFile, WriteText as WriteText,
 )
 
@@ -54,6 +55,7 @@ from modules.artifacts.composition.public_api import Scope as Scope, Environment
 
 from modules.artifacts.composition.public_api import (
     WorkspaceView as WorkspaceView, ArtifactView as ArtifactView, RevisionView as RevisionView,
+    RevisionHistoryItem as RevisionHistoryItem, RevisionHistoryPage as RevisionHistoryPage,
     UploadStatusView as UploadStatusView, WorkspacePage as WorkspacePage, ArtifactPage as ArtifactPage,
 )
 
@@ -85,6 +87,8 @@ from modules.artifacts.composition.public_api import (
 from modules.artifacts.composition.public_api import (
     ReadRepresentation as ReadRepresentation, ListRepresentations as ListRepresentations,
     ReadSource as ReadSource, SourceReadDefinition as SourceReadDefinition, SourceReadView as SourceReadView,
+    ResolveSourceBatch as ResolveSourceBatch, SourceResolveBatchDefinition as SourceResolveBatchDefinition,
+    SourceResolveBatchItem as SourceResolveBatchItem, SourceResolveBatchView as SourceResolveBatchView,
     RepresentationSetView as RepresentationSetView, RepresentationEntryView as RepresentationEntryView,
     RepresentationEntryPage as RepresentationEntryPage, CopyRepresentation as CopyRepresentation,
     CopyRepresentationDefinition as CopyRepresentationDefinition,
@@ -92,9 +96,15 @@ from modules.artifacts.composition.public_api import (
 )
 
 from modules.artifacts.composition.public_api import (
-    ReadIndex as ReadIndex, ReadIndexNode as ReadIndexNode, ListIndexNodes as ListIndexNodes,
+    ReadIndex as ReadIndex, ReadArtifactIndex as ReadArtifactIndex, ReadIndexNode as ReadIndexNode, ListIndexNodes as ListIndexNodes,
     DocumentIndexView as DocumentIndexView, DocumentNodeView as DocumentNodeView, DocumentNodePage as DocumentNodePage,
     get_document_index_composer as get_document_index_composer,
+    get_latest_document_index_composer as get_latest_document_index_composer,
     get_document_node_composer as get_document_node_composer,
     list_document_nodes_composer as list_document_nodes_composer,
+)
+
+from modules.artifacts.composition.public_api import (
+    ArtifactSearchPage as ArtifactSearchPage, ArtifactSearchResult as ArtifactSearchResult,
+    SearchDocuments as SearchDocuments, search_documents_composer as search_documents_composer,
 )

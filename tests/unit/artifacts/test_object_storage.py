@@ -7,6 +7,7 @@ from modules.agent.application.interfaces.file_storage import build_document_sto
 from modules.agent.infra.storage.local_file_storage import LocalFileStorage
 from shared.contracts.object_storage import ObjectStorageError, read_bounded
 from shared.infra.object_storage.local import LocalObjectStorage
+from shared.infra.object_storage.s3 import S3ObjectStorage
 
 
 async def chunks(content, length=8192):
@@ -92,3 +93,73 @@ async def test_local_head_returns_only_declared_receipt_and_stat_still_verifies_
     with pytest.raises(ObjectStorageError) as failure:
         await storage.head(receipt.key)
     assert failure.value.code == 'integrity'
+
+
+async def test_s3_temporary_download_url_is_exact_key_and_capped_at_one_minute():
+    class Client:
+        def __init__(self):
+            self.call = None
+
+        def generate_presigned_url(self, operation, *, Params, ExpiresIn):
+            self.call = (operation, Params, ExpiresIn)
+            return 'https://objects.example/bucket/object?signature=private'
+
+    client = Client()
+    storage = S3ObjectStorage(client, bucket='bucket', prefix='tenant', part_size=5 * 1024 * 1024)
+    url = await storage.presign_get('workspace/revision', expires_seconds=60)
+    assert url.startswith('https://objects.example/')
+    assert client.call == (
+        'get_object',
+        {'Bucket': 'bucket', 'Key': 'tenant/workspace/revision'},
+        60,
+    )
+    with pytest.raises(ObjectStorageError, match='60 seconds'):
+        await storage.presign_get('workspace/revision', expires_seconds=61)
+
+
+async def test_s3_purge_removes_all_versions_of_only_the_exact_key():
+    class Client:
+        def __init__(self):
+            self.versions = [
+                {'Key': 'tenant/workspace/object', 'VersionId': 'v1'},
+                {'Key': 'tenant/workspace/object', 'VersionId': 'delete-marker', 'marker': True},
+                {'Key': 'tenant/workspace/object-copy', 'VersionId': 'keep'},
+            ]
+
+        def list_object_versions(self, **kwargs):
+            matching = [item for item in self.versions if item['Key'].startswith(kwargs['Prefix'])]
+            return {
+                'Versions': [item for item in matching if not item.get('marker')],
+                'DeleteMarkers': [item for item in matching if item.get('marker')],
+                'IsTruncated': False,
+            }
+
+        def delete_objects(self, *, Bucket, Delete):
+            removed = {(item['Key'], item['VersionId']) for item in Delete['Objects']}
+            self.versions = [item for item in self.versions
+                if (item['Key'], item['VersionId']) not in removed]
+            return {'Deleted': Delete['Objects']}
+
+    client = Client()
+    storage = S3ObjectStorage(client, bucket='bucket', prefix='tenant')
+    await storage.delete('workspace/object')
+    assert client.versions == [{'Key': 'tenant/workspace/object-copy', 'VersionId': 'keep'}]
+
+
+async def test_s3_purge_can_delete_a_known_version_without_listing():
+    class Client:
+        def __init__(self):
+            self.calls = []
+
+        def delete_object(self, **kwargs):
+            self.calls.append(kwargs)
+
+        def list_object_versions(self, **kwargs):
+            raise AssertionError('known versions do not need a prefix listing')
+
+    client = Client()
+    storage = S3ObjectStorage(client, bucket='bucket', prefix='tenant')
+    await storage.delete('workspace/object', version_id='immutable-v1')
+    assert client.calls == [{
+        'Bucket': 'bucket', 'Key': 'tenant/workspace/object', 'VersionId': 'immutable-v1',
+    }]

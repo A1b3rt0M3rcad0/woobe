@@ -47,9 +47,11 @@ class DocumentIndexer(Protocol):
     name: str
     version: str
 
-    async def index(self, document: CanonicalDocument, *, representation_set_id: str,
+    async def index(self, document: CanonicalDocument, *, index_id: str, representation_set_id: str,
                     profile: ProcessingRecipe,
-                    model: DocumentModelGateway | None = None) -> DocumentIndex: ...
+                    model: DocumentModelGateway | None = None,
+                    revision: Revision | None = None,
+                    content: AsyncIterator[bytes] | None = None) -> DocumentIndex: ...
 
 
 class ProcessingScheduler(Protocol):

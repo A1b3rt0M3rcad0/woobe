@@ -7,7 +7,7 @@ import pytest
 from sqlalchemy import select
 
 from modules.artifacts.application.authorization import ArtifactAuthorization
-from modules.artifacts.application.contracts.files import CopyFile, ListFiles, MutateFile, ReadFile, WriteText
+from modules.artifacts.application.contracts.files import CopyFile, ListFiles, ListRevisions, MutateFile, ReadFile, WriteText
 from modules.artifacts.application.cursors import CursorCodec
 from modules.artifacts.application.services.files import FileService
 from modules.artifacts.application.use_cases.files import FileUseCases
@@ -78,6 +78,29 @@ async def test_text_publication_runtime_bytes_rename_history_and_editable_copy(e
     # A representation identity is never accepted as a mutable Artifact.
     with pytest.raises(ArtifactError):
         await api.write_text(replace(command, operation_id=str(uuid4()), artifact_id='immutable-representation', expected_revision='generation-one'))
+
+
+async def test_revision_history_is_exactly_scoped_and_signed_paginated(engine, artifacts_database, object_store):
+    api, command = await prepare(engine, artifacts_database['project_id'], object_store)
+    first = await api.write_text(command)
+    second = await api.write_text(replace(command, operation_id=str(uuid4()),
+        artifact_id=first.receipt.artifact_id, expected_revision=first.receipt.revision_id,
+        text='second immutable revision'))
+    uow = ArtifactsUnitOfWork(engine)
+    use_cases = FileUseCases(FileRepository(uow),
+        ArtifactAuthorization(ExistingPrincipalAuthority(uow), GrantRepository(uow)), CursorCodec(b'f' * 32))
+    page_handler = TransactionalHandler(uow, use_cases.revision_page)
+    request = ListRevisions(command.principal, command.scope, command.workspace_id,
+        first.receipt.artifact_id, limit=1)
+    newest = await page_handler(request)
+    assert [entry.revision.id for entry in newest.items] == [second.receipt.revision_id]
+    assert newest.has_more and newest.next_cursor
+    older = await page_handler(replace(request, cursor=newest.next_cursor))
+    assert [entry.revision.id for entry in older.items] == [first.receipt.revision_id]
+    assert older.next_cursor is None
+    with pytest.raises(ArtifactError) as failure:
+        await page_handler(replace(request, cursor=newest.next_cursor[:-1] + ('A' if newest.next_cursor[-1] != 'A' else 'B')))
+    assert failure.value.code == 'ARTIFACT_INVALID_CURSOR'
 
 
 async def test_logical_directory_listing_tree_move_collisions_and_nonempty_delete(engine, artifacts_database, object_store):
