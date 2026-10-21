@@ -18,6 +18,19 @@ Installation selects a registered Context Manager with `supports_skills`. The bu
 
 ## Package contract
 
+The repository includes a versioned example package at
+[`artifact-document-exploration/`](artifact-document-exploration/SKILL.md).
+Import its `SKILL.md` and text files under `references/` into the intended
+Project, publish version `1.0.0`, and install that exact version on an Agent.
+The package requires the Artifact list, inspect, outline, read and search Tools;
+the write Tool is optional and is used only for a requested persistent text
+deliverable. This declaration only checks that required Tools are bound. An
+administrator still has to authorize the Workspace and each action, and may
+omit write permission when the Agent only needs to answer with citations. The
+Skill does not create a Workspace, grant access, install automatically, or
+change an existing Release. A Release continues to use its own frozen version
+until it is explicitly updated.
+
 ```markdown
 ---
 name: invoice-review
