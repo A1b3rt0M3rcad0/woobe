@@ -20,12 +20,13 @@ def create_chat_model(
     max_tokens: int = 1000,
     streaming: bool = False,
     response_format: dict | None = None,
+    max_retries: int | None = None,
     *,
     registry: LegacyChatProviderRegistry | None = None,
 ) -> Any:
     provider_registry = registry or _DEFAULT_PROVIDER_REGISTRY
     implementation = provider_registry.resolve(provider)
-    return implementation.create(
+    options = dict(
         model=model,
         api_key=api_key,
         base_url=base_url,
@@ -34,3 +35,8 @@ def create_chat_model(
         streaming=streaming,
         response_format=response_format,
     )
+    if max_retries is not None:
+        if type(max_retries) is not int or not 0 <= max_retries <= 10:
+            raise ValueError("Model retry limit must be a bounded non-negative integer")
+        options["max_retries"] = max_retries
+    return implementation.create(**options)

@@ -16,5 +16,6 @@ class LLMFactory(ABC):
         max_tokens: int = 1000,
         streaming: bool = False,
         response_format: dict | None = None,
+        max_retries: int | None = None,
     ):
         ...

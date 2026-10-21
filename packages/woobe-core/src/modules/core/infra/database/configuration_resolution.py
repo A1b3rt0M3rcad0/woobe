@@ -275,7 +275,60 @@ class ConfigurationResolution(ConfigurationStore):
             ConfigurationLeaseModel.expires_at > now()))
         if lease is None:
             raise ConfigurationError("CONFIG_VERSION_UNAVAILABLE")
-        matches = [p for p in lease.pins if p["consumer_kind"] == consumer_kind
+        return await self._resolve_pinned_material(project_id=project_id, environment=lease.environment,
+            pins=lease.pins, consumer_kind=consumer_kind, consumer_id=consumer_id,
+            field_path=field_path, destination=destination)
+
+    async def verify_operation_evidence(self, *, project_id, environment, dependencies, evidence):
+        """Check current approval/definitions without locks or decrypting material.
+
+        Value rotation is allowed; callers retain their accepted version pins.
+        This path also fences publication of a recovered cached model result.
+        """
+        environment = normalize_runtime_environment(environment)
+        self._require_project(project_id, dependencies)
+        dependencies = normalize_dependencies(dependencies)
+        metadata = await self._read_metadata(project_id, environment, dependencies, lock=False)
+        result, current_pins = self._inspect_metadata(environment, dependencies, metadata)
+        for item in result['dependencies']:
+            if item['required'] and item['code']:
+                raise ConfigurationError(item['code'])
+        keys = metadata[0]
+        definitions = sorted([{'key_id': str(key.id), 'revision': key.definition_revision}
+            for key in keys.values()], key=lambda item: item['key_id'])
+        if (evidence.get('environment') != environment
+            or sorted(evidence.get('definitions', []), key=lambda item: item['key_id']) != definitions):
+            raise ConfigurationError('CONFIG_REVISION_CONFLICT')
+        # The immutable accepted value version is checked on actual resolution;
+        # all other current pin authority must still match for cache reuse.
+        def authority(pin):
+            return {name: value for name, value in pin.items() if name != 'version'}
+        accepted = sorted([authority(pin) for pin in evidence.get('pins', [])], key=lambda pin: str(pin))
+        current = sorted([authority(pin.document()) for pin in current_pins], key=lambda pin: str(pin))
+        if accepted != current:
+            raise ConfigurationError('CONFIG_REVISION_CONFLICT')
+        return True
+
+    async def resolve_operation_material(self, *, project_id, environment, pins, definitions,
+                                         consumer_kind, consumer_id, field_path, destination):
+        # Only the operation resolver calls this after its host-supplied verifier
+        # has loaded the durable accepted operation's stored snapshot. Pins here
+        # are never accepted from an HTTP body or a model response.
+        environment = normalize_runtime_environment(environment)
+        if any(pin.get('source') != 'environment' or pin.get('environment') != environment for pin in pins):
+            raise ConfigurationError('CONFIG_USAGE_NOT_AUTHORIZED')
+        revisions = {str(item['key_id']): item['revision'] for item in definitions}
+        for pin in pins:
+            key = await self.key(project_id, UUID(pin['key_id']))
+            if revisions.get(str(key.id)) != key.definition_revision:
+                raise ConfigurationError('CONFIG_REVISION_CONFLICT')
+        return await self._resolve_pinned_material(project_id=project_id, environment=environment,
+            pins=pins, consumer_kind=consumer_kind, consumer_id=consumer_id,
+            field_path=field_path, destination=destination)
+
+    async def _resolve_pinned_material(self, *, project_id, environment, pins, consumer_kind,
+                                       consumer_id, field_path, destination):
+        matches = [p for p in pins if p["consumer_kind"] == consumer_kind
                    and p["consumer_id"] == str(consumer_id) and p["field_path"] == field_path
                    and destination_matches(p["destination"], destination)]
         if len(matches) != 1:
@@ -286,11 +339,11 @@ class ConfigurationResolution(ConfigurationStore):
         key = await self.key(project_id, UUID(pin["key_id"]))
         dep = ConfigurationDependency(project_id, consumer_kind, consumer_id, "pinned", field_path, key.key, destination)
         policies = (await self.session.scalars(select(Policy).where(Policy.project_id == project_id, Policy.key_id == key.id))).all()
-        policy = matching_policy(policies, dep, lease.environment)
+        policy = matching_policy(policies, dep, environment)
         if policy is None:
             raise ConfigurationError("CONFIG_USAGE_NOT_AUTHORIZED")
         # A policy edit invalidates in-flight authority instead of silently
-        # expanding it. Reapproval can authorize a new Run.
+        # expanding it. Reapproval can authorize a new accepted operation.
         if policy.revision != pin["policy_revision"] or str(policy.id) != pin["policy_id"]:
             raise ConfigurationError("CONFIG_REVISION_CONFLICT")
         version = UUID(pin["version"])
@@ -301,8 +354,8 @@ class ConfigurationResolution(ConfigurationStore):
                 raise ConfigurationError("CONFIG_VERSION_UNAVAILABLE")
             current = await self.session.scalar(select(LegacyValue).where(LegacyValue.alias_id == alias.id))
         else:
-            source = lease.environment
-            current = await self.session.scalar(select(Value).where(Value.key_id == key.id, Value.environment == lease.environment))
+            source = environment
+            current = await self.session.scalar(select(Value).where(Value.key_id == key.id, Value.environment == environment))
         material = current if current and current.value_version == version else await self.session.scalar(select(Version).where(
             Version.project_id == project_id, Version.key_id == key.id, Version.value_version == version,
             Version.source == source, Version.expires_at > now()))
@@ -317,5 +370,5 @@ class ConfigurationResolution(ConfigurationStore):
         except Exception:
             # Crypto/backend failures must not echo material or provider details.
             raise ConfigurationError("CONFIG_STORE_UNAVAILABLE") from None
-        return ConfigurationResolvedValue(value=value, value_version=version, environment=lease.environment,
+        return ConfigurationResolvedValue(value=value, value_version=version, environment=environment,
             source=pin['source'], protocol_metadata=validate_protocol_metadata(deepcopy(material.protocol_metadata or {})))

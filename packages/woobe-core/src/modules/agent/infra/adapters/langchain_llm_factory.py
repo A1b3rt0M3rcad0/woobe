@@ -23,6 +23,7 @@ class LangchainLLMFactory(LLMFactory):
         max_tokens: int = 1000,
         streaming: bool = False,
         response_format: dict | None = None,
+        max_retries: int | None = None,
     ):
         return create_chat_model(
             provider=provider,
@@ -33,5 +34,21 @@ class LangchainLLMFactory(LLMFactory):
             max_tokens=max_tokens,
             streaming=streaming,
             response_format=response_format,
+            max_retries=max_retries,
             registry=self._provider_registry,
         )
+
+    def supports_vision_input(self, provider: str) -> bool:
+        from modules.agent.infra.llm.providers import build_legacy_chat_provider_registry
+
+        registry = self._provider_registry or build_legacy_chat_provider_registry()
+        try:
+            return registry.supports_vision_input(provider)
+        except ValueError:
+            return False
+
+    def format_vision_input(self, provider: str, *, content_type: str, content: bytes) -> dict:
+        from modules.agent.infra.llm.providers import build_legacy_chat_provider_registry
+
+        registry = self._provider_registry or build_legacy_chat_provider_registry()
+        return registry.format_vision_input(provider, content_type=content_type, content=content)

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -22,6 +23,7 @@ class LegacyChatProvider(Protocol):
         max_tokens: int = 1000,
         streaming: bool = False,
         response_format: dict | None = None,
+        max_retries: int | None = None,
     ) -> Any: ...
 
 
@@ -69,10 +71,30 @@ class LegacyChatProviderRegistry:
     def keys(self) -> frozenset[str]:
         return frozenset((*self._providers.keys(), *self._aliases.keys()))
 
+    def supports_vision_input(self, key: str) -> bool:
+        try:
+            implementation = self.resolve(key)
+        except ValueError:
+            return False
+        return callable(getattr(implementation, "format_image_part", None))
+
+    def format_vision_input(self, key: str, *, content_type: str, content: bytes) -> dict[str, Any]:
+        formatter = getattr(self.resolve(key), "format_image_part", None)
+        if not callable(formatter):
+            raise ValueError("Configured provider adapter cannot format visual input")
+        return formatter(content_type=content_type, content=content)
+
 
 @dataclass(frozen=True, slots=True)
 class OpenAICompatibleChatProvider:
     default_base_url: str | None = None
+
+    @staticmethod
+    def format_image_part(*, content_type: str, content: bytes) -> dict[str, Any]:
+        if content_type not in {"image/png", "image/jpeg", "image/webp"} or not content:
+            raise ValueError("Visual input media type or bytes are invalid")
+        encoded = base64.b64encode(content).decode("ascii")
+        return {"type": "image_url", "image_url": {"url": f"data:{content_type};base64,{encoded}"}}
 
     def create(
         self,
@@ -84,6 +106,7 @@ class OpenAICompatibleChatProvider:
         max_tokens: int = 1000,
         streaming: bool = False,
         response_format: dict | None = None,
+        max_retries: int | None = None,
     ) -> Any:
         kwargs: dict[str, Any] = {
             "model": model,
@@ -91,6 +114,8 @@ class OpenAICompatibleChatProvider:
             "temperature": temperature,
             "max_tokens": max_tokens,
         }
+        if max_retries is not None:
+            kwargs["max_retries"] = max_retries
         resolved_base_url = base_url or self.default_base_url
         if streaming:
             kwargs["streaming"] = True
@@ -106,6 +131,16 @@ class OpenAICompatibleChatProvider:
 class AnthropicChatProvider:
     default_base_url: str | None = None
 
+    @staticmethod
+    def format_image_part(*, content_type: str, content: bytes) -> dict[str, Any]:
+        if content_type not in {"image/png", "image/jpeg", "image/webp"} or not content:
+            raise ValueError("Visual input media type or bytes are invalid")
+        encoded = base64.b64encode(content).decode("ascii")
+        return {
+            "type": "image",
+            "source": {"type": "base64", "media_type": content_type, "data": encoded},
+        }
+
     def create(
         self,
         *,
@@ -116,7 +151,10 @@ class AnthropicChatProvider:
         max_tokens: int = 1000,
         streaming: bool = False,
         response_format: dict | None = None,
+        max_retries: int | None = None,
     ) -> Any:
+        if max_retries not in (None, 0):
+            raise ValueError("This model adapter has no automatic retry loop")
         # AnthropicChatModel exposes the same Woobe compatibility surface. Native
         # provider streaming can evolve behind this provider implementation.
         return AnthropicChatModel(

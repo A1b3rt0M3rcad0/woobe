@@ -7,7 +7,6 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request as UrlRequest, urlopen
 
 from modules.agent.application.interfaces.provider_registry import (
-    ProviderAdapter,
     ProviderConnection,
     ProviderManifest,
     ProviderRegistry,
@@ -128,6 +127,7 @@ def _language_spec(
     max_input_tokens: int | None = None,
     max_output_tokens: int | None = None,
     capabilities: Mapping[str, ModelCapability] | None = None,
+    operations: set[str] | frozenset[str] | None = None,
     pricing: Mapping[str, Any] | None = None,
     raw: Mapping[str, Any] | None = None,
     source: str = "provider",
@@ -137,7 +137,7 @@ def _language_spec(
         model_id=model_id,
         display_name=display_name,
         model_type=ModelTypes.LANGUAGE,
-        operations=frozenset({ModelOperations.LANGUAGE_GENERATE}),
+        operations=frozenset(operations or {ModelOperations.LANGUAGE_GENERATE}),
         input_modalities=frozenset(
             input_modalities or {ModelModalities.TEXT}
         ),
@@ -234,6 +234,20 @@ def _common_discovery_capabilities(item: Any) -> dict[str, ModelCapability]:
             supported=bool(item.supports_streaming),
             source="provider",
         )
+    raw = _mapping(getattr(item, "raw", None))
+    declared = _mapping(getattr(item, "capabilities", None)) or _mapping(raw.get("capabilities"))
+    image_generation = declared.get(ModelCapabilityNames.IMAGE_GENERATION)
+    if isinstance(image_generation, Mapping):
+        capabilities[ModelCapabilityNames.IMAGE_GENERATION] = ModelCapability(
+            supported=image_generation.get("supported") is True,
+            config=_mapping(image_generation.get("config")),
+            source="provider",
+        )
+    elif isinstance(image_generation, bool):
+        capabilities[ModelCapabilityNames.IMAGE_GENERATION] = ModelCapability(
+            supported=image_generation,
+            source="provider",
+        )
     return capabilities
 
 
@@ -300,6 +314,17 @@ class _DiscoveryServiceProviderAdapter:
             or raw.get("type")
             or ""
         ).strip().lower()
+        capabilities = _common_discovery_capabilities(item)
+        operations = {ModelOperations.LANGUAGE_GENERATE}
+        declared_operations = raw.get("operations")
+        image_generation = capabilities.get(ModelCapabilityNames.IMAGE_GENERATION)
+        if (
+            isinstance(declared_operations, list)
+            and ModelOperations.IMAGE_GENERATE in declared_operations
+            and image_generation is not None
+            and image_generation.supported
+        ):
+            operations.add(ModelOperations.IMAGE_GENERATE)
         is_embedding = (
             explicit_type in {"embedding", "embeddings"}
             or "embed" in model_id.lower()
@@ -325,7 +350,8 @@ class _DiscoveryServiceProviderAdapter:
             output_modalities=output_modalities,
             context_window=getattr(item, "context_window", None),
             max_output_tokens=getattr(item, "max_output_tokens", None),
-            capabilities=_common_discovery_capabilities(item),
+            capabilities=capabilities,
+            operations=operations,
             pricing={
                 "input_cost_per_1m_tokens": getattr(item, "input_cost_per_1m_tokens", None),
                 "output_cost_per_1m_tokens": getattr(item, "output_cost_per_1m_tokens", None),
