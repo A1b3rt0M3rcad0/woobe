@@ -12,6 +12,7 @@ export interface ConfigurationKey {
   origin: string
   material: ConfigurationMaterial
   used_by_count: number
+  approval?: { state: 'approved' | 'approval_required' | 'no_connections'; connection_count: number; approved_connection_count: number }
   values: Partial<Record<ProjectEnvironment, { configured: boolean; material: ConfigurationMaterial; revision: number; value_version: string | null }>>
 }
 export interface ConfigurationPage {
@@ -81,6 +82,7 @@ export interface ConfigurationUsage {
 export interface ConfigurationConsumer {
   consumer_kind: 'provider_credential' | 'tool' | 'secret' | 'mcp_oauth'
   consumer_id: string; definition_revision: string; field_path: string; required: boolean; destination: string
+  approval?: { state: 'approved' | 'approval_required' | 'destination_required'; policy: ConfigurationUsePolicy | null; update_policy: ConfigurationUsePolicy | null }
 }
 export interface ConfigurationUsePolicy {
   id: string; consumer_kind: string; consumer_scope: string; destination: string
@@ -92,15 +94,26 @@ export function listConfigurationPolicies(project: string, key: string, offset =
 export function grantConfigurationUse(project: string, key: string, row: ConfigurationConsumer, environment: ProjectEnvironment, existing?: ConfigurationUsePolicy) {
   return post(`${configurationPath(project)}/use-policies`, { key_id: key, consumer_kind: row.consumer_kind,
     consumer_scope: row.consumer_id, destination: row.destination,
-    environments: Array.from(new Set([...(existing?.environments ?? []), environment])),
-    field_paths: Array.from(new Set([...(existing?.field_paths ?? []), row.field_path])),
+    environments: Array.from(new Set([...(existing?.revoked ? [] : existing?.environments ?? []), environment])),
+    field_paths: Array.from(new Set([...(existing?.revoked ? [] : existing?.field_paths ?? []), row.field_path])),
     expected_revision: existing?.revision ?? 0 })
 }
 export function revokeConfigurationUse(project: string, policy: ConfigurationUsePolicy) {
   return del(`${configurationPath(project)}/use-policies/${policy.id}`, { params: { expected_revision: policy.revision } })
 }
-export function configurationUsage(project: string, key: string, offset = 0) {
-  return get<ConfigurationUsage>(`${configurationPath(project)}/keys/${key}/usage`, { params: { offset, limit: 50 } })
+export function configurationUsage(project: string, key: string, offset = 0, environment: ProjectEnvironment = 'draft', consumer?: { kind: string; id: string }) {
+  return get<ConfigurationUsage>(`${configurationPath(project)}/keys/${key}/usage`, { params: { offset, limit: 50, environment,
+    ...(consumer ? { consumer_kind: consumer.kind, consumer_id: consumer.id } : {}) } })
+}
+
+export async function configurationKeyByName(project: string, name: string, environment: ProjectEnvironment) {
+  for (let offset = 0; ; offset += 50) {
+    const page = await listConfiguration(project, environment, name, 'all', offset)
+    if (!page || page.environment !== environment || !Array.isArray(page.items) || !page.permissions) throw new Error('Configuration unavailable')
+    const item = page.items.find(item => item.key === name)
+    if (item) return { item, permissions: page.permissions }
+    if (!page.has_next) throw new Error('Configuration key unavailable')
+  }
 }
 
 export function writeConfigurationBatch(project: string, environment: ProjectEnvironment, keys: ConfigurationKey[], values: Record<string, string>, requestId: string) {

@@ -60,22 +60,6 @@ class StructuredOutputAskAgentUseCase(
 ):
     """Agent execution with complete LLM and Tool telemetry."""
 
-    def _resolve_base_url_for_provider(self, provider_val, credential, settings):
-        """Resolve OpenAI-compatible custom gateways without legacy model metadata."""
-        if provider_val == "custom":
-            base_url = (
-                (settings or {}).get("base_url")
-                or (credential.metadata or {}).get("base_url")
-            )
-            if not base_url:
-                from shared.contracts.errors import ValidationError
-
-                raise ValidationError(
-                    "Custom provider requires base_url in credential metadata or agent settings"
-                )
-            return base_url
-        return super()._resolve_base_url_for_provider(provider_val, credential, settings)
-
     def _build_messages(
         self,
         agent,

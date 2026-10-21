@@ -508,7 +508,7 @@ async def test_metadata_queries_never_select_material_and_deduplicate(configurat
         event.remove(engine.sync_engine, "before_cursor_execute", record)
     assert result["required_key_count"] == 1
     assert result["state"] == "ready_with_notices"
-    assert len(statements) <= 8  # Includes the batched latest external-validation evidence query.
+    assert len(statements) <= 9  # Includes batched approval metadata and latest external-validation evidence.
     assert all("stored_value" not in statement for statement in statements)
     assert CANARY not in str(output) + str(result)
 
@@ -1742,3 +1742,42 @@ async def test_debug_sql_logging_omits_configuration_material_parameters(configu
     assert ciphertext and ciphertext != CANARY
     assert CANARY not in caplog.text and ciphertext not in caplog.text
     assert 'parameters hidden' in caplog.text
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('kind', ['provider_credential', 'tool', 'secret', 'mcp_oauth'])
+async def test_access_metadata_recognizes_canonical_approval_and_preserves_environment_scope(configuration, kind):
+    store, project, _ = configuration
+    key = await store.declare(project_id=project, key='ACCESS_STATUS', kind='secret')
+    key_id, consumer = UUID(key['id']), uuid4()
+    dep = ConfigurationDependency(project, kind, consumer, '1', '/authentication/fields/api_key',
+        'ACCESS_STATUS', 'https://api.deepseek.com')
+    await store.register_references([dep])
+    await store.write_value(project_id=project, key_id=key_id, environment='draft', expected_revision=0, value=CANARY)
+    args = dict(project_id=project, key_id=key_id, consumer_kind=kind, consumer_scope=str(consumer),
+        destination=dep.destination, environments=['draft'], field_paths=[dep.field_path], actor='owner')
+    first = await store.usage(project_id=project, key_id=key_id)
+    assert first['items'][0]['approval']['state'] == 'approval_required'
+    granted = await store.grant_use(**args, expected_revision=0)
+    assert granted['destination'] == 'https://api.deepseek.com/'
+    usage = await store.usage(project_id=project, key_id=key_id, consumer_kind=kind, consumer_id=consumer)
+    approval = usage['items'][0]['approval']
+    assert approval['state'] == 'approved'
+    assert approval['update_policy']['id'] == granted['id']
+    assert approval['update_policy']['revision'] == 1
+    assert approval['update_policy']['destination'] == 'https://api.deepseek.com/'
+    draft = (await store.list_keys(project_id=project, environment='draft'))['items'][0]
+    staging = (await store.list_keys(project_id=project, environment='staging'))['items'][0]
+    assert draft['material'] == 'present'
+    assert draft['approval'] == {'state': 'approved', 'connection_count': 1, 'approved_connection_count': 1}
+    assert staging['approval']['state'] == 'approval_required'
+    assert (await store.usage(project_id=project, key_id=key_id, environment='staging'))['items'][0]['approval']['state'] == 'approval_required'
+    # Extending an existing canonical approval uses its current revision and
+    # retains Draft instead of creating a duplicate policy or replacing grants.
+    updated = await store.grant_use(**{**args, 'environments': ['draft', 'staging']}, expected_revision=approval['update_policy']['revision'])
+    assert updated['id'] == granted['id'] and updated['revision'] == 2
+    assert (await store.list_keys(project_id=project, environment='staging'))['items'][0]['approval']['state'] == 'approved'
+    await store.revoke_use(project_id=project, policy_id=UUID(updated['id']), expected_revision=2, actor='owner')
+    revoked = (await store.usage(project_id=project, key_id=key_id))['items'][0]['approval']
+    assert revoked['state'] == 'approval_required' and revoked['update_policy']['revision'] == 3
+    assert CANARY not in str(usage) + str(draft) + str(staging)

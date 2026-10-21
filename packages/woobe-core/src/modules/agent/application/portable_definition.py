@@ -1,4 +1,5 @@
 """Read-only validation contracts shared by portable import and native composition."""
+from modules.agent.domain.provider_identity import providers_equivalent
 
 from modules.agent.application.dtos.behavior_dtos import BehaviorSpecification
 from modules.agent.application.dtos.skill_dtos import ImportSkillInput
@@ -255,7 +256,7 @@ def inspect_proposed_provider_model(*, project_id, metadata, spec):
     model = CreateProviderModelUseCase.prepare_definition(input_dto, credential)
     normalized = ModelSpec.from_dict(model.spec)
     if (
-        normalized.provider != provider.value
+        not providers_equivalent(normalized.provider, provider.value)
         or normalized.model_id != model.model
         or normalized.model_type != input_dto.model_type
     ):

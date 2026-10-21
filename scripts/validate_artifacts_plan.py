@@ -128,8 +128,22 @@ def main() -> int:
                         args.head], check=True)
         if args.event:
             validate_event(json.loads(args.event.read_text()), manifest['branch'])
+        implementation_head = args.head
+        head_parents = git('show', '-s', '--format=%P', args.head).split()
+        if len(head_parents) == 2:
+            # The completed 60-step series may be followed by one integration
+            # merge to resolve changes made to master after the audited base.
+            implementation_head, upstream_head = head_parents
+            require(git('rev-list', '--count', f'{base}..{implementation_head}') == '60',
+                    'Integration merge must directly follow the completed plan')
+            subprocess.run(['git', '-C', str(ROOT), 'merge-base', '--is-ancestor',
+                            base, upstream_head], check=True)
+            require(git('merge-base', implementation_head, upstream_head) == base,
+                    'Integration merge must join the original plan and upstream history')
+        else:
+            require(len(head_parents) == 1, 'Unexpected head commit parents')
         commits = []
-        for sha in git('rev-list', '--reverse', f'{base}..{args.head}').splitlines():
+        for sha in git('rev-list', '--reverse', f'{base}..{implementation_head}').splitlines():
             commits.append({
                 'sha': sha,
                 'parents': git('show', '-s', '--format=%P', sha).split(),

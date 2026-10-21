@@ -89,7 +89,8 @@ test('populated resource catalogs, cost attribution and the Run ledger',async({p
     if(width<1280) {
       const canvas=await page.locator('.network-flow').boundingBox()
       const inspector=await page.getByRole('complementary',{name:'Network inspector'}).boundingBox()
-      expect(inspector!.y).toBeGreaterThanOrEqual(canvas!.y+canvas!.height-1)
+      // Browser zoom and fractional CSS pixels can round either edge by 1px.
+      expect(inspector!.y).toBeGreaterThanOrEqual(canvas!.y+canvas!.height-2)
     }
     await page.evaluate(()=>document.fonts.ready);await page.waitForTimeout(400)
     if(width<640) {

@@ -264,12 +264,14 @@ class GetAgentByIdUseCase:
 
 
 def _is_embedding_provider_model(provider_model) -> bool:
-    metadata = provider_model.metadata or {}
-    capability = str(metadata.get("capability") or metadata.get("type") or "").strip().lower()
-    if capability:
-        return capability in {"embedding", "embeddings"}
-    value = f"{provider_model.name} {provider_model.model}".lower()
-    return "embed" in value
+    spec = _provider_model_spec(provider_model, "unknown")
+    from modules.agent.application.interfaces.execution_strategy import STANDARD_EXECUTION_COMPATIBILITY
+    from modules.agent.application.interfaces.model_compatibility import ModelExecutionCompatibilityResolver, RuntimeCompatibilityRequest
+    report = ModelExecutionCompatibilityResolver().resolve(RuntimeCompatibilityRequest(
+        model=spec, execution=STANDARD_EXECUTION_COMPATIBILITY, context_enabled=True,
+        required_input_modalities=frozenset({"text"}), required_output_modalities=frozenset({"text"}),
+    ))
+    return not report.compatible
 
 
 def _ensure_agent_compatible_provider_model(provider_model) -> None:
@@ -328,6 +330,10 @@ async def _resolve_implicit_provider_model_bindings(
             and not _is_embedding_provider_model(item)
         ]
         if matches:
+            if len(matches) > 1:
+                from modules.agent.domain.model_spec import effective_model_semantic_fingerprint
+                if len({effective_model_semantic_fingerprint(_provider_model_spec(item, agent.provider)) for item in matches}) > 1:
+                    raise ConflictError("Multiple Model definitions match; select provider_model_id explicitly")
             agent.provider_model_id = sorted(matches, key=lambda item: str(item.id))[0].id
 
     if not agent.fallback_provider_model_id and agent.fallback_credential_id and agent.fallback_model:
@@ -341,6 +347,10 @@ async def _resolve_implicit_provider_model_bindings(
             and not _is_embedding_provider_model(item)
         ]
         if matches:
+            if len(matches) > 1:
+                from modules.agent.domain.model_spec import effective_model_semantic_fingerprint
+                if len({effective_model_semantic_fingerprint(_provider_model_spec(item, agent.fallback_provider)) for item in matches}) > 1:
+                    raise ConflictError("Multiple fallback Model definitions match; select fallback_provider_model_id explicitly")
             agent.fallback_provider_model_id = sorted(matches, key=lambda item: str(item.id))[0].id
 
 

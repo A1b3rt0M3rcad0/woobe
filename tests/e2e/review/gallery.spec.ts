@@ -7,6 +7,7 @@ import { installConfigurationReviewApi } from './configuration-api'
 import { installApi, respond, productionAgent, selectedRelease, project, workspace, now } from '../fixtures/control-plane'
 import { DEFAULT_CHAT_SURFACE_APPEARANCE } from '../../../packages/woobe-frontend/src/features/chat-surfaces/appearance'
 import { hasRenderedFont, platformFontFamily } from '../support/font-evidence'
+import { providerModelReconciliation } from '../fixtures/provider-models'
 
 const captures = resolve(process.cwd(), 'review-results/captures')
 
@@ -20,6 +21,7 @@ async function prepare(page: Page) {
     if (path.startsWith('/ai/skills') || path.startsWith('/skills')) return respond(route, [])
     if (path === '/ai/credentials') return respond(route, [{ id:'credential-demo', project_id:project.id, provider:'openai', name:'Development provider', status:'active' }])
     if (path === '/ai/provider-models') return respond(route, [{ id:'model-demo',project_id:project.id,provider_credential_id:'credential-demo',provider:'openai',name:'Review model',model:'review-model',model_type:'generation',spec:{},metadata:{},status:'active' }])
+    if (path === '/ai/provider-models/sync-preview') return respond(route, providerModelReconciliation)
     if (path.endsWith('/test-sessions')) return respond(route,{session_id:'session-demo',target_release_id:selectedRelease.id,session_token:`fixture.${Buffer.from(JSON.stringify({sid:'session-demo'})).toString('base64url')}.unsigned`,expires_in:3600,source:'control_plane_test'})
     if (path.startsWith('/v1/chat/sessions/')) return respond(route,path.endsWith('/surface') ? {surface_id:'surface-public-demo',name:'Support assistant',appearance:{...DEFAULT_CHAT_SURFACE_APPEARANCE,theme:'light',welcome_message:'A synthetic test conversation.'},protocol_version:1} : path.endsWith('/active-run') ? null : {items:[]})
     if (path === '/chat-surfaces/surface-demo') return respond(route, { id:'surface-demo', public_id:'surface-public-demo',project_id:project.id,name:'Support assistant',target_type:'agent',target_id:productionAgent.id,target_release_id:selectedRelease.id,environment:'production',status:'active',access_mode:'backend_managed',allowed_origins:['https://example.test'],appearance_config:DEFAULT_CHAT_SURFACE_APPEARANCE,requests_per_minute:60,max_concurrent_runs:2,session_token_ttl_seconds:3600,token_epoch:1,created_at:now,updated_at:now })
@@ -171,6 +173,10 @@ for (const width of [1440,768,390]) for (const item of cases) test(`overlay ${it
   if(item.id.includes('Popover')) await page.locator('main button').first().click()
   const overlay=item.id.includes('Popover') ? page.getByRole('region',{name:/runtime controls/}) : page.getByRole('dialog').first()
   await expect(overlay).toBeVisible()
+  if(item.id==='ProviderModelReconciliationDialog') {
+    await expect(overlay.getByRole('checkbox',{name:'Select Catalog language',exact:true})).toBeEnabled()
+    await expect(overlay.getByRole('checkbox',{name:'Select Unclassified model',exact:true})).toBeDisabled()
+  }
   if(item.id==='ChatSurfaceLiveTestDialog') {
     await expect(page.frameLocator('iframe').getByRole('textbox')).toBeVisible()
     const frame=await page.locator('iframe').boundingBox();const metadata=await page.locator('aside').boundingBox()

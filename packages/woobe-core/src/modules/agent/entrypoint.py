@@ -1,5 +1,6 @@
 from modules.agent.composition.public_api import build_operation_model_runtime as build_operation_model_runtime
 from modules.agent.composition.public_api import build_operation_model_bindings as build_operation_model_bindings
+from modules.agent.composition.public_api import ReconciliationScope, ApplyProviderModelReconciliationInput, provider_model_reconciliation_composer, apply_provider_model_reconciliation_composer
 from modules.agent.composition.public_api import verify_imported_agent_composer
 from modules.agent.composition.public_api import configure_provider_dependency_readers
 from modules.agent.composition.public_api import build_release_test_execution_handler, ExecuteReleaseTestInput
@@ -499,3 +500,4 @@ __all__.append('configuration_targets')
 __all__.append('build_operation_model_bindings')
 
 __all__.append('build_operation_model_runtime')
+__all__ += ["ReconciliationScope", "ApplyProviderModelReconciliationInput", "provider_model_reconciliation_composer", "apply_provider_model_reconciliation_composer"]

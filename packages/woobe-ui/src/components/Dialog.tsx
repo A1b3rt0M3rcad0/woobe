@@ -70,13 +70,13 @@ export function DialogFooter({ className, meta, actions, ...props }: DialogFoote
   return (
     <div
       className={cn(
-        'flex shrink-0 flex-col-reverse gap-ui-sm border-t border-border bg-surface/95 px-ui-lg py-ui-md backdrop-blur lg:px-ui-xxl sm:flex-row sm:items-center sm:justify-between',
+        'flex shrink-0 flex-col-reverse gap-ui-sm border-t border-border bg-surface/95 px-ui-lg py-ui-md backdrop-blur lg:px-ui-xxl sm:flex-row sm:flex-wrap sm:items-center sm:justify-between',
         className,
       )}
       {...props}
     >
-      <div className="min-w-0 flex-1">{meta}</div>
-      <div className="flex shrink-0 flex-wrap justify-end gap-ui-sm">{actions}</div>
+      {meta ? <div className="min-w-0 sm:flex-[1_1_12rem]">{meta}</div> : null}
+      <div className="flex min-w-0 max-w-full flex-wrap justify-end gap-ui-sm sm:ml-auto sm:flex-[0_1_auto]">{actions}</div>
     </div>
   )
 }

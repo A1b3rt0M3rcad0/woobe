@@ -430,6 +430,8 @@ async def test_cli_upload_and_native_plan_against_live_postgres(
         audit_arguments += ["--release-notes", "Qualified package release"]
     if lifecycle == "production":
         audit_arguments += ["--reason", "Qualified package activation"]
+    from tests.fakes.provider_model_fixtures import declare_language_model_evidence
+    declare_language_model_evidence(files)
     for path, document in files.items():
         (source / path).write_text(
             json.dumps({"format": "woobe-package", "schema_version": "1.0", **document})

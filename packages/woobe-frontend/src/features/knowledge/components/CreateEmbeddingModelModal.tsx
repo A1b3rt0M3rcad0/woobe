@@ -1,3 +1,5 @@
+import { buildProviderModelDefinition, effectiveModelPricing } from '@/features/provider-models/modelDefinition'
+import { ProviderDiscoveryErrorNotice } from '@/features/provider-models/components/ProviderDiscoveryErrorNotice'
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { Check, Cpu, Plus, Search } from 'lucide-react'
 import { toast } from 'sonner'
@@ -82,9 +84,7 @@ function priceText(value: number | null, currency: string) {
 
 function pricingOf(model?: ProviderModel | null) {
   const metadata = metadataOf(model)
-  const raw = typeof metadata.pricing === 'object' && metadata.pricing !== null
-    ? metadata.pricing as Record<string, unknown>
-    : metadata
+  const raw = effectiveModelPricing(model)
   const input = numberOrNull(
     raw.input_cost_per_1m_tokens
     ?? raw.input_cost_usd_per_1m_tokens
@@ -126,19 +126,25 @@ function getCredentialLabel(credential?: ProviderCredential | null) {
 }
 
 function EmbeddingModelCatalogPicker({
+  projectId,
+  credentialId,
   models,
   selectedModelId,
   loading,
   error,
   onSelect,
   onManualMode,
+  onRetry,
 }: {
+  projectId: string
+  credentialId: string
   models: AvailableProviderModel[]
   selectedModelId: string
   loading: boolean
-  error: boolean
+  error: unknown
   onSelect: (model: AvailableProviderModel) => void
   onManualMode: () => void
+  onRetry: () => void
 }) {
   const [query, setQuery] = useState('')
   const normalizedQuery = query.trim().toLowerCase()
@@ -172,9 +178,7 @@ function EmbeddingModelCatalogPicker({
       {loading ? (
         <EmptyStatePanel compact title="Loading embedding models" description="Reading the provider model catalog." />
       ) : error ? (
-        <Alert variant="warning">
-          <AlertDescription>Could not load embedding models. Use manual model entry.</AlertDescription>
-        </Alert>
+        <ProviderDiscoveryErrorNotice projectId={projectId} credentialId={credentialId} error={error} onRetry={onRetry} onManual={onManualMode} />
       ) : visibleModels.length === 0 ? (
         <EmptyStatePanel compact title="No embedding models found" description="Change the search or enter the model identifier manually." />
       ) : (
@@ -210,7 +214,7 @@ export function CreateEmbeddingModelModal({ open, projectId, onClose, onCreated,
   const usableCredentials = useMemo(
     () => credentials.filter((credential) => (
       (!credential.status || credential.status === 'active')
-      && ['openai', 'custom', 'openrouter'].includes(credential.provider)
+      && (credential.supports_embedding ?? ['openai', 'openai_compatible', 'custom', 'openrouter'].includes(credential.provider))
     )),
     [credentials],
   )
@@ -340,29 +344,19 @@ export function CreateEmbeddingModelModal({ open, projectId, onClose, onCreated,
     }
 
     try {
+    const definition = buildProviderModelDefinition({ projectId, credentialId: form.credentialId, name: resolvedName, modelId: resolvedModel, existing: model, catalog: selectedCatalogModel, metadata, modelType: 'embedding' })
+
       if (model) {
         const updated = await updateModel.mutateAsync({
           id: model.id,
-          data: {
-            provider_credential_id: form.credentialId,
-            name: resolvedName,
-            model: resolvedModel,
-            status: form.status,
-            metadata,
-          },
+          data: { ...definition, status: form.status },
         })
         toast.success('Embedding model updated')
         onCreated(updated.id)
         return
       }
 
-      const created = await createModel.mutateAsync({
-        project_id: projectId,
-        provider_credential_id: form.credentialId,
-        name: resolvedName,
-        model: resolvedModel,
-        metadata,
-      })
+      const created = await createModel.mutateAsync(definition)
       toast.success('Embedding model created')
       onCreated(created.id)
     } catch (err) {
@@ -452,10 +446,13 @@ export function CreateEmbeddingModelModal({ open, projectId, onClose, onCreated,
 
                       {shouldUseCatalog ? (
                         <EmbeddingModelCatalogPicker
+                          projectId={projectId}
+                          credentialId={form.credentialId}
                           models={embeddingCatalog}
                           selectedModelId={form.selectedCatalogModelId}
                           loading={catalogQuery.isLoading}
-                          error={catalogQuery.isError}
+                          error={catalogQuery.error}
+                          onRetry={() => { void catalogQuery.refetch() }}
                           onSelect={handleCatalogSelect}
                           onManualMode={handleManualMode}
                         />

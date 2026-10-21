@@ -23,8 +23,27 @@ class _CredentialSnapshot:
         return self.credential if self.credential.id == identifier else None
 
 
+async def authorize_provider_models(session, principal, credential, environment, permissions):
+    authorizer = TenantAuthorizer(session)
+    context = {"project_id": credential.project_id, "credential_id": credential.id, "environment": environment}
+    if isinstance(principal, ControlPlanePrincipal):
+        await authorizer.require_active_control(principal)
+        for permission in permissions:
+            await authorizer.authorize_control_key(api_key_id=principal.api_key_id, workspace_id=principal.workspace_id,
+                workspace_permissions=principal.permissions, required_permission=permission,
+                path_params=context, query_params={}, body=None)
+    elif isinstance(principal, AuthenticatedPrincipal):
+        await authorizer.require_active_human(principal)
+        for permission in permissions:
+            await authorizer.authorize(user_id=principal.user_id, required_permission=permission,
+                path_params=context, query_params={}, body=None, mutation=permission.endswith(":write"))
+    else:
+        raise AuthorizationError("Administrative authentication is required")
+
+
 class ProviderDiscoveryHandler:
-    def __init__(self, uow_factory, *, discovery, embedding_discovery, secret_resolver, use_case_factory):
+    def __init__(self, uow_factory, *, discovery, embedding_discovery, secret_resolver, use_case_factory, additional_permissions=()):
+        self.additional_permissions = additional_permissions
         self.uow_factory = uow_factory
         self.use_case_factory = use_case_factory
         self.discovery, self.embedding_discovery, self.secret_resolver = discovery, embedding_discovery, secret_resolver
@@ -34,35 +53,22 @@ class ProviderDiscoveryHandler:
             project_id=request.query_params.get("project_id"), capability=request.query_params.get("capability"))
         environment = normalize_runtime_environment(request.query_params.get("environment") or "draft")
         operation_id = uuid4()
+        pins = []
         async with self.uow_factory() as uow:
             session = uow.session
             credential = await SQLAlchemyProviderCredentialRepository(session).get_by_id(dto.credential_id)
             if credential is None or (dto.project_id and credential.project_id != dto.project_id):
                 raise NotFoundError("Provider credential not found")
             principal = request.principal
-            authorizer = TenantAuthorizer(session)
-            permissions = ["model:read" if request.query_params.get("available_for_credential_id") else "provider:read"]
+            permissions = ["model:read" if request.query_params.get("available_for_credential_id") else "provider:read", *self.additional_permissions]
             if credential.authentication is not None:
                 permissions.append("project:environment:validate")
-            context = {"project_id": credential.project_id, "credential_id": credential.id, "environment": environment}
-            if isinstance(principal, ControlPlanePrincipal):
-                await authorizer.require_active_control(principal)
-                for permission in permissions:
-                    await authorizer.authorize_control_key(api_key_id=principal.api_key_id, workspace_id=principal.workspace_id,
-                        workspace_permissions=principal.permissions, required_permission=permission,
-                        path_params=context, query_params={}, body=None)
-            elif isinstance(principal, AuthenticatedPrincipal):
-                await authorizer.require_active_human(principal)
-                for permission in permissions:
-                    await authorizer.authorize(user_id=principal.user_id, required_permission=permission,
-                        path_params=context, query_params={}, body=None)
-            else:
-                raise AuthorizationError("Administrative authentication is required")
+            await authorize_provider_models(session, principal, credential, environment, permissions)
             if credential.authentication is not None:
                 configuration = configuration_for_session(session)
                 if configuration is None:
                     raise ConfigurationError("CONFIG_STORE_UNAVAILABLE")
-                await configuration.acquire(project_id=credential.project_id, run_id=operation_id,
+                pins = await configuration.acquire(project_id=credential.project_id, run_id=operation_id,
                     environment=environment, dependencies=provider_dependencies(credential))
         resolver = self.secret_resolver
         if credential.authentication is not None:
@@ -98,5 +104,7 @@ class ProviderDiscoveryHandler:
                             run_id=operation_id, consumer_kind="provider_credential", consumer_id=credential.id,
                             state=state, actor="key:" + str(principal.api_key_id) if isinstance(principal, ControlPlanePrincipal)
                             else "user:" + str(principal.user_id))
+        from modules.agent.domain.catalog_reconciliation import catalog_digest
         return OperationResult(outcome=OperationOutcome.SUCCESS,
+            metadata={"credential_binding_revision": str(credential.binding_revision), "configuration_revision": catalog_digest(pins)},
             body={"success": True, "message": "ok", "data": [item.model_dump() for item in items]})

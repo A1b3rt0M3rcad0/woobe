@@ -261,7 +261,7 @@ def test_manual_provider_model_overrides_update_normalized_spec() -> None:
     assert resolved.pricing["output_cost_per_1m_tokens"] == 1.5
 
 
-def test_manual_unknown_tool_capability_preserves_legacy_behavior_with_warning() -> None:
+def test_manual_unknown_tool_capability_requires_explicit_confirmation() -> None:
     spec = ModelSpec(
         provider="openai_compatible",
         model_id="manual-model",
@@ -291,8 +291,8 @@ def test_manual_unknown_tool_capability_preserves_legacy_behavior_with_warning()
         )
     )
 
-    assert report.compatible is True
-    assert [issue.code for issue in report.warnings] == ["model_capability_unknown"]
+    assert report.compatible is False
+    assert [issue.code for issue in report.issues] == ["model_capability_unknown"]
 
 
 def test_legacy_chat_provider_registry_is_extensible_without_dispatch_branching() -> None:

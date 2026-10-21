@@ -14,11 +14,11 @@ from modules.agent.infra.adapters.model_discovery import ModelDiscoveryService
 from shared.contracts.llm_cost import provider_model_pricing_snapshot
 
 
-def _available(model_id: str, label: str) -> AvailableProviderModelOutput:
+def _available(model_id: str, label: str, operation="language.generate") -> AvailableProviderModelOutput:
     return AvailableProviderModelOutput(
         id=model_id,
         label=label,
-        provider="openai",
+        provider="openai", operations=[operation], output_modalities=["text" if operation == "language.generate" else "embedding"],
     )
 
 
@@ -63,7 +63,7 @@ def test_generation_discovery_excludes_embedding_models() -> None:
     async def discovery(_provider, _api_key, _metadata):
         return [
             _available("gpt-4.1-mini", "GPT-4.1 Mini"),
-            _available("text-embedding-3-small", "Text Embedding 3 Small"),
+            _available("text-embedding-3-small", "Text Embedding 3 Small", "embedding.create"),
         ]
 
     use_case = ListAvailableProviderModelsUseCase(

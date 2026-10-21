@@ -316,12 +316,16 @@ async def test_update_provider_model_can_rebind_credential_and_update_metadata_s
         ),
     )
 
-    assert item.provider_credential_id == new_credential.id
-    assert item.name == "Updated"
-    assert item.model == "updated-model"
-    assert item.metadata == {"tier": "premium"}
-    assert item.status == ProviderModelStatus.inactive
+    assert result.provider_credential_id == new_credential.id
+    assert result.name == "Updated"
+    assert result.model == "updated-model"
+    assert result.metadata["tier"] == "premium"
+    assert "model_spec_baseline" in result.metadata
+    assert result.status == ProviderModelStatus.inactive
     assert result.provider == Provider.openai
+    # Rejected validation must never partially mutate a repository-owned object.
+    assert item.provider_credential_id == old_credential.id
+
 
 
 @pytest.mark.asyncio

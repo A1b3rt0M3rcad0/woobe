@@ -1063,10 +1063,15 @@ class AskAgentUseCase:
         provider_val = (
             agent.provider.value if hasattr(agent.provider, "value") else agent.provider
         )
+        connection_settings = dict(agent.settings or {})
+        spec_metadata = (connection_settings.get("model_spec") or {}).get("metadata") or {}
+        model_endpoint = spec_metadata.get("base_url") or (spec_metadata.get("provider_model_metadata") or {}).get("base_url")
+        if model_endpoint:
+            connection_settings["base_url"] = model_endpoint
         return self._resolve_base_url_for_provider(
             provider_val,
             credential,
-            agent.settings,
+            connection_settings,
         )
 
     async def _resolve_session(
@@ -1347,29 +1352,17 @@ class AskAgentUseCase:
         credential: ProviderCredential,
         settings: dict | None,
     ) -> str | None:
-        if provider_val == "custom":
-            base_url = (
-                (settings or {}).get("base_url")
-                or (credential.metadata or {}).get("base_url")
-            )
-            if not base_url:
-                from shared.contracts.errors import ValidationError
-
-                raise ValidationError(
-                    "Custom provider requires base_url in credential metadata or agent settings"
-                )
-            model = (
-                (settings or {}).get("model")
-                or (credential.metadata or {}).get("model")
-            )
-            if not model:
-                from shared.contracts.errors import ValidationError
-
-                raise ValidationError(
-                    "Custom provider requires model in agent or credential metadata"
-                )
-            return base_url
-        return (settings or {}).get("base_url") or (credential.metadata or {}).get("base_url")
+        from modules.agent.domain.provider_identity import canonical_provider_key, validate_provider_base_url
+        from shared.contracts.errors import ValidationError
+        base_url = (settings or {}).get("base_url") or (credential.metadata or {}).get("base_url")
+        if canonical_provider_key(provider_val) == "openai_compatible" and not base_url:
+            raise ValidationError("OpenAI-compatible provider requires base_url")
+        if base_url:
+            try:
+                return validate_provider_base_url(base_url)
+            except ValueError as exc:
+                raise ValidationError(str(exc)) from exc
+        return None
 
     async def _try_fallback(
         self,

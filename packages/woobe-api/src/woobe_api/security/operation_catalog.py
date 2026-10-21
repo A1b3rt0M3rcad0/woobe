@@ -296,6 +296,8 @@ _REVIEWED = [
     ("GET", "/ai/credentials", "provider:read"),
     ("POST", "/ai/provider-models", "model:write"),
     ("GET", "/ai/provider-models", "model:read"),
+    ("GET", "/ai/provider-models/sync-preview", "model:read"),
+    ("POST", "/ai/provider-models/sync-apply", "model:write"),
     ("GET", "/ai/provider-models/{provider_model_id}", "model:read"),
     ("PATCH", "/ai/provider-models/{provider_model_id}", "model:write"),
     ("POST", "/ai/agents", "agent:write"),
@@ -694,6 +696,9 @@ def verified_query_context(
     if permission is not None and permission.startswith('artifacts:'):
         return {**path_params, **{name: query_params[name] for name in
             ('project_id', 'environment') if query_params.get(name) is not None}}
+    if method.upper() == "GET" and path == "/ai/provider-models/sync-preview":
+        return {**path_params, "project_id": query_params.get("project_id"),
+                "credential_id": query_params.get("provider_credential_id"), "environment": query_params.get("environment") or "draft"}
     if method.upper() == "GET" and path == "/ai/provider-models" and query_params.get("available_for_credential_id"):
         return {**path_params, "credential_id": query_params["available_for_credential_id"],
                 "environment": query_params.get("environment") or "draft"}

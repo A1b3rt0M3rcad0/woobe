@@ -678,6 +678,12 @@ implementation does not require an OpenAI key, account, endpoint, or model.
 Steps 21 and 58 use provider-neutral contracts and deterministic fixtures;
 there is no live-provider or semantic-generation qualification claim.
 
+After step 60, `master` gained provider discovery and reconciliation changes in
+PR #219. PR #220 integrates that upstream commit with one conflict-resolution
+merge. The guard still validates the original 60 linear implementation commits
+against the immutable base; it accepts only this direct post-plan integration
+shape, so upstream changes do not become fictitious plan steps.
+
 The operational boundaries recorded above remain part of the acceptance:
 S3-only cases were skipped without an isolated S3 endpoint; a coordinated full
 database/object snapshot restore and production-scale byte-throughput rehearsal

@@ -6,7 +6,6 @@ import {
   AlertDescription,
   Button,
   Field,
-  FieldDescription,
   FieldLabel,
   FieldOptional,
   FormActions,
@@ -143,9 +142,8 @@ export function ProviderCredentialCreateForm({
       ) : null}
 
       <Field density="technical">
-        <FieldLabel>API key reference</FieldLabel>
+        <FieldLabel>Project API key</FieldLabel>
         <ConfigurationReferenceSelector projectId={projectId} value={configurationKey} onChange={setConfigurationKey} />
-        <FieldDescription>Save the Provider now. Configure values and approve the destination in Project → Environments before testing.</FieldDescription>
       </Field>
 
       {provider === 'openrouter' ? (

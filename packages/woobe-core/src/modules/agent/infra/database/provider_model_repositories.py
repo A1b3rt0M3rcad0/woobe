@@ -3,9 +3,9 @@ from __future__ import annotations
 from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import BigInteger, CheckConstraint, FetchedValue, ForeignKey, Index, Integer, String, UniqueConstraint, select, text
+from sqlalchemy import ForeignKey, select, or_, update, func, case, cast as sql_cast
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, add_mapped_attribute, mapped_column
+from sqlalchemy.orm import add_mapped_attribute, mapped_column
 
 from modules.agent.application.interfaces.provider_model_repository import (
     ProviderModelRepository,
@@ -23,42 +23,9 @@ from modules.agent.infra.database.repositories import (
 )
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 from shared.contracts.pagination import CursorPage
-from shared.infra.database.base import BaseModel
+from modules.agent.infra.database.provider_model_models import ProviderModelModel
 from shared.infra.repositories.base_repository import BaseSQLAlchemyRepository
 
-
-class ProviderModelModel(BaseModel):
-    __mapper_args__ = {'eager_defaults': True}
-    definition_revision: Mapped[int] = mapped_column(BigInteger, server_default=text('1'), server_onupdate=FetchedValue())
-    __tablename__ = "provider_models"
-    __table_args__ = (
-        CheckConstraint('definition_revision >= 1', name='ck_provider_model_definition_revision'),
-        UniqueConstraint(
-            "project_id",
-            "provider_credential_id",
-            "model",
-            "spec_hash",
-            name="uq_provider_models_project_credential_spec",
-        ),
-        Index("ix_provider_models_project_id", "project_id"),
-        Index("ix_provider_models_credential_id", "provider_credential_id"),
-        {"schema": "agent"},
-    )
-
-    project_id: Mapped[UUID]
-    provider_credential_id: Mapped[UUID] = mapped_column(
-        ForeignKey("agent.provider_credentials.id")
-    )
-    name: Mapped[str] = mapped_column(String(255))
-    model: Mapped[str] = mapped_column(String(255))
-    model_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    spec: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
-    spec_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    spec_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    status: Mapped[str] = mapped_column(String(32), default="active")
-    meta: Mapped[dict[str, Any] | None] = mapped_column(
-        "metadata", JSONB, nullable=True
-    )
 
 
 def _register_provider_model_refs() -> None:
@@ -136,6 +103,15 @@ class SQLAlchemyProviderModelRepository(
         super().__init__(uow, ProviderModelModel)
 
     async def save(self, provider_model: ProviderModel) -> ProviderModel:
+        from modules.agent.infra.database.repositories import SQLAlchemyProviderCredentialRepository
+        from modules.agent.domain.provider_identity import validate_model_spec_binding
+        from modules.agent.domain.model_spec import ModelSpec
+        from shared.contracts.errors import ConflictError
+        credential = await SQLAlchemyProviderCredentialRepository(self._session_or_uow).lock_by_id(provider_model.provider_credential_id)
+        if credential is None or credential.project_id != provider_model.project_id or str(credential.status) != "active":
+            raise ConflictError("Provider credential changed before Model creation")
+        if provider_model.spec is not None:
+            validate_model_spec_binding(ModelSpec.from_dict(provider_model.spec), credential, provider_model.model, provider_model.model_type)
         model = _to_model(provider_model)
         await self._add_model(model)
         await self._flush()
@@ -165,6 +141,14 @@ class SQLAlchemyProviderModelRepository(
             .order_by(ProviderModelModel.created_at.desc())
         )
         return [_to_entity(item) for item in result.scalars().all()]
+
+    async def record_catalog_observation(self, provider_model_id: UUID, evidence: dict) -> None:
+        await self._session.execute(update(ProviderModelModel).where(ProviderModelModel.id == provider_model_id).values(
+            meta=case((func.jsonb_typeof(ProviderModelModel.meta) == "object", ProviderModelModel.meta),
+                else_=sql_cast({}, JSONB)).op("||")({"catalog_observation": evidence}),
+            updated_at=ProviderModelModel.updated_at,
+        ).execution_options(synchronize_session=False))
+        await self._flush()
 
     async def list_by_credential(
         self, credential_id: UUID
@@ -198,11 +182,29 @@ class SQLAlchemyProviderModelRepository(
         )
 
     async def update(self, provider_model: ProviderModel) -> ProviderModel:
+        await self.lock_by_id(provider_model.id)
         model = await self._get_model_by_id(provider_model.id)
         if model is None:
             from modules.agent.domain.errors import ModelConfigNotFoundError
 
             raise ModelConfigNotFoundError
+        old_runtime_metadata = (model.spec or {}).get("metadata") or {}
+        new_runtime_metadata = (provider_model.spec or {}).get("metadata") or {}
+        if (model.model != provider_model.model or model.provider_credential_id != provider_model.provider_credential_id
+                or (model.meta or {}).get("base_url") != (provider_model.metadata or {}).get("base_url")
+                or any(old_runtime_metadata.get(key) != new_runtime_metadata.get(key) for key in ("base_url", "protocol"))):
+            referenced = await self._session.scalar(select(AgentReleaseModel.id).where(or_(
+                AgentReleaseModel.provider_model_id == model.id,
+                AgentReleaseModel.fallback_provider_model_id == model.id,
+            )).limit(1))
+            from types import SimpleNamespace
+            from modules.agent.infra.database.provider_dependency_reader import SQLProviderDependencyReader
+            indexed = await SQLProviderDependencyReader(SimpleNamespace(session=self._session)).embedding_consumers(model.project_id, {model.id})
+            if referenced is not None or indexed:
+                from shared.contracts.errors import ConflictError
+                error = ConflictError("Create a new Model and explicitly rebind the Draft; published or indexed model identity is in use")
+                error.code = "MODEL_IDENTITY_IN_USE"
+                raise error
         model.provider_credential_id = provider_model.provider_credential_id
         model.name = provider_model.name
         model.model = provider_model.model
@@ -291,6 +293,34 @@ class SQLAlchemyAgentReleaseRepositoryWithProviderModels(
     SQLAlchemyAgentReleaseRepository
 ):
     async def save(self, release: AgentRelease) -> AgentRelease:
+        # The same row locks used by identity mutation serialize publication with
+        # retargeting. Recheck the snapshot after taking them, before writing it.
+        from modules.agent.domain.model_spec import ModelSpec
+        from modules.agent.domain.provider_identity import providers_equivalent
+        from modules.agent.infra.database.repositories import SQLAlchemyProviderCredentialRepository
+        from shared.contracts.errors import ConflictError
+        bindings = (
+            (release.provider_model_id, release.provider_credential_id, release.model_spec_snapshot),
+            (release.fallback_provider_model_id, release.fallback_credential_id, release.fallback_model_spec_snapshot),
+        )
+        credential_repo = SQLAlchemyProviderCredentialRepository(self._session_or_uow)
+        model_repo = SQLAlchemyProviderModelRepository(self._session_or_uow)
+        credentials, definitions = {}, {}
+        for identifier in sorted({item[1] for item in bindings if item[1]}, key=str):
+            credentials[identifier] = await credential_repo.lock_by_id(identifier)
+        for identifier in sorted({item[0] for item in bindings if item[0]}, key=str):
+            definitions[identifier] = await model_repo.lock_by_id(identifier)
+        for model_id, credential_id, snapshot in bindings:
+            credential = credentials.get(credential_id)
+            definition = definitions.get(model_id)
+            if isinstance(snapshot, dict):
+                spec = ModelSpec.from_dict(snapshot)
+                if (credential is None or credential.project_id != release.project_id or not providers_equivalent(credential.provider, spec.provider)
+                        or (definition is not None and (definition.model != spec.model_id
+                            or definition.provider_credential_id != credential_id))):
+                    error = ConflictError("Model binding changed while capturing the Release")
+                    error.code = "RELEASE_MODEL_BINDING_CONFLICT"
+                    raise error
         saved = await super().save(release)
         await self._write_refs(release)
         saved.provider_model_id = release.provider_model_id

@@ -1,3 +1,6 @@
+import { ModelSettingsModal } from '@/features/provider-models/components/ModelSettingsModal'
+import { ProviderDiscoveryErrorNotice } from '@/features/provider-models/components/ProviderDiscoveryErrorNotice'
+import { buildProviderModelDefinition, effectiveModelPricing, isAgentModel } from '@/features/provider-models/modelDefinition'
 import { useEffect, useMemo, useState } from 'react'
 import { Check, Cpu, KeyRound, Pencil, Plus, Search } from 'lucide-react'
 import { toast } from 'sonner'
@@ -40,6 +43,7 @@ export function AgentModelManagerModal({ open, projectId, selectedModelId, onClo
   const credentials = credentialsQuery.data ?? []
   const models = modelsQuery.data ?? []
 
+  const [advancedOpen, setAdvancedOpen] = useState(false)
   const [screen, setScreen] = useState<Screen>('list')
   const [query, setQuery] = useState('')
   const [editingModel, setEditingModel] = useState<ProviderModel | null>(null)
@@ -67,7 +71,7 @@ export function AgentModelManagerModal({ open, projectId, selectedModelId, onClo
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase()
     return models.filter((model) => (
-      model.status !== 'archived'
+      model.status !== 'archived' && isAgentModel(model)
       && (!normalized || `${model.name} ${model.model} ${model.provider || ''}`.toLowerCase().includes(normalized))
     ))
   }, [models, query])
@@ -80,7 +84,7 @@ export function AgentModelManagerModal({ open, projectId, selectedModelId, onClo
   }, [open])
 
   const openModel = (model?: ProviderModel) => {
-    const pricing = (model?.metadata?.pricing || {}) as Record<string, unknown>
+    const pricing = (effectiveModelPricing(model) || {}) as Record<string, unknown>
     setEditingModel(model || null)
     setCredentialId(model?.provider_credential_id || credentials.find((item) => item.status !== 'inactive')?.id || '')
     setModelId(model?.model || '')
@@ -143,7 +147,6 @@ export function AgentModelManagerModal({ open, projectId, selectedModelId, onClo
     if (!credentialId) return toast.error('Choose a provider connection')
     if (!resolvedId || !resolvedName) return toast.error('Model name and ID are required')
 
-    const selectedSpec = selectedCatalog?.raw?.woobe_model_spec
     const metadata = {
       ...(editingModel?.metadata || {}),
       capability: selectedCatalog?.model_type || editingModel?.model_type || 'generation',
@@ -158,28 +161,14 @@ export function AgentModelManagerModal({ open, projectId, selectedModelId, onClo
     }
 
     try {
+    const definition = buildProviderModelDefinition({ projectId, credentialId, name: resolvedName, modelId: resolvedId, existing: editingModel, catalog: selectedCatalog, metadata })
+
       const saved = editingModel
         ? await updateModel.mutateAsync({
             id: editingModel.id,
-            data: {
-              provider_credential_id: credentialId,
-              name: resolvedName,
-              model: resolvedId,
-              ...(selectedCatalog?.model_type ? { model_type: selectedCatalog.model_type } : {}),
-              ...(selectedSpec && typeof selectedSpec === 'object' ? { spec: selectedSpec as Record<string, any> } : {}),
-              status,
-              metadata,
-            },
+            data: { ...definition, status },
           })
-        : await createModel.mutateAsync({
-            project_id: projectId,
-            provider_credential_id: credentialId,
-            name: resolvedName,
-            model: resolvedId,
-            model_type: selectedCatalog?.model_type || undefined,
-            spec: selectedSpec && typeof selectedSpec === 'object' ? selectedSpec as Record<string, any> : undefined,
-            metadata,
-          })
+        : await createModel.mutateAsync(definition)
       await modelsQuery.refetch()
       onUseModel(saved, credentials.find((item) => item.id === credentialId) || selectedCredential)
       toast.success(editingModel ? 'Model updated and selected' : 'Model created and selected')
@@ -192,6 +181,7 @@ export function AgentModelManagerModal({ open, projectId, selectedModelId, onClo
   const busy = createCredential.isPending || updateCredential.isPending || createModel.isPending || updateModel.isPending
 
   return (
+    <>
     <Dialog
       open={open}
       onClose={onClose}
@@ -325,6 +315,7 @@ export function AgentModelManagerModal({ open, projectId, selectedModelId, onClo
                       </Button>
                     </div>
 
+                    {!editingModel && credentialId && catalogQuery.isError && <ProviderDiscoveryErrorNotice projectId={projectId} credentialId={credentialId} error={catalogQuery.error} onRetry={() => { void catalogQuery.refetch() }} />}
                     {!editingModel && credentialId && (catalogQuery.data?.length || 0) > 0 ? (
                       <Field>
                         <FieldLabel>Provider catalog</FieldLabel>
@@ -387,6 +378,7 @@ export function AgentModelManagerModal({ open, projectId, selectedModelId, onClo
               </div>
             </div>
             <div className="flex shrink-0 justify-end gap-ui-sm border-t border-border bg-surface/95 px-ui-lg py-ui-md">
+              {editingModel && <Button variant="outline" onClick={() => setAdvancedOpen(true)}>Capabilities and overrides</Button>}
               <Button variant="outline" onClick={() => setScreen('list')} disabled={busy}>Cancel</Button>
               <Button onClick={() => void saveModel()} loading={createModel.isPending || updateModel.isPending}>
                 {editingModel ? 'Save and use' : 'Create and use'}
@@ -396,5 +388,15 @@ export function AgentModelManagerModal({ open, projectId, selectedModelId, onClo
         )}
       </div>
     </Dialog>
+    {advancedOpen && editingModel && <ModelSettingsModal open projectId={projectId} credentials={credentials}
+      selectedModel={editingModel} initialSection="capabilities" layer="nestedModal"
+      onClose={() => setAdvancedOpen(false)} onSaved={async () => {
+        const result = await modelsQuery.refetch()
+        const updated = result.data?.find(item => item.id === editingModel.id)
+        if (updated) openModel(updated)
+        else setScreen('list')
+        setAdvancedOpen(false)
+      }} />}
+    </>
   )
 }

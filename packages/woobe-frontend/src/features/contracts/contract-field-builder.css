@@ -1,0 +1,37 @@
+.contract-external-fields {
+  container: contract-external-fields / inline-size;
+}
+
+.contract-external-columns {
+  grid-template-columns: minmax(88px, 1fr) 78px 82px 42px 46px 28px 28px;
+}
+
+.contract-field-label {
+  display: none;
+}
+
+/* The inspector stays narrow even on a desktop viewport. Adapt to the editor's
+   available width so every field control remains reachable inside its card. */
+@container contract-external-fields (max-width: 31.999rem) {
+  .contract-external-fields .contract-external-header {
+    display: none;
+  }
+
+  .contract-external-fields .contract-external-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    @apply gap-ui-sm py-ui-sm;
+  }
+
+  .contract-external-fields .contract-field-name {
+    grid-column: 1 / -1;
+  }
+
+  .contract-external-fields .contract-field-label {
+    display: inline;
+    @apply font-sans text-product-caption text-muted-foreground;
+  }
+
+  .contract-external-fields .contract-field-toggle {
+    justify-content: flex-start;
+  }
+}

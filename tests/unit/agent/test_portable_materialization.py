@@ -154,6 +154,7 @@ def test_portable_artifact_capability_is_compiled_into_the_release_snapshot():
         },
     }
     resources = {"primary": model(project)}
+    resources["primary"]["spec"]["capabilities"]["tool_calling"] = {"supported": True}
     draft = compile_imported_agent_inputs(
         project_id=project,
         document=definition,

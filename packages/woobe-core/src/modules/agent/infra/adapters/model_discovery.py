@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from math import isfinite
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable
 from urllib.error import HTTPError, URLError
@@ -38,14 +39,13 @@ def _json_get(url: str, api_key: str, *, timeout: int = 20) -> dict[str, Any]:
         with urlopen(request, timeout=timeout) as response:
             payload = response.read().decode("utf-8")
     except HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="replace")[:500]
-        raise ProviderModelDiscoveryError(f"Provider model discovery failed with HTTP {exc.code}: {detail}") from exc
+        raise ProviderModelDiscoveryError(f"Provider model discovery failed with HTTP {exc.code}") from exc
     except URLError as exc:
         raise ProviderModelDiscoveryError(f"Provider model discovery failed: {exc.reason}") from exc
     except TimeoutError as exc:
         raise ProviderModelDiscoveryError("Provider model discovery timed out") from exc
     try:
-        data = json.loads(payload)
+        data = json.loads(payload, parse_constant=lambda _value: None)
     except json.JSONDecodeError as exc:
         raise ProviderModelDiscoveryError("Provider model discovery returned invalid JSON") from exc
     if not isinstance(data, dict):
@@ -68,13 +68,13 @@ def _base_url_with_models_path(base_url: str) -> str:
 
 
 def _number_or_none(value: Any) -> float | None:
-    if value is None:
+    if value is None or isinstance(value, bool):
         return None
     try:
         parsed = float(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return None
-    if parsed < 0:
+    if not isfinite(parsed) or parsed < 0:
         return None
     return parsed
 
@@ -83,9 +83,11 @@ def _positive_int_or_none(*values: Any) -> int | None:
     for value in values:
         if isinstance(value, bool) or value is None:
             continue
+        if isinstance(value, float) and (not isfinite(value) or not value.is_integer()):
+            continue
         try:
             parsed = int(value)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):
             continue
         if parsed > 0:
             return parsed
@@ -96,7 +98,7 @@ def _per_token_to_per_1m(value: Any) -> float | None:
     parsed = _number_or_none(value)
     if parsed is None:
         return None
-    return parsed * 1_000_000
+    return _number_or_none(parsed * 1_000_000)
 
 
 def _supports_parameter(raw: dict[str, Any], names: set[str]) -> bool | None:
@@ -187,7 +189,7 @@ class ModelDiscoveryService:
             context.metadata.get("base_url") or OPENROUTER_BASE_URL
         ).rstrip("/")
         return self._normalize_openrouter(
-            await _async_json_get(f"{base_url}/models", context.api_key)
+            await _async_json_get(f"{base_url}/models?output_modalities=all", context.api_key)
         )
 
     def _normalize_openai(self, payload: dict[str, Any], *, provider: str) -> list[AvailableProviderModelOutput]:
@@ -217,9 +219,9 @@ class ModelDiscoveryService:
                         raw.get("max_output_tokens"),
                         raw.get("max_completion_tokens"),
                     ),
-                    supports_tools=_supports_parameter(raw, {"tools", "tool_choice"}),
-                    supports_json=_supports_parameter(raw, {"response_format"}),
-                    supports_streaming=True if raw.get("supports_streaming") is True else None,
+                    supports_tools=raw.get("supports_tools") if type(raw.get("supports_tools")) is bool else _supports_parameter(raw, {"tools", "tool_choice"}),
+                    supports_json=raw.get("supports_json") if type(raw.get("supports_json")) is bool else _supports_parameter(raw, {"response_format"}),
+                    supports_streaming=raw.get("supports_streaming") if type(raw.get("supports_streaming")) is bool else None,
                     raw=raw,
                 )
             )
@@ -251,8 +253,8 @@ class ModelDiscoveryService:
                     input_cost_per_1m_tokens=_per_token_to_per_1m(pricing.get("prompt")),
                     output_cost_per_1m_tokens=_per_token_to_per_1m(pricing.get("completion")),
                     supports_tools=_supports_parameter(raw, {"tools", "tool_choice"}),
-                    supports_json=_supports_parameter(raw, {"response_format"}),
-                    supports_streaming=True,
+                    supports_json=_supports_parameter(raw, {"response_format", "structured_outputs"}),
+                    supports_streaming=raw.get("supports_streaming") if type(raw.get("supports_streaming")) is bool else True,
                     raw=raw,
                 )
             )
