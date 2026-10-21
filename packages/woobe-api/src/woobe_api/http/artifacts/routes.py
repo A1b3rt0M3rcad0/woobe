@@ -32,6 +32,7 @@ from modules.artifacts.entrypoint import (
     ReadArtifactIndex, get_document_index_composer, get_latest_document_index_composer,
     get_document_node_composer, list_document_nodes_composer,
     ArtifactSearchPage, SearchDocuments, search_documents_composer, list_revisions_composer,
+    RenderRepresentationPage, render_representation_page_composer,
 )
 from shared.contracts.object_storage import ObjectStorageError
 from woobe_api.http.artifacts.contracts import FileCreate, FileMove, GrantCreate, Identifier, TextUpdate
@@ -590,34 +591,19 @@ async def download_representation(artifact_id: Identifier, revision_id: Identifi
 async def render_representation_page(artifact_id: Identifier, revision_id: Identifier, representation_set_id: Identifier,
         artifact_workspace_id: Identifier, ctx: Context, page_index: int = Path(ge=0, le=9999),
         dpi: int = Query(default=150, ge=72, le=300), max_pixels: int = Query(default=4_000_000, ge=1, le=4_000_000)):
-    service = build_representation_service()
-    command = ReadRepresentation(*ctx, artifact_workspace_id, artifact_id, revision_id, representation_set_id)
-    snapshot = await service.resolve(command)
-    if page_index >= snapshot.public_view.page_count:
-        raise ArtifactError('ARTIFACT_INVALID_RANGE', 'Physical page is out of range for this representation')
-    file_command = ReadFile(*ctx, artifact_workspace_id, artifact_id, revision_id)
-    file_snapshot, stream = await build_file_service().open_content(file_command)
-    if file_snapshot.revision is None or file_snapshot.revision.content_type.split(';', 1)[0].lower() != 'application/pdf':
-        await stream.aclose()
-        raise ArtifactError('PROCESSOR_UNAVAILABLE', 'Page images are available only for PDF revisions')
-    from modules.artifacts.application.contracts.processing import ProcessingRecipe
-    from modules.artifacts.infra.processing.native_pdf import NativePdfProcessor
-
-    recipe = ProcessingRecipe.model_validate({'mode': 'extract', 'processor': {'name': 'native-pdf', 'version': '1'},
-        'limits': {'max_bytes': 536_870_912, 'max_pages': snapshot.public_view.page_count}})
+    command = RenderRepresentationPage(*ctx, artifact_workspace_id, artifact_id, revision_id,
+        representation_set_id, page_index, dpi, max_pixels)
     try:
-        content = await NativePdfProcessor().render(file_snapshot.revision, stream, recipe,
-            page_index=page_index, dpi=dpi, max_pixels=max_pixels)
+        rendered = await render_representation_page_composer()(command)
     except ObjectStorageError as error:
         raise ArtifactError('ARTIFACT_STORAGE_UNAVAILABLE', 'PDF source is unavailable', retryable=True) from error
-    finally:
-        await stream.aclose()
+    content = rendered.content
     digest = hashlib.sha256(content).hexdigest()
     return Response(content, media_type='image/png', headers={
         'Cache-Control': 'private, no-store', 'Content-Length': str(len(content)),
         'ETag': f'"{digest}"', 'X-Content-Type-Options': 'nosniff',
         'Content-Disposition': 'inline; filename="page.png"',
-        'X-Woobe-Source-Sha256': snapshot.public_view.source_sha256,
+        'X-Woobe-Source-Sha256': rendered.source_sha256,
         'X-Woobe-Page-Index': str(page_index), 'X-Woobe-Page-Number': str(page_index + 1),
     })
 

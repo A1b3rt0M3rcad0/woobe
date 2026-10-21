@@ -23,12 +23,72 @@ from woobe_workers.consumers.agent.outbox_dispatcher import (
 )
 from modules.agent.infra.messaging.event_mappers import (
     RabbitMQMessageEnvelope,
+    domain_event_to_outbox,
     outbox_to_rabbit_message,
 )
 from modules.agent.infra.database.models import AgentOutboxEventModel
 from modules.agent.domain.events import AgentExecutionRequestedV1
 from woobe_workers.runtime.outbox_dispatcher_base import BaseOutboxDispatcher, OutboxRecord
 from woobe_workers.runtime.base_worker import BaseWorker
+import woobe_workers.consumers.agent.outbox_dispatcher as outbox_dispatcher_module
+
+
+class _RepositorySpy:
+    def __init__(self, events=()):
+        self.events = list(events)
+        self.calls = []
+
+    async def claim_batch(self, *, batch_size, locked_by):
+        self.calls.append(("claim_batch", batch_size, locked_by))
+        for event in self.events:
+            event.status = "publishing"
+            event.locked_by = locked_by
+        return self.events
+
+    async def mark_published(self, event_id):
+        self.calls.append(("mark_published", event_id))
+
+    async def mark_dead(self, event_id, error):
+        self.calls.append(("mark_dead", event_id, error))
+
+    async def mark_retryable(self, event_id, error, available_at):
+        self.calls.append(("mark_retryable", event_id, error, available_at))
+
+
+class _PublisherSpy:
+    def __init__(self):
+        self.envelopes = []
+
+    async def publish(self, envelope):
+        self.envelopes.append(envelope)
+
+
+def _install_uow(monkeypatch, repository, opened=None):
+    class UnitOfWork:
+        def __init__(self, _engine):
+            self.session = object()
+
+        async def __aenter__(self):
+            if opened is not None:
+                opened.append("enter")
+            return self
+
+        async def __aexit__(self, exc_type, exc_val, exc_tb):
+            if opened is not None:
+                opened.append("exit")
+
+    monkeypatch.setattr(outbox_dispatcher_module, "AgentUnitOfWork", UnitOfWork)
+    monkeypatch.setattr(
+        outbox_dispatcher_module,
+        "SQLAlchemyAgentOutboxRepository",
+        lambda uow: repository,
+    )
+
+
+def _event():
+    return domain_event_to_outbox(AgentExecutionRequestedV1.create(
+        agent_id=uuid4(), session_id=uuid4(), payload={"action": "dispatch"},
+    ))
 
 
 class OutboxStatus(str, Enum):
@@ -90,11 +150,21 @@ class TestOutboxDispatcherStructure:
         params = list(sig.parameters.keys())
         assert "worker_id" in params
 
-    def test_run_method_creates_session_and_delegates_to_super(self):
-        source = inspect.getsource(AgentOutboxDispatcherWorker.run)
-        assert "AsyncSession" in source
-        assert "session.begin" in source
-        assert "super().run()" in source
+    @pytest.mark.asyncio
+    async def test_run_uses_claim_publish_and_status_interfaces(self, monkeypatch):
+        event = _event()
+        repository = _RepositorySpy([event])
+        publisher = _PublisherSpy()
+        _install_uow(monkeypatch, repository)
+        worker = AgentOutboxDispatcherWorker(object(), publisher, worker_id="dispatcher-1")
+
+        await worker.run()
+
+        assert repository.calls == [
+            ("claim_batch", worker.BATCH_SIZE, "dispatcher-1"),
+            ("mark_published", event.id),
+        ]
+        assert publisher.envelopes == [outbox_to_rabbit_message(event)]
 
     def test_retry_backoff_constant(self):
         assert RETRY_BACKOFF_BASE_SECONDS == 30
@@ -103,18 +173,21 @@ class TestOutboxDispatcherStructure:
 class TestOutboxDispatcherClaimPipeline:
     """Verify claim-and-lock behavior."""
 
-    def test_claim_uses_repository_claim_batch(self):
-        source = inspect.getsource(AgentOutboxDispatcherWorker.claim_pending)
-        assert "claim_batch" in source
-        assert "_repo" in source
+    @pytest.mark.asyncio
+    async def test_claim_delegates_locking_to_repository_and_tracks_envelope(self, monkeypatch):
+        event = _event()
+        repository = _RepositorySpy([event])
+        _install_uow(monkeypatch, repository)
+        worker = AgentOutboxDispatcherWorker(object(), _PublisherSpy(), worker_id="dispatcher-2")
 
-    def test_claim_builds_event_map_for_tracking(self):
-        source = inspect.getsource(AgentOutboxDispatcherWorker.claim_pending)
-        assert "_event_map" in source
+        records = await worker.claim_pending(limit=7)
 
-    def test_claim_populates_event_map_keyed_by_id(self):
-        source = inspect.getsource(AgentOutboxDispatcherWorker.claim_pending)
-        assert "id" in source.lower() or "record" in source.lower()
+        assert repository.calls == [("claim_batch", 7, "dispatcher-2")]
+        assert len(records) == 1
+        assert records[0].id == event.id
+        assert records[0].event_type == event.event_type
+        assert event.locked_by == "dispatcher-2"
+        assert worker._envelope_map[event.id] == outbox_to_rabbit_message(event)
 
     def test_batch_size_default_is_50(self):
         assert AgentOutboxDispatcherWorker.BATCH_SIZE == 50
@@ -156,18 +229,22 @@ class TestOutboxDispatcherClaimPipeline:
 class TestOutboxDispatcherPublishPipeline:
     """Verify publish converts to RabbitMQ message and uses publisher."""
 
-    def test_publish_uses_outbox_to_rabbit_message(self):
-        source = inspect.getsource(AgentOutboxDispatcherWorker.publish)
-        assert "outbox_to_rabbit_message" in source
+    @pytest.mark.asyncio
+    async def test_publish_passes_claimed_envelope_to_publisher_interface(self):
+        publisher = _PublisherSpy()
+        worker = AgentOutboxDispatcherWorker(object(), publisher, worker_id="dispatcher-3")
+        record = OutboxRecord(
+            id=uuid4(), aggregate_type="agent", aggregate_id=uuid4(),
+            event_type="agent.execution.requested.v1", event_version=1, payload={},
+        )
+        envelope = RabbitMQMessageEnvelope(
+            routing_key="agent.execution.requested.v1", body="{}", correlation_id="correlation",
+        )
+        worker._envelope_map[record.id] = envelope
 
-    def test_publish_uses_publisher_interface(self):
-        source = inspect.getsource(AgentOutboxDispatcherWorker.publish)
-        assert "_publisher" in source
-        assert "publish" in source
+        await worker.publish(record)
 
-    def test_publish_converts_outbox_record_to_rabbit_message(self):
-        source = inspect.getsource(AgentOutboxDispatcherWorker.publish)
-        assert "outbox_to_rabbit_message" in source
+        assert publisher.envelopes == [envelope]
 
     def test_event_mapper_domain_to_outbox_then_rabbit_message(self):
         event = AgentExecutionRequestedV1.create(
@@ -214,20 +291,27 @@ class TestOutboxDispatcherPublishPipeline:
 class TestOutboxDispatcherStatusTransitions:
     """Verify status transition behavior for publish outcomes."""
 
-    def test_mark_published_uses_repository(self):
-        source = inspect.getsource(AgentOutboxDispatcherWorker.mark_published)
-        assert "_repo" in source
-        assert "mark_published" in source
+    @pytest.mark.asyncio
+    async def test_status_updates_delegate_to_repository(self, monkeypatch):
+        repository = _RepositorySpy()
+        _install_uow(monkeypatch, repository)
+        worker = AgentOutboxDispatcherWorker(object(), _PublisherSpy())
+        record = OutboxRecord(
+            id=uuid4(), aggregate_type="agent", aggregate_id=uuid4(),
+            event_type="agent.execution.requested.v1", event_version=1, payload={},
+            attempts=1, error="broker unavailable",
+        )
 
-    def test_mark_dead_uses_repository(self):
-        source = inspect.getsource(AgentOutboxDispatcherWorker.mark_dead)
-        assert "_repo" in source
-        assert "mark_dead" in source
+        await worker.mark_published(record)
+        await worker.mark_dead(record)
+        await worker.mark_retryable(record)
 
-    def test_mark_retryable_uses_repository(self):
-        source = inspect.getsource(AgentOutboxDispatcherWorker.mark_retryable)
-        assert "_repo" in source
-        assert "mark_retryable" in source
+        assert repository.calls[0] == ("mark_published", record.id)
+        assert repository.calls[1] == ("mark_dead", record.id, "broker unavailable")
+        retry = repository.calls[2]
+        assert retry[:3] == ("mark_retryable", record.id, "broker unavailable")
+        from datetime import datetime, timezone
+        assert retry[3] > datetime.now(timezone.utc)
 
     def test_valid_transitions_map(self):
         assert "pending" in [s.value for s in OutboxStatus]
@@ -322,9 +406,33 @@ class TestOutboxDispatcherRetryAndDeadLetter:
 class TestOutboxDispatcherPublisherConfirm:
     """Verify publisher confirm semantics."""
 
-    def test_agent_run_delegates_to_super(self):
-        source = inspect.getsource(AgentOutboxDispatcherWorker.run)
-        assert "super().run()" in source
+    @pytest.mark.asyncio
+    async def test_base_run_marks_after_confirmed_publish(self):
+        calls = []
+
+        class Dispatcher(BaseOutboxDispatcher):
+            async def claim_pending(self, limit):
+                calls.append(("claim", limit))
+                return [OutboxRecord(
+                    id=1, aggregate_type="agent", aggregate_id=1,
+                    event_type="agent.created", event_version=1, payload={},
+                )]
+
+            async def publish(self, record):
+                calls.append(("publish", record.id))
+
+            async def mark_published(self, record):
+                calls.append(("mark_published", record.id))
+
+            async def mark_dead(self, record):
+                calls.append(("mark_dead", record.id))
+
+            async def mark_retryable(self, record):
+                calls.append(("mark_retryable", record.id))
+
+        await Dispatcher(object()).run()
+
+        assert calls == [("claim", 50), ("publish", 1), ("mark_published", 1)]
 
     def test_base_run_has_publish_and_mark_published_sequence(self):
         source = inspect.getsource(BaseOutboxDispatcher.run)

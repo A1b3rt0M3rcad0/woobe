@@ -254,11 +254,18 @@ async def test_real_worker_process_death_preserves_only_committed_checkpoints(en
     import os
     import subprocess
     import sys
+    from pathlib import Path
     from shared.infra.object_storage.local import LocalObjectStorage
 
     files, request = await setup(engine, artifacts_database['project_id'], object_store)
     job = await execute(engine, 'request', request)
-    configuration = {'database_url': artifacts_database['url'], 'job_id': job.id, 'crash_at': crash_at}
+    core_source_root = Path(__file__).resolve().parents[3] / 'packages' / 'woobe-core' / 'src'
+    configuration = {
+        'database_url': artifacts_database['url'],
+        'job_id': job.id,
+        'crash_at': crash_at,
+        'core_source_root': str(core_source_root),
+    }
     if isinstance(object_store, LocalObjectStorage):
         configuration.update(kind='local', root=str(object_store._base_dir))
     else:
@@ -268,13 +275,17 @@ async def test_real_worker_process_death_preserves_only_committed_checkpoints(en
     filename.chmod(0o600)
     script = '''
 import asyncio, json, os, sys
+from pathlib import Path
 from sqlalchemy.ext.asyncio import create_async_engine
+configuration = json.load(open(sys.argv[1]))
+import modules
+assert Path(modules.__file__).resolve().is_relative_to(Path(configuration['core_source_root']))
 from modules.artifacts.application.contracts.jobs import ClaimProcessingJob, WorkerPhase
 from shared.infra.object_storage.local import LocalObjectStorage
 from tests.integration.artifacts.test_jobs_postgres import execute
 
 async def main():
-    config=json.load(open(sys.argv[1]))
+    config=configuration
     engine=create_async_engine(config['database_url'], hide_parameters=True)
     if config['kind']=='local':
         store=LocalObjectStorage(config['root'])
@@ -300,8 +311,17 @@ async def main():
     os._exit(73)
 asyncio.run(main())
 '''
+    # pytest.ini adds these source roots to pytest's sys.path, which does not
+    # propagate to a child interpreter. Put the required roots first while
+    # preserving any environment-specific PYTHONPATH entries after them.
+    child_env = os.environ.copy()
+    child_source_roots = [str(core_source_root)]
+    inherited_pythonpath = child_env.get('PYTHONPATH')
+    if inherited_pythonpath:
+        child_source_roots.extend(path for path in inherited_pythonpath.split(os.pathsep) if path)
+    child_env['PYTHONPATH'] = os.pathsep.join(child_source_roots)
     process = await asyncio.to_thread(subprocess.run, [sys.executable, '-c', script, str(filename)],
-        env=os.environ.copy(), capture_output=True, text=True, timeout=30)
+        env=child_env, capture_output=True, text=True, timeout=30)
     assert process.returncode == 73, process.stderr
     async with ArtifactsUnitOfWork(engine) as uow:
         row = await uow.session.get(ProcessingJobModel, job.id)

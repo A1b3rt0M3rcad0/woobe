@@ -54,8 +54,16 @@ class FileService:
         definition = UploadCreate(operation_id=request.operation_id, path=request.path,
             size_bytes=len(content), sha256=hashlib.sha256(content).hexdigest(), content_type='text/plain; charset=utf-8',
             artifact_id=request.artifact_id, expected_revision=request.expected_revision)
-        view = await self._uploads.begin(BeginUpload(request.principal, request.scope, request.workspace_id,
-            definition, request.origin, request.run_id, request.node_id))
+        view = await self._uploads.begin(BeginUpload(
+            request.principal,
+            request.scope,
+            request.workspace_id,
+            definition,
+            request.origin,
+            request.run_id,
+            request.node_id,
+            producer_id=request.producer_id,
+        ))
         upload = UploadRequest(request.principal, request.scope, request.workspace_id, view.id)
         if content and view.receipt is None:
             await self._uploads.append(UploadPart(request.principal, request.scope, request.workspace_id,

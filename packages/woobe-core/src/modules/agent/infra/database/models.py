@@ -398,7 +398,9 @@ class SessionModel(BaseModel):
     mode: Mapped[str] = mapped_column(String(32), default="chat")
     data: Mapped[dict | None] = mapped_column(JSONB)
     external_context_snapshot: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
-    artifact_workspace_binding: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    artifact_workspace_binding: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB(none_as_null=True), nullable=True
+    )
     last_message_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 

@@ -1,16 +1,31 @@
 """Regression coverage for legacy Agent Session status normalization."""
 
-import importlib
+import importlib.util
 import inspect
+from pathlib import Path
 
 from modules.agent.domain.enums import SessionStatus
 
 
-MIGRATION_MODULE = "migrations.versions.0061_normalize_agent_session_statuses"
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+MIGRATION_PATH = (
+    PROJECT_ROOT
+    / "packages"
+    / "woobe-core"
+    / "migrations"
+    / "versions"
+    / "0061_normalize_agent_session_statuses.py"
+)
 
 
 def _migration():
-    return importlib.import_module(MIGRATION_MODULE)
+    spec = importlib.util.spec_from_file_location(
+        "woobe_agent_migration_0061", MIGRATION_PATH
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def test_session_status_migration_revision_chain() -> None:

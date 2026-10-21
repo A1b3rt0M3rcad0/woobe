@@ -1405,7 +1405,9 @@ class SQLAlchemyAgentOutboxRepository(AgentOutboxRepository):
         now = datetime.now(timezone.utc)
         stmt = (
             select(AgentOutboxEventModel)
-            .where(AgentOutboxEventModel.status.in_(["pending", "retryable"]))
+            .where(AgentOutboxEventModel.status.in_(
+                ["pending", "retryable", "publishing"]
+            ))
             .where(AgentOutboxEventModel.available_at <= func.now())
             .where(
                 (AgentOutboxEventModel.locked_at.is_(None))

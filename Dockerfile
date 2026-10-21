@@ -21,6 +21,9 @@ RUN --mount=type=cache,target=/root/.cache/uv \
       pageindex-local) uv sync --frozen --no-dev --no-install-project --extra pageindex-local ;; \
       docling-native|docling-ocr) uv sync --frozen --no-dev --no-install-project --extra docling-processing ;; \
       *) echo "Unsupported processing profile" >&2; exit 2 ;; \
+    esac \
+    && case "$WOOBE_PROCESSING_PROFILE" in \
+      base|native-ocr|pageindex-local) uv pip install --python /opt/venv/bin/python "Pillow==13.0.0" ;; \
     esac
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install --python /opt/venv/bin/python \

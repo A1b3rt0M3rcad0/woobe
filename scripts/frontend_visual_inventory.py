@@ -22,6 +22,7 @@ PAGE_FOLDERS = {
     'ToolsPage': 'tools', 'ModelsPage': 'models', 'ProjectEnvironmentsPage': 'environments',
     'SkillsPage': 'skills', 'CredentialsPage': 'credentials', 'UsagePage': 'usage',
     'TracesPage': 'traces',
+    'ArtifactsPage': 'artifacts',
 }
 PRIMITIVE_GROUPS = {
     'brand': ['WoobeLogo'],

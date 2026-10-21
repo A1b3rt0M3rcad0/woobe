@@ -58,6 +58,30 @@ class ReadRepresentation(FileRequest):
 
 
 @dataclass(frozen=True)
+class RenderRepresentationPage(FileRequest):
+    artifact_id: str
+    revision_id: str
+    representation_set_id: str
+    page_index: int
+    dpi: int = 150
+    max_pixels: int = 4_000_000
+
+    def __post_init__(self):
+        if type(self.page_index) is not int or not 0 <= self.page_index <= 9999:
+            raise ValueError('Invalid physical page index')
+        if type(self.dpi) is not int or not 72 <= self.dpi <= 300:
+            raise ValueError('Invalid page rendering DPI')
+        if type(self.max_pixels) is not int or not 1 <= self.max_pixels <= 4_000_000:
+            raise ValueError('Invalid page rendering pixel limit')
+
+
+@dataclass(frozen=True)
+class RenderedRepresentationPage:
+    content: bytes
+    source_sha256: str
+
+
+@dataclass(frozen=True)
 class ListRepresentations(ReadRepresentation):
     limit: int = 50
     cursor: str | None = None

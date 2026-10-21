@@ -165,6 +165,8 @@ class StructuredOutputAskAgentUseCase(
         agent,
         tool_calls=None,
         content_parts=None,
+        output_artifacts=None,
+        source_refs=None,
     ):
         context = current_execution.get()
         sources = context.persisted_sources if context else None
@@ -176,6 +178,10 @@ class StructuredOutputAskAgentUseCase(
                 source.model_dump() if hasattr(source, "model_dump") else source
                 for source in sources
             ]
+        if output_artifacts:
+            data["output_artifacts"] = output_artifacts
+        if source_refs:
+            data["source_refs"] = source_refs
         if content_parts is not None:
             from shared.contracts.content_parts import serialize_content_parts
 

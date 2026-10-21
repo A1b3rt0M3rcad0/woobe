@@ -6,9 +6,11 @@ from pathlib import Path
 import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
+AGENT_ROOT = PROJECT_ROOT / "packages" / "woobe-core" / "src" / "modules" / "agent"
 AGENT_APP = PROJECT_ROOT / "packages" / "woobe-core" / "src" / "modules" / "agent" / "application"
+AGENT_COMPOSERS = AGENT_ROOT / "composition" / "composers"
 
-REQUIRED_APP_DIRS = ["composers", "dtos", "handlers", "use_cases"]
+REQUIRED_APP_DIRS = ["dtos", "handlers", "interfaces", "use_cases"]
 
 FORBIDDEN_FRAMEWORK_MODULES = {"sqlalchemy", "fastapi", "asyncpg", "aiormq"}
 RUNTIME_ORCHESTRATION_FILES = {
@@ -55,14 +57,14 @@ class TestNormalizeAgentApplicationLayout:
         assert len(source) > 500, "use_cases/__init__.py must have meaningful re-exports"
 
     def test_composers_directory_has_multiple_files(self):
-        composers_dir = AGENT_APP / "composers"
-        assert composers_dir.is_dir()
+        composers_dir = AGENT_COMPOSERS
+        assert composers_dir.is_dir(), "Composition roots live under agent/composition/composers"
         py_files = [
             f
             for f in composers_dir.iterdir()
             if f.suffix == ".py" and not f.name.startswith("__")
         ]
-        assert len(py_files) >= 40, f"Expected 40+ composers, found {len(py_files)}"
+        assert len(py_files) >= 40, f"Expected 40+ composition roots, found {len(py_files)}"
 
     def test_handlers_directory_has_init(self):
         handlers_dir = AGENT_APP / "handlers"

@@ -25,6 +25,7 @@ ALLOWED_ROOT_FILES = {
     'Dockerfile', 'compose.yaml', 'compose.test.yaml', '.env.example',
     '.gitignore', '.dockerignore', 'README.md', 'CHANGELOG.md',
     'THIRD_PARTY_NOTICES.md',
+    'compose.artifacts-documents.yaml', 'compose.artifacts-pageindex.yaml',
 }
 ALLOWED_DIRS = {
     'packages', 'clients', 'contracts', 'docs', 'scripts', 'tests',

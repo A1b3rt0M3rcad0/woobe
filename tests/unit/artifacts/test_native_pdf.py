@@ -3,12 +3,15 @@ import hashlib
 import io
 import json
 from pathlib import Path
+import subprocess
+import sys
 
 from PIL import Image
 import pytest
 
 from modules.artifacts.application.contracts.processing import ComponentReference, ProcessingRecipe
 from modules.artifacts.domain.models import ArtifactError, Coverage, Revision
+from modules.artifacts.infra.processing import native_pdf
 from modules.artifacts.infra.processing.native_pdf import NativePdfProcessor
 from tests.fixtures.artifacts.pdf_sources import synthetic_pdf
 
@@ -109,6 +112,25 @@ async def test_pdf_cancelled_render_reaps_real_child_and_private_scratch(monkeyp
         await task
     assert spawned[0].returncode is not None
     assert not paths[0].exists() and paths[0].parent == Path(tempfile.gettempdir())
+
+
+@pytest.mark.asyncio
+async def test_pdf_child_imports_core_from_explicit_source_root_in_sanitized_environment(tmp_path, monkeypatch):
+    real_spawn = asyncio.create_subprocess_exec
+    source_root = Path(native_pdf.__file__).resolve().parents[4]
+
+    async def verify_child_environment(*args, **kwargs):
+        child_environment = kwargs['env']
+        assert child_environment['PYTHONPATH'] == str(source_root)
+        result = subprocess.run([sys.executable, '-S', '-c',
+            'import modules.artifacts.infra.processing.document_child'],
+            cwd=tmp_path, env=child_environment, capture_output=True, text=True, timeout=5)
+        assert result.returncode == 0, result.stderr
+        return await real_spawn(*args, **kwargs)
+
+    monkeypatch.setattr(native_pdf.asyncio, 'create_subprocess_exec', verify_child_environment)
+    content = synthetic_pdf(pages=1, empty_page=None, image_page=None, two_columns=None)
+    await NativePdfProcessor().process(*inputs(content))
 
 
 @pytest.mark.asyncio

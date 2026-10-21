@@ -8,6 +8,7 @@ from modules.agent.domain.entities import Tool
 from modules.agent.domain.enums import ToolType
 from modules.agent.domain.mcp_permissions import normalize_permission
 from modules.package.application.validation import validate_document
+from modules.package.domain.errors import PackageError
 from shared.contracts.errors import ValidationError
 
 
@@ -142,6 +143,8 @@ def test_native_mcp_permission_risk_survives_export_schema_validation(mode, risk
         ToolType.MCP,
     )
     exported = export_frozen_tool(tool_to_release_snapshot(tool))
+    assert "file_bindings" not in exported["config"]
+    assert "output_bindings" not in exported["config"]
     validated = validate_document(
         {
             "format": "woobe-package",
@@ -159,6 +162,56 @@ def test_native_mcp_permission_risk_survives_export_schema_validation(mode, risk
     permission = validated.spec.permissions[0]
     assert permission.permission == mode
     assert permission.risk == native_permission.get("risk_level")
+
+
+def test_nonempty_mcp_artifact_bindings_survive_export_for_newer_package_versions():
+    tool = _tool(
+        {
+            "mode": "tool",
+            "exposure": "single",
+            "tool_name": "lookup",
+            "server": {"url": "https://mcp.test"},
+            "output_bindings": [
+                {
+                    "name": "report",
+                    "mode": "mcp_resource",
+                    "path": "reports/result.pdf",
+                    "content_types": ["application/pdf"],
+                    "resource_name": "report",
+                }
+            ],
+        },
+        ToolType.MCP,
+    )
+
+    exported = export_frozen_tool(tool_to_release_snapshot(tool))
+
+    assert exported["config"]["output_bindings"] == [
+        {
+            "name": "report",
+            "mode": "mcp_resource",
+            "path": "reports/result.pdf",
+            "content_types": ["application/pdf"],
+            "max_bytes": 1048576,
+            "pending_statuses": [],
+            "resource_name": "report",
+        }
+    ]
+    with pytest.raises(PackageError):
+        validate_document(
+            {
+                "format": "woobe-package",
+                "schema_version": "1.0",
+                "kind": "Tool",
+                "metadata": {"key": "lookup", "name": "Lookup"},
+                "spec": {
+                    key: value
+                    for key, value in exported.items()
+                    if key not in {"id", "name"}
+                },
+            },
+            "tool-1.yaml",
+        )
 
 
 def test_structural_configuration_projection_keeps_the_verified_author_snapshot_unchanged():

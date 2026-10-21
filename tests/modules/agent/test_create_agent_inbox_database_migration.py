@@ -1,23 +1,43 @@
 """Tests for spec 076 — create agent inbox database migration."""
-import importlib
+import importlib.util
 import inspect
+from pathlib import Path
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+MIGRATION_PATH = (
+    PROJECT_ROOT
+    / "packages"
+    / "woobe-core"
+    / "migrations"
+    / "versions"
+    / "0014_create_agent_inbox_events.py"
+)
+
+
+def _migration():
+    spec = importlib.util.spec_from_file_location(
+        "woobe_agent_migration_0014", MIGRATION_PATH
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 class TestMigrationFileStructure:
     """Verify migration file has correct structure."""
 
     def test_migration_file_exists(self):
-        import os
-        path = os.path.join("migrations", "versions", "0014_create_agent_inbox_events.py")
-        assert os.path.isfile(path)
+        assert MIGRATION_PATH.is_file()
 
     def test_migration_has_correct_revision(self):
-        mod = importlib.import_module("migrations.versions.0014_create_agent_inbox_events")
+        mod = _migration()
         assert mod.revision == "0014"
         assert mod.down_revision == "0013"
 
     def test_migration_has_upgrade_and_downgrade(self):
-        mod = importlib.import_module("migrations.versions.0014_create_agent_inbox_events")
+        mod = _migration()
         assert hasattr(mod, "upgrade")
         assert hasattr(mod, "downgrade")
         assert callable(mod.upgrade)
@@ -28,7 +48,7 @@ class TestMigrationUpgradeContent:
     """Verify upgrade creates the correct schema and table."""
 
     def _get_source(self):
-        mod = importlib.import_module("migrations.versions.0014_create_agent_inbox_events")
+        mod = _migration()
         return inspect.getsource(mod.upgrade)
 
     def test_creates_agent_schema(self):
@@ -67,7 +87,7 @@ class TestMigrationDowngradeContent:
     """Verify downgrade only removes objects created in this spec."""
 
     def _get_source(self):
-        mod = importlib.import_module("migrations.versions.0014_create_agent_inbox_events")
+        mod = _migration()
         return inspect.getsource(mod.downgrade)
 
     def test_drops_agent_inbox_events_table(self):

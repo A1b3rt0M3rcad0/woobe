@@ -13,10 +13,10 @@ REQUIRED_DOMAIN_FILES = [
     "enums.py",
     "errors.py",
     "events.py",
-    "repositories.py",
     "services.py",
     "value_objects.py",
 ]
+REPOSITORY_PORTS_FILE = AGENT_DOMAIN.parent / "application" / "interfaces" / "repositories.py"
 
 FORBIDDEN_FRAMEWORK_MODULES = {"sqlalchemy", "fastapi", "asyncpg", "aiormq"}
 
@@ -42,6 +42,9 @@ class TestNormalizeAgentDomainContracts:
         for name in REQUIRED_DOMAIN_FILES:
             file_path = AGENT_DOMAIN / name
             assert file_path.is_file(), f"Missing domain file: {name}"
+        assert not (AGENT_DOMAIN / "repositories.py").exists(), (
+            "Repository ports belong to application/interfaces under the current Agent boundary"
+        )
 
     def test_domain_entities_is_populated(self):
         entities_file = AGENT_DOMAIN / "entities.py"
@@ -69,7 +72,7 @@ class TestNormalizeAgentDomainContracts:
         assert class_count >= 1, "events.py must contain at least one event class"
 
     def test_domain_repositories_use_abc(self):
-        repos_file = AGENT_DOMAIN / "repositories.py"
+        repos_file = REPOSITORY_PORTS_FILE
         source = repos_file.read_text(encoding="utf-8")
         assert "from abc import ABC, abstractmethod" in source, "Repositories must use ABC/abstractmethod"
         assert "class " in source, "Repository interfaces must be defined"

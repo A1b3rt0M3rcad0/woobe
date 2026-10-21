@@ -12,6 +12,7 @@ import inspect
 from enum import Enum
 from uuid import uuid4
 
+import pytest
 from woobe_workers.consumers.agent.inbox_processor import (
     RETRY_BACKOFF_BASE_SECONDS,
     AgentInboxHandlerProtocol,
@@ -19,6 +20,7 @@ from woobe_workers.consumers.agent.inbox_processor import (
 )
 from woobe_workers.runtime.inbox_processor_base import BaseInboxProcessor, InboxProcessingRecord
 from woobe_workers.runtime.base_worker import BaseWorker
+import woobe_workers.consumers.agent.inbox_processor as inbox_processor_module
 
 
 class InboxStatus(str, Enum):
@@ -67,11 +69,44 @@ class TestInboxProcessorStructure:
         params = list(sig.parameters.keys())
         assert "worker_id" in params
 
-    def test_run_creates_session_and_delegates_to_super(self):
-        source = inspect.getsource(AgentInboxProcessorWorker.run)
-        assert "AsyncSession" in source
-        assert "session.begin" in source
-        assert "super().run()" in source
+    @pytest.mark.asyncio
+    async def test_run_owns_repository_scope_and_delegates_to_base(self, monkeypatch):
+        calls = []
+        repository = object()
+
+        class UnitOfWork:
+            def __init__(self, _engine):
+                self.session = object()
+
+            async def __aenter__(self):
+                calls.append(("uow_enter",))
+                return self
+
+            async def __aexit__(self, exc_type, exc_val, exc_tb):
+                calls.append(("uow_exit",))
+
+        def build_repository(uow):
+            calls.append(("repository", uow))
+            return repository
+
+        async def process_batch(worker):
+            calls.append(("base_run", worker._repo))
+
+        monkeypatch.setattr(inbox_processor_module, "AgentUnitOfWork", UnitOfWork)
+        monkeypatch.setattr(
+            inbox_processor_module, "SQLAlchemyAgentInboxRepository", build_repository,
+        )
+        monkeypatch.setattr(BaseInboxProcessor, "run", process_batch)
+        worker = AgentInboxProcessorWorker(object(), handler=object())
+
+        await worker.run()
+
+        assert calls[0] == ("uow_enter",)
+        assert calls[1][0] == "repository"
+        assert calls[2] == ("base_run", repository)
+        assert calls[3] == ("uow_exit",)
+        assert worker._repo is None
+        assert worker._event_map == {}
 
     def test_retry_backoff_constant(self):
         assert RETRY_BACKOFF_BASE_SECONDS == 30

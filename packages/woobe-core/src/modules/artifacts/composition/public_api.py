@@ -116,4 +116,12 @@ from modules.artifacts.application.contracts.search import (
 )
 from modules.artifacts.composition.composers.search_documents import search_documents_composer as search_documents_composer
 
+from modules.artifacts.application.contracts.representations import (
+    RenderRepresentationPage as RenderRepresentationPage,
+    RenderedRepresentationPage as RenderedRepresentationPage,
+)
+from modules.artifacts.composition.composers.render_representation_page import (
+    render_representation_page_composer as render_representation_page_composer,
+)
+
 CONTRACT_VERSION = '1'

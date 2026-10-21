@@ -12,8 +12,9 @@ def test_cursor_is_signed_and_bound_to_principal_query_and_purpose():
                           catalog_version=0, purpose='workspaces')
     token = codec.encode(data)
     assert codec.decode(token, fingerprint=fingerprint, purpose='workspaces') == data
+    tampered = ('A' if token[0] != 'A' else 'B') + token[1:]
     for candidate, context, purpose in [
-        (token[:-1] + ('A' if token[-1] != 'A' else 'B'), fingerprint, 'workspaces'),
+        (tampered, fingerprint, 'workspaces'),
         (token, codec.fingerprint({'project': 'p', 'principal': 'user-b', 'namespace': 'n'}), 'workspaces'),
         (token, fingerprint, 'artifacts'),
         ('invalid', fingerprint, 'workspaces'),

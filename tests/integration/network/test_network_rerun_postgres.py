@@ -14,6 +14,7 @@ from modules.network.infra.database.models import (
     NetworkOutboxEventModel,
     NetworkSessionModel,
 )
+from modules.core.infra.database.models import ProjectModel
 from shared.infra.config import Settings
 from shared.infra.database.session import create_engine, create_session_factory
 
@@ -39,11 +40,23 @@ async def test_network_rerun_creates_new_run_from_frozen_snapshot_with_lineage()
             "release_id": None,
             "release_version": "draft",
             "session_mode": "stateful",
+            "snapshot_override": {},
         }
     }
 
     async with session_factory() as session:
         async with session.begin():
+            session.add(
+                ProjectModel(
+                    id=project_id,
+                    workspace_id=uuid4(),
+                    name="Network rerun project",
+                    slug=f"network-rerun-{project_id}",
+                    status="active",
+                    data={},
+                )
+            )
+            await session.flush()
             session.add(
                 NetworkModel(
                     id=network_id,

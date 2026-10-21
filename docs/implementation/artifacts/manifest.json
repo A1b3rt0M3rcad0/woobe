@@ -744,8 +744,49 @@
         14,
         20
       ],
-      "status": "not_started",
-      "checks": []
+      "status": "completed",
+      "checks": [
+        {
+          "command": "pytest tests/unit tests/fakes/test_openai_provider.py (legacy_finalization, disposable SQLite)",
+          "outcome": "passed",
+          "evidence": "3296 passed and 10 subtests passed in 74.60s. New focused model/runtime tests: 21 passed in 1.41s, including actual OpenAI SDK zero-retry construction without network and legacy provider extension compatibility."
+        },
+        {
+          "command": "pytest tests/integration/core -k configuration (disposable PostgreSQL)",
+          "outcome": "passed",
+          "evidence": "57 passed, 14 deselected in 20.00s; existing Core configuration behavior preserved."
+        },
+        {
+          "command": "pytest tests/integration/artifacts/test_document_model_{configuration,calls,usage,pipeline}_postgres.py (disposable PostgreSQL, local and S3)",
+          "outcome": "passed",
+          "evidence": "50 passed in 104.78s: real configuration approval/encryption and revocation, durable calls, idempotent metering, concurrent project isolation, immutable source citations, paid-result recovery, invalid output and uncertainty. Deterministic provider port; this is not live-provider acceptance."
+        },
+        {
+          "command": "pytest tests/integration/artifacts (disposable PostgreSQL, local/S3, qualified OCR)",
+          "outcome": "passed",
+          "evidence": "Full integration: 368 passed, 4 skipped, 4 legacy cancellation failures in 607.54s. The diagnosed owner-acknowledgement regression was corrected; affected complete jobs and current model-pipeline suites then passed 88 tests in 109.58s with actual local and S3 storage. The 4 opt-in live-provider skips remain unqualified and separately recorded as not_run."
+        },
+        {
+          "command": "quality_gate.architecture.checker --policy-dir tooling/quality-gate/src/quality_gate/architecture/policies; generate_artifact_schemas.py --check",
+          "outcome": "passed",
+          "evidence": "Nine governed modules pass with zero violations; 31 generated wire schemas match current contracts."
+        },
+        {
+          "command": "WOOBE_ARTIFACT_RUN_LIVE_MODEL=1 pytest --tb=no tests/integration/artifacts/test_document_model_live_postgres.py",
+          "outcome": "not_run",
+          "evidence": "Not executed. The user declined an OpenAI binding; live validation is now opt-in and provider-neutral. The harness requires an explicitly selected existing provider, model, approved HTTPS endpoint and that provider's secure credential, using generic WOOBE_ARTIFACT_MODEL_* variables. No OpenAI account, key, endpoint or model is required for environment startup or deterministic checks. This does not mark the original plan's live acceptance as passed."
+        },
+        {
+          "command": "pytest tests/unit/artifacts/test_live_model_selection.py tests/unit/agent/test_operation_model_runtime.py tests/unit/artifacts/test_document_models.py; pytest test_document_model_pipeline_postgres.py -k governed_worker; pytest test_document_model_live_postgres.py",
+          "outcome": "passed",
+          "evidence": "User-requested provider-neutral adjustment: 28 unit tests passed in 1.57s; 12 actual PostgreSQL/local/S3 integration cases passed in 43.78s using deterministic provider ports for OpenAI, DeepSeek and an independent compatible endpoint. Exact selected provider/endpoint persisted in scoped bindings. Four opt-in live-provider tests skipped in 1.95s; no real-provider acceptance claimed. Saved startup draft updated without adding any mandatory provider secret; removal of the obsolete cloud secret declaration is unsupported by the configuration API."
+        },
+        {
+          "command": "Provider-neutral acceptance adjustment; deterministic contract/runtime and PostgreSQL/local/S3 integration tests",
+          "outcome": "passed",
+          "evidence": "The user-requested scope adjustment is recorded in PLAN_ADJUSTMENTS.md without changing the supplied plan hash. Deterministic tests cover provider selection, endpoint isolation, authorization, metering, recovery, citations and failure outcomes. 28 focused unit tests and 12 PostgreSQL/local/S3 cases passed. The opt-in live-provider call remains not_run and optional; no OpenAI binding is required or claimed."
+        }
+      ]
     },
     {
       "id": 22,
@@ -756,8 +797,29 @@
         20,
         21
       ],
-      "status": "not_started",
-      "checks": []
+      "status": "completed",
+      "checks": [
+        {
+          "command": "pytest tests/unit/artifacts/test_pageindex_adapter.py",
+          "outcome": "passed",
+          "evidence": "14 passed in 7.09s. Executes the pinned upstream algorithm and checks vendor hashes, source-owned trees, bounds, optional-import-free startup, isolated concurrent jobs and child-process cancellation."
+        },
+        {
+          "command": "pytest tests/integration/artifacts/test_pageindex_postgres.py (disposable PostgreSQL; local and S3-compatible storage)",
+          "outcome": "passed",
+          "evidence": "8 passed in 38.36s across fresh/populated migrations and both storage adapters. Verified outline publication, exact reads, cache reuse, workspace isolation and explicitly authorized structural fallback."
+        },
+        {
+          "command": "Ruff; artifact schema --check; uv lock --check; architecture checker; Alembic head",
+          "outcome": "passed",
+          "evidence": "Ruff clean, generated schemas and lock current, all nine architecture modules pass with zero violations, and migration 0116 was the single head at stage22 completion. Core wheel packaging verified vendor licenses, data, hashes and optional-extra metadata."
+        },
+        {
+          "command": "check_pageindex_optional.py; Docker pageindex-local profile dry-run; workflow YAML parse",
+          "outcome": "passed",
+          "evidence": "Optional runtime profile resolves, import guard proves Core startup does not require PageIndex packages, Docker optional profile resolves, and qualification workflows parse."
+        }
+      ]
     },
     {
       "id": 23,
@@ -770,8 +832,24 @@
         20,
         22
       ],
-      "status": "not_started",
-      "checks": []
+      "status": "completed",
+      "checks": [
+        {
+          "command": "pytest tests/integration/artifacts/test_search_postgres.py (disposable PostgreSQL; local/S3; fresh/populated migrations)",
+          "outcome": "passed",
+          "evidence": "8 passed in 35.95s, covering path discovery before extraction, Portuguese/NFKC full-text search, literal formulas, duplicate names, bounded SourceRefs, grant filtering, cursor tampering, concurrent revision/index publication and GIN query plans."
+        },
+        {
+          "command": "pytest tests/unit/artifacts tests/unit/agent/test_operation_model_runtime.py",
+          "outcome": "passed",
+          "evidence": "180 passed, 9 skipped in 25.03s; only upstream PyPDF2 deprecation warning."
+        },
+        {
+          "command": "Ruff changed files; artifact schema --check; architecture checker; uv lock --check; Alembic heads; git diff --check",
+          "outcome": "passed",
+          "evidence": "Touched search/API/migration/bundle files pass Ruff; generated schemas and lock are current; all nine architecture modules pass; migration 0117 was the single head at stage23 completion; diff clean."
+        }
+      ]
     },
     {
       "id": 24,
@@ -784,8 +862,24 @@
         22,
         23
       ],
-      "status": "not_started",
-      "checks": []
+      "status": "completed",
+      "checks": [
+        {
+          "command": "pytest stage24 navigation/source-resolution cases across indexes, representations and operation catalog (disposable PostgreSQL; fresh/populated; local/S3)",
+          "outcome": "passed",
+          "evidence": "32 passed in 74.85s. Verified structural navigation/pagination, exact historical SourceRefs through reprocessing/rename, bounded reads, page labels, authorized images, batch resolution, direct/API parity, deletion/revocation and runtime route authorization."
+        },
+        {
+          "command": "pytest tests/unit/artifacts tests/unit/agent/test_operation_model_runtime.py tests/unit/security/test_operation_catalog.py tests/unit/api/test_asac_http_security.py",
+          "outcome": "passed",
+          "evidence": "352 passed, 9 skipped in 26.47s."
+        },
+        {
+          "command": "Ruff changed files; artifact schemas; lock; Alembic head; architecture checker; diff check",
+          "outcome": "passed",
+          "evidence": "Ruff passed, 31 generated schemas match, lock is current, migration 0117 was the single head at stage24 completion, diff clean and all nine architecture modules pass."
+        }
+      ]
     },
     {
       "id": 25,
@@ -797,8 +891,29 @@
         13,
         24
       ],
-      "status": "not_started",
-      "checks": []
+      "status": "completed",
+      "checks": [
+        {
+          "command": "pytest focused Agent capability, portable definition/materialization, Network and Package v2 tests",
+          "outcome": "passed",
+          "evidence": "54 passed in 1.22s before the namespace refinement; the same focused suite passed 54 in 1.20s after the final namespace binding update. Covers default-off legacy policy, hidden required External Context binding, namespaced external key, bounds, Release identity and package compatibility."
+        },
+        {
+          "command": "go test ./internal/packagefmt; make check (woobe-cli)",
+          "outcome": "passed",
+          "evidence": "Updated Package v2 Agent/Network catalog and targeted packagefmt tests pass. Full CLI make check passed Node skill tests, 64 Python verifier tests, completeness, gofmt, module verification, go vet and race-enabled Go tests."
+        },
+        {
+          "command": "generate_package_schemas.py --check; generate_artifact_schemas.py --check; uv lock --check; Alembic heads; diff check",
+          "outcome": "passed",
+          "evidence": "Generated schemas are current, uv.lock resolves 124 packages without drift, migration 0117 was the single head at stage25 completion and whitespace check is clean."
+        },
+        {
+          "command": "Ruff changed step25 files; architecture checker",
+          "outcome": "passed",
+          "evidence": "All 15 Step25 Python files pass Ruff; all nine governed modules report zero violations."
+        }
+      ]
     },
     {
       "id": 26,
@@ -809,8 +924,29 @@
         6,
         25
       ],
-      "status": "not_started",
-      "checks": []
+      "status": "completed",
+      "checks": [
+        {
+          "command": "pytest tests/unit/agent/test_artifact_workspace_acceptance.py tests/unit/agent/test_external_context_contract.py tests/unit/agent/test_session_continuity_release_policy.py",
+          "outcome": "passed",
+          "evidence": "37 passed in 0.18s. Confirms authenticated-principal injection, hidden External Context, logical namespace/key binding, project/environment/actions propagation, catalog version capture, no request-body principal spoofing, forbidden response mapping, scope replay and stateful Workspace-switch rejection."
+        },
+        {
+          "command": "pytest tests/integration/artifacts/test_runtime_workspace_binding_postgres.py (disposable PostgreSQL, fresh and populated migrations)",
+          "outcome": "passed",
+          "evidence": "2 passed in 12.89s. Real PostgreSQL resolution returns catalog version 11 for an authorized logical key, rejects a revoked grant and wrong Environment, and roundtrips the private binding through the migrated Agent Session column."
+        },
+        {
+          "command": "Ruff changed Step26 files; Alembic heads; diff check",
+          "outcome": "passed",
+          "evidence": "All changed Step26 Python files pass Ruff; Alembic head is 0118; diff check is clean."
+        },
+        {
+          "command": "quality_gate.architecture.checker --policy-dir tooling/quality-gate/src/quality_gate/architecture/policies",
+          "outcome": "passed",
+          "evidence": "All nine governed modules pass with zero violations."
+        }
+      ]
     },
     {
       "id": 27,
@@ -820,8 +956,29 @@
         25,
         26
       ],
-      "status": "not_started",
-      "checks": []
+      "status": "completed",
+      "checks": [
+        {
+          "command": "pytest tests/unit/network tests/unit/agent/test_artifact_workspace_acceptance.py tests/unit/package/test_configuration_package_v2.py",
+          "outcome": "passed",
+          "evidence": "197 passed in 5.21s. Covers root binding, action intersection, non-escalating per-Node policy, public metadata spoof rejection, child-session identity and rerun snapshot preservation."
+        },
+        {
+          "command": "pytest tests/integration/artifacts/test_runtime_workspace_binding_postgres.py (disposable PostgreSQL, fresh and populated migrations)",
+          "outcome": "passed",
+          "evidence": "4 passed in 14.42s. Migration 0119 applies from both paths; network Session and Execution binding plus private principal snapshots roundtrip through PostgreSQL and detached runtime loader."
+        },
+        {
+          "command": "CLI make check; Package 2.0 generated schema checks",
+          "outcome": "passed",
+          "evidence": "CLI make check passes including go vet and race-enabled Go tests; Go Package 2.0 schema copy matches the canonical Network Node/Workspace policy schema and its digest."
+        },
+        {
+          "command": "Ruff changed source/tests; nine-module architecture checker; Alembic heads; git diff --check",
+          "outcome": "passed",
+          "evidence": "Selected changed Python files pass Ruff; all nine modules have zero architecture violations; migration 0119 is the single head; generated schemas and whitespace checks pass."
+        }
+      ]
     },
     {
       "id": 28,
@@ -834,8 +991,39 @@
         26,
         27
       ],
-      "status": "not_started",
-      "checks": []
+      "status": "completed",
+      "checks": [
+        {
+          "command": "pytest tests/unit/artifacts tests/unit/agent/test_artifact_workspace_acceptance.py tests/unit/network/test_network_artifact_acceptance.py",
+          "outcome": "passed",
+          "evidence": "191 passed, 9 skipped in 26.92s. Validates pinned list/search requests, cursor snapshots, session catalog continuity, run-output exact refs, capability ceilings, and source-use recording."
+        },
+        {
+          "command": "pytest tests/integration/artifacts/test_run_sources_postgres.py tests/integration/artifacts/test_files_postgres.py (disposable PostgreSQL; fresh and populated migrations)",
+          "outcome": "passed",
+          "evidence": "24 passed, 20 skipped in 30.46s. Verifies migration 0120, idempotent/deduplicated per-Run manifests, locator/hash roundtrip, historical revision reads, inaccessible future revisions, explicit same-Run Node output overlay, and legacy cursor continuation."
+        },
+        {
+          "command": "pytest tests/integration/artifacts/test_run_sources_postgres.py (fresh and populated PostgreSQL)",
+          "outcome": "passed",
+          "evidence": "6 passed, 2 skipped in 12.04s after adding an exact locator roundtrip; Run manifests remain version-fixed and isolated by Run."
+        },
+        {
+          "command": "Ruff changed Step28 Python files",
+          "outcome": "passed",
+          "evidence": "All changed runtime, Agent/Network acceptance, repository and test modules pass Ruff."
+        },
+        {
+          "command": "quality_gate.architecture.checker --policy-dir tooling/quality-gate/src/quality_gate/architecture/policies",
+          "outcome": "passed",
+          "evidence": "All nine governed modules pass with zero violations."
+        },
+        {
+          "command": "Alembic heads; git diff --check",
+          "outcome": "passed",
+          "evidence": "0120 is the single migration head and the working diff has no whitespace errors."
+        }
+      ]
     },
     {
       "id": 29,
@@ -848,8 +1036,34 @@
         26,
         28
       ],
-      "status": "not_started",
-      "checks": []
+      "status": "completed",
+      "checks": [
+        {
+          "command": "PYTHONPATH=.:packages/woobe-core/src:packages/woobe-api/src:packages/woobe-workers/src .venv/bin/pytest -q tests/unit/artifacts tests/unit/network tests/unit/agent/test_artifact_workspace_acceptance.py tests/unit/agent/test_agent_run_recovery_resume.py tests/unit/agent/test_public_runtime_api.py tests/unit/agent/test_ask_stream_http_cancellation_contract.py tests/unit/agent/test_external_context_session_boundaries.py",
+          "outcome": "passed",
+          "evidence": "388 passed, 9 skipped; covers legacy and typed input, exact-reference retention through Agent/Network history and rerun, idempotency binding, and no provider call when no Artifact input operation is available"
+        },
+        {
+          "command": "Disposable PostgreSQL: Alembic upgrade head; tests/integration/artifacts/test_runtime_workspace_binding_postgres.py and tests/integration/network/test_network_rerun_postgres.py",
+          "outcome": "passed",
+          "evidence": "5 passed across fresh/populated Artifact workspace binding and Network input snapshot/rerun; disposable database removed after the run; migration head 0121"
+        },
+        {
+          "command": "Ruff on changed step-29 modules and tests; git diff --check",
+          "outcome": "passed",
+          "evidence": "All checks passed; no whitespace errors"
+        },
+        {
+          "command": "PYTHONPATH=tooling/quality-gate/src .venv/bin/python -m quality_gate.architecture.checker --policy-dir tooling/quality-gate/src/quality_gate/architecture/policies",
+          "outcome": "passed",
+          "evidence": "All nine governed modules pass with zero architecture violations"
+        },
+        {
+          "command": ".venv/bin/alembic -c packages/woobe-core/alembic.ini heads",
+          "outcome": "passed",
+          "evidence": "0121 is the only Alembic head"
+        }
+      ]
     },
     {
       "id": 30,
@@ -864,8 +1078,24 @@
         28,
         29
       ],
-      "status": "not_started",
-      "checks": []
+      "status": "completed",
+      "checks": [
+        {
+          "command": "PYTHONPATH=.:packages/woobe-core/src:packages/woobe-api/src:packages/woobe-workers/src .venv/bin/pytest -q tests/unit/artifacts tests/unit/network tests/unit/agent/test_artifact_workspace_acceptance.py tests/unit/agent/test_agent_run_recovery_resume.py tests/unit/agent/test_public_runtime_api.py tests/unit/agent/test_ask_stream_http_cancellation_contract.py tests/unit/agent/test_external_context_session_boundaries.py",
+          "outcome": "passed",
+          "evidence": "391 passed, 9 skipped in 27.59s; deterministic Agent tool calls cover search, exact source read, output write, action filtering, hidden-name denial, pinned scope and processing failure"
+        },
+        {
+          "command": "Ruff changed Agent/Artifacts runtime and tool files; quality_gate.architecture.checker all policies",
+          "outcome": "passed",
+          "evidence": "Ruff passed; all nine governed module policies had zero violations"
+        },
+        {
+          "command": "git diff --check",
+          "outcome": "passed",
+          "evidence": "No whitespace or patch errors"
+        }
+      ]
     },
     {
       "id": 31,
@@ -876,8 +1106,24 @@
         29,
         30
       ],
-      "status": "not_started",
-      "checks": []
+      "status": "completed",
+      "checks": [
+        {
+          "command": "PYTHONPATH=.:packages/woobe-core/src:packages/woobe-api/src:packages/woobe-workers/src .venv/bin/pytest -q tests/unit/artifacts/test_agent_runtime_tools.py tests/unit/agent/test_context_engineering_core.py tests/unit/agent/test_agent_recovery_checkpoint.py tests/unit/agent/test_frozen_snapshot_runtime.py tests/unit/agent/test_runtime_transaction_guarantees.py",
+          "outcome": "passed",
+          "evidence": "49 passed in 1.67s; per-Run Tool/read-byte budgets, exact-read deduplication, untrusted source metadata, context compaction and recovery regressions"
+        },
+        {
+          "command": "Ruff changed budget/context files; quality_gate.architecture.checker all policies",
+          "outcome": "passed",
+          "evidence": "Ruff passed; all nine governed module policies had zero violations"
+        },
+        {
+          "command": "git diff --check",
+          "outcome": "passed",
+          "evidence": "No whitespace or patch errors"
+        }
+      ]
     },
     {
       "id": 32,
@@ -890,8 +1136,24 @@
         30,
         31
       ],
-      "status": "not_started",
-      "checks": []
+      "status": "completed",
+      "checks": [
+        {
+          "command": "PYTHONPATH=.:packages/woobe-core/src:packages/woobe-api/src:packages/woobe-workers/src .venv/bin/pytest -q tests/unit/agent/test_artifact_output_projection.py tests/unit/shared/test_runtime_reattach_capabilities.py tests/unit/shared/test_artifact_journal_projection.py tests/unit/shared/test_runtime_terminal_reconciliation.py tests/unit/runtime/test_mongodb_run_event_journal.py tests/unit/agent/test_terminal_race_projection.py tests/unit/artifacts/test_agent_runtime_tools.py",
+          "outcome": "passed",
+          "evidence": "37 passed; versioned outputs and SourceRefs, duplicate availability replay, terminal/reatach shape, and public event blob/credential allow-list regression"
+        },
+        {
+          "command": "Ruff changed runtime/output modules; quality_gate.architecture.checker --policy-dir tooling/quality-gate/src/quality_gate/architecture/policies",
+          "outcome": "passed",
+          "evidence": "Ruff passed; all nine governed module policies had zero violations"
+        },
+        {
+          "command": "git diff --check",
+          "outcome": "passed",
+          "evidence": "No whitespace or patch errors"
+        }
+      ]
     },
     {
       "id": 33,
@@ -905,8 +1167,24 @@
         30,
         32
       ],
-      "status": "not_started",
-      "checks": []
+      "status": "completed",
+      "checks": [
+        {
+          "command": "PYTHONPATH=.:packages/woobe-core/src:packages/woobe-api/src:packages/woobe-workers/src .venv/bin/pytest -q tests/unit/agent/test_http_artifact_transfer.py tests/unit/agent/test_http_tool_contract.py tests/unit/agent/test_http_tool_groups.py tests/unit/agent/test_tool_configuration_transport.py tests/unit/agent/test_tools_security.py tests/unit/artifacts/test_runtime_scope.py tests/unit/artifacts/test_object_storage.py tests/unit/shared/test_artifact_journal_projection.py tests/unit/shared/test_runtime_reattach_capabilities.py",
+          "outcome": "passed",
+          "evidence": "90 passed; exact revision refs, read+transfer authorization, raw-byte/multipart streams, short-lived public S3 URLs, durable safe receipts, ACK-loss uncertainty, no redirect and URL scrub regressions"
+        },
+        {
+          "command": "Ruff changed transfer/runtime/storage modules; quality_gate.architecture.checker --policy-dir tooling/quality-gate/src/quality_gate/architecture/policies",
+          "outcome": "passed",
+          "evidence": "Ruff passed; all nine governed modules had zero architecture violations"
+        },
+        {
+          "command": "git diff --check",
+          "outcome": "passed",
+          "evidence": "No whitespace or patch errors"
+        }
+      ]
     },
     {
       "id": 34,
@@ -918,8 +1196,39 @@
         32,
         33
       ],
-      "status": "not_started",
-      "checks": []
+      "status": "completed",
+      "checks": [
+        {
+          "command": "PYTHONPATH=.:packages/woobe-core/src:packages/woobe-api/src:packages/woobe-workers/src .venv/bin/pytest -q tests/unit/agent/test_mcp_artifact_transfer.py tests/unit/agent/test_tool_runtime.py tests/unit/agent/test_mcp_tool_cancellation.py tests/unit/package/test_configuration_package_v2.py",
+          "outcome": "passed",
+          "evidence": "29 passed; in-process MCP peer through HttpToolExecutor, byte/URL modes, schema drift denial, per-Run cache isolation, isError, external URI rejection, bounded resource text and Package 2.0 binding"
+        },
+        {
+          "command": "PYTHONPATH=packages/woobe-core/src .venv/bin/python scripts/generate_package_schemas.py --check; cmp generated Package 2.0 catalog and digest with CLI embedded schema; verify Package 1.0 diff is empty",
+          "outcome": "passed",
+          "evidence": "Generated schemas current; CLI Package 2.0 bytes/digest match; Package 1.0 schema/catalog hash remains byte-for-byte unchanged"
+        },
+        {
+          "command": "PYTHONPATH=.:packages/woobe-core/src:packages/woobe-api/src:packages/woobe-workers/src .venv/bin/ruff check scripts/generate_package_schemas.py packages/woobe-core/src/modules/agent/application/dtos/tools_dtos.py packages/woobe-core/src/modules/agent/application/tool_converter.py packages/woobe-core/src/modules/agent/infra/adapters/tool_runtime.py packages/woobe-core/src/modules/agent/infra/adapters/mcp_artifact_transfer.py tests/unit/agent/test_mcp_artifact_transfer.py tests/unit/package/test_configuration_package_v2.py",
+          "outcome": "passed",
+          "evidence": "All checks passed"
+        },
+        {
+          "command": "PYTHONPATH=tooling/quality-gate/src .venv/bin/python -m quality_gate.architecture.checker --policy-dir tooling/quality-gate/src/quality_gate/architecture/policies",
+          "outcome": "passed",
+          "evidence": "All nine governed modules passed with zero architecture violations"
+        },
+        {
+          "command": "git diff --check",
+          "outcome": "passed",
+          "evidence": "No whitespace or patch errors"
+        },
+        {
+          "command": "cd clients/woobe-cli && go test ./internal/packagefmt",
+          "outcome": "skipped",
+          "evidence": "This environment has no Go toolchain: /usr/bin/go responds \"Go: Unknown option: test\"; CLI schema is checked against the generated JSON catalog and Go test remains a CI follow-up"
+        }
+      ]
     },
     {
       "id": 35,
@@ -932,8 +1241,39 @@
         33,
         34
       ],
-      "status": "not_started",
-      "checks": []
+      "status": "completed",
+      "checks": [
+        {
+          "command": "PYTHONPATH=.:packages/woobe-core/src:packages/woobe-api/src:packages/woobe-workers/src .venv/bin/pytest -q tests/unit/agent/test_external_artifact_output.py tests/unit/agent/test_mcp_artifact_transfer.py tests/unit/agent/test_tool_runtime.py tests/unit/agent/test_mcp_tool_cancellation.py tests/unit/artifacts/test_agent_runtime_tools.py tests/unit/artifacts/test_runtime_scope.py",
+          "outcome": "passed",
+          "evidence": "36 passed. Covers bounded HTTP body and JSON base64 outputs, checksum/application errors, async pending status journaling, repeated ready response idempotency, late terminal Run denial, partial payload and URL string rejection without fetching, MCP resource ingestion and existing transfer/cancellation scope."
+        },
+        {
+          "command": ".venv/bin/python /workspace/.onboarding/run_artifact_tests.py -q tests/integration/artifacts/test_uploads_postgres.py",
+          "outcome": "passed",
+          "evidence": "22 PostgreSQL/local-storage cases passed, including fresh and populated migration 0122 and duplicate external output replay with one revision and exact Run/Tool/source/operation lineage. 22 S3 parameter cases skipped because the environment has no S3 integration configuration."
+        },
+        {
+          "command": "PYTHONPATH=.:packages/woobe-core/src:packages/woobe-api/src:packages/woobe-workers/src .venv/bin/ruff check packages/woobe-core/src/modules/agent/application/dtos/tools_dtos.py packages/woobe-core/src/modules/agent/infra/adapters/external_artifact_output.py packages/woobe-core/src/shared/runtime/event_schema.py tests/unit/agent/test_external_artifact_output.py tests/integration/artifacts/test_uploads_postgres.py",
+          "outcome": "passed",
+          "evidence": "All checks passed"
+        },
+        {
+          "command": "PYTHONPATH=packages/woobe-core/src .venv/bin/python scripts/generate_package_schemas.py --check; cmp specs/package/v1/catalog.json clients/woobe-cli/internal/packagefmt/schemas/v1/catalog.json; cmp specs/package/v2/catalog.json clients/woobe-cli/internal/packagefmt/schemas/v2/catalog.json; cmp specs/package/v2/catalog.sha256 clients/woobe-cli/internal/packagefmt/schemas/v2/catalog.sha256",
+          "outcome": "passed",
+          "evidence": "Generated Package 2.0 output-binding fields match CLI embedded schema and digest; Package 1.0 remains unchanged."
+        },
+        {
+          "command": "PYTHONPATH=tooling/quality-gate/src .venv/bin/python -m quality_gate.architecture.checker --policy-dir tooling/quality-gate/src/quality_gate/architecture/policies",
+          "outcome": "passed",
+          "evidence": "All nine governed modules passed with zero architecture violations"
+        },
+        {
+          "command": "git diff --check",
+          "outcome": "passed",
+          "evidence": "No whitespace or patch errors"
+        }
+      ]
     },
     {
       "id": 36,
@@ -947,8 +1287,34 @@
         31,
         32
       ],
-      "status": "not_started",
-      "checks": []
+      "status": "completed",
+      "checks": [
+        {
+          "command": "PYTHONPATH=.:packages/woobe-core/src:packages/woobe-api/src:packages/woobe-workers/src .venv/bin/pytest -q tests/unit/agent/test_visual_artifact_input.py tests/unit/agent/test_model_provider_runtime_regressions.py tests/unit/agent/test_model_runtime_foundation.py tests/unit/agent/test_provider_model_capabilities.py tests/unit/agent/test_artifact_workspace_acceptance.py tests/unit/agent/test_http_runtime_input_regression.py",
+          "outcome": "passed",
+          "evidence": "61 passed. Includes model-spec capability preflight, fallback capability, actual OpenAI-compatible/Anthropic block formatting, exact revision/checksum/media validation, source storage read, limits, and sanitized logs; no provider network call."
+        },
+        {
+          "command": "PYTHONPATH=.:packages/woobe-core/src:packages/woobe-api/src:packages/woobe-workers/src .venv/bin/ruff check packages/woobe-core/src/modules/artifacts/application/services/files.py packages/woobe-core/src/modules/agent/application/interfaces/execution_context.py packages/woobe-core/src/shared/composition/artifact_runtime.py packages/woobe-core/src/modules/agent/infra/execution/release_runtime_resolver.py packages/woobe-core/src/modules/agent/infra/llm/providers.py packages/woobe-core/src/modules/agent/infra/adapters/langchain_llm_factory.py packages/woobe-core/src/modules/agent/infra/execution/visual_artifact_inputs.py packages/woobe-core/src/modules/agent/infra/execution/ask_use_case.py tests/unit/agent/test_visual_artifact_input.py",
+          "outcome": "passed",
+          "evidence": "All checks passed"
+        },
+        {
+          "command": "PYTHONPATH=tooling/quality-gate/src .venv/bin/python -m quality_gate.architecture.checker --policy-dir tooling/quality-gate/src/quality_gate/architecture/policies",
+          "outcome": "passed",
+          "evidence": "All nine governed modules passed with zero architecture violations"
+        },
+        {
+          "command": "git diff --check; PYTHONPATH=packages/woobe-core/src .venv/bin/python scripts/generate_package_schemas.py --check",
+          "outcome": "passed",
+          "evidence": "No whitespace errors; generated package schemas remain current"
+        },
+        {
+          "command": "Optional live provider smoke for vision input",
+          "outcome": "skipped",
+          "evidence": "The user declined OpenAI binding. PLAN_ADJUSTMENTS.md makes live-provider qualification optional; deterministic production-adapter contract tests passed and no live result is claimed."
+        }
+      ]
     },
     {
       "id": 37,
@@ -961,8 +1327,39 @@
         32,
         36
       ],
-      "status": "not_started",
-      "checks": []
+      "status": "completed",
+      "checks": [
+        {
+          "command": "PYTHONPATH=.:packages/woobe-core/src:packages/woobe-api/src:packages/woobe-workers/src .venv/bin/pytest -q tests/unit/agent/test_image_generation_model_runtime.py tests/unit/agent/test_image_generation_artifact_persistence.py tests/unit/agent/test_model_provider_runtime_regressions.py tests/unit/agent/test_visual_artifact_input.py tests/unit/artifacts/test_agent_runtime_tools.py tests/unit/agent/test_external_artifact_output.py tests/unit/agent/test_artifact_output_projection.py tests/unit/shared/test_artifact_journal_projection.py",
+          "outcome": "passed",
+          "evidence": "60 passed. Covers provider capability discovery, provider-scoped credentials, one-shot ImageGenerationModelStrategy, provider idempotency header, exact operation size/count/output limits, bounded JSON/base64, MIME/signature and Pillow image validation, redirect/URL rejection, image-only ModelResult, multiple Artifact outputs, per-Run four-image quota, hashes, exact Run SourceRefs, reported usage, deterministic replay and uncertain no-retry behavior."
+        },
+        {
+          "command": ".venv/bin/python /workspace/.onboarding/run_artifact_tests.py -q tests/integration/artifacts/test_uploads_postgres.py",
+          "outcome": "passed",
+          "evidence": "22 PostgreSQL/local-storage cases passed, including fresh/populated migration paths and durable external output replay with one revision and exact producer, Run, provider reference and SourceRef lineage. 22 S3 parameter cases skipped because this environment has no S3 integration configuration."
+        },
+        {
+          "command": "PYTHONPATH=.:packages/woobe-core/src:packages/woobe-api/src:packages/woobe-workers/src .venv/bin/ruff check changed image-generation runtime, capability discovery, composition, Tool, and tests",
+          "outcome": "passed",
+          "evidence": "All checks passed"
+        },
+        {
+          "command": "PYTHONPATH=tooling/quality-gate/src .venv/bin/python -m quality_gate.architecture.checker --policy-dir tooling/quality-gate/src/quality_gate/architecture/policies",
+          "outcome": "passed",
+          "evidence": "All nine governed modules passed with zero architecture violations"
+        },
+        {
+          "command": "PYTHONPATH=packages/woobe-core/src .venv/bin/python scripts/generate_package_schemas.py --check; git diff --check",
+          "outcome": "passed",
+          "evidence": "Generated package schemas are current; no whitespace or patch errors"
+        },
+        {
+          "command": "Optional live provider smoke for image generation",
+          "outcome": "skipped",
+          "evidence": "The user declined OpenAI binding. PLAN_ADJUSTMENTS.md makes live-provider qualification optional; deterministic production-adapter contract tests passed, no live result is claimed, and no OpenAI account/key/model/endpoint is required."
+        }
+      ]
     },
     {
       "id": 38,
@@ -975,8 +1372,34 @@
         36,
         37
       ],
-      "status": "not_started",
-      "checks": []
+      "status": "completed",
+      "checks": [
+        {
+          "command": "PYTHONPATH=.:packages/woobe-core/src:packages/woobe-api/src:packages/woobe-workers/src .venv/bin/pytest -q tests/unit/agent/test_knowledge_strategy.py tests/unit/agent/test_knowledge_strategy_routes.py tests/unit/agent/test_execution_strategy.py tests/unit/agent/test_execution_strategy_standard_equivalence.py tests/unit/agent/test_execution_strategy_standard_recovery.py tests/unit/agent/test_portable_definition.py tests/unit/agent/test_portable_materialization.py tests/unit/agent/test_release_compatibility.py tests/unit/agent/test_release_versioning.py tests/unit/agent/test_release_execution_snapshot_idempotency.py tests/unit/artifacts/test_agent_runtime_tools.py tests/unit/package/test_configuration_package_v2.py tests/unit/package/test_export_repository.py tests/unit/package/test_export_ergonomics.py tests/unit/agent/test_execution_strategy_release_lifecycle.py tests/unit/agent/test_knowledge_version_vector_snapshot_binding.py",
+          "outcome": "passed",
+          "evidence": "148 passed; legacy Agent/Release defaults, explicit rag/none selection, artifact-only authoring/materialization, independent Artifact Tools, and Package 1.0/2.0 compatibility."
+        },
+        {
+          "command": ".venv/bin/ruff check touched Knowledge Strategy, portable authoring/materialization, runtime preparation, and test modules",
+          "outcome": "passed",
+          "evidence": "All checks passed."
+        },
+        {
+          "command": "PYTHONPATH=tooling/quality-gate/src .venv/bin/python -m quality_gate.architecture.checker --policy-dir tooling/quality-gate/src/quality_gate/architecture/policies",
+          "outcome": "passed",
+          "evidence": "All nine governed modules passed with zero architecture violations."
+        },
+        {
+          "command": "PYTHONPATH=packages/woobe-core/src .venv/bin/python scripts/generate_package_schemas.py --check; cmp Package 1.0 catalog; cmp Package 2.0 catalog and digest against CLI embedded copies",
+          "outcome": "passed",
+          "evidence": "Generated schemas current; Package 1.0 catalog byte-identical; Package 2.0 catalog and digest match CLI embedded copies."
+        },
+        {
+          "command": "git diff --check",
+          "outcome": "passed",
+          "evidence": "No whitespace or patch errors."
+        }
+      ]
     },
     {
       "id": 39,
@@ -988,8 +1411,24 @@
         31,
         38
       ],
-      "status": "not_started",
-      "checks": []
+      "status": "completed",
+      "checks": [
+        {
+          "command": "PYTHONPATH=.:packages/woobe-core/src:packages/woobe-api/src:packages/woobe-workers/src .venv/bin/pytest -q tests/unit/agent/test_artifact_exploration_skill.py tests/unit/agent/test_skills.py tests/unit/agent/test_skill_resolution_regressions.py tests/unit/agent/test_network_skill_context_materialization.py tests/unit/network/test_network_skill_runtime_bridge.py",
+          "outcome": "passed",
+          "evidence": "43 passed. Validates the Skill package parser/resources, exact required Artifact Tool names, activation denial for missing Tools, activation-before-reference-read, existing fixed-version and Release/Network runtime regressions."
+        },
+        {
+          "command": ".venv/bin/ruff check tests/unit/agent/test_artifact_exploration_skill.py",
+          "outcome": "passed",
+          "evidence": "All checks passed."
+        },
+        {
+          "command": "git diff --check",
+          "outcome": "passed",
+          "evidence": "No whitespace or patch errors."
+        }
+      ]
     },
     {
       "id": 40,
@@ -1000,8 +1439,39 @@
         12,
         24
       ],
-      "status": "not_started",
-      "checks": []
+      "status": "completed",
+      "checks": [
+        {
+          "command": "gofmt -w artifacts.go artifacts_test.go examples/artifacts/main.go",
+          "outcome": "passed",
+          "evidence": "Go formatting applied using the Go 1.27.1 build image."
+        },
+        {
+          "command": "GOWORK=off go test -race -count=1 ./...",
+          "outcome": "passed",
+          "evidence": "The complete SDK module and examples compiled; all SDK and internal SSE tests passed under the race detector."
+        },
+        {
+          "command": "GOWORK=off go vet ./...",
+          "outcome": "passed",
+          "evidence": "No Go vet diagnostics."
+        },
+        {
+          "command": "GOWORK=/workspace/woobe/go.work go test -race -count=1 ./...; GOWORK=/workspace/woobe/go.work go vet ./...",
+          "outcome": "passed",
+          "evidence": "The SDK passed race tests and vet as a module in the monorepo workspace."
+        },
+        {
+          "command": "GOWORK=/workspace/woobe/go.work (cd clients/woobe-cli && go test ./...)",
+          "outcome": "passed",
+          "evidence": "All CLI Go packages passed using the local SDK module in go.work."
+        },
+        {
+          "command": "git diff --check",
+          "outcome": "passed",
+          "evidence": "No whitespace or patch errors."
+        }
+      ]
     },
     {
       "id": 41,
@@ -1014,8 +1484,29 @@
         37,
         40
       ],
-      "status": "not_started",
-      "checks": []
+      "status": "completed",
+      "checks": [
+        {
+          "command": "Go format and standalone SDK race suite: go fmt ./...; GOWORK=off go test -race -count=1 ./...",
+          "outcome": "passed",
+          "evidence": "Go 1.27.1 formatted the package; standalone module tests passed with the embedded runtime fixture fallback and race detector."
+        },
+        {
+          "command": "Workspace SDK race suite and vet: go test -race -count=1 ./...; go vet ./...",
+          "outcome": "passed",
+          "evidence": "Go SDK tests passed in the monorepo go.work; test compares the embedded SDK copy byte-for-byte with specs/runtime/v2/artifact_run.json."
+        },
+        {
+          "command": "GOWORK=/workspace/woobe/go.work (cd clients/woobe-cli && go test ./...)",
+          "outcome": "passed",
+          "evidence": "All CLI packages passed with the updated local SDK; this also verified json.Number preservation in Runtime result capture."
+        },
+        {
+          "command": "git diff --check",
+          "outcome": "passed",
+          "evidence": "No whitespace or patch errors."
+        }
+      ]
     },
     {
       "id": 42,
@@ -1032,8 +1523,34 @@
         40,
         41
       ],
-      "status": "not_started",
-      "checks": []
+      "status": "completed",
+      "checks": [
+        {
+          "command": "clients/woobe-sdk-python/.venv/bin/ruff check clients/woobe-sdk-python",
+          "outcome": "passed",
+          "evidence": "Ruff passed for the complete Python SDK snapshot."
+        },
+        {
+          "command": "clients/woobe-sdk-python/.venv/bin/pytest -q clients/woobe-sdk-python",
+          "outcome": "passed",
+          "evidence": "43 tests passed, including shared Agent/Network fixtures, immutable receipts, image-only output, no-POST reattach, direct scoped APIs, upload bounds, lost ACK, hash mismatch, cancellation cleanup and exact-revision downloads."
+        },
+        {
+          "command": "Copy src/tests to /tmp without the monorepo and run pytest with the nested SDK venv",
+          "outcome": "passed",
+          "evidence": "43 standalone tests passed using the SDK-local fixture fallback; shared canonical fixture comparison is applied when the monorepo copies are present."
+        },
+        {
+          "command": "python -m build --outdir /tmp/woobe-sdk-python-artifacts clients/woobe-sdk-python; twine check /tmp/woobe-sdk-python-artifacts/*",
+          "outcome": "passed",
+          "evidence": "Local wheel and sdist built and both metadata checks passed; no version change or registry upload."
+        },
+        {
+          "command": "git diff --check",
+          "outcome": "passed",
+          "evidence": "No whitespace or patch errors."
+        }
+      ]
     },
     {
       "id": 43,
@@ -1046,8 +1563,44 @@
         40,
         41
       ],
-      "status": "not_started",
-      "checks": []
+      "status": "completed",
+      "checks": [
+        {
+          "command": "go vet ./... (Go 1.27.1, clients/woobe-cli)",
+          "outcome": "passed",
+          "evidence": "Vet passed for the complete CLI module against the monorepo Go workspace."
+        },
+        {
+          "command": "go test -race ./... (Go 1.27.1, clients/woobe-cli)",
+          "outcome": "passed",
+          "evidence": "All CLI packages passed; internal/cli passed in 115.782s with race detection, including Artifact HTTP, checkpoint recovery, output projection and discovery regressions."
+        },
+        {
+          "command": "gofmt -l cmd internal packages; go mod verify",
+          "outcome": "passed",
+          "evidence": "No Go files required formatting and all module checksums verified."
+        },
+        {
+          "command": "go build ./cmd/woobe; python3 scripts/command_catalog.py --binary bin/woobe --write; python3 scripts/command_catalog.py --binary bin/woobe; python3 scripts/validate_skill_commands.py --binary bin/woobe",
+          "outcome": "passed",
+          "evidence": "Discovery catalog regenerated and verified with 387 executable entries, 220 explicit HTTP routes, scoped Runtime Artifact routes and cursor contracts; all 118 offline skill command examples passed."
+        },
+        {
+          "command": "node --test scripts/tests/skill-installer.test.cjs; python3 -m unittest discover -s scripts/tests; python3 scripts/completeness.py",
+          "outcome": "passed",
+          "evidence": "9 Node installer tests and 64 Python CLI script tests passed; historical completeness ledger regenerated/checked at 66 done, 34 partial and 1 pending of 101."
+        },
+        {
+          "command": "bash scripts/package.sh 0.0.0-ci.1 --with-npm; verify_artifacts.py and native/npm/skill smoke against an isolated snapshot commit",
+          "outcome": "passed",
+          "evidence": "All six archive checks, identical native/npm binaries, embedded skill verification, Linux amd64 native smoke, npm smoke and skill smoke passed for temporary snapshot 13335df7b1b68436647db015d94680e0bfb23df6. Artifacts remained under /tmp; nothing was published. This is not six-host native qualification or a live-provider result."
+        },
+        {
+          "command": "git diff --check; verify Artifact Workspaces documentation links",
+          "outcome": "passed",
+          "evidence": "No whitespace errors or broken local links in the changed CLI guides."
+        }
+      ]
     },
     {
       "id": 44,
@@ -1061,8 +1614,44 @@
         41,
         43
       ],
-      "status": "not_started",
-      "checks": []
+      "status": "completed",
+      "checks": [
+        {
+          "command": "go vet ./...; go test -race ./... (Go 1.27.1, clients/woobe-cli)",
+          "outcome": "passed",
+          "evidence": "All CLI packages passed; internal/cli completed in 122.627s. Final post-change focused race tests for runtime YAML, Agent/Network Artifact forwarding, offline validation, old-server refusal and discovery schema also passed."
+        },
+        {
+          "command": "pytest -q tests/unit/package/test_configuration_package_v2.py tests/unit/artifacts/test_runtime_scope.py tests/unit/agent/test_artifact_capability.py tests/unit/agent/test_artifact_workspace_acceptance.py tests/unit/network/test_network_artifact_acceptance.py",
+          "outcome": "passed",
+          "evidence": "45 tests passed, including portable Agent/Network YAML roundtrips, pinned profiles, versioned catalogs, private-field rejection and authorized runtime workspace resolution."
+        },
+        {
+          "command": "python3 scripts/generate_package_schemas.py --check; go mod verify; gofmt check; git diff --check",
+          "outcome": "passed",
+          "evidence": "Generated Package v1/v2 catalogs matched their sources; legacy v1 catalog remains unchanged. Go module and formatting checks and whitespace validation passed."
+        },
+        {
+          "command": "go build ./cmd/woobe; command_catalog.py --write and verify; validate_skill_commands.py",
+          "outcome": "passed",
+          "evidence": "Executable discovery catalog regenerated and verified; all 120 offline skill command examples passed. Runtime schema and validate-input expose the local multimodal protocol and identify authorization as unevaluated."
+        },
+        {
+          "command": "node --test scripts/tests/skill-installer.test.cjs; python3 -m unittest discover -s scripts/tests; python3 scripts/completeness.py",
+          "outcome": "passed",
+          "evidence": "9 Node installer tests and 64 CLI script tests passed; historical completeness ledger remains 66 done, 34 partial and 1 pending of 101."
+        },
+        {
+          "command": "package.sh 0.0.0-ci.1 --with-npm; verify_artifacts.py; smoke_artifacts.py; smoke_npm.py; smoke_skill.py",
+          "outcome": "passed",
+          "evidence": "All six archives, checksums, schemas, identical binaries, Linux amd64 native smoke, npm smoke and skill smoke passed on isolated snapshot a4ad49481bac77e6e4b2eeb7bd4de22bc4b29842. No artifact was published; other host platforms and a live provider were not tested."
+        },
+        {
+          "command": "CLI runtime end-to-end contract against isolated HTTP fixtures",
+          "outcome": "passed",
+          "evidence": "Agent and Network YAML Runs forwarded exact Artifact/revision IDs and External Context. A backend returning 422 rejected the multimodal request explicitly; the CLI made one request and did not flatten it into legacy text. Dry-run and validate-input made no HTTP requests."
+        }
+      ]
     },
     {
       "id": 45,
@@ -1074,8 +1663,44 @@
         41,
         42
       ],
-      "status": "not_started",
-      "checks": []
+      "status": "completed",
+      "checks": [
+        {
+          "command": "tsc --noEmit -p packages/woobe-runtime-client/tsconfig.json",
+          "outcome": "passed",
+          "evidence": "The standalone runtime-client project typechecked through the Web toolchain compiler, without importing UI, authentication or backend modules."
+        },
+        {
+          "command": "npm run test:run (packages/woobe-frontend; configured local test URLs)",
+          "outcome": "passed",
+          "evidence": "All 684 Web tests passed, including 22 canonical runtime-client tests for bounded content parts, exact Artifact/SourceRef receipts, identity pinning, replacement snapshots, queued processing and metadata-only observation."
+        },
+        {
+          "command": "npm run build (packages/woobe-frontend)",
+          "outcome": "passed",
+          "evidence": "TypeScript project build and production Web build passed with the shared Runtime client included."
+        },
+        {
+          "command": "npm run typecheck; npm test; npm run build (packages/woobe-embed)",
+          "outcome": "passed",
+          "evidence": "Embed typecheck/build passed; all 29 Embed tests passed, including Run state replacement, malformed/gapped stream handling and Artifact metadata observation."
+        },
+        {
+          "command": "pytest -q tests/architecture/test_runtime_client_boundary.py",
+          "outcome": "passed",
+          "evidence": "All five boundary tests passed, keeping protocol and Artifact parsers shared and UI-agnostic."
+        },
+        {
+          "command": "Compare canonical Runtime fixture with Go and Python SDK copies",
+          "outcome": "passed",
+          "evidence": "The Embed contract test verifies byte-identical Agent/Network request and Artifact output fixtures, then decodes availability, completed and image-only terminal payloads through the shared client."
+        },
+        {
+          "command": "git diff --check",
+          "outcome": "passed",
+          "evidence": "No whitespace errors in the step changes."
+        }
+      ]
     },
     {
       "id": 46,
@@ -1086,8 +1711,14 @@
         24,
         45
       ],
-      "status": "not_started",
-      "checks": []
+      "status": "completed",
+      "checks": [
+        {
+          "command": "VITE_API_URL=http://127.0.0.1:8000 VITE_CHAT_EMBED_URL=http://127.0.0.1:3001 npm run test:run",
+          "outcome": "passed",
+          "evidence": "705 Web tests passed, including the paginated Artifact explorer, Agent settings and Network tree regressions."
+        }
+      ]
     },
     {
       "id": 47,
@@ -1097,8 +1728,14 @@
         24,
         46
       ],
-      "status": "not_started",
-      "checks": []
+      "status": "completed",
+      "checks": [
+        {
+          "command": "npm run test:run (packages/woobe-frontend)",
+          "outcome": "passed",
+          "evidence": "The reader/tree/source UI is included in the full 705-test Web suite; production TypeScript/Vite build passed."
+        }
+      ]
     },
     {
       "id": 48,
@@ -1111,8 +1748,14 @@
         38,
         46
       ],
-      "status": "not_started",
-      "checks": []
+      "status": "completed",
+      "checks": [
+        {
+          "command": "npm run test:run (packages/woobe-frontend)",
+          "outcome": "passed",
+          "evidence": "Agent and Network binding configuration is covered by the full 705-test Web suite and successful production build."
+        }
+      ]
     },
     {
       "id": 49,
@@ -1128,8 +1771,14 @@
         47,
         48
       ],
-      "status": "not_started",
-      "checks": []
+      "status": "completed",
+      "checks": [
+        {
+          "command": "npm run test:run (packages/woobe-frontend)",
+          "outcome": "passed",
+          "evidence": "Playground content/Artifact regressions passed within the 705-test Web suite; production build passed."
+        }
+      ]
     },
     {
       "id": 50,
@@ -1144,8 +1793,14 @@
         48,
         49
       ],
-      "status": "not_started",
-      "checks": []
+      "status": "completed",
+      "checks": [
+        {
+          "command": "npm run test:run (packages/woobe-frontend)",
+          "outcome": "passed",
+          "evidence": "Network execution tree and Artifact scope UI passed within the 705-test Web suite; production build passed."
+        }
+      ]
     },
     {
       "id": 51,
@@ -1160,8 +1815,14 @@
         49,
         50
       ],
-      "status": "not_started",
-      "checks": []
+      "status": "completed",
+      "checks": [
+        {
+          "command": "npm test; npm run typecheck; npm run build (packages/woobe-embed)",
+          "outcome": "passed",
+          "evidence": "32 Embed tests passed; TypeScript check and production build passed. Python SDK: 43 tests passed; Go SDK: go test ./... passed on Go 1.27.1."
+        }
+      ]
     },
     {
       "id": 52,
@@ -1176,8 +1837,14 @@
         37,
         51
       ],
-      "status": "not_started",
-      "checks": []
+      "status": "completed",
+      "checks": [
+        {
+          "command": ".venv/bin/pytest -q tests/unit/shared/test_observability.py tests/unit/agent/test_external_artifact_output.py tests/unit/artifacts/test_processing_profiles.py tests/unit/artifacts/test_pageindex_adapter.py tests/unit/artifacts/test_evaluation_corpus.py tests/unit/api/test_artifact_export_manifest.py tests/unit/artifacts/test_object_storage.py",
+          "outcome": "passed",
+          "evidence": "51 tests passed; bounded labels, operation outcomes, transfer bytes and redaction covered. Scoped Ruff checks passed."
+        }
+      ]
     },
     {
       "id": 53,
@@ -1193,8 +1860,14 @@
         37,
         52
       ],
-      "status": "not_started",
-      "checks": []
+      "status": "completed",
+      "checks": [
+        {
+          "command": "docker compose -f compose.yaml -f compose.artifacts-documents.yaml config --quiet; docker compose -f compose.yaml -f compose.artifacts-pageindex.yaml config --quiet",
+          "outcome": "passed",
+          "evidence": "Both optional worker profiles parse; processing capability and no-extra-import tests passed in the 51-test unit selection."
+        }
+      ]
     },
     {
       "id": 54,
@@ -1212,8 +1885,14 @@
         51,
         53
       ],
-      "status": "not_started",
-      "checks": []
+      "status": "completed",
+      "checks": [
+        {
+          "command": ".venv/bin/python /workspace/.onboarding/run_artifact_tests.py -q tests/integration/artifacts/test_http_postgres.py; scripts/generate_artifact_schemas.py --check",
+          "outcome": "passed",
+          "evidence": "PostgreSQL tests upgraded fresh and populated legacy schemas; API compatibility passed. Generated Artifact schemas matched committed contracts."
+        }
+      ]
     },
     {
       "id": 55,
@@ -1234,8 +1913,14 @@
         51,
         54
       ],
-      "status": "not_started",
-      "checks": []
+      "status": "completed",
+      "checks": [
+        {
+          "command": ".venv/bin/python /workspace/.onboarding/run_artifact_tests.py -q tests/integration/artifacts/test_runtime_workspace_binding_postgres.py tests/integration/artifacts/test_run_sources_postgres.py tests/integration/artifacts/test_http_postgres.py",
+          "outcome": "passed",
+          "evidence": "Two synthetic users resolved three logical journeys in one Project; cross-user grants were denied. Full selected integration run: 53 passed, 34 skipped (S3 only)."
+        }
+      ]
     },
     {
       "id": 56,
@@ -1254,8 +1939,14 @@
         54,
         55
       ],
-      "status": "not_started",
-      "checks": []
+      "status": "completed",
+      "checks": [
+        {
+          "command": ".venv/bin/python /workspace/.onboarding/run_artifact_tests.py -q tests/integration/artifacts/test_lifecycle_postgres.py tests/integration/artifacts/test_uploads_postgres.py; pytest tests/unit/api/test_artifact_export_manifest.py",
+          "outcome": "passed",
+          "evidence": "30 PostgreSQL lifecycle/upload tests passed, 22 S3 cases skipped; 31 export/storage/schema unit cases passed. Retry, exact revision, tombstone fence, quota and private NDJSON manifest covered. Coordinated full-snapshot restore remains an operator rehearsal, documented separately."
+        }
+      ]
     },
     {
       "id": 57,
@@ -1273,8 +1964,14 @@
         53,
         56
       ],
-      "status": "not_started",
-      "checks": []
+      "status": "completed",
+      "checks": [
+        {
+          "command": ".venv/bin/python scripts/benchmark_artifact_scale.py --workspaces 10000 --artifacts-per-workspace 10 --blocks 1000000 --report /workspace/.onboarding/artifact-scale-report.json",
+          "outcome": "passed",
+          "evidence": "Real disposable PostgreSQL dataset: 10,000 Workspaces, 100,000 Artifacts, 1,000,000 blocks. List p95 3.289 ms vs 500 ms budget; search p95 12.094 ms vs 1,500 ms. 50 concurrent lists completed in 594.505 ms. Limits are recorded in SCALE_BENCHMARK.md; not a production or byte-throughput claim."
+        }
+      ]
     },
     {
       "id": 58,
@@ -1294,8 +1991,14 @@
         55,
         57
       ],
-      "status": "not_started",
-      "checks": []
+      "status": "completed",
+      "checks": [
+        {
+          "command": "scripts/prepare_artifact_evaluation.py; pytest tests/unit/artifacts/test_evaluation_corpus.py and tests/integration/artifacts/test_search_postgres.py tests/integration/artifacts/test_document_model_pipeline_postgres.py",
+          "outcome": "passed",
+          "evidence": "Fixed 36-document/80-query/20-generation fixture validates exact source IDs, hashes, locators and authorization scopes. Deterministic provider-port/search tests passed. Per approved adjustment, this is not live-provider or semantic-generation qualification."
+        }
+      ]
     },
     {
       "id": 59,
@@ -1316,8 +2019,14 @@
         57,
         58
       ],
-      "status": "not_started",
-      "checks": []
+      "status": "completed",
+      "checks": [
+        {
+          "command": "scripts/generate_artifact_schemas.py --check; scoped Ruff; internal Markdown link validation; git diff --check",
+          "outcome": "passed",
+          "evidence": "Developer, API, SDK/CLI, deployment, upgrade/rollback, lifecycle, backup/restore and scale guides link cleanly; generated schemas and scoped lint passed."
+        }
+      ]
     },
     {
       "id": 60,
@@ -1384,8 +2093,69 @@
         58,
         59
       ],
-      "status": "not_started",
-      "checks": []
+      "status": "completed",
+      "checks": [
+        {
+          "command": "python scripts/validate_artifacts_plan.py --final",
+          "outcome": "passed",
+          "evidence": "Passed after commit 60: verifies the immutable plan hash, all 60 completed steps, exact commit subjects and Plan-Step trailers, linear non-empty commits, the explicit allowlist for both optional Compose profiles, and Draft delivery state."
+        },
+        {
+          "command": "gh pr view 220 --json state,isDraft,autoMergeRequest,headRefName,headRefOid,baseRefName",
+          "outcome": "passed",
+          "evidence": "Post-push inspection confirms PR #220 remains OPEN and Draft, auto-merge is disabled, base is master, and the head tracks feat/artifact-workspaces-document-runtime."
+        },
+        {
+          "command": "uv run --no-sync pytest -q tests/integration/network/test_network_rerun_postgres.py::test_network_rerun_creates_new_run_from_frozen_snapshot_with_lineage",
+          "outcome": "passed",
+          "evidence": "1 passed in 0.44s after correcting the draft fixture to include snapshot_override; the full backend integration run reported 686 passed and 216 skipped before this final fixture repair."
+        },
+        {
+          "command": "PYTHONPATH=packages/woobe-core/src:packages/woobe-api/src:packages/woobe-workers/src .venv/bin/pytest -q tests/modules/agent",
+          "outcome": "passed",
+          "evidence": "693 Agent tests passed from the repository root after updating assertions to the current module boundaries and worker behavior."
+        },
+        {
+          "command": ".venv/bin/pytest -q tests/architecture/test_uow_ownership.py tests/quality_gate",
+          "outcome": "passed",
+          "evidence": "88 tests passed; the Agent architecture checker separately reported zero violations across nine modules."
+        },
+        {
+          "command": "artifacts-storage.yml local-and-S3 qualification with ambient PYTHONPATH unset",
+          "outcome": "passed",
+          "evidence": "450 passed, 24 skipped, 42 warnings in 662.99s; all process-death combinations and downstream database-backed artifact cases passed."
+        },
+        {
+          "command": "uv lock --check and base/Docling isolated environment checks",
+          "outcome": "passed",
+          "evidence": "The frozen lock is current; uv pip check passes for base with Pillow 13.0.0 and Docling with its supported Pillow 12.3.0 constraint."
+        },
+        {
+          "command": "UV_CACHE_DIR=/tmp/woobe-uv-cache uv build packages/woobe-core --out-dir /tmp/woobe-core-build-check",
+          "outcome": "passed",
+          "evidence": "The updated Core package metadata builds both source distribution and wheel successfully."
+        },
+        {
+          "command": "WOOBE_RUN_PERSISTENCE_MODE=legacy_finalization .venv/bin/python -m pytest -q tests/unit tests/fakes/test_openai_provider.py",
+          "outcome": "passed",
+          "evidence": "3,456 passed, 9 skipped, 7 warnings, and 10 subtests passed; this mirrors the backend-mocked Compose environment and includes the skill-package tests."
+        },
+        {
+          "command": "BuildKit scratch-context COPY docs/skills/artifact-document-exploration/SKILL.md using the root .dockerignore",
+          "outcome": "passed",
+          "evidence": "The Docker context contains the published skill after narrowly re-including docs/skills/artifact-document-exploration; COPY completed successfully."
+        },
+        {
+          "command": "GitHub Actions Backend test suite run 39670199830 on code commit 8a63d2ace0c90adda889a0c3a0ad880222710a0f",
+          "outcome": "passed",
+          "evidence": "The full local/CI backend Compose contract, including required CLI end-to-end checks, completed successfully."
+        },
+        {
+          "command": "GitHub Actions Container quality run 39670199908 on code commit 8a63d2ace0c90adda889a0c3a0ad880222710a0f",
+          "outcome": "passed",
+          "evidence": "API, Workers, Web, and ChatSurface images built and passed vulnerability scans; the multi-architecture builds completed successfully."
+        }
+      ]
     }
   ]
 }

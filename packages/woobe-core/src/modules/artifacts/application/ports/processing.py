@@ -1,4 +1,4 @@
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Protocol
 
@@ -28,3 +28,8 @@ class ProcessingStage:
 class ProcessingPipeline(Protocol):
     def stages(self, recipe: ProcessingRecipe) -> tuple[ProcessingStage, ...]: ...
     def result(self, context: ProcessingExecution) -> ProcessingJobResult: ...
+
+
+class PdfPageRenderer(Protocol):
+    async def render(self, revision: Revision, content: AsyncIterator[bytes], recipe: ProcessingRecipe,
+                     *, page_index: int, dpi: int, max_pixels: int) -> bytes: ...

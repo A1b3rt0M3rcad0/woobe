@@ -13,6 +13,7 @@ from modules.package.infra.models import (
     PackageUploadModel,
 )
 from modules.package.infra.operation_repository import PackageOperationRepository
+from modules.core.infra.database.models import ProjectModel
 from shared.infra.admin_idempotency import principal_identity
 from shared.infra.config import Settings
 from shared.infra.database.session import create_engine, create_session_factory
@@ -45,6 +46,17 @@ async def test_postgres_concurrent_acceptance_uses_one_operation_and_retains_con
     )
     try:
         async with factory.begin() as session:
+            session.add(
+                ProjectModel(
+                    id=project,
+                    workspace_id=uuid4(),
+                    name="Package operation test",
+                    slug=f"package-operation-{project}",
+                    status="active",
+                    data={},
+                )
+            )
+            await session.flush()
             session.add(
                 PackageUploadModel(
                     id=upload_id,
@@ -131,4 +143,5 @@ async def test_postgres_concurrent_acceptance_uses_one_operation_and_retains_con
         async with factory.begin() as session:
             for model in (PackageOperationModel, PackagePlanModel, PackageUploadModel):
                 await session.execute(delete(model).where(model.project_id == project))
+            await session.execute(delete(ProjectModel).where(ProjectModel.id == project))
         await engine.dispose()

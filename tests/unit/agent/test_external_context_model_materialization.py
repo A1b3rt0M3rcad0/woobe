@@ -161,7 +161,8 @@ def test_contract_exposure_does_not_enable_unrelated_runtime_context() -> None:
     assert "UNRELATED_RUNTIME_MESSAGE_SHOULD_NOT_REACH_MODEL" not in materialized
 
 
-def test_network_projection_resolver_and_context_manager_materialize_exposed_field() -> None:
+@pytest.mark.asyncio
+async def test_network_projection_resolver_and_context_manager_materialize_exposed_field() -> None:
     node_id = str(uuid4())
     contract = _contract()
     effective = compose_external_context_contracts({node_id: contract})
@@ -204,7 +205,7 @@ def test_network_projection_resolver_and_context_manager_materialize_exposed_fie
 
     token = current_execution.set(runtime_context)
     try:
-        resolver._resolve_external_context(
+        await resolver._resolve_external_context(
             agent=agent,
             input_dto=request,
         )
@@ -520,7 +521,7 @@ async def test_network_frozen_snapshot_external_context_reaches_actual_model_and
 
     token = current_execution.set(context)
     try:
-        resolver._resolve_external_context(
+        await resolver._resolve_external_context(
             agent=live_agent,
             input_dto=request,
         )

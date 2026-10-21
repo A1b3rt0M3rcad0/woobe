@@ -98,8 +98,9 @@ async def test_revision_history_is_exactly_scoped_and_signed_paginated(engine, a
     older = await page_handler(replace(request, cursor=newest.next_cursor))
     assert [entry.revision.id for entry in older.items] == [first.receipt.revision_id]
     assert older.next_cursor is None
+    invalid_cursor = ('A' if newest.next_cursor[0] != 'A' else 'B') + newest.next_cursor[1:]
     with pytest.raises(ArtifactError) as failure:
-        await page_handler(replace(request, cursor=newest.next_cursor[:-1] + ('A' if newest.next_cursor[-1] != 'A' else 'B')))
+        await page_handler(replace(request, cursor=invalid_cursor))
     assert failure.value.code == 'ARTIFACT_INVALID_CURSOR'
 
 
@@ -207,11 +208,16 @@ async def test_directory_names_with_sql_wildcards_are_literal_and_creation_is_id
 @pytest.mark.parametrize('origin', ['tool', 'processing'])
 async def test_trusted_internal_origin_is_retained_on_each_immutable_revision(engine, artifacts_database, object_store, origin):
     api, command = await prepare(engine, artifacts_database['project_id'], object_store)
-    receipt = await api.write_text(replace(command, origin=origin, run_id='existing-run', node_id='existing-node'))
+    producer_id = str(uuid4()) if origin == 'tool' else None
+    receipt = await api.write_text(replace(command, origin=origin, run_id='existing-run',
+                                           node_id='existing-node', producer_id=producer_id))
     snapshot = await api.resolve(read(command, receipt.receipt))
     assert snapshot.revision.origin == origin
     assert snapshot.revision.operation_id == command.operation_id
-    assert snapshot.revision.producer_id.endswith(str(command.principal.api_key_id))
+    if producer_id is None:
+        assert snapshot.revision.producer_id.endswith(str(command.principal.api_key_id))
+    else:
+        assert snapshot.revision.producer_id == producer_id
     with pytest.raises(ArtifactError) as failure:
         await api.write_text(replace(command, origin='application'))
     assert failure.value.code == 'ARTIFACT_IDEMPOTENCY_CONFLICT'

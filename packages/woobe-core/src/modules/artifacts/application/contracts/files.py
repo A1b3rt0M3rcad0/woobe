@@ -63,6 +63,7 @@ class WriteText(FileRequest):
     origin: str = 'application'
     run_id: str | None = None
     node_id: str | None = None
+    producer_id: str | None = None
 
 
 @dataclass(frozen=True)

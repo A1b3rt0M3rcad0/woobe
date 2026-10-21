@@ -108,3 +108,9 @@ from modules.artifacts.composition.public_api import (
     ArtifactSearchPage as ArtifactSearchPage, ArtifactSearchResult as ArtifactSearchResult,
     SearchDocuments as SearchDocuments, search_documents_composer as search_documents_composer,
 )
+
+from modules.artifacts.composition.public_api import (
+    RenderRepresentationPage as RenderRepresentationPage,
+    RenderedRepresentationPage as RenderedRepresentationPage,
+    render_representation_page_composer as render_representation_page_composer,
+)

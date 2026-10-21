@@ -11,6 +11,19 @@ from modules.agent.application.tool_types import is_http_tool_type, is_mcp_tool_
 from shared.contracts.errors import ValidationError
 
 
+def _omit_empty_artifact_bindings(value):
+    """Keep default transfer-binding lists out of the frozen portable config."""
+    if isinstance(value, dict):
+        for key in ("file_bindings", "output_bindings"):
+            if value.get(key) == []:
+                value.pop(key)
+        for child in value.values():
+            _omit_empty_artifact_bindings(child)
+    elif isinstance(value, list):
+        for child in value:
+            _omit_empty_artifact_bindings(child)
+
+
 def export_frozen_tool(snapshot, *, configuration_projection=None):
     tool = tool_from_release_snapshot(snapshot)
     raw = deepcopy((tool.config or {}) if configuration_projection is None else configuration_projection)
@@ -56,6 +69,10 @@ def export_frozen_tool(snapshot, *, configuration_projection=None):
         permission = config.setdefault("permission", {"mode": "allow"})
         if permission.get("risk_level") is None:
             permission["risk_level"] = risk
+    # Package 1.0 intentionally does not include Artifact transfer bindings.
+    # Default empty lists are not author intent; omit them so unchanged Tools
+    # remain valid in 1.0 while non-empty bindings remain available to 2.0.
+    _omit_empty_artifact_bindings(config)
     validate_portable_tool_authentication(config)
     return {
         "id": str(tool.id),

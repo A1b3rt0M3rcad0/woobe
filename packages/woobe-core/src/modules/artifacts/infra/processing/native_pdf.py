@@ -53,9 +53,11 @@ class NativePdfProcessor:
                        'recipe': recipe.model_dump(mode='json'), 'source_name': self.source_name(revision),
                        'memory_bytes': self.memory_bytes, 'threads': self.threads, **options}
             await run_blocking(self._write_command, scratch / 'command.json', command)
+            source_root = str(Path(__file__).resolve().parents[4])
             spawn = asyncio.create_task(asyncio.create_subprocess_exec(sys.executable, '-m',
                 self.child_module, str(scratch),
                 env={'PATH': os.environ.get('PATH', '/usr/bin:/bin'), 'LANG': 'C.UTF-8',
+                     'PYTHONPATH': source_root,
                      'OMP_NUM_THREADS': str(self.threads), 'OPENBLAS_NUM_THREADS': str(self.threads),
                      'MKL_NUM_THREADS': str(self.threads), 'NUMEXPR_MAX_THREADS': str(self.threads),
                      'HF_HUB_OFFLINE': '1', 'TRANSFORMERS_OFFLINE': '1'},

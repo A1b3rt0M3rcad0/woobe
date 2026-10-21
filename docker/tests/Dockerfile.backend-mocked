@@ -31,6 +31,7 @@ COPY tooling/woobe-testkit/pyproject.toml tooling/woobe-testkit/pyproject.toml
 COPY tooling/woobe-testkit/src/ tooling/woobe-testkit/src/
 COPY tooling/woobe-mock/pyproject.toml tooling/woobe-mock/pyproject.toml
 COPY tooling/woobe-mock/src/ tooling/woobe-mock/src/
+COPY docs/skills/artifact-document-exploration/ docs/skills/artifact-document-exploration/
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install --python /opt/venv/bin/python --no-deps \
     --editable packages/woobe-core \

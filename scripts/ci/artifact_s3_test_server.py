@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 import secrets
 import signal
+import socket
 import subprocess
 import tarfile
 import time
@@ -21,6 +22,36 @@ VERSION = '4.48'
 ARCHIVE_SHA256 = '4a7d108384d044d95212d1342cdda9533fa55842c1c9b41f606ca3c8a9561124'
 DOWNLOAD = f'https://github.com/seaweedfs/seaweedfs/releases/download/{VERSION}/linux_amd64.tar.gz'
 ROOT = Path(__file__).resolve().parents[2]
+BASE_PORTS = {
+    'master': 9333,
+    'volume': 8082,
+    'filer': 8888,
+    's3': 8333,
+}
+
+
+def service_ports(offset):
+    if offset < 0 or max(BASE_PORTS.values()) + offset > 65535:
+        raise ValueError('Port offset must be non-negative and keep all ports at or below 65535')
+    return {name: port + offset for name, port in BASE_PORTS.items()}
+
+
+def assert_ports_available(ports):
+    sockets = []
+    try:
+        for name, port in ports.items():
+            listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            try:
+                listener.bind(('127.0.0.1', port))
+            except OSError as error:
+                listener.close()
+                raise RuntimeError(
+                    f'Local S3 qualification {name} port {port} is already in use'
+                ) from error
+            sockets.append(listener)
+    finally:
+        for listener in sockets:
+            listener.close()
 
 
 def owned_process(pid, binary, state):
@@ -102,17 +133,18 @@ def client(configuration):
             retries={'max_attempts': 0}))
 
 
-def start(state):
+def start(state, port_offset=0):
+    ports = service_ports(port_offset)
     binary = prepare_binary(state)
     configuration_file = state / 'test-credentials.json'
     if not configuration_file.exists():
         configuration_file.write_text(json.dumps({
             'access_key': secrets.token_hex(12), 'secret_key': secrets.token_urlsafe(32),
-            'endpoint': 'http://127.0.0.1:8333',
+            'endpoint': f'http://127.0.0.1:{ports["s3"]}',
         }))
     configuration_file.chmod(0o600)
     configuration = json.loads(configuration_file.read_text())
-    if configuration['endpoint'] != 'http://127.0.0.1:8333':
+    if configuration['endpoint'] != f'http://127.0.0.1:{ports["s3"]}':
         raise RuntimeError('Qualification credentials must target the local test service')
     server_config = state / 'qualification-config.json'
     expected_config = {'identities': [{'name': 'woobe-artifact-qualification',
@@ -125,12 +157,16 @@ def start(state):
     server_config.chmod(0o600)
     pid_file = state / 'qualification.pid'
     if not pid_file.exists() or not owned_process(int(pid_file.read_text()), binary, state):
+        assert_ports_available(ports)
         (state / 'data').mkdir(exist_ok=True)
-        arguments = [str(binary), 'server', f'-dir={state / "data"}', '-ip=127.0.0.1',
-            '-ip.bind=127.0.0.1', '-master.port=9333', '-master.volumeSizeLimitMB=128',
-            '-volume.port=8082', '-volume.max=32', '-volume.preStopSeconds=0', '-filer',
-            '-filer.port=8888', '-s3', '-s3.port=8333', '-s3.port.iceberg=0',
-            '-s3.port.lance=0', f'-s3.config={server_config}']
+        arguments = [
+            str(binary), 'server', f'-dir={state / "data"}', '-ip=127.0.0.1',
+            '-ip.bind=127.0.0.1', f'-master.port={ports["master"]}',
+            '-master.volumeSizeLimitMB=128', f'-volume.port={ports["volume"]}',
+            '-volume.max=32', '-volume.preStopSeconds=0', '-filer',
+            f'-filer.port={ports["filer"]}', '-s3', f'-s3.port={ports["s3"]}',
+            '-s3.port.iceberg=0', '-s3.port.lance=0', f'-s3.config={server_config}',
+        ]
         with (state / 'qualification.log').open('ab') as log:
             process = subprocess.Popen(arguments, cwd=state, stdout=log,
                                        stderr=subprocess.STDOUT, start_new_session=True)
@@ -155,16 +191,20 @@ def start(state):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--state-dir', type=Path, default=Path('/tmp/woobe-artifact-s3'))
+    parser.add_argument('--state-dir', type=Path, default=Path('/tmp/woobe-artifact-s3'),
+                        help='private directory for the binary, credentials, logs and service data')
+    parser.add_argument('--port-offset', type=int, default=0,
+                        help='add this non-negative offset to all four local service ports')
     parser.add_argument('--stop', action='store_true')
     args = parser.parse_args()
     state = args.state_dir.resolve()
     if state.is_relative_to(ROOT):
         raise RuntimeError('Private S3 qualification state must stay outside the checkout')
     state.mkdir(parents=True, exist_ok=True, mode=0o700)
+    state.chmod(0o700)
     previous_umask = os.umask(0o077)
     try:
-        stop(state) if args.stop else start(state)
+        stop(state) if args.stop else start(state, args.port_offset)
     finally:
         os.umask(previous_umask)
 
