@@ -37,6 +37,41 @@ A Runtime Key does not substitute for an administrative key. Do not replay a Run
 to recover a lost response. Runtime input/options use the pinned SDK contract;
 consult exact help/schema before composing them.
 
+Text runs retain `input`; multimodal requests use `content_parts` with exact
+Artifact and revision IDs instead. These forms cannot be combined. Validate a
+local YAML/JSON file without contacting the backend:
+
+```sh
+woobe schema --command "runtime target run" --kind input
+woobe validate-input --command "runtime target run" --file ./run.yaml
+```
+
+Use `options.external_context` for the declared logical Workspace key. The
+Runtime service resolves and authorizes it for the current caller, Project and
+Environment. Upload source files with `woobe artifacts upload`; pin a processing
+profile revision when the package requires one. PageIndex remains optional and
+is subject to advertised server capability. This assistant skill teaches CLI
+usage; a runtime document Skill is a separate Woobe resource.
+
+## Artifact Workspaces
+
+Use `woobe artifacts workspace`, `list`, `get`, `revision`, `search`, `tree`,
+`read-node` and `read-source` for direct public document operations. These
+commands require an explicit Project/Environment and a Runtime Key with
+Artifact grants; they never substitute a Control Key or require an OpenAI API
+key. Search returns immutable SourceRefs; preserve a `source` object as JSON
+when passing it to `read-source`. Keep opaque Artifact cursors and all
+`has_more`/`next_cursor`/`truncated` evidence.
+
+Uploads stream bounded parts and maintain a private local checkpoint. If an
+upload response is uncertain, resume from that exact checkpoint with the same
+source file; never create a new operation ID or replay a part blindly. To
+replace a document, provide both `--artifact-id` and the exact
+`--expected-revision`, then explicitly pass `--yes`. Downloads require an exact
+revision and a local `--output-file`; the CLI verifies size and SHA-256 before
+publishing it. Existing destinations need `--yes`. Consult the repository's
+Artifact Workspaces guide for the full command examples.
+
 Manifest supports explicit multi-resource orchestration with typed dependencies:
 validate → compile/diff → plan/apply as applicable. Read only the needed schema,
 use exact references and keep checkpoints. A partial projection or GET observation

@@ -1,6 +1,7 @@
 package packagefmt
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -64,6 +65,87 @@ func TestConfigurationV2IntentBindingsAndCatalogIsolation(t *testing.T) {
 		if err == nil || strings.Contains(err.Error(), "PRIVATE-CANARY") {
 			t.Fatalf("protected value accepted or leaked: %v", err)
 		}
+	}
+}
+
+func TestArtifactCapabilityIsVersionedAndPortable(t *testing.T) {
+	agent, err := Decode([]byte(`format: woobe-package
+schema_version: "2.0"
+kind: Agent
+metadata:
+  key: agent
+  name: Support
+spec:
+  model:
+    primary:
+      ref: model
+  external_context:
+    workspace:
+      schema:
+        type: string
+      required: true
+      scope: session
+      model:
+        expose: false
+  artifacts:
+    enabled: true
+    workspace_binding:
+      field: workspace
+      namespace: team-docs
+      scope: session
+    actions: [read, search]
+    limits:
+      max_read_chars: 4096
+    processing_profile:
+      ref: pageindex-default
+      revision: 3
+`), "agent.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = Validate(agent); err != nil {
+		t.Fatal(err)
+	}
+	capability := Object(Object(agent.Value["spec"])["artifacts"])
+	if Object(capability["processing_profile"])["ref"] != "pageindex-default" || fmt.Sprint(Object(capability["processing_profile"])["revision"]) != "3" {
+		t.Fatalf("pinned processing profile revision was not preserved: %#v", capability)
+	}
+	for _, forbidden := range []string{"workspace_id", "signed_url", "private_content", "binary"} {
+		capability[forbidden] = "PRIVATE-CANARY"
+		if err = Validate(agent); err == nil || strings.Contains(err.Error(), "PRIVATE-CANARY") {
+			t.Fatalf("private Artifact field %q accepted or leaked: %v", forbidden, err)
+		}
+		delete(capability, forbidden)
+	}
+	agent.Value["schema_version"] = "1.0"
+	if err = Validate(agent); err == nil {
+		t.Fatal("Artifact capability silently entered Package 1.0")
+	}
+
+	network, err := Decode([]byte(`{"format":"woobe-package","schema_version":"2.0","kind":"Network","metadata":{"key":"network","name":"Support Network"},"spec":{"root":"support","nodes":[{"key":"support","agent_ref":"agent","artifact_actions":["read"]}],"settings":{"artifacts_enabled":true,"artifact_workspace_binding":{"field":"workspace","namespace":"team-docs","scope":"session","actions":["read","search"]}}}}`), "network.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = Validate(network); err != nil {
+		t.Fatal(err)
+	}
+	network.Value["schema_version"] = "1.0"
+	if err = Validate(network); err == nil {
+		t.Fatal("Network Artifact requirement silently entered Package 1.0")
+	}
+}
+
+func TestMcpArtifactFileBindingIsPackageV2Only(t *testing.T) {
+	document, err := Decode([]byte(`{"format":"woobe-package","schema_version":"2.0","kind":"Tool","metadata":{"key":"mcp","name":"MCP image tool"},"spec":{"type":"mcp","config":{"authentication":{"type":"none"},"server":{"url":"https://mcp.example.test/mcp"},"tool_name":"inspect_image","input_schema_source":"discovered","discovered_input_schema":{"type":"object","properties":{"image":{"type":"string","format":"byte"}},"required":["image"]},"file_bindings":[{"input_name":"image","mode":"base64","content_types":["image/png"],"max_bytes":4096}]}}}`), "tool.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = Validate(document); err != nil {
+		t.Fatal(err)
+	}
+	document.Value["schema_version"] = "1.0"
+	if err = Validate(document); err == nil {
+		t.Fatal("MCP Artifact file binding silently entered Package 1.0")
 	}
 }
 

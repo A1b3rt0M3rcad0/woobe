@@ -16,6 +16,10 @@
 | Import uncertain | Keep its checkpoint; `woobe package status --checkpoint PATH --wait`, then reconcile the original operation |
 | Pending reconciliation points to status | Observe the given operation until terminal, then rerun managed reconcile to accept bases |
 | Publication or permission denied | Stop and report the actual scope/required permission; `--yes` grants no authority |
+| Artifact upload start/part/finalize is uncertain | Keep the private checkpoint and run `woobe artifacts upload resume --checkpoint PATH`; resume verifies the same source and reconciles the original operation/offset |
+| Artifact upload source digest changed | Restore the exact original bytes at the checkpointed path or inspect/abandon the staged upload deliberately; never resume different content |
+| Artifact revision compare-and-swap conflict | Read the Artifact and its exact current revision, review the change, then start a new intentional replacement with the new expected revision |
+| Artifact download is incomplete or fails SHA-256 | No final file was published; retain the destination and retry the same immutable revision after resolving the transfer failure |
 
 `resources unregister KIND '@alias'` removes one local registry entry, including
 an absent root descriptor, after validating remaining refs. It retains files and

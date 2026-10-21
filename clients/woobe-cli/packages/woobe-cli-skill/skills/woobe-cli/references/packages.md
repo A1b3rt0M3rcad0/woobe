@@ -77,6 +77,21 @@ Export defaults to the unchanged 1.0 format. Select `--package-schema 2.0` for
 remote authentication declarations. Existing operational 1.0 imports preserve
 their behavior; `--structural` is explicit and never silently inferred.
 
+Package 2.0 can preserve an opt-in Agent `artifacts` policy and a Network
+`settings.artifacts_enabled` requirement. The Agent binding names a logical
+namespace and a required, non-model-exposed string field from `external_context`
+with the same `run` or `session` scope. The field value supplies the Workspace's
+external key. The package contains only logical actions, limits and an optional
+pinned processing profile (`ref` plus `revision`), never a Workspace ID, signed
+URL, private document content or binary asset. Runtime resolves the logical
+binding under the authorized Project/Environment and Runtime Key; portable
+import grants no Workspace access. PageIndex is optional and requires server
+capability and grants. No OpenAI API key is part of this package requirement.
+Legacy definitions remain disabled. An enabled policy cannot be exported as
+Package 1.0, and a Network requirement needs an Artifact-enabled Agent. This
+definition setting does not itself grant access; runtime authorization remains
+server-owned.
+
 HTTP group routes can declare their own remote `authentication` in schema 2.0.
 Declare each referenced key in the manifest. Omitted route authentication inherits
 the connection; explicit `none` suppresses private parent headers. A protected

@@ -11,7 +11,20 @@ import (
 func (a *App) validateInputCommand() {
 	var command string
 	var pathParams []string
-	c := &cobra.Command{Use: "validate-input", Short: "Validate a JSON body against advertised server schema without executing the operation", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
+	c := &cobra.Command{Use: "validate-input", Short: "Validate an input body against an advertised or local protocol schema without executing it", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
+		if command == "runtime target run" || command == "runtime target stream" {
+			if a.ValidateParameters || len(pathParams) > 0 {
+				return output.New(9, "Runtime SDK commands have no advertised OpenAPI path or query schema")
+			}
+			b, e := a.body(true)
+			if e != nil {
+				return e
+			}
+			if _, e = decodeRuntimeInput(b); e != nil {
+				return output.New(2, e.Error())
+			}
+			return a.emit(map[string]any{"body_validation": "runtime_protocol_v1", "valid": true, "operation": command, "source": "cli_runtime_protocol", "validation": "supported_schema_subset", "validation_direction": "request", "authorization": "not_evaluated", "executed": false})
+		}
 		b, e := a.body(!a.ValidateParameters)
 		if e != nil {
 			return e

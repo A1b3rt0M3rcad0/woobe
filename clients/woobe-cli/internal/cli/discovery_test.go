@@ -50,6 +50,19 @@ func TestLocalSchemaDescribesRealFlags(t *testing.T) {
 		t.Fatal(data)
 	}
 }
+
+func TestRuntimeInputSchemaDescribesLegacyAndMultimodalContracts(t *testing.T) {
+	code, response := invoke(t, []string{"schema", "--command", "runtime target run", "--kind", "input"}, "")
+	if code != 0 {
+		t.Fatal(response)
+	}
+	body := response["data"].(map[string]any)["properties"].(map[string]any)["body"].(map[string]any)
+	properties := body["properties"].(map[string]any)
+	parts := properties["content_parts"].(map[string]any)
+	if properties["input"].(map[string]any)["type"] != "string" || parts["maxItems"] != float64(32) || body["oneOf"] == nil {
+		t.Fatalf("runtime input schema omitted multimodal/legacy alternatives: %#v", body)
+	}
+}
 func TestStreamSchemaPreservesRuntimeProtocol(t *testing.T) {
 	code, v := invoke(t, []string{"schema", "--command", "runtime target observe", "--kind", "output"}, "")
 	if code != 0 {

@@ -296,6 +296,55 @@ Export defaults to the unchanged 1.0 format. Select `--package-schema 2.0` for
 remote authentication declarations. Existing operational 1.0 imports preserve
 their behavior; `--structural` is explicit and never silently inferred.
 
+Package 2.0 also carries the opt-in Agent `artifacts` policy and Network
+`settings.artifacts_enabled` requirement. The Agent workspace binding names a
+logical namespace and a required, non-model-exposed string field in
+`external_context` with its declared `run` or `session` scope. The field value
+supplies the Workspace's external key and never carries a private Workspace ID.
+Actions, bounded read/search/write limits and an optional pinned processing
+profile (`ref` plus `revision`) travel with the definition; Workspace IDs, signed
+URLs, private document content and binary assets do not. Runtime resolves the
+logical binding under the authorized Project/Environment and Runtime Key;
+portable import grants no Workspace access. PageIndex remains optional and
+requires server capability and grants. No OpenAI API key is part of this package
+requirement. Old definitions default to
+disabled. An enabled capability cannot be downgraded to Package 1.0, and a
+Network requiring Artifacts must include at least one Agent that enables the
+capability. This authoring policy never grants Workspace access by itself;
+current runtime authorization remains a server decision.
+
+An authored Agent declares the External Context key and its visibility/scope
+alongside the capability. The logical `namespace` and field name are portable;
+the Runtime resolves the value for the caller.
+
+```yaml
+spec:
+  external_context:
+    workspace:
+      schema: {type: string}
+      required: true
+      scope: session
+      model: {expose: false}
+  artifacts:
+    enabled: true
+    workspace_binding:
+      field: workspace
+      namespace: team-docs
+      scope: session
+    actions: [read, search, process]
+    processing_profile:
+      ref: pageindex-default
+      revision: 3
+```
+
+The Network requirement pins the same logical binding and allowed actions in
+`spec.settings.artifact_workspace_binding`. Run `woobe package validate` for
+offline structure, then plan against the destination's advertised schema and
+authorized bindings. A destination Runtime request must resolve the logical
+Workspace through the authenticated API; package import never attaches a
+Workspace ID or bypasses grants. Use `woobe artifacts upload` to transfer new
+source bytes and pass the resulting exact revision in runtime `content_parts`.
+
 HTTP group routes can declare their own remote `authentication` in schema 2.0.
 Each referenced key must be declared by the manifest. Omitted route authentication
 inherits the connection; explicit `none` suppresses its private headers. Protected

@@ -1,12 +1,30 @@
 # Executable command catalog
 
-Generated from current discovery: 369 executable entries, including 203 HTTP operations. Route advertisement does not grant authority. See [USAGE.md](USAGE.md) for workflows, [PAGINATION.md](PAGINATION.md) for reviewed pagination and [AGENT_SKILL.md](AGENT_SKILL.md) for embedded assistant skill setup.
+Generated from current discovery: 387 executable entries, including 220 commands with an explicit HTTP route. Route advertisement does not grant authority. See [USAGE.md](USAGE.md) for workflows, [PAGINATION.md](PAGINATION.md) for reviewed pagination and [AGENT_SKILL.md](AGENT_SKILL.md) for embedded assistant skill setup.
 
 Regenerate with `python3 scripts/command_catalog.py --binary bin/woobe --write`. Assistant installation uses local `skills` commands, not HTTP operations. The optional npm `woobe-skill` executable uses the same payload and receipts.
 
 | Command | Kind | HTTP | Availability | Permission hint | Pagination |
 | --- | --- | --- | --- | --- | --- |
 | `agent` | `alias` | — | `local` | — | — |
+| `artifacts delete` | `runtime-artifact` | `DELETE /v1/artifact-workspaces/{workspace_id}/artifacts/{artifact_id}` | `server-dependent` | artifact:delete | — |
+| `artifacts download` | `runtime-artifact` | `GET /v1/artifacts/{artifact_id}/revisions/{revision_id}/content` | `server-dependent` | artifact:read | — |
+| `artifacts get` | `runtime-artifact` | `GET /v1/artifact-workspaces/{workspace_id}/artifacts/{artifact_id}` | `server-dependent` | artifact:read | — |
+| `artifacts list` | `runtime-artifact` | `GET /v1/artifact-workspaces/{workspace_id}/artifacts` | `server-dependent` | artifact:read | cursor-has-next |
+| `artifacts move` | `runtime-artifact` | `PATCH /v1/artifact-workspaces/{workspace_id}/artifacts/{artifact_id}` | `server-dependent` | artifact:write | — |
+| `artifacts process` | `runtime-artifact` | `POST /v1/artifacts/{artifact_id}/processing` | `server-dependent` | artifact:process | — |
+| `artifacts read-node` | `runtime-artifact` | `GET /v1/document-indexes/{index_id}/nodes/{node_id}/content` | `server-dependent` | artifact:read | — |
+| `artifacts read-source` | `runtime-artifact` | `POST /v1/artifact-sources/read` | `server-dependent` | artifact:read | — |
+| `artifacts revision` | `runtime-artifact` | `GET /v1/artifacts/{artifact_id}/revisions/{revision_id}` | `server-dependent` | artifact:read | — |
+| `artifacts search` | `runtime-artifact` | `GET /v1/artifact-workspaces/{workspace_id}/search` | `server-dependent` | artifact:read | cursor-has-next |
+| `artifacts tree` | `runtime-artifact` | `GET /v1/document-indexes/{index_id}/nodes` | `server-dependent` | artifact:read | cursor-has-next |
+| `artifacts upload` | `runtime-artifact` | `POST /v1/artifact-workspaces/{workspace_id}/uploads` | `server-dependent` | artifact:write | — |
+| `artifacts upload resume` | `runtime-artifact-workflow` | — | `server-dependent` | artifact:write | — |
+| `artifacts workspace create` | `runtime-artifact` | `POST /v1/artifact-workspaces` | `server-dependent` | artifact:write | — |
+| `artifacts workspace get` | `runtime-artifact` | `GET /v1/artifact-workspaces/{workspace_id}` | `server-dependent` | artifact:read | — |
+| `artifacts workspace list` | `runtime-artifact` | `GET /v1/artifact-workspaces` | `server-dependent` | artifact:read | cursor-has-next |
+| `artifacts workspace resolve` | `runtime-artifact` | `GET /v1/artifact-workspaces/resolve` | `server-dependent` | artifact:read | — |
+| `artifacts workspace update` | `runtime-artifact` | `PATCH /v1/artifact-workspaces/{workspace_id}` | `server-dependent` | artifact:write | — |
 | `auth credential import` | `local` | — | `local` | — | — |
 | `auth credential list` | `local` | — | `local` | — | — |
 | `auth credential remove` | `local` | — | `local` | — | — |

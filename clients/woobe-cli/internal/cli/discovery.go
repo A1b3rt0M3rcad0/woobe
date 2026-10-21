@@ -1,11 +1,42 @@
 package cli
 
 import (
+	"github.com/A1b3rt0M3rcad0/woobe-cli/internal/controlplane"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"sort"
 	"strings"
 )
+
+func artifactDiscoveryOperation(path string) (Operation, bool) {
+	operations := map[string]Operation{
+		"artifacts workspace list":    {Kind: "runtime-artifact", Method: "GET", Path: "/v1/artifact-workspaces", Scope: "project+environment", Effect: "read", Status: "server-dependent", Permission: "artifact:read", PermissionSource: "runtime_key_grants", Pagination: controlplane.CursorHasNext},
+		"artifacts workspace create":  {Kind: "runtime-artifact", Method: "POST", Path: "/v1/artifact-workspaces", Scope: "project+environment", Effect: "mutation", Status: "server-dependent", Permission: "artifact:write", PermissionSource: "runtime_key_grants", Body: true},
+		"artifacts workspace resolve": {Kind: "runtime-artifact", Method: "GET", Path: "/v1/artifact-workspaces/resolve", Scope: "project+environment", Effect: "read", Status: "server-dependent", Permission: "artifact:read", PermissionSource: "runtime_key_grants"},
+		"artifacts workspace get":     {Kind: "runtime-artifact", Method: "GET", Path: "/v1/artifact-workspaces/{workspace_id}", Scope: "project+environment", Effect: "read", Status: "server-dependent", Permission: "artifact:read", PermissionSource: "runtime_key_grants"},
+		"artifacts workspace update":  {Kind: "runtime-artifact", Method: "PATCH", Path: "/v1/artifact-workspaces/{workspace_id}", Scope: "project+environment", Effect: "mutation", Status: "server-dependent", Permission: "artifact:write", PermissionSource: "runtime_key_grants", Body: true},
+		"artifacts list":              {Kind: "runtime-artifact", Method: "GET", Path: "/v1/artifact-workspaces/{workspace_id}/artifacts", Scope: "project+environment+workspace", Effect: "read", Status: "server-dependent", Permission: "artifact:read", PermissionSource: "runtime_key_grants", Pagination: controlplane.CursorHasNext},
+		"artifacts get":               {Kind: "runtime-artifact", Method: "GET", Path: "/v1/artifact-workspaces/{workspace_id}/artifacts/{artifact_id}", Scope: "project+environment+workspace", Effect: "read", Status: "server-dependent", Permission: "artifact:read", PermissionSource: "runtime_key_grants"},
+		"artifacts revision":          {Kind: "runtime-artifact", Method: "GET", Path: "/v1/artifacts/{artifact_id}/revisions/{revision_id}", Scope: "project+environment+workspace", Effect: "read", Status: "server-dependent", Permission: "artifact:read", PermissionSource: "runtime_key_grants", QueryScope: "artifact_workspace_id"},
+		"artifacts search":            {Kind: "runtime-artifact", Method: "GET", Path: "/v1/artifact-workspaces/{workspace_id}/search", Scope: "project+environment+workspace", Effect: "read", Status: "server-dependent", Permission: "artifact:read", PermissionSource: "runtime_key_grants", Pagination: controlplane.CursorHasNext},
+		"artifacts process":           {Kind: "runtime-artifact", Method: "POST", Path: "/v1/artifacts/{artifact_id}/processing", Scope: "project+environment+workspace", Effect: "execution", Status: "server-dependent", Permission: "artifact:process", PermissionSource: "runtime_key_grants", QueryScope: "artifact_workspace_id", Body: true},
+		"artifacts tree":              {Kind: "runtime-artifact", Method: "GET", Path: "/v1/document-indexes/{index_id}/nodes", Scope: "project+environment+workspace", Effect: "read", Status: "server-dependent", Permission: "artifact:read", PermissionSource: "runtime_key_grants", QueryScope: "artifact_workspace_id", Pagination: controlplane.CursorHasNext},
+		"artifacts read-node":         {Kind: "runtime-artifact", Method: "GET", Path: "/v1/document-indexes/{index_id}/nodes/{node_id}/content", Scope: "project+environment+workspace", Effect: "read", Status: "server-dependent", Permission: "artifact:read", PermissionSource: "runtime_key_grants", QueryScope: "artifact_workspace_id"},
+		"artifacts read-source":       {Kind: "runtime-artifact", Method: "POST", Path: "/v1/artifact-sources/read", Scope: "project+environment+workspace", Effect: "read", Status: "server-dependent", Permission: "artifact:read", PermissionSource: "runtime_key_grants", QueryScope: "artifact_workspace_id", Body: true},
+		"artifacts upload":            {Kind: "runtime-artifact", Method: "POST", Path: "/v1/artifact-workspaces/{workspace_id}/uploads", Scope: "project+environment+workspace", Effect: "mutation", Status: "server-dependent", Permission: "artifact:write", PermissionSource: "runtime_key_grants", Body: true},
+		"artifacts upload resume":     {Kind: "runtime-artifact-workflow", Scope: "project+environment+workspace", Effect: "reconcile_and_resume_upload", Status: "server-dependent", Permission: "artifact:write", PermissionSource: "runtime_key_grants"},
+		"artifacts download":          {Kind: "runtime-artifact", Method: "GET", Path: "/v1/artifacts/{artifact_id}/revisions/{revision_id}/content", Scope: "project+environment+workspace", Effect: "read_stream", Status: "server-dependent", Permission: "artifact:read", PermissionSource: "runtime_key_grants", QueryScope: "artifact_workspace_id"},
+		"artifacts move":              {Kind: "runtime-artifact", Method: "PATCH", Path: "/v1/artifact-workspaces/{workspace_id}/artifacts/{artifact_id}", Scope: "project+environment+workspace", Effect: "mutation", Status: "server-dependent", Permission: "artifact:write", PermissionSource: "runtime_key_grants", Body: true},
+		"artifacts delete":            {Kind: "runtime-artifact", Method: "DELETE", Path: "/v1/artifact-workspaces/{workspace_id}/artifacts/{artifact_id}", Scope: "project+environment+workspace", Effect: "mutation", Status: "server-dependent", Permission: "artifact:delete", PermissionSource: "runtime_key_grants"},
+	}
+	operation, ok := operations[path]
+	if ok {
+		operation.Command = path
+		operation.ID = strings.ReplaceAll(path, " ", ".")
+		operation.Summary = "Direct Artifact API operation using the scoped Runtime Key"
+	}
+	return operation, ok
+}
 
 type FlagDescriptor struct {
 	Name        string `json:"name"`
@@ -110,6 +141,9 @@ func (a *App) completeDiscovery() {
 					effect = "delegated"
 				}
 				op := Operation{Command: path, ID: strings.ReplaceAll(path, " ", "."), Kind: kind, Effect: effect, Status: availability, Scope: "client", PermissionSource: "not_evaluated"}
+				if artifactOperation, ok := artifactDiscoveryOperation(path); ok {
+					op = artifactOperation
+				}
 				a.Registry = append(a.Registry, op)
 				i = len(a.Registry) - 1
 			}
@@ -191,10 +225,20 @@ func commandSchema(op Operation, kind string) map[string]any {
 			for _, key := range []string{"metadata", "external_context", "Metadata", "ExternalContext"} {
 				optionProperties[key] = map[string]any{"type": "object"}
 			}
-			s["properties"].(map[string]any)["body"] = map[string]any{"type": "object", "required": []string{"input"}, "additionalProperties": false,
-				"properties": map[string]any{"input": map[string]any{"type": "string", "minLength": 1},
+			inputSchema := map[string]any{"type": "string", "minLength": 1, "pattern": `\S`}
+			partsSchema := map[string]any{"type": "array", "minItems": 1, "maxItems": 32, "items": map[string]any{"oneOf": []any{
+				map[string]any{"type": "object", "required": []string{"type", "text"}, "additionalProperties": false, "properties": map[string]any{"type": map[string]any{"const": "text"}, "text": map[string]any{"type": "string", "minLength": 1, "maxLength": 32768}}},
+				map[string]any{"type": "object", "required": []string{"type", "ref"}, "additionalProperties": false, "properties": map[string]any{"type": map[string]any{"const": "artifact"}, "media_type_hint": map[string]any{"type": "string", "maxLength": 255}, "ref": map[string]any{"type": "object", "required": []string{"artifact_id", "revision_id"}, "additionalProperties": false, "properties": map[string]any{"artifact_id": map[string]any{"type": "string", "minLength": 1, "maxLength": 128}, "revision_id": map[string]any{"type": "string", "minLength": 1, "maxLength": 128}}}}},
+			}}}
+			bodySchema := map[string]any{"type": "object", "additionalProperties": false,
+				"properties": map[string]any{"input": inputSchema, "content_parts": partsSchema,
 					"session_id": map[string]any{"type": "string", "minLength": 1},
 					"options":    map[string]any{"type": "object", "additionalProperties": false, "properties": optionProperties}}}
+			bodySchema["oneOf"] = []any{
+				map[string]any{"required": []string{"input"}, "properties": map[string]any{"input": inputSchema}, "not": map[string]any{"required": []string{"content_parts"}}},
+				map[string]any{"required": []string{"content_parts"}, "properties": map[string]any{"input": map[string]any{"type": "string", "maxLength": 0}}},
+			}
+			s["properties"].(map[string]any)["body"] = bodySchema
 		}
 		if op.Command == "auth login" {
 			flags := s["properties"].(map[string]any)["flags"].(map[string]any)

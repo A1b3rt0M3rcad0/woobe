@@ -14,6 +14,7 @@ from modules.package.domain.bundle import (
     MAX_BUNDLE_BYTES,
 )
 from modules.package.domain.errors import PackageError
+from shared.contracts.artifact_capability import canonicalize_artifact_capability
 
 _ENV = re.compile(r"\{\{\s*project_env\.([A-Za-z_][A-Za-z0-9_]*)\s*\}\}")
 _SECRET = re.compile(r"\{\{secret:([^}]+)\}\}")
@@ -322,6 +323,18 @@ class ExportProjection:
                 "output_schema": deepcopy(definition.get("output_schema")),
             },
         }
+        artifact_capability = canonicalize_artifact_capability(
+            runtime.get("artifacts"), definition.get("external_context_contract")
+        )
+        if artifact_capability and artifact_capability["enabled"]:
+            if self.schema_version != "2.0":
+                raise PackageError(
+                    "PACKAGE_SCHEMA_UNSUPPORTED",
+                    "Artifact-enabled Agents require Package 2.0 export",
+                    file=key + ".yaml",
+                    path="/spec/artifacts",
+                )
+            spec["artifacts"] = artifact_capability
         artifacts = captured["artifacts"]
         if prompt := artifacts.get("prompt_version_id"):
             spec["prompt_ref"] = self.add_document(
@@ -395,7 +408,9 @@ class ExportProjection:
                     "kind": "Contract",
                     "owner_agent_id": captured["source"]["agent_id"],
                 }
-        if knowledge := captured["knowledge"]:
+        selected_knowledge_strategy = runtime.get("knowledge_strategy", "rag")
+        knowledge = captured["knowledge"]
+        if knowledge and selected_knowledge_strategy != "none":
             vector, embedding = knowledge["vector"], knowledge["embedding"]
             knowledge_key = f"knowledge-{1 + sum(item['kind'] == 'Knowledge' for item in self.documents.values())}"
             if self.knowledge_mode == "binding":
@@ -463,6 +478,10 @@ class ExportProjection:
                 ),
                 "rag": deepcopy(runtime.get("rag") or {}),
             }
+        elif selected_knowledge_strategy == "none" and self.schema_version == "2.0":
+            # Package 2.0 can preserve an artifact-only Agent without exporting an
+            # unused vector snapshot or synthesizing a Knowledge resource.
+            spec["knowledge_strategy"] = "none"
         self.native_bindings[key] = {
             "resource_id": captured["source"]["agent_id"],
             "kind": "Agent",
@@ -491,10 +510,21 @@ class ExportProjection:
         else:
             for agent in captured["agents"]:
                 self.agent(agent, agent["key"])
+            network_spec = deepcopy(captured["spec"])
+            if (
+                network_spec.get("settings", {}).get("artifacts_enabled", False)
+                and self.schema_version != "2.0"
+            ):
+                raise PackageError(
+                    "PACKAGE_SCHEMA_UNSUPPORTED",
+                    "Artifact-enabled Networks require Package 2.0 export",
+                    file="network-1.yaml",
+                    path="/spec/settings/artifacts_enabled",
+                )
             entry = self.add_document(
                 "Network",
                 captured["name"],
-                captured["spec"],
+                network_spec,
                 key="network-1",
                 description=captured["description"],
             )

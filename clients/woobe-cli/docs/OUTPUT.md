@@ -96,6 +96,12 @@ output. A successful command does not establish that an entire collection was
 retrieved. `--fields` cannot remove error or pagination metadata. Runtime event
 streams continue to require `--output jsonl`.
 
+Artifact Workspace pages retain `has_more`, opaque `next_cursor` and
+`truncated`. Upload/download commands stream bytes between files and the API;
+they do not place Artifact bytes or base64 in ordinary CLI output. Exact
+revision downloads report their size and verified SHA-256 only after the final
+file is atomically published. See the [Artifact Workspaces guide](ARTIFACT_WORKSPACES.md).
+
 ## Give an AI agent a short instruction
 
 ```text

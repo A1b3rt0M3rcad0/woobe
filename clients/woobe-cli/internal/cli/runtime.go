@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -71,7 +72,7 @@ func (a *App) runtimeCommands() {
 		if action == "observe" || action == "active" || action == "cancel" {
 			n = 2
 		}
-		c := &cobra.Command{Use: action + " <alias> [run-or-session-id]", Short: action + " an authenticated runtime target", Long: "Run/stream read YAML or JSON with input, optional session_id, and options (session_id, tenant_id, user_id, metadata, external_context). Reuse the returned session_id explicitly to continue; omit it for a new Session. Unknown fields and conflicting session identities are rejected. Agent Sessions follow their environment between Runs; Network Sessions pin their native version. Each accepted Run freezes its resolved snapshot. Runtime credentials are separate from CLI Keys.", Args: cobra.ExactArgs(n), RunE: func(cmd *cobra.Command, args []string) error {
+		c := &cobra.Command{Use: action + " <alias> [run-or-session-id]", Short: action + " an authenticated runtime target", Long: "Run/stream reads YAML or JSON with either legacy input text or content_parts (ordered text and exact Artifact revision references), plus optional session_id and options (session_id, tenant_id, user_id, metadata, external_context). Do not combine input with content_parts. Reuse the returned session_id to continue; omit it for a new Session. Unknown fields and conflicting session identities are rejected. Agent Sessions follow their environment between Runs; Network Sessions pin their native version. Each accepted Run freezes its resolved snapshot. External Context workspace keys are resolved and authorized by the Runtime service. Runtime credentials are separate from CLI Keys.", Args: cobra.ExactArgs(n), RunE: func(cmd *cobra.Command, args []string) error {
 			if (action == "stream" || action == "observe") && a.Mode != "jsonl" && !a.DryRun {
 				return output.New(2, "stream and observe require --output jsonl")
 			}
@@ -92,7 +93,9 @@ func (a *App) runtimeCommands() {
 					if _, e = decodeRuntimeInput(b); e != nil {
 						return output.New(2, e.Error())
 					}
-					if e = json.Unmarshal(b, &body); e != nil {
+					decoder := json.NewDecoder(bytes.NewReader(b))
+					decoder.UseNumber()
+					if e = decoder.Decode(&body); e != nil {
 						return output.New(2, "invalid runtime input")
 					}
 				}

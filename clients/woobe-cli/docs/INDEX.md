@@ -12,6 +12,7 @@ that every original roadmap criterion is complete.
 | [Coding assistant skill](AGENT_SKILL.md) | Built-in offline install, Codex/.codex, Claude Code, custom paths, compatible npm installer and publisher bootstrap |
 | [Contract and test recovery](CONTRACTS_TEST_RECOVERY.md) | Exact references, validation, timeout identity, revision conflicts and private secret files |
 | [Usage](USAGE.md) | Canonical CLI workflows, managed YAML editing and recovery |
+| [Artifact Workspaces](ARTIFACT_WORKSPACES.md) | Runtime-scoped document Workspaces, exact revisions, streaming transfer, SourceRefs and recovery |
 | [Development](DEVELOPMENT.md) | Provider bindings, shared dependencies and Surfaces |
 | [Project configuration](CONFIGURATION.md) | Remote declarations, Environment metadata, typed Provider references and operator value entry |
 | [Unified deployment](DEPLOYMENT.md) | Release/Staging/local delivery, exact qualification, private intents and recovery |

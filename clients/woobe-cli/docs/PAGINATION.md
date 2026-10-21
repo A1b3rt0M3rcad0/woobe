@@ -44,4 +44,10 @@ A successful single-page read can have `success:true` and `meta.complete:false`.
 
 `request-pages --pagination auto` selects these four reviewed routes, otherwise using Link traversal. Explicit protocols are `link`, `cursor-complete`, `cursor-has-next` and `revision-complete`. A caller selecting a body protocol takes responsibility for its compatibility with that custom endpoint. Generic Link traversal keeps the same origin and route, preserves all filters, and permits changes only to `cursor`, `page`, `offset` or `before_revision`; invalid query encodings and cycles are rejected. Exhausted links keep `collection_complete:not_verified`.
 
+Artifact Workspace endpoints use their own typed SDK page contracts. The CLI
+passes `--cursor` unchanged and retains `has_more`, `next_cursor` and
+`truncated`; it does not infer completion or automatically traverse pages.
+Continue with the same Workspace, Environment, filters and page size. See the
+[Artifact Workspaces guide](ARTIFACT_WORKSPACES.md).
+
 Tests cover all body protocols, initial markers, revision ordering, exact numeric preservation, scope/filter retention, invalid/contradictory markers, loops, max-pages, total deadline, HTTP failures, metadata/secret redaction, discovery, zero-network input refusals and table partial output. Native package smoke exercises two pages and single-page completeness against a loopback fixture on each runner OS. The backend live CLI contract validates category history/list/audit against real persistence and traverses two independent staging Agent sessions using a key scoped by `run:read`, Agent target and environment. It verifies refusal of production, default draft and an unknown Agent.

@@ -115,7 +115,12 @@ woobe runtime target active tutor SESSION --runtime-credential runtime
 woobe runtime target cancel tutor RUN --runtime-credential runtime --yes
 ```
 
-Run YAML (or equivalent JSON):
+Run YAML (or equivalent JSON) preserves the legacy text form. To reference an
+immutable Artifact revision, provide `content_parts` instead; the two forms
+cannot be combined. `woobe schema --command "runtime target run" --kind input`
+shows the local protocol contract, and `woobe validate-input --command "runtime
+target run" --file run.yaml` validates it offline without claiming server
+authorization or model availability.
 
 ```yaml
 input: Explain this topic
@@ -125,6 +130,32 @@ options:
     source: cli
 ```
 
+Multimodal session input uses an exact Artifact and revision ID. External
+Context carries the logical Workspace key declared by the Agent/Network; the
+server resolves it under the current Runtime Key and grants.
+
+```yaml
+content_parts:
+  - type: text
+    text: Summarize the attached source
+  - type: artifact
+    ref:
+      artifact_id: ARTIFACT_ID
+      revision_id: REVISION_ID
+    media_type_hint: application/pdf
+session_id: EXISTING_SESSION_UUID
+options:
+  external_context:
+    workspace: team-docs
+```
+
+For large documents, upload through `woobe artifacts upload` and pass the
+returned exact revision. PageIndex is an optional processing/indexing capability;
+the package policy may pin a processing profile revision, while search/read
+commands report unsupported server capability without falling back to another
+provider. Artifact Workspaces are API storage; the installed `woobe-cli-skill`
+guides coding assistants and is not a runtime document Skill.
+
 Omit `session_id` for a new Session; reuse the returned UUID to continue. Options
 accept `session_id`, `tenant_id`, `user_id`, `metadata`, `external_context`; the
 previous SDK spellings such as `SessionID` remain compatible. Unknown fields,
@@ -132,6 +163,16 @@ null/empty supplied sessions and conflicting identities are rejected. Agent
 Sessions follow the selected environment between Runs; Network Sessions pin their
 version. Every accepted Run freezes its resolved snapshot and the compatible
 backend returns `runtime_identity`. For Network targets select `--target-kind network` explicitly. Local interruption stops observation; it does not issue remote cancellation. Administrative Runs use the separate `runtime run` family. All five SDK handlers honor `--dry-run` without network execution.
+
+## Artifact Workspaces
+
+Public Artifact commands use an attached Runtime Key with Artifact grants, an
+explicit Project and the selected Environment. They do not use the Control Key
+or require an OpenAI API key. Workspace/document listing, exact revisions,
+search, bounded node/source reads, resumable uploads and integrity-verified
+downloads are described in the [Artifact Workspaces guide](ARTIFACT_WORKSPACES.md).
+Preserve opaque cursors and private upload checkpoints; never replay an
+uncertain mutation with a new operation ID.
 
 ## Manifest validation, plan and checkpoint
 

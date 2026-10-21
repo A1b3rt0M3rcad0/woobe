@@ -254,6 +254,29 @@ class NativePackageInspectorGateway:
                 return result
             if kind == "Network":
                 result = self._network.inspect_portable_definition(spec)
+                if spec.get("settings", {}).get("artifacts_enabled", False):
+                    network_binding = spec["settings"].get("artifact_workspace_binding") or {}
+                    enabled_children = 0
+                    for node in spec["nodes"]:
+                        capability = inspected[node["agent_ref"]].get("artifact_capability") or {}
+                        node_actions = set(node.get("artifact_actions") or ())
+                        if capability.get("enabled"):
+                            enabled_children += 1
+                        child_binding = capability.get("workspace_binding") or {}
+                        if node_actions and (
+                            not capability.get("enabled")
+                            or not node_actions <= set(capability.get("actions") or ())
+                            or child_binding.get("field") != network_binding.get("field")
+                            or child_binding.get("namespace") != network_binding.get("namespace")
+                            or child_binding.get("scope") != network_binding.get("scope")
+                        ):
+                            raise ValidationError(
+                                "Network Node Artifact policy must be a subset of a matching Agent capability"
+                            )
+                    if not enabled_children:
+                        raise ValidationError(
+                            "Network Artifact capability requires an Artifact-enabled Agent"
+                        )
                 contracts = {
                     node["key"]: inspected[node["agent_ref"]][
                         "external_context_contract"

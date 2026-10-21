@@ -165,6 +165,7 @@ func New(in io.Reader, out, errOut io.Writer) *App {
 	a.authCommands()
 	a.controlAuthCommands()
 	a.runtimeCommands()
+	a.artifactCommands()
 	a.manifestCommands()
 	a.packageCommands()
 	a.uploadCommands()

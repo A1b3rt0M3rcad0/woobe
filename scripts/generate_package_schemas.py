@@ -37,8 +37,17 @@ def main():
             if version == "v1":
                 # Native Tool DTOs evolve, but Package 1.0 is an immutable wire
                 # contract. Typed authentication is introduced only in 2.0.
+                definitions = schema.get("$defs", {})
                 for name in ("HttpToolConfig", "McpToolConfig", "HttpRouteConfig"):
-                    schema.get("$defs", {}).get(name, {}).get("properties", {}).pop("authentication", None)
+                    properties = definitions.get(name, {}).get("properties", {})
+                    properties.pop("authentication", None)
+                    properties.pop("file_bindings", None)
+                    properties.pop("output_bindings", None)
+                # Artifact transfer bindings are a Package 2.0 capability. Keep
+                # Package 1.0 byte-for-byte stable as native Tool DTOs evolve.
+                definitions.pop("HttpArtifactFileBinding", None)
+                definitions.pop("McpArtifactFileBinding", None)
+                definitions.pop("ToolArtifactOutputBinding", None)
             # Optional new fields must not enter old catalogs as defaults.
             schema["$schema"] = "https://json-schema.org/draft/2020-12/schema"
             strict_objects(schema)

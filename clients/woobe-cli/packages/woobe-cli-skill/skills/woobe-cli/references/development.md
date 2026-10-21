@@ -27,6 +27,13 @@ push is structural, and a prepared Candidate does not prove runtime readiness.
 Keep old schema1 history unchanged; an incompatible advertisement must be fixed,
 not bypassed by silently downgrading the package.
 
+Artifact access is an opt-in Package 2.0 logical Agent/Network policy. Bind a
+required, non-model-exposed External Context string at `run` or `session` scope,
+then declare the Workspace namespace, actions, limits and optional pinned
+processing profile. Package validation checks structure; the Runtime service
+resolves and authorizes the destination Workspace. No OpenAI API key is needed.
+See [portable package policy](packages.md).
+
 Edit the registered `agent.yaml`/`network.yaml` and declared support files. YAML
 uses blocks and multiline text; JSON descriptors remain accepted. Stable registry
 keys are used in refs inside YAML; `@alias` is for terminal commands.

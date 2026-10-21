@@ -52,6 +52,14 @@ advertisement uses the existing workflow. An incompatible advertised catalog is
 an error, never a silent downgrade. Do not replace remote references with local
 environment variables or put secrets in author files.
 
+Artifact access is an opt-in logical Agent/Network policy. In Package 2.0, bind a
+required, non-model-exposed External Context string at `run` or `session` scope,
+then declare the Workspace namespace, actions, limits and any pinned processing
+profile. Package validation checks portable author structure; only the Runtime
+service resolves the destination Workspace for its authenticated Project and
+grants. It does not require an OpenAI API key. See [portable Artifact policy and
+YAML](PACKAGES.md#remote-configuration-packages-schema-20).
+
 ### Surface authoring and lifecycle
 
 A Surface has one `spec.target_ref` to a registered Agent or Network. Pull or
