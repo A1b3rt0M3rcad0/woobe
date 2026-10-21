@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { Bot, FileJson, Puzzle, ServerCog } from 'lucide-react'
 import { SegmentedControl } from '@woobe/ui'
 
-export type AgentEditorSection = 'details' | 'behavior' | 'runtime' | 'model' | 'output' | 'external-context' | 'knowledge' | 'tools' | 'skills'
+export type AgentEditorSection = 'details' | 'behavior' | 'runtime' | 'model' | 'output' | 'external-context' | 'artifacts' | 'knowledge' | 'tools' | 'skills'
 export type AgentEditorGroupId = 'agent' | 'execution' | 'capabilities' | 'contracts'
 
 interface AgentEditorGroup {
@@ -49,6 +49,7 @@ export const agentEditorGroups: ReadonlyArray<AgentEditorGroup> = [
     sections: [
       { id: 'output', label: 'Output' },
       { id: 'external-context', label: 'External Context' },
+      { id: 'artifacts', label: 'Artifacts' },
     ],
   },
 ]
