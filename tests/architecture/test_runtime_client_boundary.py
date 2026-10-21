@@ -7,6 +7,7 @@ RUNTIME_CLIENT = ROOT / "packages/woobe-runtime-client"
 RUNTIME_PROTOCOL = RUNTIME_CLIENT / "src/protocol.ts"
 RUNTIME_SSE = RUNTIME_CLIENT / "src/sse.ts"
 RUNTIME_OBSERVER = RUNTIME_CLIENT / "src/observer.ts"
+RUNTIME_ARTIFACTS = RUNTIME_CLIENT / "src/artifacts.ts"
 RUNTIME_INDEX = RUNTIME_CLIENT / "src/index.ts"
 FRONTEND_RUNTIME = ROOT / "packages/woobe-frontend/src/lib/runtime-stream.ts"
 FRONTEND_AGENT = ROOT / "packages/woobe-frontend/src/features/playground/stream-client.ts"
@@ -22,12 +23,12 @@ def _source(path: Path) -> str:
 def test_runtime_client_is_a_dedicated_ui_agnostic_package() -> None:
     assert (RUNTIME_CLIENT / "package.json").is_file()
     assert (RUNTIME_CLIENT / "tsconfig.json").is_file()
-    for path in (RUNTIME_PROTOCOL, RUNTIME_SSE, RUNTIME_OBSERVER, RUNTIME_INDEX):
+    for path in (RUNTIME_PROTOCOL, RUNTIME_SSE, RUNTIME_OBSERVER, RUNTIME_ARTIFACTS, RUNTIME_INDEX):
         assert path.is_file()
 
     combined = "\n".join(
         _source(path)
-        for path in (RUNTIME_PROTOCOL, RUNTIME_SSE, RUNTIME_OBSERVER, RUNTIME_INDEX)
+        for path in (RUNTIME_PROTOCOL, RUNTIME_SSE, RUNTIME_OBSERVER, RUNTIME_ARTIFACTS, RUNTIME_INDEX)
     )
     for forbidden in ("react", "canvas", "xyflow", "ChatUi", "NetworkRuntimeEvent"):
         assert forbidden not in combined
@@ -46,7 +47,8 @@ def test_frontend_and_embed_do_not_own_runtime_protocol_algorithms() -> None:
 
 def test_runtime_client_owns_protocol_sequence_terminal_output_and_retry_policy() -> None:
     combined = "\n".join(
-        _source(path) for path in (RUNTIME_PROTOCOL, RUNTIME_SSE, RUNTIME_OBSERVER)
+        _source(path)
+        for path in (RUNTIME_PROTOCOL, RUNTIME_SSE, RUNTIME_OBSERVER, RUNTIME_ARTIFACTS)
     )
     for required in (
         "RUNTIME_STREAM_PROTOCOL_VERSION = 2",
@@ -61,6 +63,12 @@ def test_runtime_client_owns_protocol_sequence_terminal_output_and_retry_policy(
         "waitForRuntimeRetry",
         "runtimeTerminalStatus",
         "realtime_available",
+        "parseArtifactReference",
+        "parseContentParts",
+        "artifactAvailableFromFrame",
+        "artifactOutputsFromFrame",
+        "runtimeRunStateSnapshot",
+        "parseRuntimeCursorPage",
     ):
         assert required in combined
 

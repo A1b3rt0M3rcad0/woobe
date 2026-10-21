@@ -35,14 +35,26 @@ export function acceptRuntimeFrameSequence(
   frame: ParsedRuntimeFrame,
   state: RuntimeSequenceState,
 ): boolean {
+  if (frame.kind === 'transport') return true
+
+  if (
+    (state.runId != null && frame.runId !== state.runId)
+    || (state.sessionId != null && frame.sessionId !== state.sessionId)
+    || (state.runKind != null && frame.runKind !== state.runKind)
+  ) {
+    throw new RuntimeStreamProtocolError('Runtime event identity differs from the observed Run')
+  }
+
+  // The observer is scoped to one Run. Pin its identity on the first semantic
+  // envelope so subsequent frames cannot splice another Run into this stream.
+  state.runId ??= frame.runId
+  state.sessionId ??= frame.sessionId
+  state.runKind ??= frame.runKind
+
   if (
     frame.eventType === 'run.state'
     && frame.payload.realtime_available === false
-  ) {
-    return true
-  }
-
-  if (frame.kind === 'transport') return true
+  ) return true
 
   const sequence = frame.sequence
 

@@ -378,6 +378,22 @@ observer. Transport retries remain bounded by the shared runtime client; React
 effects must not restart that retry budget after observer exhaustion. A new Session
 visit or page reload can recover an interrupted observer without creating a Run.
 
+The shared browser `woobe-runtime-client` validates protocol-v2 envelopes and
+pins each observed semantic stream to one Run, Session and Run kind. A `run.state`
+payload is a complete replacement snapshot; consumers replace their prior
+projection, including `output_artifacts` and `source_refs`, rather than merging
+old entries back into it. Incremental events remain sequence checked, and a gap
+requires reattach.
+
+Runtime content parts preserve the ordered text and exact
+`{artifact_id, revision_id}` references. Artifact availability and terminal
+output parsers validate versioned metadata receipts, SHA-256 digests and
+SourceRefs while retaining additive public fields. They do not download file
+bytes. Processing-job status, transfer receipts and opaque cursor-page helpers
+are data primitives only; observing an event or parsing a cursor never starts a
+Run, upload, download or pagination request. The legacy textual `output` field
+continues to work alongside Artifact outputs.
+
 Active Agent Run discovery is wired to the durable journal, so a terminal fact in
 its contiguous durable prefix excludes a stale PostgreSQL `running` row. A pending
 terminal event outside that prefix does not establish completion. The persistence
