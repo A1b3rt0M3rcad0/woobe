@@ -25,6 +25,7 @@ interface RequestOptions {
   headers?: Record<string, string>
   params?: Record<string, string | number | undefined>
   sensitive?: boolean
+  signal?: AbortSignal
 }
 
 interface ApiEnvelope<T> {
@@ -35,6 +36,13 @@ interface ApiEnvelope<T> {
 
 interface CsrfPayload {
   csrf?: string
+}
+
+function isRawRequestBody(body: unknown): body is FormData | Blob | ArrayBuffer | ArrayBufferView {
+  return body instanceof FormData
+    || body instanceof Blob
+    || body instanceof ArrayBuffer
+    || ArrayBuffer.isView(body)
 }
 
 let refreshPromise: Promise<void> | null = null
@@ -164,16 +172,19 @@ async function request<T>(
   options?: RequestOptions,
   hasRetriedAuth = false,
 ): Promise<T> {
+  options?.signal?.throwIfAborted()
   if (requiresCsrf(method, path) && !csrfValue) {
     await ensureCsrfToken()
   }
+  options?.signal?.throwIfAborted()
 
   const headers: Record<string, string> = {
     ...(options?.headers || {}),
     ...getCsrfHeaders(method),
   }
 
-  if (body !== undefined && !(body instanceof FormData)) {
+  const rawBody = body !== undefined && isRawRequestBody(body)
+  if (body !== undefined && !rawBody) {
     headers['Content-Type'] = 'application/json'
   }
 
@@ -184,9 +195,11 @@ async function request<T>(
       method,
       headers,
       credentials: 'include',
-      body: body instanceof FormData ? body : body ? JSON.stringify(body) : undefined,
+      body: rawBody ? body as BodyInit : body ? JSON.stringify(body) : undefined,
+      signal: options?.signal,
     })
   } catch (err) {
+    if (options?.signal?.aborted || (err instanceof DOMException && err.name === 'AbortError')) throw err
     if (err instanceof TypeError) {
       throw new ApiError(
         'Network error. API unavailable or CORS blocked the request.',
@@ -202,7 +215,7 @@ async function request<T>(
   }
 
   if (import.meta.env.DEV) {
-    const maybeBody = !options?.sensitive && body ? JSON.stringify(body).slice(0, 200) : ''
+    const maybeBody = !options?.sensitive && body && !rawBody ? JSON.stringify(body).slice(0, 200) : ''
     console.log(`[API] ${method} ${path} → ${res.status}${maybeBody ? ` ${maybeBody}` : ''}`)
   }
 
@@ -265,6 +278,39 @@ async function request<T>(
 
 export function get<T>(path: string, options?: RequestOptions): Promise<T> {
   return request<T>('GET', path, undefined, options)
+}
+
+export async function getBlob(path: string, options?: Pick<RequestOptions, 'headers' | 'params' | 'signal'>, hasRetriedAuth = false): Promise<Blob> {
+  let response: Response
+  try {
+    response = await fetch(buildUrl(path, options?.params), {
+      method: 'GET', headers: options?.headers, credentials: 'include', signal: options?.signal,
+    })
+  } catch (error) {
+    throw new ApiError(error instanceof Error ? error.message : 'Network error. API unavailable.', 0, null)
+  }
+
+  if (response.status === 401 && !hasRetriedAuth) {
+    try {
+      clearCsrfToken()
+      await refreshAuthSession()
+      return getBlob(path, options, true)
+    } catch {
+      redirectToLogin()
+      throw new UnauthorizedError()
+    }
+  }
+  if (response.status === 401) {
+    redirectToLogin()
+    throw new UnauthorizedError()
+  }
+  if (!response.ok) {
+    let payload: ApiEnvelope<unknown> | null = null
+    try { payload = await response.json() } catch { /* binary error without an envelope */ }
+    const message = payload?.message ?? (response.status === 403 ? 'Permission denied' : `Download failed with status ${response.status}`)
+    throw new ApiError(message, response.status, payload?.data ?? null)
+  }
+  return response.blob()
 }
 
 export function post<T>(path: string, body?: unknown, options?: RequestOptions): Promise<T> {

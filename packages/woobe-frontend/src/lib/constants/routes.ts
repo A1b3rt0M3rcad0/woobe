@@ -15,6 +15,7 @@ export const ROUTES = {
   WORKSPACE_EDIT_AGENT: (workspaceId: string, projectId: string, agentId: string) => `/workspaces/${workspaceId}/projects/${projectId}/agents/${agentId}/edit`,
   WORKSPACE_AGENT_PLAYGROUND: (workspaceId: string, projectId: string, agentId: string) => `/workspaces/${workspaceId}/projects/${projectId}/agents/${agentId}/playground`,
   WORKSPACE_KNOWLEDGE: (workspaceId: string, projectId: string) => `/workspaces/${workspaceId}/projects/${projectId}/knowledge`,
+  WORKSPACE_ARTIFACTS: (workspaceId: string, projectId: string) => `/workspaces/${workspaceId}/projects/${projectId}/artifacts`,
   WORKSPACE_TOOLS: (workspaceId: string, projectId: string) => `/workspaces/${workspaceId}/projects/${projectId}/tools`,
   WORKSPACE_SKILLS: (workspaceId: string, projectId: string) => `/workspaces/${workspaceId}/projects/${projectId}/skills`,
   WORKSPACE_MODELS: (workspaceId: string, projectId: string) => `/workspaces/${workspaceId}/projects/${projectId}/models`,

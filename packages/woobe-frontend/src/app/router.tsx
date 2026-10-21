@@ -27,6 +27,7 @@ import KnowledgePage from '@/pages/KnowledgePage'
 import ToolsPage from '@/pages/ToolsPage'
 import ModelsPage from '@/pages/ModelsPage'
 import ProjectEnvironmentsPage from '@/pages/ProjectEnvironmentsPage'
+import ArtifactsPage from '@/pages/ArtifactsPage'
 import SkillsPage from '@/pages/SkillsPage'
 import CredentialsPage from '@/pages/CredentialsPage'
 import McpConnectCallbackPage from '@/pages/McpConnectCallbackPage'
@@ -189,6 +190,9 @@ export function AppRouter() {
               <Route path="/workspaces/:workspaceId/projects/:projectId/agents/:agentId/edit" element={<AgentPlaygroundRedirect />} />
               <Route path="/workspaces/:workspaceId/projects/:projectId/agents/:agentId/playground" element={<AgentPlaygroundPage />} />
               <Route path="/workspaces/:workspaceId/projects/:projectId/knowledge" element={<KnowledgePage />} />
+              <Route path="/workspaces/:workspaceId/projects/:projectId/artifacts" element={<ArtifactsPage />} />
+              <Route path="/workspaces/:workspaceId/projects/:projectId/artifacts/:artifactWorkspaceId" element={<ArtifactsPage />} />
+              <Route path="/workspaces/:workspaceId/projects/:projectId/artifacts/:artifactWorkspaceId/files/:artifactId/revisions/:revisionId" element={<ArtifactsPage />} />
               <Route path="/workspaces/:workspaceId/projects/:projectId/tools" element={<ToolsPage />} />
               <Route path="/workspaces/:workspaceId/projects/:projectId/skills" element={<SkillsPage />} />
               <Route path="/workspaces/:workspaceId/projects/:projectId/models" element={<ModelsPage />} />
