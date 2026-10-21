@@ -1,3 +1,5 @@
+import type { SourceReference } from '@/features/artifacts/types'
+
 export type AgentSessionEnvironment = 'draft' | 'staging' | 'production'
 
 export interface SessionListItem {
@@ -57,6 +59,7 @@ export interface AskRequest {
   project_id: string
   agent_id: string
   message: string
+  content_parts?: RuntimeContentPart[]
   session_id?: string | null
   tenant_id?: string
   user_id?: string
@@ -65,6 +68,23 @@ export interface AskRequest {
   execution_context?: AgentExecutionContext
   loaded_release_id?: string | null
   snapshot_override?: Record<string, unknown> | null
+}
+
+export type RuntimeContentPart =
+  | { type: 'text'; text: string }
+  | { type: 'artifact'; ref: { artifact_id: string; revision_id: string }; media_type_hint?: string }
+
+export interface ArtifactOutputInfo {
+  schema_version: '1'
+  ref: { artifact_id: string; revision_id: string }
+  path: string
+  content_type: string
+  size_bytes: number
+  sha256: string
+  status: 'available'
+  run_id?: string | null
+  node_id?: string | null
+  source_refs: SourceReference[]
 }
 
 export interface SourceInfo {
@@ -193,6 +213,7 @@ export interface AskResponse {
   message_id: string | null
   usage: UsageInfo | null
   sources: SourceInfo[]
+  output_artifacts?: ArtifactOutputInfo[]
   tool_calls: ToolCallInfo[]
   trace_id: string | null
   model: string | null
@@ -229,6 +250,8 @@ export interface ChatMessage {
   content: string
   usage?: UsageInfo | null
   sources?: SourceInfo[] | null
+  input_artifacts?: Array<{ ref: { artifact_id: string; revision_id: string }; label: string; content_type?: string }> | null
+  output_artifacts?: ArtifactOutputInfo[] | null
   tool_calls?: ToolCallInfo[] | null
   activity?: AgentActivityInfo | null
   model?: string | null

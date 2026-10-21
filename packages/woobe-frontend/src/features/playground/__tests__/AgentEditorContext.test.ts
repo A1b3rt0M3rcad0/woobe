@@ -78,4 +78,23 @@ describe('AgentEditorContext snapshot state', () => {
     expect(tools.tool_ids).toEqual(['tool-1'])
     expect(tools.permissions).toEqual(state.toolPermissions)
   })
+
+  it('round-trips artifact capability and its pinned runtime configuration', () => {
+    const artifactCapability = {
+      schema_version: 1, enabled: true,
+      workspace_binding: { field: 'artifact_workspace', namespace: 'course-files', scope: 'session' },
+      actions: ['read', 'search'],
+      limits: { max_search_results: 8, max_read_chars: 2048, max_total_read_chars: 12000, max_context_units: 3000, max_writes: 0 },
+      processing_profile: null,
+    }
+    const state = agentToEditorState(makeAgent({ runtime_config: { artifacts: artifactCapability } }))
+    const snapshot = canonicalSnapshot(state)
+
+    expect((snapshot.runtime_config as Record<string, unknown>).artifacts).toEqual(artifactCapability)
+    const releaseState = releaseToEditorState({
+      id: 'release-artifacts', project_id: 'project-1', agent_id: 'agent-1', version: 'staging-1',
+      status: 'staging', runtime_config: { artifacts: artifactCapability },
+    }, state)
+    expect((canonicalSnapshot(releaseState).runtime_config as Record<string, unknown>).artifacts).toEqual(artifactCapability)
+  })
 })

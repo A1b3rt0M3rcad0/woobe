@@ -1,7 +1,8 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { ArrowRight, Bot, CheckCircle2, Workflow } from 'lucide-react'
 import { ChatMessage } from './ChatMessage'
-import { ChatComposer } from './ChatComposer'
+import { ChatComposer, type ComposerArtifactReference } from './ChatComposer'
+import type { ArtifactComposerContext } from '@/features/artifacts/types'
 import { ScrollArea } from '@/components/ui/ScrollArea'
 import {
   didCompleteFirstRun,
@@ -31,6 +32,8 @@ interface ChatCanvasProps {
   isPreparing?: boolean
   isSessionLoading?: boolean
   onSend: (content: string) => void
+  onSendArtifacts?: (content: string, artifacts: ComposerArtifactReference[]) => void
+  artifactContext?: ArtifactComposerContext | null
   onStop: () => void
   agentName?: string
   assistantIcon?: 'bot' | 'network'
@@ -81,6 +84,7 @@ function isEmptyTerminalAssistantPlaceholder(
     && !message.usage
     && !(message.tool_calls?.length)
     && !(message.sources?.length)
+    && !(message.output_artifacts?.length)
 }
 
 function SessionMessagesLoading({ compact = false }: { compact?: boolean }) {
@@ -120,6 +124,8 @@ export function ChatCanvas({
   isPreparing = false,
   isSessionLoading = false,
   onSend,
+  onSendArtifacts,
+  artifactContext,
   onStop,
   agentName,
   assistantIcon = 'bot',
@@ -214,6 +220,11 @@ export function ChatCanvas({
     onSend(content)
   }, [onSend])
 
+  const handleSendArtifacts = useCallback((content: string, artifacts: ComposerArtifactReference[]) => {
+    setShowFirstRunSuccess(false)
+    onSendArtifacts?.(content, artifacts)
+  }, [onSendArtifacts])
+
   useLayoutEffect(() => {
     scrollToBottomIfPinned()
   }, [visibleEntries.length, lastMessageContent, isSending, scrollToBottomIfPinned])
@@ -284,6 +295,7 @@ export function ChatCanvas({
                   details={entry.details}
                   footerMeta={entry.footerMeta}
                   footerActions={entry.footerActions}
+                  artifactContext={artifactContext}
                 />
               )
               const key = entry.key ?? String(index)
@@ -312,6 +324,8 @@ export function ChatCanvas({
         isStopping={stopping}
         isPreparing={isPreparing}
         onSend={handleSend}
+        onSendArtifacts={handleSendArtifacts}
+        artifactContext={artifactContext}
         onStop={onStop}
         runtimeBlocked={runtimeBlocked}
         runtimeBlockReason={runtimeBlockReason}

@@ -104,4 +104,20 @@ describe('ChatComposer runtime state', () => {
     expect(html).toContain('Runtime disabled')
     expect(html).not.toContain('Stopping...')
   })
+
+  it('enables scoped upload and exact-revision selection only for a bound Artifact Workspace', () => {
+    const html = renderToStaticMarkup(
+      <ChatComposer
+        isSending={false}
+        onSend={vi.fn()}
+        onSendArtifacts={vi.fn()}
+        onStop={vi.fn()}
+        artifactContext={{ projectId: 'project-1', environment: 'draft', workspaceId: 'workspace-1' }}
+      />,
+    )
+
+    expect(html).toContain('Upload a file into the active Artifact Workspace')
+    expect(html).toContain('Reference a revision from the active Artifact Workspace')
+    expect(html).toContain('Choose an Artifact attachment')
+  })
 })

@@ -17,6 +17,8 @@ import { Button, woobeLayout } from '@woobe/ui'
 
 import { JsonCodeBlock } from '@/components/ui/JsonCodeBlock'
 import type { AgentActivityInfo, ChatMessage as ChatMessageType } from '@/features/playground/types'
+import type { ArtifactComposerContext } from '@/features/artifacts/types'
+import { ArtifactOutputCard } from '@/features/artifacts/components/ArtifactOutputCard'
 import { formatLatency, formatNumber } from '@/lib/formatters/number'
 import { parseAssistantMessageContent } from '@/lib/parse-assistant-message'
 import { cn } from '@/lib/utils'
@@ -37,6 +39,7 @@ interface ChatMessageProps {
   details?: ReactNode
   footerMeta?: ReactNode
   footerActions?: ReactNode
+  artifactContext?: ArtifactComposerContext | null
 }
 
 function SourcesCollapsible({
@@ -225,6 +228,7 @@ export function ChatMessage({
   details,
   footerMeta,
   footerActions,
+  artifactContext,
 }: ChatMessageProps) {
   const [copied, setCopied] = useState(false)
   const isUser = message.role === 'user'
@@ -244,6 +248,11 @@ export function ChatMessage({
           >
             {message.content}
           </div>
+          {message.input_artifacts?.length ? <div className="mt-ui-xs flex min-w-0 flex-wrap justify-end gap-ui-xs" aria-label="Referenced Artifact revisions">
+            {message.input_artifacts.map(item => <span key={`${item.ref.artifact_id}:${item.ref.revision_id}`} className="max-w-full truncate rounded-control border border-primary/20 bg-primary/[0.05] px-ui-xs py-ui-xs font-mono text-system-meta text-muted-foreground" title={`${item.label} · ${item.ref.revision_id}`}>
+              @ {item.label} · rev {item.ref.revision_id.slice(0, 8)}
+            </span>)}
+          </div> : null}
         </div>
         <div
           className={cn(
@@ -295,6 +304,10 @@ export function ChatMessage({
             </p>
           )}
           <AssistantContent message={message} isStreaming={isStreaming} variant={variant} />
+          {message.output_artifacts?.length && artifactContext ? <div className="space-y-ui-xs" aria-label="Generated Artifacts">
+            <p className="font-mono text-system-meta text-muted-foreground">Generated artifacts ({message.output_artifacts.length})</p>
+            {message.output_artifacts.map(output => <ArtifactOutputCard key={`${output.ref.artifact_id}:${output.ref.revision_id}`} output={output} projectId={artifactContext.projectId} environment={artifactContext.environment} workspaceId={artifactContext.workspaceId} accountWorkspaceId={artifactContext.accountWorkspaceId} />)}
+          </div> : null}
           {isStreaming && message.content && message.activity && !compact && (
             <ActivityBubble activity={message.activity} variant={variant} />
           )}

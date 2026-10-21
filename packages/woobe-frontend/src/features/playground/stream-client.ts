@@ -1,6 +1,7 @@
 import { skillActivityLabel } from '@/features/skills/operations'
 import { ensureCsrfToken, getCsrfHeaders, refreshAuthSession } from '@/lib/api/client'
 import { RUNTIME_API_URL } from '@/lib/runtime-config'
+import { parseArtifactOutput } from '@woobe/runtime-client'
 import {
   RUNTIME_STREAM_MAX_ATTEMPTS,
   RuntimeStreamGapError,
@@ -8,6 +9,7 @@ import {
   acceptRuntimeFrameSequence,
   parseRuntimeFrame,
   reconcileRuntimeOutput,
+  runtimeRunStateSnapshot,
   runtimeTerminalStatus,
   waitForRuntimeRetry,
   type ParsedRuntimeFrame,
@@ -16,6 +18,7 @@ import {
 import { SseFrameParser, parseSseJson, type SseFrame } from './sse'
 import type {
   AgentActivityInfo,
+  ArtifactOutputInfo,
   AskRequest,
   AskResponse,
   ExecutionDiagnostics,
@@ -197,12 +200,15 @@ function toolOf(item: Record<string, unknown>): ToolCallInfo {
 }
 
 function responseOf(item: Record<string, unknown>, sessionId: string | null): AskResponse {
+  const outputArtifacts = item.output_artifacts === undefined ? [] : item.output_artifacts
+  if (!Array.isArray(outputArtifacts)) throw new RuntimeStreamProtocolError('Runtime output_artifacts must be an array')
   return {
     answer: typeof item.answer === 'string' ? sanitizeAssistantContent(item.answer) : '',
     session_id: sessionId,
     message_id: stringOrNull(item.message_id),
     usage: usageOf(item.usage),
     sources: Array.isArray(item.sources) ? item.sources as SourceInfo[] : [],
+    output_artifacts: outputArtifacts.map(output => parseArtifactOutput(output) as ArtifactOutputInfo),
     tool_calls: Array.isArray(item.tool_calls) ? item.tool_calls as ToolCallInfo[] : [],
     trace_id: stringOrNull(item.trace_id),
     model: stringOrNull(item.model),
@@ -358,6 +364,7 @@ function reconcileRunState(
       usage: result.usage ?? item.usage,
       parsed_output: result.parsed_output ?? item.parsed_output,
       output_parse_error: result.output_parse_error ?? item.output_parse_error,
+      output_artifacts: result.output_artifacts ?? item.output_artifacts,
     }, runtime.kind === 'semantic' ? runtime.sessionId : null))
   } else if (status === 'cancelled') callbacks.onCancelled?.(item)
   else callbacks.onError(new Error(runFailureMessage(item)))
@@ -389,7 +396,9 @@ function dispatch(frame: SseFrame, callbacks: StreamCallbacks, state: RuntimeCli
     return false
   }
   if (!acceptSequence(runtime, frame, callbacks, state)) return false
-  if (type === 'run.state') return reconcileRunState(runtime, item, callbacks, state)
+  if (type === 'run.state') {
+    return reconcileRunState(runtime, runtimeRunStateSnapshot(runtime) ?? item, callbacks, state)
+  }
   if (type === 'run.progress') return false
   if (type === 'run.realtime_unavailable') {
     callbacks.onUnknownEvent?.(type, item)
