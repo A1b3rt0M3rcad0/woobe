@@ -107,6 +107,20 @@ class S3ObjectStorage:
             if body is not None:
                 await run_blocking(body.close)
 
+    async def presign_get(self, key: str, *, expires_seconds: int = 60) -> str:
+        if type(expires_seconds) is not int or not 1 <= expires_seconds <= 60:
+            raise ObjectStorageError('invalid_expiry', 'Artifact download URLs expire within 60 seconds')
+        physical = self._physical_key(key)
+        try:
+            return await run_blocking(
+                self._client.generate_presigned_url,
+                'get_object',
+                Params={'Bucket': self._bucket, 'Key': physical},
+                ExpiresIn=expires_seconds,
+            )
+        except (BotoCoreError, ClientError, OSError) as error:
+            raise _storage_error(error) from error
+
     async def head(self, key: str):
         physical = self._physical_key(key)
         try:
@@ -259,10 +273,41 @@ class S3ObjectStorage:
                     # state by key, without deleting any published original.
                     pass
 
-    async def delete(self, key):
+    async def delete(self, key, *, version_id=None):
+        physical = self._physical_key(key)
         try:
-            await run_blocking(self._client.delete_object, Bucket=self._bucket,
-                              Key=self._physical_key(key))
+            if version_id is not None:
+                await run_blocking(self._client.delete_object, Bucket=self._bucket,
+                                   Key=physical, VersionId=version_id)
+                return
+
+            # A plain DELETE in a versioned bucket creates a delete marker and
+            # leaves the bytes recoverable. Purge every version of this exact
+            # immutable key; never broaden the operation to its prefix.
+            kwargs = {'Bucket': self._bucket, 'Prefix': physical, 'MaxKeys': 1000}
+            while True:
+                response = await run_blocking(self._client.list_object_versions, **kwargs)
+                versions = [
+                    {'Key': item['Key'], 'VersionId': item['VersionId']}
+                    for item in (*response.get('Versions', []), *response.get('DeleteMarkers', []))
+                    if item.get('Key') == physical and item.get('VersionId') is not None
+                ]
+                if versions:
+                    deleted = await run_blocking(self._client.delete_objects,
+                        Bucket=self._bucket, Delete={'Objects': versions, 'Quiet': True})
+                    if deleted.get('Errors'):
+                        raise ObjectStorageError('unavailable', 'S3 object versions could not be purged')
+                    # Restart without markers because the version list changed.
+                    continue
+                if not response.get('IsTruncated'):
+                    break
+                next_key = response.get('NextKeyMarker')
+                next_version = response.get('NextVersionIdMarker')
+                if not next_key:
+                    raise ObjectStorageError('unavailable', 'S3 version listing could not be continued')
+                kwargs['KeyMarker'] = next_key
+                if next_version is not None:
+                    kwargs['VersionIdMarker'] = next_version
         except (BotoCoreError, ClientError, OSError) as error:
             raise _storage_error(error) from error
 

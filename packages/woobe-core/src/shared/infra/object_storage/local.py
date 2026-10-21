@@ -286,7 +286,7 @@ class LocalObjectStorage:
         except FileNotFoundError:
             pass
 
-    async def delete(self, key: str):
+    async def delete(self, key: str, *, version_id: str | None = None):
         self._key(key)
         try:
             await self._io(self._delete_key, key)
