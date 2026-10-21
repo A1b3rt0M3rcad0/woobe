@@ -2,7 +2,7 @@
 
 Python SDK for consuming Agents and Agent Networks running on the Woobe Runtime API.
 
-The SDK is intentionally a **runtime client**, not a second control plane and not an agent framework. Agent configuration, Releases, Tools, Knowledge, execution strategies and runtime infrastructure remain server-side in Woobe. Applications connect to an already published runtime target and consume its execution events.
+The SDK is an **execution and scoped data client**, not a second control plane or agent framework. Agent configuration, Releases, grants, Tools, Knowledge, execution strategies and runtime infrastructure remain server-side in Woobe. Applications connect to a published runtime target and use explicitly scoped Artifacts APIs under current server authorization.
 
 > **Pre-1.0:** the SDK is public and usable, but its APIs can still evolve before the 1.0.0 compatibility boundary.
 
@@ -272,6 +272,73 @@ docs/               architecture and runtime contract documentation
 ```
 
 Start with [`docs/README.md`](docs/README.md) for the documentation index.
+
+## Artifact Workspaces and multimodal Runtime
+
+The direct Artifacts client is separate from Session/Run execution and uses one
+explicit Project, Environment and Runtime Key. The key must already have the
+Artifacts interface and applicable grants; the SDK never falls back to a Control
+Key.
+
+```python
+from woobe import ArtifactReference, Woobe, artifact_part, text_part
+
+async with Woobe() as woobe:
+    artifacts = woobe.artifacts(
+        project_id="project-123",
+        environment="staging",
+        runtime_key="runtime-key",
+    )
+    workspace = await artifacts.resolve_workspace(
+        external_namespace="student",
+        external_key="student-456:mathematics",
+    )
+    page = await artifacts.list_artifact_page(workspace.id)
+    if not page.items or page.items[0].revision_id is None:
+        raise RuntimeError("Workspace has no committed revision")
+    exact_revision = ArtifactReference(
+        artifact_id=page.items[0].id,
+        revision_id=page.items[0].revision_id,
+    )
+
+    agent = woobe.connect.agent(alias="tutor", key="runtime-key")
+    chat = agent.chat_parts(
+        [text_part("Resuma o documento e cite a página."), artifact_part(exact_revision)],
+        external_context={"student_id": "student-456", "subject": "mathematics"},
+    )
+    async for event in chat.events():
+        if output := event.artifact_available():
+            print(output.ref.artifact_id, output.ref.revision_id)
+    if chat.result is not None:
+        print(chat.result.answer, chat.result.source_refs)
+```
+
+`content_parts` accepts bounded text and exact Artifact revision references.
+Legacy `chat(input="...")` remains supported. `Network.run(...)` offers the
+synchronous Run form and returns a typed `RunResult`; `Network.chat_parts(...)`
+uses the same streaming protocol. External Context is sent unchanged only in
+the create request. Reattach observes the accepted Run and does not resend it.
+
+Uploads are incremental and bounded by the server's advertised byte, part-size
+and part-count limits. Provide the expected byte count and lowercase SHA-256
+before upload starts. An uncertain part acknowledgement raises
+`ArtifactUploadUncertainError` with its upload ID so the application can call
+`upload_status(...)` before continuing; the SDK never blindly resends a part or
+finalization request.
+
+Downloads name both Artifact ID and immutable revision ID and return a streaming
+async context manager:
+
+```python
+async with await artifacts.download(workspace.id, exact_revision) as download:
+    async for chunk in download.iter_bytes():
+        destination.write(chunk)
+```
+
+Closing the context releases the response. The SDK does not resolve a citation
+to `latest`, expose a signed URL, or fetch Artifact bytes while merely observing
+events. See [`docs/RUNTIME_STREAMING.md`](docs/RUNTIME_STREAMING.md) for the
+protocol contract and `src/woobe/artifacts.py` for the supported direct methods.
 
 ## Development
 

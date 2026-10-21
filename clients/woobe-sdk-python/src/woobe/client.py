@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 
 from woobe._transport.http import RuntimeTransport
+from woobe.artifacts import ArtifactsClient
 from woobe.connect import Connect
 
 DEFAULT_BASE_URL = "https://api.woobe.com.br"
@@ -11,8 +12,8 @@ DEFAULT_BASE_URL = "https://api.woobe.com.br"
 class Woobe:
     """Entry point for the Woobe Python SDK.
 
-    The client is intentionally small. Runtime Keys select the remote Agent or
-    Network; the SDK only owns connection, streaming and runtime observation.
+    Runtime Keys select remote targets and authorize explicitly scoped data
+    access. Configuration, grants, Tools and execution remain server-side.
     """
 
     def __init__(
@@ -34,6 +35,17 @@ class Woobe:
 
     async def aclose(self) -> None:
         await self._transport.aclose()
+
+    def artifacts(
+        self, *, project_id: str, runtime_key: str, environment: str = "production"
+    ) -> ArtifactsClient:
+        """Create a direct, explicitly scoped Artifacts API client (no Session/Run)."""
+        return ArtifactsClient(
+            transport=self._transport,
+            project_id=project_id,
+            runtime_key=runtime_key,
+            environment=environment,
+        )
 
     async def __aenter__(self) -> Woobe:
         return self

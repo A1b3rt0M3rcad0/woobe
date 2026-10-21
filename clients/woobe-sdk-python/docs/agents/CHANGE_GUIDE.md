@@ -54,6 +54,20 @@ Remember that schema preflight is client ergonomics; the published Woobe Release
 
 Test Pydantic and raw JSON Schema inputs where relevant.
 
+## Artifact API or multimodal payload change
+
+Primary file: `src/woobe/artifacts.py`.
+
+Also review:
+
+- `src/woobe/targets.py` and `src/woobe/_transport/http.py` for additive content-parts and synchronous Run behavior;
+- `src/woobe/events.py` and `src/woobe/results.py` for exact output/source receipts;
+- `tests/test_artifacts.py` and the canonical `specs/runtime/v2/artifact_run.json` fixture.
+
+Keep Project, Environment and Runtime Key explicit. Uploads remain bounded,
+resumable and caller-reconciled after an uncertain ACK; downloads remain exact
+revision streams whose response is closed by the caller's async context.
+
 ## HTTP or authentication change
 
 Primary file: `src/woobe/_transport/http.py`.

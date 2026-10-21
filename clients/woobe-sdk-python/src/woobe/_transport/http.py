@@ -35,11 +35,14 @@ class RuntimeTransport:
         *,
         key: str,
         message: str,
+        content_parts: list[dict[str, Any]] | None = None,
         session_id: str | None,
         external_context: dict[str, Any] | None,
         idempotency_key: str,
     ) -> AsyncIterator[SseFrame]:
         payload: dict[str, Any] = {"message": message}
+        if content_parts is not None:
+            payload["content_parts"] = content_parts
         if session_id is not None:
             payload["session_id"] = session_id
         if external_context is not None:
@@ -70,9 +73,7 @@ class RuntimeTransport:
                 },
             )
         except httpx.RequestError as exc:
-            raise WoobeConnectionError(
-                "Could not validate Woobe Runtime contracts"
-            ) from exc
+            raise WoobeConnectionError("Could not validate Woobe Runtime contracts") from exc
 
         await self._raise_for_status(response)
         try:
@@ -83,15 +84,51 @@ class RuntimeTransport:
             ) from exc
 
         if not isinstance(body, dict):
-            raise WoobeProtocolError(
-                "Runtime contract validation response has an invalid envelope"
-            )
+            raise WoobeProtocolError("Runtime contract validation response has an invalid envelope")
         data = body.get("data")
         if body.get("success") is not True or not isinstance(data, dict):
-            raise WoobeProtocolError(
-                "Runtime contract validation response has an invalid envelope"
-            )
+            raise WoobeProtocolError("Runtime contract validation response has an invalid envelope")
         return data
+
+    async def run(
+        self,
+        *,
+        key: str,
+        message: str,
+        content_parts: list[dict[str, Any]] | None,
+        session_id: str | None,
+        external_context: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {"message": message}
+        if content_parts is not None:
+            payload["content_parts"] = content_parts
+        if session_id is not None:
+            payload["session_id"] = session_id
+        if external_context is not None:
+            payload["external_context"] = external_context
+        try:
+            response = await self._http().post(
+                "/v1/run",
+                headers=self._json_headers(key),
+                json=payload,
+                follow_redirects=False,
+            )
+        except httpx.RequestError as exc:
+            raise WoobeConnectionError(
+                "Woobe Runtime Run request failed; outcome may be uncertain"
+            ) from exc
+        await self._raise_for_status(response)
+        try:
+            body = response.json()
+        except ValueError as exc:
+            raise WoobeProtocolError("Runtime Run response contains invalid JSON") from exc
+        if (
+            not isinstance(body, dict)
+            or body.get("success") is not True
+            or not isinstance(body.get("data"), dict)
+        ):
+            raise WoobeProtocolError("Runtime Run response has an invalid data envelope")
+        return body
 
     async def stream_run(self, *, key: str, run_id: str) -> AsyncIterator[SseFrame]:
         async for frame in self._stream(

@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import ValidationError as PydanticValidationError
 
+from woobe.artifacts import ContentPart, validate_content_parts
 from woobe.chat import Chat
 from woobe.contracts import (
     ExternalContextContractInput,
@@ -17,6 +18,7 @@ from woobe.contracts import (
     output_contract_schema,
 )
 from woobe.errors import WoobeProtocolError
+from woobe.results import RunResult
 
 if TYPE_CHECKING:
     from woobe.client import Woobe
@@ -78,8 +80,7 @@ class _RuntimeTarget:
             expected_hash=comparison.expected_hash,
             received_hash=comparison.received_hash,
             issues=[
-                OutputContextIssue.model_validate(issue.model_dump())
-                for issue in comparison.issues
+                OutputContextIssue.model_validate(issue.model_dump()) for issue in comparison.issues
             ],
         )
 
@@ -117,23 +118,77 @@ class _RuntimeTarget:
     def chat(
         self,
         *,
-        input: str,
+        input: str | None = None,
         session_id: str | None = None,
         external_context: dict[str, Any] | None = None,
+        content_parts: list[ContentPart] | None = None,
     ) -> Chat:
-        if not input.strip():
-            raise ValueError("input must not be empty")
+        if content_parts is None:
+            if input is None or not input.strip():
+                raise ValueError("input must not be empty")
+            parts = None
+        else:
+            if input not in (None, ""):
+                raise ValueError("provide input or content_parts, not both")
+            parts = validate_content_parts(content_parts)
         return Chat(
             transport=self._client._transport,
             target_kind=self._kind,
             target_alias=self._alias,
             key=self._key,
-            input=input,
+            input=input or "",
+            content_parts=parts,
             session_id=session_id,
             external_context=external_context,
             max_reconnect_attempts=self._client._max_reconnect_attempts,
             reconnect_base_delay_seconds=self._client._reconnect_base_delay_seconds,
         )
+
+    def chat_parts(
+        self,
+        content_parts: list[ContentPart],
+        *,
+        session_id: str | None = None,
+        external_context: dict[str, Any] | None = None,
+    ) -> Chat:
+        """Create a lazy multimodal Chat using exact Artifact references."""
+        return self.chat(
+            content_parts=content_parts,
+            session_id=session_id,
+            external_context=external_context,
+        )
+
+    async def run(
+        self,
+        *,
+        input: str | None = None,
+        content_parts: list[ContentPart] | None = None,
+        session_id: str | None = None,
+        external_context: dict[str, Any] | None = None,
+    ) -> RunResult:
+        """Execute one synchronous Runtime Run without creating a streaming Chat."""
+        if content_parts is None:
+            if input is None or not input.strip():
+                raise ValueError("input must not be empty")
+            message = input
+            parts = None
+        else:
+            if input not in (None, ""):
+                raise ValueError("provide input or content_parts, not both")
+            parts = validate_content_parts(content_parts)
+            message = ""
+        response = await self._client._transport.run(
+            key=self._key,
+            message=message,
+            content_parts=(
+                [part.model_dump(exclude_none=True) for part in parts]
+                if parts is not None
+                else None
+            ),
+            session_id=session_id,
+            external_context=external_context,
+        )
+        return RunResult.from_response(response)
 
 
 class Agent(_RuntimeTarget):

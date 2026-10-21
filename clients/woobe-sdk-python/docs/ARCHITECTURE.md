@@ -2,19 +2,15 @@
 
 ## Purpose
 
-Woobe SDK is the Python application boundary for consuming a Woobe Agent or Agent Network. It keeps production Runtime consumption small without copying server-side execution complexity into the application.
+Woobe SDK is the Python application boundary for consuming Agents and Networks and for direct, authorized Artifact data access. It does not copy server-side execution or access-control administration into the application.
 
 ```text
 application
     |
     v
 Woobe Python SDK
-    |
-    v
-Woobe Runtime API
-    |
-    +-- Agent Runtime
-    `-- Network Runtime
+    +-- Runtime API (Agent and Network execution)
+    `-- Artifacts API (scoped Workspace and exact-revision data)
 ```
 
 The SDK does not execute Agents locally.
@@ -24,6 +20,11 @@ The SDK does not execute Agents locally.
 ```text
 Woobe
   |
+  |-- artifacts(project_id, environment, runtime_key)
+  |      |-- Workspaces and file revisions
+  |      |-- resumable upload and exact-revision download
+  |      `-- processing, search, SourceRef and document-index reads
+  |
   `-- connect
        |-- agent(alias, key)
        `-- network(alias, key)
@@ -32,9 +33,10 @@ Woobe
               |-- validate_output_contract(model_or_schema)
               |-- validate_external_context(model_or_schema)
               |
-              `-- chat(input, session_id?, external_context?)
-                         |-- events() -> AsyncIterator[WoobeEvent]
-                         `-- result -> ChatResult | None
+              |-- chat(input | content_parts, session_id?, external_context?)
+              |      |-- events() -> AsyncIterator[WoobeEvent]
+              |      `-- result -> ChatResult | None
+              `-- run(input | content_parts, session_id?, external_context?) -> RunResult
 ```
 
 `alias` is an application-side label. Runtime routing and authorization are determined by the Runtime Key issued by Woobe.
@@ -46,6 +48,7 @@ Runtime contract validation is a preflight client boundary. The SDK may translat
 ```text
 src/woobe/
 ├── __init__.py
+├── artifacts.py
 ├── client.py
 ├── connect.py
 ├── targets.py
@@ -62,7 +65,9 @@ Public domain concepts stay at the package root. HTTP and SSE mechanics remain p
 
 ## Boundary rules
 
-The SDK owns transport and consumption behavior only. It may serialize requests, authenticate with Runtime Keys, decode SSE, validate Runtime Protocol v2, reject stale/duplicate sequences, detect gaps and reattach an existing Run.
+The SDK owns transport and consumption behavior only. It may serialize requests, authenticate with explicitly scoped Runtime Keys, decode SSE, validate Runtime Protocol v2, reject stale/duplicate sequences, detect gaps and reattach an existing Run. Direct Artifacts calls operate only on the named Project, Environment and Workspace under current server grants.
+
+The SDK does not issue Control Keys, grants, Release bindings or administrative policy. It never changes a citation to `latest`, retries mutations after an uncertain acknowledgement, follows redirects carrying credentials or downloads bytes merely because it observed an event.
 
 The SDK must not own model selection, Tool execution, RAG, Context Engineering, execution strategies, Run finalization or durable business truth. Those responsibilities belong to Woobe.
 
@@ -131,6 +136,8 @@ client/connect/targets
       /    \
      v      v
  WoobeEvent  private transport
+
+Woobe.artifacts --> Artifact clients and immutable revision types
 ```
 
 Private transport code must not define product-domain behavior. Public types must not expose `httpx` response objects, Redis cursors or server implementation details.

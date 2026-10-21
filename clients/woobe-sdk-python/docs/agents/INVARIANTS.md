@@ -79,3 +79,22 @@ The result should be available before the corresponding successful terminal even
 ## 13. Additive Runtime payloads should remain forward compatible
 
 Unknown future fields should be preserved or safely ignored according to the documented model contract rather than causing unnecessary breakage when the Runtime adds compatible data.
+
+## 14. Direct Artifact data access is explicitly scoped
+
+`Woobe.artifacts(...)` requires one Project, Environment and Runtime Key. The
+SDK does not accept a Control Key or issue grants; Woobe authorizes every call.
+
+## 15. Artifact references are immutable identities
+
+Content parts, SourceRefs, outputs and downloads identify both Artifact ID and
+revision ID. A citation is never resolved to the latest revision, and observing
+an Artifact event does not fetch its content.
+
+## 16. Artifact mutations have explicit recovery
+
+Uploads declare size and SHA-256, use the server's bounded part limits, and are
+not transparently retried. If a part acknowledgement is uncertain, callers use
+the returned upload ID and `upload_status(...)` to reconcile before continuing.
+Downloads are streams and their response must be closed, normally through
+`async with`.

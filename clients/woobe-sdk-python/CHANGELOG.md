@@ -6,6 +6,15 @@ The format follows Keep a Changelog conventions and versions follow the Python p
 
 ## Unreleased
 
+### Added
+
+- Scoped direct Artifacts clients for Workspace/file operations, resumable uploads,
+  exact-revision streams, processing jobs, search, source reads and document indexes.
+- Multimodal content parts for Agent and Network streaming/synchronous Runs, plus
+  typed Artifact outputs, SourceRefs and transfer receipts.
+- Shared Runtime protocol fixture tests, including image-only output and reattach
+  replacement state.
+
 ## [0.1.0] - 2026-09-24
 
 First public release of the Woobe Python SDK.

@@ -35,6 +35,29 @@ POST /v1/run/stream
 }
 ```
 
+Multimodal calls add `content_parts` and keep the legacy `message` key as an
+empty string. Each part is text or an exact Artifact reference; a caller cannot
+combine a non-empty legacy message with `content_parts`:
+
+```json
+{
+  "message": "",
+  "content_parts": [
+    {"type": "text", "text": "Resuma o documento e cite a página."},
+    {
+      "type": "artifact",
+      "ref": {"artifact_id": "artifact-123", "revision_id": "revision-9"},
+      "media_type_hint": "application/pdf"
+    }
+  ],
+  "external_context": {"student_id": "student-456"}
+}
+```
+
+The same typed request is supported by Agent and Network targets and the
+synchronous `Network.run(...)` method. It does not change the semantics of
+External Context or create another Session while reattaching.
+
 Agent and Network Runtime Keys use the same public Runtime API surface. The server resolves the target from the Runtime Key binding.
 
 External Context is an input to Run Acceptance. When supplied, the SDK sends it only on the initial create-and-observe request. Reattach requests identify the existing Run by `run_id` and do not resend `external_context`.
@@ -127,3 +150,17 @@ Terminal semantic events or terminal `run.state` end `events()` normally. Agent 
 Terminal statuses include `completed`, `failed`, `cancelled`, `timed_out` and `uncertain`.
 
 The core rule is: the Run belongs to the Runtime; the connection belongs to the observer.
+
+## Artifact events and result replacement
+
+`artifact.available` contains metadata for a committed exact Artifact revision.
+`WoobeEvent.artifact_available()` validates and returns that receipt without
+downloading its bytes. Successful terminal events and completed `run.state`
+snapshots expose typed `output_artifacts` and `source_refs`; image-only results
+may have an empty text answer. Source references retain their revision, source
+digest and locator and are never silently changed to a newer revision.
+
+After a stream gap, a `run.state` snapshot replaces the observed Run state at its
+declared high watermark, including terminal Artifact outputs and citations. The
+SDK reattaches with GET to the canonical Run ID. It does not issue another POST,
+reload an Artifact, or resend External Context during observation recovery.

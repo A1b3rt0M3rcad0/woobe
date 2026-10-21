@@ -10,6 +10,14 @@ Use this index to identify the owning surface before changing code.
 
 Typical tests: `tests/test_public_api.py`, `tests/test_http.py`, `tests/test_contracts.py`.
 
+## Direct Artifacts data access
+
+- `src/woobe/artifacts.py` — exact Artifact/SourceRef/content-part/result types and the explicitly scoped asynchronous Workspaces, upload/download, processing, search and document-index client.
+- `src/woobe/client.py` — `Woobe.artifacts(...)` scope construction and shared HTTP lifecycle.
+- `src/woobe/targets.py` — content-part Chat construction and synchronous `run(...)`.
+
+Typical tests: `tests/test_artifacts.py` plus shared Runtime fixture `specs/runtime/v2/artifact_run.json`.
+
 ## Run observation and streaming semantics
 
 - `src/woobe/chat.py` — lazy Run creation/observation, Session/Run identity, sequence handling, reattach and terminal result capture.

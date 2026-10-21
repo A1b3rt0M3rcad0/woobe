@@ -4,6 +4,8 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from woobe.artifacts import ArtifactOutput, ArtifactTransfer, SourceReference
+from woobe.errors import WoobeProtocolError
 from woobe.events import WoobeEvent
 
 
@@ -154,6 +156,9 @@ class ChatResult(BaseModel):
 
     usage: Usage | None = None
     sources: list[Source] = Field(default_factory=list)
+    output_artifacts: list[ArtifactOutput] = Field(default_factory=list)
+    source_refs: list[SourceReference] = Field(default_factory=list)
+    artifact_transfers: list[ArtifactTransfer] = Field(default_factory=list)
     tool_calls: list[ToolCall] = Field(default_factory=list)
 
     model: str | None = None
@@ -190,7 +195,12 @@ class ChatResult(BaseModel):
         payload["terminal_event_type"] = event.type
         payload["answer"] = answer
 
-        return cls.model_validate(payload)
+        try:
+            return cls.model_validate(payload)
+        except ValueError as exc:
+            raise WoobeProtocolError(
+                "Runtime terminal event contains invalid Artifact metadata"
+            ) from exc
 
     @property
     def agent_release_id(self) -> str | None:
@@ -207,3 +217,30 @@ class ChatResult(BaseModel):
     @property
     def execution_strategy(self) -> str | None:
         return self.diagnostics.execution_strategy if self.diagnostics is not None else None
+
+
+class RunResult(BaseModel):
+    """Typed synchronous Runtime response; it does not create a Session observer."""
+
+    model_config = ConfigDict(frozen=True, extra="allow")
+
+    success: bool
+    message: str
+    data: dict[str, Any]
+    output_artifacts: list[ArtifactOutput] = Field(default_factory=list)
+    source_refs: list[SourceReference] = Field(default_factory=list)
+
+    @classmethod
+    def from_response(cls, response: dict[str, Any]) -> RunResult:
+        payload = dict(response)
+        data = payload.get("data")
+        if isinstance(data, dict):
+            nested = data.get("result") if isinstance(data.get("result"), dict) else data
+            payload.setdefault("output_artifacts", nested.get("output_artifacts", []))
+            payload.setdefault("source_refs", nested.get("source_refs", []))
+        try:
+            return cls.model_validate(payload)
+        except ValueError as exc:
+            raise WoobeProtocolError(
+                "Runtime Run response contains invalid Artifact metadata"
+            ) from exc

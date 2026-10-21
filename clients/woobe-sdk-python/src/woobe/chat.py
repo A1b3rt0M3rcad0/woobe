@@ -7,6 +7,7 @@ from uuid import uuid4
 
 from woobe._transport.http import RuntimeTransport
 from woobe._transport.sse import RuntimeControlFrame, parse_runtime_frame
+from woobe.artifacts import ContentPart
 from woobe.errors import (
     WoobeConnectionError,
     WoobeProtocolError,
@@ -45,6 +46,7 @@ class Chat:
         target_alias: str,
         key: str,
         input: str,
+        content_parts: list[ContentPart] | None = None,
         session_id: str | None,
         external_context: dict[str, Any] | None,
         max_reconnect_attempts: int,
@@ -55,10 +57,13 @@ class Chat:
         self._target_alias = target_alias
         self._key = key
         self._input = input
-        self._session_id = session_id
-        self._external_context = (
-            dict(external_context) if external_context is not None else None
+        self._content_parts = (
+            [part.model_dump(exclude_none=True) for part in content_parts]
+            if content_parts is not None
+            else None
         )
+        self._session_id = session_id
+        self._external_context = dict(external_context) if external_context is not None else None
         self._run_id: str | None = None
         self._result: ChatResult | None = None
         self._last_sequence: int | None = None
@@ -99,17 +104,21 @@ class Chat:
 
         while True:
             try:
-                source = (
-                    self._transport.stream_new_run(
-                        key=self._key,
-                        message=self._input,
-                        session_id=self._session_id,
-                        external_context=self._external_context,
-                        idempotency_key=self._idempotency_key,
+                if mode == "new":
+                    request = {
+                        "key": self._key,
+                        "message": self._input,
+                        "session_id": self._session_id,
+                        "external_context": self._external_context,
+                        "idempotency_key": self._idempotency_key,
+                    }
+                    if self._content_parts is not None:
+                        request["content_parts"] = self._content_parts
+                    source = self._transport.stream_new_run(**request)
+                else:
+                    source = self._transport.stream_run(
+                        key=self._key, run_id=self._require_run_id()
                     )
-                    if mode == "new"
-                    else self._transport.stream_run(key=self._key, run_id=self._require_run_id())
-                )
 
                 async with aclosing(source):
                     async for frame in source:
