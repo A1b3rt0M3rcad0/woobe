@@ -169,13 +169,30 @@ def _public_runtime_event(
                 "parsed_output",
                 "output_parse_error",
                 "completed_at",
+                "output_artifacts",
+                "source_refs",
             ),
         }
         public["result"] = {
             "answer": answer,
-            **_pick(payload, "parsed_output", "output_parse_error"),
+            **_pick(
+                payload, "parsed_output", "output_parse_error",
+                "output_artifacts", "source_refs",
+            ),
         }
         return "execution_completed", public
+
+    if event_type == "artifact.available":
+        return "artifact_available", _pick(
+            payload, "artifact_id", "revision_id", "path", "content_type",
+            "size_bytes", "sha256", "status", "run_id", "node_id", "source_refs",
+        )
+
+    if event_type.startswith("artifact.transfer."):
+        return "artifact_transfer", _pick(
+            payload, "operation_id", "state", "mode", "destination_host",
+            "input_refs", "file_hashes", "status_code", "tool_id",
+        )
 
     if event_type == "run.cancelled":
         output = payload.get("answer")

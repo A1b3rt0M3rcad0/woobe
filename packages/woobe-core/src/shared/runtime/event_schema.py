@@ -8,7 +8,7 @@ from uuid import UUID, uuid4
 from shared.contracts.run_event_buffer import BufferedRunEvent
 from shared.contracts.run_event_journal import DurableRunEvent
 from shared.contracts.run_event_versions import (
-    EVENT_JOURNAL_STORAGE_VERSION,
+    EVENT_JOURNAL_STORAGE_VERSION as EVENT_JOURNAL_STORAGE_VERSION,
     LEGACY_RUN_STORAGE_VERSION,
 )
 
@@ -39,6 +39,14 @@ DURABLE_EVENT_TYPES = {
     "tool.call.started",
     "tool.call.completed",
     "tool.call.failed",
+    "artifact.available",
+    "artifact.transfer.started",
+    "artifact.transfer.completed",
+    "artifact.transfer.failed",
+    "artifact.transfer.uncertain",
+    "artifact.external_operation.pending",
+    "artifact.external_operation.completed",
+    "artifact.external_operation.uncertain",
     "fallback.triggered",
     "output.delta.batch",
     "output.retracted",

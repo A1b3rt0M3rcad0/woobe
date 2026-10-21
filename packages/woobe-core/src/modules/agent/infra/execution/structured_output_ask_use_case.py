@@ -139,6 +139,7 @@ class StructuredOutputAskAgentUseCase(
         session,
         content,
         agent,
+        content_parts=None,
     ):
         created = await super()._save_user_message(
             session_repo,
@@ -146,6 +147,7 @@ class StructuredOutputAskAgentUseCase(
             session,
             content,
             agent,
+            content_parts,
         )
         context = current_execution.get()
         if context is not None:
@@ -162,6 +164,7 @@ class StructuredOutputAskAgentUseCase(
         usage,
         agent,
         tool_calls=None,
+        content_parts=None,
     ):
         context = current_execution.get()
         sources = context.persisted_sources if context else None
@@ -173,6 +176,10 @@ class StructuredOutputAskAgentUseCase(
                 source.model_dump() if hasattr(source, "model_dump") else source
                 for source in sources
             ]
+        if content_parts is not None:
+            from shared.contracts.content_parts import serialize_content_parts
+
+            data["input_content_parts"] = serialize_content_parts(content_parts)
         message = Message(
             project_id=session.project_id,
             agent_id=session.agent_id,

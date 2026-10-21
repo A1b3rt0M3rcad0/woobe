@@ -42,6 +42,7 @@ from woobe_workers.runtime.health import heartbeat_loop
 from woobe_workers.runtime.run_event_persistence_worker import RunEventPersistenceWorker
 from woobe_workers.runtime.runner import WorkerRunner
 from woobe_workers.runtime.admin_retention_worker import AdministrativeRetentionWorker
+from woobe_workers.runtime.artifact_lifecycle_worker import ArtifactLifecycleWorker
 from woobe_workers.settings import WorkerSettings
 
 logger = logging.getLogger(__name__)
@@ -193,6 +194,7 @@ async def run_workers(
         )
         runtime_workers = _build_runtime_workers(runtime_settings, engine)
         runtime_workers.append(AdministrativeRetentionWorker(SESSION_FACTORY))
+        runtime_workers.append(ArtifactLifecycleWorker(engine))
         worker_count = sum(
             len(registry.iter_workers()) for registry in registries
         ) + len(runtime_workers)

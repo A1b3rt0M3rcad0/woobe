@@ -6,6 +6,7 @@ from typing import Any
 from uuid import uuid4
 
 from modules.agent.application.dtos.runtime_dtos import AskOutput
+from modules.agent.application.interfaces.artifact_output_projection import project_artifact_outputs
 from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.application.interfaces.outbox import OutboxEventWriter
 from modules.agent.application.use_cases.execution_event_factory import (
@@ -133,6 +134,12 @@ async def finalize_instrumented_execution(owner, **kw):
         **runtime_binding_payload,
     }
     sources = kw["sources"] or []
+    output_artifacts, source_refs = project_artifact_outputs(
+        execution.tool_calls,
+        run_id=str(run_id) if run_id else None,
+        node_id=str(context.network_node_id) if context and context.network_node_id else None,
+    )
+    output_artifact_payloads = [item.model_dump(mode="json") for item in output_artifacts]
 
     await owner._hot_terminal_pending(
         terminal_status="completed",
@@ -141,6 +148,8 @@ async def finalize_instrumented_execution(owner, **kw):
             "trace_id": trace_id_text,
             "usage": usage.model_dump() if hasattr(usage, "model_dump") else None,
             "tool_calls": [tool.model_dump() for tool in execution.tool_calls],
+            "output_artifacts": output_artifact_payloads,
+            "source_refs": source_refs,
             "llm_calls": execution.llm_calls,
         },
     )
@@ -160,6 +169,9 @@ async def finalize_instrumented_execution(owner, **kw):
             usage,
             agent,
             tool_calls=execution.tool_calls,
+            content_parts=kw["input_dto"].content_parts,
+            output_artifacts=output_artifact_payloads,
+            source_refs=source_refs,
         )
         message_id = message.id
 
@@ -377,6 +389,8 @@ async def finalize_instrumented_execution(owner, **kw):
             **diagnostics,
             "fallback_used": kw["fallback_used"],
             "sources": [source.model_dump() for source in sources],
+            "output_artifacts": output_artifact_payloads,
+            "source_refs": source_refs,
             "parsed_output": kw["parsed_output"],
             "output_parse_error": kw["output_parse_error"],
             "tool_calls": [tool.model_dump() for tool in execution.tool_calls],
@@ -409,6 +423,8 @@ async def finalize_instrumented_execution(owner, **kw):
             message_id=message_id,
             usage=canonical_usage,
             sources=sources,
+            output_artifacts=output_artifacts,
+            source_refs=source_refs,
             tool_calls=execution.tool_calls,
             trace_id=trace_id,
             model=kw["response_model"],

@@ -10,7 +10,11 @@ import uuid6
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from modules.agent.application.dtos.runtime_dtos import AskOutput
+from modules.agent.application.interfaces.artifact_output_projection import project_artifact_outputs
 from modules.agent.application.interfaces.execution_context import current_execution
+from modules.agent.application.interfaces.tool_result_context import (
+    tool_result_context_metadata,
+)
 from modules.agent.application.tool_converter import agent_tools_to_openai_definitions_and_mapping
 from modules.agent.application.tool_release_snapshots import (
     tool_from_release_snapshot,
@@ -106,6 +110,11 @@ def _network_hot_session_history(
                         default=str,
                     ),
                     tool_call_id=str(call["tool_call_id"]),
+                    additional_kwargs=tool_result_context_metadata(
+                        tool_name=str(call.get("tool_name") or ""),
+                        tool_call_id=str(call["tool_call_id"]),
+                        selection_method="network_session_tool_history",
+                    ),
                 )
             )
 
@@ -132,7 +141,7 @@ class TransactionBoundedStructuredOutputRuntime(StructuredOutputAskAgentUseCase)
             agent = await self._load_agent(repositories, input_dto)
             # Network Acceptance already froze this Run input; child Session
             # continuity must not affect External Context.
-            self._resolve_external_context(
+            await self._resolve_external_context(
                 agent=agent,
                 input_dto=input_dto,
             )
@@ -437,6 +446,16 @@ class TransactionBoundedStructuredOutputRuntime(StructuredOutputAskAgentUseCase)
             raise ValueError(f"Strict JSON output failed: {output_parse_error}")
 
         if context and getattr(context, "defer_persistence", False):
+            output_artifacts, source_refs = project_artifact_outputs(
+                tool_calls_recorded or [],
+                run_id=str(context.run_id) if context.run_id else None,
+                node_id=(
+                    str(context.network_node_id) if context.network_node_id else None
+                ),
+            )
+            output_artifact_payloads = [
+                item.model_dump(mode="json") for item in output_artifacts
+            ]
             result_payload = {
                 "answer": answer,
                 "usage": (
@@ -446,6 +465,8 @@ class TransactionBoundedStructuredOutputRuntime(StructuredOutputAskAgentUseCase)
                 "tool_calls": [
                     item.model_dump() for item in tool_calls_recorded or []
                 ],
+                "output_artifacts": output_artifact_payloads,
+                "source_refs": source_refs,
                 "parsed_output": parsed_output,
                 "output_parse_error": output_parse_error,
                 "provider": response_provider,
@@ -466,6 +487,8 @@ class TransactionBoundedStructuredOutputRuntime(StructuredOutputAskAgentUseCase)
                 session_id=session.id,
                 usage=usage,
                 sources=sources or [],
+                output_artifacts=output_artifacts,
+                source_refs=source_refs,
                 tool_calls=tool_calls_recorded or [],
                 trace_id=trace_id,
                 model=response_model,

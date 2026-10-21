@@ -7,6 +7,7 @@ from fastapi import Request as FastAPIRequest
 from fastapi.responses import StreamingResponse
 
 from modules.agent.entrypoint import AskInput
+from shared.contracts.runtime_metadata import strip_untrusted_runtime_metadata
 from modules.agent.entrypoint import RuntimeEnvironmentGuard
 from modules.agent.entrypoint import UseCase
 
@@ -98,11 +99,14 @@ async def handle_ask_stream(
 ) -> StreamingResponse:
     received_at = datetime.now(timezone.utc).isoformat()
     body: dict = await fastapi_request.json()
-    metadata = body.get("metadata")
-    metadata = dict(metadata) if isinstance(metadata, dict) else {}
+    body.pop("runtime_principal", None)
+    metadata = strip_untrusted_runtime_metadata(body.get("metadata"))
     metadata["server_received_at"] = received_at
     body["metadata"] = metadata
     input_dto = AskInput(**body)
+    input_dto.runtime_principal = getattr(
+        getattr(fastapi_request, "state", None), "principal", None
+    )
 
     await environment_guard(
         input_dto.agent_id,
