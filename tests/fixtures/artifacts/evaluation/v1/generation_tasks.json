@@ -1,0 +1,390 @@
+[
+  {
+    "task_id": "summary-01",
+    "category": "summary",
+    "prompt": "Summarize synthetic markers 001 and 002.",
+    "expected_source_ids": [
+      "source-001",
+      "source-002"
+    ],
+    "claim_source_ids": [
+      [
+        "source-001"
+      ],
+      [
+        "source-002"
+      ]
+    ],
+    "required_format": "numbered_summary",
+    "provider_required": false
+  },
+  {
+    "task_id": "summary-02",
+    "category": "summary",
+    "prompt": "Summarize synthetic markers 002 and 003.",
+    "expected_source_ids": [
+      "source-002",
+      "source-003"
+    ],
+    "claim_source_ids": [
+      [
+        "source-002"
+      ],
+      [
+        "source-003"
+      ]
+    ],
+    "required_format": "numbered_summary",
+    "provider_required": false
+  },
+  {
+    "task_id": "summary-03",
+    "category": "summary",
+    "prompt": "Summarize synthetic markers 003 and 004.",
+    "expected_source_ids": [
+      "source-003",
+      "source-004"
+    ],
+    "claim_source_ids": [
+      [
+        "source-003"
+      ],
+      [
+        "source-004"
+      ]
+    ],
+    "required_format": "numbered_summary",
+    "provider_required": false
+  },
+  {
+    "task_id": "summary-04",
+    "category": "summary",
+    "prompt": "Summarize synthetic markers 004 and 005.",
+    "expected_source_ids": [
+      "source-004",
+      "source-005"
+    ],
+    "claim_source_ids": [
+      [
+        "source-004"
+      ],
+      [
+        "source-005"
+      ]
+    ],
+    "required_format": "numbered_summary",
+    "provider_required": false
+  },
+  {
+    "task_id": "summary-05",
+    "category": "summary",
+    "prompt": "Summarize synthetic markers 005 and 006.",
+    "expected_source_ids": [
+      "source-005",
+      "source-006"
+    ],
+    "claim_source_ids": [
+      [
+        "source-005"
+      ],
+      [
+        "source-006"
+      ]
+    ],
+    "required_format": "numbered_summary",
+    "provider_required": false
+  },
+  {
+    "task_id": "summary-06",
+    "category": "summary",
+    "prompt": "Summarize synthetic markers 006 and 007.",
+    "expected_source_ids": [
+      "source-006",
+      "source-007"
+    ],
+    "claim_source_ids": [
+      [
+        "source-006"
+      ],
+      [
+        "source-007"
+      ]
+    ],
+    "required_format": "numbered_summary",
+    "provider_required": false
+  },
+  {
+    "task_id": "summary-07",
+    "category": "summary",
+    "prompt": "Summarize synthetic markers 007 and 008.",
+    "expected_source_ids": [
+      "source-007",
+      "source-008"
+    ],
+    "claim_source_ids": [
+      [
+        "source-007"
+      ],
+      [
+        "source-008"
+      ]
+    ],
+    "required_format": "numbered_summary",
+    "provider_required": false
+  },
+  {
+    "task_id": "summary-08",
+    "category": "summary",
+    "prompt": "Summarize synthetic markers 008 and 009.",
+    "expected_source_ids": [
+      "source-008",
+      "source-009"
+    ],
+    "claim_source_ids": [
+      [
+        "source-008"
+      ],
+      [
+        "source-009"
+      ]
+    ],
+    "required_format": "numbered_summary",
+    "provider_required": false
+  },
+  {
+    "task_id": "exercise-01",
+    "category": "exercise_questions",
+    "prompt": "Write two questions about chapter-009 with answer keys.",
+    "expected_source_ids": [
+      "source-009"
+    ],
+    "claim_source_ids": [
+      [
+        "source-009"
+      ],
+      [
+        "source-009"
+      ]
+    ],
+    "required_format": "questions_with_answer_key",
+    "provider_required": false
+  },
+  {
+    "task_id": "exercise-02",
+    "category": "exercise_questions",
+    "prompt": "Write two questions about chapter-010 with answer keys.",
+    "expected_source_ids": [
+      "source-010"
+    ],
+    "claim_source_ids": [
+      [
+        "source-010"
+      ],
+      [
+        "source-010"
+      ]
+    ],
+    "required_format": "questions_with_answer_key",
+    "provider_required": false
+  },
+  {
+    "task_id": "exercise-03",
+    "category": "exercise_questions",
+    "prompt": "Write two questions about chapter-011 with answer keys.",
+    "expected_source_ids": [
+      "source-011"
+    ],
+    "claim_source_ids": [
+      [
+        "source-011"
+      ],
+      [
+        "source-011"
+      ]
+    ],
+    "required_format": "questions_with_answer_key",
+    "provider_required": false
+  },
+  {
+    "task_id": "exercise-04",
+    "category": "exercise_questions",
+    "prompt": "Write two questions about chapter-012 with answer keys.",
+    "expected_source_ids": [
+      "source-012"
+    ],
+    "claim_source_ids": [
+      [
+        "source-012"
+      ],
+      [
+        "source-012"
+      ]
+    ],
+    "required_format": "questions_with_answer_key",
+    "provider_required": false
+  },
+  {
+    "task_id": "exercise-05",
+    "category": "exercise_questions",
+    "prompt": "Write two questions about chapter-013 with answer keys.",
+    "expected_source_ids": [
+      "source-013"
+    ],
+    "claim_source_ids": [
+      [
+        "source-013"
+      ],
+      [
+        "source-013"
+      ]
+    ],
+    "required_format": "questions_with_answer_key",
+    "provider_required": false
+  },
+  {
+    "task_id": "exercise-06",
+    "category": "exercise_questions",
+    "prompt": "Write two questions about chapter-014 with answer keys.",
+    "expected_source_ids": [
+      "source-014"
+    ],
+    "claim_source_ids": [
+      [
+        "source-014"
+      ],
+      [
+        "source-014"
+      ]
+    ],
+    "required_format": "questions_with_answer_key",
+    "provider_required": false
+  },
+  {
+    "task_id": "exercise-07",
+    "category": "exercise_questions",
+    "prompt": "Write two questions about chapter-015 with answer keys.",
+    "expected_source_ids": [
+      "source-015"
+    ],
+    "claim_source_ids": [
+      [
+        "source-015"
+      ],
+      [
+        "source-015"
+      ]
+    ],
+    "required_format": "questions_with_answer_key",
+    "provider_required": false
+  },
+  {
+    "task_id": "exercise-08",
+    "category": "exercise_questions",
+    "prompt": "Write two questions about chapter-016 with answer keys.",
+    "expected_source_ids": [
+      "source-016"
+    ],
+    "claim_source_ids": [
+      [
+        "source-016"
+      ],
+      [
+        "source-016"
+      ]
+    ],
+    "required_format": "questions_with_answer_key",
+    "provider_required": false
+  },
+  {
+    "task_id": "composite-01",
+    "category": "composite_document",
+    "prompt": "Compose a short report with a table and references for marker 017.",
+    "expected_source_ids": [
+      "source-017",
+      "source-018",
+      "source-019"
+    ],
+    "claim_source_ids": [
+      [
+        "source-017"
+      ],
+      [
+        "source-018"
+      ],
+      [
+        "source-019"
+      ]
+    ],
+    "required_format": "markdown_with_citations",
+    "provider_required": false
+  },
+  {
+    "task_id": "composite-02",
+    "category": "composite_document",
+    "prompt": "Compose a short report with a table and references for marker 018.",
+    "expected_source_ids": [
+      "source-018",
+      "source-019",
+      "source-020"
+    ],
+    "claim_source_ids": [
+      [
+        "source-018"
+      ],
+      [
+        "source-019"
+      ],
+      [
+        "source-020"
+      ]
+    ],
+    "required_format": "markdown_with_citations",
+    "provider_required": false
+  },
+  {
+    "task_id": "composite-03",
+    "category": "composite_document",
+    "prompt": "Compose a short report with a table and references for marker 019.",
+    "expected_source_ids": [
+      "source-019",
+      "source-020",
+      "source-021"
+    ],
+    "claim_source_ids": [
+      [
+        "source-019"
+      ],
+      [
+        "source-020"
+      ],
+      [
+        "source-021"
+      ]
+    ],
+    "required_format": "markdown_with_citations",
+    "provider_required": false
+  },
+  {
+    "task_id": "composite-04",
+    "category": "composite_document",
+    "prompt": "Compose a short report with a table and references for marker 020.",
+    "expected_source_ids": [
+      "source-020",
+      "source-021",
+      "source-022"
+    ],
+    "claim_source_ids": [
+      [
+        "source-020"
+      ],
+      [
+        "source-021"
+      ],
+      [
+        "source-022"
+      ]
+    ],
+    "required_format": "markdown_with_citations",
+    "provider_required": false
+  }
+]

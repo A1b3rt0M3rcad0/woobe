@@ -1,0 +1,1878 @@
+[
+  {
+    "query_id": "fact-01",
+    "category": "factual_location",
+    "query": "Which document contains cobalt-001?",
+    "answerable": true,
+    "retrieval_method": "text",
+    "workspace_ids": [
+      "eval-workspace-01"
+    ],
+    "gold_source_ids": [
+      "source-001"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-001",
+        "char_start": 0,
+        "char_end": 195,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "fact-02",
+    "category": "factual_location",
+    "query": "Which document contains cobalt-002?",
+    "answerable": true,
+    "retrieval_method": "text",
+    "workspace_ids": [
+      "eval-workspace-01"
+    ],
+    "gold_source_ids": [
+      "source-002"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-002",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "fact-03",
+    "category": "factual_location",
+    "query": "Which document contains cobalt-003?",
+    "answerable": true,
+    "retrieval_method": "text",
+    "workspace_ids": [
+      "eval-workspace-01"
+    ],
+    "gold_source_ids": [
+      "source-003"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-003",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "fact-04",
+    "category": "factual_location",
+    "query": "Which document contains cobalt-004?",
+    "answerable": true,
+    "retrieval_method": "text",
+    "workspace_ids": [
+      "eval-workspace-01"
+    ],
+    "gold_source_ids": [
+      "source-004"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-004",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "fact-05",
+    "category": "factual_location",
+    "query": "Which document contains cobalt-005?",
+    "answerable": true,
+    "retrieval_method": "text",
+    "workspace_ids": [
+      "eval-workspace-01"
+    ],
+    "gold_source_ids": [
+      "source-005"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-005",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "fact-06",
+    "category": "factual_location",
+    "query": "Which document contains cobalt-006?",
+    "answerable": true,
+    "retrieval_method": "text",
+    "workspace_ids": [
+      "eval-workspace-01"
+    ],
+    "gold_source_ids": [
+      "source-006"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-006",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "fact-07",
+    "category": "factual_location",
+    "query": "Which document contains cobalt-007?",
+    "answerable": true,
+    "retrieval_method": "text",
+    "workspace_ids": [
+      "eval-workspace-02"
+    ],
+    "gold_source_ids": [
+      "source-007"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-007",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "fact-08",
+    "category": "factual_location",
+    "query": "Which document contains cobalt-008?",
+    "answerable": true,
+    "retrieval_method": "text",
+    "workspace_ids": [
+      "eval-workspace-02"
+    ],
+    "gold_source_ids": [
+      "source-008"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-008",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "fact-09",
+    "category": "factual_location",
+    "query": "Which document contains cobalt-009?",
+    "answerable": true,
+    "retrieval_method": "text",
+    "workspace_ids": [
+      "eval-workspace-02"
+    ],
+    "gold_source_ids": [
+      "source-009"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-009",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "fact-10",
+    "category": "factual_location",
+    "query": "Which document contains cobalt-010?",
+    "answerable": true,
+    "retrieval_method": "text",
+    "workspace_ids": [
+      "eval-workspace-02"
+    ],
+    "gold_source_ids": [
+      "source-010"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-010",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "fact-11",
+    "category": "factual_location",
+    "query": "Which document contains cobalt-011?",
+    "answerable": true,
+    "retrieval_method": "text",
+    "workspace_ids": [
+      "eval-workspace-02"
+    ],
+    "gold_source_ids": [
+      "source-011"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-011",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "fact-12",
+    "category": "factual_location",
+    "query": "Which document contains cobalt-012?",
+    "answerable": true,
+    "retrieval_method": "text",
+    "workspace_ids": [
+      "eval-workspace-02"
+    ],
+    "gold_source_ids": [
+      "source-012"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-012",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "fact-13",
+    "category": "factual_location",
+    "query": "Which document contains cobalt-013?",
+    "answerable": true,
+    "retrieval_method": "text",
+    "workspace_ids": [
+      "eval-workspace-03"
+    ],
+    "gold_source_ids": [
+      "source-013"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-013",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "fact-14",
+    "category": "factual_location",
+    "query": "Which document contains cobalt-014?",
+    "answerable": true,
+    "retrieval_method": "text",
+    "workspace_ids": [
+      "eval-workspace-03"
+    ],
+    "gold_source_ids": [
+      "source-014"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-014",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "fact-15",
+    "category": "factual_location",
+    "query": "Which document contains cobalt-015?",
+    "answerable": true,
+    "retrieval_method": "text",
+    "workspace_ids": [
+      "eval-workspace-03"
+    ],
+    "gold_source_ids": [
+      "source-015"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-015",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "fact-16",
+    "category": "factual_location",
+    "query": "Which document contains cobalt-016?",
+    "answerable": true,
+    "retrieval_method": "text",
+    "workspace_ids": [
+      "eval-workspace-03"
+    ],
+    "gold_source_ids": [
+      "source-016"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-016",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "fact-17",
+    "category": "factual_location",
+    "query": "Which document contains cobalt-017?",
+    "answerable": true,
+    "retrieval_method": "text",
+    "workspace_ids": [
+      "eval-workspace-03"
+    ],
+    "gold_source_ids": [
+      "source-017"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-017",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "fact-18",
+    "category": "factual_location",
+    "query": "Which document contains cobalt-018?",
+    "answerable": true,
+    "retrieval_method": "text",
+    "workspace_ids": [
+      "eval-workspace-03"
+    ],
+    "gold_source_ids": [
+      "source-018"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-018",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "fact-19",
+    "category": "factual_location",
+    "query": "Which document contains cobalt-019?",
+    "answerable": true,
+    "retrieval_method": "text",
+    "workspace_ids": [
+      "eval-workspace-04"
+    ],
+    "gold_source_ids": [
+      "source-019"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-019",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "fact-20",
+    "category": "factual_location",
+    "query": "Which document contains cobalt-020?",
+    "answerable": true,
+    "retrieval_method": "text",
+    "workspace_ids": [
+      "eval-workspace-04"
+    ],
+    "gold_source_ids": [
+      "source-020"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-020",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "fact-21",
+    "category": "factual_location",
+    "query": "Which document contains cobalt-021?",
+    "answerable": true,
+    "retrieval_method": "text",
+    "workspace_ids": [
+      "eval-workspace-04"
+    ],
+    "gold_source_ids": [
+      "source-021"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-021",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "fact-22",
+    "category": "factual_location",
+    "query": "Which document contains cobalt-022?",
+    "answerable": true,
+    "retrieval_method": "text",
+    "workspace_ids": [
+      "eval-workspace-04"
+    ],
+    "gold_source_ids": [
+      "source-022"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-022",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "fact-23",
+    "category": "factual_location",
+    "query": "Which document contains cobalt-023?",
+    "answerable": true,
+    "retrieval_method": "text",
+    "workspace_ids": [
+      "eval-workspace-04"
+    ],
+    "gold_source_ids": [
+      "source-023"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-023",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "fact-24",
+    "category": "factual_location",
+    "query": "Which document contains cobalt-024?",
+    "answerable": true,
+    "retrieval_method": "text",
+    "workspace_ids": [
+      "eval-workspace-04"
+    ],
+    "gold_source_ids": [
+      "source-024"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-024",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "tree-01",
+    "category": "structural_navigation",
+    "query": "Open chapter-001 and appendix-001.",
+    "answerable": true,
+    "retrieval_method": "tree",
+    "workspace_ids": [
+      "eval-workspace-01"
+    ],
+    "gold_source_ids": [
+      "source-001"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-001",
+        "char_start": 0,
+        "char_end": 195,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "tree-02",
+    "category": "structural_navigation",
+    "query": "Open chapter-002 and appendix-002.",
+    "answerable": true,
+    "retrieval_method": "tree",
+    "workspace_ids": [
+      "eval-workspace-01"
+    ],
+    "gold_source_ids": [
+      "source-002"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-002",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "tree-03",
+    "category": "structural_navigation",
+    "query": "Open chapter-003 and appendix-003.",
+    "answerable": true,
+    "retrieval_method": "tree",
+    "workspace_ids": [
+      "eval-workspace-01"
+    ],
+    "gold_source_ids": [
+      "source-003"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-003",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "tree-04",
+    "category": "structural_navigation",
+    "query": "Open chapter-004 and appendix-004.",
+    "answerable": true,
+    "retrieval_method": "tree",
+    "workspace_ids": [
+      "eval-workspace-01"
+    ],
+    "gold_source_ids": [
+      "source-004"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-004",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "tree-05",
+    "category": "structural_navigation",
+    "query": "Open chapter-005 and appendix-005.",
+    "answerable": true,
+    "retrieval_method": "tree",
+    "workspace_ids": [
+      "eval-workspace-01"
+    ],
+    "gold_source_ids": [
+      "source-005"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-005",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "tree-06",
+    "category": "structural_navigation",
+    "query": "Open chapter-006 and appendix-006.",
+    "answerable": true,
+    "retrieval_method": "tree",
+    "workspace_ids": [
+      "eval-workspace-01"
+    ],
+    "gold_source_ids": [
+      "source-006"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-006",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "tree-07",
+    "category": "structural_navigation",
+    "query": "Open chapter-007 and appendix-007.",
+    "answerable": true,
+    "retrieval_method": "tree",
+    "workspace_ids": [
+      "eval-workspace-02"
+    ],
+    "gold_source_ids": [
+      "source-007"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-007",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "tree-08",
+    "category": "structural_navigation",
+    "query": "Open chapter-008 and appendix-008.",
+    "answerable": true,
+    "retrieval_method": "tree",
+    "workspace_ids": [
+      "eval-workspace-02"
+    ],
+    "gold_source_ids": [
+      "source-008"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-008",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "tree-09",
+    "category": "structural_navigation",
+    "query": "Open chapter-009 and appendix-009.",
+    "answerable": true,
+    "retrieval_method": "tree",
+    "workspace_ids": [
+      "eval-workspace-02"
+    ],
+    "gold_source_ids": [
+      "source-009"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-009",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "tree-10",
+    "category": "structural_navigation",
+    "query": "Open chapter-010 and appendix-010.",
+    "answerable": true,
+    "retrieval_method": "tree",
+    "workspace_ids": [
+      "eval-workspace-02"
+    ],
+    "gold_source_ids": [
+      "source-010"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-010",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "tree-11",
+    "category": "structural_navigation",
+    "query": "Open chapter-011 and appendix-011.",
+    "answerable": true,
+    "retrieval_method": "tree",
+    "workspace_ids": [
+      "eval-workspace-02"
+    ],
+    "gold_source_ids": [
+      "source-011"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-011",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "tree-12",
+    "category": "structural_navigation",
+    "query": "Open chapter-012 and appendix-012.",
+    "answerable": true,
+    "retrieval_method": "tree",
+    "workspace_ids": [
+      "eval-workspace-02"
+    ],
+    "gold_source_ids": [
+      "source-012"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-012",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "tree-13",
+    "category": "structural_navigation",
+    "query": "Open chapter-013 and appendix-013.",
+    "answerable": true,
+    "retrieval_method": "tree",
+    "workspace_ids": [
+      "eval-workspace-03"
+    ],
+    "gold_source_ids": [
+      "source-013"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-013",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "tree-14",
+    "category": "structural_navigation",
+    "query": "Open chapter-014 and appendix-014.",
+    "answerable": true,
+    "retrieval_method": "tree",
+    "workspace_ids": [
+      "eval-workspace-03"
+    ],
+    "gold_source_ids": [
+      "source-014"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-014",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "tree-15",
+    "category": "structural_navigation",
+    "query": "Open chapter-015 and appendix-015.",
+    "answerable": true,
+    "retrieval_method": "tree",
+    "workspace_ids": [
+      "eval-workspace-03"
+    ],
+    "gold_source_ids": [
+      "source-015"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-015",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "tree-16",
+    "category": "structural_navigation",
+    "query": "Open chapter-016 and appendix-016.",
+    "answerable": true,
+    "retrieval_method": "tree",
+    "workspace_ids": [
+      "eval-workspace-03"
+    ],
+    "gold_source_ids": [
+      "source-016"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-016",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "tree-17",
+    "category": "structural_navigation",
+    "query": "Open chapter-017 and appendix-017.",
+    "answerable": true,
+    "retrieval_method": "tree",
+    "workspace_ids": [
+      "eval-workspace-03"
+    ],
+    "gold_source_ids": [
+      "source-017"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-017",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "tree-18",
+    "category": "structural_navigation",
+    "query": "Open chapter-018 and appendix-018.",
+    "answerable": true,
+    "retrieval_method": "tree",
+    "workspace_ids": [
+      "eval-workspace-03"
+    ],
+    "gold_source_ids": [
+      "source-018"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-018",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "tree-19",
+    "category": "structural_navigation",
+    "query": "Open chapter-019 and appendix-019.",
+    "answerable": true,
+    "retrieval_method": "tree",
+    "workspace_ids": [
+      "eval-workspace-04"
+    ],
+    "gold_source_ids": [
+      "source-019"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-019",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "tree-20",
+    "category": "structural_navigation",
+    "query": "Open chapter-020 and appendix-020.",
+    "answerable": true,
+    "retrieval_method": "tree",
+    "workspace_ids": [
+      "eval-workspace-04"
+    ],
+    "gold_source_ids": [
+      "source-020"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-020",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "tree-21",
+    "category": "structural_navigation",
+    "query": "Open chapter-021 and appendix-021.",
+    "answerable": true,
+    "retrieval_method": "tree",
+    "workspace_ids": [
+      "eval-workspace-04"
+    ],
+    "gold_source_ids": [
+      "source-021"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-021",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "tree-22",
+    "category": "structural_navigation",
+    "query": "Open chapter-022 and appendix-022.",
+    "answerable": true,
+    "retrieval_method": "tree",
+    "workspace_ids": [
+      "eval-workspace-04"
+    ],
+    "gold_source_ids": [
+      "source-022"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-022",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "tree-23",
+    "category": "structural_navigation",
+    "query": "Open chapter-023 and appendix-023.",
+    "answerable": true,
+    "retrieval_method": "tree",
+    "workspace_ids": [
+      "eval-workspace-04"
+    ],
+    "gold_source_ids": [
+      "source-023"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-023",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "tree-24",
+    "category": "structural_navigation",
+    "query": "Open chapter-024 and appendix-024.",
+    "answerable": true,
+    "retrieval_method": "tree",
+    "workspace_ids": [
+      "eval-workspace-04"
+    ],
+    "gold_source_ids": [
+      "source-024"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-024",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "xref-01",
+    "category": "cross_reference",
+    "query": "Follow appendix-001 to its document reference.",
+    "answerable": true,
+    "retrieval_method": "text",
+    "workspace_ids": [
+      "eval-workspace-01",
+      "eval-workspace-05"
+    ],
+    "gold_source_ids": [
+      "source-001",
+      "source-025"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-001",
+        "char_start": 0,
+        "char_end": 195,
+        "char_space": "canonical_block_text"
+      },
+      {
+        "block_id": "eval-block-025",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "xref-02",
+    "category": "cross_reference",
+    "query": "Follow appendix-002 to its document reference.",
+    "answerable": true,
+    "retrieval_method": "text",
+    "workspace_ids": [
+      "eval-workspace-01",
+      "eval-workspace-05"
+    ],
+    "gold_source_ids": [
+      "source-002",
+      "source-026"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-002",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      },
+      {
+        "block_id": "eval-block-026",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "xref-03",
+    "category": "cross_reference",
+    "query": "Follow appendix-003 to its document reference.",
+    "answerable": true,
+    "retrieval_method": "text",
+    "workspace_ids": [
+      "eval-workspace-01",
+      "eval-workspace-05"
+    ],
+    "gold_source_ids": [
+      "source-003",
+      "source-027"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-003",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      },
+      {
+        "block_id": "eval-block-027",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "xref-04",
+    "category": "cross_reference",
+    "query": "Follow appendix-004 to its document reference.",
+    "answerable": true,
+    "retrieval_method": "text",
+    "workspace_ids": [
+      "eval-workspace-01",
+      "eval-workspace-05"
+    ],
+    "gold_source_ids": [
+      "source-004",
+      "source-028"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-004",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      },
+      {
+        "block_id": "eval-block-028",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "xref-05",
+    "category": "cross_reference",
+    "query": "Follow appendix-005 to its document reference.",
+    "answerable": true,
+    "retrieval_method": "text",
+    "workspace_ids": [
+      "eval-workspace-01",
+      "eval-workspace-05"
+    ],
+    "gold_source_ids": [
+      "source-005",
+      "source-029"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-005",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      },
+      {
+        "block_id": "eval-block-029",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "xref-06",
+    "category": "cross_reference",
+    "query": "Follow appendix-006 to its document reference.",
+    "answerable": true,
+    "retrieval_method": "text",
+    "workspace_ids": [
+      "eval-workspace-01",
+      "eval-workspace-05"
+    ],
+    "gold_source_ids": [
+      "source-006",
+      "source-030"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-006",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      },
+      {
+        "block_id": "eval-block-030",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "xref-07",
+    "category": "cross_reference",
+    "query": "Follow appendix-007 to its document reference.",
+    "answerable": true,
+    "retrieval_method": "text",
+    "workspace_ids": [
+      "eval-workspace-02",
+      "eval-workspace-06"
+    ],
+    "gold_source_ids": [
+      "source-007",
+      "source-031"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-007",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      },
+      {
+        "block_id": "eval-block-031",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "xref-08",
+    "category": "cross_reference",
+    "query": "Follow appendix-008 to its document reference.",
+    "answerable": true,
+    "retrieval_method": "text",
+    "workspace_ids": [
+      "eval-workspace-02",
+      "eval-workspace-06"
+    ],
+    "gold_source_ids": [
+      "source-008",
+      "source-032"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-008",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      },
+      {
+        "block_id": "eval-block-032",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "xref-09",
+    "category": "cross_reference",
+    "query": "Follow appendix-009 to its document reference.",
+    "answerable": true,
+    "retrieval_method": "text",
+    "workspace_ids": [
+      "eval-workspace-02",
+      "eval-workspace-06"
+    ],
+    "gold_source_ids": [
+      "source-009",
+      "source-033"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-009",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      },
+      {
+        "block_id": "eval-block-033",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "xref-10",
+    "category": "cross_reference",
+    "query": "Follow appendix-010 to its document reference.",
+    "answerable": true,
+    "retrieval_method": "text",
+    "workspace_ids": [
+      "eval-workspace-02",
+      "eval-workspace-06"
+    ],
+    "gold_source_ids": [
+      "source-010",
+      "source-034"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-010",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      },
+      {
+        "block_id": "eval-block-034",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "xref-11",
+    "category": "cross_reference",
+    "query": "Follow appendix-011 to its document reference.",
+    "answerable": true,
+    "retrieval_method": "text",
+    "workspace_ids": [
+      "eval-workspace-02",
+      "eval-workspace-06"
+    ],
+    "gold_source_ids": [
+      "source-011",
+      "source-035"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-011",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      },
+      {
+        "block_id": "eval-block-035",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "xref-12",
+    "category": "cross_reference",
+    "query": "Follow appendix-012 to its document reference.",
+    "answerable": true,
+    "retrieval_method": "text",
+    "workspace_ids": [
+      "eval-workspace-02",
+      "eval-workspace-06"
+    ],
+    "gold_source_ids": [
+      "source-012",
+      "source-036"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-012",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      },
+      {
+        "block_id": "eval-block-036",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "multi-01",
+    "category": "multi_document",
+    "query": "Compare cobalt-001 with cobalt-009.",
+    "answerable": true,
+    "retrieval_method": "text",
+    "workspace_ids": [
+      "eval-workspace-01",
+      "eval-workspace-02"
+    ],
+    "gold_source_ids": [
+      "source-001",
+      "source-009"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-001",
+        "char_start": 0,
+        "char_end": 195,
+        "char_space": "canonical_block_text"
+      },
+      {
+        "block_id": "eval-block-009",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "multi-02",
+    "category": "multi_document",
+    "query": "Compare cobalt-002 with cobalt-010.",
+    "answerable": true,
+    "retrieval_method": "text",
+    "workspace_ids": [
+      "eval-workspace-01",
+      "eval-workspace-02"
+    ],
+    "gold_source_ids": [
+      "source-002",
+      "source-010"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-002",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      },
+      {
+        "block_id": "eval-block-010",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "multi-03",
+    "category": "multi_document",
+    "query": "Compare cobalt-003 with cobalt-011.",
+    "answerable": true,
+    "retrieval_method": "text",
+    "workspace_ids": [
+      "eval-workspace-01",
+      "eval-workspace-02"
+    ],
+    "gold_source_ids": [
+      "source-003",
+      "source-011"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-003",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      },
+      {
+        "block_id": "eval-block-011",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "multi-04",
+    "category": "multi_document",
+    "query": "Compare cobalt-004 with cobalt-012.",
+    "answerable": true,
+    "retrieval_method": "text",
+    "workspace_ids": [
+      "eval-workspace-01",
+      "eval-workspace-02"
+    ],
+    "gold_source_ids": [
+      "source-004",
+      "source-012"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-004",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      },
+      {
+        "block_id": "eval-block-012",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "multi-05",
+    "category": "multi_document",
+    "query": "Compare cobalt-005 with cobalt-013.",
+    "answerable": true,
+    "retrieval_method": "text",
+    "workspace_ids": [
+      "eval-workspace-01",
+      "eval-workspace-03"
+    ],
+    "gold_source_ids": [
+      "source-005",
+      "source-013"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-005",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      },
+      {
+        "block_id": "eval-block-013",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "multi-06",
+    "category": "multi_document",
+    "query": "Compare cobalt-006 with cobalt-014.",
+    "answerable": true,
+    "retrieval_method": "text",
+    "workspace_ids": [
+      "eval-workspace-01",
+      "eval-workspace-03"
+    ],
+    "gold_source_ids": [
+      "source-006",
+      "source-014"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-006",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      },
+      {
+        "block_id": "eval-block-014",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "multi-07",
+    "category": "multi_document",
+    "query": "Compare cobalt-007 with cobalt-015.",
+    "answerable": true,
+    "retrieval_method": "text",
+    "workspace_ids": [
+      "eval-workspace-02",
+      "eval-workspace-03"
+    ],
+    "gold_source_ids": [
+      "source-007",
+      "source-015"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-007",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      },
+      {
+        "block_id": "eval-block-015",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "multi-08",
+    "category": "multi_document",
+    "query": "Compare cobalt-008 with cobalt-016.",
+    "answerable": true,
+    "retrieval_method": "text",
+    "workspace_ids": [
+      "eval-workspace-02",
+      "eval-workspace-03"
+    ],
+    "gold_source_ids": [
+      "source-008",
+      "source-016"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-008",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      },
+      {
+        "block_id": "eval-block-016",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "table-01",
+    "category": "table_or_image",
+    "query": "What value appears in row-025?",
+    "answerable": true,
+    "retrieval_method": "text",
+    "workspace_ids": [
+      "eval-workspace-05"
+    ],
+    "gold_source_ids": [
+      "source-025"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-025",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "table-02",
+    "category": "table_or_image",
+    "query": "What value appears in row-026?",
+    "answerable": true,
+    "retrieval_method": "text",
+    "workspace_ids": [
+      "eval-workspace-05"
+    ],
+    "gold_source_ids": [
+      "source-026"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-026",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "table-03",
+    "category": "table_or_image",
+    "query": "What value appears in row-027?",
+    "answerable": true,
+    "retrieval_method": "text",
+    "workspace_ids": [
+      "eval-workspace-05"
+    ],
+    "gold_source_ids": [
+      "source-027"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-027",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "table-04",
+    "category": "table_or_image",
+    "query": "What value appears in row-028?",
+    "answerable": true,
+    "retrieval_method": "text",
+    "workspace_ids": [
+      "eval-workspace-05"
+    ],
+    "gold_source_ids": [
+      "source-028"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-028",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "table-05",
+    "category": "table_or_image",
+    "query": "What value appears in row-029?",
+    "answerable": true,
+    "retrieval_method": "text",
+    "workspace_ids": [
+      "eval-workspace-05"
+    ],
+    "gold_source_ids": [
+      "source-029"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-029",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "table-06",
+    "category": "table_or_image",
+    "query": "What value appears in row-030?",
+    "answerable": true,
+    "retrieval_method": "text",
+    "workspace_ids": [
+      "eval-workspace-05"
+    ],
+    "gold_source_ids": [
+      "source-030"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-030",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "image-01",
+    "category": "table_or_image",
+    "query": "Which marker is labeled by diagram-031?",
+    "answerable": true,
+    "retrieval_method": "text",
+    "workspace_ids": [
+      "eval-workspace-06"
+    ],
+    "gold_source_ids": [
+      "source-031"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-031",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "image-02",
+    "category": "table_or_image",
+    "query": "Which marker is labeled by diagram-032?",
+    "answerable": true,
+    "retrieval_method": "text",
+    "workspace_ids": [
+      "eval-workspace-06"
+    ],
+    "gold_source_ids": [
+      "source-032"
+    ],
+    "expected_locators": [
+      {
+        "block_id": "eval-block-032",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    ],
+    "result_budget": 10
+  },
+  {
+    "query_id": "unanswerable-01",
+    "category": "unanswerable",
+    "query": "What is the unsupported secret-001?",
+    "answerable": false,
+    "retrieval_method": "text",
+    "workspace_ids": [],
+    "gold_source_ids": [],
+    "expected_locators": [],
+    "result_budget": 10
+  },
+  {
+    "query_id": "unanswerable-02",
+    "category": "unanswerable",
+    "query": "What is the unsupported secret-002?",
+    "answerable": false,
+    "retrieval_method": "text",
+    "workspace_ids": [],
+    "gold_source_ids": [],
+    "expected_locators": [],
+    "result_budget": 10
+  },
+  {
+    "query_id": "unanswerable-03",
+    "category": "unanswerable",
+    "query": "What is the unsupported secret-003?",
+    "answerable": false,
+    "retrieval_method": "text",
+    "workspace_ids": [],
+    "gold_source_ids": [],
+    "expected_locators": [],
+    "result_budget": 10
+  },
+  {
+    "query_id": "unanswerable-04",
+    "category": "unanswerable",
+    "query": "What is the unsupported secret-004?",
+    "answerable": false,
+    "retrieval_method": "text",
+    "workspace_ids": [],
+    "gold_source_ids": [],
+    "expected_locators": [],
+    "result_budget": 10
+  }
+]
