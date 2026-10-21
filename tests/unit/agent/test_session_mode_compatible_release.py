@@ -69,6 +69,8 @@ async def test_saving_draft_adopts_updated_native_model_prices(fallback) -> None
             }
         ),
     )
+    model = models.update.call_args.args[0]
+    models.get_by_id.return_value = model
     assert updated.spec["pricing"]["input_cost_per_1m_tokens"] == 1
     assert agent.settings["model_spec"]["pricing"]["input_cost_per_1m_tokens"] is None
     agents = SimpleNamespace(

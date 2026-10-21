@@ -189,8 +189,10 @@ async def batch(request: Request, project_id: UUID, body: WriteBatch):
 
 @router.get("/keys/{key_id}/usage")
 async def usage(request: Request, project_id: UUID, key_id: UUID,
-                limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0)):
-    return await execute(request, project_id, "usage", key_id=key_id, limit=limit, offset=offset)
+                limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0),
+                environment: Environment = "draft", consumer_kind: str | None = None, consumer_id: UUID | None = None):
+    return await execute(request, project_id, "usage", key_id=key_id, limit=limit, offset=offset,
+                         environment=environment, consumer_kind=consumer_kind, consumer_id=consumer_id)
 
 
 @router.post("/use-policies")

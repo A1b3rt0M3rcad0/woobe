@@ -20,7 +20,7 @@ export default function ProjectEnvironmentsPage() {
 
 const environments: ProjectEnvironment[] = ['draft', 'staging', 'production']
 const environmentLabel = (environment: ProjectEnvironment) => environment[0].toUpperCase() + environment.slice(1)
-const materialLabels = { present: 'Configured', missing: 'Not set', invalid_format: 'Invalid format', revoked: 'Revoked', unavailable: 'Unavailable' }
+const materialLabels = { present: 'Value saved', missing: 'Not set', invalid_format: 'Invalid format', revoked: 'Revoked', unavailable: 'Unavailable' }
 
 function EnvironmentWorkspace({ projectId }: { projectId: string }) {
   const [params] = useSearchParams()
@@ -28,7 +28,9 @@ function EnvironmentWorkspace({ projectId }: { projectId: string }) {
   const selected = params.get('environment')
   const initialEnvironment: ProjectEnvironment = selected === 'staging' || selected === 'production' ? selected : 'draft'
   const [preferredEnvironment, setPreferredEnvironment] = useState(initialEnvironment)
-  const [search, setSearch] = useState('')
+  const requestedKey = params.get('key')
+  const initialSearch = requestedKey && /^[A-Za-z_][A-Za-z0-9_]{0,127}$/.test(requestedKey) ? requestedKey : ''
+  const [search, setSearch] = useState(initialSearch)
   const [offset, setOffset] = useState(0)
   const [editing, setEditing] = useState<{ item: ConfigurationKey; environment: ProjectEnvironment } | null>(null)
   const [editingDefinition, setEditingDefinition] = useState<ConfigurationKey | null>(null)
@@ -60,8 +62,8 @@ function EnvironmentWorkspace({ projectId }: { projectId: string }) {
     void client.invalidateQueries({ queryKey: ['configuration-key-editor', projectId] })
     void client.invalidateQueries({ queryKey: ['configuration-deletion', projectId] })
   }
-  return <ResourcePage title="Environments" description="Declare shared configuration, then set values for each environment.">
-    {returnTo && <a href={returnTo} className="text-product-small text-primary underline underline-offset-2">Return to execution · no automatic Run</a>}
+  return <ResourcePage title="Environments" description="Set a value, then approve which connections can use it in each environment.">
+    {returnTo && <a href={returnTo} className="text-product-small text-primary underline underline-offset-2">Back to previous screen</a>}
     <div className="flex flex-wrap items-end justify-between gap-ui-md rounded-technical border border-border bg-card p-ui-md">
       <div className="flex flex-wrap items-end gap-ui-sm">
         <Field><FieldLabel htmlFor="configuration-search">Search keys</FieldLabel><Input id="configuration-search" value={search} onChange={e => { setSearch(e.target.value); setOffset(0) }} placeholder="Name or description" /></Field>
@@ -76,13 +78,13 @@ function EnvironmentWorkspace({ projectId }: { projectId: string }) {
       <p>{queries.some(query => query.error instanceof ApiError && query.error.status === 403) ? 'You do not have access to this project’s configuration.' : 'Configuration is unavailable. Readiness cannot be confirmed.'}</p>
       <Button variant="outline" onClick={() => queries.forEach(query => void query.refetch())}>Retry</Button>
     </div> : <>
-      <p className="text-product-small text-muted-foreground">{catalog.total} keys · All environments · Choose the environment inside the value editor. Values are never displayed.</p>
+      <p className="text-product-small text-muted-foreground">{catalog.total} keys · 1. Save a value · 2. Approve connection use · Values are never displayed.</p>
       {queries.some(query => query.isError) && <p role="status" className="text-product-small text-muted-foreground">Some environments are unavailable or restricted.</p>}
       <div className="min-w-0 overflow-x-auto rounded-technical border border-border bg-card" role="region" aria-label="Configuration keys" tabIndex={0}>
         <table className="w-full min-w-[64rem] table-fixed text-left text-product-small"><thead className="border-b border-border bg-muted/30"><tr>
           <th className="w-56 p-ui-md font-medium">Key</th><th className="w-28 p-ui-md font-medium">Format</th>
           {environments.map(environment => <th key={environment} scope="col" className="w-32 p-ui-md font-medium">{environmentLabel(environment)}</th>)}
-          <th className="w-32 p-ui-md font-medium">Used by</th><th className="w-56 p-ui-md font-medium">Actions</th>
+          <th className="w-32 p-ui-md font-medium">Connections</th><th className="w-56 p-ui-md font-medium">Actions</th>
         </tr></thead>
           <tbody>{catalog.items.map(item => <tr key={item.id} className="border-b border-border last:border-0">
             <td className="p-ui-md"><div role="region" aria-label={`Key ${item.key}`} tabIndex={0} className="overflow-x-auto whitespace-nowrap font-mono focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/30" title={item.key}>{item.key}</div><p className="mt-ui-xs break-words text-muted-foreground [overflow-wrap:anywhere]">{item.description}</p></td>
@@ -90,11 +92,16 @@ function EnvironmentWorkspace({ projectId }: { projectId: string }) {
             {queries.map((query, index) => {
               const metadata = query.data?.items.find(key => key.id === item.id)
               const status = query.isPending ? 'Loading…' : query.isError ? 'Unavailable or restricted' : metadata ? materialLabels[metadata.material] : 'Unavailable on this page'
-              return <td key={environments[index]} className="p-ui-md" aria-label={`${environmentLabel(environments[index])} status: ${status}`}>{status}</td>
+              const approval = metadata?.approval
+              const approvalLabel = approval?.state === 'approved' ? 'Use approved' : approval?.state === 'approval_required'
+                ? `Approval required${approval.approved_connection_count ? ` · ${approval.approved_connection_count}/${approval.connection_count} approved` : ''}`
+                : approval?.state === 'no_connections' ? 'No connections yet' : null
+              return <td key={environments[index]} className="p-ui-md" aria-label={`${environmentLabel(environments[index])} status: ${status}`}><p>{status}</p>{!query.isError && approvalLabel && <p className={`mt-ui-xs text-product-caption ${approval?.state === 'approval_required' ? 'text-primary' : 'text-muted-foreground'}`}>{approvalLabel}</p>}</td>
             })}
-            <td className="p-ui-md"><Button variant="ghost" size="sm" onClick={() => setUsage({ item, environment: preferredEnvironment })}>{item.used_by_count} consumers</Button></td>
+            <td className="p-ui-md">{item.used_by_count} {item.used_by_count === 1 ? 'connection' : 'connections'}</td>
             <td className="p-ui-md"><div className="flex flex-wrap gap-ui-sm">
               {canManageValues && <Button variant="outline" size="sm" onClick={() => setEditing({ item, environment: preferredEnvironment })}>Manage values</Button>}
+              {item.used_by_count > 0 && <Button variant="outline" size="sm" onClick={() => setUsage({ item, environment: preferredEnvironment })}>Manage approvals</Button>}
               {canDeclare && <>
                 <Button variant="outline" size="sm" onClick={() => setEditingDefinition(item)}>Edit key</Button>
                 <Button variant="outline" size="sm" disabled={item.used_by_count > 0} title={item.used_by_count > 0 ? 'This key is in use. Edit it instead of deleting it.' : 'Check usage before deleting this key'} onClick={() => setDeleting(item)} aria-label={`Delete ${item.key}`}>Delete</Button>

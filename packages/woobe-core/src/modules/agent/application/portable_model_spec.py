@@ -85,6 +85,8 @@ def validate_portable_model_spec(value):
                 raise ValidationError(
                     "Portable Model capability config must be an object"
                 )
+            if capability.get("source") is not None and not isinstance(capability["source"], str):
+                raise ValidationError("Portable Model capability source must be a string")
     for key in ("metadata", "pricing"):
         if key in value and not isinstance(value[key], dict):
             raise ValidationError("Portable Model metadata and pricing must be objects")

@@ -1,8 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { AlertTriangle, Cable, Cpu, Database, Pencil, RotateCcw, ShieldOff, Trash2 } from 'lucide-react'
+import { AlertTriangle, Archive, Cable, Cpu, Database, Info, Pencil, RotateCcw, ShieldOff, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { Alert, AlertDescription, AlertTitle, DialogFooter, SectionBlock, TechnicalListItem } from '@woobe/ui'
+import { Alert, AlertDescription, AlertTitle, DialogBody, DialogContextBar, DialogFooter, ReadOnlyField, SectionBlock, SegmentedControl, TechnicalListItem } from '@woobe/ui'
 
 import { ErrorState } from '@/components/common/ErrorState'
 import { LoadingState } from '@/components/common/LoadingState'
@@ -24,6 +24,8 @@ import { RotateProviderCredentialDialog } from '@/features/provider-credentials/
 import { useCredentials, useUpdateCredential } from '@/features/provider-credentials/hooks'
 import type { ProviderCredential } from '@/features/provider-credentials/types'
 import { modelProviderLabel } from '@/features/provider-credentials/providers'
+import { ConfigurationUsageDialog } from '@/features/projects/components/ConfigurationUsageDialog'
+import type { ProjectEnvironment } from '@/features/projects/types'
 import { useProviderModels } from '@/features/provider-models/hooks'
 import type { ProviderModel } from '@/features/provider-models/types'
 import { get } from '@/lib/api/client'
@@ -191,58 +193,116 @@ function CredentialDetailsDialog({
   onArchive: () => void
   onRevoke: () => void
 }) {
+  const [section, setSection] = useState('overview')
+  const [accessOpen, setAccessOpen] = useState(false)
+  const [accessEnvironment, setAccessEnvironment] = useState<ProjectEnvironment>('draft')
+  useEffect(() => {
+    if (open) {
+      setSection('overview')
+      setAccessOpen(false)
+    }
+  }, [open, credential?.id])
   if (!credential) return null
+  const keyName = credential.authentication?.fields.api_key.key
   const baseUrl = String(metadataOf(credential).base_url || 'Default provider endpoint')
   const generationModels = attachedModels.filter((model) => !isEmbeddingModel(model) && !isArchived(model))
   const embeddingModels = attachedModels.filter((model) => isEmbeddingModel(model) && !isArchived(model))
 
   return (
-    <Dialog open={open} onClose={onClose} title={credential.name}>
-      <div className="grid gap-ui-md">
-        <SectionBlock
-          title={modelProviderLabel(credential.provider)}
-          description={baseUrl}
-          density="compact"
-          actions={<StatusBadge status={credential.status || 'active'} size="compact" />}
-        >
-          <p className="font-mono text-system-meta text-muted-foreground">Created · {formatDate(credential.created_at)}</p>
-        </SectionBlock>
-
-        <SectionBlock title="Connected models" description="Models currently bound to this Project provider connection." density="compact">
-          <div className="grid gap-ui-md sm:grid-cols-2">
-            <div className="grid content-start gap-ui-xs">
-              <p className="font-mono text-system-meta font-medium uppercase tracking-ui-label text-muted-foreground">Generation</p>
-              {generationModels.length === 0 ? (
-                <p className="font-sans text-product-caption text-muted-foreground">No generation models.</p>
-              ) : generationModels.map((model) => (
-                <TechnicalListItem key={model.id} density="compact" label={model.name} description={model.model} />
-              ))}
+    <>
+      <Dialog open={open} onClose={onClose} title="Credential settings" variant="workspace" contentClassName="flex min-h-0 flex-1 flex-col">
+        <DialogContextBar>
+          <div className="flex min-w-0 items-start gap-ui-md">
+            <div className="flex h-control-nav w-control-nav shrink-0 items-center justify-center rounded-control border border-primary/25 bg-primary/[0.08] text-primary-light">
+              <Cable className="h-icon w-icon" />
             </div>
-            <div className="grid content-start gap-ui-xs">
-              <p className="font-mono text-system-meta font-medium uppercase tracking-ui-label text-muted-foreground">Embedding</p>
-              {embeddingModels.length === 0 ? (
-                <p className="font-sans text-product-caption text-muted-foreground">No embedding models.</p>
-              ) : embeddingModels.map((model) => (
-                <TechnicalListItem key={model.id} density="compact" label={model.name} description={model.model} />
-              ))}
+            <div className="min-w-0">
+              <div className="flex min-w-0 flex-wrap items-center gap-ui-sm">
+                <h3 className="min-w-0 max-w-full break-words font-mono text-system-heading font-medium text-accent-foreground">{credential.name}</h3>
+                <StatusBadge status={credential.status || 'active'} size="compact" />
+              </div>
+              <div className="mt-ui-xs flex flex-wrap gap-x-ui-md gap-y-ui-xs font-mono text-system-meta text-muted-foreground">
+                <span>{modelProviderLabel(credential.provider)}</span>
+                <span>Project provider connection</span>
+              </div>
             </div>
           </div>
-        </SectionBlock>
+          <div className="mt-ui-sm min-w-0 overflow-x-auto">
+            <SegmentedControl
+              ariaLabel="Credential settings sections"
+              value={section}
+              onValueChange={setSection}
+              items={[
+                { value: 'overview', label: 'Overview', icon: <Info className="h-icon w-icon" /> },
+                { value: 'models', label: 'Connected models', icon: <Cpu className="h-icon w-icon" /> },
+                { value: 'lifecycle', label: 'Lifecycle', icon: <Archive className="h-icon w-icon" /> },
+              ]}
+            />
+          </div>
+        </DialogContextBar>
+
+        <DialogBody spacing="workspace">
+          {section === 'overview' ? (
+            <section aria-label="Connection overview" className="grid min-w-0 gap-ui-md lg:grid-cols-2">
+              <SectionBlock title="Connection details" description="Provider identity and endpoint used by this connection." density="compact">
+                <div className="grid gap-ui-md sm:grid-cols-2">
+                  <ReadOnlyField label="Provider" value={modelProviderLabel(credential.provider)} />
+                  <ReadOnlyField label="Created" value={formatDate(credential.created_at)} />
+                  <ReadOnlyField label="Endpoint" value={baseUrl} className="sm:col-span-2" />
+                  <ReadOnlyField label="Last validated" value={credential.last_validated_at ? formatDate(credential.last_validated_at) : 'Not externally validated'} className="sm:col-span-2" />
+                </div>
+              </SectionBlock>
+              <SectionBlock title="Access and key values" description={keyName ? 'Use requires a saved key value and approval for this connection in the same environment.' : 'Rotate the stored key to replace the value used by this connection.'} density="compact">
+                <div className="grid gap-ui-md">
+                  {keyName ? <ReadOnlyField label="Configuration key" value={keyName} description="Values and approvals are managed separately for Draft, Staging and Production." /> : null}
+                  <div className="flex flex-wrap gap-ui-sm">
+                    {keyName && <Button type="button" variant="outline" onClick={() => setAccessOpen(true)}>Manage approvals</Button>}
+                    <Button type="button" variant="outline" onClick={onRotate} disabled={credential.status !== 'active'}><RotateCcw className="h-icon w-icon" />{credential.authentication ? 'Manage key values' : 'Rotate'}</Button>
+                  </div>
+                </div>
+              </SectionBlock>
+            </section>
+          ) : section === 'models' ? (
+            <section aria-label="Connected models" className="grid min-w-0 gap-ui-md md:grid-cols-2">
+              <SectionBlock title="Generation models" description={`${generationModels.length} connected to this provider connection.`} density="compact">
+                <div className="grid gap-ui-sm">
+                  {generationModels.length === 0 ? <p className="font-sans text-product-caption text-muted-foreground">No generation models.</p> : generationModels.map((model) => (
+                    <TechnicalListItem key={model.id} density="compact" label={model.name} description={model.model} />
+                  ))}
+                </div>
+              </SectionBlock>
+              <SectionBlock title="Embedding models" description={`${embeddingModels.length} connected to this provider connection.`} density="compact">
+                <div className="grid gap-ui-sm">
+                  {embeddingModels.length === 0 ? <p className="font-sans text-product-caption text-muted-foreground">No embedding models.</p> : embeddingModels.map((model) => (
+                    <TechnicalListItem key={model.id} density="compact" label={model.name} description={model.model} />
+                  ))}
+                </div>
+              </SectionBlock>
+            </section>
+          ) : (
+            <section aria-label="Connection lifecycle" className="grid min-w-0 gap-ui-md md:grid-cols-2">
+              <SectionBlock title="Revoke connection" description="Stop this connection from being used by linked models. Review the affected resources before confirming." density="compact">
+                <Button type="button" variant="outline" onClick={onRevoke} disabled={credential.status === 'revoked'} className="text-warning hover:text-warning"><ShieldOff className="h-icon w-icon" />Revoke</Button>
+              </SectionBlock>
+              <SectionBlock title="Archive connection" description="Remove this connection from the active list. References must be removed before it can be archived." density="compact">
+                <Button type="button" variant="outline" onClick={onArchive} className="text-error hover:text-error"><Trash2 className="h-icon w-icon" />Archive</Button>
+              </SectionBlock>
+            </section>
+          )}
+        </DialogBody>
 
         <DialogFooter
-          className="-mx-ui-panel-inset -mb-ui-panel-inset mt-ui-xs"
           meta={<span className="font-mono text-system-meta text-muted-foreground">{generationModels.length} generation · {embeddingModels.length} embedding</span>}
           actions={(
             <>
-              <Button type="button" variant="outline" onClick={onEdit}><Pencil className="h-icon w-icon" />Edit</Button>
-              <Button type="button" variant="outline" onClick={onRotate} disabled={credential.status !== 'active'}><RotateCcw className="h-icon w-icon" />{credential.authentication ? 'Configure environments' : 'Rotate'}</Button>
-              <Button type="button" variant="outline" onClick={onRevoke} disabled={credential.status === 'revoked'} className="text-warning hover:text-warning"><ShieldOff className="h-icon w-icon" />Revoke</Button>
-              <Button type="button" variant="outline" onClick={onArchive} className="text-error hover:text-error"><Trash2 className="h-icon w-icon" />Archive</Button>
+              <Button type="button" variant="outline" onClick={onClose}>Close</Button>
+              <Button type="button" onClick={onEdit}><Pencil className="h-icon w-icon" />Edit connection</Button>
             </>
           )}
         />
-      </div>
-    </Dialog>
+      </Dialog>
+      {open && accessOpen && keyName && <ConfigurationUsageDialog projectId={credential.project_id} keyName={keyName} environment={accessEnvironment} onEnvironmentChange={setAccessEnvironment} consumer={{ kind: 'provider_credential', id: credential.id }} layer="nestedModal" onClose={() => setAccessOpen(false)} />}
+    </>
   )
 }
 

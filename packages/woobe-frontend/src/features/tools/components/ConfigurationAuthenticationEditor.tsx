@@ -3,8 +3,8 @@ import { useId } from 'react'
 import { ConfigurationReferenceSelector } from '@/features/projects/components/ConfigurationReferenceSelector'
 import type { RemoteAuthentication } from '../types'
 
-export function ConfigurationAuthenticationEditor({ projectId, value, onChange }: {
-  projectId: string; value: RemoteAuthentication; onChange: (value: RemoteAuthentication) => void
+export function ConfigurationAuthenticationEditor({ projectId, value, onChange, toolId }: {
+  projectId: string; value: RemoteAuthentication; onChange: (value: RemoteAuthentication) => void; toolId?: string
 }) {
   const instance = useId()
   const typeId = `${instance}-authentication-type`
@@ -19,11 +19,11 @@ export function ConfigurationAuthenticationEditor({ projectId, value, onChange }
         { value: 'none', label: 'None (public connection)' }, { value: 'api_key', label: 'API key (X-Api-Key)' },
         { value: 'bearer', label: 'Bearer token' }, { value: 'basic', label: 'Basic authentication' }, { value: 'headers', label: 'Named headers' },
       ]} /></Field>
-      <p className="text-product-small text-muted-foreground">Select remote key names. Configure their values and approved destinations in Project → Environments. Saving a connection does not test it.</p>
+      <p className="text-product-small text-muted-foreground">{value.type === 'none' ? 'This public connection uses no project keys.' : 'Before testing or running: save this tool, set key values, then approve use in Environments → Manage approvals.'}</p>
     </div>
     {Object.entries(value.fields).map(([field, reference]) => <div key={field} className="grid items-center gap-ui-sm md:grid-cols-[10rem_1fr_auto]">
       <span className="font-mono text-product-small">{field}</span>
-      <ConfigurationReferenceSelector projectId={projectId} value={reference.key} onChange={key => onChange({ ...value, fields: { ...value.fields, [field]: { source: 'project_environment', key } } })} />
+      <ConfigurationReferenceSelector projectId={projectId} showHelp={false} consumer={toolId ? { kind: 'tool', id: toolId } : undefined} value={reference.key} onChange={key => onChange({ ...value, fields: { ...value.fields, [field]: { source: 'project_environment', key } } })} />
       {value.type === 'headers' && <Button type="button" variant="ghost" onClick={() => onChange({ ...value, fields: Object.fromEntries(Object.entries(value.fields).filter(([name]) => name !== field)) })}>Remove</Button>}
     </div>)}
     {value.type === 'headers' && <Field><FieldLabel htmlFor={headerId}>Add header name</FieldLabel><Input id={headerId} placeholder="X-Client-Token" onKeyDown={event => {

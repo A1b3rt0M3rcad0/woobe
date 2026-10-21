@@ -62,6 +62,7 @@ import { ProjectSettingsDialog as Overlay54 } from '../../../packages/woobe-fron
 import { AddProviderCredentialModal as Overlay55 } from '../../../packages/woobe-frontend/src/features/provider-credentials/components/AddProviderCredentialModal'
 import { RotateProviderCredentialDialog as Overlay56 } from '../../../packages/woobe-frontend/src/features/provider-credentials/components/RotateProviderCredentialDialog'
 import { ModelSettingsModal as Overlay57 } from '../../../packages/woobe-frontend/src/features/provider-models/components/ModelSettingsModal'
+import { ProviderModelReconciliationDialog } from '../../../packages/woobe-frontend/src/features/provider-models/components/ProviderModelReconciliationDialog'
 import { RuntimeApiReferenceModal as Overlay58 } from '../../../packages/woobe-frontend/src/features/runtime-reference/RuntimeApiReferenceModal'
 import { ManageSkillsDialog as Overlay59 } from '../../../packages/woobe-frontend/src/features/skills/ManageSkillsDialog'
 import { ToolSettingsModal as Overlay60 } from '../../../packages/woobe-frontend/src/features/tools/components/ToolSettingsModal'
@@ -156,6 +157,7 @@ export const overlayCases: { id: string; source: string; component: ComponentTyp
   { id: 'AddProviderCredentialModal', source: 'packages/woobe-frontend/src/features/provider-credentials/components/AddProviderCredentialModal.tsx', component: Overlay55 as ComponentType<any> },
   { id: 'RotateProviderCredentialDialog', source: 'packages/woobe-frontend/src/features/provider-credentials/components/RotateProviderCredentialDialog.tsx', component: Overlay56 as ComponentType<any> },
   { id: 'ModelSettingsModal', source: 'packages/woobe-frontend/src/features/provider-models/components/ModelSettingsModal.tsx', component: Overlay57 as ComponentType<any> },
+  { id: 'ProviderModelReconciliationDialog', source: 'packages/woobe-frontend/src/features/provider-models/components/ProviderModelReconciliationDialog.tsx', component: ProviderModelReconciliationDialog as ComponentType<any>, props: { credentialId: 'credential-demo' } },
   { id: 'RuntimeApiReferenceModal', source: 'packages/woobe-frontend/src/features/runtime-reference/RuntimeApiReferenceModal.tsx', component: Overlay58 as ComponentType<any> },
   { id: 'ManageSkillsDialog', source: 'packages/woobe-frontend/src/features/skills/ManageSkillsDialog.tsx', component: Overlay59 as ComponentType<any> },
   { id: 'ToolSettingsModal', source: 'packages/woobe-frontend/src/features/tools/components/ToolSettingsModal.tsx', component: Overlay60 as ComponentType<any> },

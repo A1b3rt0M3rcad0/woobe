@@ -23,6 +23,7 @@ for(const width of [1440,390])test(`page creation overlays and credential lifecy
   await expect(page.getByRole('dialog')).toBeVisible();await shot(page,`create-chat-surface-${width}`);await page.keyboard.press('Escape')
   await page.goto(`${root}/credentials`);await page.getByRole('button',{name:'Open provider connection Development provider'}).click()
   await expect(page.getByRole('dialog')).toBeVisible();await shot(page,`credential-details-${width}`)
+  await page.getByRole('button',{name:'Lifecycle',exact:true}).click()
   await page.getByRole('button',{name:'Revoke',exact:true}).click()
   const revoke = page.getByRole('dialog',{name:'Revoke credential',exact:true})
   await expect(revoke).toBeVisible()
@@ -30,6 +31,7 @@ for(const width of [1440,390])test(`page creation overlays and credential lifecy
   await shot(page,`credential-revoke-${width}`);await page.keyboard.press('Escape')
   await expect(revoke).not.toBeVisible()
   await page.getByRole('button',{name:'Open provider connection Development provider'}).click()
+  await page.getByRole('button',{name:'Lifecycle',exact:true}).click()
   await page.getByRole('button',{name:'Archive',exact:true}).click();await shot(page,`credential-archive-${width}`)
 })
 

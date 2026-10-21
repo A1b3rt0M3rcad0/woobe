@@ -18,7 +18,7 @@ export function AgentExternalContextSettings() {
 
   return (
     <div className="min-w-0 max-w-full p-ui-sm 2xl:p-ui-md">
-      <section className="min-w-0 max-w-full rounded-container border border-border bg-surface/[0.72]">
+      <section aria-label="External Context" className="min-w-0 max-w-full rounded-container border border-border bg-surface/[0.72]">
         <PanelHeader
           icon={<Braces className="h-icon w-icon" />}
           title="External Context"

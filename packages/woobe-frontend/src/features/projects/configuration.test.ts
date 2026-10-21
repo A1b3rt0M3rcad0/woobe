@@ -1,7 +1,7 @@
 import { expect, it, vi } from 'vitest'
 vi.mock('@/lib/api/client', () => ({ del: vi.fn(), get: vi.fn(), patch: vi.fn(), post: vi.fn(), put: vi.fn() }))
-import { checkConfigurationDeletion, configurationKeyMetadata, configurationReturnPath, deleteConfiguration, getConfigurationReadiness, updateConfiguration, type ConfigurationKey } from './configuration'
-import { del, get, patch } from '@/lib/api/client'
+import { checkConfigurationDeletion, configurationKeyMetadata, configurationReturnPath, deleteConfiguration, getConfigurationReadiness, grantConfigurationUse, updateConfiguration, type ConfigurationKey, type ConfigurationConsumer, type ConfigurationUsePolicy } from './configuration'
+import { del, get, patch, post } from '@/lib/api/client'
 it('keeps execution return navigation in the same Project', () => {
   const origin = 'https://woobe.test'
   expect(configurationReturnPath('/projects/p', 'p', origin)).toBe('/projects/p')
@@ -56,4 +56,16 @@ it('finds the exact key across metadata pages and rejects a response for another
   expect(get).toHaveBeenLastCalledWith('/core/projects/p/configuration/keys', { params: { environment: 'staging', search: 'API_KEY', status: 'all', offset: 50, limit: 50 } })
   vi.mocked(get).mockResolvedValue({ environment: 'production', items: [key] })
   await expect(configurationKeyMetadata('p', key, 'staging')).rejects.toThrow('could not be verified')
+})
+
+it.each([false, true])('preserves active approvals and never reactivates revoked environments implicitly (%s)', async revoked => {
+  const row: ConfigurationConsumer = { consumer_kind: 'provider_credential', consumer_id: 'connection', definition_revision: '1',
+    field_path: '/authentication/fields/api_key', destination: 'https://api.deepseek.com', required: true }
+  const existing: ConfigurationUsePolicy = { id: 'policy', consumer_kind: row.consumer_kind, consumer_scope: row.consumer_id,
+    destination: 'https://api.deepseek.com/', field_paths: ['/previous-field'], environments: ['staging'], revision: 4, revoked }
+  await grantConfigurationUse('p', key.id, row, 'draft', existing)
+  expect(post).toHaveBeenLastCalledWith('/core/projects/p/configuration/use-policies', {
+    key_id: key.id, consumer_kind: row.consumer_kind, consumer_scope: row.consumer_id, destination: row.destination,
+    environments: revoked ? ['draft'] : ['staging', 'draft'], field_paths: revoked ? [row.field_path] : ['/previous-field', row.field_path], expected_revision: 4,
+  })
 })

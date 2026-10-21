@@ -62,6 +62,11 @@ class ProjectConfigurationService:
             if project is None:
                 raise NotFoundError("Project not found")
             environments = arguments.get("environments") or [arguments.get("environment")]
+            if action in {"usage", "list_use_policies"}:
+                # Editable policy evidence includes all of a policy's environments.
+                # An environment-limited reader may inspect its key summaries,
+                # but cannot read another environment's full policy evidence.
+                environments = ["draft", "staging", "production"]
             if action.startswith("migration_"):
                 # Legacy source semantics span all three routes. A permission
                 # restricted to Draft cannot authorize a cross-environment cutover.

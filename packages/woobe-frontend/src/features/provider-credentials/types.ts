@@ -2,6 +2,7 @@ export type ProviderRemoteAuthentication = { type: 'api_key'; fields: { api_key:
 export interface ProviderCredential {
   authentication?: { type: 'api_key'; fields: { api_key: { source: 'project_environment' | 'legacy_configuration'; key: string; alias_id?: string } } } | null
   binding_revision?: number
+  supports_embedding?: boolean | null
   id: string
   project_id: string
   provider: string

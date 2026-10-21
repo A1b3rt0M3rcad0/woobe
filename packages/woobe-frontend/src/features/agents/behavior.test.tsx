@@ -98,6 +98,42 @@ beforeEach(() => {
 afterEach(async () => { await act(async () => root.unmount()); client.clear(); container.remove(); vi.unstubAllGlobals() })
 
 describe('Behavior editor contracts', () => {
+  it.each(['standalone', 'network'])('changes primary and fallback Models in the %s Draft and saves their bindings', async surface => {
+    fixture.credentials = [
+      { id: 'original-connection', provider: 'openai', name: 'Original connection', status: 'active' },
+      { id: 'replacement-connection', provider: 'deepseek', name: 'Replacement connection', status: 'active', metadata: { base_url: 'https://api.deepseek.com' } },
+    ]
+    fixture.models = [
+      { id: 'original-model', provider_credential_id: 'original-connection', provider: 'openai', model: 'original', name: 'Original model', model_type: 'generation', status: 'active' },
+      { id: 'replacement-model', provider_credential_id: 'replacement-connection', provider: 'deepseek', model: 'deepseek-chat', name: 'Replacement model', model_type: 'generation', status: 'active' },
+    ]
+    await renderEditor(surface, { ...agent, provider_model_id: 'original-model', provider_credential_id: 'original-connection', fallback_provider_model_id: 'original-model', fallback_credential_id: 'original-connection' })
+    await click(button('Execution'))
+    await click(button('Model'))
+    const chooseReplacement = async (target: string) => {
+      await click(button(`Change ${target} model`))
+      const row = [...document.querySelectorAll<HTMLElement>('[role="dialog"] [role="button"]')].find(item => item.textContent?.includes('Replacement model'))
+      expect(row).toBeTruthy()
+      await click(row!)
+      expect(document.querySelector('[role="dialog"]')).toBeNull()
+    }
+    await chooseReplacement('primary')
+    await chooseReplacement('fallback')
+    await click(button('Save'))
+    expect(fixture.save).toHaveBeenLastCalledWith(expect.objectContaining({
+      provider_model_id: 'replacement-model', provider_credential_id: 'replacement-connection', provider: 'deepseek', model: 'deepseek-chat',
+      fallback_provider_model_id: 'replacement-model', fallback_credential_id: 'replacement-connection', fallback_provider: 'deepseek', fallback_model: 'deepseek-chat',
+    }))
+    expect(fixture.save.mock.calls[fixture.save.mock.calls.length - 1][0]).not.toHaveProperty('model_spec_snapshot')
+    await click(button('Remove fallback model'))
+    await click(button('Remove primary model'))
+    await click(button('Save'))
+    expect(fixture.save).toHaveBeenLastCalledWith(expect.objectContaining({
+      provider_model_id: null, provider_credential_id: null, provider: '', model: '',
+      fallback_provider_model_id: undefined, fallback_credential_id: undefined, fallback_provider: undefined, fallback_model: undefined,
+    }))
+  })
+
   it.each(['standalone', 'network'])('allows %s Draft to adopt a Model update without an unrelated edit', async surface => {
     fixture.models = [{ id: 'model', project_id: 'project', provider_credential_id: 'credential',
       model: 'test', name: 'Updated model', spec_hash: 'new-model-spec', status: 'active' }]

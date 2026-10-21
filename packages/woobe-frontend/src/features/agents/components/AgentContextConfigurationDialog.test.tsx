@@ -97,7 +97,13 @@ beforeEach(() => {
   fixture.state.runtimeConfig = { timeout_seconds: 30, context: { budget: { runtime_reserve_units: 1000 } } }
   fixture.setField.mockReset()
   fixture.updateModel.mockReset().mockImplementation(async (id: string, data: UpdateProviderModelRequest) => {
-    fixture.models = fixture.models.map(item => item.id === id ? { ...item, ...data } : item)
+    // Emulate the backend's normalized ModelSpec response, rather than treating
+    // the authoring override patch as an already resolved read model.
+    fixture.models = fixture.models.map(item => item.id === id ? { ...item, ...data,
+      spec: { operations: ['language.generate'], input_modalities: ['text'], output_modalities: ['text'],
+        limits: data.metadata?.model_spec_overrides?.limits || {},
+        pricing: data.metadata?.model_spec_overrides?.pricing || {} },
+    } : item)
     return fixture.models.find(item => item.id === id)
   })
 })
@@ -120,8 +126,11 @@ describe('Context Budget capacity configuration', () => {
 
     expect(fixture.updateModel).toHaveBeenCalledWith('primary', expect.objectContaining({
       metadata: expect.objectContaining({
-        context_window: 65536, max_output_tokens: 4096, capability_source: 'manual', custom_note: 'preserve',
-        pricing: expect.objectContaining({ input_cost_per_1m_tokens: 0.1, output_cost_per_1m_tokens: 0.2 }),
+        custom_note: 'preserve',
+        model_spec_overrides: expect.objectContaining({
+          limits: { context_window: 65536, max_output_tokens: 4096 },
+          pricing: expect.objectContaining({ input_cost_per_1m_tokens: 0.1, output_cost_per_1m_tokens: 0.2 }),
+        }),
       }),
     }))
     expect(document.body.textContent).toContain('60,440')
@@ -139,7 +148,7 @@ describe('Context Budget capacity configuration', () => {
     expect(input('Context Window').value).toBe('65536')
     expect(input('Maximum output').value).toBe('4096')
     await click('Save changes')
-    expect(fixture.models[0].metadata).toMatchObject({ context_window: 65536, max_output_tokens: 4096 })
+    expect(fixture.models[0].spec?.limits).toMatchObject({ context_window: 65536, max_output_tokens: 4096 })
   })
 
   it('configures the fallback independently and previews its smaller budget', async () => {

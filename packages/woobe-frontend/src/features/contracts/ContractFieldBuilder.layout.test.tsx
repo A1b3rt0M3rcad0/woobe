@@ -22,7 +22,7 @@ describe('ContractFieldBuilder responsive layout', () => {
     expect(markup).not.toContain('overflow-x')
   })
 
-  it('uses the same compact row grammar for External Context with its own contract controls', () => {
+  it('labels every External Context control independently of the wide-screen header', () => {
     const markup = renderToStaticMarkup(
       <ContractFieldBuilder
         kind="external"
@@ -37,19 +37,16 @@ describe('ContractFieldBuilder responsive layout', () => {
       />,
     )
 
-    expect(markup).toContain('grid-cols-[minmax(88px,1fr)_78px_82px_42px_46px_28px_28px]')
-    expect(markup).toContain('Name')
-    expect(markup).toContain('Type')
-    expect(markup).toContain('Scope')
-    expect(markup).toContain('Req.')
-    expect(markup).toContain('Model')
+    for (const label of ['Field 1 name', 'Field customer_id type', 'Field customer_id scope', 'Field customer_id required', 'Field customer_id model visibility', 'Remove customer_id']) {
+      expect(markup).toContain(`aria-label="${label}"`)
+    }
     expect(markup).toContain('aria-label="Edit customer_id description"')
     expect(markup).not.toContain('<textarea')
     expect(markup).not.toContain('Customer identity for the current conversation')
     expect(markup).not.toContain('overflow-x')
   })
 
-  it('keeps ten External Context fields at one compact row per field', () => {
+  it('keeps descriptions in an on-demand editor when there are ten External Context fields', () => {
     const rows = Array.from({ length: 10 }, (_, index) => ({
       name: `field_${index + 1}`,
       type: 'string' as const,
