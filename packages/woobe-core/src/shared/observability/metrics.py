@@ -34,6 +34,40 @@ class RuntimeMetrics:
         self._queue_lag_seconds: dict[str, float] = {}
         self._outbox_retries: dict[str, int] = defaultdict(int)
         self._inbox_retries: dict[str, int] = defaultdict(int)
+        self._artifact_operations: dict[tuple[str, str], int] = defaultdict(int)
+        self._artifact_operation_duration: dict[tuple[str, str], float] = defaultdict(float)
+        self._artifact_operation_count: dict[tuple[str, str], int] = defaultdict(int)
+        self._artifact_bytes: dict[tuple[str, str], int] = defaultdict(int)
+
+    _ARTIFACT_OPERATIONS = frozenset({
+        "list", "search", "read", "download", "upload_part", "publish",
+        "processing", "index", "model_call", "authorization", "write",
+        "retention",
+    })
+    _ARTIFACT_OUTCOMES = frozenset({"success", "error", "denied", "uncertain"})
+    _ARTIFACT_BYTE_DIRECTIONS = frozenset({"read", "transfer", "stored"})
+
+    def observe_artifact_operation(
+        self,
+        *,
+        operation: str,
+        outcome: str,
+        duration_seconds: float,
+        byte_count: int = 0,
+        byte_direction: str | None = None,
+    ) -> None:
+        """Record bounded operational labels; object and tenant IDs are never labels."""
+        operation_key = operation if operation in self._ARTIFACT_OPERATIONS else "unknown"
+        outcome_key = outcome if outcome in self._ARTIFACT_OUTCOMES else "error"
+        duration = duration_seconds if math.isfinite(duration_seconds) and duration_seconds >= 0 else 0.0
+        size = byte_count if type(byte_count) is int and byte_count >= 0 else 0
+        with self._lock:
+            key = (operation_key, outcome_key)
+            self._artifact_operations[key] += 1
+            self._artifact_operation_count[key] += 1
+            self._artifact_operation_duration[key] += duration
+            if byte_direction in self._ARTIFACT_BYTE_DIRECTIONS and size:
+                self._artifact_bytes[(operation_key, byte_direction)] += size
 
     def observe_http(self, *, method: str, route: str, status_code: int, duration_seconds: float) -> None:
         route_key = route if route.startswith("/") else "unknown"
@@ -99,6 +133,10 @@ class RuntimeMetrics:
             queue_lag = dict(self._queue_lag_seconds)
             outbox_retries = dict(self._outbox_retries)
             inbox_retries = dict(self._inbox_retries)
+            artifact_operations = dict(self._artifact_operations)
+            artifact_operation_count = dict(self._artifact_operation_count)
+            artifact_operation_duration = dict(self._artifact_operation_duration)
+            artifact_bytes = dict(self._artifact_bytes)
 
         lines = [
             "# HELP woobe_http_requests_total HTTP requests by route and status.",
@@ -159,6 +197,26 @@ class RuntimeMetrics:
         ])
         for worker, value in sorted(inbox_retries.items()):
             lines.append("woobe_inbox_retries_total" + _labels(worker=worker) + f" {value}")
+        lines.extend([
+            "# HELP woobe_artifact_operations_total Artifact operations by bounded operation and outcome.",
+            "# TYPE woobe_artifact_operations_total counter",
+        ])
+        for (operation, outcome), value in sorted(artifact_operations.items()):
+            lines.append("woobe_artifact_operations_total" + _labels(operation=operation, outcome=outcome) + f" {value}")
+        lines.extend([
+            "# HELP woobe_artifact_operation_duration_seconds Artifact operation latency.",
+            "# TYPE woobe_artifact_operation_duration_seconds summary",
+        ])
+        for (operation, outcome), value in sorted(artifact_operation_count.items()):
+            label_set = _labels(operation=operation, outcome=outcome)
+            lines.append(f"woobe_artifact_operation_duration_seconds_count{label_set} {value}")
+            lines.append(f"woobe_artifact_operation_duration_seconds_sum{label_set} {artifact_operation_duration[(operation, outcome)]:.9f}")
+        lines.extend([
+            "# HELP woobe_artifact_bytes_total Artifact bytes by bounded operation and direction.",
+            "# TYPE woobe_artifact_bytes_total counter",
+        ])
+        for (operation, direction), value in sorted(artifact_bytes.items()):
+            lines.append("woobe_artifact_bytes_total" + _labels(operation=operation, direction=direction) + f" {value}")
         lines.extend([
             "# HELP woobe_db_pool_size Configured SQLAlchemy pool size.",
             "# TYPE woobe_db_pool_size gauge",

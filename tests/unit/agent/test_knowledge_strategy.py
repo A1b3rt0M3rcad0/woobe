@@ -2,7 +2,12 @@ from __future__ import annotations
 
 import pytest
 
-from modules.agent.application.interfaces.knowledge import KnowledgeStrategy
+from modules.agent.application.interfaces.knowledge import (
+    KnowledgeRequest,
+    KnowledgeStrategy,
+)
+from modules.agent.application.rag.no_knowledge_strategy import NoKnowledgeStrategy
+from modules.agent.infra.execution.runtime_preparation import prepare_rag_binding
 from modules.agent.application.knowledge_strategy_config import (
     canonicalize_knowledge_strategy_runtime_config,
     knowledge_strategy_from_runtime_config,
@@ -28,6 +33,7 @@ def test_explicit_knowledge_strategy_is_normalized_and_validated() -> None:
         )
         == "rag"
     )
+    assert knowledge_strategy_from_runtime_config({"knowledge_strategy": " NONE "}) == "none"
 
     with pytest.raises(ValidationError, match="Unsupported knowledge strategy"):
         knowledge_strategy_from_runtime_config(
@@ -61,8 +67,54 @@ def test_knowledge_strategy_registry_resolves_runtime_implementation() -> None:
 def test_knowledge_strategy_catalog_describes_default_algorithm() -> None:
     catalog = list_knowledge_strategies()
 
-    assert len(catalog) == 1
-    assert catalog[0]["name"] == "rag"
+    assert [item["name"] for item in catalog] == ["rag", "none"]
     assert catalog[0]["is_default"] is True
     assert catalog[0]["capabilities"]
     assert catalog[0]["limitations"]
+    assert catalog[1]["is_default"] is False
+
+
+@pytest.mark.asyncio
+async def test_explicit_no_knowledge_strategy_never_calls_available_rag_capability():
+    class Capabilities:
+        available = True
+
+        async def retrieve(self, *, query):
+            raise AssertionError(f"Unexpected RAG call: {query}")
+
+    strategy = build_knowledge_strategy_registry().resolve("none")
+    assert isinstance(strategy, NoKnowledgeStrategy)
+    result = await strategy.retrieve(
+        KnowledgeRequest(conversation=object(), runtime_config={"rag": {}}),
+        Capabilities(),
+    )
+    assert result.content is None
+    assert result.found is False
+    assert result.metadata == {"knowledge_strategy": "none"}
+
+
+@pytest.mark.asyncio
+async def test_no_knowledge_skips_even_a_stale_vector_binding_before_repository_access():
+    agent = type("Agent", (), {"settings": {
+        "runtime_config": {"knowledge_strategy": "none"},
+        "knowledge_version_id": "stale-version",
+    }})()
+    assert await prepare_rag_binding(object(), agent=agent) is None
+
+
+def test_no_knowledge_does_not_enable_knowledge_requirements_in_model_runtime_plan():
+    from types import SimpleNamespace
+
+    from modules.agent.application.rag.knowledge_strategy import RAGKnowledgeStrategy
+    from modules.agent.infra.execution.strategy_runtime.builder import (
+        _configured_knowledge_strategy,
+    )
+
+    assert _configured_knowledge_strategy(SimpleNamespace(
+        knowledge_strategy=NoKnowledgeStrategy(),
+        knowledge_retrieve=lambda **_: None,
+    )) is None
+    assert _configured_knowledge_strategy(SimpleNamespace(
+        knowledge_strategy=RAGKnowledgeStrategy(),
+        knowledge_retrieve=lambda **_: None,
+    )) == "rag"

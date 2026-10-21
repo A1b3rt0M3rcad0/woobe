@@ -1,0 +1,6 @@
+package manifest
+
+// Schema describes the implemented explicit-step format, not semantic resource kinds.
+func Schema() map[string]any {
+	return map[string]any{"$schema": "https://json-schema.org/draft/2020-12/schema", "$id": "urn:woobe:manifest:steps:1", "type": "object", "additionalProperties": false, "required": []string{"schema_version", "steps"}, "properties": map[string]any{"schema_version": map[string]any{"const": "1"}, "workspace_id": map[string]any{"type": "string"}, "project_id": map[string]any{"type": "string"}, "steps": map[string]any{"type": "array", "minItems": 1, "maxItems": 1000, "items": map[string]any{"type": "object", "additionalProperties": false, "required": []string{"id", "command"}, "properties": map[string]any{"id": map[string]any{"type": "string", "pattern": "^[a-zA-Z0-9_-]{1,128}$"}, "command": map[string]any{"type": "string", "minLength": 1}, "args": map[string]any{"type": "array", "items": map[string]any{"type": "string"}}, "body": map[string]any{"type": "object", "description": "Configuration fields only; sensitive values require exact $secret_ref objects resolved only by apply"}, "depends_on": map[string]any{"type": "array", "uniqueItems": true, "items": map[string]any{"type": "string"}}, "if_match": map[string]any{"type": "string"}}}}}}
+}

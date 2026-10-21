@@ -1,0 +1,1 @@
+{"data":{"description":"Agent de suporte","id":"00000000-0000-7000-8000-000000000001","model":"gpt-4.1-mini","name":"Suporte","project_id":"00000000-0000-7000-8000-000000000010","provider":"openai","status":"draft","type":"LLM"}}

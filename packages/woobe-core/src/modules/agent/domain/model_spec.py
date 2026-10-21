@@ -57,6 +57,7 @@ class ModelCapabilityNames:
     CODE_EXECUTION = "code_execution"
     PROMPT_CACHING = "prompt_caching"
     COMPUTER_USE = "computer_use"
+    IMAGE_GENERATION = "image_generation"
 
 
 @dataclass(frozen=True, slots=True)

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from typing import Any
 
 from modules.agent.application.interfaces.http_tool_contract import (
@@ -212,6 +213,25 @@ def agent_tool_to_openai_definition(tool: Any) -> dict[str, Any]:
             or config.get("input_schema")
             or {"type": "object", "properties": {}, "required": []}
         )
+        input_schema = deepcopy(input_schema)
+        if config.get("file_bindings") and isinstance(input_schema, dict):
+            properties = input_schema.setdefault("properties", {})
+            required = input_schema.setdefault("required", [])
+            if isinstance(properties, dict) and isinstance(required, list):
+                for binding in config.get("file_bindings") or []:
+                    field_name = str(binding.get("input_name") or "")
+                    properties[field_name] = {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "properties": {
+                            "artifact_id": {"type": "string"},
+                            "revision_id": {"type": "string"},
+                        },
+                        "required": ["artifact_id", "revision_id"],
+                        "description": "Exact authorized Artifact revision reference.",
+                    }
+                    if field_name not in required:
+                        required.append(field_name)
         tool_name = config.get("tool_name", "")
         server_name = server.get("name") or server.get("url") or "remote-server"
         return {

@@ -68,6 +68,7 @@ class AgentRunRecoveryRequest:
     environment: str
     input_message: str
     attempt: int
+    input_content_parts: tuple[dict[str, Any], ...] = ()
     checkpoint: dict[str, Any] | None = None
 
 
@@ -158,6 +159,18 @@ class AgentRunRecoveryRuntime(FrozenSnapshotStructuredOutputRuntime):
             raise ConflictError("Agent Run recovery Release does not match the accepted Run")
         if run.input_message != input_dto.message:
             raise ConflictError("Agent Run recovery input does not match the accepted Run")
+        from shared.contracts.content_parts import serialize_message_content_parts
+
+        accepted_parts = list(
+            (getattr(run, "execution_snapshot", None) or {}).get("input_content_parts") or ()
+        )
+        requested_parts = serialize_message_content_parts(
+            input_dto.message, input_dto.content_parts
+        )
+        if not accepted_parts:
+            accepted_parts = [{"type": "text", "text": run.input_message}]
+        if accepted_parts != requested_parts:
+            raise ConflictError("Agent Run recovery content parts do not match the accepted Run")
         if normalize_runtime_environment(run.environment) != normalize_runtime_environment(
             input_dto.execution_context
         ):
@@ -588,7 +601,8 @@ class AgentRunRecoveryExecutor:
         input_dto = AskInput(
             project_id=request.project_id,
             agent_id=request.agent_id,
-            message=request.input_message,
+            message="" if request.input_content_parts else request.input_message,
+            content_parts=request.input_content_parts or None,
             session_id=request.session_id,
             metadata={
                 "source": "run_recovery",

@@ -14,6 +14,7 @@ export interface NetworkNode {
   capability_description: string
   position: { x: number; y: number }
   binding: NetworkAgentBindingSelector
+  artifact_actions?: string[]
 }
 
 export interface NetworkEdge {
@@ -33,6 +34,13 @@ export interface NetworkDefinition {
     max_invocations: number
     timeout_seconds: number
     tool_result_max_chars?: number
+    artifacts_enabled?: boolean
+    artifact_workspace_binding?: {
+      field: string
+      namespace: string
+      scope: 'run' | 'session'
+      actions: string[]
+    }
   }
 }
 

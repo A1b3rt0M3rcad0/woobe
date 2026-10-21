@@ -13,6 +13,7 @@ from woobe_api.http.agent.controllers.ask_agent_stream_controller import (
     commit_safe_stream,
 )
 from shared.contracts.errors import AuthenticationError, AuthorizationError
+from shared.contracts.runtime_metadata import strip_untrusted_runtime_metadata
 from shared.security.principal import ProjectApiPrincipal
 
 
@@ -49,15 +50,19 @@ async def handle_public_run_stream(
         principal.agent_id,
         principal.environment,
     )
-    metadata = dict(payload.metadata or {})
+    metadata = strip_untrusted_runtime_metadata(payload.metadata)
     metadata["server_received_at"] = datetime.now(timezone.utc).isoformat()
+    runtime_body = payload.model_dump(exclude={"metadata"})
+    if payload.content_parts is not None:
+        runtime_body["message"] = ""
     input_dto = AskInput(
-        **payload.model_dump(exclude={"metadata"}),
+        **runtime_body,
         metadata=metadata,
         project_id=principal.project_id,
         agent_id=principal.agent_id,
         execution_context=principal.environment,
     )
+    input_dto.runtime_principal = principal
 
     return StreamingResponse(
         commit_safe_stream(service, input_dto, fastapi_request),

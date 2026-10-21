@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import asdict
+
 from woobe_api.http.shared.openapi_contracts import bodyless_command_contract
 
 from collections.abc import AsyncIterator
@@ -28,6 +30,9 @@ from modules.chat_surface.entrypoint import (
     UpdateChatSurfaceRequest,
 )
 from modules.chat_surface.entrypoint import surface_payload
+from modules.artifacts.entrypoint import Action, ArtifactError, BeginUpload, Environment, ListFiles, ReadFile, Scope, UploadCreate, UploadPart, UploadRequest, build_file_service, build_upload_service
+from woobe_api.http.artifacts.transport import ArtifactDownloadResponse, byte_range, error_response
+from shared.contracts.object_storage import ObjectStorageError
 from shared.infra.errors import (
     AuthenticationError,
     AuthorizationError,
@@ -35,7 +40,11 @@ from shared.infra.errors import (
     NotFoundError,
     ValidationError,
 )
-from shared.security.principal import AuthenticatedPrincipal, ControlPlanePrincipal
+from shared.security.principal import (
+    AuthenticatedPrincipal,
+    ChatSurfaceRuntimePrincipal,
+    ControlPlanePrincipal,
+)
 from shared.security.rate_limit import SlidingWindowRateLimiter
 
 
@@ -468,6 +477,210 @@ async def list_public_messages(
     return {"success": True, "data": data}
 
 
+async def _surface_artifact_access(
+    request: Request,
+    session_id: UUID,
+    *,
+    action: Action,
+    host_origin: str | None,
+):
+    permission = "chat:history" if action in {Action.READ, Action.SEARCH} else "chat:send"
+    authorized = await _authorized_session(
+        request, session_id, permission=permission, host_origin=host_origin,
+    )
+    binding = await _service(request).artifact_access(authorized, action=action)
+    principal = ChatSurfaceRuntimePrincipal(
+        api_key_id=authorized.claims.surface_credential_id,
+        project_id=authorized.claims.project_id,
+        surface_id=authorized.claims.chat_surface_id,
+        session_id=authorized.claims.session_id,
+        target_type=authorized.claims.target_type,
+        target_id=authorized.claims.target_id,
+        target_release_id=authorized.claims.target_release_id,
+        token_epoch=authorized.claims.token_epoch,
+        expires_at=authorized.claims.expires_at,
+    )
+    return authorized, binding, principal, Scope(str(authorized.claims.project_id), Environment.PRODUCTION)
+
+
+@router.get("/v1/chat/sessions/{session_id}/artifacts/capabilities")
+async def public_artifact_capabilities(
+    session_id: UUID,
+    request: Request,
+    host_origin: str | None = Header(default=None, alias="X-Woobe-Host-Origin"),
+):
+    settings = request.app.state.settings
+    actions = []
+    for action in (Action.READ, Action.WRITE):
+        try:
+            await _surface_artifact_access(request, session_id, action=action, host_origin=host_origin)
+            actions.append(action.value)
+        except (AuthorizationError, NotFoundError, ArtifactError):
+            continue
+    return {"success": True, "data": {
+        "schema_version": "1", "actions": actions,
+        "max_upload_bytes": settings.upload_max_mb * 1024 * 1024,
+        "max_upload_part_bytes": min(settings.request_max_bytes, settings.runtime_max_request_bytes, 8 * 1024 * 1024),
+        "max_upload_parts": 4096, "downloads": ["proxy-range"],
+    }}
+
+
+@router.get("/v1/chat/sessions/{session_id}/artifacts")
+async def list_public_artifacts(
+    session_id: UUID,
+    request: Request,
+    directory: str = "",
+    limit: int = 50,
+    cursor: str | None = None,
+    host_origin: str | None = Header(default=None, alias="X-Woobe-Host-Origin"),
+):
+    _, binding, principal, scope = await _surface_artifact_access(
+        request, session_id, action=Action.READ, host_origin=host_origin,
+    )
+    page = await build_file_service().list(ListFiles(principal, scope, binding.workspace_id, directory, limit, cursor))
+    return {"success": True, "data": {
+        "schema_version": "1", "items": [asdict(item) for item in page.items],
+        "has_more": page.has_more, "next_cursor": page.next_cursor, "truncated": page.truncated,
+    }}
+
+
+@router.post("/v1/chat/sessions/{session_id}/artifacts/uploads", status_code=201)
+async def begin_public_artifact_upload(
+    session_id: UUID,
+    request: Request,
+    body: UploadCreate,
+    host_origin: str | None = Header(default=None, alias="X-Woobe-Host-Origin"),
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+):
+    if idempotency_key != body.operation_id:
+        raise ConflictError("Idempotency-Key must match the upload operation_id")
+    _, binding, principal, scope = await _surface_artifact_access(
+        request, session_id, action=Action.WRITE, host_origin=host_origin,
+    )
+    result = await build_upload_service().begin(BeginUpload(principal, scope, binding.workspace_id, body))
+    return {"success": True, "data": {"schema_version": "1", **asdict(result)}}
+
+
+@router.get("/v1/chat/sessions/{session_id}/artifacts/uploads/{upload_id}")
+async def public_artifact_upload_status(
+    session_id: UUID,
+    upload_id: str,
+    request: Request,
+    host_origin: str | None = Header(default=None, alias="X-Woobe-Host-Origin"),
+):
+    _, binding, principal, scope = await _surface_artifact_access(
+        request, session_id, action=Action.WRITE, host_origin=host_origin,
+    )
+    result = await build_upload_service().status(UploadRequest(principal, scope, binding.workspace_id, upload_id))
+    return {"success": True, "data": {"schema_version": "1", **asdict(result)}}
+
+
+@router.put("/v1/chat/sessions/{session_id}/artifacts/uploads/{upload_id}/parts")
+async def append_public_artifact_upload_part(
+    session_id: UUID,
+    upload_id: str,
+    request: Request,
+    offset: int,
+    host_origin: str | None = Header(default=None, alias="X-Woobe-Host-Origin"),
+):
+    _, binding, principal, scope = await _surface_artifact_access(
+        request, session_id, action=Action.WRITE, host_origin=host_origin,
+    )
+    settings = request.app.state.settings
+    limit = min(settings.request_max_bytes, settings.runtime_max_request_bytes, 8 * 1024 * 1024)
+    service = build_upload_service()
+    upload_request = UploadRequest(principal, scope, binding.workspace_id, upload_id)
+    await service.admit(upload_request)
+    content = bytearray()
+    async for chunk in request.stream():
+        if len(content) + len(chunk) > limit:
+            raise ConflictError("Upload part exceeds the configured proxy limit")
+        content.extend(chunk)
+    result = await service.append(UploadPart(principal, scope, binding.workspace_id, upload_id, offset, bytes(content)))
+    return {"success": True, "data": {"schema_version": "1", **asdict(result)}}
+
+
+@router.post("/v1/chat/sessions/{session_id}/artifacts/uploads/{upload_id}/finalize")
+async def finalize_public_artifact_upload(
+    session_id: UUID,
+    upload_id: str,
+    request: Request,
+    host_origin: str | None = Header(default=None, alias="X-Woobe-Host-Origin"),
+):
+    _, binding, principal, scope = await _surface_artifact_access(
+        request, session_id, action=Action.WRITE, host_origin=host_origin,
+    )
+    result = await build_upload_service().finalize(UploadRequest(principal, scope, binding.workspace_id, upload_id))
+    return {"success": True, "data": {"schema_version": "1", **asdict(result)}}
+
+
+@router.delete("/v1/chat/sessions/{session_id}/artifacts/uploads/{upload_id}")
+async def abort_public_artifact_upload(
+    session_id: UUID,
+    upload_id: str,
+    request: Request,
+    host_origin: str | None = Header(default=None, alias="X-Woobe-Host-Origin"),
+):
+    _, binding, principal, scope = await _surface_artifact_access(
+        request, session_id, action=Action.WRITE, host_origin=host_origin,
+    )
+    result = await build_upload_service().abort(UploadRequest(principal, scope, binding.workspace_id, upload_id))
+    return {"success": True, "data": {"schema_version": "1", **asdict(result)}}
+
+
+@router.get("/v1/chat/sessions/{session_id}/artifacts/{artifact_id}/revisions/{revision_id}/content")
+async def download_public_artifact(
+    session_id: UUID,
+    artifact_id: str,
+    revision_id: str,
+    request: Request,
+    host_origin: str | None = Header(default=None, alias="X-Woobe-Host-Origin"),
+):
+    _, binding, principal, scope = await _surface_artifact_access(
+        request, session_id, action=Action.READ, host_origin=host_origin,
+    )
+    service = build_file_service()
+    command = ReadFile(principal, scope, binding.workspace_id, artifact_id, revision_id)
+    snapshot = await service.resolve(command)
+    size, digest = snapshot.revision.size_bytes, snapshot.revision.sha256
+    range_header = request.headers.get("range")
+    if request.headers.get("if-range") not in {None, f'"{digest}"'}:
+        range_header = None
+    start, stop = 0, size
+    if range_header:
+        try:
+            start, stop = byte_range(range_header, size)
+        except ArtifactError as error:
+            response = error_response(error)
+            response.headers["Content-Range"] = f"bytes */{size}"
+            return response
+    snapshot, stream = await service.open_content(command, start=start, end=stop)
+    try:
+        first = await anext(stream, b"")
+    except ObjectStorageError as error:
+        raise ConflictError("Artifact content is unavailable") from error
+
+    async def content():
+        yield first
+        async for chunk in stream:
+            yield chunk
+
+    filename = snapshot.artifact.path.rsplit("/", 1)[-1]
+    from urllib.parse import quote
+    import re
+    fallback = re.sub(r"[^A-Za-z0-9._-]", "_", filename)[:150] or "artifact"
+    headers = {
+        "Cache-Control": "private, no-store", "Accept-Ranges": "bytes",
+        "Content-Length": str(stop - start), "ETag": f'"{digest}"',
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": f"attachment; filename=\"{fallback}\"; filename*=UTF-8''{quote(filename, safe='')}",
+    }
+    if range_header:
+        headers["Content-Range"] = f"bytes {start}-{stop - 1}/{size}"
+    return ArtifactDownloadResponse(content(), owned_stream=stream,
+        status_code=206 if range_header else 200, media_type=snapshot.revision.content_type, headers=headers)
+
+
 async def _consume_runtime_stream(
     service: ControlPlaneChatSurfaceService,
     *,
@@ -559,6 +772,10 @@ async def stream_public_message(
         session_source=session_source,
         created=created,
         existing_run_id=message_request.target_run_id,
+        surface_credential_id=authorized.claims.surface_credential_id,
+        token_epoch=authorized.claims.token_epoch,
+        token_expires_at=authorized.claims.expires_at,
+        content_parts=payload.content_parts,
     )
 
     try:

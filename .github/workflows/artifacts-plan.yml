@@ -1,0 +1,28 @@
+name: Artifacts implementation guard
+
+on:
+  pull_request:
+    branches: [master]
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft, edited, auto_merge_enabled]
+
+permissions:
+  contents: read
+
+jobs:
+  draft-and-series:
+    if: github.head_ref == 'feat/artifact-workspaces-document-runtime'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.14'
+      - name: Validate Draft, scope, original plan and ordered commits
+        env:
+          IMPLEMENTATION_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: python3 scripts/validate_artifacts_plan.py --head "$IMPLEMENTATION_HEAD" --event "$GITHUB_EVENT_PATH"

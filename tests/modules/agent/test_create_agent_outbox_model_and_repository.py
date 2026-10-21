@@ -1,7 +1,12 @@
 """Tests for spec 070 — create agent outbox model and repository."""
-import pytest
+from datetime import datetime, timedelta, timezone
 
+import pytest
+from sqlalchemy.dialects import postgresql
+
+from modules.agent.domain.events import AgentExecutionRequestedV1
 from modules.agent.infra.database.models import AgentOutboxEventModel
+from modules.agent.infra.messaging.event_mappers import domain_event_to_outbox
 from modules.agent.infra.database.repositories import (
     AGENT_OUTBOX_VALID_TRANSITIONS,
     SQLAlchemyAgentOutboxRepository,
@@ -147,3 +152,50 @@ class TestAgentOutboxConcurrency:
         source = inspect.getsource(SQLAlchemyAgentOutboxRepository.claim_batch)
         assert "locked_by" in source
         assert "locked_at" in source
+
+    @pytest.mark.asyncio
+    async def test_claim_batch_recovers_stale_publishing_events_atomically(self):
+        event = domain_event_to_outbox(AgentExecutionRequestedV1.create(
+            agent_id="00000000-0000-0000-0000-000000000001",
+            session_id="00000000-0000-0000-0000-000000000002",
+            payload={"action": "recover"},
+        ))
+        event.status = "publishing"
+        event.locked_at = datetime.now(timezone.utc) - timedelta(seconds=301)
+        event.locked_by = "abandoned-worker"
+
+        class Result:
+            def scalars(self):
+                return self
+
+            def all(self):
+                return [event]
+
+        class Session:
+            statement = None
+
+            async def execute(self, statement):
+                self.statement = statement
+                return Result()
+
+            async def flush(self):
+                return None
+
+        session = Session()
+        events = await SQLAlchemyAgentOutboxRepository(session).claim_batch(
+            batch_size=10,
+            locked_by="recovery-worker",
+        )
+
+        sql = str(session.statement.compile(
+            dialect=postgresql.dialect(),
+            compile_kwargs={"literal_binds": True},
+        ))
+        assert "IN ('pending', 'retryable', 'publishing')" in sql
+        assert "locked_at IS NULL" in sql
+        assert "INTERVAL '300 seconds'" in sql
+        assert "FOR UPDATE SKIP LOCKED" in sql
+        assert events == [event]
+        assert event.status == "publishing"
+        assert event.locked_by == "recovery-worker"
+        assert event.locked_at > datetime.now(timezone.utc) - timedelta(seconds=1)

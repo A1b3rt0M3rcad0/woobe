@@ -3,7 +3,7 @@ from copy import deepcopy
 from shared.contracts.asac import asac_digest
 
 
-def accepted_agent_identity(*, project_id, agent_id, session_id, environment, snapshot, continuity_policy):
+def accepted_agent_identity(*, project_id, agent_id, session_id, environment, snapshot, continuity_policy, artifact_binding=None):
     release = snapshot.get('release') or {}
     identity = {
         'schema_version':'1.0','target_type':'agent','project_id':str(project_id),
@@ -21,7 +21,25 @@ def accepted_agent_identity(*, project_id, agent_id, session_id, environment, sn
     provenance = snapshot.get('asac')
     if isinstance(provenance, dict):
         identity['asac'] = deepcopy(provenance)
+    if artifact_binding is not None:
+        identity['artifact_workspace'] = {
+            'binding_scope': artifact_binding.binding_scope,
+            'catalog_version': artifact_binding.catalog_version,
+            'actions': sorted(action.value for action in artifact_binding.actions),
+        }
     return identity
+
+
+def artifact_binding_snapshot(binding):
+    if binding is None:
+        return None
+    return {
+        'schema_version': 1,
+        'workspace_id': binding.workspace_id,
+        'catalog_version': binding.catalog_version,
+        'binding_scope': binding.binding_scope,
+        'actions': sorted(action.value for action in binding.actions),
+    }
 
 
 def output_runtime_identity(run_id):

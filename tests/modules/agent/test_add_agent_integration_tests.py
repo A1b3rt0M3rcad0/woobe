@@ -12,11 +12,13 @@ from __future__ import annotations
 import asyncio
 import inspect
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from modules.agent.domain.events import (
     AgentDomainEvent,
@@ -27,6 +29,10 @@ from modules.agent.domain.events import (
     AgentKnowledgeDocumentIndexedV1,
 )
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
+from modules.agent.infra.database.repositories import (
+    SQLAlchemyAgentInboxRepository,
+    SQLAlchemyAgentOutboxRepository,
+)
 from woobe_workers.consumers.agent.outbox_dispatcher import (
     RETRY_BACKOFF_BASE_SECONDS,
     AgentOutboxDispatcherWorker,
@@ -34,9 +40,11 @@ from woobe_workers.consumers.agent.outbox_dispatcher import (
 from woobe_workers.consumers.agent.inbox_consumer import AgentInboxConsumerWorker
 from woobe_workers.consumers.agent.inbox_processor import AgentInboxProcessorWorker
 from modules.agent.infra.messaging.event_mappers import (
+    domain_event_to_outbox,
     outbox_to_rabbit_message,
 )
 from modules.agent.infra.database.models import AgentOutboxEventModel
+import woobe_workers.consumers.agent.outbox_dispatcher as outbox_dispatcher_module
 from shared.infra.config.interface.unit_of_work import UnitOfWork
 from woobe_workers.runtime.outbox_dispatcher_base import BaseOutboxDispatcher
 from woobe_workers.runtime.inbox_consumer_base import BaseInboxConsumer
@@ -203,19 +211,24 @@ class TestAgentIntegrationDomainEvents:
 
 
 class TestAgentIntegrationUnitOfWork:
-    """Integration tests: AgentUnitOfWork structure, repository exposure, contracts."""
+    """AgentUnitOfWork owns the SQL session and its messaging repositories."""
 
     def test_uow_inherits_from_shared_unit_of_work(self):
         assert issubclass(AgentUnitOfWork, UnitOfWork)
 
-    def test_uow_exposes_all_repositories(self):
-        repo_props = [
-            "agents", "provider_credentials", "sessions", "messages",
-            "ask_jobs", "document_collections", "documents", "document_chunks",
-            "knowledge_versions", "outbox", "inbox",
-        ]
-        for prop in repo_props:
-            assert hasattr(AgentUnitOfWork, prop), f"AgentUnitOfWork missing {prop}"
+    @pytest.mark.asyncio
+    async def test_messaging_repositories_share_the_uow_session_owner(self):
+        engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+        try:
+            uow = AgentUnitOfWork(engine)
+            async with uow:
+                assert isinstance(uow.session, AsyncSession)
+                outbox = SQLAlchemyAgentOutboxRepository(uow)
+                inbox = SQLAlchemyAgentInboxRepository(uow)
+                assert outbox._session_or_uow is uow
+                assert inbox._session_or_uow is uow
+        finally:
+            await engine.dispose()
 
     def test_uow_has_commit_and_rollback(self):
         assert hasattr(AgentUnitOfWork, "commit")
@@ -229,10 +242,10 @@ class TestAgentIntegrationUnitOfWork:
         assert hasattr(AgentUnitOfWork, "__aexit__")
         assert inspect.iscoroutinefunction(AgentUnitOfWork.__aexit__)
 
-    def test_uow_accepts_session_factory(self):
+    def test_uow_accepts_configured_engine(self):
         sig = inspect.signature(AgentUnitOfWork.__init__)
         params = list(sig.parameters.keys())
-        assert "session_factory" in params
+        assert "engine" in params
 
 
 class TestAgentIntegrationOutboxFlow:
@@ -346,13 +359,60 @@ class TestAgentIntegrationOutboxDispatcher:
         assert "publisher" in params
         assert "async_engine" in params
 
-    def test_dispatcher_claim_uses_repository(self):
-        source = inspect.getsource(AgentOutboxDispatcherWorker.claim_pending)
-        assert "claim_batch" in source
+    @pytest.mark.asyncio
+    async def test_dispatcher_run_claims_through_repository_and_publishes_before_marking(self, monkeypatch):
+        event = domain_event_to_outbox(AgentExecutionRequestedV1.create(
+            agent_id=uuid4(), session_id=uuid4(), payload={"action": "dispatch"},
+        ))
+        calls = []
 
-    def test_dispatcher_publish_converts_to_rabbit_message(self):
-        source = inspect.getsource(AgentOutboxDispatcherWorker.publish)
-        assert "outbox_to_rabbit_message" in source
+        class Repository:
+            async def claim_batch(self, *, batch_size, locked_by):
+                calls.append(("claim", batch_size, locked_by))
+                event.status = "publishing"
+                event.locked_by = locked_by
+                return [event]
+
+            async def mark_published(self, event_id):
+                calls.append(("mark_published", event_id))
+
+            async def mark_retryable(self, event_id, error, available_at):
+                calls.append(("mark_retryable", event_id, error, available_at))
+
+            async def mark_dead(self, event_id, error):
+                calls.append(("mark_dead", event_id, error))
+
+        repository = Repository()
+
+        class UnitOfWork:
+            def __init__(self, _engine):
+                self.session = object()
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc_val, exc_tb):
+                return None
+
+        class Publisher:
+            async def publish(self, envelope):
+                calls.append(("publish", envelope))
+
+        monkeypatch.setattr(outbox_dispatcher_module, "AgentUnitOfWork", UnitOfWork)
+        monkeypatch.setattr(
+            outbox_dispatcher_module, "SQLAlchemyAgentOutboxRepository",
+            lambda uow: repository,
+        )
+        worker = AgentOutboxDispatcherWorker(
+            async_engine=object(), publisher=Publisher(), worker_id="dispatcher-test",
+        )
+
+        await worker.run()
+
+        expected_envelope = outbox_to_rabbit_message(event)
+        assert calls[0] == ("claim", worker.BATCH_SIZE, "dispatcher-test")
+        assert calls[1] == ("publish", expected_envelope)
+        assert calls[2] == ("mark_published", event.id)
 
     def test_retry_backoff_constant_defined(self):
         assert RETRY_BACKOFF_BASE_SECONDS == 30
@@ -402,15 +462,62 @@ class TestAgentIntegrationInboxProcessor:
 class TestAgentIntegrationFullPipeline:
     """Integration tests: full outbox->publish->consume->inbox->process pipeline."""
 
-    def test_dispatcher_delegation_chain(self):
+    @pytest.mark.asyncio
+    async def test_dispatcher_marks_failed_publish_retryable_through_repository(self, monkeypatch):
         assert issubclass(AgentOutboxDispatcherWorker, BaseOutboxDispatcher)
+        event = domain_event_to_outbox(AgentExecutionRequestedV1.create(
+            agent_id=uuid4(), session_id=uuid4(), payload={"action": "retry"},
+        ))
+        calls = []
 
-        disp_source = inspect.getsource(AgentOutboxDispatcherWorker.claim_pending)
-        assert "claim_batch" in disp_source
+        class Repository:
+            async def claim_batch(self, *, batch_size, locked_by):
+                calls.append(("claim", batch_size, locked_by))
+                event.status = "publishing"
+                event.locked_by = locked_by
+                return [event]
 
-        pub_source = inspect.getsource(AgentOutboxDispatcherWorker.publish)
-        assert "outbox_to_rabbit_message" in pub_source
-        assert "_publisher" in pub_source
+            async def mark_published(self, event_id):
+                calls.append(("mark_published", event_id))
+
+            async def mark_retryable(self, event_id, error, available_at):
+                calls.append(("mark_retryable", event_id, error, available_at))
+
+            async def mark_dead(self, event_id, error):
+                calls.append(("mark_dead", event_id, error))
+
+        repository = Repository()
+
+        class UnitOfWork:
+            def __init__(self, _engine):
+                self.session = object()
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc_val, exc_tb):
+                return None
+
+        class Publisher:
+            async def publish(self, _envelope):
+                calls.append(("publish",))
+                raise RuntimeError("broker unavailable")
+
+        monkeypatch.setattr(outbox_dispatcher_module, "AgentUnitOfWork", UnitOfWork)
+        monkeypatch.setattr(
+            outbox_dispatcher_module, "SQLAlchemyAgentOutboxRepository",
+            lambda uow: repository,
+        )
+        worker = AgentOutboxDispatcherWorker(
+            async_engine=object(), publisher=Publisher(), worker_id="dispatcher-test",
+        )
+
+        await worker.run()
+
+        assert calls[0] == ("claim", worker.BATCH_SIZE, "dispatcher-test")
+        assert calls[1] == ("publish",)
+        assert calls[2][0:3] == ("mark_retryable", event.id, "broker unavailable")
+        assert calls[2][3] > datetime.now(timezone.utc)
 
     def test_consumer_has_persist_method(self):
         cons_source = inspect.getsource(AgentInboxConsumerWorker.persist_inbox)

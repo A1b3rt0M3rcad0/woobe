@@ -19,6 +19,9 @@ from modules.agent.application.interfaces.execution import (
     InstrumentedExecutionError,
 )
 from modules.agent.application.interfaces.execution_context import current_execution
+from modules.agent.application.interfaces.tool_result_context import (
+    tool_result_context_metadata,
+)
 from modules.agent.domain.model_spec import ModelSpec, model_spec_hash
 from modules.agent.application.skill_runtime import SKILL_TOOL_NAMES
 from modules.agent.application.use_cases.tool_output_compaction import (
@@ -384,18 +387,12 @@ async def execute_tool_call(
     message = ToolMessage(
         content=llm_content,
         tool_call_id=tool_call["id"],
-        additional_kwargs={
-            "woobe_context": {
-                "source_type": "TOOL",
-                "source_ref": str(tool_call["id"]),
-                "raw_units": raw_units,
-                "selection_method": "tool_result_materialization",
-                "transformations": ["tool_output_compaction"] if compacted else [],
-                "trust": "authenticated_external",
-                "sensitivity": "internal",
-                "tool_name": tool_name,
-            }
-        },
+        additional_kwargs=tool_result_context_metadata(
+            tool_name=tool_name,
+            tool_call_id=str(tool_call["id"]),
+            raw_units=raw_units,
+            compacted=compacted,
+        ),
     )
     payload = {
         "tool_call_id": tool_call["id"],

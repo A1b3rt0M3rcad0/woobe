@@ -5,7 +5,7 @@ from typing import Any
 from uuid import UUID
 
 MAX_AUTHORITY_REVISION = 2_147_483_647
-CATALOG_REVISION = "2026-10-13.1"
+CATALOG_REVISION = "2026-10-20.1"
 SELF_CONTROL_PERMISSIONS = frozenset({"access:self", "catalog:self"})
 
 WORKSPACE_CONTROL_PERMISSIONS = frozenset(
@@ -29,6 +29,13 @@ WORKSPACE_CONTROL_PERMISSIONS = frozenset(
 
 PROJECT_CONTROL_PERMISSIONS = frozenset(
     {
+        "artifacts:read",
+        "artifacts:search",
+        "artifacts:write",
+        "artifacts:delete",
+        "artifacts:process",
+        "artifacts:transfer",
+        "artifacts:manage",
         "project:read",
         "project:update",
         "project:environment:read",
@@ -119,7 +126,7 @@ def is_read_permission(permission: str) -> bool:
     return (
         permission.endswith(":read")
         or permission in SELF_CONTROL_PERMISSIONS
-        or permission == "run:stream"
+        or permission in {"run:stream", "artifacts:search"}
     )
 
 
@@ -141,6 +148,7 @@ def system_profiles() -> dict[str, tuple[str, list[str]]]:
         ]),
         "network-editor": ("project", ["network:read", "network:write"]),
         "knowledge-editor": ("project", ["knowledge:read", "knowledge:write"]),
+        "artifact-editor": ("project", ["artifacts:read", "artifacts:search", "artifacts:write", "artifacts:process"]),
         "version-builder": (
             "project",
             ["agent:read", "agent:version", "network:read", "network:version"],

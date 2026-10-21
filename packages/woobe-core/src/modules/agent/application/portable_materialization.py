@@ -34,12 +34,14 @@ def compile_imported_agent_inputs(
         ),
         "context_manager": {"name": "stdcm"},
         "context": inspection["context_policy"],
-        "knowledge_strategy": (spec.get("knowledge") or {}).get("strategy", "rag"),
+        "knowledge_strategy": inspection["knowledge_strategy"],
         "knowledge_strategy_config": inspection["knowledge_config"] or {},
         "knowledge_strategy_config_schema_version": (spec.get("knowledge") or {}).get(
             "strategy_config_schema_version", "1"
         ),
     }
+    if inspection["artifact_capability"] is not None:
+        runtime["artifacts"] = deepcopy(inspection["artifact_capability"])
     tool_ids = [str(resources[item["ref"]]["id"]) for item in spec.get("tools", [])]
     if tool_ids:
         runtime["tools"] = {"tool_ids": tool_ids}
@@ -60,7 +62,7 @@ def compile_imported_agent_inputs(
     if skills:
         runtime["skills"] = {"bindings": skills}
     knowledge = spec.get("knowledge")
-    if knowledge:
+    if knowledge and inspection["knowledge_strategy"] != "none":
         runtime["rag"] = deepcopy(knowledge.get("rag", {}))
     prompt = spec.get("legacy_system_prompt") or ""
     if spec.get("prompt_ref"):
@@ -150,7 +152,7 @@ def compile_imported_agent_inputs(
         fields["contract_version_id"] = resources[
             "contract:" + document["metadata"]["key"]
         ]["id"]
-    if knowledge:
+    if knowledge and inspection["knowledge_strategy"] != "none":
         fields["knowledge_version_id"] = resources[
             "knowledge-version:" + document["metadata"]["key"]
         ]["id"]

@@ -1,0 +1,117 @@
+{
+  "agent_request": {
+    "message": "",
+    "content_parts": [
+      {"type": "text", "text": "Resuma este material e cite a página."},
+      {
+        "type": "artifact",
+        "ref": {"artifact_id": "artifact-source-1", "revision_id": "revision-source-2"},
+        "media_type_hint": "application/pdf"
+      }
+    ],
+    "external_context": {"course": "course-17", "turn": 9}
+  },
+  "network_request": {
+    "message": "",
+    "content_parts": [
+      {"type": "text", "text": "Resuma este material e cite a página."},
+      {
+        "type": "artifact",
+        "ref": {"artifact_id": "artifact-source-1", "revision_id": "revision-source-2"},
+        "media_type_hint": "application/pdf"
+      }
+    ],
+    "external_context": {"course": "course-17", "turn": 9}
+  },
+  "artifact_available": {
+    "protocol_version": 2,
+    "event_id": "event-artifact-1",
+    "run_id": "run-17",
+    "session_id": "session-17",
+    "run_kind": "AGENT",
+    "sequence": 1,
+    "type": "artifact.available",
+    "occurred_at": "2026-10-20T12:00:00Z",
+    "payload": {
+      "artifact_id": "artifact-output-1",
+      "revision_id": "revision-output-1",
+      "path": "result/summary.md",
+      "content_type": "text/markdown",
+      "size_bytes": 64,
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "status": "available",
+      "source_refs": [
+        {"artifact_id": "artifact-source-1", "revision_id": "revision-source-2", "source_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "locator": {"page_index": 2, "page_number": 3}}
+      ]
+    }
+  },
+  "completed": {
+    "protocol_version": 2,
+    "event_id": "event-done-1",
+    "run_id": "run-17",
+    "session_id": "session-17",
+    "run_kind": "AGENT",
+    "sequence": 2,
+    "type": "done",
+    "occurred_at": "2026-10-20T12:00:01Z",
+    "payload": {
+      "answer": "O prazo é de um ano. [p. 3]",
+      "output_artifacts": [
+        {
+          "schema_version": "1",
+          "ref": {"artifact_id": "artifact-output-1", "revision_id": "revision-output-1"},
+          "path": "result/summary.md",
+          "content_type": "text/markdown",
+          "size_bytes": 64,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "status": "available",
+          "run_id": "run-17",
+          "source_refs": [
+            {"artifact_id": "artifact-source-1", "revision_id": "revision-source-2", "source_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "locator": {"page_index": 2, "page_number": 3}}
+          ]
+        },
+        {
+          "schema_version": "1",
+          "ref": {"artifact_id": "artifact-output-2", "revision_id": "revision-output-2"},
+          "path": "result/diagram.png",
+          "content_type": "image/png",
+          "size_bytes": 128,
+          "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "status": "available",
+          "run_id": "run-17",
+          "source_refs": []
+        }
+      ],
+      "source_refs": [
+        {"artifact_id": "artifact-source-1", "revision_id": "revision-source-2", "source_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "locator": {"page_index": 2, "page_number": 3}}
+      ]
+    }
+  },
+  "image_only_completed": {
+    "protocol_version": 2,
+    "event_id": "event-image-only-1",
+    "run_id": "run-18",
+    "session_id": "session-17",
+    "run_kind": "NETWORK",
+    "sequence": 3,
+    "type": "done",
+    "occurred_at": "2026-10-20T12:01:00Z",
+    "payload": {
+      "answer": "",
+      "output_artifacts": [
+        {
+          "schema_version": "1",
+          "ref": {"artifact_id": "artifact-image-1", "revision_id": "revision-image-1"},
+          "path": "generated/image.png",
+          "content_type": "image/png",
+          "size_bytes": 128,
+          "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "status": "available",
+          "run_id": "run-18",
+          "source_refs": []
+        }
+      ],
+      "source_refs": []
+    }
+  }
+}

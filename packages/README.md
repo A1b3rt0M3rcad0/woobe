@@ -25,7 +25,7 @@ The four deployable Core container artifacts are therefore `woobe-api`, `woobe-w
 | `woobe-core` | Core bounded contexts, domain/application code, shared infrastructure, runtime contracts, module-local presentation/composition and migrations | **Woobe Core Sustainable Use License 1.0** |
 | `woobe-api` | HTTP process composition root | **Woobe Core Sustainable Use License 1.0** |
 | `woobe-workers` | Worker process composition root | **Woobe Core Sustainable Use License 1.0** |
-| `woobe-runtime-client` | Shared browser Runtime protocol/observer primitives consumed by Frontend and Embed | **Woobe Core Sustainable Use License 1.0** |
+| `woobe-runtime-client` | Shared browser Runtime protocol/observer primitives and metadata-only Artifact/SourceRef validation consumed by Frontend and Embed | **Woobe Core Sustainable Use License 1.0** |
 | `woobe-ui` | Shared UI components and design tokens | **Woobe Core Sustainable Use License 1.0** |
 | `woobe-frontend` | Administrative control-plane frontend | **Woobe Core Sustainable Use License 1.0** |
 | `woobe-embed` | Independently built and deployable ChatSurface browser artifact | **Woobe Core Sustainable Use License 1.0** |

@@ -99,7 +99,7 @@ class TestUnitOfWorkOwnership:
             + "\n".join(f"  - {v}" for v in violations)
         )
 
-    def test_uow_exposes_outbox_and_inbox(self):
+    def test_agent_uow_exposes_session_without_repository_properties(self):
         uow_files = _find_all_uow_files()
         assert len(uow_files) >= 1
 
@@ -109,19 +109,28 @@ class TestUnitOfWorkOwnership:
             except UnicodeDecodeError:
                 continue
 
-            tree = ast.parse(source)
-            outbox_props = []
-            inbox_props = []
-            for node in ast.walk(tree):
-                if isinstance(node, ast.FunctionDef) and node.name == "outbox":
-                    outbox_props.append(node)
-                if isinstance(node, ast.FunctionDef) and node.name == "inbox":
-                    inbox_props.append(node)
-
             if "agent" in uow_file.parent.as_posix().lower():
-                assert len(outbox_props) >= 1, (
-                    f"{uow_file.relative_to(PROJECT_ROOT).as_posix()}: missing outbox property"
+                tree = ast.parse(source)
+                properties = {
+                    node.name
+                    for node in ast.walk(tree)
+                    if isinstance(node, ast.FunctionDef)
+                    and any(
+                        isinstance(decorator, ast.Name) and decorator.id == "property"
+                        for decorator in node.decorator_list
+                    )
+                }
+                repository_imports = [
+                    node.module
+                    for node in ast.walk(tree)
+                    if isinstance(node, ast.ImportFrom)
+                    and node.module == "modules.agent.infra.database.repositories"
+                ]
+                rel_path = uow_file.relative_to(PROJECT_ROOT).as_posix()
+                assert "session" in properties, f"{rel_path}: missing session property"
+                assert not {"outbox", "inbox"}.intersection(properties), (
+                    f"{rel_path}: repositories must be composed outside the UnitOfWork"
                 )
-                assert len(inbox_props) >= 1, (
-                    f"{uow_file.relative_to(PROJECT_ROOT).as_posix()}: missing inbox property"
+                assert not repository_imports, (
+                    f"{rel_path}: UnitOfWork must not import repository implementations"
                 )

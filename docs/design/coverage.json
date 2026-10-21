@@ -278,6 +278,27 @@
       ]
     },
     {
+      "path": "/workspaces/:workspaceId/projects/:projectId/artifacts",
+      "component": "ArtifactsPage",
+      "kind": "rendered-page",
+      "browser_test": "tests/e2e/tests/surface-coverage.spec.ts",
+      "screenshot_scope": "Not selected: documentation intentionally retains only main pages."
+    },
+    {
+      "path": "/workspaces/:workspaceId/projects/:projectId/artifacts/:artifactWorkspaceId",
+      "component": "ArtifactsPage",
+      "kind": "rendered-page",
+      "browser_test": "tests/e2e/tests/surface-coverage.spec.ts",
+      "screenshot_scope": "Not selected: documentation intentionally retains only main pages."
+    },
+    {
+      "path": "/workspaces/:workspaceId/projects/:projectId/artifacts/:artifactWorkspaceId/files/:artifactId/revisions/:revisionId",
+      "component": "ArtifactsPage",
+      "kind": "rendered-page",
+      "browser_test": "tests/e2e/tests/surface-coverage.spec.ts",
+      "screenshot_scope": "Not selected: documentation intentionally retains only main pages."
+    },
+    {
       "path": "/workspaces/:workspaceId/projects/:projectId/tools",
       "component": "ToolsPage",
       "kind": "rendered-page",
@@ -1503,6 +1524,7 @@
     "packages/woobe-frontend/src/components/ui/Tabs.tsx",
     "packages/woobe-frontend/src/components/ui/Textarea.tsx",
     "packages/woobe-frontend/src/components/ui/WoobeDateTimePicker.tsx",
+    "packages/woobe-frontend/src/features/agents/components/AgentArtifactSettings.tsx",
     "packages/woobe-frontend/src/features/agents/components/AgentBehaviorDetails.tsx",
     "packages/woobe-frontend/src/features/agents/components/AgentBehaviorFieldDialog.tsx",
     "packages/woobe-frontend/src/features/agents/components/AgentBehaviorSettings.tsx",
@@ -1528,6 +1550,12 @@
     "packages/woobe-frontend/src/features/api-keys/components/RotateApiKeyDialog.tsx",
     "packages/woobe-frontend/src/features/appearance/ThemeProvider.tsx",
     "packages/woobe-frontend/src/features/appearance/ThemeSelect.tsx",
+    "packages/woobe-frontend/src/features/artifacts/components/ArtifactCapabilitySummary.tsx",
+    "packages/woobe-frontend/src/features/artifacts/components/ArtifactDocumentReader.tsx",
+    "packages/woobe-frontend/src/features/artifacts/components/ArtifactExplorer.tsx",
+    "packages/woobe-frontend/src/features/artifacts/components/ArtifactOutputCard.tsx",
+    "packages/woobe-frontend/src/features/artifacts/components/ArtifactWorkspaces.tsx",
+    "packages/woobe-frontend/src/features/artifacts/components/SafeMarkdown.tsx",
     "packages/woobe-frontend/src/features/asac/AsacWorkbench.tsx",
     "packages/woobe-frontend/src/features/asac/EnvironmentSelectionNotice.tsx",
     "packages/woobe-frontend/src/features/auth/AuthProvider.tsx",
@@ -1710,6 +1738,7 @@
     "packages/woobe-frontend/src/pages/AgentPlaygroundPage.tsx",
     "packages/woobe-frontend/src/pages/AgentsPage.tsx",
     "packages/woobe-frontend/src/pages/ApiKeysPage.tsx",
+    "packages/woobe-frontend/src/pages/ArtifactsPage.tsx",
     "packages/woobe-frontend/src/pages/ChatSurfacesPage.tsx",
     "packages/woobe-frontend/src/pages/CreateAgentPage.tsx",
     "packages/woobe-frontend/src/pages/CredentialsPage.tsx",
@@ -2073,6 +2102,12 @@
       "explicit_serif_uses": 0
     },
     {
+      "source": "packages/woobe-frontend/src/features/agents/components/AgentArtifactSettings.tsx",
+      "explicit_sans_uses": 1,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
       "source": "packages/woobe-frontend/src/features/agents/components/AgentBehaviorDetails.tsx",
       "explicit_sans_uses": 1,
       "explicit_mono_uses": 2,
@@ -2219,6 +2254,42 @@
     {
       "source": "packages/woobe-frontend/src/features/appearance/ThemeSelect.tsx",
       "explicit_sans_uses": 1,
+      "explicit_mono_uses": 0,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/artifacts/components/ArtifactCapabilitySummary.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 4,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/artifacts/components/ArtifactDocumentReader.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 5,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/artifacts/components/ArtifactExplorer.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 3,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/artifacts/components/ArtifactOutputCard.tsx",
+      "explicit_sans_uses": 1,
+      "explicit_mono_uses": 4,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/artifacts/components/ArtifactWorkspaces.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 2,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/features/artifacts/components/SafeMarkdown.tsx",
+      "explicit_sans_uses": 0,
       "explicit_mono_uses": 0,
       "explicit_serif_uses": 0
     },
@@ -2573,7 +2644,7 @@
     {
       "source": "packages/woobe-frontend/src/features/network/components/NetworkExecutionTree.tsx",
       "explicit_sans_uses": 1,
-      "explicit_mono_uses": 9,
+      "explicit_mono_uses": 10,
       "explicit_serif_uses": 0
     },
     {
@@ -2818,14 +2889,14 @@
     },
     {
       "source": "packages/woobe-frontend/src/features/playground/components/ChatComposer.tsx",
-      "explicit_sans_uses": 7,
-      "explicit_mono_uses": 5,
+      "explicit_sans_uses": 9,
+      "explicit_mono_uses": 14,
       "explicit_serif_uses": 0
     },
     {
       "source": "packages/woobe-frontend/src/features/playground/components/ChatMessage.tsx",
       "explicit_sans_uses": 6,
-      "explicit_mono_uses": 7,
+      "explicit_mono_uses": 9,
       "explicit_serif_uses": 0
     },
     {
@@ -3312,6 +3383,12 @@
       "source": "packages/woobe-frontend/src/pages/ApiKeysPage.tsx",
       "explicit_sans_uses": 13,
       "explicit_mono_uses": 8,
+      "explicit_serif_uses": 0
+    },
+    {
+      "source": "packages/woobe-frontend/src/pages/ArtifactsPage.tsx",
+      "explicit_sans_uses": 0,
+      "explicit_mono_uses": 0,
       "explicit_serif_uses": 0
     },
     {

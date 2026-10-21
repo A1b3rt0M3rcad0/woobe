@@ -1,0 +1,245 @@
+{
+  "$defs": {
+    "ArtifactReference": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$",
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "revision_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$",
+          "title": "Revision Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "revision_id"
+      ],
+      "title": "ArtifactReference",
+      "type": "object"
+    },
+    "ProcessingJobResult": {
+      "additionalProperties": false,
+      "properties": {
+        "block_count": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Block Count",
+          "type": "integer"
+        },
+        "coverage": {
+          "anyOf": [
+            {
+              "enum": [
+                "complete",
+                "partial",
+                "needs_ocr",
+                "unsupported"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Coverage"
+        },
+        "diagnostics": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 32,
+          "title": "Diagnostics",
+          "type": "array"
+        },
+        "document_index_id": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Document Index Id"
+        },
+        "mode": {
+          "enum": [
+            "store_only",
+            "extract",
+            "extract_index"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "page_count": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Page Count",
+          "type": "integer"
+        },
+        "processing_performed": {
+          "title": "Processing Performed",
+          "type": "boolean"
+        },
+        "representation_set_id": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Representation Set Id"
+        },
+        "source_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Source Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "mode",
+        "processing_performed",
+        "source_sha256"
+      ],
+      "title": "ProcessingJobResult",
+      "type": "object"
+    }
+  },
+  "$id": "urn:woobe:artifacts:v1:processing-job",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "attempt": {
+      "minimum": 0,
+      "title": "Attempt",
+      "type": "integer"
+    },
+    "completed_stages": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Completed Stages",
+      "type": "array"
+    },
+    "error_code": {
+      "anyOf": [
+        {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Error Code"
+    },
+    "id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$",
+      "title": "Id",
+      "type": "string"
+    },
+    "operation_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$",
+      "title": "Operation Id",
+      "type": "string"
+    },
+    "profile_id": {
+      "anyOf": [
+        {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Profile Id"
+    },
+    "profile_revision": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Profile Revision"
+    },
+    "recipe_fingerprint": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Recipe Fingerprint",
+      "type": "string"
+    },
+    "result": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ProcessingJobResult"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "retryable": {
+      "default": false,
+      "title": "Retryable",
+      "type": "boolean"
+    },
+    "schema_version": {
+      "const": "1",
+      "default": "1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "source": {
+      "$ref": "#/$defs/ArtifactReference"
+    },
+    "status": {
+      "enum": [
+        "queued",
+        "running",
+        "succeeded",
+        "failed",
+        "cancel_requested",
+        "cancelled",
+        "uncertain"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "workspace_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$",
+      "title": "Workspace Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "workspace_id",
+    "operation_id",
+    "source",
+    "recipe_fingerprint",
+    "status",
+    "attempt"
+  ],
+  "title": "ProcessingJobView",
+  "type": "object"
+}

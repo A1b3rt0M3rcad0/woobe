@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/Button'
 import { useAgentEditor } from '@/features/playground/AgentEditorContext'
 import { AgentSkillsSection } from '@/features/skills/AgentSkillsSection'
 import { cn } from '@/lib/utils'
-import { externalContextContractError, outputContractError, validateAgentEditorState } from '../editorValidation'
+import { artifactCapabilityError, externalContextContractError, outputContractError, validateAgentEditorState } from '../editorValidation'
 import { useCreateRelease, useReleases } from '../hooks'
 import { useProviderModels } from '@/features/provider-models/hooks'
 import type { Agent } from '../types'
@@ -19,6 +19,7 @@ import { AgentKnowledgeSettings } from './AgentKnowledgeSettings'
 import { AgentToolsSettings } from './AgentToolsSettings'
 import { AgentOutputSettings } from './AgentOutputSettings'
 import { AgentExternalContextSettings } from './AgentExternalContextSettings'
+import { AgentArtifactSettings } from './AgentArtifactSettings'
 
 interface AgentConfigurationEditorProps {
   agent: Agent
@@ -43,7 +44,7 @@ export function AgentConfigurationEditor({ agent, projectId, agentId, onDirtyCha
     const model = models.find(model => model.id === binding.id)
     return Boolean(model?.spec_hash && model.spec_hash !== binding.hash)
   })
-  const hasValidationIssue = Boolean(outputContractError(state) || externalContextContractError(state))
+  const hasValidationIssue = Boolean(outputContractError(state) || externalContextContractError(state) || artifactCapabilityError(state))
 
   const saveDraft = useCallback(async () => {
     if (createRelease.isPending) return false
@@ -100,6 +101,7 @@ export function AgentConfigurationEditor({ agent, projectId, agentId, onDirtyCha
         {section === 'runtime' ? <AgentRuntimeSettings projectId={projectId} /> : null}
         {section === 'output' ? <AgentOutputSettings /> : null}
         {section === 'external-context' ? <AgentExternalContextSettings /> : null}
+        {section === 'artifacts' ? <AgentArtifactSettings projectId={projectId} /> : null}
         {section === 'model' ? <AgentModelSettings projectId={projectId} /> : null}
         {section === 'knowledge' ? <AgentKnowledgeSettings projectId={projectId} agentId={agentId} /> : null}
         {section === 'skills' ? <div className="p-ui-md"><AgentSkillsSection projectId={projectId} /></div> : null}

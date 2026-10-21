@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "mode": "deterministic_provider_neutral_contract",
+  "metrics": [
+    "gold_source_recall",
+    "locator_validity",
+    "authorized_workspace_scope",
+    "abstention_on_unanswerable"
+  ],
+  "acceptance": {
+    "unauthorized_sources_accepted": 0,
+    "invalid_locators_accepted": 0,
+    "cross_workspace_leaks": 0,
+    "unanswerable_queries_with_cited_answer": 0
+  },
+  "limitation": "This fixture validates retrieval/source contracts; it does not score semantic answer quality or qualify a live provider."
+}

@@ -31,6 +31,7 @@ from modules.agent.application.knowledge_strategy_config import (
     canonicalize_knowledge_strategy_runtime_config,
 )
 from modules.agent.application.skill_bindings import freeze_skill_bindings
+from shared.contracts.artifact_capability import canonicalize_artifact_runtime_config
 from modules.agent.application.system_instruction_assembler import assemble_system_instructions
 from modules.agent.domain.entities import Agent
 from modules.agent.domain.enums import CredentialStatus, ProviderModelStatus
@@ -296,6 +297,9 @@ def _force_strict_json_settings(
         )
         settings["runtime_config"] = canonicalize_knowledge_strategy_runtime_config(
             runtime_config
+        )
+        settings["runtime_config"] = canonicalize_artifact_runtime_config(
+            settings["runtime_config"], settings.get("external_context_contract")
         )
     response_format = settings.get("response_format")
     if not isinstance(response_format, dict):

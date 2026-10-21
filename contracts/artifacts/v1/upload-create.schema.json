@@ -1,0 +1,75 @@
+{
+  "$id": "urn:woobe:artifacts:v1:upload-create",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "artifact_id": {
+      "anyOf": [
+        {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Artifact Id"
+    },
+    "content_type": {
+      "maxLength": 255,
+      "minLength": 3,
+      "pattern": "^[!#$%&'*+.^_`|~0-9A-Za-z-]+/[!#$%&'*+.^_`|~0-9A-Za-z-]+(?:;[ -~]+)?$",
+      "title": "Content Type",
+      "type": "string"
+    },
+    "expected_revision": {
+      "anyOf": [
+        {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Expected Revision"
+    },
+    "operation_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$",
+      "title": "Operation Id",
+      "type": "string"
+    },
+    "path": {
+      "maxLength": 1024,
+      "title": "Path",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1",
+      "default": "1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Sha256",
+      "type": "string"
+    },
+    "size_bytes": {
+      "minimum": 0,
+      "title": "Size Bytes",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "operation_id",
+    "path",
+    "size_bytes",
+    "sha256",
+    "content_type"
+  ],
+  "title": "UploadCreate",
+  "type": "object"
+}

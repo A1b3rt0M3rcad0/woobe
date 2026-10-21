@@ -48,6 +48,9 @@ jobs:
       - name: Verify API and Workers image isolation
         run: |
           set -euo pipefail
+          for image in woobe-api:ci woobe-workers:ci; do
+            docker run --rm --entrypoint python "$image" -c "from importlib.metadata import version; assert version('pillow') == '13.0.0'"
+          done
           # Check packaging boundaries without importing process entrypoints.
           # Importing main/worker_main initializes runtime Settings and would turn
           # this structural check into an environment/secrets bootstrap test.

@@ -135,6 +135,7 @@ class SQLNetworkExecutionStore:
             invocation.output_message = result.answer
             setattr(invocation, "parsed_output", result.parsed_output)
             setattr(invocation, "output_parse_error", result.output_parse_error)
+            setattr(invocation, "output_artifacts", result.output_artifacts or [])
             invocation.trace_id = result.trace_id
             if result.session_id:
                 invocation.agent_session_id = result.session_id
@@ -176,6 +177,7 @@ class SQLNetworkExecutionStore:
                     else result.answer,
                     "parsed_output": result.parsed_output,
                     "output_parse_error": result.output_parse_error,
+                    "output_artifacts": result.output_artifacts or [],
                     "result_type": "structured"
                     if result.parsed_output is not None
                     else "text",

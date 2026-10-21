@@ -63,7 +63,7 @@ def test_context_manager_port_accepts_structural_implementations() -> None:
 
 def test_public_agent_runtime_composition_wires_registry_dispatcher() -> None:
     runtime, _transactions = build_ask_agent_use_case(
-        Settings.model_validate({}),
+        Settings.model_validate({"run_persistence_mode": "legacy_finalization"}),
         http_executor=MagicMock(),
     )
 
@@ -88,7 +88,7 @@ def test_default_composition_builds_snapshot_aware_dispatcher_with_configured_st
         build_dispatcher,
     )
 
-    settings = Settings.model_validate({"default_context_manager": "stdcm"})
+    settings = Settings.model_validate({"default_context_manager": "stdcm", "run_persistence_mode": "legacy_finalization"})
     runtime, _transactions = ask_agent_runtime_factory.build_ask_agent_use_case(
         settings,
         http_executor=MagicMock(),
@@ -100,7 +100,7 @@ def test_default_composition_builds_snapshot_aware_dispatcher_with_configured_st
 
 def test_internal_network_agent_runtime_composition_wires_registry_dispatcher() -> None:
     runtime = build_internal_agent_runtime(
-        Settings.model_validate({}),
+        Settings.model_validate({"run_persistence_mode": "legacy_finalization"}),
         http_executor=MagicMock(),
     )
 
@@ -110,7 +110,7 @@ def test_internal_network_agent_runtime_composition_wires_registry_dispatcher() 
 def test_public_agent_runtime_accepts_alternate_context_manager() -> None:
     assembler = _AlternateContextManager()
     runtime, _transactions = build_ask_agent_use_case(
-        Settings.model_validate({}),
+        Settings.model_validate({"run_persistence_mode": "legacy_finalization"}),
         http_executor=MagicMock(),
         context_assembler=assembler,
     )
@@ -121,7 +121,7 @@ def test_public_agent_runtime_accepts_alternate_context_manager() -> None:
 def test_internal_network_runtime_accepts_alternate_context_manager() -> None:
     assembler = _AlternateContextManager()
     runtime = build_internal_agent_runtime(
-        Settings.model_validate({}),
+        Settings.model_validate({"run_persistence_mode": "legacy_finalization"}),
         http_executor=MagicMock(),
         context_assembler=assembler,
     )
@@ -136,7 +136,7 @@ def test_agent_entrypoint_preserves_alternate_context_manager() -> None:
 
     assembler = _AlternateContextManager()
     runtime = build_entrypoint_agent_runtime(
-        Settings.model_validate({}),
+        Settings.model_validate({"run_persistence_mode": "legacy_finalization"}),
         http_executor=MagicMock(),
         context_assembler=assembler,
     )
@@ -147,7 +147,7 @@ def test_agent_entrypoint_preserves_alternate_context_manager() -> None:
 def test_handler_composition_accepts_alternate_context_manager() -> None:
     assembler = _AlternateContextManager()
     handler = build_ask_agent_handler(
-        Settings.model_validate({}),
+        Settings.model_validate({"run_persistence_mode": "legacy_finalization"}),
         http_executor=MagicMock(),
         context_assembler=assembler,
     )
@@ -159,7 +159,7 @@ def test_handler_composition_accepts_alternate_context_manager() -> None:
 def test_composition_preserves_explicit_falsy_context_manager() -> None:
     assembler = _FalsyAlternateContextManager()
     runtime, _transactions = build_ask_agent_use_case(
-        Settings.model_validate({}),
+        Settings.model_validate({"run_persistence_mode": "legacy_finalization"}),
         http_executor=MagicMock(),
         context_assembler=assembler,
     )

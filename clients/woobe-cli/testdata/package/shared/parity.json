@@ -1,0 +1,695 @@
+[
+  {
+    "name": "minimal-model",
+    "file": "model.yaml",
+    "input": "{\"format\": \"woobe-package\", \"schema_version\": \"1.0\", \"kind\": \"Model\", \"metadata\": {\"key\": \"primary\", \"name\": \"Primary\"}, \"spec\": {\"provider\": \"openai_compatible\", \"model\": \"fake-language\", \"model_type\": \"language\", \"credential\": {\"ref\": \"primary-key\"}}}",
+    "expected": {
+      "format": "woobe-package",
+      "schema_version": "1.0",
+      "kind": "Model",
+      "metadata": {
+        "key": "primary",
+        "name": "Primary"
+      },
+      "spec": {
+        "provider": "openai_compatible",
+        "model": "fake-language",
+        "model_type": "language",
+        "credential": {
+          "ref": "primary-key"
+        }
+      }
+    }
+  },
+  {
+    "name": "scalar-semantics",
+    "file": "scalar.yaml",
+    "input": "on: off\nyes: no\ndate: 2026-10-06\ntruth: true\nexponent: 1e3\n",
+    "expected": {
+      "on": "off",
+      "yes": "no",
+      "date": "2026-10-06",
+      "truth": true,
+      "exponent": 1000
+    }
+  },
+  {
+    "name": "duplicate",
+    "file": "invalid.yaml",
+    "input": "name: a\nname: b\n",
+    "error": "PACKAGE_PARSE_INVALID"
+  },
+  {
+    "name": "alias",
+    "file": "invalid.yaml",
+    "input": "value: &a hello\nother: *a\n",
+    "error": "PACKAGE_PARSE_INVALID"
+  },
+  {
+    "name": "tag",
+    "file": "invalid.yaml",
+    "input": "value: !custom hello\n",
+    "error": "PACKAGE_PARSE_INVALID"
+  },
+  {
+    "name": "multiple",
+    "file": "invalid.yaml",
+    "input": "a: b\n---\nc: d\n",
+    "error": "PACKAGE_PARSE_INVALID"
+  },
+  {
+    "name": "nonfinite",
+    "file": "invalid.yaml",
+    "input": "a: .nan\n",
+    "error": "PACKAGE_PARSE_INVALID"
+  },
+  {
+    "name": "overflow",
+    "file": "invalid.yaml",
+    "input": "a: 9007199254740992\n",
+    "error": "PACKAGE_PARSE_INVALID"
+  },
+  {
+    "name": "merge",
+    "file": "invalid.yaml",
+    "input": "value: {<<: {a: b}}\n",
+    "error": "PACKAGE_PARSE_INVALID"
+  },
+  {
+    "name": "numeric-schema",
+    "file": "model.yaml",
+    "input": "{\"format\": \"woobe-package\", \"schema_version\": 1.0, \"kind\": \"Model\", \"metadata\": {\"key\": \"primary\", \"name\": \"Primary\"}, \"spec\": {\"provider\": \"openai_compatible\", \"model\": \"fake-language\", \"model_type\": \"language\", \"credential\": {\"ref\": \"primary-key\"}}}",
+    "error": "PACKAGE_SCHEMA_UNSUPPORTED",
+    "validate": true
+  },
+  {
+    "name": "unknown-kind",
+    "file": "model.yaml",
+    "input": "{\"format\": \"woobe-package\", \"schema_version\": \"1.0\", \"kind\": \"model\", \"metadata\": {\"key\": \"primary\", \"name\": \"Primary\"}, \"spec\": {\"provider\": \"openai_compatible\", \"model\": \"fake-language\", \"model_type\": \"language\", \"credential\": {\"ref\": \"primary-key\"}}}",
+    "error": "PACKAGE_SCHEMA_UNSUPPORTED",
+    "validate": true
+  },
+  {
+    "name": "unknown-field",
+    "file": "model.yaml",
+    "input": "{\"format\": \"woobe-package\", \"schema_version\": \"1.0\", \"kind\": \"Model\", \"metadata\": {\"key\": \"primary\", \"name\": \"Primary\"}, \"spec\": {\"provider\": \"openai_compatible\", \"model\": \"fake-language\", \"model_type\": \"language\", \"credential\": {\"ref\": \"primary-key\"}}, \"unsupported\": true}",
+    "error": "PACKAGE_SCHEMA_INVALID",
+    "validate": true
+  },
+  {
+    "name": "unknown-spec-field",
+    "file": "model.yaml",
+    "input": "{\"format\": \"woobe-package\", \"schema_version\": \"1.0\", \"kind\": \"Model\", \"metadata\": {\"key\": \"primary\", \"name\": \"Primary\"}, \"spec\": {\"provider\": \"openai_compatible\", \"model\": \"fake-language\", \"model_type\": \"language\", \"credential\": {\"ref\": \"primary-key\"}, \"unsupported\": true}}",
+    "error": "PACKAGE_SCHEMA_INVALID",
+    "validate": true
+  },
+  {
+    "name": "binding-existing-credential",
+    "file": "bindings.yaml",
+    "input": "{\"format\": \"woobe-package\", \"schema_version\": \"1.0\", \"kind\": \"ImportBindings\", \"metadata\": {\"name\": \"Destination\"}, \"spec\": {\"credentials\": {\"primary\": {\"credential_id\": \"00000000-0000-0000-0000-000000000001\"}}}}",
+    "validate": true,
+    "expected": {
+      "format": "woobe-package",
+      "schema_version": "1.0",
+      "kind": "ImportBindings",
+      "metadata": {
+        "name": "Destination"
+      },
+      "spec": {
+        "credentials": {
+          "primary": {
+            "credential_id": "00000000-0000-0000-0000-000000000001"
+          }
+        }
+      }
+    }
+  },
+  {
+    "name": "binding-protected-reference",
+    "file": "bindings.yaml",
+    "input": "{\"format\": \"woobe-package\", \"schema_version\": \"1.0\", \"kind\": \"ImportBindings\", \"metadata\": {\"name\": \"Destination\"}, \"spec\": {\"credentials\": {\"primary\": {\"protected_ref\": \"provider-secret\"}}}}",
+    "validate": true,
+    "expected": {
+      "format": "woobe-package",
+      "schema_version": "1.0",
+      "kind": "ImportBindings",
+      "metadata": {
+        "name": "Destination"
+      },
+      "spec": {
+        "credentials": {
+          "primary": {
+            "protected_ref": "provider-secret"
+          }
+        }
+      }
+    }
+  },
+  {
+    "name": "binding-no-source",
+    "file": "bindings.yaml",
+    "input": "{\"format\": \"woobe-package\", \"schema_version\": \"1.0\", \"kind\": \"ImportBindings\", \"metadata\": {\"name\": \"Destination\"}, \"spec\": {\"credentials\": {\"primary\": {}}}}",
+    "validate": true,
+    "error": "PACKAGE_SCHEMA_INVALID"
+  },
+  {
+    "name": "binding-two-sources",
+    "file": "bindings.yaml",
+    "input": "{\"format\": \"woobe-package\", \"schema_version\": \"1.0\", \"kind\": \"ImportBindings\", \"metadata\": {\"name\": \"Destination\"}, \"spec\": {\"credentials\": {\"primary\": {\"credential_id\": \"00000000-0000-0000-0000-000000000001\", \"protected_ref\": \"provider-secret\"}}}}",
+    "validate": true,
+    "error": "PACKAGE_SCHEMA_INVALID"
+  },
+  {
+    "name": "binding-invalid-uuid",
+    "file": "bindings.yaml",
+    "input": "{\"format\": \"woobe-package\", \"schema_version\": \"1.0\", \"kind\": \"ImportBindings\", \"metadata\": {\"name\": \"Destination\"}, \"spec\": {\"credentials\": {\"primary\": {\"credential_id\": \"not-a-uuid\"}}}}",
+    "validate": true,
+    "error": "PACKAGE_SCHEMA_INVALID"
+  },
+  {
+    "name": "binding-literal-secret",
+    "file": "bindings.yaml",
+    "input": "{\"format\": \"woobe-package\", \"schema_version\": \"1.0\", \"kind\": \"ImportBindings\", \"metadata\": {\"name\": \"Destination\"}, \"spec\": {\"credentials\": {\"primary\": {\"protected_ref\": \"provider-secret\", \"secret\": \"do-not-store\"}}}}",
+    "validate": true,
+    "error": "PACKAGE_SCHEMA_INVALID"
+  },
+  {
+    "name": "mcp-risk-unknown-review",
+    "file": "tool-1.yaml",
+    "input": "format: woobe-package\nschema_version: '1.0'\nkind: Tool\nmetadata:\n  key: mcp\n  name: MCP\nspec:\n  type: mcp\n  config:\n    mode: server\n    exposure: all_discovered\n    server:\n      url: https://mcp.test\n  permissions:\n  - remote_name: lookup\n    permission: review\n    risk: unknown\n",
+    "validate": true,
+    "expected": {
+      "format": "woobe-package",
+      "schema_version": "1.0",
+      "kind": "Tool",
+      "metadata": {
+        "key": "mcp",
+        "name": "MCP"
+      },
+      "spec": {
+        "type": "mcp",
+        "config": {
+          "mode": "server",
+          "exposure": "all_discovered",
+          "server": {
+            "url": "https://mcp.test"
+          }
+        },
+        "permissions": [
+          {
+            "remote_name": "lookup",
+            "permission": "review",
+            "risk": "unknown"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "mcp-risk-unknown-deny",
+    "file": "tool-1.yaml",
+    "input": "format: woobe-package\nschema_version: '1.0'\nkind: Tool\nmetadata:\n  key: mcp\n  name: MCP\nspec:\n  type: mcp\n  config:\n    mode: server\n    exposure: all_discovered\n    server:\n      url: https://mcp.test\n  permissions:\n  - remote_name: lookup\n    permission: deny\n    risk: unknown\n",
+    "validate": true,
+    "expected": {
+      "format": "woobe-package",
+      "schema_version": "1.0",
+      "kind": "Tool",
+      "metadata": {
+        "key": "mcp",
+        "name": "MCP"
+      },
+      "spec": {
+        "type": "mcp",
+        "config": {
+          "mode": "server",
+          "exposure": "all_discovered",
+          "server": {
+            "url": "https://mcp.test"
+          }
+        },
+        "permissions": [
+          {
+            "remote_name": "lookup",
+            "permission": "deny",
+            "risk": "unknown"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "mcp-risk-unknown-allow",
+    "file": "tool-1.yaml",
+    "input": "format: woobe-package\nschema_version: '1.0'\nkind: Tool\nmetadata:\n  key: mcp\n  name: MCP\nspec:\n  type: mcp\n  config:\n    mode: server\n    exposure: all_discovered\n    server:\n      url: https://mcp.test\n  permissions:\n  - remote_name: lookup\n    permission: allow\n    risk: unknown\n",
+    "validate": true,
+    "expected": {
+      "format": "woobe-package",
+      "schema_version": "1.0",
+      "kind": "Tool",
+      "metadata": {
+        "key": "mcp",
+        "name": "MCP"
+      },
+      "spec": {
+        "type": "mcp",
+        "config": {
+          "mode": "server",
+          "exposure": "all_discovered",
+          "server": {
+            "url": "https://mcp.test"
+          }
+        },
+        "permissions": [
+          {
+            "remote_name": "lookup",
+            "permission": "allow",
+            "risk": "unknown"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "mcp-risk-custom",
+    "file": "tool-1.yaml",
+    "input": "format: woobe-package\nschema_version: '1.0'\nkind: Tool\nmetadata:\n  key: mcp\n  name: MCP\nspec:\n  type: mcp\n  config:\n    mode: server\n    exposure: all_discovered\n    server:\n      url: https://mcp.test\n  permissions:\n  - remote_name: lookup\n    permission: deny\n    risk: internal-sensitive\n",
+    "validate": true,
+    "expected": {
+      "format": "woobe-package",
+      "schema_version": "1.0",
+      "kind": "Tool",
+      "metadata": {
+        "key": "mcp",
+        "name": "MCP"
+      },
+      "spec": {
+        "type": "mcp",
+        "config": {
+          "mode": "server",
+          "exposure": "all_discovered",
+          "server": {
+            "url": "https://mcp.test"
+          }
+        },
+        "permissions": [
+          {
+            "remote_name": "lookup",
+            "permission": "deny",
+            "risk": "internal-sensitive"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "mcp-risk-low",
+    "file": "tool-1.yaml",
+    "input": "format: woobe-package\nschema_version: '1.0'\nkind: Tool\nmetadata:\n  key: mcp\n  name: MCP\nspec:\n  type: mcp\n  config:\n    mode: server\n    exposure: all_discovered\n    server:\n      url: https://mcp.test\n  permissions:\n  - remote_name: lookup\n    permission: allow\n    risk: low\n",
+    "validate": true,
+    "expected": {
+      "format": "woobe-package",
+      "schema_version": "1.0",
+      "kind": "Tool",
+      "metadata": {
+        "key": "mcp",
+        "name": "MCP"
+      },
+      "spec": {
+        "type": "mcp",
+        "config": {
+          "mode": "server",
+          "exposure": "all_discovered",
+          "server": {
+            "url": "https://mcp.test"
+          }
+        },
+        "permissions": [
+          {
+            "remote_name": "lookup",
+            "permission": "allow",
+            "risk": "low"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "mcp-risk-medium",
+    "file": "tool-1.yaml",
+    "input": "format: woobe-package\nschema_version: '1.0'\nkind: Tool\nmetadata:\n  key: mcp\n  name: MCP\nspec:\n  type: mcp\n  config:\n    mode: server\n    exposure: all_discovered\n    server:\n      url: https://mcp.test\n  permissions:\n  - remote_name: lookup\n    permission: review\n    risk: medium\n",
+    "validate": true,
+    "expected": {
+      "format": "woobe-package",
+      "schema_version": "1.0",
+      "kind": "Tool",
+      "metadata": {
+        "key": "mcp",
+        "name": "MCP"
+      },
+      "spec": {
+        "type": "mcp",
+        "config": {
+          "mode": "server",
+          "exposure": "all_discovered",
+          "server": {
+            "url": "https://mcp.test"
+          }
+        },
+        "permissions": [
+          {
+            "remote_name": "lookup",
+            "permission": "review",
+            "risk": "medium"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "mcp-risk-high",
+    "file": "tool-1.yaml",
+    "input": "format: woobe-package\nschema_version: '1.0'\nkind: Tool\nmetadata:\n  key: mcp\n  name: MCP\nspec:\n  type: mcp\n  config:\n    mode: server\n    exposure: all_discovered\n    server:\n      url: https://mcp.test\n  permissions:\n  - remote_name: lookup\n    permission: deny\n    risk: high\n",
+    "validate": true,
+    "expected": {
+      "format": "woobe-package",
+      "schema_version": "1.0",
+      "kind": "Tool",
+      "metadata": {
+        "key": "mcp",
+        "name": "MCP"
+      },
+      "spec": {
+        "type": "mcp",
+        "config": {
+          "mode": "server",
+          "exposure": "all_discovered",
+          "server": {
+            "url": "https://mcp.test"
+          }
+        },
+        "permissions": [
+          {
+            "remote_name": "lookup",
+            "permission": "deny",
+            "risk": "high"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "mcp-risk-critical",
+    "file": "tool-1.yaml",
+    "input": "format: woobe-package\nschema_version: '1.0'\nkind: Tool\nmetadata:\n  key: mcp\n  name: MCP\nspec:\n  type: mcp\n  config:\n    mode: server\n    exposure: all_discovered\n    server:\n      url: https://mcp.test\n  permissions:\n  - remote_name: lookup\n    permission: deny\n    risk: critical\n",
+    "validate": true,
+    "expected": {
+      "format": "woobe-package",
+      "schema_version": "1.0",
+      "kind": "Tool",
+      "metadata": {
+        "key": "mcp",
+        "name": "MCP"
+      },
+      "spec": {
+        "type": "mcp",
+        "config": {
+          "mode": "server",
+          "exposure": "all_discovered",
+          "server": {
+            "url": "https://mcp.test"
+          }
+        },
+        "permissions": [
+          {
+            "remote_name": "lookup",
+            "permission": "deny",
+            "risk": "critical"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "mcp-risk-null",
+    "file": "tool-1.yaml",
+    "input": "format: woobe-package\nschema_version: '1.0'\nkind: Tool\nmetadata:\n  key: mcp\n  name: MCP\nspec:\n  type: mcp\n  config:\n    mode: server\n    exposure: all_discovered\n    server:\n      url: https://mcp.test\n  permissions:\n  - remote_name: lookup\n    permission: deny\n    risk: null\n",
+    "validate": true,
+    "expected": {
+      "format": "woobe-package",
+      "schema_version": "1.0",
+      "kind": "Tool",
+      "metadata": {
+        "key": "mcp",
+        "name": "MCP"
+      },
+      "spec": {
+        "type": "mcp",
+        "config": {
+          "mode": "server",
+          "exposure": "all_discovered",
+          "server": {
+            "url": "https://mcp.test"
+          }
+        },
+        "permissions": [
+          {
+            "remote_name": "lookup",
+            "permission": "deny",
+            "risk": null
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "mcp-risk-max-unicode",
+    "file": "tool-1.yaml",
+    "input": "format: woobe-package\nschema_version: '1.0'\nkind: Tool\nmetadata:\n  key: mcp\n  name: MCP\nspec:\n  type: mcp\n  config:\n    mode: server\n    exposure: all_discovered\n    server:\n      url: https://mcp.test\n  permissions:\n  - remote_name: lookup\n    permission: review\n    risk: éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé\n",
+    "validate": true,
+    "expected": {
+      "format": "woobe-package",
+      "schema_version": "1.0",
+      "kind": "Tool",
+      "metadata": {
+        "key": "mcp",
+        "name": "MCP"
+      },
+      "spec": {
+        "type": "mcp",
+        "config": {
+          "mode": "server",
+          "exposure": "all_discovered",
+          "server": {
+            "url": "https://mcp.test"
+          }
+        },
+        "permissions": [
+          {
+            "remote_name": "lookup",
+            "permission": "review",
+            "risk": "éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "mcp-risk-empty",
+    "file": "tool-1.yaml",
+    "input": "format: woobe-package\nschema_version: '1.0'\nkind: Tool\nmetadata:\n  key: mcp\n  name: MCP\nspec:\n  type: mcp\n  config:\n    mode: server\n    exposure: all_discovered\n    server:\n      url: https://mcp.test\n  permissions:\n  - remote_name: lookup\n    permission: review\n    risk: ''\n",
+    "validate": true,
+    "error": "PACKAGE_SCHEMA_INVALID"
+  },
+  {
+    "name": "mcp-risk-oversized",
+    "file": "tool-1.yaml",
+    "input": "format: woobe-package\nschema_version: '1.0'\nkind: Tool\nmetadata:\n  key: mcp\n  name: MCP\nspec:\n  type: mcp\n  config:\n    mode: server\n    exposure: all_discovered\n    server:\n      url: https://mcp.test\n  permissions:\n  - remote_name: lookup\n    permission: review\n    risk: ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé\n",
+    "validate": true,
+    "error": "PACKAGE_SCHEMA_INVALID"
+  },
+  {
+    "name": "mcp-risk-numeric",
+    "file": "tool-1.yaml",
+    "input": "format: woobe-package\nschema_version: '1.0'\nkind: Tool\nmetadata:\n  key: mcp\n  name: MCP\nspec:\n  type: mcp\n  config:\n    mode: server\n    exposure: all_discovered\n    server:\n      url: https://mcp.test\n  permissions:\n  - remote_name: lookup\n    permission: review\n    risk: 1\n",
+    "validate": true,
+    "error": "PACKAGE_SCHEMA_INVALID"
+  },
+  {
+    "name": "mcp-risk-boolean",
+    "file": "tool-1.yaml",
+    "input": "format: woobe-package\nschema_version: '1.0'\nkind: Tool\nmetadata:\n  key: mcp\n  name: MCP\nspec:\n  type: mcp\n  config:\n    mode: server\n    exposure: all_discovered\n    server:\n      url: https://mcp.test\n  permissions:\n  - remote_name: lookup\n    permission: review\n    risk: true\n",
+    "validate": true,
+    "error": "PACKAGE_SCHEMA_INVALID"
+  },
+  {
+    "name": "mcp-risk-object",
+    "file": "tool-1.yaml",
+    "input": "format: woobe-package\nschema_version: '1.0'\nkind: Tool\nmetadata:\n  key: mcp\n  name: MCP\nspec:\n  type: mcp\n  config:\n    mode: server\n    exposure: all_discovered\n    server:\n      url: https://mcp.test\n  permissions:\n  - remote_name: lookup\n    permission: review\n    risk: {}\n",
+    "validate": true,
+    "error": "PACKAGE_SCHEMA_INVALID"
+  },
+  {
+    "name": "mcp-risk-array",
+    "file": "tool-1.yaml",
+    "input": "format: woobe-package\nschema_version: '1.0'\nkind: Tool\nmetadata:\n  key: mcp\n  name: MCP\nspec:\n  type: mcp\n  config:\n    mode: server\n    exposure: all_discovered\n    server:\n      url: https://mcp.test\n  permissions:\n  - remote_name: lookup\n    permission: review\n    risk: []\n",
+    "validate": true,
+    "error": "PACKAGE_SCHEMA_INVALID"
+  },
+  {
+    "name": "mcp-risk-invalid-mode",
+    "file": "tool-1.yaml",
+    "input": "format: woobe-package\nschema_version: '1.0'\nkind: Tool\nmetadata:\n  key: mcp\n  name: MCP\nspec:\n  type: mcp\n  config:\n    mode: server\n    exposure: all_discovered\n    server:\n      url: https://mcp.test\n  permissions:\n  - remote_name: lookup\n    permission: approve\n    risk: unknown\n",
+    "validate": true,
+    "error": "PACKAGE_SCHEMA_INVALID"
+  },
+  {
+    "name": "json-unicode-separator-0-json",
+    "file": "agent.json",
+    "input": "{\"instructions\": \"FirstSecond\\n\"}",
+    "expected": {
+      "instructions": "FirstSecond\n"
+    }
+  },
+  {
+    "name": "json-unicode-separator-0-yaml",
+    "file": "agent.yaml",
+    "input": "{\"instructions\": \"FirstSecond\\n\"}",
+    "expected": {
+      "instructions": "FirstSecond\n"
+    }
+  },
+  {
+    "name": "json-unicode-separator-1-json",
+    "file": "agent.json",
+    "input": "{\"instructions\": \"FirstSecond\\n\"}",
+    "expected": {
+      "instructions": "FirstSecond\n"
+    }
+  },
+  {
+    "name": "json-unicode-separator-1-yaml",
+    "file": "agent.yaml",
+    "input": "{\"instructions\": \"FirstSecond\\n\"}",
+    "expected": {
+      "instructions": "FirstSecond\n"
+    }
+  },
+  {
+    "name": "json-unicode-separator-2-json",
+    "file": "agent.json",
+    "input": "{\"instructions\": \"FirstSecond\\n\"}",
+    "expected": {
+      "instructions": "FirstSecond\n"
+    }
+  },
+  {
+    "name": "json-unicode-separator-2-yaml",
+    "file": "agent.yaml",
+    "input": "{\"instructions\": \"FirstSecond\\n\"}",
+    "expected": {
+      "instructions": "FirstSecond\n"
+    }
+  },
+  {
+    "name": "json-unicode-separator-3-json",
+    "file": "agent.json",
+    "input": "{\"instructions\": \"First Second\\n\"}",
+    "expected": {
+      "instructions": "First Second\n"
+    }
+  },
+  {
+    "name": "json-unicode-separator-3-yaml",
+    "file": "agent.yaml",
+    "input": "{\"instructions\": \"First Second\\n\"}",
+    "expected": {
+      "instructions": "First Second\n"
+    }
+  },
+  {
+    "name": "json-unicode-separator-4-json",
+    "file": "agent.json",
+    "input": "{\"instructions\": \"First Second\\n\"}",
+    "expected": {
+      "instructions": "First Second\n"
+    }
+  },
+  {
+    "name": "json-unicode-separator-4-yaml",
+    "file": "agent.yaml",
+    "input": "{\"instructions\": \"First Second\\n\"}",
+    "expected": {
+      "instructions": "First Second\n"
+    }
+  },
+  {
+    "name": "json-unicode-pair-json",
+    "file": "agent.json",
+    "input": "{\"text\":\"\\ud83d\\ude00\"}",
+    "expected": {
+      "text": "😀"
+    }
+  },
+  {
+    "name": "json-lone-surrogate-0-json",
+    "file": "agent.json",
+    "input": "{\"text\":\"\\ud800\"}",
+    "error": "PACKAGE_PARSE_INVALID"
+  },
+  {
+    "name": "json-lone-surrogate-1-json",
+    "file": "agent.json",
+    "input": "{\"text\":\"\\udc00\"}",
+    "error": "PACKAGE_PARSE_INVALID"
+  },
+  {
+    "name": "json-lone-surrogate-2-json",
+    "file": "agent.json",
+    "input": "{\"text\":\"\\ud800\\ud800\"}",
+    "error": "PACKAGE_PARSE_INVALID"
+  },
+  {
+    "name": "json-unicode-pair-yaml",
+    "file": "agent.yaml",
+    "input": "{\"text\":\"\\ud83d\\ude00\"}",
+    "expected": {
+      "text": "😀"
+    }
+  },
+  {
+    "name": "json-lone-surrogate-0-yaml",
+    "file": "agent.yaml",
+    "input": "{\"text\":\"\\ud800\"}",
+    "error": "PACKAGE_PARSE_INVALID"
+  },
+  {
+    "name": "json-lone-surrogate-1-yaml",
+    "file": "agent.yaml",
+    "input": "{\"text\":\"\\udc00\"}",
+    "error": "PACKAGE_PARSE_INVALID"
+  },
+  {
+    "name": "json-lone-surrogate-2-yaml",
+    "file": "agent.yaml",
+    "input": "{\"text\":\"\\ud800\\ud800\"}",
+    "error": "PACKAGE_PARSE_INVALID"
+  },
+  {
+    "name": "yaml-surrogate-0",
+    "file": "agent.yaml",
+    "input": "text: \"\\ud800\"",
+    "error": "PACKAGE_PARSE_INVALID"
+  },
+  {
+    "name": "yaml-surrogate-1",
+    "file": "agent.yaml",
+    "input": "text: \"\\udc00\"",
+    "error": "PACKAGE_PARSE_INVALID"
+  },
+  {
+    "name": "yaml-surrogate-2",
+    "file": "agent.yaml",
+    "input": "\"\\ud800\": value",
+    "error": "PACKAGE_PARSE_INVALID"
+  }
+]

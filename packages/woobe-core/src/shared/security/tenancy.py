@@ -14,7 +14,7 @@ from shared.infra.errors import (
     ConflictError,
     NotFoundError,
 )
-from shared.security.principal import AuthenticatedPrincipal, ControlPlanePrincipal
+from shared.security.principal import AuthenticatedPrincipal, ChatSurfaceRuntimePrincipal, ControlPlanePrincipal, ProjectApiPrincipal
 from shared.security.control_plane import (
     PROJECT_CONTROL_PERMISSIONS,
     WORKSPACE_CONTROL_PERMISSIONS,
@@ -159,6 +159,141 @@ def _uuid(value: Any) -> UUID | None:
 class TenantAuthorizer:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
+
+    async def require_active_runtime(self, actor: ProjectApiPrincipal, *, interface: str) -> None:
+        """Revalidate a retained Runtime principal without retaining its raw key."""
+        statement = """SELECT keys.project_id, keys.kind, keys.status, keys.revoked_at,
+            keys.expires_at, keys.delegation_expires_at, keys.environment,
+            keys.interfaces, keys.scopes, keys.target_type, keys.target_id,
+            projects.status AS project_status
+            FROM core.api_keys AS keys JOIN core.projects AS projects
+            ON projects.id = keys.project_id WHERE keys.id = :id"""
+        if self._session.bind is not None and self._session.bind.dialect.name == 'postgresql':
+            statement += ' FOR SHARE OF keys, projects'
+        row = (await self._session.execute(
+            text(statement).bindparams(bindparam('id', type_=Uuid())),
+            {'id': actor.api_key_id},
+        )).mappings().first()
+        if row is None or actor.kind != 'runtime' or row['kind'] != 'runtime':
+            raise AuthenticationError('Runtime credential is inactive')
+        if row['status'] != 'active' or row['revoked_at'] is not None or row['project_status'] != 'active':
+            raise AuthenticationError('Runtime credential is inactive')
+        now = datetime.now(UTC)
+        for field in ('expires_at', 'delegation_expires_at'):
+            expiry = row[field]
+            if isinstance(expiry, str):
+                expiry = datetime.fromisoformat(expiry)
+            if expiry is not None and expiry.replace(tzinfo=expiry.tzinfo or UTC) <= now:
+                raise AuthenticationError('Runtime credential is expired')
+        import json
+        interfaces = row['interfaces']
+        scopes = row['scopes']
+        if isinstance(interfaces, str):
+            interfaces = json.loads(interfaces)
+        if isinstance(scopes, str):
+            scopes = json.loads(scopes)
+        if (str(row['project_id']) != str(actor.project_id)
+                or row['environment'] != actor.environment
+                or row['target_type'] != actor.target_type
+                or str(row['target_id']) != str(actor.target_id)
+                or 'runtime:execute' not in scopes
+                or not actor.has_scope('runtime:execute')
+                or actor.target_type not in {'agent', 'network'} or actor.target_id is None
+                or interface not in interfaces or interface not in actor.interfaces):
+            raise AuthorizationError('Runtime credential scope changed or is insufficient')
+
+    async def require_active_chat_surface_runtime(
+        self,
+        actor: ChatSurfaceRuntimePrincipal,
+        *,
+        interface: str,
+    ) -> None:
+        """Revalidate the Surface, scoped key, Release and target Session."""
+        now = datetime.now(UTC)
+        if actor.expires_at <= now or interface not in actor.interfaces:
+            raise AuthenticationError('ChatSurface Session token is inactive')
+        surface = (await self._session.execute(
+            text("""SELECT s.project_id, s.target_type, s.target_id, s.target_release_id,
+                         s.environment, s.status, s.token_epoch, k.kind AS key_kind,
+                         k.project_id AS key_project_id, k.chat_surface_id AS key_surface_id,
+                         k.status AS key_status, k.revoked_at, k.expires_at,
+                         p.status AS project_status
+                  FROM chat_surface.chat_surfaces AS s
+                  JOIN core.api_keys AS k ON k.id = :api_key_id
+                  JOIN core.projects AS p ON p.id = s.project_id
+                  WHERE s.id = :surface_id""").bindparams(
+                bindparam('api_key_id', type_=Uuid()),
+                bindparam('surface_id', type_=Uuid()),
+            ),
+            {'api_key_id': actor.api_key_id, 'surface_id': actor.surface_id},
+        )).mappings().first()
+        if (
+            surface is None
+            or surface['project_id'] != actor.project_id
+            or surface['target_type'] != actor.target_type
+            or surface['target_id'] != actor.target_id
+            or surface['target_release_id'] != actor.target_release_id
+            or surface['environment'] != actor.environment
+            or surface['status'] != 'active'
+            or surface['token_epoch'] != actor.token_epoch
+            or surface['project_status'] != 'active'
+            or surface['key_kind'] != 'chat_surface'
+            or surface['key_project_id'] != actor.project_id
+            or surface['key_surface_id'] != actor.surface_id
+            or surface['key_status'] != 'active'
+            or surface['revoked_at'] is not None
+        ):
+            raise AuthenticationError('ChatSurface Session token is inactive')
+        key_expiry = surface['expires_at']
+        if isinstance(key_expiry, str):
+            key_expiry = datetime.fromisoformat(key_expiry)
+        if key_expiry is not None and key_expiry.replace(tzinfo=key_expiry.tzinfo or UTC) <= now:
+            raise AuthenticationError('ChatSurface Session token is inactive')
+
+        binding = (await self._session.execute(
+            text("""SELECT 1 FROM chat_surface.session_bindings
+                  WHERE chat_surface_id = :surface_id AND session_id = :session_id
+                    AND project_id = :project_id AND target_type = :target_type
+                    AND target_id = :target_id AND target_release_id = :release_id
+                    AND surface_credential_id = :api_key_id AND status = 'active'""").bindparams(
+                bindparam('surface_id', type_=Uuid()), bindparam('session_id', type_=Uuid()),
+                bindparam('project_id', type_=Uuid()), bindparam('target_id', type_=Uuid()),
+                bindparam('release_id', type_=Uuid()), bindparam('api_key_id', type_=Uuid()),
+            ),
+            {'surface_id': actor.surface_id, 'session_id': actor.session_id,
+             'project_id': actor.project_id, 'target_type': actor.target_type,
+             'target_id': actor.target_id, 'release_id': actor.target_release_id,
+             'api_key_id': actor.api_key_id},
+        )).first()
+        if binding is None:
+            raise AuthenticationError('ChatSurface Session token is inactive')
+
+        if actor.target_type == 'agent':
+            session_table, target_column, release_column, environment_column = (
+                'agent.sessions', 'agent_id', 'opened_release_id', 'runtime_environment'
+            )
+        elif actor.target_type == 'network':
+            session_table, target_column, release_column, environment_column = (
+                'network.network_sessions', 'network_id', 'network_version_id', 'environment'
+            )
+        else:
+            raise AuthenticationError('ChatSurface Session token is inactive')
+        target_session = (await self._session.execute(
+            text(f"""SELECT 1 FROM {session_table}
+                  WHERE id = :session_id AND project_id = :project_id
+                    AND {target_column} = :target_id AND {release_column} = :release_id
+                    AND {environment_column} = 'production' AND chat_surface_id = :surface_id
+                    AND origin = 'chat_surface' AND status = 'active'""").bindparams(
+                bindparam('session_id', type_=Uuid()), bindparam('project_id', type_=Uuid()),
+                bindparam('target_id', type_=Uuid()), bindparam('release_id', type_=Uuid()),
+                bindparam('surface_id', type_=Uuid()),
+            ),
+            {'session_id': actor.session_id, 'project_id': actor.project_id,
+             'target_id': actor.target_id, 'release_id': actor.target_release_id,
+             'surface_id': actor.surface_id},
+        )).first()
+        if target_session is None:
+            raise AuthenticationError('ChatSurface Session token is inactive')
 
     async def require_active_human(self, actor: AuthenticatedPrincipal) -> None:
         """Revalidate durable administrative work against the current session lineage."""

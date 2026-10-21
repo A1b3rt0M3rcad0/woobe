@@ -11,6 +11,32 @@ export type { SurfaceAppearance } from "./appearance";
 
 type MessageRole = "user" | "assistant";
 
+export interface ArtifactRef {
+  artifact_id: string;
+  revision_id: string;
+}
+
+export interface ArtifactOption extends ArtifactRef {
+  path: string;
+  size_bytes?: number;
+  content_type?: string;
+}
+
+export interface ArtifactOutput {
+  ref: ArtifactRef;
+  path: string;
+  size_bytes?: number;
+  sha256?: string;
+  status?: string;
+}
+
+export interface UploadProgress {
+  name: string;
+  loaded: number;
+  total: number;
+  state: "uploading" | "paused" | "complete";
+}
+
 export interface PublicAgentActivity {
   status?: string;
   tool_name?: string;
@@ -18,8 +44,13 @@ export interface PublicAgentActivity {
 
 export interface ChatUi {
   setAppearance(appearance: SurfaceAppearance): void;
+  setArtifactCapabilities(read: boolean, write: boolean): void;
+  setArtifactOptions(options: ArtifactOption[] | null): void;
+  setUploadProgress(progress: UploadProgress | null): void;
+  addArtifactReference(reference: ArtifactOption): void;
   clearMessages(): void;
-  appendMessage(role: MessageRole, content: string, forceScroll?: boolean): HTMLElement;
+  appendMessage(role: MessageRole, content: string, forceScroll?: boolean, references?: ArtifactRef[], outputs?: ArtifactOutput[]): HTMLElement;
+  appendOutputArtifacts(element: HTMLElement, outputs: ArtifactOutput[]): void;
   appendPendingAssistant(): HTMLElement;
   updateSkillActivity(element: HTMLElement, activity: SkillActivity): void;
   updateAssistantActivity(element: HTMLElement, activity: PublicAgentActivity): string;
@@ -39,8 +70,14 @@ export interface ChatUi {
 }
 
 interface CreateChatUiOptions {
-  onSubmit?: (message: string) => void;
+  onSubmit?: (message: string, contentParts: Array<Record<string, unknown>>) => void;
   onStop?: () => void;
+  onFile?: (file: File) => void;
+  onBrowseArtifacts?: () => void;
+  onCancelUpload?: () => void;
+  onResumeUpload?: () => void;
+  onDiscardUpload?: () => void;
+  onDownloadArtifact?: (reference: ArtifactRef & { path?: string }) => void;
 }
 
 const ACTIVITY_STATUSES = new Set([
@@ -77,6 +114,18 @@ function shadowValue(value: SurfaceAppearance["surface"]["shadow"]): string {
   if (value === "md") return "0 12px 32px rgba(15, 23, 42, 0.16)";
   if (value === "lg") return "0 22px 54px rgba(15, 23, 42, 0.22)";
   return "none";
+}
+
+function formatBytes(value: number): string {
+  if (value < 1024) return `${value} B`;
+  const units = ["KB", "MB", "GB", "TB"];
+  let amount = value / 1024;
+  let unit = units[0];
+  for (let index = 1; index < units.length && amount >= 1024; index += 1) {
+    amount /= 1024;
+    unit = units[index];
+  }
+  return `${amount.toFixed(amount >= 10 ? 0 : 1)} ${unit}`;
 }
 
 function messageElement(
@@ -206,9 +255,27 @@ export function createChatUi(
       <header class="chat__header"></header>
       <div class="chat__messages" role="log" aria-label="Conversation" aria-live="polite"></div>
       <form class="chat__composer">
+        <div class="composer__references" aria-live="polite" hidden></div>
+        <div class="composer__artifact-picker" hidden>
+          <label class="sr-only" for="woobe-artifact-choice">Choose an Artifact revision</label>
+          <select id="woobe-artifact-choice"></select>
+          <button class="composer__add-reference" type="button">Add reference</button>
+        </div>
+        <div class="composer__upload" hidden>
+          <span class="composer__upload-name"></span>
+          <progress max="100" value="0"></progress>
+          <span class="composer__upload-status"></span>
+          <button class="composer__upload-action" type="button"></button>
+          <button class="composer__upload-discard" type="button">Discard</button>
+        </div>
+        <div class="composer__input-row">
+          <button class="composer__attach" type="button" aria-label="Attach a file">Attach</button>
+          <input class="composer__file" type="file" hidden />
+          <button class="composer__browse" type="button" aria-label="Reference an Artifact">@</button>
         <label class="sr-only" for="woobe-message">Message</label>
-        <textarea id="woobe-message" rows="1" maxlength="32768" required></textarea>
+        <textarea id="woobe-message" rows="1" maxlength="32768"></textarea>
         <button class="chat__send" type="submit"></button>
+        </div>
       </form>
     </section>
   `;
@@ -218,10 +285,60 @@ export function createChatUi(
   const form = root.querySelector<HTMLFormElement>(".chat__composer");
   const input = root.querySelector<HTMLTextAreaElement>("#woobe-message");
   const button = root.querySelector<HTMLButtonElement>("button[type='submit']");
+  const attachButton = root.querySelector<HTMLButtonElement>(".composer__attach");
+  const fileInput = root.querySelector<HTMLInputElement>(".composer__file");
+  const browseButton = root.querySelector<HTMLButtonElement>(".composer__browse");
+  const referencesPanel = root.querySelector<HTMLElement>(".composer__references");
+  const artifactPicker = root.querySelector<HTMLElement>(".composer__artifact-picker");
+  const artifactChoice = root.querySelector<HTMLSelectElement>("#woobe-artifact-choice");
+  const addReferenceButton = root.querySelector<HTMLButtonElement>(".composer__add-reference");
+  const uploadPanel = root.querySelector<HTMLElement>(".composer__upload");
+  const uploadName = root.querySelector<HTMLElement>(".composer__upload-name");
+  const uploadProgress = root.querySelector<HTMLProgressElement>(".composer__upload progress");
+  const uploadStatus = root.querySelector<HTMLElement>(".composer__upload-status");
+  const uploadAction = root.querySelector<HTMLButtonElement>(".composer__upload-action");
+  const uploadDiscard = root.querySelector<HTMLButtonElement>(".composer__upload-discard");
 
-  if (!header || !messages || !form || !input || !button) {
+  if (!header || !messages || !form || !input || !button || !attachButton || !fileInput || !browseButton || !referencesPanel || !artifactPicker || !artifactChoice || !addReferenceButton || !uploadPanel || !uploadName || !uploadProgress || !uploadStatus || !uploadAction || !uploadDiscard) {
     throw new Error("Unable to render Woobe Chat UI");
   }
+
+  const artifactReferences: ArtifactOption[] = [];
+  let artifactOptions: ArtifactOption[] = [];
+  let canReadArtifacts = false;
+  let canWriteArtifacts = false;
+  let currentUpload: UploadProgress | null = null;
+
+  const renderReferences = () => {
+    referencesPanel.replaceChildren();
+    referencesPanel.hidden = artifactReferences.length === 0;
+    artifactReferences.forEach((reference, index) => {
+      const chip = document.createElement("span");
+      chip.className = "composer__reference-chip";
+      const label = document.createElement("span");
+      label.textContent = reference.path;
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.textContent = "×";
+      remove.setAttribute("aria-label", `Remove ${reference.path}`);
+      remove.addEventListener("click", () => {
+        artifactReferences.splice(index, 1);
+        renderReferences();
+      });
+      chip.append(label, remove);
+      referencesPanel.append(chip);
+    });
+  };
+
+  const renderUpload = () => {
+    uploadPanel.hidden = currentUpload === null;
+    if (!currentUpload) return;
+    uploadName.textContent = currentUpload.name;
+    uploadProgress.value = currentUpload.total === 0 ? 100 : Math.min(100, Math.floor(currentUpload.loaded * 100 / currentUpload.total));
+    uploadStatus.textContent = currentUpload.state === "uploading" ? `${uploadProgress.value}%` : currentUpload.state === "paused" ? "Paused" : "Uploaded";
+    uploadAction.hidden = currentUpload.state === "complete";
+    uploadAction.textContent = currentUpload.state === "uploading" ? "Cancel" : "Resume";
+  };
 
   const isNearBottom = () =>
     messages.scrollHeight - messages.scrollTop - messages.clientHeight <= 72;
@@ -348,9 +465,36 @@ export function createChatUi(
       return;
     }
     const message = input.value.trim();
-    if (!message) return;
-    options.onSubmit?.(message);
+    if (!message && artifactReferences.length === 0) return;
+    const parts: Array<Record<string, unknown>> = [];
+    if (message) parts.push({ type: "text", text: message });
+    for (const reference of artifactReferences) {
+      parts.push({ type: "artifact", ref: { artifact_id: reference.artifact_id, revision_id: reference.revision_id } });
+    }
+    options.onSubmit?.(artifactReferences.length ? "" : message, parts);
   });
+
+  attachButton.addEventListener("click", () => fileInput.click());
+  fileInput.addEventListener("change", () => {
+    const file = fileInput.files?.[0];
+    fileInput.value = "";
+    if (file) options.onFile?.(file);
+  });
+  browseButton.addEventListener("click", () => {
+    if (artifactPicker.hidden) options.onBrowseArtifacts?.();
+    else artifactPicker.hidden = true;
+  });
+  addReferenceButton.addEventListener("click", () => {
+    const option = artifactOptions[artifactChoice.selectedIndex];
+    if (!option || artifactReferences.some((item) => item.artifact_id === option.artifact_id && item.revision_id === option.revision_id)) return;
+    artifactReferences.push(option);
+    renderReferences();
+  });
+  uploadAction.addEventListener("click", () => {
+    if (currentUpload?.state === "uploading") options.onCancelUpload?.();
+    else if (currentUpload?.state === "paused") options.onResumeUpload?.();
+  });
+  uploadDiscard.addEventListener("click", () => options.onDiscardUpload?.());
 
   input.addEventListener("keydown", (event) => {
     if (
@@ -369,17 +513,70 @@ export function createChatUi(
 
   return {
     setAppearance,
+    setArtifactCapabilities(read, write) {
+      canReadArtifacts = read;
+      canWriteArtifacts = write;
+      browseButton.hidden = !read;
+      attachButton.hidden = !write;
+    },
+    setArtifactOptions(options) {
+      artifactOptions = options ?? [];
+      artifactChoice.replaceChildren();
+      for (const option of artifactOptions) {
+        const element = document.createElement("option");
+        element.textContent = `${option.path} · r${option.revision_id}`;
+        artifactChoice.append(element);
+      }
+      artifactPicker.hidden = !canReadArtifacts || artifactOptions.length === 0;
+      browseButton.disabled = artifactOptions.length === 0;
+    },
+    setUploadProgress(progress) {
+      currentUpload = progress;
+      renderUpload();
+    },
+    addArtifactReference(reference) {
+      if (artifactReferences.length >= 16) return;
+      artifactReferences.push(reference);
+      renderReferences();
+    },
     clearMessages() {
       for (const frame of streamingFrames.values()) cancelAnimationFrame(frame);
       streamingFrames.clear();
       messages.replaceChildren();
       followLatest = true;
     },
-    appendMessage(role, content, forceScroll = false) {
+    appendMessage(role, content, forceScroll = false, references = [], outputs = []) {
       const item = messageElement(role, content, appearance);
+      if (references.length) {
+        const section = document.createElement("div");
+        section.className = "message__artifact-refs";
+        for (const reference of references) {
+          const badge = document.createElement("span");
+          badge.textContent = `Artifact ${reference.artifact_id} · ${reference.revision_id}`;
+          section.append(badge);
+        }
+        item.append(section);
+      }
       messages.appendChild(item);
+      if (outputs.length) this.appendOutputArtifacts(item, outputs);
       scrollToLatest(forceScroll);
       return item;
+    },
+    appendOutputArtifacts(element, outputs) {
+      element.querySelector(".message__artifact-outputs")?.remove();
+      if (!canReadArtifacts || outputs.length === 0) return;
+      const section = document.createElement("section");
+      section.className = "message__artifact-outputs";
+      section.setAttribute("aria-label", "Generated files");
+      for (const output of outputs) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "message__artifact-download";
+        button.textContent = `Download ${output.path} (${formatBytes(output.size_bytes ?? 0)})`;
+        button.addEventListener("click", () => options.onDownloadArtifact?.({ ...output.ref, path: output.path }));
+        section.append(button);
+      }
+      element.append(section);
     },
     appendPendingAssistant() {
       const item = messageElement("assistant", "", appearance);
@@ -486,6 +683,8 @@ export function createChatUi(
     },
     clearComposer() {
       input.value = "";
+      artifactReferences.splice(0, artifactReferences.length);
+      renderReferences();
     },
     focusComposer() {
       if (!sessionExpired) input.focus();

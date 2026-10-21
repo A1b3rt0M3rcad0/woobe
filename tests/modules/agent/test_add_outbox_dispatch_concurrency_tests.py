@@ -8,8 +8,12 @@ attempts, and claim_batch idempotency safety under concurrent dispatch.
 from __future__ import annotations
 
 import inspect
+from uuid import uuid4
 
+import pytest
+from modules.agent.domain.events import AgentExecutionRequestedV1
 from modules.agent.infra.database.models import AgentOutboxEventModel
+from modules.agent.infra.messaging.event_mappers import domain_event_to_outbox
 from modules.agent.infra.database.repositories import (
     AGENT_DEFAULT_BATCH_SIZE,
     AGENT_OUTBOX_LOCK_TIMEOUT_SECONDS,
@@ -21,6 +25,7 @@ from woobe_workers.consumers.agent.outbox_dispatcher import (
     AgentOutboxDispatcherWorker,
 )
 from woobe_workers.runtime.outbox_dispatcher_base import BaseOutboxDispatcher, OutboxRecord
+import woobe_workers.consumers.agent.outbox_dispatcher as outbox_dispatcher_module
 
 
 class TestOutboxClaimBatchConcurrency:
@@ -220,9 +225,63 @@ class TestOutboxDispatcherConcurrency:
         assert "locked_by" in source
         assert "self._worker_id" in source
 
-    def test_dispatcher_run_creates_session_transaction(self):
-        source = inspect.getsource(AgentOutboxDispatcherWorker.run)
-        assert "session.begin()" in source
+    @pytest.mark.asyncio
+    async def test_dispatcher_claim_and_finalize_are_transaction_scoped(self, monkeypatch):
+        event = domain_event_to_outbox(AgentExecutionRequestedV1.create(
+            agent_id=uuid4(), session_id=uuid4(), payload={"action": "dispatch"},
+        ))
+        calls = []
+
+        class Repository:
+            async def claim_batch(self, *, batch_size, locked_by):
+                calls.append(("claim", batch_size, locked_by))
+                event.status = "publishing"
+                event.locked_by = locked_by
+                return [event]
+
+            async def mark_published(self, event_id):
+                calls.append(("mark_published", event_id))
+
+            async def mark_dead(self, event_id, error):
+                calls.append(("mark_dead", event_id, error))
+
+            async def mark_retryable(self, event_id, error, available_at):
+                calls.append(("mark_retryable", event_id, error, available_at))
+
+        repository = Repository()
+
+        class UnitOfWork:
+            def __init__(self, _engine):
+                self.session = object()
+
+            async def __aenter__(self):
+                calls.append(("uow_enter",))
+                return self
+
+            async def __aexit__(self, exc_type, exc_val, exc_tb):
+                calls.append(("uow_exit",))
+
+        class Publisher:
+            async def publish(self, _envelope):
+                calls.append(("publish",))
+
+        monkeypatch.setattr(outbox_dispatcher_module, "AgentUnitOfWork", UnitOfWork)
+        monkeypatch.setattr(
+            outbox_dispatcher_module, "SQLAlchemyAgentOutboxRepository",
+            lambda uow: repository,
+        )
+        worker = AgentOutboxDispatcherWorker(
+            object(), Publisher(), worker_id="transactional-dispatcher",
+        )
+
+        await worker.run()
+
+        assert [call[0] for call in calls] == [
+            "uow_enter", "claim", "uow_exit", "publish",
+            "uow_enter", "mark_published", "uow_exit",
+        ]
+        assert calls[1] == ("claim", worker.BATCH_SIZE, "transactional-dispatcher")
+        assert calls[5] == ("mark_published", event.id)
 
     def test_dispatcher_run_publishes_before_mark(self):
         source = inspect.getsource(BaseOutboxDispatcher.run)

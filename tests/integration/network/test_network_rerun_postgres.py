@@ -14,6 +14,7 @@ from modules.network.infra.database.models import (
     NetworkOutboxEventModel,
     NetworkSessionModel,
 )
+from modules.core.infra.database.models import ProjectModel
 from shared.infra.config import Settings
 from shared.infra.database.session import create_engine, create_session_factory
 
@@ -39,11 +40,23 @@ async def test_network_rerun_creates_new_run_from_frozen_snapshot_with_lineage()
             "release_id": None,
             "release_version": "draft",
             "session_mode": "stateful",
+            "snapshot_override": {},
         }
     }
 
     async with session_factory() as session:
         async with session.begin():
+            session.add(
+                ProjectModel(
+                    id=project_id,
+                    workspace_id=uuid4(),
+                    name="Network rerun project",
+                    slug=f"network-rerun-{project_id}",
+                    status="active",
+                    data={},
+                )
+            )
+            await session.flush()
             session.add(
                 NetworkModel(
                     id=network_id,
@@ -78,9 +91,29 @@ async def test_network_rerun_creates_new_run_from_frozen_snapshot_with_lineage()
                     network_session_id=network_session_id,
                     project_id=project_id,
                     input_message="original network input",
+                    input_content_parts=[
+                        {
+                            "type": "artifact",
+                            "ref": {
+                                "artifact_id": "report-1",
+                                "revision_id": "report-revision-3",
+                            },
+                        }
+                    ],
                     draft_revision=7,
                     definition_snapshot=definition,
                     resolved_bindings_snapshot=bindings,
+                    artifact_workspace_binding={
+                        "schema_version": 1,
+                        "workspace_id": "workspace-rerun",
+                        "catalog_version": 9,
+                        "binding_scope": "session",
+                        "actions": ["read"],
+                    },
+                    runtime_principal_snapshot={
+                        "kind": "runtime",
+                        "project_id": str(project_id),
+                    },
                     output_message="original output",
                     status="completed",
                     last_event_sequence=3,
@@ -104,9 +137,29 @@ async def test_network_rerun_creates_new_run_from_frozen_snapshot_with_lineage()
     assert rerun.status == "queued"
     assert rerun.network_session_id == network_session_id
     assert rerun.input_message == "original network input"
+    assert rerun.input_content_parts == [
+        {
+            "type": "artifact",
+            "ref": {
+                "artifact_id": "report-1",
+                "revision_id": "report-revision-3",
+            },
+        }
+    ]
     assert rerun.draft_revision == 7
     assert rerun.definition_snapshot == definition
     assert rerun.resolved_bindings_snapshot == bindings
+    assert rerun.artifact_workspace_binding == {
+        "schema_version": 1,
+        "workspace_id": "workspace-rerun",
+        "catalog_version": 9,
+        "binding_scope": "session",
+        "actions": ["read"],
+    }
+    assert rerun.runtime_principal_snapshot == {
+        "kind": "runtime",
+        "project_id": str(project_id),
+    }
     assert rerun.definition_snapshot is not definition
     assert rerun.resolved_bindings_snapshot is not bindings
 
@@ -132,6 +185,7 @@ async def test_network_rerun_creates_new_run_from_frozen_snapshot_with_lineage()
     assert message.role == "user"
     assert message.content == "original network input"
     assert message.data["rerun_of_execution_id"] == str(source_execution_id)
+    assert message.data["content_parts"] == rerun.input_content_parts
     assert event is not None
     assert event.event_type == "execution_accepted"
     assert event.payload["rerun_of_execution_id"] == str(source_execution_id)

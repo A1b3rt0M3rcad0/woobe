@@ -1,0 +1,4 @@
+message: "Explain how you would investigate an unavailable support service."
+# Optional exact assertion against parsed output:
+# expected_output:
+#   answer: "An expected answer defined by your acceptance criteria."

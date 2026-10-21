@@ -47,6 +47,10 @@ class ChatRuntimeRequest:
     session_source: str
     created: bool
     existing_run_id: UUID | None = None
+    surface_credential_id: UUID | None = None
+    token_epoch: int = 1
+    token_expires_at: datetime | None = None
+    content_parts: tuple | None = None
 
     @property
     def target(self) -> ChatRuntimeTarget:

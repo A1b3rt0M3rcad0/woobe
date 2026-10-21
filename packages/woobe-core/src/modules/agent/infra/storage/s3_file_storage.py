@@ -1,125 +1,75 @@
 from __future__ import annotations
 
-import asyncio
 from uuid import UUID
 
 from modules.agent.application.interfaces.file_storage import (
-    StoredFile,
-    build_document_storage_key,
-    compute_sha256,
-    sanitize_file_name,
+    StoredFile, build_document_storage_key, compute_sha256, sanitize_file_name,
 )
+from modules.agent.infra.storage.errors import legacy_document_error
+from shared.contracts.object_storage import ObjectStorageError, read_bounded
+from shared.infra.object_storage.s3 import S3ObjectStorage
+from shared.infra.object_storage.s3_factory import create_s3_object_storage
 
 
 class S3FileStorage:
-    def __init__(
-        self,
-        *,
-        bucket: str,
-        region: str | None = None,
-        prefix: str | None = None,
-        endpoint_url: str | None = None,
-        force_path_style: bool = False,
-        server_side_encryption: str | None = None,
-    ) -> None:
+    """Knowledge facade preserving keys and metadata over shared S3 streaming."""
+
+    def __init__(self, *, bucket: str, region: str | None = None,
+                 prefix: str | None = None, endpoint_url: str | None = None,
+                 force_path_style: bool = False, server_side_encryption: str | None = None):
         if not bucket:
-            raise ValueError("WOOBE_S3_BUCKET is required when WOOBE_STORAGE_DRIVER=s3")
+            raise ValueError('WOOBE_S3_BUCKET is required when WOOBE_STORAGE_DRIVER=s3')
+        self._objects = create_s3_object_storage(bucket=bucket, region=region,
+            endpoint_url=endpoint_url, force_path_style=force_path_style,
+            server_side_encryption=server_side_encryption, legacy_keys=True)
+        self._client = self._objects._client
+        self._bucket, self._prefix = bucket, prefix
+        self._server_side_encryption = server_side_encryption
+
+    def _store(self):
+        if getattr(self, '_objects', None) is None:
+            self._objects = S3ObjectStorage(self._client, bucket=self._bucket,
+                legacy_keys=True, server_side_encryption=getattr(self, '_server_side_encryption', None))
+        return self._objects
+
+    async def save_document(self, *, content: bytes, project_id: UUID,
+                            collection_id: UUID, document_id: UUID,
+                            file_name: str, content_type: str):
+        safe_name = sanitize_file_name(file_name)
+        key = build_document_storage_key(project_id=project_id, collection_id=collection_id,
+            document_id=document_id, file_name=safe_name, prefix=self._prefix)
+        digest = compute_sha256(content)
+
+        async def chunks():
+            for offset in range(0, len(content), 65_536):
+                yield content[offset:offset + 65_536]
 
         try:
-            import boto3
-            from botocore.config import Config
-        except ImportError as exc:
-            raise RuntimeError(
-                "boto3 is required when WOOBE_STORAGE_DRIVER=s3"
-            ) from exc
+            await self._store().put(key, chunks(), size_bytes=len(content), sha256=digest,
+                content_type=content_type, replace=True, attributes={
+                    'project_id': str(project_id), 'collection_id': str(collection_id),
+                    'document_id': str(document_id), 'original_file_name': safe_name})
+        except ObjectStorageError as error:
+            raise legacy_document_error(error) from error
+        return StoredFile(key, safe_name, content_type, len(content), digest)
 
-        config = Config(s3={"addressing_style": "path" if force_path_style else "auto"})
-        self._client = boto3.client(
-            "s3",
-            region_name=region,
-            endpoint_url=endpoint_url or None,
-            config=config,
-        )
-        self._bucket = bucket
-        self._prefix = prefix
-        self._server_side_encryption = server_side_encryption or None
+    async def read_document(self, storage_key):
+        try:
+            return b''.join([chunk async for chunk in self._store().open(storage_key)])
+        except ObjectStorageError as error:
+            raise legacy_document_error(error) from error
 
-    async def save_document(
-        self,
-        *,
-        content: bytes,
-        project_id: UUID,
-        collection_id: UUID,
-        document_id: UUID,
-        file_name: str,
-        content_type: str,
-    ) -> StoredFile:
-        safe_file_name = sanitize_file_name(file_name)
-        storage_key = build_document_storage_key(
-            project_id=project_id,
-            collection_id=collection_id,
-            document_id=document_id,
-            file_name=safe_file_name,
-            prefix=self._prefix,
-        )
-        sha256 = compute_sha256(content)
+    async def read_document_bounded(self, storage_key, *, max_bytes):
+        try:
+            return await read_bounded(self._store(), storage_key, max_bytes=max_bytes)
+        except ObjectStorageError as error:
+            raise legacy_document_error(error) from error
 
-        put_kwargs = {
-            "Bucket": self._bucket,
-            "Key": storage_key,
-            "Body": content,
-            "ContentType": content_type,
-            "Metadata": {
-                "project_id": str(project_id),
-                "collection_id": str(collection_id),
-                "document_id": str(document_id),
-                "sha256": sha256,
-                "original_file_name": safe_file_name,
-            },
-        }
-        if self._server_side_encryption:
-            put_kwargs["ServerSideEncryption"] = self._server_side_encryption
+    async def delete(self, storage_key):
+        try:
+            await self._store().delete(storage_key)
+        except ObjectStorageError as error:
+            raise legacy_document_error(error) from error
 
-        await asyncio.to_thread(self._client.put_object, **put_kwargs)
-        return StoredFile(
-            storage_key=storage_key,
-            file_name=safe_file_name,
-            content_type=content_type,
-            size_bytes=len(content),
-            sha256=sha256,
-        )
-
-    async def read_document(self, storage_key: str) -> bytes:
-        response = await asyncio.to_thread(
-            self._client.get_object,
-            Bucket=self._bucket,
-            Key=storage_key,
-        )
-        body = response["Body"]
-        return await asyncio.to_thread(body.read)
-
-    async def delete(self, storage_key: str) -> None:
-        await asyncio.to_thread(
-            self._client.delete_object,
-            Bucket=self._bucket,
-            Key=storage_key,
-        )
-
-    async def read_document_bounded(self, storage_key: str, *, max_bytes: int) -> bytes:
-        if max_bytes < 1:
-            raise ValueError("Invalid bounded document read")
-
-        def read_file():
-            response = self._client.get_object(Bucket=self._bucket, Key=storage_key)
-            body = response["Body"]
-            try:
-                if response.get("ContentLength", 0) > max_bytes:
-                    raise ValueError("Document exceeds bounded read")
-                content = body.read(max_bytes + 1)
-                if len(content) > max_bytes:
-                    raise ValueError("Document exceeds bounded read")
-                return content
-            finally:
-                body.close()
-
-        return await asyncio.to_thread(read_file)
+    async def close(self):
+        await self._store().close()

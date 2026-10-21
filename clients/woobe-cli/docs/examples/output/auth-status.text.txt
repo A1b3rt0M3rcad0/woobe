@@ -1,0 +1,11 @@
+Connection: woobe
+API: http://localhost:8000
+Authenticated: true
+Workspace: My Workspace
+Project: ChatBot
+State: authenticated
+Credential storage: environment
+Available projects: 1
+CLI Key: Administrador
+Key expires: -
+Details: --wide | --fields FIELD,... | --output json

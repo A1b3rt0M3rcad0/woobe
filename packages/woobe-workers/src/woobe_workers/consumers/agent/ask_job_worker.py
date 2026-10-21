@@ -82,7 +82,8 @@ class AskJobWorker:
         input_dto = AskInput(
             project_id=job.project_id,
             agent_id=job.agent_id,
-            message=params.get("message", ""),
+            message="" if params.get("content_parts") is not None else params.get("message", ""),
+            content_parts=params.get("content_parts"),
             session_id=params.get("session_id"),
             tenant_id=params.get("tenant_id"),
             user_id=params.get("user_id"),

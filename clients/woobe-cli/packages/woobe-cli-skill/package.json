@@ -1,0 +1,15 @@
+{
+  "name": "woobe-cli-skill",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Portable Agent Skill and explicit installer for Woobe CLI workflows",
+  "license": "UNLICENSED",
+  "repository": {"type": "git", "url": "git+https://github.com/A1b3rt0M3rcad0/woobe-cli.git", "directory": "packages/woobe-cli-skill"},
+  "homepage": "https://github.com/A1b3rt0M3rcad0/woobe-cli/blob/master/docs/AGENT_SKILL.md",
+  "bugs": "https://github.com/A1b3rt0M3rcad0/woobe-cli/issues",
+  "bin": {"woobe-skill": "bin/woobe-skill.cjs"},
+  "engines": {"node": ">=22"},
+  "files": ["bin/", "lib/", "skills/", "README.md"],
+  "keywords": ["woobe", "agent-skills", "codex", "claude-code", "copilot", "cursor"],
+  "woobeSkill": {"name": "woobe-cli", "minimumCliVersion": "0.32.3"}
+}

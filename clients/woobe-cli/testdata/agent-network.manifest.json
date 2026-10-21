@@ -1,0 +1,25 @@
+{
+  "schema_version": "1",
+  "workspace_id": "workspace-id",
+  "project_id": "project-id",
+  "steps": [
+    {
+      "id": "agent",
+      "command": "project agent create",
+      "body": {"project_id": "project-id", "name": "Study tutor"}
+    },
+    {
+      "id": "network",
+      "command": "project network create",
+      "body": {"name": "Study network"},
+      "depends_on": ["agent"]
+    },
+    {
+      "id": "network-metadata",
+      "command": "project network update",
+      "args": ["${steps.network.id}"],
+      "body": {"description": "Created alongside agent ${steps.agent.id}; embedded string interpolation is intentionally unsupported."},
+      "depends_on": ["network"]
+    }
+  ]
+}

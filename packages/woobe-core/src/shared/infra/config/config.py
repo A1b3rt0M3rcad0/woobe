@@ -147,6 +147,12 @@ class Settings(BaseSettings):
     redis_connect_timeout_seconds: float = Field(default=2.0, gt=0, le=30)
     storage_driver: str = "local"
     upload_max_mb: int = Field(default=25, gt=0, le=512)
+    artifact_processing_project_max_jobs: int = Field(default=1000, ge=1, le=10000)
+    artifact_processing_workspace_max_jobs: int = Field(default=100, ge=1, le=1000)
+    artifact_processing_project_slots: int = Field(default=4, ge=1, le=64)
+    artifact_processing_workspace_slots: int = Field(default=2, ge=1, le=64)
+    artifact_ocr_data_dir: str | None = None
+    artifact_tesseract_executable: str = '/usr/bin/tesseract'
     upload_allowed_extensions: str = ".txt,.md,.pdf,.docx"
     upload_local_dir: str = "./storage/uploads"
     rag_docx_max_uncompressed_mb: int = Field(default=100, gt=0, le=1024)

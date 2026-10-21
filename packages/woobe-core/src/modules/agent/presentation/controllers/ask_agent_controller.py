@@ -3,7 +3,8 @@ import logging
 
 from modules.agent.presentation.schemas import AskResponse, UsageResponse
 from modules.agent.application.dtos import AskInput
-from shared.contracts.errors import ConflictError, NotFoundError, ValidationError
+from shared.contracts.runtime_metadata import strip_untrusted_runtime_metadata
+from shared.contracts.errors import AuthorizationError, ConflictError, NotFoundError, ValidationError
 from shared.presentation.contracts import OperationOutcome
 from shared.presentation.contracts import OperationRequest
 from shared.presentation.contracts import OperationResult
@@ -40,7 +41,11 @@ class AskAgentController(Controller):
 
     async def handle(self, request: OperationRequest) -> OperationResult:
         try:
-            input_dto = AskInput(**request.body)
+            payload = dict(request.body)
+            payload.pop("runtime_principal", None)
+            payload["metadata"] = strip_untrusted_runtime_metadata(payload.get("metadata"))
+            input_dto = AskInput(**payload)
+            input_dto.runtime_principal = request.principal
             result = await self._use_case.execute(input_dto)
 
             data = AskResponse(
@@ -82,6 +87,11 @@ class AskAgentController(Controller):
                 },
             )
 
+        except AuthorizationError:
+            return OperationResult(
+                outcome=OperationOutcome.FORBIDDEN,
+                body={"success": False, "message": "Artifact Workspace access is denied", "data": None},
+            )
         except NotFoundError as e:
             return OperationResult(
                 outcome=OperationOutcome.NOT_FOUND,

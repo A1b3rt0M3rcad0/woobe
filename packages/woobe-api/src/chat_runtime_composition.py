@@ -28,11 +28,12 @@ from woobe_api.http.agent.controllers.ask_agent_stream_controller import (
     commit_safe_stream,
 )
 from shared.composition_resources import EXECUTION_STATE_STORE
-from shared.infra.errors import ConflictError, NotFoundError
+from shared.infra.errors import AuthorizationError, ConflictError, NotFoundError
+from shared.security.principal import ChatSurfaceRuntimePrincipal
+from shared.contracts.runtime_metadata import strip_untrusted_runtime_metadata
 from shared.runtime.contracts import runtime_state_frame
 from shared.runtime import (
     RunReference,
-    RuntimeFrame,
     RuntimeObserver,
     RuntimeStreamGapError,
     format_sse_frame,
@@ -170,10 +171,11 @@ class ApiChatRuntimeGateway:
             project_id=runtime_request.project_id,
             agent_id=runtime_request.target_id,
             message=runtime_request.message,
+            content_parts=runtime_request.content_parts,
             session_id=runtime_request.session_id,
             tenant_id=str(runtime_request.surface_id),
             metadata={
-                **runtime_request.metadata,
+                **strip_untrusted_runtime_metadata(runtime_request.metadata),
                 "source": (
                     "chat_surface_test"
                     if runtime_request.session_source == "control_plane_test"
@@ -188,6 +190,7 @@ class ApiChatRuntimeGateway:
             external_context=runtime_request.external_context,
             execution_context="production",
             loaded_release_id=runtime_request.target_release_id,
+            runtime_principal=self._surface_principal(runtime_request),
         )
         service = build_agent_stream_service()
         adapter = _DisconnectAdapter(disconnect_check)
@@ -223,6 +226,22 @@ class ApiChatRuntimeGateway:
                 terminal_status=terminal_status,
             )
 
+    @staticmethod
+    def _surface_principal(runtime_request: ChatRuntimeRequest) -> ChatSurfaceRuntimePrincipal:
+        if runtime_request.surface_credential_id is None or runtime_request.token_expires_at is None:
+            raise AuthorizationError("ChatSurface runtime principal is unavailable")
+        return ChatSurfaceRuntimePrincipal(
+            api_key_id=runtime_request.surface_credential_id,
+            project_id=runtime_request.project_id,
+            surface_id=runtime_request.surface_id,
+            session_id=runtime_request.session_id,
+            target_type=runtime_request.target_type,
+            target_id=runtime_request.target_id,
+            target_release_id=runtime_request.target_release_id,
+            token_epoch=runtime_request.token_epoch,
+            expires_at=runtime_request.token_expires_at,
+        )
+
     async def prepare(
         self,
         runtime_request: ChatRuntimeRequest,
@@ -246,8 +265,10 @@ class ApiChatRuntimeGateway:
                 project_id=runtime_request.project_id,
                 network_session_id=runtime_request.session_id,
                 message=runtime_request.message,
+                content_parts=runtime_request.content_parts,
                 external_context=runtime_request.external_context,
                 idempotency_key=f"chat:{runtime_request.message_request_id}",
+                principal=self._surface_principal(runtime_request),
             )
             execution_id = execution.id
         elif runtime_request.existing_run_id is not None:
@@ -328,7 +349,9 @@ class ApiChatRuntimeGateway:
                         network_version_id=target.target_release_id,
                     )
 
-                formatter = lambda frame: network_runtime_sse(frame, run_id)
+                def formatter(frame):
+                    return network_runtime_sse(frame, run_id)
+
                 run_ref = RunReference.network(run_id)
                 kind = "network"
 

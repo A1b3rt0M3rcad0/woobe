@@ -462,6 +462,60 @@ _REVIEWED = [
     (method, path, "tool:read" if path == "/tools/mcp/oauth/status" else permission)
     for method, path, permission in _REVIEWED
 ]
+_REVIEWED += [
+    ('POST', '/v1/artifact-workspaces', 'artifacts:manage'),
+    ('GET', '/v1/artifact-workspaces', 'artifacts:read'),
+    ('GET', '/v1/artifact-workspaces/resolve', 'artifacts:read'),
+    ('GET', '/v1/artifact-workspaces/{artifact_workspace_id}', 'artifacts:read'),
+    ('PATCH', '/v1/artifact-workspaces/{artifact_workspace_id}', 'artifacts:manage'),
+    ('POST', '/v1/artifact-workspace-grants', 'artifacts:manage'),
+    ('DELETE', '/v1/artifact-workspace-grants/{grant_id}', 'artifacts:manage'),
+    ('GET', '/v1/artifact-workspaces/{artifact_workspace_id}/artifacts', 'artifacts:read'),
+    ('POST', '/v1/artifact-workspaces/{artifact_workspace_id}/artifacts', 'artifacts:write'),
+    ('GET', '/v1/artifact-workspaces/{artifact_workspace_id}/artifacts/{artifact_id}', 'artifacts:read'),
+    ('GET', '/v1/artifact-workspaces/{artifact_workspace_id}/artifacts/{artifact_id}/revisions', 'artifacts:read'),
+    ('PATCH', '/v1/artifact-workspaces/{artifact_workspace_id}/artifacts/{artifact_id}', 'artifacts:write'),
+    ('PUT', '/v1/artifact-workspaces/{artifact_workspace_id}/artifacts/{artifact_id}/content', 'artifacts:write'),
+    ('DELETE', '/v1/artifact-workspaces/{artifact_workspace_id}/artifacts/{artifact_id}', 'artifacts:delete'),
+    ('POST', '/v1/artifact-workspaces/{artifact_workspace_id}/uploads', 'artifacts:write'),
+    ('GET', '/v1/artifact-workspaces/{artifact_workspace_id}/uploads/{upload_id}', 'artifacts:read'),
+    ('PUT', '/v1/artifact-workspaces/{artifact_workspace_id}/uploads/{upload_id}/parts', 'artifacts:write'),
+    ('POST', '/v1/artifact-workspaces/{artifact_workspace_id}/uploads/{upload_id}/finalize', 'artifacts:write'),
+    ('DELETE', '/v1/artifact-workspaces/{artifact_workspace_id}/uploads/{upload_id}', 'artifacts:write'),
+    ('GET', '/v1/artifacts/{artifact_id}/revisions/{revision_id}', 'artifacts:read'),
+    ('GET', '/v1/artifacts/{artifact_id}/revisions/{revision_id}/content', 'artifacts:read'),
+    ('GET', '/v1/artifact-capabilities', 'artifacts:read'),
+]
+_REVIEWED += [
+    ('POST', '/v1/artifact-processing-profiles', 'artifacts:manage'),
+    ('GET', '/v1/artifact-processing-profiles', 'artifacts:read'),
+    ('GET', '/v1/artifact-processing-profiles/{profile_id}/revisions/{profile_revision}', 'artifacts:read'),
+    ('PUT', '/v1/artifact-workspaces/{artifact_workspace_id}/processing-profile', 'artifacts:manage'),
+    ('GET', '/v1/artifact-workspaces/{artifact_workspace_id}/processing-profile', 'artifacts:process'),
+    ('GET', '/v1/artifact-processing-capabilities', 'artifacts:read'),
+]
+_REVIEWED += [
+    ('POST', '/v1/artifacts/{artifact_id}/processing', 'artifacts:process'),
+    ('GET', '/v1/artifacts/{artifact_id}/processing/{job_id}', 'artifacts:read'),
+    ('POST', '/v1/artifacts/{artifact_id}/processing/{job_id}/cancel', 'artifacts:process'),
+]
+_REVIEWED += [
+    ('GET', '/v1/artifacts/{artifact_id}/revisions/{revision_id}/representations', 'artifacts:read'),
+    ('GET', '/v1/artifacts/{artifact_id}/revisions/{revision_id}/representations/{representation_set_id}', 'artifacts:read'),
+    ('GET', '/v1/artifacts/{artifact_id}/revisions/{revision_id}/representations/{representation_set_id}/entries', 'artifacts:read'),
+    ('GET', '/v1/artifacts/{artifact_id}/revisions/{revision_id}/representations/{representation_set_id}/entries/{entry_id}/content', 'artifacts:read'),
+    ('POST', '/v1/artifacts/{artifact_id}/revisions/{revision_id}/representations/{representation_set_id}/entries/{entry_id}/copy', 'artifacts:write'),
+    ('POST', '/v1/artifact-sources/read', 'artifacts:read'),
+    ('POST', '/v1/artifact-sources/resolve', 'artifacts:read'),
+    ('GET', '/v1/artifacts/{artifact_id}/revisions/{revision_id}/representations/{representation_set_id}/pages/{page_index}/image', 'artifacts:read'),
+]
+_REVIEWED += [
+    ('GET', '/v1/document-indexes/{document_index_id}', 'artifacts:read'),
+    ('GET', '/v1/artifact-workspaces/{artifact_workspace_id}/artifacts/{artifact_id}/revisions/{revision_id}/document-index', 'artifacts:read'),
+    ('GET', '/v1/document-indexes/{document_index_id}/nodes', 'artifacts:read'),
+    ('GET', '/v1/document-indexes/{document_index_id}/nodes/{node_id}', 'artifacts:read'),
+    ('GET', '/v1/document-indexes/{document_index_id}/nodes/{node_id}/content', 'artifacts:read'),
+]
 _COMPILED = [
     (method, path, permission, compile_path(path)[0])
     for method, path, permission in _REVIEWED
@@ -638,6 +692,10 @@ def verified_query_context(
     method: str, path: str, path_params: dict[str, Any], query_params: dict[str, Any]
 ) -> dict[str, Any]:
     """Expose only filters that the exact reviewed collection handler consumes."""
+    permission, _ = resolve_operation(method, path)
+    if permission is not None and permission.startswith('artifacts:'):
+        return {**path_params, **{name: query_params[name] for name in
+            ('project_id', 'environment') if query_params.get(name) is not None}}
     if method.upper() == "GET" and path == "/ai/provider-models/sync-preview":
         return {**path_params, "project_id": query_params.get("project_id"),
                 "credential_id": query_params.get("provider_credential_id"), "environment": query_params.get("environment") or "draft"}

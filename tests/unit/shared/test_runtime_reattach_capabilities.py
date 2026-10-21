@@ -113,3 +113,49 @@ def test_projection_preserves_safe_operational_tool_summary() -> None:
             "completed_at": "2026-08-27T12:00:00.120000+00:00",
         }
     ]
+
+
+def test_artifact_available_replay_is_idempotent_and_schema_stable() -> None:
+    run_id = uuid4()
+    terminal_artifact = {
+        "schema_version": "1",
+        "ref": {"artifact_id": "artifact-1", "revision_id": "revision-2"},
+        "path": "outputs/result.txt",
+        "content_type": "text/plain; charset=utf-8",
+        "size_bytes": 4,
+        "sha256": "a" * 64,
+        "status": "available",
+        "run_id": str(run_id),
+        "node_id": None,
+        "source_refs": [],
+    }
+    state = initial_projection(run_id, "agent")
+    payload = {
+        "artifact_id": "artifact-1",
+        "revision_id": "revision-2",
+        "path": "outputs/result.txt",
+        "content_type": "text/plain; charset=utf-8",
+        "size_bytes": 4,
+        "sha256": "a" * 64,
+        "status": "available",
+        "run_id": str(run_id),
+        "node_id": None,
+        "private_blob": "must never appear in the event projection",
+    }
+
+    state = reduce_projection(
+        state, "artifact_available", payload, sequence=1,
+        occurred_at="2026-10-21T00:00:00+00:00",
+    )
+    state = reduce_projection(
+        state, "artifact_available", payload, sequence=1,
+        occurred_at="2026-10-21T00:00:00+00:00",
+    )
+    assert state["output_artifacts"] == [{key: value for key, value in terminal_artifact.items() if key != "source_refs"} | {"source_refs": []}]
+
+    terminal_state = initial_projection(
+        run_id,
+        "agent",
+        {"terminal_result": {"output_artifacts": [terminal_artifact], "source_refs": []}},
+    )
+    assert terminal_state["output_artifacts"] == state["output_artifacts"]

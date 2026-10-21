@@ -1,0 +1,902 @@
+[
+  {
+    "document_id": "doc-001",
+    "format": "pdf_text",
+    "workspace_id": "eval-workspace-01",
+    "artifact_id": "eval-artifact-001",
+    "revision_id": "eval-revision-001",
+    "path": "corpus/doc-001.pdf",
+    "synthetic_content": "Synthetic evaluation document 001.\nFact: evaluation marker 001 is cobalt-001.\nSection: chapter-001/appendix-001.\nTable: row-001 value is 7.\nFigure: diagram-001 labels the same evaluation marker.\n",
+    "content_sha256": "adbac7f26d3092469207fba7e412f660aa66d6eea70dd5b5f431fec449f3a992",
+    "source": {
+      "source_id": "source-001",
+      "workspace_id": "eval-workspace-01",
+      "artifact_id": "eval-artifact-001",
+      "revision_id": "eval-revision-001",
+      "source_sha256": "adbac7f26d3092469207fba7e412f660aa66d6eea70dd5b5f431fec449f3a992",
+      "representation_set_id": "eval-representation-001",
+      "index_id": "eval-index-001",
+      "locator": {
+        "block_id": "eval-block-001",
+        "char_start": 0,
+        "char_end": 195,
+        "char_space": "canonical_block_text"
+      }
+    }
+  },
+  {
+    "document_id": "doc-002",
+    "format": "pdf_text",
+    "workspace_id": "eval-workspace-01",
+    "artifact_id": "eval-artifact-002",
+    "revision_id": "eval-revision-002",
+    "path": "corpus/doc-002.pdf",
+    "synthetic_content": "Synthetic evaluation document 002.\nFact: evaluation marker 002 is cobalt-002.\nSection: chapter-002/appendix-002.\nTable: row-002 value is 14.\nFigure: diagram-002 labels the same evaluation marker.\n",
+    "content_sha256": "95d8f86d0fb97dba919a7cc7850b675e7959a9a30e58ead37f5c354e50515de1",
+    "source": {
+      "source_id": "source-002",
+      "workspace_id": "eval-workspace-01",
+      "artifact_id": "eval-artifact-002",
+      "revision_id": "eval-revision-002",
+      "source_sha256": "95d8f86d0fb97dba919a7cc7850b675e7959a9a30e58ead37f5c354e50515de1",
+      "representation_set_id": "eval-representation-002",
+      "index_id": "eval-index-002",
+      "locator": {
+        "block_id": "eval-block-002",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      }
+    }
+  },
+  {
+    "document_id": "doc-003",
+    "format": "pdf_text",
+    "workspace_id": "eval-workspace-01",
+    "artifact_id": "eval-artifact-003",
+    "revision_id": "eval-revision-003",
+    "path": "corpus/doc-003.pdf",
+    "synthetic_content": "Synthetic evaluation document 003.\nFact: evaluation marker 003 is cobalt-003.\nSection: chapter-003/appendix-003.\nTable: row-003 value is 21.\nFigure: diagram-003 labels the same evaluation marker.\n",
+    "content_sha256": "be8e01071b81de3dc5253ef112dc3370e3b9b7e4d232dedd822fa0e16b2eae69",
+    "source": {
+      "source_id": "source-003",
+      "workspace_id": "eval-workspace-01",
+      "artifact_id": "eval-artifact-003",
+      "revision_id": "eval-revision-003",
+      "source_sha256": "be8e01071b81de3dc5253ef112dc3370e3b9b7e4d232dedd822fa0e16b2eae69",
+      "representation_set_id": "eval-representation-003",
+      "index_id": "eval-index-003",
+      "locator": {
+        "block_id": "eval-block-003",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      }
+    }
+  },
+  {
+    "document_id": "doc-004",
+    "format": "pdf_text",
+    "workspace_id": "eval-workspace-01",
+    "artifact_id": "eval-artifact-004",
+    "revision_id": "eval-revision-004",
+    "path": "corpus/doc-004.pdf",
+    "synthetic_content": "Synthetic evaluation document 004.\nFact: evaluation marker 004 is cobalt-004.\nSection: chapter-004/appendix-004.\nTable: row-004 value is 28.\nFigure: diagram-004 labels the same evaluation marker.\n",
+    "content_sha256": "5133dfee7be27e35a351569d114f0d0bb66d9efbe97f4ecc9079429255d28b98",
+    "source": {
+      "source_id": "source-004",
+      "workspace_id": "eval-workspace-01",
+      "artifact_id": "eval-artifact-004",
+      "revision_id": "eval-revision-004",
+      "source_sha256": "5133dfee7be27e35a351569d114f0d0bb66d9efbe97f4ecc9079429255d28b98",
+      "representation_set_id": "eval-representation-004",
+      "index_id": "eval-index-004",
+      "locator": {
+        "block_id": "eval-block-004",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      }
+    }
+  },
+  {
+    "document_id": "doc-005",
+    "format": "pdf_text",
+    "workspace_id": "eval-workspace-01",
+    "artifact_id": "eval-artifact-005",
+    "revision_id": "eval-revision-005",
+    "path": "corpus/doc-005.pdf",
+    "synthetic_content": "Synthetic evaluation document 005.\nFact: evaluation marker 005 is cobalt-005.\nSection: chapter-005/appendix-005.\nTable: row-005 value is 35.\nFigure: diagram-005 labels the same evaluation marker.\n",
+    "content_sha256": "f6301600a3520b640a016d1aca0371b600046eba01e34629d04f00aa9b5d2260",
+    "source": {
+      "source_id": "source-005",
+      "workspace_id": "eval-workspace-01",
+      "artifact_id": "eval-artifact-005",
+      "revision_id": "eval-revision-005",
+      "source_sha256": "f6301600a3520b640a016d1aca0371b600046eba01e34629d04f00aa9b5d2260",
+      "representation_set_id": "eval-representation-005",
+      "index_id": "eval-index-005",
+      "locator": {
+        "block_id": "eval-block-005",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      }
+    }
+  },
+  {
+    "document_id": "doc-006",
+    "format": "pdf_text",
+    "workspace_id": "eval-workspace-01",
+    "artifact_id": "eval-artifact-006",
+    "revision_id": "eval-revision-006",
+    "path": "corpus/doc-006.pdf",
+    "synthetic_content": "Synthetic evaluation document 006.\nFact: evaluation marker 006 is cobalt-006.\nSection: chapter-006/appendix-006.\nTable: row-006 value is 42.\nFigure: diagram-006 labels the same evaluation marker.\n",
+    "content_sha256": "d76d200870edc370fc03a8517cff20a3d2eb1478be6c99d64ab69c498607dce9",
+    "source": {
+      "source_id": "source-006",
+      "workspace_id": "eval-workspace-01",
+      "artifact_id": "eval-artifact-006",
+      "revision_id": "eval-revision-006",
+      "source_sha256": "d76d200870edc370fc03a8517cff20a3d2eb1478be6c99d64ab69c498607dce9",
+      "representation_set_id": "eval-representation-006",
+      "index_id": "eval-index-006",
+      "locator": {
+        "block_id": "eval-block-006",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      }
+    }
+  },
+  {
+    "document_id": "doc-007",
+    "format": "pdf_text",
+    "workspace_id": "eval-workspace-02",
+    "artifact_id": "eval-artifact-007",
+    "revision_id": "eval-revision-007",
+    "path": "corpus/doc-007.pdf",
+    "synthetic_content": "Synthetic evaluation document 007.\nFact: evaluation marker 007 is cobalt-007.\nSection: chapter-007/appendix-007.\nTable: row-007 value is 49.\nFigure: diagram-007 labels the same evaluation marker.\n",
+    "content_sha256": "ed767d91c57ea138e3392f7ef68c9c6d740c3b44bd92d03992b5a0d9ce0d2032",
+    "source": {
+      "source_id": "source-007",
+      "workspace_id": "eval-workspace-02",
+      "artifact_id": "eval-artifact-007",
+      "revision_id": "eval-revision-007",
+      "source_sha256": "ed767d91c57ea138e3392f7ef68c9c6d740c3b44bd92d03992b5a0d9ce0d2032",
+      "representation_set_id": "eval-representation-007",
+      "index_id": "eval-index-007",
+      "locator": {
+        "block_id": "eval-block-007",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      }
+    }
+  },
+  {
+    "document_id": "doc-008",
+    "format": "pdf_text",
+    "workspace_id": "eval-workspace-02",
+    "artifact_id": "eval-artifact-008",
+    "revision_id": "eval-revision-008",
+    "path": "corpus/doc-008.pdf",
+    "synthetic_content": "Synthetic evaluation document 008.\nFact: evaluation marker 008 is cobalt-008.\nSection: chapter-008/appendix-008.\nTable: row-008 value is 56.\nFigure: diagram-008 labels the same evaluation marker.\n",
+    "content_sha256": "b851eb99a496eb7cbf89b06792c95600c64d7b4d0896b8fcce4e53cec0889b45",
+    "source": {
+      "source_id": "source-008",
+      "workspace_id": "eval-workspace-02",
+      "artifact_id": "eval-artifact-008",
+      "revision_id": "eval-revision-008",
+      "source_sha256": "b851eb99a496eb7cbf89b06792c95600c64d7b4d0896b8fcce4e53cec0889b45",
+      "representation_set_id": "eval-representation-008",
+      "index_id": "eval-index-008",
+      "locator": {
+        "block_id": "eval-block-008",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      }
+    }
+  },
+  {
+    "document_id": "doc-009",
+    "format": "pdf_text",
+    "workspace_id": "eval-workspace-02",
+    "artifact_id": "eval-artifact-009",
+    "revision_id": "eval-revision-009",
+    "path": "corpus/doc-009.pdf",
+    "synthetic_content": "Synthetic evaluation document 009.\nFact: evaluation marker 009 is cobalt-009.\nSection: chapter-009/appendix-009.\nTable: row-009 value is 63.\nFigure: diagram-009 labels the same evaluation marker.\n",
+    "content_sha256": "2339efc1c77662c819ffb970897caad2a463fd9b0ca4f52897ef83a927ba4b4f",
+    "source": {
+      "source_id": "source-009",
+      "workspace_id": "eval-workspace-02",
+      "artifact_id": "eval-artifact-009",
+      "revision_id": "eval-revision-009",
+      "source_sha256": "2339efc1c77662c819ffb970897caad2a463fd9b0ca4f52897ef83a927ba4b4f",
+      "representation_set_id": "eval-representation-009",
+      "index_id": "eval-index-009",
+      "locator": {
+        "block_id": "eval-block-009",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      }
+    }
+  },
+  {
+    "document_id": "doc-010",
+    "format": "pdf_text",
+    "workspace_id": "eval-workspace-02",
+    "artifact_id": "eval-artifact-010",
+    "revision_id": "eval-revision-010",
+    "path": "corpus/doc-010.pdf",
+    "synthetic_content": "Synthetic evaluation document 010.\nFact: evaluation marker 010 is cobalt-010.\nSection: chapter-010/appendix-010.\nTable: row-010 value is 70.\nFigure: diagram-010 labels the same evaluation marker.\n",
+    "content_sha256": "d3e7bfce6fa6a61899113ca1f3546ceaedd43cf2eb4f3b45752924335fcaf975",
+    "source": {
+      "source_id": "source-010",
+      "workspace_id": "eval-workspace-02",
+      "artifact_id": "eval-artifact-010",
+      "revision_id": "eval-revision-010",
+      "source_sha256": "d3e7bfce6fa6a61899113ca1f3546ceaedd43cf2eb4f3b45752924335fcaf975",
+      "representation_set_id": "eval-representation-010",
+      "index_id": "eval-index-010",
+      "locator": {
+        "block_id": "eval-block-010",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      }
+    }
+  },
+  {
+    "document_id": "doc-011",
+    "format": "pdf_text",
+    "workspace_id": "eval-workspace-02",
+    "artifact_id": "eval-artifact-011",
+    "revision_id": "eval-revision-011",
+    "path": "corpus/doc-011.pdf",
+    "synthetic_content": "Synthetic evaluation document 011.\nFact: evaluation marker 011 is cobalt-011.\nSection: chapter-011/appendix-011.\nTable: row-011 value is 77.\nFigure: diagram-011 labels the same evaluation marker.\n",
+    "content_sha256": "207d4756d616e2d90c21af55ae36a44f44c6ae7cb55c33ea8d283a3d783b1d0d",
+    "source": {
+      "source_id": "source-011",
+      "workspace_id": "eval-workspace-02",
+      "artifact_id": "eval-artifact-011",
+      "revision_id": "eval-revision-011",
+      "source_sha256": "207d4756d616e2d90c21af55ae36a44f44c6ae7cb55c33ea8d283a3d783b1d0d",
+      "representation_set_id": "eval-representation-011",
+      "index_id": "eval-index-011",
+      "locator": {
+        "block_id": "eval-block-011",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      }
+    }
+  },
+  {
+    "document_id": "doc-012",
+    "format": "pdf_text",
+    "workspace_id": "eval-workspace-02",
+    "artifact_id": "eval-artifact-012",
+    "revision_id": "eval-revision-012",
+    "path": "corpus/doc-012.pdf",
+    "synthetic_content": "Synthetic evaluation document 012.\nFact: evaluation marker 012 is cobalt-012.\nSection: chapter-012/appendix-012.\nTable: row-012 value is 84.\nFigure: diagram-012 labels the same evaluation marker.\n",
+    "content_sha256": "70ef1a831fb024b076fb9c1e67a5d7c39e334f86fd0c17af028440b2a1334c80",
+    "source": {
+      "source_id": "source-012",
+      "workspace_id": "eval-workspace-02",
+      "artifact_id": "eval-artifact-012",
+      "revision_id": "eval-revision-012",
+      "source_sha256": "70ef1a831fb024b076fb9c1e67a5d7c39e334f86fd0c17af028440b2a1334c80",
+      "representation_set_id": "eval-representation-012",
+      "index_id": "eval-index-012",
+      "locator": {
+        "block_id": "eval-block-012",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      }
+    }
+  },
+  {
+    "document_id": "doc-013",
+    "format": "pdf_scan",
+    "workspace_id": "eval-workspace-03",
+    "artifact_id": "eval-artifact-013",
+    "revision_id": "eval-revision-013",
+    "path": "corpus/doc-013.pdf",
+    "synthetic_content": "Synthetic evaluation document 013.\nFact: evaluation marker 013 is cobalt-013.\nSection: chapter-013/appendix-013.\nTable: row-013 value is 91.\nFigure: diagram-013 labels the same evaluation marker.\n",
+    "content_sha256": "7b6c1cdc95d312a418c3b38f8a0edb7265370747e77a361e0d6026120f9722fb",
+    "source": {
+      "source_id": "source-013",
+      "workspace_id": "eval-workspace-03",
+      "artifact_id": "eval-artifact-013",
+      "revision_id": "eval-revision-013",
+      "source_sha256": "7b6c1cdc95d312a418c3b38f8a0edb7265370747e77a361e0d6026120f9722fb",
+      "representation_set_id": "eval-representation-013",
+      "index_id": "eval-index-013",
+      "locator": {
+        "block_id": "eval-block-013",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      }
+    }
+  },
+  {
+    "document_id": "doc-014",
+    "format": "pdf_scan",
+    "workspace_id": "eval-workspace-03",
+    "artifact_id": "eval-artifact-014",
+    "revision_id": "eval-revision-014",
+    "path": "corpus/doc-014.pdf",
+    "synthetic_content": "Synthetic evaluation document 014.\nFact: evaluation marker 014 is cobalt-014.\nSection: chapter-014/appendix-014.\nTable: row-014 value is 98.\nFigure: diagram-014 labels the same evaluation marker.\n",
+    "content_sha256": "ab040a126028400ae5d8450ea67924498b9cc85e54444a10d6d16e894807f773",
+    "source": {
+      "source_id": "source-014",
+      "workspace_id": "eval-workspace-03",
+      "artifact_id": "eval-artifact-014",
+      "revision_id": "eval-revision-014",
+      "source_sha256": "ab040a126028400ae5d8450ea67924498b9cc85e54444a10d6d16e894807f773",
+      "representation_set_id": "eval-representation-014",
+      "index_id": "eval-index-014",
+      "locator": {
+        "block_id": "eval-block-014",
+        "char_start": 0,
+        "char_end": 196,
+        "char_space": "canonical_block_text"
+      }
+    }
+  },
+  {
+    "document_id": "doc-015",
+    "format": "pdf_scan",
+    "workspace_id": "eval-workspace-03",
+    "artifact_id": "eval-artifact-015",
+    "revision_id": "eval-revision-015",
+    "path": "corpus/doc-015.pdf",
+    "synthetic_content": "Synthetic evaluation document 015.\nFact: evaluation marker 015 is cobalt-015.\nSection: chapter-015/appendix-015.\nTable: row-015 value is 105.\nFigure: diagram-015 labels the same evaluation marker.\n",
+    "content_sha256": "7d72963c101178691fee8837b3f8e6855953d7d824b6b44514ee1ee85d16619e",
+    "source": {
+      "source_id": "source-015",
+      "workspace_id": "eval-workspace-03",
+      "artifact_id": "eval-artifact-015",
+      "revision_id": "eval-revision-015",
+      "source_sha256": "7d72963c101178691fee8837b3f8e6855953d7d824b6b44514ee1ee85d16619e",
+      "representation_set_id": "eval-representation-015",
+      "index_id": "eval-index-015",
+      "locator": {
+        "block_id": "eval-block-015",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    }
+  },
+  {
+    "document_id": "doc-016",
+    "format": "pdf_scan",
+    "workspace_id": "eval-workspace-03",
+    "artifact_id": "eval-artifact-016",
+    "revision_id": "eval-revision-016",
+    "path": "corpus/doc-016.pdf",
+    "synthetic_content": "Synthetic evaluation document 016.\nFact: evaluation marker 016 is cobalt-016.\nSection: chapter-016/appendix-016.\nTable: row-016 value is 112.\nFigure: diagram-016 labels the same evaluation marker.\n",
+    "content_sha256": "6e7ddf477bb28121b9d6778549145f23b71203b40b19f9bdb5668c17193a22e6",
+    "source": {
+      "source_id": "source-016",
+      "workspace_id": "eval-workspace-03",
+      "artifact_id": "eval-artifact-016",
+      "revision_id": "eval-revision-016",
+      "source_sha256": "6e7ddf477bb28121b9d6778549145f23b71203b40b19f9bdb5668c17193a22e6",
+      "representation_set_id": "eval-representation-016",
+      "index_id": "eval-index-016",
+      "locator": {
+        "block_id": "eval-block-016",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    }
+  },
+  {
+    "document_id": "doc-017",
+    "format": "pdf_scan",
+    "workspace_id": "eval-workspace-03",
+    "artifact_id": "eval-artifact-017",
+    "revision_id": "eval-revision-017",
+    "path": "corpus/doc-017.pdf",
+    "synthetic_content": "Synthetic evaluation document 017.\nFact: evaluation marker 017 is cobalt-017.\nSection: chapter-017/appendix-017.\nTable: row-017 value is 119.\nFigure: diagram-017 labels the same evaluation marker.\n",
+    "content_sha256": "3f532c3595a66cb3aa73a62fc94931deba7d3a057bd88c4ce24e352993078e7a",
+    "source": {
+      "source_id": "source-017",
+      "workspace_id": "eval-workspace-03",
+      "artifact_id": "eval-artifact-017",
+      "revision_id": "eval-revision-017",
+      "source_sha256": "3f532c3595a66cb3aa73a62fc94931deba7d3a057bd88c4ce24e352993078e7a",
+      "representation_set_id": "eval-representation-017",
+      "index_id": "eval-index-017",
+      "locator": {
+        "block_id": "eval-block-017",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    }
+  },
+  {
+    "document_id": "doc-018",
+    "format": "pdf_scan",
+    "workspace_id": "eval-workspace-03",
+    "artifact_id": "eval-artifact-018",
+    "revision_id": "eval-revision-018",
+    "path": "corpus/doc-018.pdf",
+    "synthetic_content": "Synthetic evaluation document 018.\nFact: evaluation marker 018 is cobalt-018.\nSection: chapter-018/appendix-018.\nTable: row-018 value is 126.\nFigure: diagram-018 labels the same evaluation marker.\n",
+    "content_sha256": "bac6aa33f90e56a6e92d0d5edb164411e350ad6ef3e1f68a2ac2d761e3ca518b",
+    "source": {
+      "source_id": "source-018",
+      "workspace_id": "eval-workspace-03",
+      "artifact_id": "eval-artifact-018",
+      "revision_id": "eval-revision-018",
+      "source_sha256": "bac6aa33f90e56a6e92d0d5edb164411e350ad6ef3e1f68a2ac2d761e3ca518b",
+      "representation_set_id": "eval-representation-018",
+      "index_id": "eval-index-018",
+      "locator": {
+        "block_id": "eval-block-018",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    }
+  },
+  {
+    "document_id": "doc-019",
+    "format": "docx",
+    "workspace_id": "eval-workspace-04",
+    "artifact_id": "eval-artifact-019",
+    "revision_id": "eval-revision-019",
+    "path": "corpus/doc-019.docx",
+    "synthetic_content": "Synthetic evaluation document 019.\nFact: evaluation marker 019 is cobalt-019.\nSection: chapter-019/appendix-019.\nTable: row-019 value is 133.\nFigure: diagram-019 labels the same evaluation marker.\n",
+    "content_sha256": "0f51316eb92c3b9916fa6579f30e74eaf73f5d6e5d06f6348534e5172f38d20c",
+    "source": {
+      "source_id": "source-019",
+      "workspace_id": "eval-workspace-04",
+      "artifact_id": "eval-artifact-019",
+      "revision_id": "eval-revision-019",
+      "source_sha256": "0f51316eb92c3b9916fa6579f30e74eaf73f5d6e5d06f6348534e5172f38d20c",
+      "representation_set_id": "eval-representation-019",
+      "index_id": "eval-index-019",
+      "locator": {
+        "block_id": "eval-block-019",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    }
+  },
+  {
+    "document_id": "doc-020",
+    "format": "docx",
+    "workspace_id": "eval-workspace-04",
+    "artifact_id": "eval-artifact-020",
+    "revision_id": "eval-revision-020",
+    "path": "corpus/doc-020.docx",
+    "synthetic_content": "Synthetic evaluation document 020.\nFact: evaluation marker 020 is cobalt-020.\nSection: chapter-020/appendix-020.\nTable: row-020 value is 140.\nFigure: diagram-020 labels the same evaluation marker.\n",
+    "content_sha256": "c3597bdfddb4bbf94c14b38c893b909d3f0f9459e2c5ec73227930be732c07dc",
+    "source": {
+      "source_id": "source-020",
+      "workspace_id": "eval-workspace-04",
+      "artifact_id": "eval-artifact-020",
+      "revision_id": "eval-revision-020",
+      "source_sha256": "c3597bdfddb4bbf94c14b38c893b909d3f0f9459e2c5ec73227930be732c07dc",
+      "representation_set_id": "eval-representation-020",
+      "index_id": "eval-index-020",
+      "locator": {
+        "block_id": "eval-block-020",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    }
+  },
+  {
+    "document_id": "doc-021",
+    "format": "docx",
+    "workspace_id": "eval-workspace-04",
+    "artifact_id": "eval-artifact-021",
+    "revision_id": "eval-revision-021",
+    "path": "corpus/doc-021.docx",
+    "synthetic_content": "Synthetic evaluation document 021.\nFact: evaluation marker 021 is cobalt-021.\nSection: chapter-021/appendix-021.\nTable: row-021 value is 147.\nFigure: diagram-021 labels the same evaluation marker.\n",
+    "content_sha256": "c1cd39c56a437c7a930747fd8c49657e19b30d87eb9150663fea320d3162f9f0",
+    "source": {
+      "source_id": "source-021",
+      "workspace_id": "eval-workspace-04",
+      "artifact_id": "eval-artifact-021",
+      "revision_id": "eval-revision-021",
+      "source_sha256": "c1cd39c56a437c7a930747fd8c49657e19b30d87eb9150663fea320d3162f9f0",
+      "representation_set_id": "eval-representation-021",
+      "index_id": "eval-index-021",
+      "locator": {
+        "block_id": "eval-block-021",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    }
+  },
+  {
+    "document_id": "doc-022",
+    "format": "docx",
+    "workspace_id": "eval-workspace-04",
+    "artifact_id": "eval-artifact-022",
+    "revision_id": "eval-revision-022",
+    "path": "corpus/doc-022.docx",
+    "synthetic_content": "Synthetic evaluation document 022.\nFact: evaluation marker 022 is cobalt-022.\nSection: chapter-022/appendix-022.\nTable: row-022 value is 154.\nFigure: diagram-022 labels the same evaluation marker.\n",
+    "content_sha256": "cd5f81fe5f67f636691c6822b285756e189209ae9027b8b6d0ab47e77bd85513",
+    "source": {
+      "source_id": "source-022",
+      "workspace_id": "eval-workspace-04",
+      "artifact_id": "eval-artifact-022",
+      "revision_id": "eval-revision-022",
+      "source_sha256": "cd5f81fe5f67f636691c6822b285756e189209ae9027b8b6d0ab47e77bd85513",
+      "representation_set_id": "eval-representation-022",
+      "index_id": "eval-index-022",
+      "locator": {
+        "block_id": "eval-block-022",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    }
+  },
+  {
+    "document_id": "doc-023",
+    "format": "docx",
+    "workspace_id": "eval-workspace-04",
+    "artifact_id": "eval-artifact-023",
+    "revision_id": "eval-revision-023",
+    "path": "corpus/doc-023.docx",
+    "synthetic_content": "Synthetic evaluation document 023.\nFact: evaluation marker 023 is cobalt-023.\nSection: chapter-023/appendix-023.\nTable: row-023 value is 161.\nFigure: diagram-023 labels the same evaluation marker.\n",
+    "content_sha256": "6f5246beae54f34e725bd5e4d57a39bfd67347b1c97af2b7adeee5e5ad19685a",
+    "source": {
+      "source_id": "source-023",
+      "workspace_id": "eval-workspace-04",
+      "artifact_id": "eval-artifact-023",
+      "revision_id": "eval-revision-023",
+      "source_sha256": "6f5246beae54f34e725bd5e4d57a39bfd67347b1c97af2b7adeee5e5ad19685a",
+      "representation_set_id": "eval-representation-023",
+      "index_id": "eval-index-023",
+      "locator": {
+        "block_id": "eval-block-023",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    }
+  },
+  {
+    "document_id": "doc-024",
+    "format": "docx",
+    "workspace_id": "eval-workspace-04",
+    "artifact_id": "eval-artifact-024",
+    "revision_id": "eval-revision-024",
+    "path": "corpus/doc-024.docx",
+    "synthetic_content": "Synthetic evaluation document 024.\nFact: evaluation marker 024 is cobalt-024.\nSection: chapter-024/appendix-024.\nTable: row-024 value is 168.\nFigure: diagram-024 labels the same evaluation marker.\n",
+    "content_sha256": "c60dcff119f3fd23a60c136aad6eab6dfbfdc54fdbe4d1af0597e0426d711654",
+    "source": {
+      "source_id": "source-024",
+      "workspace_id": "eval-workspace-04",
+      "artifact_id": "eval-artifact-024",
+      "revision_id": "eval-revision-024",
+      "source_sha256": "c60dcff119f3fd23a60c136aad6eab6dfbfdc54fdbe4d1af0597e0426d711654",
+      "representation_set_id": "eval-representation-024",
+      "index_id": "eval-index-024",
+      "locator": {
+        "block_id": "eval-block-024",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    }
+  },
+  {
+    "document_id": "doc-025",
+    "format": "markdown",
+    "workspace_id": "eval-workspace-05",
+    "artifact_id": "eval-artifact-025",
+    "revision_id": "eval-revision-025",
+    "path": "corpus/doc-025.md",
+    "synthetic_content": "Synthetic evaluation document 025.\nFact: evaluation marker 025 is cobalt-025.\nSection: chapter-025/appendix-025.\nTable: row-025 value is 175.\nFigure: diagram-025 labels the same evaluation marker.\n",
+    "content_sha256": "ef323514f814b465c990c78c48f491d0a1aa8cde7fdc1a30594aa74e20e08ee0",
+    "source": {
+      "source_id": "source-025",
+      "workspace_id": "eval-workspace-05",
+      "artifact_id": "eval-artifact-025",
+      "revision_id": "eval-revision-025",
+      "source_sha256": "ef323514f814b465c990c78c48f491d0a1aa8cde7fdc1a30594aa74e20e08ee0",
+      "representation_set_id": "eval-representation-025",
+      "index_id": "eval-index-025",
+      "locator": {
+        "block_id": "eval-block-025",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    }
+  },
+  {
+    "document_id": "doc-026",
+    "format": "markdown",
+    "workspace_id": "eval-workspace-05",
+    "artifact_id": "eval-artifact-026",
+    "revision_id": "eval-revision-026",
+    "path": "corpus/doc-026.md",
+    "synthetic_content": "Synthetic evaluation document 026.\nFact: evaluation marker 026 is cobalt-026.\nSection: chapter-026/appendix-026.\nTable: row-026 value is 182.\nFigure: diagram-026 labels the same evaluation marker.\n",
+    "content_sha256": "a37fc3c7cf3516f68b7e17102de36bca434f36f203340f6e454bb3c79e6c9387",
+    "source": {
+      "source_id": "source-026",
+      "workspace_id": "eval-workspace-05",
+      "artifact_id": "eval-artifact-026",
+      "revision_id": "eval-revision-026",
+      "source_sha256": "a37fc3c7cf3516f68b7e17102de36bca434f36f203340f6e454bb3c79e6c9387",
+      "representation_set_id": "eval-representation-026",
+      "index_id": "eval-index-026",
+      "locator": {
+        "block_id": "eval-block-026",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    }
+  },
+  {
+    "document_id": "doc-027",
+    "format": "markdown",
+    "workspace_id": "eval-workspace-05",
+    "artifact_id": "eval-artifact-027",
+    "revision_id": "eval-revision-027",
+    "path": "corpus/doc-027.md",
+    "synthetic_content": "Synthetic evaluation document 027.\nFact: evaluation marker 027 is cobalt-027.\nSection: chapter-027/appendix-027.\nTable: row-027 value is 189.\nFigure: diagram-027 labels the same evaluation marker.\n",
+    "content_sha256": "a689e77bb603d2d1efb35c85c6e870f222be0bf1495af2caace60c1b93b109fc",
+    "source": {
+      "source_id": "source-027",
+      "workspace_id": "eval-workspace-05",
+      "artifact_id": "eval-artifact-027",
+      "revision_id": "eval-revision-027",
+      "source_sha256": "a689e77bb603d2d1efb35c85c6e870f222be0bf1495af2caace60c1b93b109fc",
+      "representation_set_id": "eval-representation-027",
+      "index_id": "eval-index-027",
+      "locator": {
+        "block_id": "eval-block-027",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    }
+  },
+  {
+    "document_id": "doc-028",
+    "format": "markdown",
+    "workspace_id": "eval-workspace-05",
+    "artifact_id": "eval-artifact-028",
+    "revision_id": "eval-revision-028",
+    "path": "corpus/doc-028.md",
+    "synthetic_content": "Synthetic evaluation document 028.\nFact: evaluation marker 028 is cobalt-028.\nSection: chapter-028/appendix-028.\nTable: row-028 value is 196.\nFigure: diagram-028 labels the same evaluation marker.\n",
+    "content_sha256": "475ad34c5c004ec192638076e780b60f4c69ba66362e80f18f8bbacf469ecbaf",
+    "source": {
+      "source_id": "source-028",
+      "workspace_id": "eval-workspace-05",
+      "artifact_id": "eval-artifact-028",
+      "revision_id": "eval-revision-028",
+      "source_sha256": "475ad34c5c004ec192638076e780b60f4c69ba66362e80f18f8bbacf469ecbaf",
+      "representation_set_id": "eval-representation-028",
+      "index_id": "eval-index-028",
+      "locator": {
+        "block_id": "eval-block-028",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    }
+  },
+  {
+    "document_id": "doc-029",
+    "format": "markdown",
+    "workspace_id": "eval-workspace-05",
+    "artifact_id": "eval-artifact-029",
+    "revision_id": "eval-revision-029",
+    "path": "corpus/doc-029.md",
+    "synthetic_content": "Synthetic evaluation document 029.\nFact: evaluation marker 029 is cobalt-029.\nSection: chapter-029/appendix-029.\nTable: row-029 value is 203.\nFigure: diagram-029 labels the same evaluation marker.\n",
+    "content_sha256": "11100693028650b0ad47a50b2967d53ce44b016c44ba07e255a5ca6b96ecb1ab",
+    "source": {
+      "source_id": "source-029",
+      "workspace_id": "eval-workspace-05",
+      "artifact_id": "eval-artifact-029",
+      "revision_id": "eval-revision-029",
+      "source_sha256": "11100693028650b0ad47a50b2967d53ce44b016c44ba07e255a5ca6b96ecb1ab",
+      "representation_set_id": "eval-representation-029",
+      "index_id": "eval-index-029",
+      "locator": {
+        "block_id": "eval-block-029",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    }
+  },
+  {
+    "document_id": "doc-030",
+    "format": "markdown",
+    "workspace_id": "eval-workspace-05",
+    "artifact_id": "eval-artifact-030",
+    "revision_id": "eval-revision-030",
+    "path": "corpus/doc-030.md",
+    "synthetic_content": "Synthetic evaluation document 030.\nFact: evaluation marker 030 is cobalt-030.\nSection: chapter-030/appendix-030.\nTable: row-030 value is 210.\nFigure: diagram-030 labels the same evaluation marker.\n",
+    "content_sha256": "4a6947a78f73bfaa458b685ffca781bf5acc70714c64ff0de009aec1b25bcbd5",
+    "source": {
+      "source_id": "source-030",
+      "workspace_id": "eval-workspace-05",
+      "artifact_id": "eval-artifact-030",
+      "revision_id": "eval-revision-030",
+      "source_sha256": "4a6947a78f73bfaa458b685ffca781bf5acc70714c64ff0de009aec1b25bcbd5",
+      "representation_set_id": "eval-representation-030",
+      "index_id": "eval-index-030",
+      "locator": {
+        "block_id": "eval-block-030",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    }
+  },
+  {
+    "document_id": "doc-031",
+    "format": "image",
+    "workspace_id": "eval-workspace-06",
+    "artifact_id": "eval-artifact-031",
+    "revision_id": "eval-revision-031",
+    "path": "corpus/doc-031.png",
+    "synthetic_content": "Synthetic evaluation document 031.\nFact: evaluation marker 031 is cobalt-031.\nSection: chapter-031/appendix-031.\nTable: row-031 value is 217.\nFigure: diagram-031 labels the same evaluation marker.\n",
+    "content_sha256": "bd7e76cb376c0a180ad4fba7ce7b3fdb83bd1fefcf7eddff65643f9abd4a3b8e",
+    "source": {
+      "source_id": "source-031",
+      "workspace_id": "eval-workspace-06",
+      "artifact_id": "eval-artifact-031",
+      "revision_id": "eval-revision-031",
+      "source_sha256": "bd7e76cb376c0a180ad4fba7ce7b3fdb83bd1fefcf7eddff65643f9abd4a3b8e",
+      "representation_set_id": "eval-representation-031",
+      "index_id": "eval-index-031",
+      "locator": {
+        "block_id": "eval-block-031",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    }
+  },
+  {
+    "document_id": "doc-032",
+    "format": "image",
+    "workspace_id": "eval-workspace-06",
+    "artifact_id": "eval-artifact-032",
+    "revision_id": "eval-revision-032",
+    "path": "corpus/doc-032.png",
+    "synthetic_content": "Synthetic evaluation document 032.\nFact: evaluation marker 032 is cobalt-032.\nSection: chapter-032/appendix-032.\nTable: row-032 value is 224.\nFigure: diagram-032 labels the same evaluation marker.\n",
+    "content_sha256": "88778c07da56e49eedf106146af010c6ed93b950bf9d00dd849ed018fe45c09e",
+    "source": {
+      "source_id": "source-032",
+      "workspace_id": "eval-workspace-06",
+      "artifact_id": "eval-artifact-032",
+      "revision_id": "eval-revision-032",
+      "source_sha256": "88778c07da56e49eedf106146af010c6ed93b950bf9d00dd849ed018fe45c09e",
+      "representation_set_id": "eval-representation-032",
+      "index_id": "eval-index-032",
+      "locator": {
+        "block_id": "eval-block-032",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    }
+  },
+  {
+    "document_id": "doc-033",
+    "format": "image",
+    "workspace_id": "eval-workspace-06",
+    "artifact_id": "eval-artifact-033",
+    "revision_id": "eval-revision-033",
+    "path": "corpus/doc-033.png",
+    "synthetic_content": "Synthetic evaluation document 033.\nFact: evaluation marker 033 is cobalt-033.\nSection: chapter-033/appendix-033.\nTable: row-033 value is 231.\nFigure: diagram-033 labels the same evaluation marker.\n",
+    "content_sha256": "9a4c58cede69f1f667da664eadc0b18f06b74003150ad5b2ba807b5a579988eb",
+    "source": {
+      "source_id": "source-033",
+      "workspace_id": "eval-workspace-06",
+      "artifact_id": "eval-artifact-033",
+      "revision_id": "eval-revision-033",
+      "source_sha256": "9a4c58cede69f1f667da664eadc0b18f06b74003150ad5b2ba807b5a579988eb",
+      "representation_set_id": "eval-representation-033",
+      "index_id": "eval-index-033",
+      "locator": {
+        "block_id": "eval-block-033",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    }
+  },
+  {
+    "document_id": "doc-034",
+    "format": "image",
+    "workspace_id": "eval-workspace-06",
+    "artifact_id": "eval-artifact-034",
+    "revision_id": "eval-revision-034",
+    "path": "corpus/doc-034.png",
+    "synthetic_content": "Synthetic evaluation document 034.\nFact: evaluation marker 034 is cobalt-034.\nSection: chapter-034/appendix-034.\nTable: row-034 value is 238.\nFigure: diagram-034 labels the same evaluation marker.\n",
+    "content_sha256": "8bfe22cada91f5df34354c5ced8face3c502cf8527397cdc5a4ebbb6b9fcbc2e",
+    "source": {
+      "source_id": "source-034",
+      "workspace_id": "eval-workspace-06",
+      "artifact_id": "eval-artifact-034",
+      "revision_id": "eval-revision-034",
+      "source_sha256": "8bfe22cada91f5df34354c5ced8face3c502cf8527397cdc5a4ebbb6b9fcbc2e",
+      "representation_set_id": "eval-representation-034",
+      "index_id": "eval-index-034",
+      "locator": {
+        "block_id": "eval-block-034",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    }
+  },
+  {
+    "document_id": "doc-035",
+    "format": "image",
+    "workspace_id": "eval-workspace-06",
+    "artifact_id": "eval-artifact-035",
+    "revision_id": "eval-revision-035",
+    "path": "corpus/doc-035.png",
+    "synthetic_content": "Synthetic evaluation document 035.\nFact: evaluation marker 035 is cobalt-035.\nSection: chapter-035/appendix-035.\nTable: row-035 value is 245.\nFigure: diagram-035 labels the same evaluation marker.\n",
+    "content_sha256": "58253a6a40965b5c66d2087a80060d03c4b0b0fd75672d83f5f2e21d8f6c55cf",
+    "source": {
+      "source_id": "source-035",
+      "workspace_id": "eval-workspace-06",
+      "artifact_id": "eval-artifact-035",
+      "revision_id": "eval-revision-035",
+      "source_sha256": "58253a6a40965b5c66d2087a80060d03c4b0b0fd75672d83f5f2e21d8f6c55cf",
+      "representation_set_id": "eval-representation-035",
+      "index_id": "eval-index-035",
+      "locator": {
+        "block_id": "eval-block-035",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    }
+  },
+  {
+    "document_id": "doc-036",
+    "format": "image",
+    "workspace_id": "eval-workspace-06",
+    "artifact_id": "eval-artifact-036",
+    "revision_id": "eval-revision-036",
+    "path": "corpus/doc-036.png",
+    "synthetic_content": "Synthetic evaluation document 036.\nFact: evaluation marker 036 is cobalt-036.\nSection: chapter-036/appendix-036.\nTable: row-036 value is 252.\nFigure: diagram-036 labels the same evaluation marker.\n",
+    "content_sha256": "9e108b6e5d622f246c9d01812ced517bd090df7af85341e7805b6394406bbe71",
+    "source": {
+      "source_id": "source-036",
+      "workspace_id": "eval-workspace-06",
+      "artifact_id": "eval-artifact-036",
+      "revision_id": "eval-revision-036",
+      "source_sha256": "9e108b6e5d622f246c9d01812ced517bd090df7af85341e7805b6394406bbe71",
+      "representation_set_id": "eval-representation-036",
+      "index_id": "eval-index-036",
+      "locator": {
+        "block_id": "eval-block-036",
+        "char_start": 0,
+        "char_end": 197,
+        "char_space": "canonical_block_text"
+      }
+    }
+  }
+]

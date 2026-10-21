@@ -128,3 +128,63 @@ def test_behavior_uses_native_instruction_assembly_for_preparation_and_draft():
         "Assistant", "Support", prepared["behavior_spec"]
     )
     assert prepared["system_prompt"] == draft["system_prompt"] == expected
+
+
+def test_portable_artifact_capability_is_compiled_into_the_release_snapshot():
+    project = uuid4()
+    definition = {
+        "kind": "Agent",
+        "metadata": {"key": "assistant", "name": "Assistant"},
+        "spec": {
+            "model": {"primary": {"ref": "primary"}},
+            "external_context": {
+                "workspace": {
+                    "schema": {"type": "string"},
+                    "required": True,
+                    "scope": "session",
+                    "model": {"expose": False},
+                }
+            },
+            "artifacts": {
+                "enabled": True,
+                "workspace_binding": {"field": "workspace", "namespace": "team-docs", "scope": "session"},
+                "actions": ["read", "search"],
+                "limits": {"max_read_chars": 4096, "max_search_results": 12},
+            },
+        },
+    }
+    resources = {"primary": model(project)}
+    resources["primary"]["spec"]["capabilities"]["tool_calling"] = {"supported": True}
+    draft = compile_imported_agent_inputs(
+        project_id=project,
+        document=definition,
+        definitions={"primary": {"spec": {}}},
+        resources=resources,
+        agent_id=uuid4(),
+    )
+    assert draft["runtime_config"]["artifacts"]["enabled"] is True
+    assert draft["runtime_config"]["artifacts"]["workspace_binding"]["field"] == "workspace"
+    assert "workspace_id" not in repr(draft["runtime_config"]["artifacts"])
+
+
+def test_package_no_knowledge_strategy_compiles_without_a_vector_snapshot():
+    project = uuid4()
+    definition = {
+        "kind": "Agent",
+        "metadata": {"key": "assistant", "name": "Assistant"},
+        "spec": {
+            "model": {"primary": {"ref": "primary"}},
+            "knowledge_strategy": "none",
+            "artifacts": {"enabled": False},
+        },
+    }
+    draft = compile_imported_agent_inputs(
+        project_id=project,
+        document=definition,
+        definitions={"primary": {"spec": {}}},
+        resources={"primary": model(project)},
+        agent_id=uuid4(),
+    )
+    assert draft["runtime_config"]["knowledge_strategy"] == "none"
+    assert draft["knowledge_version_id"] is None
+    assert draft["collection_ids"] is None

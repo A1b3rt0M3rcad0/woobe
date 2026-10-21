@@ -248,6 +248,14 @@ class AgentRunRecoveryWorker:
             environment=run.environment,
             input_message=run.input_message,
             attempt=next_attempt,
+            input_content_parts=tuple(
+                deepcopy(
+                    (getattr(run, "execution_snapshot", None) or {}).get(
+                        "input_content_parts"
+                    )
+                    or ()
+                )
+            ),
             checkpoint=(
                 deepcopy(decision.checkpoint.state)
                 if decision.checkpoint is not None

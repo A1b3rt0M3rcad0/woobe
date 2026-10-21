@@ -56,6 +56,26 @@ def test_metrics_render_http_runtime_and_pool_contracts() -> None:
     assert "woobe_inbox_retries_total" in rendered
 
 
+def test_artifact_metrics_keep_labels_bounded_and_separate_byte_meanings() -> None:
+    metrics = RuntimeMetrics()
+    metrics.observe_artifact_operation(
+        operation="download", outcome="success", duration_seconds=0.25,
+        byte_count=4096, byte_direction="transfer",
+    )
+    metrics.observe_artifact_operation(
+        operation="private-workspace-123", outcome="user-456", duration_seconds=0.5,
+        byte_count=99, byte_direction="secret-direction",
+    )
+
+    rendered = metrics.render_prometheus()
+    assert 'operation="download",outcome="success"' in rendered
+    assert 'direction="transfer",operation="download"} 4096' in rendered
+    assert 'operation="unknown",outcome="error"' in rendered
+    assert "private-workspace-123" not in rendered
+    assert "user-456" not in rendered
+    assert "secret-direction" not in rendered
+
+
 @dataclass
 class Health:
     worker_name: str = "Worker"

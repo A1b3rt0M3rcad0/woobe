@@ -1,0 +1,7 @@
+schema_version: '1.0'
+suite_id: delivery
+suite_version: '1'
+dataset_version: '1'
+cases:
+  - id: greeting
+    message: Hello

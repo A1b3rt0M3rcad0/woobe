@@ -116,7 +116,8 @@ class SessionContinuityReleaseRuntimeResolver(CanonicalExecutionSnapshotRuntimeR
         if isinstance(source, str) and source:
             next_data["source"] = source
 
-        external_context = self._resolve_external_context(
+        previous_artifact_binding = getattr(session, "artifact_workspace_binding", None)
+        external_context = await self._resolve_external_context(
             agent=agent,
             input_dto=input_dto,
             session=session,
@@ -125,6 +126,7 @@ class SessionContinuityReleaseRuntimeResolver(CanonicalExecutionSnapshotRuntimeR
         changed = (
             next_data != (getattr(session, "data", None) or {})
             or external_context.session_changed
+            or previous_artifact_binding != getattr(session, "artifact_workspace_binding", None)
         )
         if not existing:
             changed = True

@@ -209,6 +209,9 @@ class SQLAlchemyRuntimeSessionRepository(SQLAlchemySessionRepository):
         model.mode = session.mode.value if hasattr(session.mode, "value") else session.mode
         model.data = session.data
         model.external_context_snapshot = session.external_context_snapshot
+        model.artifact_workspace_binding = getattr(
+            session, "artifact_workspace_binding", None
+        )
         model.last_message_at = session.last_message_at
         await self._base._flush()
         return self._to_entity(model)

@@ -1,0 +1,163 @@
+# Copy to your application's .github/workflows/deploy-release.yml.
+name: Deploy qualified Woobe Release
+on:
+  workflow_dispatch:
+    inputs:
+      kind:
+        type: choice
+        options: [agent, network]
+        required: true
+      target:
+        description: Exact native target UUID
+        required: true
+      release:
+        description: Exact qualified published Release UUID
+        required: true
+      notes:
+        description: Audit reason
+        required: true
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: woobe-production-${{ vars.WOOBE_PROJECT_ID }}-${{ inputs.kind }}-${{ inputs.target }}
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: [self-hosted, Linux, X64]
+    environment: production
+    timeout-minutes: 10
+    env:
+      WOOBE_API_URL: ${{ vars.WOOBE_API_URL }}
+      WOOBE_WORKSPACE_ID: ${{ vars.WOOBE_WORKSPACE_ID }}
+      WOOBE_PROJECT_ID: ${{ vars.WOOBE_PROJECT_ID }}
+      WOOBE_CONTROL_KEY: ${{ secrets.WOOBE_DEPLOY_KEY }}
+      CHECKPOINT_KEY: ${{ secrets.WOOBE_CHECKPOINT_KEY }}
+      CLI_VERSION: ${{ vars.WOOBE_CLI_VERSION }}
+      CLI_SHA256: ${{ vars.WOOBE_CLI_SHA256 }}
+      TARGET_KIND: ${{ inputs.kind }}
+      TARGET_ID: ${{ inputs.target }}
+      RELEASE_ID: ${{ inputs.release }}
+      AUDIT_NOTES: ${{ inputs.notes }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      WORKFLOW_RUN: ${{ github.run_id }}
+      WORKFLOW_ATTEMPT: ${{ github.run_attempt }}
+      GNUPGHOME: ${{ runner.temp }}/woobe-delivery/${{ github.run_id }}/gnupg
+    steps:
+      - name: Validate destination and prepare private recovery
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          test -n "$WOOBE_CONTROL_KEY" && test -n "$CHECKPOINT_KEY"
+          for tool in curl tar sha256sum python3 gh gpg gpgconf; do command -v "$tool" >/dev/null; done
+          python3 - <<'PY'
+          import os, uuid, urllib.parse
+          for name in ('TARGET_ID','RELEASE_ID','WOOBE_WORKSPACE_ID','WOOBE_PROJECT_ID'):
+              uuid.UUID(os.environ[name])
+          assert os.environ['TARGET_KIND'] in ('agent','network')
+          origin=urllib.parse.urlsplit(os.environ['WOOBE_API_URL'])
+          assert origin.scheme=='https' and origin.hostname and not origin.username and not origin.password
+          assert len(os.environ['AUDIT_NOTES'].strip()) >= 3
+          PY
+          mkdir -p "$RUNNER_TEMP/woobe-delivery/$WORKFLOW_RUN"
+          chmod 700 "$RUNNER_TEMP/woobe-delivery/$WORKFLOW_RUN"
+          mkdir -p "$GNUPGHOME"
+          chmod 700 "$GNUPGHOME"
+      - name: Restore original private intent on re-run
+        if: github.run_attempt != '1'
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          state="$RUNNER_TEMP/woobe-delivery/$WORKFLOW_RUN"
+          artifact="woobe-checkpoint-$WORKFLOW_RUN"
+          identifier="$(gh api "repos/$GH_REPO/actions/runs/$WORKFLOW_RUN/artifacts" --jq ".artifacts[] | select(.name == \"$artifact\" and .expired == false) | .id" | head -n 1)"
+          test -n "$identifier" || { echo 'Missing original checkpoint; reconcile original operations. No replay.' >&2; exit 9; }
+          gh api "repos/$GH_REPO/actions/artifacts/$identifier/zip" > "$state/checkpoint.zip"
+          python3 - "$state" <<'PY'
+          import pathlib, sys, zipfile
+          root=pathlib.Path(sys.argv[1])
+          with zipfile.ZipFile(root/'checkpoint.zip') as archive:
+              assert archive.namelist()==['intent.gpg']
+              assert archive.getinfo('intent.gpg').file_size <= 2*1024*1024
+              (root/'intent.gpg').write_bytes(archive.read('intent.gpg'))
+          PY
+          printf '%s' "$CHECKPOINT_KEY" | gpg --batch --yes --no-symkey-cache --pinentry-mode loopback --passphrase-fd 0 --output "$state/intent.json" --decrypt "$state/intent.gpg"
+          chmod 600 "$state/intent.json"
+      - name: Install exact reviewed CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$CLI_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ "$CLI_SHA256" =~ ^[0-9a-f]{64}$ ]]
+          state="$RUNNER_TEMP/woobe-delivery/$WORKFLOW_RUN"
+          curl --fail --location --proto '=https' --tlsv1.2 "https://github.com/A1b3rt0M3rcad0/woobe-cli/releases/download/v$CLI_VERSION/woobe_${CLI_VERSION}_linux_amd64.tar.gz" --output "$state/cli.tar.gz"
+          printf '%s  %s\n' "$CLI_SHA256" "$state/cli.tar.gz" | sha256sum --check --status
+          tar -xzf "$state/cli.tar.gz" -C "$state" woobe
+          "$state/woobe" version --output json > "$state/cli-version.json"
+          python3 - "$state/cli-version.json" <<'PY'
+          import json, os, sys
+          assert json.load(open(sys.argv[1]))['data']['version']==os.environ['CLI_VERSION']
+          PY
+      - name: Deploy or resume exact original intention
+        shell: bash
+        run: |
+          set -euo pipefail
+          state="$RUNNER_TEMP/woobe-delivery/$WORKFLOW_RUN"
+          intent="$(python3 - <<'PY'
+          import os, uuid, json
+          values=[os.environ[name] for name in ('GH_REPO','WORKFLOW_RUN','WOOBE_API_URL','WOOBE_WORKSPACE_ID','WOOBE_PROJECT_ID','TARGET_KIND','TARGET_ID','RELEASE_ID')]
+          print(uuid.uuid5(uuid.NAMESPACE_URL, json.dumps(values,separators=(',',':'))))
+          PY
+          )"
+          common=(--config "$state/config.json" --api-url "$WOOBE_API_URL" --workspace "$WOOBE_WORKSPACE_ID" --project "$WOOBE_PROJECT_ID" --no-project-config --no-input --output json --timeout 90s)
+          if [[ "$WORKFLOW_ATTEMPT" == 1 ]]; then
+            args=(--from release --release "$RELEASE_ID" --notes "$AUDIT_NOTES")
+          else
+            test -f "$state/intent.json" || exit 9
+            args=(resume)
+          fi
+          "$state/woobe" "${common[@]}" "$TARGET_KIND" "$TARGET_ID" deploy "${args[@]}" --env production --intent "$intent" --checkpoint "$state/intent.json" --yes > "$state/result.json"
+      - name: Preserve integrity-protected recovery checkpoint
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          state="$RUNNER_TEMP/woobe-delivery/$WORKFLOW_RUN"
+          if [[ -f "$state/intent.json" ]]; then
+            printf '%s' "$CHECKPOINT_KEY" | gpg --batch --yes --no-symkey-cache --pinentry-mode loopback --passphrase-fd 0 --symmetric --cipher-algo AES256 --output "$state/intent.gpg" "$state/intent.json"
+          fi
+          python3 - "$state" <<'PY'
+          import json, os, pathlib, sys
+          root=pathlib.Path(sys.argv[1]); path=root/'result.json'
+          if path.is_file():
+              payload=json.loads(path.read_text());data=payload.get('data',{})
+              allowed=('intent_id','kind','resource_id','environment','status','release_id','publication_id','deployment_id','previous_release_id','generation_before','generation_after','write_outcome','observed_current_matches')
+              summary={key:data[key] for key in allowed if key in data}
+              summary.update(success=payload.get('success',False),workflow_url=f"https://github.com/{os.environ['GH_REPO']}/actions/runs/{os.environ['WORKFLOW_RUN']}")
+              (root/'public-receipt.json').write_text(json.dumps(summary,indent=2)+'\n')
+          PY
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        if: always()
+        with:
+          name: woobe-checkpoint-${{ github.run_id }}
+          path: ${{ runner.temp }}/woobe-delivery/${{ github.run_id }}/intent.gpg
+          if-no-files-found: ignore
+          overwrite: true
+          retention-days: 7
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        if: always()
+        with:
+          name: woobe-public-receipt-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/woobe-delivery/${{ github.run_id }}/public-receipt.json
+          if-no-files-found: ignore
+          retention-days: 30
+      - name: Remove decrypted runner state
+        if: always()
+        shell: bash
+        run: |
+          gpgconf --kill gpg-agent || true
+          rm -rf "$RUNNER_TEMP/woobe-delivery/$WORKFLOW_RUN"

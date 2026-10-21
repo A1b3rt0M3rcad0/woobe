@@ -1,4 +1,5 @@
 import type { NetworkMessageResource } from '@/features/network/types'
+import { parseArtifactReference } from '@woobe/runtime-client'
 
 import { buildTurnFromRuntimeEvents, type NetworkAgentInvocation, type NetworkExecution, type NetworkTurn, type RuntimeEventRecord } from './networkChatExecution'
 import { createNetworkTraceRecord } from './networkObservabilityFactory'
@@ -43,6 +44,17 @@ function terminalStatus(status: string): NetworkExecution['status'] {
   if (status === 'running' || status === 'queued') return 'running'
   if (status === 'cancelled') return 'cancelled'
   return 'error'
+}
+
+function artifactInputs(data: Record<string, unknown> | null | undefined) {
+  const parts = Array.isArray(data?.content_parts) ? data.content_parts : []
+  return parts.flatMap(part => {
+    if (!part || typeof part !== 'object' || (part as Record<string, unknown>).type !== 'artifact') return []
+    try {
+      const ref = parseArtifactReference((part as Record<string, unknown>).ref)
+      return [{ ref, label: `Artifact ${ref.artifact_id}`, content_type: (part as Record<string, unknown>).media_type_hint as string | undefined }]
+    } catch { return [] }
+  })
 }
 
 function invocationContexts(root: NetworkAgentInvocation, session: NetworkSession): NetworkAgentContext[] {
@@ -106,7 +118,10 @@ export function hydrateNetworkHistory({ messages, environment, bindings, session
     const user = group.user?.content ?? ''
     const answer = group.assistant?.content
       ?? (source.execution.status === 'cancelled' ? '' : source.execution.failure?.message ?? '')
-    const turn = buildTurnFromRuntimeEvents({ records, environment, bindings, executionId, user, answer, fallbackTraceId: source.execution.root_trace_id ?? undefined, terminalStatus: terminalStatus(source.execution.status) })
+    const turn = {
+      ...buildTurnFromRuntimeEvents({ records, environment, bindings, executionId, user, answer, fallbackTraceId: source.execution.root_trace_id ?? undefined, terminalStatus: terminalStatus(source.execution.status) }),
+      inputArtifacts: artifactInputs(group.user?.data),
+    }
     const contexts = session.agentContexts.length ? session.agentContexts : invocationContexts(turn.execution.root, session)
     turns.push(turn)
     traces.push(createNetworkTraceRecord({ execution: turn.execution, environment, bindings, networkSessionId: session.id, title: user || 'Network Run', userMessage: user, answer: turn.answer, usage: turn.usage, agentContexts: contexts, parsedOutput: turn.parsedOutput, outputParseError: turn.outputParseError, source: 'runtime', runtimeEvents: records, networkVersion: versionLabel }))

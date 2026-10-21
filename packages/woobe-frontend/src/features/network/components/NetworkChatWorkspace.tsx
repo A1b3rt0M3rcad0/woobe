@@ -5,9 +5,13 @@ import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
 import { ChatCanvas, type ChatCanvasEntry } from '@/features/playground/components/ChatCanvas'
+import type { ComposerArtifactReference } from '@/features/playground/components/ChatComposer'
 import { filterContractValues, filterExternalContextInput } from '@/features/contracts/contractFields'
 import type { Agent } from '@/features/agents/types'
-import type { ChatMessage as PlaygroundChatMessage } from '@/features/playground/types'
+import type { ArtifactComposerContext } from '@/features/artifacts/types'
+import { useArtifactWorkspaceByIdentity } from '@/features/artifacts/hooks'
+import type { ArtifactOutputInfo, ChatMessage as PlaygroundChatMessage, RuntimeContentPart } from '@/features/playground/types'
+import { parseArtifactOutput, parseArtifactReference } from '@woobe/runtime-client'
 import { cancelNetworkExecution } from '@/features/network/api'
 import { useNetworkExternalContextContract, useNetworkRuntimeEnvironments } from '@/features/network/hooks'
 import { useNetworkIdentity } from '@/features/network/NetworkIdentityContext'
@@ -37,12 +41,13 @@ import {
 interface NetworkChatWorkspaceProps {
   networkId: string
   projectId: string
+  accountWorkspaceId?: string
   networkName: string
   environment: Environment
   versionLabel: string
   currentVersionId: string | null
   bindings: Record<AgentNodeId, NetworkBinding>
-  draftDefinition: NetworkDefinition
+  runtimeDefinition: NetworkDefinition
   agents: Agent[]
   liveDraftContractsByAgentId: Record<string, unknown>
   historyBindings: Record<AgentNodeId, NetworkBinding>
@@ -77,6 +82,39 @@ const LIVE_EXECUTION_EVENT_TYPES = new Set([
 ])
 
 const EMPTY_EXTERNAL_CONTEXT_CONTRACT: Record<string, never> = {}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
+}
+
+function inputArtifactsFromParts(value: unknown): ComposerArtifactReference[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap(part => {
+    if (!part || typeof part !== 'object' || (part as Record<string, unknown>).type !== 'artifact') return []
+    const item = part as Record<string, unknown>
+    try {
+      const ref = parseArtifactReference(item.ref)
+      return [{ ref, label: `Artifact ${ref.artifact_id}`, content_type: typeof item.media_type_hint === 'string' ? item.media_type_hint : undefined }]
+    } catch { return [] }
+  })
+}
+
+function outputArtifactsFromValue(value: unknown): ArtifactOutputInfo[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap(item => {
+    try { return [parseArtifactOutput(item) as ArtifactOutputInfo] } catch { return [] }
+  })
+}
+
+function mergeOutputArtifacts(current: ArtifactOutputInfo[], candidate: ArtifactOutputInfo[]): ArtifactOutputInfo[] {
+  const known = new Set(current.map(item => `${item.ref.artifact_id}:${item.ref.revision_id}`))
+  return [...current, ...candidate.filter(item => {
+    const key = `${item.ref.artifact_id}:${item.ref.revision_id}`
+    if (known.has(key)) return false
+    known.add(key)
+    return true
+  })]
+}
 
 const networkSuggestions = [
   'Test a request that should be answered by the entry Agent.',
@@ -125,12 +163,13 @@ function parsedOutputFromEvent(event: NetworkRuntimeEvent): Record<string, unkno
 export function NetworkChatWorkspace({
   networkId,
   projectId,
+  accountWorkspaceId,
   networkName,
   environment,
   versionLabel,
   currentVersionId,
   bindings,
-  draftDefinition,
+  runtimeDefinition,
   agents,
   liveDraftContractsByAgentId,
   historyBindings,
@@ -156,14 +195,14 @@ export function NetworkChatWorkspace({
     () => environment === 'draft'
       ? previewNetworkDraftExternalContextContract({
           persistedEffectiveContract: persistedExternalContextContract,
-          definition: draftDefinition,
+          definition: runtimeDefinition,
           agents,
           liveDraftContractsByAgentId,
         })
       : persistedExternalContextContract,
     [
       agents,
-      draftDefinition,
+      runtimeDefinition,
       environment,
       liveDraftContractsByAgentId,
       persistedExternalContextContract,
@@ -179,12 +218,14 @@ export function NetworkChatWorkspace({
   const [running, setRunning] = useState(false)
   const [stopping, setStopping] = useState(false)
   const [pendingMessage, setPendingMessage] = useState<string | null>(null)
+  const [pendingArtifacts, setPendingArtifacts] = useState<ComposerArtifactReference[]>([])
   const [liveAnswer, setLiveAnswer] = useState('')
   const [liveActivity, setLiveActivity] = useState<string[]>([])
   const [liveExecution, setLiveExecution] = useState(emptyLiveNetworkExecution)
   const [liveResponseCommitted, setLiveResponseCommitted] = useState(false)
   const [liveParsedOutput, setLiveParsedOutput] = useState<Record<string, unknown> | null>(null)
   const [liveOutputParseError, setLiveOutputParseError] = useState<string | null>(null)
+  const [liveOutputArtifacts, setLiveOutputArtifacts] = useState<ArtifactOutputInfo[]>([])
   const [lastHeartbeatAt, setLastHeartbeatAt] = useState<number | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const executionIdRef = useRef<string | null>(null)
@@ -199,6 +240,37 @@ export function NetworkChatWorkspace({
 
   const changed = Boolean(activeSession && environment !== 'draft' && activeSession.networkVersion !== currentVersionId)
   const lockedExternalContextValues = activeSession?.externalContextSnapshot ?? {}
+  const artifactPolicy = runtimeDefinition.settings.artifact_workspace_binding
+  const artifactRoot = runtimeDefinition.nodes.find(node => node.id === runtimeDefinition.root_node_id)
+  const artifactRootBinding = artifactRoot ? bindings[artifactRoot.id] : undefined
+  const artifactSnapshotRuntime = asRecord(artifactRootBinding?.snapshotOverride?.runtime_config)
+  const artifactAgentRuntime = asRecord(artifactRootBinding?.agent.settings?.runtime_config ?? artifactRootBinding?.agent.settings)
+  const artifactRuntime = Object.keys(artifactSnapshotRuntime).length ? artifactSnapshotRuntime : artifactAgentRuntime
+  const artifactAgentCapability = asRecord(artifactRuntime.artifacts)
+  const artifactField = artifactPolicy?.field
+  const artifactExternalKey = artifactField
+    ? (Object.prototype.hasOwnProperty.call(lockedExternalContextValues, artifactField)
+      ? lockedExternalContextValues[artifactField]
+      : externalContextValues[artifactField])
+    : undefined
+  const effectiveArtifactActions = (artifactPolicy?.actions ?? []).filter(action =>
+    artifactRoot?.artifact_actions?.includes(action)
+      && Array.isArray(artifactAgentCapability.actions)
+      && artifactAgentCapability.actions.includes(action),
+  )
+  const resolvedNetworkArtifactWorkspace = useArtifactWorkspaceByIdentity(
+    projectId, environment, artifactPolicy?.namespace,
+    typeof artifactExternalKey === 'string' && artifactExternalKey.length > 0 ? artifactExternalKey : undefined,
+  )
+  const artifactContext: ArtifactComposerContext | null = runtimeDefinition.settings.artifacts_enabled === true
+    && artifactAgentCapability.enabled === true
+    && effectiveArtifactActions.includes('read')
+    && resolvedNetworkArtifactWorkspace.data
+    ? {
+      projectId, environment, workspaceId: resolvedNetworkArtifactWorkspace.data.id,
+      accountWorkspaceId, actions: effectiveArtifactActions,
+    }
+    : null
   const turns = useMemo(() => reconcileNetworkTurns(historyTurns, localTurns), [historyTurns, localTurns])
 
   useLayoutEffect(() => {
@@ -257,12 +329,14 @@ export function NetworkChatWorkspace({
     setRunning(false)
     setStopping(false)
     setPendingMessage(null)
+    setPendingArtifacts([])
     setLiveAnswer('')
     setLiveActivity([])
     setLiveExecution(emptyLiveNetworkExecution())
     setLiveResponseCommitted(false)
     setLiveParsedOutput(null)
     setLiveOutputParseError(null)
+    setLiveOutputArtifacts([])
   }
 
   useLayoutEffect(() => {
@@ -346,12 +420,14 @@ export function NetworkChatWorkspace({
       stopRequestRef.current = active.status === 'cancel_requested'
       setStopping(active.status === 'cancel_requested')
       setPendingMessage(active.input_message)
+      setPendingArtifacts([])
       setLiveAnswer('')
       setLiveActivity([active.status === 'cancel_requested' ? 'Stopping active Network Run...' : 'Resuming active Network Run...'])
       setLiveExecution(emptyLiveNetworkExecution())
       setLiveResponseCommitted(false)
       setLiveParsedOutput(null)
       setLiveOutputParseError(null)
+      setLiveOutputArtifacts([])
       setLastHeartbeatAt(null)
 
       const controller = new AbortController()
@@ -372,6 +448,7 @@ export function NetworkChatWorkspace({
         }, {
           onExecutionId: (id) => { executionIdRef.current = id },
           onEvent: (eventType, event) => {
+            if (eventType === 'execution_accepted') setPendingArtifacts(inputArtifactsFromParts(event.data.content_parts))
             if (shouldRecordRuntimeEvent(eventType)) records.push({ eventType, event })
             if (updatesLiveExecution(eventType)) setLiveExecution((current) => applyNetworkRuntimeEvent(current, eventType, event))
             if (eventType !== 'token' && eventType !== 'token_retract' && eventType !== 'run.state') {
@@ -391,11 +468,14 @@ export function NetworkChatWorkspace({
                 scheduleLiveAnswer(answer)
               }
             }
-            if (eventType === 'agent_invocation_completed' && !event.parent_invocation_id) {
-              flushLiveAnswer(answer)
-              setLiveParsedOutput(parsedOutputFromEvent(event))
-              setLiveOutputParseError(typeof event.data.output_parse_error === 'string' ? event.data.output_parse_error : null)
-              setLiveResponseCommitted(true)
+            if (eventType === 'agent_invocation_completed') {
+              setLiveOutputArtifacts(current => mergeOutputArtifacts(current, outputArtifactsFromValue(event.data.output_artifacts)))
+              if (!event.parent_invocation_id) {
+                flushLiveAnswer(answer)
+                setLiveParsedOutput(parsedOutputFromEvent(event))
+                setLiveOutputParseError(typeof event.data.output_parse_error === 'string' ? event.data.output_parse_error : null)
+                setLiveResponseCommitted(true)
+              }
             }
             if (eventType === 'execution_completed') {
               const id = event.data.trace_id
@@ -490,9 +570,9 @@ export function NetworkChatWorkspace({
     requestCancellation(executionId)
   }
 
-  const send = async (content: string) => {
+  const send = async (content: string, artifacts: ComposerArtifactReference[] = []) => {
     const message = content.trim()
-    if (!message || running || creatingSession) return
+    if ((!message && artifacts.length === 0) || running || creatingSession) return
     if (!runtimeEnabled) {
       toast.error(`${environment} Network runtime is off`)
       return
@@ -518,12 +598,14 @@ export function NetworkChatWorkspace({
     setRunning(true)
     setStopping(false)
     setPendingMessage(message)
+    setPendingArtifacts(artifacts)
     setLiveAnswer('')
     setLiveActivity([])
     setLiveExecution(emptyLiveNetworkExecution())
     setLiveResponseCommitted(false)
     setLiveParsedOutput(null)
     setLiveOutputParseError(null)
+    setLiveOutputArtifacts([])
     setLastHeartbeatAt(null)
     const controller = new AbortController()
     abortRef.current = controller
@@ -538,11 +620,16 @@ export function NetworkChatWorkspace({
       const executionBindings = environment === 'draft'
         ? Object.fromEntries(Object.entries(bindings).map(([nodeId, binding]) => [nodeId, { ...binding, version: `r${expectedDraftRevision}`, dirty: false }])) as Record<AgentNodeId, NetworkBinding>
         : bindings
+      const contentParts: RuntimeContentPart[] = [
+        ...(message ? [{ type: 'text' as const, text: message }] : []),
+        ...artifacts.map(item => ({ type: 'artifact' as const, ref: item.ref, media_type_hint: item.content_type })),
+      ]
       await streamNetworkExecution({
         networkId,
         projectId,
         networkSessionId: session.id,
-        message,
+        message: artifacts.length ? '' : message,
+        contentParts: artifacts.length ? contentParts : undefined,
         expectedDraftRevision,
         externalContext: filterExternalContextInput(
           effectiveExternalContextContract,
@@ -557,6 +644,7 @@ export function NetworkChatWorkspace({
           if (stopIntentRef.current) requestCancellation(id)
         },
         onEvent: (eventType, event) => {
+          if (eventType === 'execution_accepted') setPendingArtifacts(inputArtifactsFromParts(event.data.content_parts))
           if (!executionId && event.execution_id) {
             executionId = event.execution_id
             executionIdRef.current = event.execution_id
@@ -574,11 +662,14 @@ export function NetworkChatWorkspace({
             const length = event.data.content_length
             if (typeof length === 'number' && length > 0) { answer = answer.slice(0, Math.max(0, answer.length - length)); scheduleLiveAnswer(answer) }
           }
-          if (eventType === 'agent_invocation_completed' && !event.parent_invocation_id) {
-            flushLiveAnswer(answer)
-            setLiveParsedOutput(parsedOutputFromEvent(event))
-            setLiveOutputParseError(typeof event.data.output_parse_error === 'string' ? event.data.output_parse_error : null)
-            setLiveResponseCommitted(true)
+          if (eventType === 'agent_invocation_completed') {
+            setLiveOutputArtifacts(current => mergeOutputArtifacts(current, outputArtifactsFromValue(event.data.output_artifacts)))
+            if (!event.parent_invocation_id) {
+              flushLiveAnswer(answer)
+              setLiveParsedOutput(parsedOutputFromEvent(event))
+              setLiveOutputParseError(typeof event.data.output_parse_error === 'string' ? event.data.output_parse_error : null)
+              setLiveResponseCommitted(true)
+            }
           }
           if (eventType === 'execution_completed') {
             const id = event.data.trace_id
@@ -606,7 +697,10 @@ export function NetworkChatWorkspace({
       }, controller.signal)
 
       if (!executionId) throw new Error('Network stream completed without an execution identifier')
-      const turn = buildTurnFromRuntimeEvents({ records, environment, bindings: executionBindings, executionId, user: message, answer, fallbackTraceId: traceId, terminalStatus: status })
+      const turn = {
+        ...buildTurnFromRuntimeEvents({ records, environment, bindings: executionBindings, executionId, user: message, answer, fallbackTraceId: traceId, terminalStatus: status }),
+        inputArtifacts: artifacts,
+      }
       setLocalTurns((items) => [...items.filter((item) => item.id !== turn.id), turn])
       clearLiveState()
       onRun(createNetworkTraceRecord({
@@ -614,7 +708,7 @@ export function NetworkChatWorkspace({
         environment,
         bindings: executionBindings,
         networkSessionId: session.id,
-        title: message,
+        title: message || `Referenced ${artifacts.length} Artifact${artifacts.length === 1 ? '' : 's'}`,
         userMessage: message,
         answer: turn.answer,
         usage: turn.usage,
@@ -644,14 +738,14 @@ export function NetworkChatWorkspace({
     for (const turn of turns) {
       entries.push({
         key: `${turn.id}:user`,
-        message: { role: 'user', content: turn.user },
+        message: { role: 'user', content: turn.user, input_artifacts: turn.inputArtifacts ?? [] },
       })
       entries.push({
         key: `${turn.id}:assistant`,
         message: networkTurnChatMessage(turn),
         agentName: exactNetworkName,
         assistantIcon: 'network',
-        details: <NetworkTurnDetails turn={turn} onSelectAgent={onSelectAgent} />,
+        details: <NetworkTurnDetails turn={turn} onSelectAgent={onSelectAgent} artifactContext={artifactContext} />,
         footerMeta: <NetworkTurnFooterMeta turn={turn} />,
         footerActions: <NetworkOpenRunAction execution={turn.execution} onOpenTrace={onOpenTrace} />,
         className: turn.execution.status === 'error' ? 'rounded-xl border border-red-500/25 bg-red-500/[0.03] p-2' : undefined,
@@ -664,6 +758,8 @@ export function NetworkChatWorkspace({
         content: liveAnswer,
         parsed_output: liveParsedOutput,
         output_parse_error: liveOutputParseError,
+        input_artifacts: pendingArtifacts,
+        output_artifacts: liveOutputArtifacts,
         activity: liveAnswer
           ? null
           : {
@@ -694,6 +790,8 @@ export function NetworkChatWorkspace({
     liveExecution.sources,
     liveExecution.tools,
     liveOutputParseError,
+    liveOutputArtifacts,
+    pendingArtifacts,
     liveParsedOutput,
     liveResponseCommitted,
     onOpenTrace,
@@ -724,6 +822,8 @@ export function NetworkChatWorkspace({
         isPreparing={creatingSession}
         isSessionLoading={historyLoading}
         onSend={(content) => { void send(content) }}
+        onSendArtifacts={(content, artifacts) => { void send(content, artifacts) }}
+        artifactContext={artifactContext}
         onStop={stop}
         assistantIcon="network"
         runtimeBlocked={Boolean(runtimeBlockReason)}

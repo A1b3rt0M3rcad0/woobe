@@ -100,6 +100,102 @@ def compile_http_tool_contract(
 ) -> CompiledHttpToolContract:
     normalized = deepcopy(config or {})
     names = _parameter_names(normalized)
+    file_bindings = normalized.get("file_bindings") or []
+    if not isinstance(file_bindings, list):
+        raise HttpToolContractError(
+            "HTTP_TOOL_FILE_BINDING_INVALID",
+            "HTTP Tool file_bindings must be a list.",
+        )
+    file_names: set[str] = set()
+    for binding in file_bindings:
+        if not isinstance(binding, dict):
+            raise HttpToolContractError(
+                "HTTP_TOOL_FILE_BINDING_INVALID",
+                "HTTP Tool file binding must be an object.",
+            )
+        input_name = str(binding.get("input_name") or "")
+        mode = str(binding.get("mode") or "")
+        if (not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", input_name)
+                or input_name in file_names
+                or (input_name in names and mode != "url")):
+            raise HttpToolContractError(
+                "HTTP_TOOL_FILE_BINDING_INVALID",
+                "HTTP Tool file binding names must be unique and cannot be URL/body template variables.",
+            )
+        if mode not in {"bytes", "multipart", "url"}:
+            raise HttpToolContractError(
+                "HTTP_TOOL_FILE_BINDING_INVALID",
+                "HTTP Tool file transfer mode must be bytes, multipart or url.",
+            )
+        max_bytes = binding.get("max_bytes", 25 * 1024 * 1024)
+        if type(max_bytes) is not int or not 1 <= max_bytes <= 50 * 1024 * 1024:
+            raise HttpToolContractError(
+                "HTTP_TOOL_FILE_BINDING_INVALID",
+                "HTTP Tool file transfer max_bytes must be between 1 and 52428800.",
+            )
+        part_name = str(binding.get("part_name") or "file")
+        if re.fullmatch(r"[A-Za-z0-9_.-]{1,128}", part_name) is None:
+            raise HttpToolContractError(
+                "HTTP_TOOL_FILE_BINDING_INVALID",
+                "HTTP Tool multipart part name is invalid.",
+            )
+        binding["part_name"] = part_name
+        idempotency_header = binding.get("idempotency_header")
+        if idempotency_header is not None and (
+            re.fullmatch(r"[!#$%&'*+.^_`|~0-9A-Za-z-]{1,128}", str(idempotency_header)) is None
+            or str(idempotency_header).lower() in _RESERVED_HEADERS
+            or str(idempotency_header).lower() in {"authorization", "cookie", "content-type"}
+        ):
+            raise HttpToolContractError(
+                "HTTP_TOOL_FILE_BINDING_INVALID",
+                "HTTP Tool idempotency header is invalid or reserved.",
+            )
+        content_types = binding.get("content_types")
+        if (
+            not isinstance(content_types, list)
+            or not content_types
+            or any(
+                not isinstance(value, str)
+                or re.fullmatch(r"[A-Za-z0-9!#$&^_.+-]+/[A-Za-z0-9!#$&^_.+-]+", value.strip()) is None
+                for value in content_types
+            )
+        ):
+            raise HttpToolContractError(
+                "HTTP_TOOL_FILE_BINDING_INVALID",
+                "HTTP Tool file bindings must declare allowed content types.",
+            )
+        binding["content_types"] = [value.strip().lower() for value in content_types]
+        if mode == "bytes" and len(file_bindings) != 1:
+            raise HttpToolContractError(
+                "HTTP_TOOL_FILE_BINDING_INVALID",
+                "Raw-byte transfer supports exactly one file binding.",
+            )
+        file_names.add(input_name)
+        if mode == "url":
+            body = normalized.get("body")
+
+            def has_exact_url_slot(value: Any) -> bool:
+                if isinstance(value, str):
+                    match = TEMPLATE_PATTERN.fullmatch(value.strip())
+                    return bool(match and match.group(1) == input_name)
+                if isinstance(value, dict):
+                    return any(has_exact_url_slot(child) for child in value.values())
+                if isinstance(value, list):
+                    return any(has_exact_url_slot(child) for child in value)
+                return False
+
+            if input_name not in names or input_name in TEMPLATE_PATTERN.findall(str(normalized.get("url") or "")) or not has_exact_url_slot(body):
+                raise HttpToolContractError(
+                    "HTTP_TOOL_FILE_BINDING_INVALID",
+                    "URL bindings must occupy an exact request-body value and cannot change the destination URL.",
+                )
+    if file_bindings and normalized.get("body") is not None and any(
+        str(binding.get("mode")) != "url" for binding in file_bindings
+    ):
+        raise HttpToolContractError(
+            "HTTP_TOOL_FILE_BINDING_INVALID",
+            "Bytes and multipart transfers cannot be combined with a configured request body.",
+        )
     schema = deepcopy(declared_schema or {})
     if not isinstance(schema, dict) or schema.get("type") not in (None, "object"):
         raise HttpToolContractError(
@@ -117,12 +213,30 @@ def compile_http_tool_contract(
         if name in declared_properties
         else {"type": "string", "description": f"Parameter {name}"}
         for name in names
+        if name not in file_names
     }
+    artifact_ref_schema = {
+        "type": "object",
+        "properties": {
+            "artifact_id": {"type": "string", "minLength": 1, "maxLength": 128},
+            "revision_id": {"type": "string", "minLength": 1, "maxLength": 128},
+        },
+        "required": ["artifact_id", "revision_id"],
+        "additionalProperties": False,
+    }
+    for binding in file_bindings:
+        properties[binding["input_name"]] = {
+            **deepcopy(artifact_ref_schema),
+            "description": "Exact authorized Artifact revision to transfer using the bound mode.",
+        }
     schema["properties"] = properties
     raw_required = schema.get("required")
     required = [name for name in raw_required if isinstance(name, str) and name in properties] if isinstance(raw_required, list) else []
     for name in names:
         if not _has_default(normalized, name) and name not in required:
+            required.append(name)
+    for name in file_names:
+        if name not in required:
             required.append(name)
     schema["required"] = required
     schema.setdefault("additionalProperties", False)
@@ -319,6 +433,10 @@ def flatten_http_group_route(
     }
     if route.get("body") is not None:
         normalized["body"] = deepcopy(route.get("body"))
+    if route.get("file_bindings") is not None:
+        normalized["file_bindings"] = deepcopy(route.get("file_bindings"))
+    if route.get("output_bindings") is not None:
+        normalized["output_bindings"] = deepcopy(route.get("output_bindings"))
     if config.get("auth") is not None:
         normalized["auth"] = deepcopy(config.get("auth"))
     return {key: value for key, value in normalized.items() if value is not None}

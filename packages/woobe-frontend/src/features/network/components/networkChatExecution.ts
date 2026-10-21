@@ -1,6 +1,7 @@
 import { isSkillOperation } from '@/features/skills/operations'
-import type { SourceInfo, ToolCallInfo, UsageInfo } from '@/features/playground/types'
+import type { ArtifactOutputInfo, ChatMessage, SourceInfo, ToolCallInfo, UsageInfo } from '@/features/playground/types'
 import type { NetworkRuntimeEvent } from '@/features/network/types'
+import { parseArtifactOutput } from '@woobe/runtime-client'
 
 import type { AgentNodeId, Environment, NetworkBinding, NodeId } from './networkWorkspaceTypes'
 
@@ -32,6 +33,7 @@ export interface NetworkAgentInvocation {
   output?: string | null
   parsedOutput?: Record<string, unknown> | null
   outputParseError?: string | null
+  outputArtifacts?: ArtifactOutputInfo[]
   failure?: NetworkInvocationFailure | null
   tools: ToolCallInfo[]
   sources: SourceInfo[]
@@ -68,6 +70,7 @@ export interface NetworkTurn {
   answer: string
   parsedOutput?: Record<string, unknown> | null
   outputParseError?: string | null
+  inputArtifacts?: NonNullable<ChatMessage['input_artifacts']>
   provider: string
   model: string
   usage: UsageInfo | null
@@ -235,6 +238,17 @@ function mergeSources(current: SourceInfo[], rawSources: unknown): SourceInfo[] 
     merged.set(sourceKey(source, current.length + index), source)
   })
   return [...merged.values()]
+}
+
+function artifactOutputs(raw: unknown): ArtifactOutputInfo[] {
+  if (!Array.isArray(raw)) return []
+  return raw.flatMap(value => {
+    try { return [parseArtifactOutput(value) as ArtifactOutputInfo] } catch { return [] }
+  })
+}
+
+export function flattenOutputArtifacts(invocation: NetworkAgentInvocation): ArtifactOutputInfo[] {
+  return [...(invocation.outputArtifacts ?? []), ...invocation.children.flatMap(flattenOutputArtifacts)]
 }
 
 function upsertTool(tools: ToolCallInfo[], candidate: ToolCallInfo): ToolCallInfo[] {
@@ -470,6 +484,7 @@ export function buildExecutionFromRuntimeEvents({
       current.outputParseError = typeof event.data.output_parse_error === 'string'
         ? event.data.output_parse_error
         : null
+      current.outputArtifacts = artifactOutputs(event.data.output_artifacts)
       continue
     }
 

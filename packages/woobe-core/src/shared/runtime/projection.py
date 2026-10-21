@@ -153,6 +153,21 @@ def initial_projection(
         "current_route": None,
         "usage": state.get("usage") if isinstance(state.get("usage"), dict) else {},
         "result": root_result or terminal_result or None,
+        "output_artifacts": list(
+            root_result.get("output_artifacts")
+            or terminal_result.get("output_artifacts")
+            or []
+        ),
+        "artifact_transfers": list(
+            root_result.get("artifact_transfers")
+            or terminal_result.get("artifact_transfers")
+            or []
+        ),
+        "source_refs": list(
+            root_result.get("source_refs")
+            or terminal_result.get("source_refs")
+            or []
+        ),
         "parsed_output": parsed_output,
         "output_parse_error": output_parse_error,
         "updated_at": state.get("updated_at") or _now_iso(),
@@ -446,10 +461,68 @@ def reduce_projection(
     elif event_type == "usage":
         usage = payload.get("usage")
         state["usage"] = deepcopy(usage if isinstance(usage, dict) else payload)
+    elif event_type == "artifact_available":
+        artifact_id = payload.get("artifact_id")
+        revision_id = payload.get("revision_id")
+        if artifact_id and revision_id:
+            artifact_key = f"{artifact_id}:{revision_id}"
+            artifact = {
+                "schema_version": "1",
+                "ref": {
+                    "artifact_id": str(artifact_id),
+                    "revision_id": str(revision_id),
+                },
+                "status": str(payload.get("status") or "available"),
+                "node_id": payload.get("node_id"),
+                "source_refs": deepcopy(payload.get("source_refs") or []),
+            }
+            for key in (
+                "path", "content_type", "size_bytes", "sha256", "run_id", "node_id",
+            ):
+                if payload.get(key) is not None:
+                    artifact[key] = deepcopy(payload[key])
+            existing = _as_record_list(state.get("output_artifacts"))
+            merged: list[dict[str, Any]] = []
+            found = False
+            for current in existing:
+                reference = current.get("ref")
+                current_key = (
+                    f"{reference.get('artifact_id')}:{reference.get('revision_id')}"
+                    if isinstance(reference, dict)
+                    else ""
+                )
+                if current_key == artifact_key:
+                    merged.append({**current, **deepcopy(artifact)})
+                    found = True
+                else:
+                    merged.append(current)
+            if not found:
+                merged.append(artifact)
+            state["output_artifacts"] = merged
+    elif event_type == "artifact_transfer":
+        operation_id = payload.get("operation_id")
+        if operation_id:
+            state["artifact_transfers"] = _upsert_by_key(
+                _as_record_list(state.get("artifact_transfers")),
+                key="operation_id",
+                key_value=str(operation_id),
+                update={
+                    "operation_id": str(operation_id),
+                    **{
+                        key: deepcopy(value)
+                        for key, value in payload.items()
+                        if key != "operation_id"
+                    },
+                },
+            )
     elif event_type in {"done", "execution_completed"}:
         state["status"] = "completed"
         result = payload.get("result")
         state["result"] = deepcopy(result if isinstance(result, dict) else payload)
+        if isinstance(payload.get("output_artifacts"), list):
+            state["output_artifacts"] = deepcopy(payload["output_artifacts"])
+        if isinstance(payload.get("source_refs"), list):
+            state["source_refs"] = deepcopy(payload["source_refs"])
         answer = payload.get("answer") or payload.get("output")
         if isinstance(answer, str):
             state["output"] = answer

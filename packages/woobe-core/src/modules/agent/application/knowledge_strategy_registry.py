@@ -11,6 +11,7 @@ from modules.agent.application.strategy_configuration import (
 
 from modules.agent.application.interfaces.knowledge import KnowledgeStrategy
 from modules.agent.application.rag.knowledge_strategy import RAGKnowledgeStrategy
+from modules.agent.application.rag.no_knowledge_strategy import NoKnowledgeStrategy
 
 
 DEFAULT_KNOWLEDGE_STRATEGY = "rag"
@@ -191,10 +192,33 @@ _RAG_DESCRIPTOR = KnowledgeStrategyDescriptor(
     is_default=True,
 )
 
+_NONE_DESCRIPTOR = KnowledgeStrategyDescriptor(
+    name="none",
+    display_name="No Knowledge",
+    description="Disable automatic Knowledge retrieval for this Agent or Release.",
+    behavior=(
+        "Returns no retrieved Knowledge and never invokes the configured RAG "
+        "binding. Artifact Tools remain independently controlled by their policies."
+    ),
+    recommended_for=(
+        "Agents that use explicitly authorized Artifact Tools instead of automatic retrieval.",
+        "Agents with no Knowledge or vector snapshot dependency.",
+    ),
+    capabilities=(
+        "No embedding or vector retrieval call.",
+        "Preserves independently authorized Artifact search and read Tools.",
+    ),
+    limitations=(
+        "No Knowledge is automatically added to model context.",
+        "Enabling this Strategy does not grant Artifact access.",
+    ),
+)
+
 
 def build_knowledge_strategy_registry() -> KnowledgeStrategyRegistry:
     registry = KnowledgeStrategyRegistry()
     registry.register(_RAG_DESCRIPTOR, RAGKnowledgeStrategy)
+    registry.register(_NONE_DESCRIPTOR, NoKnowledgeStrategy)
     if registry.current_default().name != DEFAULT_KNOWLEDGE_STRATEGY:
         raise InvalidDefaultKnowledgeStrategyError(
             "Historical Knowledge fallback must remain the registered 'rag' Strategy"

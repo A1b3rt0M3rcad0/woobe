@@ -10,6 +10,7 @@ from modules.agent.application.interfaces.candidate_execution import candidate_e
 from modules.agent.domain.enums import AgentStatus, Provider, ReleaseStatus, SessionMode
 from modules.agent.domain.errors import AgentNotFoundError, RuntimeEnvironmentNotReadyError
 from modules.agent.domain.execution_definition import canonicalize_agent_execution_definition
+from shared.contracts.artifact_capability import canonicalize_artifact_runtime_config
 from modules.agent.domain.model_spec import ModelSpec, model_spec_hash
 from shared.contracts.errors import ValidationError
 
@@ -118,6 +119,9 @@ def build_agent_execution_snapshot(source: Any) -> dict[str, Any]:
         if hasattr(source, "external_context_contract")
         else deepcopy(settings.get("external_context_contract"))
     )
+    runtime_config = canonicalize_artifact_runtime_config(
+        runtime_config, external_context_contract
+    ) or {}
     base_url = (
         getattr(source, "base_url", None)
         if hasattr(source, "base_url")
@@ -179,6 +183,9 @@ def apply_agent_execution_snapshot(agent: Any, snapshot: dict[str, Any]) -> Any:
     if project_id is None:
         raise ValidationError("Agent execution target has no valid Project")
     runtime_config = _runtime_config(snapshot.get("runtime_config"))
+    runtime_config = canonicalize_artifact_runtime_config(
+        runtime_config, snapshot.get("external_context_contract")
+    ) or {}
     _validate_frozen_skills(runtime_config, project_id)
 
     provider = snapshot.get("provider")

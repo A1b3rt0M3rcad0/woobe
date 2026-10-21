@@ -1,0 +1,9 @@
+services:
+  api:
+    build:
+      args:
+        WOOBE_PROCESSING_PROFILE: docling-native
+  workers:
+    build:
+      args:
+        WOOBE_PROCESSING_PROFILE: docling-native

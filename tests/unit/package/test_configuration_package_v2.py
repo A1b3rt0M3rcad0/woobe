@@ -41,6 +41,13 @@ def test_catalogs_are_distinct_and_binding_values_are_forbidden(tmp_path):
     validate_document(files["woobe.yaml"])
     assert schemas()["Package"]["properties"]["schema_version"]["const"] == "1.0"
     assert schemas("2.0")["Package"]["properties"]["schema_version"]["const"] == "2.0"
+    assert "artifacts" not in schemas()["Agent"]["$defs"]["AgentSpecV1"]["properties"]
+    assert "artifacts" in schemas("2.0")["Agent"]["$defs"]["AgentSpecV2"]["properties"]
+    assert "knowledge_strategy" not in schemas()["Agent"]["$defs"]["AgentSpecV1"]["properties"]
+    assert "knowledge_strategy" in schemas("2.0")["Agent"]["$defs"]["AgentSpecV2"]["properties"]
+    assert "file_bindings" not in schemas()["Tool"]["$defs"]["McpToolConfig"]["properties"]
+    assert "file_bindings" in schemas("2.0")["Tool"]["$defs"]["McpToolConfigV2"]["properties"]
+    assert "McpArtifactFileBinding" in schemas("2.0")["Tool"]["$defs"]
     for change in ({"protected_ref": "private"}, {"create": True, "existing_key": "PRIMARY_KEY"}, {}, {"value": "canary"}):
         document = bindings()
         document["spec"]["project_environment"]["PRIMARY_KEY"] = change
@@ -52,6 +59,13 @@ def test_catalogs_are_distinct_and_binding_values_are_forbidden(tmp_path):
         with pytest.raises(PackageError) as error:
             validate_document(document)
         assert "canary" not in str(error.value)
+    artifact_only = deepcopy(files["agent.yaml"])
+    artifact_only["spec"]["knowledge_strategy"] = "none"
+    validate_document(artifact_only)
+    legacy_agent = deepcopy(artifact_only)
+    legacy_agent["schema_version"] = "1.0"
+    with pytest.raises(PackageError):
+        validate_document(legacy_agent)
 
 
 def test_v2_archive_lock_and_required_remote_keys(tmp_path):
@@ -139,6 +153,62 @@ def test_export_v2_declares_only_public_intent_and_preserves_v1(tmp_path, route_
     assert manifest["spec"]["requires"]["credentials"] == [{"ref": "credential-1", "provider": "openai", "metadata": {}}]
 
 
+def test_export_preserves_explicit_no_knowledge_without_exporting_unused_vectors():
+    from modules.package.application.export_projection import ExportProjection
+    from modules.package.domain.parsing import decode_document
+    from modules.agent.domain.model_spec import (
+        ModelInteractionSpec, ModelModalities, ModelOperations, ModelSpec, ModelTypes,
+    )
+
+    model_spec = ModelSpec(
+        provider="openai", model_id="language", display_name="Language",
+        model_type=ModelTypes.LANGUAGE,
+        operations=frozenset({ModelOperations.LANGUAGE_GENERATE}),
+        input_modalities=frozenset({ModelModalities.TEXT}),
+        output_modalities=frozenset({ModelModalities.TEXT}),
+        interaction=ModelInteractionSpec(mode="conversation", supports_conversation=True),
+    ).as_dict()
+
+    credential = str(uuid4())
+    captured = {
+        "source": {"agent_id": str(uuid4()), "kind": "draft"},
+        "definition": {
+            "name": "Artifact Assistant", "provider": "openai", "model": "language",
+            "provider_credential_id": credential, "model_spec_snapshot": model_spec,
+            "runtime_config": {"knowledge_strategy": "none"},
+            "system_prompt": "Use authorized Artifact Tools.", "session_mode": "stateless",
+        },
+        "credentials": {credential: {
+            "provider": "openai", "name": "Primary", "metadata": {},
+            "authentication": {"type": "api_key", "fields": {"api_key": {
+                "source": "legacy_configuration", "key": "PRIMARY_KEY",
+                "alias_id": str(uuid4()),
+            }}},
+        }},
+        "tools": [], "skills": [], "artifacts": {},
+        "knowledge": {"vector": {"id": "must-not-export-unused-vector"}},
+    }
+    declarations = {"PRIMARY_KEY": {
+        "key": "PRIMARY_KEY", "kind": "secret", "value_format": "token",
+    }}
+    for version in ("1.0", "2.0"):
+        projection = ExportProjection(
+            knowledge_mode="binding",
+            environment_kinds={"PRIMARY_KEY": "secret"},
+            schema_version=version,
+            declarations=declarations,
+        )
+        projection.finish(kind="Agent", captured=captured, name="Assistant", version="1.0.0")
+        agent = decode_document(projection.files["agent-1.yaml"], "agent-1.yaml")
+        validate_document(agent)
+        assert "knowledge" not in agent["spec"]
+        assert not any(document["kind"] == "Knowledge" for document in projection.documents.values())
+        if version == "2.0":
+            assert agent["spec"]["knowledge_strategy"] == "none"
+        else:
+            assert "knowledge_strategy" not in agent["spec"]
+
+
 def network_package(files, source):
     files["network.yaml"] = {"format": "woobe-package", "schema_version": "2.0", "kind": "Network",
         "metadata": {"key": "network", "name": "Support Network"}, "spec": {"root": "support", "nodes": [
@@ -167,6 +237,186 @@ async def test_structural_network_uses_imported_drafts_without_promoting_constit
         assert not {"create_staging", "create_immutable_release", "activate_production"} & {
             effect["action"] for effect in approved.document["effects"]}
         assert approved.document["source_definition"]["components"]["network"]["spec"]["nodes"][0]["binding"]["source"] == source
+
+
+def test_artifact_capabilities_are_package_20_only(tmp_path):
+    files = package(tmp_path)
+    files["agent.yaml"]["spec"].update(
+        external_context={
+            "workspace": {
+                "schema": {"type": "string"},
+                "required": True,
+                "scope": "session",
+                "model": {"expose": False},
+            }
+        },
+        artifacts={
+            "enabled": True,
+            "workspace_binding": {"field": "workspace", "namespace": "team-docs", "scope": "session"},
+            "actions": ["read", "search"],
+            "limits": {"max_read_chars": 4096},
+        },
+    )
+    validate_document(files["agent.yaml"])
+    legacy = deepcopy(files["agent.yaml"])
+    legacy["schema_version"] = "1.0"
+    with pytest.raises(PackageError):
+        validate_document(legacy)
+
+    network = {
+        "format": "woobe-package",
+        "schema_version": "2.0",
+        "kind": "Network",
+        "metadata": {"key": "network", "name": "Support Network"},
+        "spec": {
+            "root": "support",
+            "nodes": [{"key": "support", "agent_ref": "agent", "artifact_actions": ["read", "search"]}],
+            "settings": {"artifacts_enabled": True, "artifact_workspace_binding": {
+                "field": "workspace", "namespace": "team-docs", "scope": "session",
+                "actions": ["read", "search"],
+            }},
+        },
+    }
+    validate_document(network)
+    with pytest.raises(PackageError):
+        validate_document({**network, "schema_version": "1.0"})
+
+
+def test_agent_export_keeps_artifact_policy_logical_and_requires_package_20():
+    from modules.package.application.export_projection import ExportProjection, portable_yaml
+    from modules.package.domain.parsing import decode_document
+
+    credential_id = str(uuid4())
+    capability = {
+        "enabled": True,
+        "workspace_binding": {"field": "workspace", "namespace": "team-docs", "scope": "session"},
+        "actions": ["read", "search", "process"],
+        "limits": {"max_read_chars": 4096},
+        "processing_profile": {"ref": "pageindex-default", "revision": 3},
+    }
+    external_context = {
+        "workspace": {
+            "schema": {"type": "string"},
+            "required": True,
+            "scope": "session",
+            "model": {"expose": False},
+        }
+    }
+    captured = {
+        "source": {"agent_id": str(uuid4()), "kind": "release"},
+        "definition": {
+            "name": "Support",
+            "provider": "custom",
+            "model": "model-a",
+            "provider_credential_id": credential_id,
+            "model_spec_snapshot": {"model_id": "model-a"},
+            "external_context_contract": external_context,
+            "runtime_config": {"artifacts": capability},
+            "system_prompt": "Help",
+            "session_mode": "stateful",
+        },
+        "credentials": {
+            credential_id: {"provider": "custom", "name": "Primary", "metadata": {}}
+        },
+        "tools": [],
+        "skills": [],
+        "artifacts": {},
+        "knowledge": None,
+    }
+    projection = ExportProjection(
+        knowledge_mode="binding", environment_kinds={}, schema_version="2.0"
+    ).finish(kind="Agent", captured=captured, name="Support", version="1.0.0")
+    exported = next(item for item in projection.documents.values() if item["kind"] == "Agent")
+    assert exported["spec"]["artifacts"]["workspace_binding"]["field"] == "workspace"
+    assert exported["spec"]["artifacts"]["processing_profile"] == {"ref": "pageindex-default", "revision": 3}
+    assert credential_id not in repr(exported)
+    assert "workspace_id" not in repr(exported["spec"]["artifacts"])
+    assert decode_document(portable_yaml(exported), "agent.yaml") == exported
+    assert all(not path.endswith((".pdf", ".png", ".bin")) for path in projection.files)
+    with pytest.raises(PackageError, match="Package 2.0"):
+        ExportProjection(
+            knowledge_mode="binding", environment_kinds={}, schema_version="1.0"
+        ).finish(kind="Agent", captured=captured, name="Support", version="1.0.0")
+
+
+def test_network_export_keeps_logical_artifact_binding_and_no_private_assets():
+    from modules.package.application.export_projection import ExportProjection, portable_yaml
+    from modules.package.domain.parsing import decode_document
+
+    captured = {
+        "source": {"network_id": str(uuid4()), "revision": "draft", "kind": "draft"},
+        "name": "Support Network",
+        "description": "",
+        "agents": [],
+        "spec": {
+            "root": "support",
+            "nodes": [{"key": "support", "agent_ref": "agent-1", "artifact_actions": ["read", "search"]}],
+            "settings": {
+                "artifacts_enabled": True,
+                "artifact_workspace_binding": {
+                    "field": "workspace", "namespace": "team-docs", "scope": "session",
+                    "actions": ["read", "search"],
+                },
+            },
+        },
+    }
+    projection = ExportProjection(knowledge_mode="binding", environment_kinds={}, schema_version="2.0").finish(
+        kind="Network", captured=captured, name="Support Network", version="1.0.0"
+    )
+    exported = next(item for item in projection.documents.values() if item["kind"] == "Network")
+    validate_document(exported, "network.yaml")
+    assert exported["spec"]["settings"]["artifact_workspace_binding"]["namespace"] == "team-docs"
+    assert decode_document(portable_yaml(exported), "network.yaml") == exported
+    encoded = repr(projection.documents) + repr(projection.files)
+    for private in ("workspace_id", "PRIVATE-CANARY", "signed.invalid", "signed_url"):
+        assert private not in encoded
+    assert all(not path.endswith((".pdf", ".png", ".bin")) for path in projection.files)
+
+
+@pytest.mark.asyncio
+async def test_network_artifact_requirement_needs_an_artifact_enabled_agent(monkeypatch):
+    from types import SimpleNamespace
+    from modules.package.infra.native_inspector import NativePackageInspectorGateway
+    from modules.network.application.portable_definition import inspect_portable_network_definition
+
+    gateway = NativePackageInspectorGateway(
+        None,
+        SimpleNamespace(
+            inspect_portable_definition=lambda spec: inspect_portable_network_definition(
+                spec, hard_max_depth=4, hard_max_invocations=16, hard_timeout_seconds=90
+            )
+        ),
+    )
+
+    async def authorize(**kwargs):
+        return None
+
+    monkeypatch.setattr(gateway, "authorize", authorize)
+    document = {
+        "kind": "Network",
+        "metadata": {"key": "network", "name": "Support Network"},
+        "spec": {
+            "root": "support",
+            "nodes": [{"key": "support", "agent_ref": "agent", "artifact_actions": ["read"]}],
+            "settings": {"artifacts_enabled": True, "artifact_workspace_binding": {
+                "field": "workspace", "namespace": "team-docs", "scope": "session",
+                "actions": ["read", "search"],
+            }},
+        },
+    }
+    arguments = {
+        "project_id": uuid4(),
+        "principal": object(),
+        "document": document,
+        "graph": SimpleNamespace(paths={"network": "network.yaml"}),
+        "support": {},
+        "bindings": {},
+        "inspected": {
+            "agent": {"external_context_contract": {}, "artifact_capability": None}
+        },
+    }
+    with pytest.raises(PackageError, match="Owning domain rejected"):
+        await gateway.inspect_component(**arguments)
 
 
 def test_reference_collection_accepts_schema_properties_named_source_and_authentication():

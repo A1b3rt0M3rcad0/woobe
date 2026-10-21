@@ -1,0 +1,52 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "woobe-sdk"
+version = "0.1.0"
+description = "Python SDK for the Woobe Runtime API"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE.md"]
+keywords = ["woobe", "sdk", "agents", "agentic", "runtime"]
+dependencies = [
+    "httpx>=0.28,<1",
+    "pydantic>=2.10,<3",
+]
+
+[project.urls]
+Homepage = "https://github.com/A1b3rt0M3rcad0/woobe-sdk"
+Repository = "https://github.com/A1b3rt0M3rcad0/woobe-sdk"
+Issues = "https://github.com/A1b3rt0M3rcad0/woobe-sdk/issues"
+
+[project.optional-dependencies]
+dev = [
+    "build>=1.2,<2",
+    "pytest>=8.3,<9",
+    "pytest-asyncio>=0.24,<1",
+    "ruff>=0.11,<1",
+    "twine>=6,<7",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["woobe*"]
+
+[tool.setuptools.package-data]
+woobe = ["py.typed"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]

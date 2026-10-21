@@ -1,0 +1,154 @@
+{
+  "$defs": {
+    "Environment": {
+      "enum": [
+        "draft",
+        "staging",
+        "production"
+      ],
+      "title": "Environment",
+      "type": "string"
+    }
+  },
+  "$id": "urn:woobe:artifacts:v1:workspace",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "catalog_version": {
+      "minimum": 0,
+      "title": "Catalog Version",
+      "type": "integer"
+    },
+    "default_profile_id": {
+      "anyOf": [
+        {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Default Profile Id"
+    },
+    "default_profile_revision": {
+      "anyOf": [
+        {
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Default Profile Revision"
+    },
+    "environment": {
+      "$ref": "#/$defs/Environment"
+    },
+    "external_key": {
+      "maxLength": 255,
+      "minLength": 1,
+      "title": "External Key",
+      "type": "string"
+    },
+    "external_namespace": {
+      "maxLength": 255,
+      "minLength": 1,
+      "title": "External Namespace",
+      "type": "string"
+    },
+    "id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$",
+      "title": "Id",
+      "type": "string"
+    },
+    "labels": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "maxProperties": 32,
+      "title": "Labels",
+      "type": "object"
+    },
+    "name": {
+      "maxLength": 255,
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+    },
+    "project_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$",
+      "title": "Project Id",
+      "type": "string"
+    },
+    "quota_bytes": {
+      "default": 1073741824,
+      "maximum": 9223372036854775807,
+      "minimum": 0,
+      "title": "Quota Bytes",
+      "type": "integer"
+    },
+    "reserved_bytes": {
+      "minimum": 0,
+      "title": "Reserved Bytes",
+      "type": "integer"
+    },
+    "retention_days": {
+      "default": 30,
+      "maximum": 36500,
+      "minimum": 0,
+      "title": "Retention Days",
+      "type": "integer"
+    },
+    "schema_version": {
+      "const": "1",
+      "default": "1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "active",
+        "archived",
+        "deletion_pending",
+        "purged"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "storage_profile": {
+      "default": "local",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$",
+      "title": "Storage Profile",
+      "type": "string"
+    },
+    "used_bytes": {
+      "minimum": 0,
+      "title": "Used Bytes",
+      "type": "integer"
+    },
+    "version": {
+      "minimum": 1,
+      "title": "Version",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "environment",
+    "external_namespace",
+    "external_key",
+    "name",
+    "id",
+    "project_id",
+    "status",
+    "version",
+    "catalog_version",
+    "used_bytes",
+    "reserved_bytes"
+  ],
+  "title": "WorkspaceView",
+  "type": "object"
+}

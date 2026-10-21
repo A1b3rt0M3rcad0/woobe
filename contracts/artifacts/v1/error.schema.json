@@ -1,0 +1,71 @@
+{
+  "$defs": {
+    "ErrorCode": {
+      "enum": [
+        "ARTIFACT_ACCESS_DENIED",
+        "SOURCE_UNAVAILABLE",
+        "WORKSPACE_BINDING_CONFLICT",
+        "ARTIFACT_REVISION_CONFLICT",
+        "WORKSPACE_REVISION_CONFLICT",
+        "ARTIFACT_PATH_CONFLICT",
+        "ARTIFACT_IDEMPOTENCY_CONFLICT",
+        "QUOTA_EXCEEDED",
+        "UPLOAD_INTEGRITY_MISMATCH",
+        "UPLOAD_OFFSET_CONFLICT",
+        "UPLOAD_EXPIRED",
+        "PROCESSOR_UNAVAILABLE",
+        "REPRESENTATION_NOT_READY",
+        "FILE_TRANSFER_UNSUPPORTED",
+        "EXTERNAL_OPERATION_UNCERTAIN",
+        "ARTIFACT_INVALID_CURSOR",
+        "ARTIFACT_INVALID_RANGE",
+        "ARTIFACT_LIMIT_EXCEEDED",
+        "ARTIFACT_STORAGE_UNAVAILABLE",
+        "PDF_PASSWORD_REQUIRED",
+        "PDF_INVALID_DOCUMENT",
+        "DOCUMENT_CONVERSION_FAILED",
+        "MODEL_BINDING_UNAVAILABLE",
+        "MODEL_BUDGET_EXCEEDED",
+        "MODEL_OUTPUT_INVALID"
+      ],
+      "title": "ErrorCode",
+      "type": "string"
+    }
+  },
+  "$id": "urn:woobe:artifacts:v1:error",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "code": {
+      "$ref": "#/$defs/ErrorCode"
+    },
+    "correlation_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$",
+      "title": "Correlation Id",
+      "type": "string"
+    },
+    "message": {
+      "maxLength": 500,
+      "title": "Message",
+      "type": "string"
+    },
+    "retryable": {
+      "default": false,
+      "title": "Retryable",
+      "type": "boolean"
+    },
+    "schema_version": {
+      "const": "1",
+      "default": "1",
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "code",
+    "message",
+    "correlation_id"
+  ],
+  "title": "ErrorEnvelope",
+  "type": "object"
+}

@@ -2,12 +2,14 @@
 import ast
 import inspect
 
+import pytest
 from woobe_workers.consumers.agent.inbox_processor import (
     RETRY_BACKOFF_BASE_SECONDS,
     AgentInboxHandlerProtocol,
     AgentInboxProcessorWorker,
 )
 from woobe_workers.runtime.inbox_processor_base import BaseInboxProcessor
+import woobe_workers.consumers.agent.inbox_processor as inbox_processor_module
 
 
 class TestInboxProcessorStructure:
@@ -100,10 +102,47 @@ class TestInboxProcessorConcurrency:
         source = inspect.getsource(AgentInboxProcessorWorker.__init__)
         assert "worker_id" in source
 
-    def test_run_manages_session_lifecycle(self):
-        source = inspect.getsource(AgentInboxProcessorWorker.run)
-        assert "AsyncSession" in source
-        assert "begin" in source
+    @pytest.mark.asyncio
+    async def test_run_scopes_repository_to_uow_session_and_cleans_up(self, monkeypatch):
+        calls = []
+        repository = object()
+
+        class UnitOfWork:
+            def __init__(self, _engine):
+                self.session = object()
+
+            async def __aenter__(self):
+                calls.append(("uow_enter", self.session))
+                return self
+
+            async def __aexit__(self, exc_type, exc_val, exc_tb):
+                calls.append(("uow_exit", self.session))
+
+        def build_repository(uow):
+            calls.append(("repository", uow, uow.session))
+            return repository
+
+        async def process_batch(worker):
+            calls.append(("base_run", worker._repo))
+
+        monkeypatch.setattr(inbox_processor_module, "AgentUnitOfWork", UnitOfWork)
+        monkeypatch.setattr(
+            inbox_processor_module,
+            "SQLAlchemyAgentInboxRepository",
+            build_repository,
+        )
+        monkeypatch.setattr(BaseInboxProcessor, "run", process_batch)
+        worker = AgentInboxProcessorWorker(object(), handler=object())
+
+        await worker.run()
+
+        assert [call[0] for call in calls] == [
+            "uow_enter", "repository", "base_run", "uow_exit"
+        ]
+        assert calls[0][1] is calls[1][2] is calls[3][1]
+        assert calls[2] == ("base_run", repository)
+        assert worker._repo is None
+        assert worker._event_map == {}
 
 
 class TestInboxProcessorIdempotency:

@@ -1,0 +1,33 @@
+{
+  "schema_version": "1",
+  "profile": "tesseract-fast",
+  "engine": "tesseract",
+  "engine_version": "5.5.0",
+  "models": [
+    {
+      "model_id": "tesseract-ocr/tessdata_fast",
+      "revision": "87416418657359cb625c412a48b6e1d6d41c29bd",
+      "license": "Apache-2.0",
+      "files": [
+        {
+          "path": "eng.traineddata",
+          "url": "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/87416418657359cb625c412a48b6e1d6d41c29bd/eng.traineddata",
+          "size_bytes": 4113088,
+          "sha256": "7d4322bd2a7749724879683fc3912cb542f19906c83bcc1a52132556427170b2"
+        },
+        {
+          "path": "por.traineddata",
+          "url": "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/87416418657359cb625c412a48b6e1d6d41c29bd/por.traineddata",
+          "size_bytes": 1982756,
+          "sha256": "c4932b937207a9514b7514d518b931a99938c02a28a5a5a553f8599ed58b7deb"
+        },
+        {
+          "path": "osd.traineddata",
+          "url": "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/87416418657359cb625c412a48b6e1d6d41c29bd/osd.traineddata",
+          "size_bytes": 10562727,
+          "sha256": "9cf5d576fcc47564f11265841e5ca839001e7e6f38ff7f7aacf46d15a96b00ff"
+        }
+      ]
+    }
+  ]
+}

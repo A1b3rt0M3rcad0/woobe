@@ -73,3 +73,91 @@ https://github.com/rsms/inter and https://github.com/JetBrains/JetBrainsMono.
 The Guild-inspired v2 reconstruction token values were supplied by the repository
 owner in `guild-inspired-enterprise-ui-v2.zip`. Reference screenshots remain
 review inputs only and are not shipped as Woobe product assets.
+
+## Native document Markdown parsing
+
+The native document processor uses markdown-it-py 4.0.0 (MIT, copyright 2020
+ExecutableBookProject) and mdurl 0.1.2 (MIT, copyright 2015 Vitaly Puzrin/Alex
+Kocharin and 2021 Taneli Hukkinen). Both are pinned in uv.lock and remain governed
+by their upstream licenses. Full notices are preserved in
+[markdown-it-py](docs/licenses/markdown-it-py-4.0.0.txt) and
+[mdurl](docs/licenses/mdurl-0.1.2.txt), as well as installed distribution metadata.
+Sources: https://github.com/executablebooks/markdown-it-py and
+https://github.com/executablebooks/mdurl. Parsing disables HTML rendering and
+performs no remote-resource fetch or script execution.
+
+## Native PDF extraction and rendering
+
+The isolated native PDF adapter uses pypdf 6.19.0 (BSD-3-Clause), pypdfium2 5.14.0
+(Apache-2.0/BSD-3-Clause), its PDFium 156.0.8076.0 binary and Pillow 12.3.0
+(MIT-CMU). Exact wheels and hashes are locked in uv.lock. Full original notices,
+including the PDFium build dependencies and Pillow's bundled dependency notices,
+are retained under [docs/licenses](docs/licenses). PDFium build notices include
+FreeType, ICU, libjpeg-turbo, libpng, OpenJPEG, lcms, zlib, Abseil, AGG, fast_float,
+simdutf and llvm-libc; those components retain their individual upstream terms.
+The pypdfium2 distribution's CC-BY-4.0 documentation notice is also preserved.
+No PyMuPDF/MuPDF component is included in this implementation.
+
+Sources: https://github.com/py-pdf/pypdf,
+https://github.com/pypdfium2-team/pypdfium2,
+https://pdfium.googlesource.com/pdfium/ and https://github.com/python-pillow/Pillow.
+The original FreeType attribution is: "Portions of this software are copyright
+© The FreeType Project (www.freetype.org). All rights reserved."
+
+## Optional local PageIndex Flash outline adapter
+
+The `pageindex-local` extra vendors the MIT-licensed PageIndex Flash PDF outline
+algorithm from VectifyAI/PageIndex 0.2.10 at commit
+`27f284291724fbbbbe6976388bd53eed4ebe7fca`; its upstream license and exact source
+manifest are retained in `packages/woobe-core/src/shared/infra/vendor/pageindex_flash`.
+The extra pins PyPDF2 3.0.1 (BSD-3-Clause), regex 2026.5.9 (Apache-2.0 with CNRI-Python
+derived-code terms) and sortedcontainers 2.4.0 (Apache-2.0). Their original
+notices are retained in [docs/licenses](docs/licenses). The exact selected package
+versions and hashes are in uv.lock. The adapter uses only the local PDF outline
+path; it does not enable PageIndex cloud, chat, storage or model clients.
+
+Sources: https://github.com/VectifyAI/PageIndex,
+https://github.com/py-pdf/PyPDF2, https://github.com/mrabarnett/mrab-regex and
+https://github.com/grantjenks/python-sortedcontainers.
+
+## Optional model-free Docling conversion
+
+The `docling-processing` extra uses the official Docling Slim 2.140.0 distribution,
+Docling Core 2.103.1 and Docling Parse 7.22.1, licensed under MIT. The selected
+NativePdfPipeline and DOCX SimplePipeline use no model weights, Torch or implicit
+model downloads. Model-based layout/OCR/enrichment is not enabled by this profile.
+
+Exact parser dependencies are pinned and inventoried in
+[the license manifest](docs/licenses/docling-dependencies/manifest.json), together
+with their retained upstream notices. They include Python Docx, lxml, Doclang,
+NumPy, SciPy, pandas, Rtree, tabulate, defusedxml and latex2mathml. Optional binary
+dependency notices include their own bundled components; in particular SciPy's
+compiler runtime is covered by its retained GCC Runtime Library Exception.
+The first-party Woobe license does not replace these upstream terms.
+
+Upstream sources: https://github.com/docling-project/docling,
+https://github.com/docling-project/docling-core,
+https://github.com/docling-project/docling-parse, https://github.com/python-openxml/python-docx,
+https://github.com/lxml/lxml, https://github.com/numpy/numpy,
+https://github.com/scipy/scipy, https://github.com/pandas-dev/pandas and
+https://github.com/Toblerity/rtree. latex2mathml's source and wheel omit the license
+file; its original upstream MIT notice is retained from commit
+`902beef9cb7794183c1114b0b09b27b5695ad252` in
+https://github.com/roniemartinez/latex2mathml, with the notice digest recorded in
+the license manifest.
+
+## Optional native OCR
+
+The native OCR profile invokes Tesseract 5.5.0 (Apache-2.0) and uses the official
+tessdata_fast eng, por and osd artifacts from commit
+`87416418657359cb625c412a48b6e1d6d41c29bd` (Apache-2.0). Source URLs, file sizes and
+SHA-256 digests are retained in the packaged tesseract-fast-v1 manifest. The full
+[upstream model license](docs/licenses/tesseract-tessdata-fast-Apache-2.0.txt) is
+retained. Engine/system dependency notices remain in their original installed
+distribution, including Tesseract and Leptonica package documentation; this
+profile does not replace those terms.
+
+Sources: https://github.com/tesseract-ocr/tesseract,
+https://github.com/tesseract-ocr/tessdata_fast and https://github.com/DanBloomberg/leptonica.
+Synthetic OCR fixtures use locally installed DejaVu Sans to render first-party
+test text; no font binary is copied into the repository.

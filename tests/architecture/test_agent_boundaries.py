@@ -35,6 +35,14 @@ LAYER_RULES = {
 }
 
 
+def _forbidden_layer_import(module: str, source_layer: str) -> bool:
+    parts = module.split('.')
+    if parts[0] in {'woobe_api', 'woobe_workers'}:
+        return True
+    return (len(parts) >= 3 and parts[:2] == ['modules', 'agent']
+            and parts[2] in LAYER_RULES[source_layer])
+
+
 def _relative_posix(path: Path) -> str:
     return path.relative_to(PROJECT_ROOT).as_posix()
 
@@ -86,19 +94,13 @@ class TestAgentBoundaries:
             return
 
         violations = []
-        forbidden_for_domain = LAYER_RULES["domain"]
 
         for py_file in domain_dir.rglob("*.py"):
             imports = _extract_imports(py_file)
             rel_path = _relative_posix(py_file)
             for module_path, lineno in imports:
-                parts = module_path.split(".")
-                if len(parts) >= 3 and parts[0] == "modules" and parts[1] == "agent":
-                    layer = parts[2]
-                    if layer in forbidden_for_domain:
-                        violations.append(
-                            f"{rel_path}:{lineno} domain imports {layer}: {module_path}"
-                        )
+                if _forbidden_layer_import(module_path, 'domain'):
+                    violations.append(f"{rel_path}:{lineno} domain imports {module_path}")
 
         assert not violations, (
             "Agent domain layer must not import from infra/presentation/application:\n"
@@ -114,7 +116,6 @@ class TestAgentBoundaries:
             return
 
         violations = []
-        forbidden_for_app = LAYER_RULES["application"]
 
         for py_file in app_dir.rglob("*.py"):
             if "composers" in py_file.parts:
@@ -124,13 +125,8 @@ class TestAgentBoundaries:
             imports = _extract_imports(py_file)
             rel_path = _relative_posix(py_file)
             for module_path, lineno in imports:
-                parts = module_path.split(".")
-                if len(parts) >= 3 and parts[0] == "modules" and parts[1] == "agent":
-                    layer = parts[2]
-                    if layer in forbidden_for_app:
-                        violations.append(
-                            f"{rel_path}:{lineno} application imports {layer}: {module_path}"
-                        )
+                if _forbidden_layer_import(module_path, 'application'):
+                    violations.append(f"{rel_path}:{lineno} application imports {module_path}")
 
         assert not violations, (
             "Agent application layer must not import from infra/presentation:\n"
@@ -162,14 +158,10 @@ from woobe_api.http.agent.routes import router
 """
         tree = ast.parse(forbidden_source)
         violations = []
-        forbidden_for_domain = LAYER_RULES["domain"]
         for node in ast.walk(tree):
             if isinstance(node, ast.ImportFrom) and node.module:
-                parts = node.module.split(".")
-                if len(parts) >= 3 and parts[0] == "modules" and parts[1] == "agent":
-                    layer = parts[2]
-                    if layer in forbidden_for_domain:
-                        violations.append(node.module)
+                if _forbidden_layer_import(node.module, 'domain'):
+                    violations.append(node.module)
 
         assert len(violations) == 2, (
             f"Expected 2 layer violations from fixture, got {len(violations)}"

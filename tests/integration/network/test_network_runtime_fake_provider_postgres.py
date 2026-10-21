@@ -145,20 +145,27 @@ async def test_network_runtime_executes_real_agent_against_fake_custom_provider_
         # These fixtures intentionally use scalar FK ids instead of ORM relationships.
         # Flush each dependency before its consumer so the test setup is deterministic
         # on PostgreSQL. This setup commit is outside the lifecycle commit counter below.
+        from modules.core.infra.database.models import ProjectModel
+        from modules.identity.infra.database.models import WorkspaceModel
+
+        workspace = uuid4()
+        session.add(WorkspaceModel(id=workspace, name="Configuration", slug=str(workspace), status="active"))
+        await session.flush()
+        session.add(ProjectModel(id=project_id, workspace_id=workspace, name="Configuration", slug=str(project_id), status="active", data={}))
+        await session.flush()
+
         if configuration_mode != "legacy":
-            from modules.core.infra.database.models import ProjectModel
-            from modules.identity.infra.database.models import WorkspaceModel
             from modules.core.infra.database.configuration_legacy import LegacyConfigurationStore
             from modules.agent.application.interfaces import project_configuration
             from modules.network.application import configuration_acceptance
             from modules.agent.entrypoint import collect_configuration_dependencies
             from uuid import UUID
-            workspace = uuid4()
-            session.add(WorkspaceModel(id=workspace, name="Configuration", slug=str(workspace), status="active"))
-            await session.flush()
-            session.add(ProjectModel(id=project_id, workspace_id=workspace, name="Configuration", slug=str(project_id), status="active", data={}))
-            await session.flush()
-            factory = lambda session: LegacyConfigurationStore(session, encryption_key=settings.encryption_key)
+
+            def factory(session):
+                return LegacyConfigurationStore(
+                    session, encryption_key=settings.encryption_key
+                )
+
             monkeypatch.setattr(project_configuration, "_factory", factory)
             from modules.core.infra.services.configuration_acceptance import ConfigurationAcceptance
             monkeypatch.setattr(configuration_acceptance, "_accept", ConfigurationAcceptance(factory, collect_configuration_dependencies))

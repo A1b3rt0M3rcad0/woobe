@@ -215,6 +215,47 @@ async def test_discovery_service_provider_adapters_normalize_without_shared_disp
     assert specs[0].supports_capability(ModelCapabilityNames.TOOL_CALLING)
 
 
+@pytest.mark.asyncio
+async def test_explicit_provider_image_generation_contract_is_normalized_from_discovery():
+    capability = {
+        "supported": True,
+        "config": {
+            "sizes": ["512x512"],
+            "default_size": "512x512",
+            "max_images": 2,
+            "max_output_bytes": 1_048_576,
+            "output_format": "png",
+            "idempotency_key_supported": True,
+        },
+    }
+
+    class Discovery:
+        async def list_models(self, _context):
+            return [AvailableProviderModelOutput(
+                id="image-capable-chat-model",
+                label="Image capable chat model",
+                provider="custom",
+                raw={
+                    "operations": ["language.generate", "image.generate"],
+                    "input_modalities": ["text"],
+                    "output_modalities": ["text", "image"],
+                    "capabilities": {"image_generation": capability},
+                },
+            )]
+
+    specs = await OpenAICompatibleProviderAdapter(Discovery()).discover_models(
+        ProviderConnection(
+            provider="openai_compatible", api_key="local-fixture",
+            base_url="https://models.example/v1",
+        )
+    )
+    spec = specs[0]
+    assert ModelOperations.IMAGE_GENERATE in spec.operations
+    assert spec.accepts(ModelModalities.TEXT)
+    assert spec.produces(ModelModalities.IMAGE)
+    assert spec.capability(ModelCapabilityNames.IMAGE_GENERATION).as_dict()["config"] == capability["config"]
+
+
 def test_provider_registry_exposes_all_first_class_providers_and_custom_alias():
     registry = build_provider_registry()
 

@@ -1,13 +1,22 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import {
   RUNTIME_STREAM_MAX_ATTEMPTS,
   RuntimeStreamGapError,
   RuntimeStreamProtocolError,
+  artifactAvailableFromFrame,
+  artifactOutputsFromFrame,
+  artifactTransferFromFrame,
   acceptRuntimeFrameSequence,
   parseRuntimeFrame,
+  parseArtifactProcessingJob,
+  parseArtifactReference,
+  parseArtifactTransfer,
+  parseContentParts,
+  parseRuntimeCursorPage,
   reconcileRuntimeOutput,
   runtimeRetryDelayMs,
+  runtimeRunStateSnapshot,
   runtimeTerminalStatus,
 } from './runtime-stream'
 
@@ -145,5 +154,120 @@ describe('protocol v2 identity validation', () => {
   it('rejects mismatched SSE identity and legacy emission', () => {
     expect(() => parseRuntimeFrame(`id: 2\nevent: token\ndata: ${JSON.stringify(event)}`)).toThrow(RuntimeStreamProtocolError)
     expect(() => parseRuntimeFrame(`event: token\ndata: ${JSON.stringify({ ...event, protocol_version: 1 })}`)).toThrow(RuntimeStreamProtocolError)
+  })
+})
+
+describe('runtime Artifact and reference primitives', () => {
+  const eventFrame = (type: string, payload: Record<string, unknown>, sequence = 1) => parseRuntimeFrame(
+    `id: ${sequence}\nevent: ${type}\ndata: ${JSON.stringify({
+      protocol_version: 2,
+      event_id: `event-${sequence}`,
+      run_id: 'run-1',
+      session_id: 'session-1',
+      run_kind: 'AGENT',
+      sequence,
+      type,
+      occurred_at: '2026-09-16T20:00:00Z',
+      payload,
+    })}`,
+  )!
+
+  it('validates bounded content parts while retaining ordered exact refs', () => {
+    expect(parseContentParts([
+      { type: 'text', text: 'Review this file 📄' },
+      { type: 'artifact', ref: { artifact_id: 'artifact-1', revision_id: 'revision-2' }, media_type_hint: 'application/pdf' },
+    ])).toEqual([
+      { type: 'text', text: 'Review this file 📄' },
+      { type: 'artifact', ref: { artifact_id: 'artifact-1', revision_id: 'revision-2' }, media_type_hint: 'application/pdf' },
+    ])
+    expect(() => parseArtifactReference({ artifact_id: 'https://files.invalid/a', revision_id: 'r1' }))
+      .toThrow(RuntimeStreamProtocolError)
+    expect(() => parseArtifactReference({ artifact_id: 'a1', revision_id: 'r1', workspace_id: 'private' }))
+      .toThrow(RuntimeStreamProtocolError)
+    expect(() => parseContentParts([{ type: 'text', text: '   ' }])).toThrow(RuntimeStreamProtocolError)
+    expect(() => parseContentParts([{ type: 'text', text: 'x'.repeat(32769) }])).toThrow(RuntimeStreamProtocolError)
+    expect(() => parseContentParts([{ type: 'text', text: 'x', debug: true }])).toThrow(RuntimeStreamProtocolError)
+  })
+
+  it('decodes availability and output snapshots with additive fields', () => {
+    const sourceRefs = [{
+      artifact_id: 'artifact-in', revision_id: 'revision-in', source_sha256: 'b'.repeat(64),
+      locator: { page_index: 2, vendor_hint: 'kept' },
+    }]
+    const availableFrame = eventFrame('artifact.available', {
+      artifact_id: 'artifact-out', revision_id: 'revision-out', path: 'result/report.md',
+      content_type: 'text/markdown', size_bytes: 7, sha256: 'a'.repeat(64), status: 'available',
+      source_refs: sourceRefs, producer_hint: 'kept',
+    })
+    const available = artifactAvailableFromFrame(availableFrame)!
+    expect(available.ref).toEqual({ artifact_id: 'artifact-out', revision_id: 'revision-out' })
+    expect(available.source_refs[0].locator?.vendor_hint).toBe('kept')
+    expect(available.producer_hint).toBe('kept')
+    expect(() => artifactAvailableFromFrame(eventFrame('artifact.available', {
+      artifact_id: 'artifact-out', revision_id: 'revision-out', path: 'result.md',
+      content_type: 'text/markdown', size_bytes: 7, sha256: 'BAD', status: 'available', source_refs: [],
+    }))).toThrow(RuntimeStreamProtocolError)
+
+    const receipt = {
+      schema_version: '1', ref: { artifact_id: 'artifact-out', revision_id: 'revision-out' },
+      path: 'result/report.md', content_type: 'text/markdown', size_bytes: 7,
+      sha256: 'a'.repeat(64), status: 'available', source_refs: sourceRefs, future_field: 'kept',
+    }
+    const done = eventFrame('done', { answer: 'legacy text', output_artifacts: [receipt] }, 2)
+    expect(artifactOutputsFromFrame(done)[0].future_field).toBe('kept')
+    const previous = eventFrame('run.state', {
+      status: 'running', source_refs: sourceRefs, output_artifacts: [receipt],
+    }, 3)
+    const previousSnapshot = runtimeRunStateSnapshot(previous)!
+    const replacement = eventFrame('run.state', {
+      status: 'running', source_refs: [], output_artifacts: [],
+    }, 4)
+    expect(artifactOutputsFromFrame(replacement)).toEqual([])
+    const nextSnapshot = runtimeRunStateSnapshot(replacement)!
+    expect(nextSnapshot).toEqual({ status: 'running', source_refs: [], output_artifacts: [] })
+    expect(nextSnapshot.source_refs).toEqual([])
+    expect(nextSnapshot.source_refs).not.toEqual(previousSnapshot.source_refs)
+  })
+
+  it('represents queued processing, transfers and opaque cursor pages without I/O', () => {
+    expect(parseArtifactProcessingJob({
+      id: 'job-1', source: { artifact_id: 'artifact-1', revision_id: 'revision-1' },
+      status: 'queued', completed_stages: [],
+    }).status).toBe('queued')
+    const transfer = eventFrame('artifact.transfer.started', {
+      operation_id: 'op-1', state: 'started',
+      input_refs: [{ artifact_id: 'artifact-1', revision_id: 'revision-1' }], file_hashes: [],
+    })
+    expect(artifactTransferFromFrame(transfer)?.state).toBe('started')
+    expect(() => parseArtifactTransfer({ operation_id: 'op-1', state: 'pending' }))
+      .toThrow(RuntimeStreamProtocolError)
+    const page = parseRuntimeCursorPage({
+      items: [{ artifact_id: 'artifact-1', revision_id: 'revision-1' }],
+      has_more: true, next_cursor: 'opaque-cursor', truncated: false,
+    }, parseArtifactReference)
+    expect(page.next_cursor).toBe('opaque-cursor')
+  })
+
+  it('does not download or trigger work when observing an availability event', () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{}'))
+    const frame = eventFrame('artifact.available', {
+      artifact_id: 'artifact-1', revision_id: 'revision-1', path: 'result.txt',
+      content_type: 'text/plain', size_bytes: 1, sha256: 'c'.repeat(64),
+      status: 'available', source_refs: [],
+    })
+    expect(artifactAvailableFromFrame(frame)?.ref.revision_id).toBe('revision-1')
+    expect(fetchMock).not.toHaveBeenCalled()
+    fetchMock.mockRestore()
+  })
+
+  it('rejects duplicate semantic frames without advancing or changing the observed Run', () => {
+    const state = { sequence: 10 }
+    const duplicate = eventFrame('token', { content: 'duplicate' }, 10)
+    expect(acceptRuntimeFrameSequence(duplicate, state)).toBe(false)
+    const otherRun = parseRuntimeFrame(
+      'id: 11\nevent: token\ndata: {"protocol_version":2,"event_id":"e-11","run_id":"run-2","session_id":"session-1","run_kind":"AGENT","sequence":11,"type":"token","occurred_at":"2026-09-16T20:00:00Z","payload":{"content":"wrong Run"}}',
+    )!
+    expect(() => acceptRuntimeFrameSequence(otherRun, state)).toThrow(RuntimeStreamProtocolError)
+    expect(state.sequence).toBe(10)
   })
 })

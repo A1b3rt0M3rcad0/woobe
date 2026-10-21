@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import base64
 import json
 import logging
+from copy import deepcopy
+from dataclasses import replace
 from typing import Any
+from urllib.parse import urlparse
 from uuid import UUID, uuid4
 
 from modules.agent.application.interfaces.http_tool_contract import (
@@ -20,6 +24,7 @@ from modules.agent.application.interfaces.ports import (
     ToolRuntimePort,
     ToolSecretResolverPort,
 )
+from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.application.interfaces.tool_runtime import (
     MCP_AGENT_SESSION_INPUT_KEY,
     MCP_REMOTE_TOOL_INPUT_KEY,
@@ -33,6 +38,24 @@ from modules.agent.domain.mcp_permissions import (
     parent_tool_permission_mode,
 )
 from modules.agent.infra.adapters.http_tool_renderer import render_http_tool_request
+from modules.agent.infra.adapters.http_artifact_transfer import (
+    prepare_http_artifact_transfer,
+    scrub_temporary_urls,
+)
+from modules.agent.infra.adapters.mcp_artifact_transfer import (
+    PreparedMcpTransfer,
+    prepare_mcp_artifact_transfer,
+    scrub_mcp_temporary_urls,
+)
+from modules.agent.infra.adapters.external_artifact_output import (
+    ExternalOutputError,
+    _decode_binding,
+    exact_source_refs,
+    ingest_http_outputs,
+    persist_external_output,
+    remove_json_pointer,
+    scrub_bound_output,
+)
 
 from modules.agent.infra.adapters.tool_configuration_transport import configuration_bound_tool, current_tool_configuration
 
@@ -51,6 +74,45 @@ ERROR_MCP_SESSION_INVALID = "MCP_SESSION_INVALID"
 ERROR_MCP_TOOL_ERROR = "MCP_TOOL_ERROR"
 ERROR_MCP_TOOL_DENIED_BY_POLICY = "MCP_TOOL_DENIED_BY_POLICY"
 ERROR_MCP_TOOL_REQUIRES_POLICY = "MCP_TOOL_REQUIRES_POLICY"
+ERROR_MCP_ARTIFACT_SCHEMA_CHANGED = "MCP_ARTIFACT_SCHEMA_CHANGED"
+ERROR_MCP_ARTIFACT_TRANSFER = "MCP_ARTIFACT_TRANSFER_ERROR"
+
+_MCP_RESOURCE_LINK_LIMIT = 4
+_MCP_RESOURCE_URI_LIMIT = 2048
+_MCP_RESOURCE_TEXT_LIMIT = 65536
+_MCP_RESULT_NODE_LIMIT = 2048
+
+
+def _bound_mcp_value(
+    value: Any,
+    *,
+    budget: list[int],
+    depth: int = 0,
+    strip_binary: bool = True,
+) -> Any:
+    if budget[0] <= 0 or depth > 12:
+        return "[MCP result omitted: output limit]"
+    budget[0] -= 1
+    if isinstance(value, str):
+        return value[:_MCP_RESOURCE_TEXT_LIMIT]
+    if isinstance(value, list):
+        return [
+            _bound_mcp_value(
+                item, budget=budget, depth=depth + 1, strip_binary=strip_binary
+            )
+            for item in value[:128]
+        ]
+    if isinstance(value, dict):
+        return {
+            str(key)[:128]: _bound_mcp_value(
+                item, budget=budget, depth=depth + 1, strip_binary=strip_binary
+            )
+            for key, item in list(value.items())[:128]
+            if not strip_binary or str(key).lower() not in {"data", "blob", "base64", "bytes"}
+        }
+    if value is None or isinstance(value, (bool, int, float)):
+        return value
+    return str(value)[:_MCP_RESOURCE_TEXT_LIMIT]
 
 
 def _error_output(code: str, message: str, protocol: str) -> dict[str, Any]:
@@ -302,6 +364,15 @@ class HttpToolRuntime(ToolRuntimePort):
             else:
                 contract = compile_http_tool_contract(config, input_schema)
                 effective_timeout_ms = int(config.get("timeout_ms") or timeout_ms)
+            context = current_execution.get()
+            if contract.config.get("output_bindings") and not callable(
+                getattr(context, "external_output_ingestor", None) if context else None
+            ):
+                return _failure(
+                    "ARTIFACT_ACCESS_DENIED",
+                    "Artifact output publication is not authorized for this Run",
+                    HTTP_PROTOCOL,
+                )
 
             method = str(contract.config.get("method", "GET")).upper()
             raw_headers = contract.config.get("headers", []) or []
@@ -320,7 +391,30 @@ class HttpToolRuntime(ToolRuntimePort):
                     for h in raw_headers
                     if h.get("key")
                 }
-            url, headers, body = render_http_tool_request(contract, call_input, headers)
+            render_input = dict(call_input)
+            for binding in contract.config.get("file_bindings") or []:
+                if binding.get("mode") == "url":
+                    render_input[str(binding["input_name"])] = "https://temporary-url.invalid/"
+            url, headers, body = render_http_tool_request(contract, render_input, headers)
+            transfer = await prepare_http_artifact_transfer(
+                contract,
+                call_input,
+                url=url,
+                headers=headers,
+                body=body,
+                transfer_resolver=(context.artifact_transfer_resolver if context else None),
+                url_resolver=(context.artifact_transfer_url_resolver if context else None),
+                run_id=str(context.run_id) if context and context.run_id else "",
+                tool_id=tool_id or "",
+            )
+            if transfer is not None and transfer.render_inputs:
+                url, rendered_headers, body = render_http_tool_request(
+                    contract,
+                    {**call_input, **transfer.render_inputs},
+                    headers,
+                )
+                headers = {**transfer.headers, **rendered_headers}
+                transfer = replace(transfer, body=body, headers=headers)
         except HttpToolContractError as exc:
             output = _error_output(exc.code, str(exc), HTTP_PROTOCOL)
             if exc.missing:
@@ -334,6 +428,12 @@ class HttpToolRuntime(ToolRuntimePort):
                 exc.code,
             )
             return ExecutionResult(success=False, error=str(exc), output=output)
+        except (PermissionError, ValueError) as exc:
+            code = "ARTIFACT_TRANSFER_DENIED" if isinstance(exc, PermissionError) else "ARTIFACT_TRANSFER_INVALID"
+            output = _error_output(code, str(exc), HTTP_PROTOCOL)
+            if route_id:
+                output["http_route_id"] = route_id
+            return ExecutionResult(success=False, error=str(exc), output=output)
 
         logger.info(
             "tool_runtime_start protocol=http tool_id=%s route_id=%s method=%s contract_hash=%s",
@@ -342,13 +442,89 @@ class HttpToolRuntime(ToolRuntimePort):
             method,
             contract.contract_hash,
         )
-        result = await self._executor.execute(
+        recorder = context.run_event_recorder if context else None
+        if transfer is not None and recorder is not None:
+            await recorder.emit(
+                "artifact.transfer.started",
+                {
+                    **transfer.receipt("pending"),
+                    "tool_id": tool_id,
+                },
+                durable=True,
+            )
+        output_bindings = contract.config.get("output_bindings") or []
+        response_executor = getattr(self._executor, "execute_with_response_content", None)
+        execute_request = (
+            response_executor
+            if response_executor is not None and any(
+                binding.get("mode") == "response_body" for binding in output_bindings
+            )
+            else self._executor.execute
+        )
+        result = await execute_request(
             method=method,
             url=url,
             headers=headers,
-            body=body,
+            body=transfer.body if transfer is not None else body,
             timeout_ms=effective_timeout_ms,
         )
+        if transfer is not None:
+            result.output = scrub_temporary_urls(result.output, transfer)
+            if result.error:
+                result.error = scrub_temporary_urls(result.error, transfer)
+            effect_state = "completed" if result.success else (
+                "uncertain"
+                if (
+                    (result.output or {}).get("effect_state") == "uncertain"
+                    or result.status_code is None
+                    or result.status_code >= 500
+                )
+                else "failed"
+            )
+            result.output = dict(result.output or {})
+            result.output["artifact_transfer"] = transfer.receipt(
+                effect_state,
+                status_code=result.status_code,
+            )
+            if recorder is not None:
+                event_type = (
+                    "artifact.transfer.completed"
+                    if effect_state == "completed"
+                    else "artifact.transfer.uncertain"
+                    if effect_state == "uncertain"
+                    else "artifact.transfer.failed"
+                )
+                try:
+                    await recorder.emit(
+                        event_type,
+                        {
+                            **transfer.receipt(effect_state, status_code=result.status_code),
+                            "tool_id": tool_id,
+                        },
+                        durable=True,
+                    )
+                except Exception:
+                    result.success = False
+                    result.error = "Artifact transfer outcome could not be durably recorded"
+                    result.output["artifact_transfer"] = transfer.receipt(
+                        "uncertain", status_code=result.status_code,
+                    )
+        if output_bindings:
+            try:
+                result = await ingest_http_outputs(
+                    result,
+                    config=contract.config,
+                    input_data=call_input,
+                    transfer=transfer,
+                    context=context,
+                    tool_id=tool_id or "",
+                )
+            except ExternalOutputError as exc:
+                result.response_content = None
+                result.response_content_type = None
+                result.success = False
+                result.error = str(exc)
+                result.output = {**dict(result.output or {}), "error_code": exc.code}
         if isinstance(result.output, dict):
             result.output.setdefault("tool_contract_hash", contract.contract_hash)
             if route is not None:
@@ -565,12 +741,386 @@ class McpToolRuntime(ToolRuntimePort):
                 error=message,
             )
         output = body.get("result") if isinstance(body, dict) else body
+        if isinstance(output, dict) and output.get("isError") is True:
+            return ExecutionResult(
+                success=False,
+                status_code=result.status_code,
+                output={"mcp": output, "error_code": ERROR_MCP_TOOL_ERROR, "protocol": MCP_PROTOCOL},
+                duration_ms=result.duration_ms,
+                error=_mcp_error_message(output),
+            )
         return ExecutionResult(
             success=True,
             status_code=result.status_code,
             output={"mcp": output},
             duration_ms=result.duration_ms,
         )
+
+    async def _remote_jsonrpc(
+        self,
+        *,
+        url: str,
+        headers: dict[str, str],
+        method: str,
+        params: dict[str, Any],
+        timeout_ms: int,
+    ) -> tuple[ExecutionResult, Any]:
+        response = await self._executor.execute(
+            method="POST",
+            url=url,
+            headers=headers,
+            body=json.dumps({"jsonrpc": "2.0", "id": str(uuid4()), "method": method, "params": params}),
+            timeout_ms=timeout_ms,
+        )
+        return response, _extract_mcp_result_body(response)
+
+    async def _verify_negotiated_schema(
+        self,
+        *,
+        url: str,
+        headers: dict[str, str],
+        tool_name: str,
+        expected_schema: dict[str, Any],
+        timeout_ms: int,
+    ) -> bool:
+        cursor: str | None = None
+        for _page in range(4):
+            params = {"cursor": cursor} if cursor else {}
+            response, body = await self._remote_jsonrpc(
+                url=url,
+                headers=headers,
+                method="tools/list",
+                params=params,
+                timeout_ms=timeout_ms,
+            )
+            if not response.success or not isinstance(body, dict) or body.get("error"):
+                return False
+            result = body.get("result")
+            tools = result.get("tools") if isinstance(result, dict) else None
+            if not isinstance(tools, list):
+                return False
+            for remote_tool in tools:
+                if not isinstance(remote_tool, dict) or remote_tool.get("name") != tool_name:
+                    continue
+                schema = remote_tool.get("inputSchema")
+                return isinstance(schema, dict) and schema == expected_schema
+            next_cursor = result.get("nextCursor") if isinstance(result, dict) else None
+            if not isinstance(next_cursor, str) or not next_cursor or len(next_cursor) > 1024:
+                return False
+            cursor = next_cursor
+        return False
+
+    async def _normalize_resource_links(
+        self,
+        *,
+        url: str,
+        headers: dict[str, str],
+        result: ExecutionResult,
+        timeout_ms: int,
+    ) -> ExecutionResult:
+        output = result.output
+        if not isinstance(output, dict) or not isinstance(output.get("mcp"), dict):
+            return result
+        mcp_result = dict(output["mcp"])
+        mcp_result = {
+            key: _bound_mcp_value(
+                value,
+                budget=[_MCP_RESULT_NODE_LIMIT],
+                strip_binary=key == "content",
+            )
+            for key, value in mcp_result.items()
+        }
+        content = mcp_result.get("content")
+        if not isinstance(content, list):
+            return result
+        normalized: list[Any] = []
+        read_count = 0
+        for block in content:
+            if not isinstance(block, dict) or block.get("type") != "resource_link":
+                normalized.append(block)
+                continue
+            name = str(block.get("name") or block.get("title") or "MCP resource")[:200]
+            uri = block.get("uri")
+            try:
+                parsed_uri = urlparse(uri) if isinstance(uri, str) else None
+            except ValueError:
+                parsed_uri = None
+            if (
+                read_count >= _MCP_RESOURCE_LINK_LIMIT
+                or not isinstance(uri, str)
+                or not uri
+                or len(uri) > _MCP_RESOURCE_URI_LIMIT
+                or any(char in uri for char in "\r\n\x00")
+                or parsed_uri is None
+                or parsed_uri.scheme not in {"mcp", "http", "https"}
+                or parsed_uri.username is not None
+                or parsed_uri.password is not None
+            ):
+                normalized.append({"type": "resource", "name": name, "text": "[MCP resource omitted: invalid or over limit]"})
+                continue
+            read_count += 1
+            response, body = await self._remote_jsonrpc(
+                url=url,
+                headers=headers,
+                method="resources/read",
+                params={"uri": uri},
+                timeout_ms=timeout_ms,
+            )
+            resource_result = body.get("result") if isinstance(body, dict) else None
+            resources = resource_result.get("contents") if isinstance(resource_result, dict) else None
+            text_parts: list[str] = []
+            remaining = _MCP_RESOURCE_TEXT_LIMIT
+            if response.success and isinstance(resources, list):
+                for resource in resources[:_MCP_RESOURCE_LINK_LIMIT]:
+                    if not isinstance(resource, dict) or not isinstance(resource.get("text"), str):
+                        continue
+                    text = resource["text"][:remaining]
+                    text_parts.append(text)
+                    remaining -= len(text)
+                    if remaining <= 0:
+                        break
+            text = "\n".join(text_parts)
+            if not text:
+                text = "[MCP resource contained no bounded text content]"
+            normalized.append({
+                "type": "resource",
+                "name": name,
+                "mimeType": str(block.get("mimeType") or "text/plain")[:128],
+                "text": text,
+            })
+        mcp_result = dict(mcp_result)
+        mcp_result["content"] = normalized
+        result.output = {**output, "mcp": mcp_result}
+        return result
+
+    async def _call_tool_with_artifacts(
+        self,
+        *,
+        url: str,
+        headers: dict[str, str],
+        tool_name: str,
+        arguments: dict[str, Any],
+        config: dict[str, Any],
+        timeout_ms: int,
+        tool_id: str,
+    ) -> ExecutionResult:
+        context = current_execution.get()
+        bindings = config.get("file_bindings") or []
+        original_arguments = dict(arguments)
+        transfer: PreparedMcpTransfer | None = None
+        if bindings:
+            expected_schema = config.get("discovered_input_schema")
+            if not isinstance(expected_schema, dict) or not await self._verify_negotiated_schema(
+                url=url,
+                headers=headers,
+                tool_name=tool_name,
+                expected_schema=expected_schema,
+                timeout_ms=timeout_ms,
+            ):
+                return _failure(
+                    ERROR_MCP_ARTIFACT_SCHEMA_CHANGED,
+                    "MCP Tool schema changed or could not be verified before Artifact transfer",
+                    MCP_PROTOCOL,
+                )
+            try:
+                transfer = await prepare_mcp_artifact_transfer(
+                    config,
+                    arguments,
+                    server_url=url,
+                    transfer_resolver=(context.artifact_transfer_resolver if context else None),
+                    url_resolver=(context.artifact_transfer_url_resolver if context else None),
+                    run_id=str(context.run_id) if context and context.run_id else "",
+                    tool_id=tool_id,
+                )
+            except (PermissionError, ValueError, TypeError) as exc:
+                return _failure(ERROR_MCP_ARTIFACT_TRANSFER, str(exc), MCP_PROTOCOL)
+            if transfer is None:
+                return _failure(ERROR_MCP_ARTIFACT_TRANSFER, "MCP Artifact transfer binding was empty", MCP_PROTOCOL)
+            recorder = context.run_event_recorder if context else None
+            if recorder is not None:
+                await recorder.emit(
+                    "artifact.transfer.started",
+                    {**transfer.receipt("pending"), "tool_id": tool_id},
+                    durable=True,
+                )
+            arguments = transfer.arguments
+
+        result = await self._call_remote_tool(
+            url=url,
+            headers=headers,
+            tool_name=tool_name,
+            arguments=arguments,
+            timeout_ms=timeout_ms,
+        )
+        if transfer is not None:
+            result.output = scrub_mcp_temporary_urls(result.output, transfer)
+            if result.error:
+                result.error = scrub_mcp_temporary_urls(result.error, transfer)
+            effect_state = "completed" if result.success else (
+                "uncertain" if result.status_code is None or result.status_code >= 500 else "failed"
+            )
+            result.output = dict(result.output or {})
+            result.output["artifact_transfer"] = transfer.receipt(effect_state)
+            recorder = context.run_event_recorder if context else None
+            if recorder is not None:
+                event_type = {
+                    "completed": "artifact.transfer.completed",
+                    "failed": "artifact.transfer.failed",
+                    "uncertain": "artifact.transfer.uncertain",
+                }[effect_state]
+                try:
+                    await recorder.emit(
+                        event_type,
+                        {**transfer.receipt(effect_state), "tool_id": tool_id},
+                        durable=True,
+                    )
+                except Exception:
+                    result.success = False
+                    result.error = "Artifact transfer outcome could not be durably recorded"
+                    result.output["artifact_transfer"] = transfer.receipt("uncertain")
+        if config.get("output_bindings") and result.success:
+            try:
+                result = await self._ingest_mcp_outputs(
+                    result,
+                    config=config,
+                    url=url,
+                    headers=headers,
+                    timeout_ms=timeout_ms,
+                    input_data=original_arguments,
+                    transfer=transfer,
+                    context=context,
+                    tool_id=tool_id,
+                )
+            except ExternalOutputError as exc:
+                result.success = False
+                result.error = str(exc)
+                result.output = {**dict(result.output or {}), "error_code": exc.code}
+        return await self._normalize_resource_links(
+            url=url,
+            headers=headers,
+            result=result,
+            timeout_ms=timeout_ms,
+        )
+
+    async def _ingest_mcp_outputs(
+        self,
+        result: ExecutionResult,
+        *,
+        config: dict[str, Any],
+        url: str,
+        headers: dict[str, str],
+        timeout_ms: int,
+        input_data: dict[str, Any],
+        transfer: PreparedMcpTransfer | None,
+        context,
+        tool_id: str,
+    ) -> ExecutionResult:
+        raw_bindings = config.get("output_bindings") or []
+        bindings = [
+            _decode_binding(item, allowed_modes={"json_base64", "mcp_resource"})
+            for item in raw_bindings
+        ]
+        output = result.output if isinstance(result.output, dict) else {}
+        mcp_result = output.get("mcp")
+        if not isinstance(mcp_result, dict):
+            raise ExternalOutputError("EXTERNAL_OUTPUT_INVALID", "MCP Tool returned no structured output")
+        ingestor = getattr(context, "external_output_ingestor", None) if context else None
+        if not callable(ingestor):
+            raise ExternalOutputError("ARTIFACT_ACCESS_DENIED", "Artifact output publication is not authorized for this Run")
+        structured = mcp_result.get("structuredContent")
+        source_refs = exact_source_refs(config, input_data, transfer)
+        published = []
+        consumed_resources: set[str] = set()
+        for binding in bindings:
+            source = {"body": structured}
+            content_type = (
+                binding.content_types[0]
+                if len(binding.content_types) == 1
+                else None
+            )
+            effective_binding = binding
+            if binding.mode == "mcp_resource":
+                blocks = mcp_result.get("content")
+                links = [
+                    block for block in blocks or []
+                    if isinstance(block, dict)
+                    and block.get("type") == "resource_link"
+                    and (block.get("name") or block.get("title")) == binding.resource_name
+                ]
+                if len(links) != 1 or not isinstance(links[0].get("uri"), str):
+                    raise ExternalOutputError("EXTERNAL_OUTPUT_INVALID", "MCP Tool did not return the configured resource link")
+                uri = links[0]["uri"]
+                consumed_resources.add(binding.resource_name or "")
+                try:
+                    parsed_uri = urlparse(uri)
+                except ValueError as error:
+                    raise ExternalOutputError("EXTERNAL_OUTPUT_INVALID", "MCP resource URI is invalid") from error
+                if (
+                    len(uri) > _MCP_RESOURCE_URI_LIMIT
+                    or parsed_uri.scheme not in {"mcp", "http", "https"}
+                    or parsed_uri.username is not None
+                    or parsed_uri.password is not None
+                    or any(char in uri for char in "\r\n\x00")
+                ):
+                    raise ExternalOutputError("EXTERNAL_OUTPUT_INVALID", "MCP resource URI is outside the negotiated resource contract")
+                response, body = await self._remote_jsonrpc(
+                    url=url,
+                    headers=headers,
+                    method="resources/read",
+                    params={"uri": uri},
+                    timeout_ms=timeout_ms,
+                )
+                read_result = body.get("result") if isinstance(body, dict) else None
+                contents = read_result.get("contents") if isinstance(read_result, dict) else None
+                if not response.success or not isinstance(contents, list) or len(contents) != 1 or not isinstance(contents[0], dict):
+                    raise ExternalOutputError("EXTERNAL_OUTPUT_INVALID", "MCP resource result is missing or ambiguous")
+                resource = contents[0]
+                content_type = resource.get("mimeType") or content_type
+                if isinstance(resource.get("text"), str) and "blob" not in resource:
+                    raw_content = resource["text"].encode("utf-8")
+                elif isinstance(resource.get("blob"), str) and "text" not in resource:
+                    try:
+                        raw_content = base64.b64decode(resource["blob"], validate=True)
+                    except (ValueError, TypeError) as error:
+                        raise ExternalOutputError("EXTERNAL_OUTPUT_INVALID", "MCP resource returned invalid base64") from error
+                else:
+                    raise ExternalOutputError("EXTERNAL_OUTPUT_INVALID", "MCP resource must contain one text or binary value")
+                if len(raw_content) > binding.max_bytes:
+                    raise ExternalOutputError("EXTERNAL_OUTPUT_INVALID", "MCP resource exceeds its configured byte limit")
+                source = {"body": structured, "response_content": raw_content}
+                effective_binding = binding.model_copy(update={"mode": "response_body", "resource_name": None})
+            elif binding.mode == "json_base64" and content_type is None:
+                raise ExternalOutputError("EXTERNAL_OUTPUT_INVALID", "MCP JSON output binding must select one media type or a content type field")
+            published.append(await persist_external_output(
+                binding=effective_binding,
+                source=source,
+                default_content_type=content_type,
+                ingestor=ingestor,
+                run_id=str(context.run_id) if context and context.run_id else "",
+                tool_id=tool_id,
+                source_refs=source_refs,
+            ))
+            if binding.mode == "json_base64" and binding.data_pointer:
+                structured = remove_json_pointer(structured, binding.data_pointer)
+        result.output = dict(output)
+        result.output["output_artifacts"] = published
+        mcp_result = dict(mcp_result)
+        if consumed_resources and isinstance(mcp_result.get("content"), list):
+            mcp_result["content"] = [
+                {
+                    "type": "text",
+                    "text": "[MCP resource persisted as an authorized Artifact output]",
+                }
+                if isinstance(block, dict)
+                and block.get("type") == "resource_link"
+                and (block.get("name") or block.get("title")) in consumed_resources
+                else block
+                for block in mcp_result["content"]
+            ]
+        if structured is not None:
+            mcp_result["structuredContent"] = structured
+        result.output["mcp"] = mcp_result
+        return result
 
     async def _auth_headers_for(self, tool: Any | None) -> dict[str, str]:
         if tool is None or self._auth_header_provider is None:
@@ -629,6 +1179,15 @@ class McpToolRuntime(ToolRuntimePort):
         policy_failure = _mcp_policy_failure(config, str(tool_name))
         if policy_failure is not None:
             return policy_failure
+        context = current_execution.get()
+        if config.get("output_bindings") and not callable(
+            getattr(context, "external_output_ingestor", None) if context else None
+        ):
+            return _failure(
+                "ARTIFACT_ACCESS_DENIED",
+                "Artifact output publication is not authorized for this Run",
+                MCP_PROTOCOL,
+            )
         raw_headers = config.get("server_headers") or server.get("headers") or []
         if (
             resolve_secrets
@@ -667,15 +1226,31 @@ class McpToolRuntime(ToolRuntimePort):
                     agent_session_id,
                     tool_name,
                 )
-                result = await self._call_remote_tool(
-                    url=str(url),
-                    headers={**base_headers, **_session_headers(cached_session_id)},
-                    tool_name=str(tool_name),
-                    arguments=call_input,
-                    timeout_ms=timeout_ms,
-                )
+                cached_headers = {**base_headers, **_session_headers(cached_session_id)}
+                if config.get("file_bindings"):
+                    result = await self._call_tool_with_artifacts(
+                        url=str(url),
+                        headers=cached_headers,
+                        tool_name=str(tool_name),
+                        arguments=call_input,
+                        config=config,
+                        timeout_ms=timeout_ms,
+                        tool_id=provider_id or "",
+                    )
+                else:
+                    result = await self._call_remote_tool(
+                        url=str(url),
+                        headers=cached_headers,
+                        tool_name=str(tool_name),
+                        arguments=call_input,
+                        timeout_ms=timeout_ms,
+                    )
                 body = _extract_mcp_result_body(result)
                 if result.success or not _is_mcp_session_failure(result, body):
+                    return result
+                # A transfer may have reached the peer even when the cached
+                # session response is invalid. Never retry that side effect.
+                if config.get("file_bindings"):
                     return result
                 logger.info(
                     "mcp_session_invalidated provider_id=%s agent_session_id=%s",
@@ -707,12 +1282,14 @@ class McpToolRuntime(ToolRuntimePort):
                 provider_id,
                 agent_session_id,
             )
-        return await self._call_remote_tool(
+        return await self._call_tool_with_artifacts(
             url=str(url),
             headers=request_headers,
             tool_name=str(tool_name),
             arguments=call_input,
+            config=config,
             timeout_ms=timeout_ms,
+            tool_id=provider_id or "",
         )
 
     def to_openai_definition(self, tool: Any) -> dict[str, Any]:
@@ -724,6 +1301,25 @@ class McpToolRuntime(ToolRuntimePort):
             or config.get("input_schema")
             or {"type": "object", "properties": {}, "required": []}
         )
+        input_schema = deepcopy(input_schema)
+        if config.get("file_bindings") and isinstance(input_schema, dict):
+            properties = input_schema.setdefault("properties", {})
+            required = input_schema.setdefault("required", [])
+            if isinstance(properties, dict) and isinstance(required, list):
+                for binding in config.get("file_bindings") or []:
+                    name = str(binding.get("input_name") or "")
+                    properties[name] = {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "properties": {
+                            "artifact_id": {"type": "string"},
+                            "revision_id": {"type": "string"},
+                        },
+                        "required": ["artifact_id", "revision_id"],
+                        "description": "Exact authorized Artifact revision reference.",
+                    }
+                    if name not in required:
+                        required.append(name)
         tool_name = config.get("tool_name", "")
         server_name = server.get("name") or server.get("url") or "remote-server"
         return {

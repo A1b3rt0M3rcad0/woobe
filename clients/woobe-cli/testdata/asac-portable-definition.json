@@ -1,0 +1,19 @@
+{
+  "scope": "woobe-portable-definition@1.0",
+  "fixture": "complete.json",
+  "definition_digest": "sha256:fad8594ebff27a2cb5db4bd622dd596d72e12a6caf1855811b3b874e9ddb8e5e",
+  "components": {
+    "answer": "sha256:138c592123579849f7b5b2343e77fa196bc51bd06f9fb77540734efd803041c1",
+    "embedding": "sha256:4231908a60f05b3e8a9b92f8a28e3d1a5bb7ea539b3037b6bbcd85e8039180c6",
+    "fallback": "sha256:e107bca3a933a085ec8a1a72c908180c272ab10e23b27548549024084f939e19",
+    "guarded": "sha256:bfe3b3130f511af8fa0d093ebda04aff8e45982ee2250714e5a513fb6755e44b",
+    "instructions": "sha256:74b18cda4deadbfac722a40f512d9012afa4a61f2c3ca981bc395393987298e4",
+    "knowledge": "sha256:11ec6e9a25e6ffce5a1313231cc611367e6c58b22e4fe11aa03542be51ce48a9",
+    "lookup": "sha256:0b91aa9f51ef9c4d0a3cc2f3cc978c75f18fb172b9f8a56da38a38791bb21fc6",
+    "primary": "sha256:f05b25341cbde508cf7df195706c575d85f3fd26dbb5d2cbaf71c265326a8356",
+    "support-skill": "sha256:840c52eede56da4b689eceeb6af05c51a51c70aa645086ba4b9f6ac5082efc2c",
+    "specialist": "sha256:648b447e5abae483b8c5429421d02f9bee6681723eae872094fc430b3296199e",
+    "support": "sha256:05cfb667972f966db3379129eb8f1f3323d9aa800b925a4d4f285948409764c0",
+    "support-network": "sha256:749998e0656834c1565dc9505fc64f9b7a5a12cfc42995edd30c43a245f33361"
+  }
+}

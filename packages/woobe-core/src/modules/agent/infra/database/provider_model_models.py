@@ -3,15 +3,17 @@
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import ForeignKey, Index, Integer, String, UniqueConstraint
+from sqlalchemy import BigInteger, CheckConstraint, FetchedValue, ForeignKey, Index, Integer, String, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 from shared.infra.database.base import BaseModel
 
 
 class ProviderModelModel(BaseModel):
+    __mapper_args__ = {"eager_defaults": True}
     __tablename__ = "provider_models"
     __table_args__ = (
+        CheckConstraint("definition_revision >= 1", name="ck_provider_model_definition_revision"),
         UniqueConstraint(
             "project_id",
             "provider_credential_id",
@@ -25,6 +27,9 @@ class ProviderModelModel(BaseModel):
     )
 
     project_id: Mapped[UUID]
+    definition_revision: Mapped[int] = mapped_column(
+        BigInteger, server_default=text("1"), server_onupdate=FetchedValue()
+    )
     provider_credential_id: Mapped[UUID] = mapped_column(
         ForeignKey("agent.provider_credentials.id")
     )

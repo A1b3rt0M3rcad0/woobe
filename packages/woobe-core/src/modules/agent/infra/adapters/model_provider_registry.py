@@ -12,7 +12,6 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request as UrlRequest, urlopen
 
 from modules.agent.application.interfaces.provider_registry import (
-    ProviderAdapter,
     ProviderConnection,
     ProviderManifest,
     ProviderRegistry,
@@ -134,6 +133,7 @@ def _language_spec(
     max_input_tokens: int | None = None,
     max_output_tokens: int | None = None,
     capabilities: Mapping[str, ModelCapability] | None = None,
+    operations: set[str] | frozenset[str] | None = None,
     pricing: Mapping[str, Any] | None = None,
     raw: Mapping[str, Any] | None = None,
     source: str = "provider",
@@ -143,7 +143,7 @@ def _language_spec(
         model_id=model_id,
         display_name=display_name,
         model_type=ModelTypes.LANGUAGE,
-        operations=frozenset({ModelOperations.LANGUAGE_GENERATE}),
+        operations=frozenset(operations or {ModelOperations.LANGUAGE_GENERATE}),
         input_modalities=frozenset(
             input_modalities or {ModelModalities.TEXT}
         ),
@@ -240,6 +240,20 @@ def _common_discovery_capabilities(item: Any) -> dict[str, ModelCapability]:
             supported=bool(item.supports_streaming),
             source="provider",
         )
+    raw = _mapping(getattr(item, "raw", None))
+    declared = _mapping(getattr(item, "capabilities", None)) or _mapping(raw.get("capabilities"))
+    image_generation = declared.get(ModelCapabilityNames.IMAGE_GENERATION)
+    if isinstance(image_generation, Mapping):
+        capabilities[ModelCapabilityNames.IMAGE_GENERATION] = ModelCapability(
+            supported=image_generation.get("supported") is True,
+            config=_mapping(image_generation.get("config")),
+            source="provider",
+        )
+    elif isinstance(image_generation, bool):
+        capabilities[ModelCapabilityNames.IMAGE_GENERATION] = ModelCapability(
+            supported=image_generation,
+            source="provider",
+        )
     return capabilities
 
 
@@ -299,6 +313,10 @@ class _DiscoveryServiceProviderAdapter:
         operation_families = {"audio.transcribe": "audio", "audio.synthesize": "audio", "image.generate": "image",
             "video.generate": "video", "rerank": "rerank", "realtime.session": "realtime"}
         for operation in explicit_ops:
+            if (operation == ModelOperations.IMAGE_GENERATE
+                    and ModelOperations.LANGUAGE_GENERATE in explicit_ops
+                    and "text" in outputs):
+                continue
             if operation in operation_families and inputs and outputs:
                 return ModelSpec(provider=self.provider_key, model_id=str(item.id), display_name=str(item.label or item.id),
                     model_type=operation_families[operation], operations=frozenset({operation}),
@@ -318,6 +336,14 @@ class _DiscoveryServiceProviderAdapter:
             outputs = outputs or {"text"}
         if "text" in inputs and "text" in outputs and explicit_type not in {"audio", "image", "video", "rerank"}:
             caps = _common_discovery_capabilities(item)
+            operations = {ModelOperations.LANGUAGE_GENERATE}
+            image_generation = caps.get(ModelCapabilityNames.IMAGE_GENERATION)
+            if (
+                ModelOperations.IMAGE_GENERATE in explicit_ops
+                and image_generation is not None
+                and image_generation.supported
+            ):
+                operations.add(ModelOperations.IMAGE_GENERATE)
             for old, key in {"supports_tools": "tool_calling", "supports_json": "structured_output", "supports_streaming": "streaming"}.items():
                 if key not in caps and type(enrichment.get(old)) is bool:
                     caps[key] = ModelCapability(enrichment[old], source="curated")
@@ -325,7 +351,7 @@ class _DiscoveryServiceProviderAdapter:
                 input_modalities=inputs, output_modalities=outputs,
                 context_window=item.context_window or enrichment.get("context_window"),
                 max_output_tokens=item.max_output_tokens or enrichment.get("max_output_tokens"),
-                capabilities=caps, raw=original,
+                capabilities=caps, operations=operations, raw=original,
                 pricing={"input_cost_per_1m_tokens": item.input_cost_per_1m_tokens,
                     "output_cost_per_1m_tokens": item.output_cost_per_1m_tokens,
                     "currency": "USD", "billing_unit": "per_1m_tokens"})

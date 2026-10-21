@@ -131,12 +131,18 @@ are stored only in private temporary files and never included in those reports.
 The CLI revision is pinned deliberately; update the workflow and test pin
 together when changing the client contract.
 
-The configuration lifecycle has a second reviewed CLI pin in the workflow and
-`compose.test.yaml`, built into `.test-artifacts/woobe-configuration`. The main
-registry and legacy compatibility suite keep their original executable.
+The configuration lifecycle builds a second executable from the reviewed
+`clients/woobe-cli` snapshot in this repository and writes it to
+`.test-artifacts/woobe-configuration`. This keeps the advertised schema-v2
+catalog and paired CLI source on the same PR revision. The main registry and
+legacy compatibility suite keep their original executable pinned to the public
+CLI commit.
 `test_configuration_lifecycle.py` alone selects `WOOBE_CONFIGURATION_CLI_BINARY`
-and checks its `WOOBE_CONFIGURATION_CLI_SHA`. Build both pinned executables for
-the required Compose contract. These new Agent/Network cases cover structural
+and checks its `WOOBE_CONFIGURATION_CLI_SHA`, which is the server PR SHA in CI.
+For local validation, build it from `clients/woobe-cli` with
+the root Go workspace and `internal/cli.Commit=local`, then set
+`WOOBE_CONFIGURATION_CLI_SHA=local`. Build both executables for the required
+Compose contract. These new Agent/Network cases cover structural
 schema2 import, local development, Candidate readiness/evaluation, publication,
 missing Production values and rotation between deployment plan/apply. They use
 only disposable values and deterministic fake Provider calls.

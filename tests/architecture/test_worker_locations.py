@@ -8,11 +8,11 @@ ROOT = Path(__file__).resolve().parents[2]
 CORE_SRC = ROOT / "packages" / "woobe-core" / "src"
 WORKER_SRC = ROOT / "packages" / "woobe-workers" / "src"
 WORKER_PACKAGE = WORKER_SRC / "woobe_workers"
-MODULES = ("agent", "core", "identity", "metering", "network", "observability")
+MODULES = ("agent", "core", "identity", "metering", "network", "observability", "artifacts")
 
 
 def _imports(path: Path) -> tuple[str, ...]:
-    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    tree = ast.parse(path.read_text(encoding="utf-8-sig"), filename=str(path))
     values: list[str] = []
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom) and node.module:

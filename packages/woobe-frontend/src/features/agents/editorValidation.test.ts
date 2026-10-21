@@ -202,4 +202,47 @@ describe('Agent editor output validation', () => {
       expect(result.issue.message).toContain("scope must be 'run' or 'session'")
     }
   })
+
+  it('saves a pinned Artifact capability only with a required private string binding and valid action budgets', () => {
+    const state = editorState()
+    state.externalContextContract = {
+      artifact_workspace: {
+        schema: { type: 'string', maxLength: 128 }, required: true,
+        scope: 'session', model: { expose: false },
+      },
+    }
+    state.runtimeConfig = {
+      artifacts: {
+        schema_version: 1, enabled: true,
+        workspace_binding: { field: 'artifact_workspace', namespace: 'study-files', scope: 'session' },
+        actions: ['read', 'search'],
+        limits: { max_search_results: 20, max_read_chars: 8192, max_total_read_chars: 65536, max_context_units: 8000, max_writes: 0 },
+        processing_profile: null,
+      },
+    }
+
+    const result = validateAgentEditorState(state)
+    expect(result.valid).toBe(true)
+    if (result.valid) expect((result.snapshot.runtime_config as Record<string, unknown>).artifacts).toEqual(state.runtimeConfig.artifacts)
+  })
+
+  it('rejects an Artifact binding exposed to the model before a Draft can be saved', () => {
+    const state = editorState()
+    state.externalContextContract = {
+      artifact_workspace: { schema: { type: 'string' }, required: true, scope: 'session', model: { expose: true } },
+    }
+    state.runtimeConfig = {
+      artifacts: {
+        schema_version: 1, enabled: true,
+        workspace_binding: { field: 'artifact_workspace', namespace: 'study-files', scope: 'session' },
+        actions: ['read', 'search'],
+        limits: { max_search_results: 20, max_read_chars: 8192, max_total_read_chars: 65536, max_context_units: 8000, max_writes: 0 },
+        processing_profile: null,
+      },
+    }
+
+    const result = validateAgentEditorState(state)
+    expect(result.valid).toBe(false)
+    if (!result.valid) expect(result.issue.section).toBe('artifacts')
+  })
 })

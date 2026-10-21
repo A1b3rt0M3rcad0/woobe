@@ -1,0 +1,24 @@
+{
+  "name": "woobe-cli",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Woobe CLI for the public control plane and runtime",
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/A1b3rt0M3rcad0/woobe-cli.git",
+    "directory": "packages/woobe-cli"
+  },
+  "homepage": "https://github.com/A1b3rt0M3rcad0/woobe-cli#readme",
+  "bugs": "https://github.com/A1b3rt0M3rcad0/woobe-cli/issues",
+  "bin": {
+    "woobe": "bin/woobe.cjs"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "os": ["linux", "darwin", "win32"],
+  "cpu": ["x64", "arm64"],
+  "files": ["bin/", "vendor/", "README.md", "USAGE.md", "THIRD_PARTY_NOTICES.txt"],
+  "keywords": ["woobe", "cli", "agents", "automation"]
+}

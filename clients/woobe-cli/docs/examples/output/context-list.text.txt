@@ -1,0 +1,4 @@
+CURRENT  API_URL                 NAME   WORKSPACE_ID                          PROJECT_ID
+true     http://localhost:8000  woobe  00000000-0000-7000-8000-000000000020  00000000-0000-7000-8000-000000000010
+1 results.
+Details: --wide | --fields FIELD,... | --output json

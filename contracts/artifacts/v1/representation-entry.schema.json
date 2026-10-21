@@ -1,0 +1,77 @@
+{
+  "$id": "urn:woobe:artifacts:v1:representation-entry",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "asset_id": {
+      "anyOf": [
+        {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Asset Id"
+    },
+    "content_type": {
+      "title": "Content Type",
+      "type": "string"
+    },
+    "id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$",
+      "title": "Id",
+      "type": "string"
+    },
+    "kind": {
+      "title": "Kind",
+      "type": "string"
+    },
+    "path": {
+      "maxLength": 1024,
+      "minLength": 1,
+      "title": "Path",
+      "type": "string"
+    },
+    "read_only": {
+      "const": true,
+      "default": true,
+      "title": "Read Only",
+      "type": "boolean"
+    },
+    "representation_set_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$",
+      "title": "Representation Set Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1",
+      "default": "1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Sha256",
+      "type": "string"
+    },
+    "size_bytes": {
+      "minimum": 0,
+      "title": "Size Bytes",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "id",
+    "representation_set_id",
+    "path",
+    "kind",
+    "size_bytes",
+    "sha256",
+    "content_type"
+  ],
+  "title": "RepresentationEntryView",
+  "type": "object"
+}

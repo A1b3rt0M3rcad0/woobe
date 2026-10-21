@@ -249,7 +249,7 @@ class SQLAlchemyProviderCredentialRepository(
         if credential.authentication is None:
             return
         from modules.agent.application.interfaces.project_configuration import configuration_for_session
-        from shared.contracts.project_configuration import ConfigurationDependency, ConfigurationError, compile_authentication
+        from shared.contracts.project_configuration import ConfigurationError
         if credential.encrypted_secret:
             raise ConfigurationError("CONFIG_BINDING_INVALID")
         from modules.agent.infra.adapters.configuration_bindings import provider_dependencies
@@ -1217,6 +1217,7 @@ class SQLAlchemySessionRepository(SessionRepository):
         model.status = session.status
         model.data = session.data
         model.external_context_snapshot = session.external_context_snapshot
+        model.artifact_workspace_binding = session.artifact_workspace_binding
         model.last_message_at = session.last_message_at
         return model_to_session(model)
 
@@ -1422,7 +1423,9 @@ class SQLAlchemyAgentOutboxRepository(AgentOutboxRepository):
         now = datetime.now(timezone.utc)
         stmt = (
             select(AgentOutboxEventModel)
-            .where(AgentOutboxEventModel.status.in_(["pending", "retryable"]))
+            .where(AgentOutboxEventModel.status.in_(
+                ["pending", "retryable", "publishing"]
+            ))
             .where(AgentOutboxEventModel.available_at <= func.now())
             .where(
                 (AgentOutboxEventModel.locked_at.is_(None))

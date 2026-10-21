@@ -133,9 +133,12 @@
         "title": "AgentSession",
         "type": "object"
       },
-      "AgentSpecV1": {
+      "AgentSpecV2": {
         "additionalProperties": false,
         "properties": {
+          "artifacts": {
+            "$ref": "#/$defs/ArtifactCapability"
+          },
           "behavior": {
             "anyOf": [
               {
@@ -170,6 +173,22 @@
               }
             ],
             "default": null
+          },
+          "knowledge_strategy": {
+            "anyOf": [
+              {
+                "enum": [
+                  "rag",
+                  "none"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Knowledge Strategy"
           },
           "legacy_system_prompt": {
             "anyOf": [
@@ -236,7 +255,70 @@
         "required": [
           "model"
         ],
-        "title": "AgentSpecV1",
+        "title": "AgentSpecV2",
+        "type": "object"
+      },
+      "ArtifactCapability": {
+        "additionalProperties": false,
+        "description": "Capability is off for legacy definitions and contains no private IDs.",
+        "properties": {
+          "actions": {
+            "default": [
+              "read",
+              "search"
+            ],
+            "items": {
+              "enum": [
+                "read",
+                "search",
+                "write",
+                "delete",
+                "process",
+                "transfer"
+              ],
+              "type": "string"
+            },
+            "title": "Actions",
+            "type": "array"
+          },
+          "enabled": {
+            "default": false,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "limits": {
+            "$ref": "#/$defs/ArtifactReadLimits"
+          },
+          "processing_profile": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ArtifactProcessingProfileRef"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "schema_version": {
+            "const": 1,
+            "default": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "workspace_binding": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ArtifactWorkspaceBinding"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "title": "ArtifactCapability",
         "type": "object"
       },
       "ArtifactContextPolicy": {
@@ -267,6 +349,105 @@
           }
         },
         "title": "ArtifactContextPolicy",
+        "type": "object"
+      },
+      "ArtifactProcessingProfileRef": {
+        "additionalProperties": false,
+        "properties": {
+          "ref": {
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]*$",
+            "title": "Ref",
+            "type": "string"
+          },
+          "revision": {
+            "default": 1,
+            "maximum": 1000000,
+            "minimum": 1,
+            "title": "Revision",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "ref"
+        ],
+        "title": "ArtifactProcessingProfileRef",
+        "type": "object"
+      },
+      "ArtifactReadLimits": {
+        "additionalProperties": false,
+        "properties": {
+          "max_context_units": {
+            "default": 8000,
+            "maximum": 1000000,
+            "minimum": 64,
+            "title": "Max Context Units",
+            "type": "integer"
+          },
+          "max_read_chars": {
+            "default": 8192,
+            "maximum": 65536,
+            "minimum": 1,
+            "title": "Max Read Chars",
+            "type": "integer"
+          },
+          "max_search_results": {
+            "default": 20,
+            "maximum": 200,
+            "minimum": 1,
+            "title": "Max Search Results",
+            "type": "integer"
+          },
+          "max_total_read_chars": {
+            "default": 65536,
+            "maximum": 1048576,
+            "minimum": 1,
+            "title": "Max Total Read Chars",
+            "type": "integer"
+          },
+          "max_writes": {
+            "default": 0,
+            "maximum": 100,
+            "minimum": 0,
+            "title": "Max Writes",
+            "type": "integer"
+          }
+        },
+        "title": "ArtifactReadLimits",
+        "type": "object"
+      },
+      "ArtifactWorkspaceBinding": {
+        "additionalProperties": false,
+        "properties": {
+          "field": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+            "title": "Field",
+            "type": "string"
+          },
+          "namespace": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Namespace",
+            "type": "string"
+          },
+          "scope": {
+            "enum": [
+              "run",
+              "session"
+            ],
+            "title": "Scope",
+            "type": "string"
+          }
+        },
+        "required": [
+          "field",
+          "namespace",
+          "scope"
+        ],
+        "title": "ArtifactWorkspaceBinding",
         "type": "object"
       },
       "BehaviorSpecification": {
@@ -1100,7 +1281,7 @@
         "type": "string"
       },
       "spec": {
-        "$ref": "#/$defs/AgentSpecV1"
+        "$ref": "#/$defs/AgentSpecV2"
       }
     },
     "required": [
@@ -2154,6 +2335,56 @@
         "title": "Metadata",
         "type": "object"
       },
+      "NetworkArtifactWorkspaceBindingV2": {
+        "additionalProperties": false,
+        "properties": {
+          "actions": {
+            "items": {
+              "enum": [
+                "read",
+                "search",
+                "write",
+                "delete",
+                "process",
+                "transfer"
+              ],
+              "type": "string"
+            },
+            "maxItems": 6,
+            "minItems": 1,
+            "title": "Actions",
+            "type": "array"
+          },
+          "field": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+            "title": "Field",
+            "type": "string"
+          },
+          "namespace": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Namespace",
+            "type": "string"
+          },
+          "scope": {
+            "enum": [
+              "run",
+              "session"
+            ],
+            "title": "Scope",
+            "type": "string"
+          }
+        },
+        "required": [
+          "field",
+          "namespace",
+          "scope"
+        ],
+        "title": "NetworkArtifactWorkspaceBindingV2",
+        "type": "object"
+      },
       "NetworkEdge": {
         "additionalProperties": false,
         "properties": {
@@ -2173,12 +2404,28 @@
         "title": "NetworkEdge",
         "type": "object"
       },
-      "NetworkNode": {
+      "NetworkNodeV2": {
         "additionalProperties": false,
         "properties": {
           "agent_ref": {
             "title": "Agent Ref",
             "type": "string"
+          },
+          "artifact_actions": {
+            "items": {
+              "enum": [
+                "read",
+                "search",
+                "write",
+                "delete",
+                "process",
+                "transfer"
+              ],
+              "type": "string"
+            },
+            "maxItems": 6,
+            "title": "Artifact Actions",
+            "type": "array"
           },
           "binding": {
             "$ref": "#/$defs/NodeBinding"
@@ -2209,12 +2456,28 @@
           "key",
           "agent_ref"
         ],
-        "title": "NetworkNode",
+        "title": "NetworkNodeV2",
         "type": "object"
       },
-      "NetworkSettings": {
+      "NetworkSettingsV2": {
         "additionalProperties": false,
         "properties": {
+          "artifact_workspace_binding": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/NetworkArtifactWorkspaceBindingV2"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "artifacts_enabled": {
+            "default": false,
+            "title": "Artifacts Enabled",
+            "type": "boolean"
+          },
           "max_depth": {
             "default": 4,
             "minimum": 1,
@@ -2249,10 +2512,10 @@
             "type": "integer"
           }
         },
-        "title": "NetworkSettings",
+        "title": "NetworkSettingsV2",
         "type": "object"
       },
-      "NetworkSpecV1": {
+      "NetworkSpecV2": {
         "additionalProperties": false,
         "properties": {
           "edges": {
@@ -2264,7 +2527,7 @@
           },
           "nodes": {
             "items": {
-              "$ref": "#/$defs/NetworkNode"
+              "$ref": "#/$defs/NetworkNodeV2"
             },
             "minItems": 1,
             "title": "Nodes",
@@ -2275,14 +2538,14 @@
             "type": "string"
           },
           "settings": {
-            "$ref": "#/$defs/NetworkSettings"
+            "$ref": "#/$defs/NetworkSettingsV2"
           }
         },
         "required": [
           "root",
           "nodes"
         ],
-        "title": "NetworkSpecV1",
+        "title": "NetworkSpecV2",
         "type": "object"
       },
       "NodeBinding": {
@@ -2380,7 +2643,7 @@
         "type": "string"
       },
       "spec": {
-        "$ref": "#/$defs/NetworkSpecV1"
+        "$ref": "#/$defs/NetworkSpecV2"
       }
     },
     "required": [
@@ -3225,6 +3488,74 @@
   },
   "Tool": {
     "$defs": {
+      "HttpArtifactFileBinding": {
+        "additionalProperties": false,
+        "description": "A model argument that names one exact authorized Artifact revision.",
+        "properties": {
+          "content_types": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 32,
+            "minItems": 1,
+            "title": "Content Types",
+            "type": "array"
+          },
+          "idempotency_header": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "pattern": "^[!#$%&'*+.^_`|~0-9A-Za-z-]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Idempotency Header"
+          },
+          "input_name": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+            "title": "Input Name",
+            "type": "string"
+          },
+          "max_bytes": {
+            "default": 26214400,
+            "maximum": 52428800,
+            "minimum": 1,
+            "title": "Max Bytes",
+            "type": "integer"
+          },
+          "mode": {
+            "enum": [
+              "bytes",
+              "multipart",
+              "url"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "part_name": {
+            "default": "file",
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.-]+$",
+            "title": "Part Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "input_name",
+          "mode",
+          "content_types"
+        ],
+        "title": "HttpArtifactFileBinding",
+        "type": "object"
+      },
       "HttpHeaderConfig": {
         "additionalProperties": false,
         "properties": {
@@ -3346,6 +3677,13 @@
             "title": "Description",
             "type": "string"
           },
+          "file_bindings": {
+            "items": {
+              "$ref": "#/$defs/HttpArtifactFileBinding"
+            },
+            "title": "File Bindings",
+            "type": "array"
+          },
           "headers": {
             "items": {
               "$ref": "#/$defs/HttpHeaderConfig"
@@ -3400,6 +3738,14 @@
             ],
             "default": null,
             "title": "Operation Id"
+          },
+          "output_bindings": {
+            "items": {
+              "$ref": "#/$defs/ToolArtifactOutputBinding"
+            },
+            "maxItems": 3,
+            "title": "Output Bindings",
+            "type": "array"
           },
           "output_schema": {
             "anyOf": [
@@ -3530,6 +3876,13 @@
             "default": null,
             "title": "Body"
           },
+          "file_bindings": {
+            "items": {
+              "$ref": "#/$defs/HttpArtifactFileBinding"
+            },
+            "title": "File Bindings",
+            "type": "array"
+          },
           "headers": {
             "items": {
               "$ref": "#/$defs/HttpHeaderConfig"
@@ -3558,6 +3911,14 @@
             ],
             "title": "Mode",
             "type": "string"
+          },
+          "output_bindings": {
+            "items": {
+              "$ref": "#/$defs/ToolArtifactOutputBinding"
+            },
+            "maxItems": 3,
+            "title": "Output Bindings",
+            "type": "array"
           },
           "permission": {
             "anyOf": [
@@ -3630,6 +3991,50 @@
           "authentication"
         ],
         "title": "HttpToolConfigV2",
+        "type": "object"
+      },
+      "McpArtifactFileBinding": {
+        "additionalProperties": false,
+        "description": "A schema-negotiated exact Artifact value for one MCP argument.",
+        "properties": {
+          "content_types": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 32,
+            "minItems": 1,
+            "title": "Content Types",
+            "type": "array"
+          },
+          "input_name": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+            "title": "Input Name",
+            "type": "string"
+          },
+          "max_bytes": {
+            "default": 4194304,
+            "maximum": 4194304,
+            "minimum": 1,
+            "title": "Max Bytes",
+            "type": "integer"
+          },
+          "mode": {
+            "enum": [
+              "base64",
+              "url"
+            ],
+            "title": "Mode",
+            "type": "string"
+          }
+        },
+        "required": [
+          "input_name",
+          "mode",
+          "content_types"
+        ],
+        "title": "McpArtifactFileBinding",
         "type": "object"
       },
       "McpDiscoveredToolConfig": {
@@ -3890,6 +4295,13 @@
             "title": "Exposure",
             "type": "string"
           },
+          "file_bindings": {
+            "items": {
+              "$ref": "#/$defs/McpArtifactFileBinding"
+            },
+            "title": "File Bindings",
+            "type": "array"
+          },
           "input_schema_source": {
             "default": "manual",
             "enum": [
@@ -3912,6 +4324,14 @@
             "default": null,
             "title": "Oauth",
             "type": "null"
+          },
+          "output_bindings": {
+            "items": {
+              "$ref": "#/$defs/ToolArtifactOutputBinding"
+            },
+            "maxItems": 3,
+            "title": "Output Bindings",
+            "type": "array"
           },
           "permission": {
             "anyOf": [
@@ -4095,6 +4515,158 @@
         ],
         "title": "RiskLevel",
         "type": "string"
+      },
+      "ToolArtifactOutputBinding": {
+        "additionalProperties": false,
+        "description": "Explicit bounded projection of one external Tool result into Artifacts.",
+        "properties": {
+          "content_type_pointer": {
+            "anyOf": [
+              {
+                "maxLength": 1024,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Content Type Pointer"
+          },
+          "content_types": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 16,
+            "minItems": 1,
+            "title": "Content Types",
+            "type": "array"
+          },
+          "data_pointer": {
+            "anyOf": [
+              {
+                "maxLength": 1024,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Data Pointer"
+          },
+          "max_bytes": {
+            "default": 1048576,
+            "maximum": 8388608,
+            "minimum": 1,
+            "title": "Max Bytes",
+            "type": "integer"
+          },
+          "mode": {
+            "enum": [
+              "response_body",
+              "json_base64",
+              "mcp_resource"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+            "title": "Name",
+            "type": "string"
+          },
+          "operation_ref_pointer": {
+            "anyOf": [
+              {
+                "maxLength": 1024,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Operation Ref Pointer"
+          },
+          "path": {
+            "maxLength": 1024,
+            "minLength": 1,
+            "title": "Path",
+            "type": "string"
+          },
+          "pending_statuses": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 8,
+            "title": "Pending Statuses",
+            "type": "array"
+          },
+          "resource_name": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Resource Name"
+          },
+          "sha256_pointer": {
+            "anyOf": [
+              {
+                "maxLength": 1024,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Sha256 Pointer"
+          },
+          "status_pointer": {
+            "anyOf": [
+              {
+                "maxLength": 1024,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Status Pointer"
+          },
+          "success_pointer": {
+            "anyOf": [
+              {
+                "maxLength": 1024,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Success Pointer"
+          }
+        },
+        "required": [
+          "name",
+          "mode",
+          "path",
+          "content_types"
+        ],
+        "title": "ToolArtifactOutputBinding",
+        "type": "object"
       },
       "ToolAuthentication": {
         "additionalProperties": false,

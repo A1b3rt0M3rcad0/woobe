@@ -67,6 +67,8 @@ async def test_network_invoker_uses_public_transaction_bounded_agent_runtime(
             self._execution_strategy_resolver = None
             self._knowledge_strategy_resolver = None
             self._runtime_tool_reader = None
+            self._artifact_workspace_binding_resolver = None
+            self._artifact_reference_validator = None
             self._rag_runtime = None
             self._execution_state_store = None
             self._run_persistence = None
@@ -86,6 +88,12 @@ async def test_network_invoker_uses_public_transaction_bounded_agent_runtime(
         def configure_runtime_tool_reader(self, reader) -> None:
             self._runtime_tool_reader = reader
 
+        def configure_artifact_workspace_binding_resolver(self, resolver) -> None:
+            self._artifact_workspace_binding_resolver = resolver
+
+        def configure_artifact_reference_validator(self, validator) -> None:
+            self._artifact_reference_validator = validator
+
         def configure_execution_state_store(self, store) -> None:
             self._execution_state_store = store
 
@@ -97,6 +105,8 @@ async def test_network_invoker_uses_public_transaction_bounded_agent_runtime(
             assert self._rag_runtime is not None
             assert self._execution_strategy_resolver is not None
             assert self._knowledge_strategy_resolver is not None
+            assert self._artifact_workspace_binding_resolver is not None
+            assert self._artifact_reference_validator is not None
             assert self._run_persistence is not None
             context = current_execution.get()
             assert context is not None

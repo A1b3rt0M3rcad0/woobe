@@ -9,6 +9,7 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from modules.agent.infra.database.asac_models import *  # noqa: F401,F403
+from modules.artifacts.infra.database.models import *  # noqa: F401,F403
 from modules.network.infra.database.asac_models import *  # noqa: F401,F403
 from modules.agent.infra.database.skill_models import *  # noqa: F401,F403
 from modules.agent.infra.database.context_models import *  # noqa: F401,F403
@@ -60,6 +61,7 @@ config.set_main_option("sqlalchemy.url", sync_url)
 
 target_metadata = Base.metadata
 MANAGED_SCHEMAS = {
+    "artifacts",
     "identity",
     "core",
     "chat_surface",

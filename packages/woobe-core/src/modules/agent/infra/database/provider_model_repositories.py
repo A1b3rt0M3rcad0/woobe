@@ -57,6 +57,7 @@ def _to_entity(model: ProviderModelModel) -> ProviderModel:
         metadata=model.meta or {},
         created_at=model.created_at,
         updated_at=model.updated_at,
+        definition_revision=model.definition_revision,
     )
 
 

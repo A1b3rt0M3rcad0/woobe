@@ -19,7 +19,7 @@ class CreateRuntimeApiKeyInput(BaseModel):
     target_id: UUID | None = None
     agent_id: UUID | None = None
     environment: RuntimeEnvironment
-    interfaces: list[RuntimeInterface] = Field(min_length=1, max_length=3)
+    interfaces: list[RuntimeInterface] = Field(min_length=1, max_length=4)
     created_by_user_id: UUID | None = None
     created_by_control_key_id: UUID | None = None
     expires_at: datetime | None = None

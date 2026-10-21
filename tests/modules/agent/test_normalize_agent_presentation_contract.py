@@ -5,13 +5,14 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 PRESENTATION_DIR = PROJECT_ROOT / "packages" / "woobe-core" / "src" / "modules" / "agent" / "presentation"
 CONTROLLERS_DIR = PRESENTATION_DIR / "controllers"
-ROUTES_FILE = PRESENTATION_DIR / "routes.py"
+API_AGENT_DIR = PROJECT_ROOT / "packages" / "woobe-api" / "src" / "woobe_api" / "http" / "agent"
+ROUTES_FILE = API_AGENT_DIR / "routes.py"
+API_ROUTES_PACKAGE = API_AGENT_DIR / "__init__.py"
 SCHEMAS_FILE = PRESENTATION_DIR / "schemas.py"
 MAPPERS_FILE = PRESENTATION_DIR / "mappers.py"
 
 EXPECTED_PRESENTATION_FILES = [
     "__init__.py",
-    "routes.py",
     "schemas.py",
     "mappers.py",
 ]
@@ -36,13 +37,14 @@ class TestNormalizeAgentPresentationContract:
     def test_routes_exists_and_is_populated(self):
         content = ROUTES_FILE.read_text(encoding="utf-8")
         assert "APIRouter" in content, "routes.py must use APIRouter"
-        assert len(content) > 10000, "routes.py must be substantial"
+        assert "create_agent_composer()" in content
+        assert "request_adapter(request, handler)" in content
 
-    def test_routes_preserves_all_legacy_prefixes(self):
+    def test_http_transport_keeps_legacy_and_canonical_agent_prefixes(self):
         content = ROUTES_FILE.read_text(encoding="utf-8")
         for prefix in LEGACY_PREFIXES:
             assert f'prefix="{prefix}"' in content or f"prefix='{prefix}'" in content, \
-                f"routes.py missing legacy prefix: {prefix}"
+                f"Agent HTTP routes missing compatibility prefix: {prefix}"
 
     def test_routes_has_canonical_agent_router(self):
         content = ROUTES_FILE.read_text(encoding="utf-8")
@@ -53,6 +55,9 @@ class TestNormalizeAgentPresentationContract:
         assert "agent_router.include_router(router)" in content
         assert "agent_router.include_router(knowledge_router)" in content
         assert "agent_router.include_router(runtime_router)" in content
+        package_source = API_ROUTES_PACKAGE.read_text(encoding="utf-8")
+        assert "agent_router" in package_source
+        assert "ai_router" in package_source
 
     def test_schemas_exists_and_is_populated(self):
         content = SCHEMAS_FILE.read_text(encoding="utf-8")
@@ -68,8 +73,9 @@ class TestNormalizeAgentPresentationContract:
 
     def test_routes_reference_all_composers(self):
         content = ROUTES_FILE.read_text(encoding="utf-8")
-        composer_count = content.count("_composer(")
-        assert composer_count >= 40, f"Expected 40+ composer references in routes, found {composer_count}"
+        assert "create_agent_composer()" in content
+        assert "ask_agent_composer()" in content
+        assert "create_collection_composer()" in content
 
     def test_no_legacy_imports_in_presentation(self):
         for py_file in PRESENTATION_DIR.glob("*.py"):

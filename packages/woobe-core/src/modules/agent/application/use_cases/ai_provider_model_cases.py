@@ -433,6 +433,7 @@ def _provider_model_to_output(item: ProviderModel, provider=None) -> ProviderMod
         spec=item.spec,
         spec_version=item.spec_version,
         spec_hash=item.spec_hash,
+        definition_revision=item.definition_revision,
         status=item.status,
         metadata=item.metadata,
         created_at=item.created_at,

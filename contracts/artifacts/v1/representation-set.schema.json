@@ -1,0 +1,145 @@
+{
+  "$id": "urn:woobe:artifacts:v1:representation-set",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "artifact_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$",
+      "title": "Artifact Id",
+      "type": "string"
+    },
+    "block_count": {
+      "minimum": 0,
+      "title": "Block Count",
+      "type": "integer"
+    },
+    "coverage": {
+      "enum": [
+        "complete",
+        "partial",
+        "needs_ocr",
+        "unsupported"
+      ],
+      "title": "Coverage",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "diagnostics": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Diagnostics",
+      "type": "array"
+    },
+    "entry_count": {
+      "minimum": 0,
+      "title": "Entry Count",
+      "type": "integer"
+    },
+    "generation_number": {
+      "minimum": 0,
+      "title": "Generation Number",
+      "type": "integer"
+    },
+    "id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$",
+      "title": "Id",
+      "type": "string"
+    },
+    "manifest_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Manifest Sha256",
+      "type": "string"
+    },
+    "page_count": {
+      "minimum": 0,
+      "title": "Page Count",
+      "type": "integer"
+    },
+    "processing_fingerprint": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Processing Fingerprint",
+      "type": "string"
+    },
+    "profile_id": {
+      "anyOf": [
+        {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Profile Id"
+    },
+    "profile_revision": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Profile Revision"
+    },
+    "recipe_fingerprint": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Recipe Fingerprint",
+      "type": "string"
+    },
+    "revision_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$",
+      "title": "Revision Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1",
+      "default": "1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "source_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Source Sha256",
+      "type": "string"
+    },
+    "status": {
+      "const": "ready",
+      "default": "ready",
+      "title": "Status",
+      "type": "string"
+    },
+    "workspace_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$",
+      "title": "Workspace Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "workspace_id",
+    "artifact_id",
+    "revision_id",
+    "source_sha256",
+    "recipe_fingerprint",
+    "processing_fingerprint",
+    "manifest_sha256",
+    "generation_number",
+    "coverage",
+    "entry_count",
+    "block_count",
+    "page_count",
+    "created_at"
+  ],
+  "title": "RepresentationSetView",
+  "type": "object"
+}

@@ -267,3 +267,31 @@ def test_configuration_snapshot_query_uses_its_owner_scope(kind, expected):
         configuration_query_scope("GET", path, parameters, {**query, expected:str(uuid4())})
     for method, other in [("POST",path),("GET",path+"/unreviewed"),("GET","/ai/prompts/p/versions/v")]:
         assert configuration_query_scope(method, other, parameters, query) == query
+
+
+@pytest.mark.parametrize('method,path,permission', [
+    ('GET', '/v1/artifacts/a/revisions/r/representations', 'artifacts:read'),
+    ('GET', '/v1/artifacts/a/revisions/r/representations/g', 'artifacts:read'),
+    ('GET', '/v1/artifacts/a/revisions/r/representations/g/entries', 'artifacts:read'),
+    ('GET', '/v1/artifacts/a/revisions/r/representations/g/entries/e/content', 'artifacts:read'),
+    ('POST', '/v1/artifacts/a/revisions/r/representations/g/entries/e/copy', 'artifacts:write'),
+    ('POST', '/v1/artifact-sources/read', 'artifacts:read'),
+    ('POST', '/v1/artifact-sources/resolve', 'artifacts:read'),
+    ('GET', '/v1/artifacts/a/revisions/r/representations/g/pages/0/image', 'artifacts:read'),
+    ('GET', '/v1/artifact-workspaces/w/artifacts/a/revisions', 'artifacts:read'),
+    ('GET', '/v1/document-indexes/i', 'artifacts:read'),
+    ('GET', '/v1/document-indexes/i/nodes', 'artifacts:read'),
+    ('GET', '/v1/document-indexes/i/nodes/n', 'artifacts:read'),
+    ('GET', '/v1/document-indexes/i/nodes/n/content', 'artifacts:read'),
+    ('GET', '/v1/artifact-workspaces/w/artifacts/a/revisions/r/document-index', 'artifacts:read'),
+])
+def test_representation_operations_require_artifacts_authority_without_runtime_execution(method, path, permission):
+    from woobe_api.security.http_guard import is_runtime_execution_request, public_runtime_interface
+    from woobe_api.security.operation_catalog import resolve_operation
+    assert resolve_operation(method, path)[0] == permission
+    assert public_runtime_interface(method, path) == 'artifacts'
+    from woobe_api.security.http_guard import is_artifacts_runtime_path
+    assert is_artifacts_runtime_path(path)
+    assert not is_runtime_execution_request(method, path)
+    if path.endswith('/content'):
+        assert resolve_operation('PUT', path)[0] is None

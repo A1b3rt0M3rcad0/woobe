@@ -1,0 +1,76 @@
+{
+  "$id": "urn:woobe:artifacts:v1:cursor",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "catalog_version": {
+      "minimum": 0,
+      "title": "Catalog Version",
+      "type": "integer"
+    },
+    "last_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$",
+      "title": "Last Id",
+      "type": "string"
+    },
+    "purpose": {
+      "enum": [
+        "workspaces",
+        "artifacts",
+        "revisions",
+        "search",
+        "nodes",
+        "profiles",
+        "representation_entries",
+        "index_nodes"
+      ],
+      "title": "Purpose",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1",
+      "default": "1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "scope_fingerprint": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Scope Fingerprint",
+      "type": "string"
+    },
+    "score_rank": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Score Rank"
+    },
+    "search_version": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Search Version"
+    }
+  },
+  "required": [
+    "scope_fingerprint",
+    "last_id",
+    "catalog_version",
+    "purpose"
+  ],
+  "title": "CursorEnvelope",
+  "type": "object"
+}

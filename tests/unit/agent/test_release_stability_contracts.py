@@ -428,11 +428,15 @@ async def test_sources_are_persisted_with_assistant_message():
             usage,
             SimpleNamespace(id=session.agent_id),
             [],
+            output_artifacts=[{"artifact_id": "artifact-1"}],
+            source_refs=[{"source_id": "source-1"}],
         )
     finally:
         current_execution.reset(token)
     saved_message = message_repo.create.await_args.args[0]
     assert saved_message.data["sources"][0]["document_id"] == "doc-1"
+    assert saved_message.data["output_artifacts"] == [{"artifact_id": "artifact-1"}]
+    assert saved_message.data["source_refs"] == [{"source_id": "source-1"}]
 
 
 @pytest.mark.asyncio

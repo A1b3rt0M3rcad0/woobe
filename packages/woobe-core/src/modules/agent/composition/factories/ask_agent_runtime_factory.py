@@ -63,6 +63,10 @@ from shared.composition_resources import (
     RUN_DURABILITY_BARRIER,
     RUN_EVENT_BUFFER,
 )
+from shared.composition.artifact_runtime import (
+    runtime_artifact_reference_validator,
+    runtime_artifact_workspace_binding_resolver,
+)
 from shared.infra.best_effort_execution_state import BestEffortExecutionStateStore
 from shared.infra.config import Settings
 from shared.presentation.contracts import OperationRequest
@@ -126,6 +130,10 @@ def _configure_agent_runtime_dependencies(
         )
     )
     runtime.configure_runtime_tool_reader(tool_runtime.read_runtime_tools)
+    runtime.configure_artifact_workspace_binding_resolver(
+        runtime_artifact_workspace_binding_resolver()
+    )
+    runtime.configure_artifact_reference_validator(runtime_artifact_reference_validator())
     runtime.configure_execution_state_store(
         BestEffortExecutionStateStore(EXECUTION_STATE_STORE)
     )

@@ -21,6 +21,7 @@ from modules.agent.application.use_cases.release_lifecycle_use_cases import (
     AutoCreateReleaseUseCase,
 )
 from modules.agent.domain.entities import AgentRelease
+from shared.contracts.artifact_capability import canonicalize_artifact_runtime_config
 from modules.agent.domain.enums import ReleaseStatus
 from modules.agent.domain.errors import ReleaseNotFoundError
 from modules.agent.domain.release_activation import AgentReleaseActivation
@@ -97,6 +98,9 @@ class KnowledgeSafeCreateReleaseUseCase(AutoCreateReleaseUseCase):
 
         input_dto = input_dto.model_copy(deep=True)
         runtime_config = dict(input_dto.runtime_config or {})
+        runtime_config = canonicalize_artifact_runtime_config(
+            runtime_config, input_dto.external_context_contract
+        ) or {}
         raw_tools = runtime_config.get("tools")
         if isinstance(raw_tools, dict):
             runtime_config["tools"] = await build_release_tool_runtime(

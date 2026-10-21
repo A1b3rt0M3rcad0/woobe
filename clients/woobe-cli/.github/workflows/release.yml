@@ -1,0 +1,259 @@
+name: Release CLI
+run-name: Release CLI ${{ inputs.version || (github.ref_type == 'tag' && github.ref_name) || github.sha }}
+on:
+  push:
+    branches: [master]
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Optional exact version for recovery or prerelease; empty calculates automatically
+        required: false
+        type: string
+      revision:
+        description: Optional exact master commit for recovery
+        required: false
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: release-cli
+  cancel-in-progress: false
+jobs:
+  identity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.identity.outputs.version }}
+      revision: ${{ steps.identity.outputs.revision }}
+      skip: ${{ steps.identity.outputs.skip }}
+    steps:
+      - name: Require the canonical workflow source
+        env:
+          SOURCE_REF: ${{ github.ref }}
+        run: |
+          case "$SOURCE_REF" in
+            refs/heads/master|refs/tags/v*) ;;
+            *) echo "Release requires master or an explicit version tag" >&2; exit 1 ;;
+          esac
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - id: identity
+        name: Resolve an immutable reviewed release revision
+        env:
+          CLI_VERSION: ${{ inputs.version }}
+          CLI_REVISION: ${{ inputs.revision || (github.event_name == 'push' && github.sha) || '' }}
+          CLI_TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+        run: python3 scripts/release_identity.py --version "$CLI_VERSION" --revision "$CLI_REVISION" --tag "$CLI_TAG" --output "$GITHUB_OUTPUT"
+  validate:
+    needs: identity
+    if: needs.identity.outputs.skip != 'true'
+    uses: ./.github/workflows/ci.yml
+    with:
+      version: ${{ needs.identity.outputs.version }}
+      revision: ${{ needs.identity.outputs.revision }}
+  image:
+    needs: [identity, validate]
+    if: needs.identity.outputs.skip != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      ref: ${{ steps.metadata.outputs.ref }}
+      digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.identity.outputs.revision }}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          artifact-ids: ${{ needs.validate.outputs.artifact_id }}
+          merge-multiple: true
+          path: dist
+      - name: Extract the exact validated Linux executables
+        env:
+          CLI_VERSION: ${{ needs.identity.outputs.version }}
+          CLI_REVISION: ${{ needs.identity.outputs.revision }}
+          CANDIDATE_SHA256: ${{ needs.validate.outputs.manifest_sha256 }}
+        run: python3 scripts/prepare_image.py --version "$CLI_VERSION" --commit "$CLI_REVISION" --manifest-sha256 "$CANDIDATE_SHA256"
+      - id: metadata
+        env:
+          REPOSITORY: ${{ github.repository }}
+          CLI_REVISION: ${{ needs.identity.outputs.revision }}
+          CLI_VERSION: ${{ needs.identity.outputs.version }}
+        run: |
+          echo "ref=ghcr.io/${REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+          echo "candidate=ghcr.io/${REPOSITORY,,}:candidate-${CLI_VERSION}-${CLI_REVISION}" >> "$GITHUB_OUTPUT"
+          echo "epoch=$(git show -s --format=%ct HEAD)" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: .
+          file: Dockerfile.image
+          platforms: linux/amd64,linux/arm64
+          push: true
+          provenance: false
+          sbom: false
+          tags: ${{ steps.metadata.outputs.candidate }}
+          build-args: |
+            CLI_VERSION=${{ needs.identity.outputs.version }}
+            CLI_COMMIT=${{ needs.identity.outputs.revision }}
+            CLI_SOURCE=https://github.com/${{ github.repository }}
+            CLI_MANIFEST_SHA256=${{ needs.validate.outputs.manifest_sha256 }}
+            SOURCE_DATE_EPOCH=${{ steps.metadata.outputs.epoch }}
+      - name: Verify the immutable multi-architecture package
+        env:
+          IMAGE_REF: ${{ steps.metadata.outputs.ref }}
+          IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
+          CLI_VERSION: ${{ needs.identity.outputs.version }}
+          CLI_REVISION: ${{ needs.identity.outputs.revision }}
+        run: |
+          python3 - <<'PYIMAGE'
+          import json, os, subprocess
+          from sys import path
+          path.insert(0, 'scripts')
+          import registry_image
+          registry_image.preflight(os.environ['IMAGE_REF'], os.environ['CLI_VERSION'], os.environ['IMAGE_DIGEST'])
+          PYIMAGE
+          python3 scripts/smoke_image.py --image "$IMAGE_REF@$IMAGE_DIGEST" --version "$CLI_VERSION" --commit "$CLI_REVISION"
+  publish:
+    needs: [identity, validate, image]
+    if: needs.identity.outputs.skip != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.identity.outputs.revision }}
+          fetch-depth: 0
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          artifact-ids: ${{ needs.validate.outputs.artifact_id }}
+          merge-multiple: true
+          path: dist
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Preflight and publish both GitHub Release and GHCR package
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CLI_VERSION: ${{ needs.identity.outputs.version }}
+          CLI_REVISION: ${{ needs.identity.outputs.revision }}
+          CANDIDATE_SHA256: ${{ needs.validate.outputs.manifest_sha256 }}
+          IMAGE_REF: ${{ needs.image.outputs.ref }}
+          IMAGE_DIGEST: ${{ needs.image.outputs.digest }}
+          TAGGED_SOURCE: ${{ github.ref_type == 'tag' }}
+        shell: bash
+        run: |
+          flags=()
+          if [[ "$TAGGED_SOURCE" == true ]]; then flags+=(--tagged-source); fi
+          python3 scripts/publish_release.py --version "$CLI_VERSION" --commit "$CLI_REVISION" --manifest-sha256 "$CANDIDATE_SHA256" --image-ref "$IMAGE_REF" --image-digest "$IMAGE_DIGEST" "${flags[@]}"
+      - name: Record installation commands
+        env:
+          CLI_VERSION: ${{ needs.identity.outputs.version }}
+          CLI_REVISION: ${{ needs.identity.outputs.revision }}
+        run: |
+          {
+            echo "Released woobe-cli $CLI_VERSION from $CLI_REVISION"
+            echo "Download the archive for your platform, verify SHA256SUMS, extract and run woobe version."
+            echo "https://github.com/$GITHUB_REPOSITORY/releases/tag/v$CLI_VERSION"
+            echo "GHCR package: ghcr.io/${GITHUB_REPOSITORY,,}:$CLI_VERSION"
+            echo "Assistant skill tarball: woobe-cli-skill-$CLI_VERSION.tgz (see docs/AGENT_SKILL.md for first npm publication)"
+          } >> "$GITHUB_STEP_SUMMARY"
+  npm:
+    needs: [identity, validate, publish]
+    if: needs.identity.outputs.skip != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.identity.outputs.revision }}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          artifact-ids: ${{ needs.validate.outputs.artifact_id }}
+          merge-multiple: true
+          path: dist
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install the OIDC-capable npm client
+        run: npm install --global npm@11.5.1
+      - name: Publish the exact validated npm package
+        env:
+          # The package now exists: require Trusted Publishing, never bootstrap
+          # with a long-lived secret even if NPM_TOKEN remains in the repository.
+          NODE_AUTH_TOKEN: ''
+          CLI_VERSION: ${{ needs.identity.outputs.version }}
+          CLI_REVISION: ${{ needs.identity.outputs.revision }}
+          CANDIDATE_SHA256: ${{ needs.validate.outputs.manifest_sha256 }}
+        run: python3 scripts/publish_npm.py --version "$CLI_VERSION" --commit "$CLI_REVISION" --manifest-sha256 "$CANDIDATE_SHA256"
+      - name: Record npm installation commands
+        env:
+          CLI_VERSION: ${{ needs.identity.outputs.version }}
+        run: |
+          {
+            echo "npm: https://www.npmjs.com/package/woobe-cli/v/$CLI_VERSION"
+            echo "npm install --global woobe-cli@$CLI_VERSION"
+            echo "npx --yes --package=woobe-cli@$CLI_VERSION woobe version"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  npm-skill:
+    needs: [identity, validate, publish]
+    if: needs.identity.outputs.skip != 'true' && vars.WOOBE_SKILL_NPM_PUBLISH == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.identity.outputs.revision }}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          artifact-ids: ${{ needs.validate.outputs.artifact_id }}
+          merge-multiple: true
+          path: dist
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install the OIDC-capable npm client
+        run: npm install --global npm@11.5.1
+      - name: Publish the exact validated assistant skill
+        env:
+          # Enabled only after owner bootstrap and Trusted Publisher setup.
+          # Never use a long-lived secret, even if NPM_TOKEN remains.
+          NODE_AUTH_TOKEN: ''
+          CLI_VERSION: ${{ needs.identity.outputs.version }}
+          CLI_REVISION: ${{ needs.identity.outputs.revision }}
+          CANDIDATE_SHA256: ${{ needs.validate.outputs.manifest_sha256 }}
+        run: python3 scripts/publish_npm.py --package woobe-cli-skill --version "$CLI_VERSION" --commit "$CLI_REVISION" --manifest-sha256 "$CANDIDATE_SHA256"
+      - name: Record skill installation commands
+        env:
+          CLI_VERSION: ${{ needs.identity.outputs.version }}
+        run: |
+          {
+            echo "npm: https://www.npmjs.com/package/woobe-cli-skill/v/$CLI_VERSION"
+            echo "npm install --global woobe-cli-skill@$CLI_VERSION"
+            echo "npx --yes --package=woobe-cli-skill@$CLI_VERSION woobe-skill install --agent codex"
+          } >> "$GITHUB_STEP_SUMMARY"

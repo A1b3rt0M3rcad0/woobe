@@ -238,6 +238,14 @@ async def prepare_rag_binding(
     agent: Any,
 ) -> RAGBinding | None:
     settings = dict(agent.settings or {})
+    runtime_config = settings.get("runtime_config")
+    selected_strategy = (
+        runtime_config.get("knowledge_strategy")
+        if isinstance(runtime_config, dict)
+        else None
+    )
+    if isinstance(selected_strategy, str) and selected_strategy.strip().lower() == "none":
+        return None
     knowledge_version_id = settings.get("knowledge_version_id")
     if not knowledge_version_id:
         return None

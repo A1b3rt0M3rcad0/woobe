@@ -24,7 +24,12 @@ htmlcov/
 .python-version
 node_modules/
 web/
-docs/
+docs/*
+!docs/licenses/
+!docs/licenses/**
+!docs/skills/
+!docs/skills/artifact-document-exploration/
+!docs/skills/artifact-document-exploration/**
 .opencode/
 src/editions/cloud/
 src/editions/enterprise/

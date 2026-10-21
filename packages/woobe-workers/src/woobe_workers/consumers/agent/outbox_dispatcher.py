@@ -7,17 +7,13 @@ from datetime import datetime, timedelta, timezone
 from typing import Protocol
 from uuid import UUID
 
-from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from modules.agent.background_boundary import AgentOutboxEventModel
 from modules.agent.background_boundary import (
     AGENT_DEFAULT_BATCH_SIZE,
-    AGENT_OUTBOX_LOCK_TIMEOUT_SECONDS,
+    AgentOutboxEventModel,
     SQLAlchemyAgentOutboxRepository,
-)
-from modules.agent.background_boundary import AgentUnitOfWork
-from modules.agent.background_boundary import (
+    AgentUnitOfWork,
     RabbitMQMessageEnvelope,
     outbox_to_rabbit_message,
 )
@@ -95,35 +91,16 @@ class AgentOutboxDispatcherWorker(BaseOutboxDispatcher):
         self._envelope_map = {}
 
     async def claim_pending(self, limit: int) -> list[OutboxRecord]:
-        now = datetime.now(timezone.utc)
-        stale_before = now - timedelta(
-            seconds=AGENT_OUTBOX_LOCK_TIMEOUT_SECONDS
-        )
         envelope_map: dict[UUID, RabbitMQMessageEnvelope] = {}
         records: list[OutboxRecord] = []
 
         async with AgentUnitOfWork(self._async_engine) as uow:
-            result = await uow.session.execute(
-                select(AgentOutboxEventModel)
-                .where(
-                    AgentOutboxEventModel.status.in_(
-                        ["pending", "retryable", "publishing"]
-                    ),
-                    AgentOutboxEventModel.available_at <= func.now(),
-                    or_(
-                        AgentOutboxEventModel.locked_at.is_(None),
-                        AgentOutboxEventModel.locked_at < stale_before,
-                    ),
-                )
-                .order_by(AgentOutboxEventModel.created_at.asc())
-                .limit(limit)
-                .with_for_update(skip_locked=True)
+            repo = SQLAlchemyAgentOutboxRepository(uow)
+            events = await repo.claim_batch(
+                batch_size=limit,
+                locked_by=self._worker_id,
             )
-            events = list(result.scalars().all())
             for event in events:
-                event.status = "publishing"
-                event.locked_at = now
-                event.locked_by = self._worker_id
                 records.append(self._record(event))
                 envelope_map[event.id] = outbox_to_rabbit_message(event)
 

@@ -126,10 +126,13 @@ async def test_runtime_gateway_setup_failure_terminalizes_new_message_request(
             target_release_id=release_id,
         ),
         claims=SimpleNamespace(
-            permissions=frozenset({"chat:send", "chat:stream"})
+                permissions=frozenset({"chat:send", "chat:stream"}),
+                surface_credential_id=None,
+                token_epoch=0,
+                expires_at=None,
         ),
     )
-    payload = SimpleNamespace(message="hello", metadata=None, external_context=None)
+    payload = SimpleNamespace(message="hello", metadata=None, external_context=None, content_parts=None)
 
     async def authorize(*_args, **_kwargs):
         return authorized

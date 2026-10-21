@@ -38,6 +38,12 @@ def build_internal_runtime_body(
     principal: ProjectApiPrincipal,
 ) -> dict:
     body = payload.model_dump()
+    if payload.content_parts is None:
+        body.pop("content_parts", None)
+    else:
+        # The request model has already validated and projected these parts. Clear
+        # the compatibility string before the internal DTO validates the pair again.
+        body["message"] = ""
     metadata = dict(payload.metadata or {})
     metadata.setdefault("source", "public_runtime")
     return {
@@ -91,9 +97,10 @@ class PublicCreateJobController(Controller):
             principal.agent_id,
             principal.environment,
         )
-        input_dto = CreateAskJobInput(
-            **build_internal_runtime_body(payload, principal)
-        )
+        body = build_internal_runtime_body(payload, principal)
+        if payload.content_parts is not None:
+            body["message"] = ""
+        input_dto = CreateAskJobInput(**body)
         result = await self._use_case.execute(input_dto)
         return OperationResult(
             outcome=OperationOutcome.CREATED,

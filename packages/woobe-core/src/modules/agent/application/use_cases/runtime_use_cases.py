@@ -28,6 +28,7 @@ from modules.agent.application.dtos.runtime_dtos import (
     SendMessageOutput,
 )
 from modules.agent.domain.enums import RuntimeSessionMode, SessionStatus
+from shared.contracts.content_parts import serialize_message_content_parts
 from shared.contracts.time import utc_now
 
 
@@ -96,13 +97,19 @@ class SendMessageUseCase:
         project_id = cast(UUID, sess.project_id)
         agent_id = cast(UUID, sess.agent_id)
 
+        message_data = dict(input_dto.data or {})
+        # Only the typed, validated top-level field is trusted as content parts.
+        message_data.pop("content_parts", None)
+        message_data["content_parts"] = serialize_message_content_parts(
+            input_dto.content, input_dto.content_parts
+        )
         message = Message(
             project_id=project_id,
             agent_id=agent_id,
             session_id=input_dto.session_id,
             role=input_dto.role,
             content=input_dto.content,
-            data=input_dto.data,
+            data=message_data or None,
         )
         created = await self.message_repo.create(message)
         session_id = cast(UUID, created.session_id)

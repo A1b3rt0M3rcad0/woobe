@@ -3,11 +3,12 @@ import { canonicalSnapshot, type AgentEditorState } from '@/features/playground/
 type ResponseFormatState = AgentEditorState['responseFormat']
 
 export type AgentEditorValidationIssue = {
-  section: 'output' | 'external-context'
+  section: 'output' | 'external-context' | 'artifacts'
   code:
     | 'output_contract_required'
     | 'output_contract_invalid'
     | 'external_context_contract_invalid'
+    | 'artifact_capability_invalid'
   message: string
 }
 
@@ -129,6 +130,59 @@ function parseExternalContextContract(state: AgentEditorState): Record<string, u
   return readExternalContextContract(state)
 }
 
+function recordValue(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
+}
+
+export function artifactCapabilityError(state: AgentEditorState): string | null {
+  const runtime = recordValue(state.runtimeConfig)
+  if (!Object.prototype.hasOwnProperty.call(runtime, 'artifacts')) return null
+  const capability = recordValue(runtime.artifacts)
+  if (capability.enabled !== true) return null
+  const binding = recordValue(capability.workspace_binding)
+  const fieldName = binding.field
+  const scope = binding.scope
+  if (typeof fieldName !== 'string' || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(fieldName) || typeof binding.namespace !== 'string' || !binding.namespace.trim()) {
+    return 'Artifact capability requires a valid External Context field and namespace.'
+  }
+  if (scope !== 'run' && scope !== 'session') return 'Artifact Workspace binding scope must be Run or Session.'
+  const contract = readExternalContextContract(state)
+  const field = contract ? recordValue(contract[fieldName]) : {}
+  const schema = recordValue(field.schema)
+  const model = recordValue(field.model)
+  if (!contract || field.required !== true || schema.type !== 'string' || field.scope !== scope || Object.prototype.hasOwnProperty.call(field, 'default') || model.expose !== false) {
+    return 'Artifact Workspace binding must match a required, non-model-exposed string External Context field with no default.'
+  }
+  const actions = Array.isArray(capability.actions) ? capability.actions : []
+  const allowed = new Set(['read', 'search', 'write', 'delete', 'process', 'transfer'])
+  if (!actions.length || actions.some(action => typeof action !== 'string' || !allowed.has(action)) || new Set(actions).size !== actions.length) {
+    return 'Artifact capability actions must be unique supported operations.'
+  }
+  const limits = recordValue(capability.limits)
+  const limitBounds: Record<string, [number, number]> = {
+    max_search_results: [1, 200], max_read_chars: [1, 65_536],
+    max_total_read_chars: [1, 1_048_576], max_context_units: [64, 1_000_000], max_writes: [0, 100],
+  }
+  for (const [name, [minimum, maximum]] of Object.entries(limitBounds)) {
+    const value = limits[name]
+    if (typeof value !== 'number' || !Number.isInteger(value) || value < minimum || value > maximum) {
+      return `Artifact budget '${name}' must be an integer between ${minimum} and ${maximum}.`
+    }
+  }
+  const maxWrites = limits.max_writes
+  if (typeof maxWrites !== 'number' || !Number.isInteger(maxWrites) || maxWrites < 0 || actions.includes('write') !== (maxWrites > 0)) {
+    return 'Artifact write permission requires a positive max_writes limit, and disabled writes require zero.'
+  }
+  const profile = capability.processing_profile
+  if (profile != null) {
+    const reference = recordValue(profile)
+    if (!actions.includes('process') || typeof reference.ref !== 'string' || !/^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(reference.ref) || typeof reference.revision !== 'number' || !Number.isInteger(reference.revision) || reference.revision < 1) {
+      return 'Artifact processing profile requires the process action, a portable reference and a positive revision.'
+    }
+  }
+  return null
+}
+
 export function externalContextContractError(state: AgentEditorState): string | null {
   if (state.externalContextContract == null || state.externalContextContract === '') return null
   const contract = readExternalContextContract(state)
@@ -160,6 +214,8 @@ export function validateAgentEditorState(state: AgentEditorState): AgentEditorVa
   if (externalContextError) {
     return invalid('external-context', 'external_context_contract_invalid', externalContextError)
   }
+  const artifactsError = artifactCapabilityError(state)
+  if (artifactsError) return invalid('artifacts', 'artifact_capability_invalid', artifactsError)
 
   const externalContextContract = parseExternalContextContract(state)
   const normalizedExternalState: AgentEditorState = {

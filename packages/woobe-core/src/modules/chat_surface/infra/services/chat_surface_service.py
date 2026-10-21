@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import secrets
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from hmac import compare_digest
 from uuid import UUID, uuid4
@@ -16,6 +16,11 @@ from modules.agent.infra.database.models import (
     AgentReleaseModel,
     MessageModel,
     SessionModel,
+)
+from modules.agent.domain.external_context_contract import (
+    normalize_external_context_contract,
+    resolve_scoped_external_context,
+    split_external_context_contract,
 )
 from modules.agent.infra.database.release_activation_repository import (
     AgentReleaseActivationModel,
@@ -78,6 +83,7 @@ class AuthorizedChatSession:
     surface: ChatSurfaceModel
     binding: ChatSurfaceSessionBindingModel
     claims: ChatSessionClaims
+    external_context_snapshot: dict = field(default_factory=dict)
 
 
 def surface_payload(surface: ChatSurfaceModel) -> dict:
@@ -253,6 +259,35 @@ class ChatSurfaceService:
         ):
             raise ConflictError("Pinned Network Release is unavailable")
         return release.id, release.version
+
+    async def _session_runtime_context(
+        self,
+        session: AsyncSession,
+        *,
+        target_type: str,
+        release_id: UUID,
+    ) -> tuple[dict, dict | None]:
+        if target_type == "agent":
+            release = await session.get(AgentReleaseModel, release_id)
+            contract = getattr(release, "external_context_contract", None) or {}
+            runtime_config = getattr(release, "runtime_config", None) or {}
+            capability = runtime_config.get("artifacts") if isinstance(runtime_config, dict) else None
+            if not isinstance(capability, dict) or capability.get("enabled") is not True:
+                return contract, None
+            binding = capability.get("workspace_binding")
+        elif target_type == "network":
+            release = await session.get(NetworkVersionModel, release_id)
+            contract = getattr(release, "effective_external_context_contract", None) or {}
+            definition = getattr(release, "definition", None) or {}
+            settings = definition.get("settings", {}) if isinstance(definition, dict) else {}
+            if not isinstance(settings, dict) or settings.get("artifacts_enabled") is not True:
+                return contract, None
+            binding = settings.get("artifact_workspace_binding")
+        else:
+            raise ValidationError("Unsupported ChatSurface runtime target")
+        if not isinstance(binding, dict):
+            raise ValidationError("ChatSurface Artifact binding is unavailable in the pinned Release")
+        return contract, binding
 
     @staticmethod
     def _require_surface_credential(
@@ -624,6 +659,7 @@ class ChatSurfaceService:
         if not normalized_key or len(normalized_key) > 255:
             raise ValidationError("A valid Idempotency-Key is required")
         metadata = self._metadata(payload.metadata)
+        trusted_external_context = self._metadata(payload.external_context) or {}
 
         try:
             async with self._session_factory() as session, session.begin():
@@ -652,6 +688,34 @@ class ChatSurfaceService:
                     target_id=locked_surface.target_id,
                     target_release_id=locked_surface.target_release_id,
                 )
+                contract, artifact_binding = await self._session_runtime_context(
+                    session,
+                    target_type=locked_surface.target_type,
+                    release_id=release_id,
+                )
+                session_fields, _ = split_external_context_contract(normalize_external_context_contract(contract))
+                if artifact_binding is not None:
+                    field_name = artifact_binding.get("field")
+                    field_definition = session_fields.get(field_name)
+                    if artifact_binding.get("scope") != "session" or not isinstance(field_definition, dict):
+                        raise ValidationError("ChatSurface Artifact binding must use a Session-scoped External Context field")
+                    if field_definition.get("required") is not True or "default" in field_definition:
+                        raise ValidationError("ChatSurface Artifact identity must be required and have no default")
+                    consumers = field_definition.get("consumers", {})
+                    consumer_fields = [item for item in consumers.values() if isinstance(item, dict)] if isinstance(consumers, dict) else []
+                    exposed = field_definition.get("model", {}).get("expose", False) or any(
+                        item.get("model", {}).get("expose", False) for item in consumer_fields
+                    )
+                    if exposed or field_name not in trusted_external_context:
+                        raise ValidationError("ChatSurface Artifact identity must be provided by the host and hidden from the model")
+                if set(trusted_external_context) - set(session_fields):
+                    raise ValidationError("ChatSurface session creation accepts only Session-scoped External Context fields")
+                try:
+                    session_external_context = resolve_scoped_external_context(
+                        {"fields": session_fields}, trusted_external_context, session_snapshot=None,
+                    ).session_snapshot
+                except ValueError as error:
+                    raise ValidationError(str(error)) from error
 
                 if locked_surface.target_type == "agent":
                     target_session = SessionModel(
@@ -672,6 +736,7 @@ class ChatSurfaceService:
                             "release_version": release_version,
                         },
                         last_message_at=None,
+                        external_context_snapshot=session_external_context,
                         chat_surface_id=locked_surface.id,
                         origin="chat_surface",
                     )
@@ -686,6 +751,7 @@ class ChatSurfaceService:
                         user_id=None,
                         external_session_id=None,
                         status="active",
+                        external_context_snapshot=session_external_context,
                         chat_surface_id=locked_surface.id,
                         origin="chat_surface",
                     )
@@ -949,6 +1015,7 @@ class ChatSurfaceService:
                 surface=surface,
                 binding=binding,
                 claims=claims,
+                external_context_snapshot=dict(getattr(target_session, "external_context_snapshot", None) or {}),
             )
 
     async def list_messages(

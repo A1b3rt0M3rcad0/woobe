@@ -7,6 +7,7 @@ from typing import Any
 import uuid6
 
 from modules.agent.application.dtos.runtime_dtos import AskOutput
+from modules.agent.application.interfaces.artifact_output_projection import project_artifact_outputs
 from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.infra.execution.trace_event_builder import build_execution_timeline_events
 from modules.agent.domain.entities import Message
@@ -143,6 +144,12 @@ class EventJournalAgentRunPersistence:
             call.model_dump() if hasattr(call, "model_dump") else call
             for call in execution.tool_calls
         ]
+        output_artifacts, source_refs = project_artifact_outputs(
+            execution.tool_calls,
+            run_id=str(context.run_id) if context and context.run_id else None,
+            node_id=str(context.network_node_id) if context and context.network_node_id else None,
+        )
+        output_artifact_payloads = [item.model_dump(mode="json") for item in output_artifacts]
         payload = {
             "runtime_identity": context.runtime_identity if context else None,
             "run_id": str(context.run_id),
@@ -176,6 +183,8 @@ class EventJournalAgentRunPersistence:
             "fallback_used": bool(kw["fallback_used"]),
             "fallback_info": kw.get("fallback_info"),
             "sources": source_payloads,
+            "output_artifacts": output_artifact_payloads,
+            "source_refs": source_refs,
             "tool_calls": tool_payloads,
             # Kept as a compact compatibility summary. Canonical invocation facts are
             # already separate model.invocation.* journal events.
@@ -203,6 +212,8 @@ class EventJournalAgentRunPersistence:
             "latency_ms": payload["latency_ms"],
             "tool_calls": list(tool_payloads),
             "sources": list(source_payloads),
+            "output_artifacts": output_artifact_payloads,
+            "source_refs": source_refs,
             "parsed_output": payload["parsed_output"],
             "output_parse_error": payload["output_parse_error"],
             "cancelled": False,
@@ -244,6 +255,8 @@ class EventJournalAgentRunPersistence:
             message_id=message_id,
             usage=canonical_usage,
             sources=sources,
+            output_artifacts=output_artifacts,
+            source_refs=source_refs,
             tool_calls=execution.tool_calls,
             trace_id=kw["trace_id"],
             model=kw.get("response_model"),

@@ -4,6 +4,7 @@ import asyncio
 from collections.abc import Awaitable, Callable
 from typing import Any
 from uuid import UUID
+from pydantic import TypeAdapter
 
 from modules.agent.entrypoint import (
     AskInput,
@@ -24,6 +25,7 @@ from modules.network.background_boundary import (
     classify_runtime_exception,
 )
 from woobe_workers.settings import WorkerSettings
+from shared.security.principal import SecurityPrincipal
 
 AgentStreamHandler = Callable[[str, dict[str, Any]], Awaitable[None]]
 _NETWORK_EXTERNAL_CONTEXT_OVERRIDE_KEY = "__network_external_context__"
@@ -100,12 +102,23 @@ class ProjectRAIAgentInvoker:
         release_id: UUID | None,
         snapshot_override: dict[str, Any] | None,
         message: str,
+        content_parts: tuple[dict[str, Any], ...] | None = None,
         agent_session_id: UUID | None,
         execution_context: str,
         internal_tools: list[InternalDelegationTool],
         network_context: dict[str, object],
         stream_handler: AgentStreamHandler | None = None,
     ) -> AgentInvocationResult:
+        runtime_principal_snapshot = network_context.get("runtime_principal_snapshot")
+        runtime_principal = (
+            TypeAdapter(SecurityPrincipal).validate_python(runtime_principal_snapshot)
+            if isinstance(runtime_principal_snapshot, dict)
+            else None
+        )
+        safe_network_context = {
+            key: value for key, value in network_context.items()
+            if key != "runtime_principal_snapshot"
+        }
         internal_handlers = {tool.id: tool.handler for tool in internal_tools}
         runtime_snapshot_override, external_context = _split_runtime_snapshot_override(
             snapshot_override
@@ -129,7 +142,7 @@ class ProjectRAIAgentInvoker:
             "parent_invocation_id",
             "network_node_id",
         }
-        for key, value in network_context.items():
+        for key, value in safe_network_context.items():
             if hasattr(context, key):
                 if key in uuid_context_fields and value is not None:
                     value = UUID(str(value))
@@ -138,17 +151,25 @@ class ProjectRAIAgentInvoker:
         input_dto = AskInput(
             project_id=project_id,
             agent_id=agent_id,
-            message=message,
+            message="" if content_parts is not None else message,
+            content_parts=content_parts,
             session_id=agent_session_id,
             metadata={
                 "source": "network_runtime",
                 "defer_persistence": True,
-                **network_context,
+                **safe_network_context,
+                "__network_artifact_runtime__": {
+                    "enabled": safe_network_context.get("artifact_workspace_policy") is not None,
+                    "binding": safe_network_context.get("artifact_workspace_binding"),
+                    "policy": safe_network_context.get("artifact_workspace_policy"),
+                    "node_actions": safe_network_context.get("artifact_node_actions") or [],
+                },
             },
             external_context=external_context,
             execution_context=execution_context,
             loaded_release_id=release_id,
             snapshot_override=runtime_snapshot_override,
+            runtime_principal=runtime_principal,
         )
 
         candidate_token = None
@@ -241,6 +262,7 @@ class ProjectRAIAgentInvoker:
                 sources=[item.model_dump() for item in output.sources],
                 parsed_output=output.parsed_output,
                 output_parse_error=output.output_parse_error,
+                output_artifacts=[item.model_dump(mode="json") for item in getattr(output, "output_artifacts", ())],
                 execution_events=list(
                     getattr(output, "execution_events", None) or []
                 ),

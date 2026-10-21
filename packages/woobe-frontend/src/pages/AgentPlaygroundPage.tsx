@@ -31,7 +31,11 @@ import {
 } from '@/features/playground/lib/playground-session-store'
 import { useQueryClient, type InfiniteData } from '@tanstack/react-query'
 import { toast } from 'sonner'
+import { parseArtifactOutput } from '@woobe/runtime-client'
 import type { AskRequest, AskResponse, ChatMessage, TraceItem, RawStreamEvent, ToolCallInfo, SessionListItem, SessionListPage } from '@/features/playground/types'
+import type { ArtifactComposerContext } from '@/features/artifacts/types'
+import { useArtifactWorkspaceByIdentity } from '@/features/artifacts/hooks'
+import type { ComposerArtifactReference } from '@/features/playground/components/ChatComposer'
 
 function titleCaseEnvironment(environment: RuntimeEnvironment) {
   return environment.charAt(0).toUpperCase() + environment.slice(1)
@@ -54,6 +58,28 @@ function upsertToolCall(existing: ToolCallInfo[] | null | undefined, next: ToolC
   if (index === -1) return [...items, next]
   items[index] = { ...items[index], ...next, input: next.input ?? items[index].input, output: next.output ?? items[index].output }
   return items
+}
+
+function artifactInputsFromHistory(data: Record<string, unknown> | null | undefined): ChatMessage['input_artifacts'] {
+  const parts = data?.content_parts
+  if (!Array.isArray(parts)) return null
+  return parts.flatMap((value) => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return []
+    const part = value as Record<string, unknown>
+    const ref = part.ref
+    if (part.type !== 'artifact' || !ref || typeof ref !== 'object' || Array.isArray(ref)) return []
+    const identity = ref as Record<string, unknown>
+    if (typeof identity.artifact_id !== 'string' || typeof identity.revision_id !== 'string') return []
+    return [{ ref: { artifact_id: identity.artifact_id, revision_id: identity.revision_id }, label: identity.artifact_id, content_type: typeof part.media_type_hint === 'string' ? part.media_type_hint : undefined }]
+  })
+}
+
+function artifactOutputsFromHistory(data: Record<string, unknown> | null | undefined): ChatMessage['output_artifacts'] {
+  if (!Array.isArray(data?.output_artifacts)) return null
+  return data.output_artifacts.flatMap((value) => {
+    try { return [parseArtifactOutput(value) as NonNullable<ChatMessage['output_artifacts']>[number]] }
+    catch { return [] }
+  })
 }
 
 function SkeletonLine({ className = '' }: { className?: string }) {
@@ -342,6 +368,8 @@ function PlaygroundContent() {
         usage: m.input_tokens != null ? { input_tokens: m.input_tokens, output_tokens: m.output_tokens ?? null, cost_usd: null } : null,
         tool_calls: (m.data?.tool_calls ?? null) as ChatMessage['tool_calls'],
         sources: (m.data?.sources ?? null) as ChatMessage['sources'],
+        input_artifacts: artifactInputsFromHistory(m.data),
+        output_artifacts: artifactOutputsFromHistory(m.data),
         model: (m.data?.model as string | undefined) ?? null,
         provider: (m.data?.provider as string | undefined) ?? null,
         output_parse_error: (m.data?.output_parse_error as string | undefined) ?? null,
@@ -591,7 +619,37 @@ function PlaygroundContent() {
     })
   }, [cancelStream])
 
-  const handleSend = async (content: string) => {
+  const activeRuntimeConfig = environment === 'draft' ? state.runtimeConfig : currentEnvironmentRelease?.runtime_config ?? {}
+  const artifactsCapability = activeRuntimeConfig && typeof activeRuntimeConfig === 'object'
+    ? (activeRuntimeConfig as Record<string, unknown>).artifacts as Record<string, unknown> | undefined
+    : undefined
+  const workspaceBinding = artifactsCapability?.workspace_binding && typeof artifactsCapability.workspace_binding === 'object'
+    ? artifactsCapability.workspace_binding as Record<string, unknown>
+    : {}
+  const workspaceField = typeof workspaceBinding.field === 'string' ? workspaceBinding.field : null
+  const workspaceNamespace = typeof workspaceBinding.namespace === 'string' ? workspaceBinding.namespace : 'default'
+  const boundWorkspaceValue = workspaceField
+    ? (Object.prototype.hasOwnProperty.call(lockedExternalContextValues, workspaceField)
+      ? lockedExternalContextValues[workspaceField]
+      : externalContextValues[workspaceField])
+    : null
+  const resolvedArtifactWorkspace = useArtifactWorkspaceByIdentity(
+    projectId,
+    environment,
+    workspaceNamespace,
+    typeof boundWorkspaceValue === 'string' && boundWorkspaceValue.length > 0 ? boundWorkspaceValue : undefined,
+  )
+  const artifactContext: ArtifactComposerContext | null = artifactsCapability?.enabled === true
+    && Array.isArray(artifactsCapability.actions) && artifactsCapability.actions.includes('read')
+    && projectId && resolvedArtifactWorkspace.data
+    ? {
+      projectId, environment, workspaceId: resolvedArtifactWorkspace.data.id,
+      accountWorkspaceId: workspaceId,
+      actions: artifactsCapability.actions.filter((item): item is string => typeof item === 'string'),
+    }
+    : null
+
+  const handleSend = async (content: string, artifacts: ComposerArtifactReference[] = []) => {
     if (isSending || !agent) return
     if (!environmentReady) {
       toast.info(environmentReadReason)
@@ -618,14 +676,21 @@ function PlaygroundContent() {
     accumulatedRef.current = ''
     metadataRef.current = {}
     rawEventsRef.current = []
-    setMessages((prev) => [...prev, { role: 'user', content }, { role: 'assistant', content: '', activity: { status: 'working', message: 'Working...' } }])
+    setMessages((prev) => [...prev, {
+      role: 'user', content,
+      input_artifacts: artifacts.map(item => ({ ref: item.ref, label: item.label, content_type: item.content_type })),
+    }, { role: 'assistant', content: '', activity: { status: 'working', message: 'Working...' } }])
     setIsSending(true)
 
     try {
       const requestPayload: AskRequest = {
         project_id: projectId!,
         agent_id: agentId!,
-        message: content,
+        message: artifacts.length ? '' : content,
+        ...(artifacts.length ? { content_parts: [
+          ...(content.trim() ? [{ type: 'text' as const, text: content.trim() }] : []),
+          ...artifacts.map(item => ({ type: 'artifact' as const, ref: item.ref, ...(item.content_type ? { media_type_hint: item.content_type } : {}) })),
+        ] } : {}),
         session_id: sessionIdForRun,
         execution_context: environment === 'draft' ? 'playground' : environment,
         external_context: filterExternalContextInput(
@@ -687,7 +752,7 @@ function PlaygroundContent() {
           setMessages((prev) => {
             const updated = [...prev]
             const last = updated[updated.length - 1]
-            if (last?.role === 'assistant') updated[updated.length - 1] = { ...last, content: finalContent, activity: null, usage: meta.usage ?? null, sources: (meta.sources ?? metadataRef.current.sources) as ChatMessage['sources'], tool_calls: (meta.tool_calls ?? last.tool_calls ?? null) as ChatMessage['tool_calls'], model: meta.model ?? null, provider: meta.provider ?? null, latency_ms: meta.latency_ms ?? null, trace_id: meta.trace_id ?? null, parsed_output: meta.parsed_output ?? null, output_parse_error: meta.output_parse_error ?? null }
+            if (last?.role === 'assistant') updated[updated.length - 1] = { ...last, content: finalContent, activity: null, usage: meta.usage ?? null, sources: (meta.sources ?? metadataRef.current.sources) as ChatMessage['sources'], output_artifacts: meta.output_artifacts ?? [], tool_calls: (meta.tool_calls ?? last.tool_calls ?? null) as ChatMessage['tool_calls'], model: meta.model ?? null, provider: meta.provider ?? null, latency_ms: meta.latency_ms ?? null, trace_id: meta.trace_id ?? null, parsed_output: meta.parsed_output ?? null, output_parse_error: meta.output_parse_error ?? null }
             return updated
           })
           setLastResponse(meta as AskResponse)
@@ -842,6 +907,8 @@ function PlaygroundContent() {
               isSending={isSending}
               isSessionLoading={isSessionLoading}
               onSend={handleSend}
+              onSendArtifacts={(content, artifacts) => { void handleSend(content, artifacts) }}
+              artifactContext={artifactContext}
               onStop={handleStop}
               agentName={agent.name}
               runtimeBlocked={!runtimeEnabled || !environmentReady}

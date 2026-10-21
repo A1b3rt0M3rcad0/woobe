@@ -12,6 +12,9 @@ from modules.agent.application.knowledge_strategy_registry import (
     build_knowledge_strategy_registry,
     list_knowledge_strategies,
 )
+from modules.agent.application.knowledge_strategy_config import (
+    knowledge_strategy_from_runtime_config,
+)
 from modules.agent.application.interfaces.context_policy import ContextPolicyV1
 from modules.agent.application.skill_packages import parse_skill_package
 from modules.agent.application.strategy_configuration import (
@@ -47,6 +50,7 @@ from modules.agent.application.rag.registry import (
 from modules.agent.domain.external_context_contract import (
     compose_external_context_contracts,
 )
+from shared.contracts.artifact_capability import canonicalize_artifact_capability
 from uuid import UUID
 from uuid import NAMESPACE_URL, uuid5
 from types import SimpleNamespace
@@ -61,6 +65,12 @@ from shared.contracts.errors import ValidationError
 
 def portable_definition_capabilities():
     return {
+        "artifacts": {
+            "schema_version": 1,
+            "default_enabled": False,
+            "actions": ["read", "search", "write", "delete", "process", "transfer"],
+            "workspace_binding": "required non-model-exposed External Context string",
+        },
         "execution_strategies": list_execution_strategies(),
         "knowledge_strategies": list_knowledge_strategies(),
         "context_managers": ["stdcm"],
@@ -75,6 +85,46 @@ def portable_definition_capabilities():
 
 
 def inspect_portable_agent(spec: dict, *, model_specs=None) -> dict:
+    external_context = normalize_external_context_contract(
+        spec.get("external_context", {})
+    )
+    artifact_capability = canonicalize_artifact_capability(
+        spec.get("artifacts"), external_context
+    )
+    artifacts_enabled = bool(artifact_capability and artifact_capability["enabled"])
+    knowledge = spec.get("knowledge")
+    if knowledge is not None and not isinstance(knowledge, dict):
+        raise ValidationError("Agent knowledge selection must be an object")
+    nested_knowledge_strategy = (
+        knowledge.get("strategy") if isinstance(knowledge, dict) else None
+    )
+    explicit_knowledge_strategy = spec.get("knowledge_strategy")
+    if (
+        explicit_knowledge_strategy is not None
+        and nested_knowledge_strategy is not None
+        and str(explicit_knowledge_strategy).strip().lower()
+        != str(nested_knowledge_strategy).strip().lower()
+    ):
+        raise ValidationError("Agent Knowledge Strategy declarations conflict")
+    selected_knowledge_strategy = knowledge_strategy_from_runtime_config({
+        "knowledge_strategy": (
+            explicit_knowledge_strategy
+            if explicit_knowledge_strategy is not None
+            else nested_knowledge_strategy or "rag"
+        )
+    })
+    knowledge_descriptor = build_knowledge_strategy_registry().describe(
+        selected_knowledge_strategy
+    )
+    knowledge_config = validate_strategy_configuration(
+        knowledge_descriptor,
+        knowledge.get("strategy_config", {}) if knowledge is not None else {},
+        schema_version=(
+            knowledge.get("strategy_config_schema_version", "1")
+            if knowledge is not None
+            else "1"
+        ),
+    )
     execution = spec.get("execution", {})
     descriptor = build_execution_strategy_registry().get(
         execution.get("strategy", "standard")
@@ -84,9 +134,11 @@ def inspect_portable_agent(spec: dict, *, model_specs=None) -> dict:
             RuntimeCompatibilityRequest(
                 model=ModelSpec.from_dict(model_spec),
                 execution=descriptor.compatibility,
-                tools_enabled=bool(spec.get("tools")),
+                tools_enabled=bool(spec.get("tools")) or artifacts_enabled,
                 context_enabled=True,
-                knowledge_enabled=spec.get("knowledge") is not None,
+                knowledge_enabled=(
+                    knowledge is not None and selected_knowledge_strategy != "none"
+                ),
             )
         )
         if not report.compatible:
@@ -102,18 +154,7 @@ def inspect_portable_agent(spec: dict, *, model_specs=None) -> dict:
     if context.get("manager", {}).get("name", "stdcm") != "stdcm":
         raise ValidationError("Unsupported Context Manager")
     policy = ContextPolicyV1.model_validate(context.get("policy", {}))
-    knowledge = spec.get("knowledge")
-    knowledge_config = None
-    if knowledge is not None:
-        registered = build_knowledge_strategy_registry().describe(
-            knowledge.get("strategy", "rag")
-        )
-        knowledge_config = validate_strategy_configuration(
-            registered,
-            knowledge.get("strategy_config", {}),
-            schema_version=knowledge.get("strategy_config_schema_version", "1"),
-        )
-    if knowledge is not None:
+    if knowledge is not None and selected_knowledge_strategy != "none":
         rag = RAGRuntimeConfig.model_validate(knowledge.get("rag", {}))
         try:
             rag_descriptor = build_rag_strategy_registry().describe(rag.strategy)
@@ -126,15 +167,14 @@ def inspect_portable_agent(spec: dict, *, model_specs=None) -> dict:
         )
     if spec.get("behavior") is not None:
         BehaviorSpecification.model_validate(spec["behavior"])
-    external_context = normalize_external_context_contract(
-        spec.get("external_context", {})
-    )
     return {
         "execution_strategy": descriptor.name,
         "execution_config": execution_config,
         "knowledge_config": knowledge_config,
+        "knowledge_strategy": selected_knowledge_strategy,
         "context_policy": policy.model_dump(mode="json"),
         "external_context_contract": external_context,
+        "artifact_capability": artifact_capability,
     }
 
 

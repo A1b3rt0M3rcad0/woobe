@@ -18,6 +18,8 @@ def test_knowledge_strategy_catalog_matches_registered_runtime_strategies() -> N
     )
     assert catalog[0]["name"] == "rag"
     assert catalog[0]["is_default"] is True
+    assert catalog[1]["name"] == "none"
+    assert catalog[1]["is_default"] is False
 
 
 @pytest.mark.asyncio
@@ -37,3 +39,4 @@ async def test_knowledge_strategy_catalog_route_uses_api_envelope() -> None:
     assert payload["message"] == "ok"
     assert payload["data"][0]["name"] == "rag"
     assert payload["data"][0]["is_default"] is True
+    assert payload["data"][1]["name"] == "none"

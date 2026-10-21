@@ -1,0 +1,196 @@
+name: CLI
+on:
+  pull_request:
+  push:
+    branches: ['feat/**', 'docs/**']
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      revision:
+        description: Exact reviewed source commit to validate
+        type: string
+        required: false
+        default: ''
+      version:
+        description: Exact version to package for a release
+        type: string
+        required: false
+        default: ''
+    outputs:
+      artifact_id:
+        value: ${{ jobs.package.outputs.artifact_id }}
+      manifest_sha256:
+        value: ${{ jobs.package.outputs.manifest_sha256 }}
+permissions:
+  contents: read
+concurrency:
+  group: cli-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ inputs.version == '' && github.event_name != 'workflow_dispatch' }}
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.revision || github.sha }}
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.1'
+          cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: node --test scripts/tests/skill-installer.test.cjs
+      - run: test -z "$(gofmt -l cmd internal packages)"
+      - run: python3 scripts/version.py
+      - run: python3 -m unittest discover -s scripts/tests
+      - run: python3 scripts/completeness.py
+      - run: go mod verify
+      - run: go vet ./...
+      - run: go test -race -coverprofile=coverage.out ./...
+      - run: go test ./internal/schemacheck -run='^$' -fuzz=FuzzSchemaCheck -fuzztime=10s -parallel=2
+      - run: go test ./internal/packagefmt -run='^$' -fuzz=FuzzDecodePackage -fuzztime=10s -parallel=2
+      - name: Fuzz editable YAML with actionable failure diagnostics
+        run: |
+          python3 - <<'PYFUZZ'
+          import subprocess
+          result = subprocess.run(['go', 'test', './internal/devworkspace', "-run=^$", '-fuzz=FuzzEncodeRoundTrip', '-fuzztime=10s', '-parallel=2'], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+          print(result.stdout, end='')
+          if result.returncode:
+              detail = result.stdout[-16000:].replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+              print('::error title=Editable YAML fuzz failure::' + detail)
+          raise SystemExit(result.returncode)
+          PYFUZZ
+      - run: go test ./internal/jsoninput -run='^$' -fuzz=FuzzYAMLCompatibleJSON -fuzztime=10s -parallel=2
+      - run: go test ./internal/packagebundle -run='^$' -fuzz=FuzzPortablePath -fuzztime=10s -parallel=2
+      - run: go test ./internal/packagefmt -run='^$' -fuzz=FuzzReferenceClosure -fuzztime=5s -parallel=2
+      - run: go test ./internal/packagefmt -run='^$' -fuzz=FuzzPackageLockDocument -fuzztime=5s -parallel=2
+      - run: go test ./internal/packagebundle -run='^$' -fuzz=FuzzLockedArchive -fuzztime=5s -parallel=2
+      - run: go test ./internal/packagecheckpoint -run='^$' -fuzz=FuzzCheckpointStrictParsing -fuzztime=5s -parallel=2
+      - run: go build -trimpath -o bin/woobe ./cmd/woobe
+      - run: python3 scripts/command_catalog.py --binary bin/woobe
+      - run: bin/woobe help --output json > discovery.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cli-validation
+          if-no-files-found: error
+          retention-days: 90
+          path: |
+            coverage.out
+            discovery.json
+  package:
+    outputs:
+      artifact_id: ${{ steps.upload.outputs.artifact-id }}
+      manifest_sha256: ${{ steps.identity.outputs.manifest_sha256 }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.revision || github.sha }}
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.1'
+          cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Pin npm for reproducible distribution tarballs
+        run: npm install --global npm@11.5.1
+      - name: Build six versioned archives and both npm packages
+        env:
+          CLI_PACKAGE_VERSION: ${{ inputs.version }}
+        shell: bash
+        run: bash scripts/package.sh "${CLI_PACKAGE_VERSION:-0.0.0-ci.${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}}" --with-npm
+      - name: Verify archives and source identity
+        run: python3 scripts/verify_artifacts.py --commit "$(git rev-parse HEAD)"
+      - id: identity
+        run: echo "manifest_sha256=$(sha256sum dist/artifacts.json | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        id: upload
+        with:
+          name: woobe-distribution
+          if-no-files-found: error
+          retention-days: 90
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/*.tgz
+            dist/SHA256SUMS
+            dist/artifacts.json
+  native-smoke:
+    needs: package
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm, macos-15-intel, macos-15, windows-latest, windows-11-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.revision || github.sha }}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          artifact-ids: ${{ needs.package.outputs.artifact_id }}
+          merge-multiple: true
+          path: dist
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.1'
+          cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Qualify native Package filesystem and checkpoints
+        shell: bash
+        run: |
+          go test ./internal/packagefmt ./internal/packagebundle ./internal/packagecheckpoint ./internal/packageapi
+          go test ./packages/woobe-cli-skill
+          go test ./internal/devworkspace ./internal/projectinit
+          go test ./internal/output
+          go test ./internal/cli -run 'Package|Control|Output|ProjectInit|MissingScope|ProtectedDryRun|LocalDeploy|Unified|SecretIssuance|CredentialImport|ReleaseTest|CanonicalRunTest'
+          go test ./internal/credentials -run 'WindowsProtection'
+      - name: Qualify the skill installer on the native host
+        shell: bash
+        run: node --test scripts/tests/skill-installer.test.cjs
+      - name: Verify downloaded archives
+        shell: bash
+        run: python scripts/verify_artifacts.py --commit "$(git rev-parse HEAD)"
+      - name: Exercise packaged native executable
+        shell: bash
+        run: python scripts/smoke_artifacts.py --commit "$(git rev-parse HEAD)" --report native-smoke.json
+      - name: Exercise npm installation and launcher
+        shell: bash
+        run: python scripts/smoke_npm.py --commit "$(git rev-parse HEAD)" --report npm-smoke.json
+      - name: Exercise offline npm skill installation
+        shell: bash
+        run: python scripts/smoke_skill.py --commit "$(git rev-parse HEAD)" --report skill-smoke.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-smoke-${{ matrix.runner }}
+          if-no-files-found: error
+          retention-days: 90
+          path: |
+            native-smoke.json
+            npm-smoke.json
+            skill-smoke.json
+  ci:
+    if: always()
+    needs: [test, package, native-smoke]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Require every validation group to succeed
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          python3 - <<'PY'
+          import json, os
+          groups = json.loads(os.environ['RESULTS'])
+          failed = {name: job['result'] for name, job in groups.items() if job['result'] != 'success'}
+          if failed:
+              raise SystemExit(f'CLI validation did not succeed: {failed}')
+          print('Tests, six packaged targets and six native smoke jobs passed')
+          PY

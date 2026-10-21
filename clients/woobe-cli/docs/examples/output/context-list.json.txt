@@ -1,0 +1,1 @@
+{"schema_version":"1","success":true,"context":{"project_id":"","workspace_id":""},"data":{"contexts":{"woobe":{"api_url":"http://localhost:8000","project_id":"00000000-0000-7000-8000-000000000010","workspace_id":"00000000-0000-7000-8000-000000000020"}},"current":"woobe","version":1},"meta":{"complete":true}}

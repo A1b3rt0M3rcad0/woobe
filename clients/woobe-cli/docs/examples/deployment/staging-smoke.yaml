@@ -1,0 +1,6 @@
+# Replace alias and expected output with product-specific assertions.
+schema_version: '1.0'
+target_alias: support
+request:
+  input: Hello
+expected_output: Hello from support

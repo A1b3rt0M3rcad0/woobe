@@ -1,0 +1,761 @@
+{
+  "as_of": "2026-10-05 America/Sao_Paulo",
+  "method": "Equal-weight roadmap deliveries; partial=0, pending=0, done=1. Done means delivered implementation/evidence at stated boundary, not real-server phase acceptance.",
+  "phase_acceptance_verified": [
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false
+  ],
+  "items": [
+    {
+      "id": "0.1",
+      "phase": 0,
+      "requirement": "Atualizar a referência da master no início da implementação.",
+      "status": "partial",
+      "evidence": "Woobe PR #177 at 77c53832f0e5b35488d1574b3cf62777486f5189: seven backend workflows passed; draft remains unmerged. Server base 42e6667 and PR head 77c53832 reviewed; PR remains unmerged, so master does not yet expose the integrated Control Plane."
+    },
+    {
+      "id": "0.2",
+      "phase": 0,
+      "requirement": "Localizar o cadastro de categorias citado pelo usuário, inclusive em outra branch.",
+      "status": "done",
+      "evidence": "Woobe PR #177 at 77c53832f0e5b35488d1574b3cf62777486f5189: seven backend workflows passed; draft remains unmerged. Canonical AuthorityCategory implementation is in modules/identity/infra/services/authority_service.py and its immutable version models."
+    },
+    {
+      "id": "0.3",
+      "phase": 0,
+      "requirement": "Documentar quais contratos serão reaproveitados.",
+      "status": "done",
+      "evidence": "docs/OPERATIONS.md, docs/STATUS.md and SDK/source pins distinguish reusable routes from proposals."
+    },
+    {
+      "id": "0.4",
+      "phase": 0,
+      "requirement": "Abrir branch de integração a partir da master.",
+      "status": "done",
+      "evidence": "Woobe PR #177 at 77c53832f0e5b35488d1574b3cf62777486f5189: seven backend workflows passed; draft remains unmerged. Backend integration uses ci/cli-backend-baseline, based on the inspected master; CLI implementation PRs #1–#7 are merged."
+    },
+    {
+      "id": "0.5",
+      "phase": 0,
+      "requirement": "Portar ControlPlanePrincipal, emissão de control key, grants, guard e testes pertinentes.",
+      "status": "done",
+      "evidence": "Woobe PR #177 at 77c53832f0e5b35488d1574b3cf62777486f5189: seven backend workflows passed; draft remains unmerged. Machine principal, Control Key issuance, grants, operation guard, ownership and authority tests implemented."
+    },
+    {
+      "id": "0.6",
+      "phase": 0,
+      "requirement": "Resolver a colisão Alembic com revisão livre e down_revision atual.",
+      "status": "done",
+      "evidence": "Woobe PR #177 at 77c53832f0e5b35488d1574b3cf62777486f5189: seven backend workflows passed; draft remains unmerged. Migration chain through 0077, rollback/reupgrade and v0.12.1 upgrade verified by Acceptance."
+    },
+    {
+      "id": "0.7",
+      "phase": 0,
+      "requirement": "Preservar ModelSpec e demais mudanças da master.",
+      "status": "done",
+      "evidence": "Woobe PR #177 at 77c53832f0e5b35488d1574b3cf62777486f5189: seven backend workflows passed; draft remains unmerged. Canonical master changes retained; ModelSpec/provider configuration and Agent/Network runtime pass the live CLI workflow."
+    },
+    {
+      "id": "0.8",
+      "phase": 0,
+      "requirement": "Inicializar o module Go no repositório canônico `woobe-cli`, fixar toolchain/dependências e documentar a migração do protótipo Python.",
+      "status": "done",
+      "evidence": "go.mod, cmd/woobe, scripts/package.sh and docs/USAGE.md establish canonical Go client and Python-free runtime."
+    },
+    {
+      "id": "0.9",
+      "phase": 0,
+      "requirement": "Atualizar ADR e documentação para o estado integrado.",
+      "status": "partial",
+      "evidence": "Woobe PR #177 at 77c53832f0e5b35488d1574b3cf62777486f5189: seven backend workflows passed; draft remains unmerged. Canonical CONTROL_PLANE.md and Compose/AGENTS documentation updated; final merged-state ADR review remains."
+    },
+    {
+      "id": "1.1",
+      "phase": 1,
+      "requirement": "Registrar cada operação administrativa por operation_id, principal, escopo e efeito.",
+      "status": "partial",
+      "evidence": "Woobe PR #177 at 77c53832f0e5b35488d1574b3cf62777486f5189: seven backend workflows passed; draft remains unmerged. Reviewed HTTP permission catalog and ownership guard implemented. Exhaustive public-operation/principal coverage remains a separate phase gate."
+    },
+    {
+      "id": "1.2",
+      "phase": 1,
+      "requirement": "Cobrir aliases/rotas legadas ou negar seu uso com Control Key.",
+      "status": "partial",
+      "evidence": "Woobe PR #177 at 77c53832f0e5b35488d1574b3cf62777486f5189: seven backend workflows passed; draft remains unmerged. Unreviewed administrative routes are denied for Control Keys. Full legacy alias/principal acceptance remains to be audited."
+    },
+    {
+      "id": "1.3",
+      "phase": 1,
+      "requirement": "Corrigir pesquisa POST, auth status MCP, catálogos e runtime environments.",
+      "status": "partial",
+      "evidence": "Woobe PR #177 at 77c53832f0e5b35488d1574b3cf62777486f5189: seven backend workflows passed; draft remains unmerged. Guard distinguishes reviewed operations and explicit execution/publication. Full search/MCP/catalog/environment acceptance across every principal remains."
+    },
+    {
+      "id": "1.4",
+      "phase": 1,
+      "requirement": "Separar staging, produção e execução de ferramentas.",
+      "status": "partial",
+      "evidence": "Woobe PR #177 at 77c53832f0e5b35488d1574b3cf62777486f5189: seven backend workflows passed; draft remains unmerged. Environment/target/interface restrictions and production-denial workflow pass; full Tool execution authority acceptance remains."
+    },
+    {
+      "id": "1.5",
+      "phase": 1,
+      "requirement": "Resolver todos os tipos de ID ao Project proprietário.",
+      "status": "partial",
+      "evidence": "Woobe PR #177 at 77c53832f0e5b35488d1574b3cf62777486f5189: seven backend workflows passed; draft remains unmerged. Ownership resolver covers reviewed route resources and cross-tenant matrix; exhaustive ID variants remain a phase gate. Continuation: opt-in path/query validation and inline DTO definitions delivered; full DTO/custom-rule/dialect/serialization qualification remains partial."
+    },
+    {
+      "id": "1.6",
+      "phase": 1,
+      "requirement": "Aplicar política de ações a principals humanos; fechar viewer e teto de delegação de admin.",
+      "status": "partial",
+      "evidence": "Woobe PR #177 at 77c53832f0e5b35488d1574b3cf62777486f5189: seven backend workflows passed; draft remains unmerged. Human viewer mutation refusal and delegated ceilings tested. Exhaustive human-admin combinations remain a phase gate."
+    },
+    {
+      "id": "1.7",
+      "phase": 1,
+      "requirement": "Preservar comparação de subconjunto por Project e Workspace.",
+      "status": "done",
+      "evidence": "Woobe PR #177 at 77c53832f0e5b35488d1574b3cf62777486f5189: seven backend workflows passed; draft remains unmerged. Workspace and Project delegation subset checks retain conditions and lineage; regression matrix passes."
+    },
+    {
+      "id": "1.8",
+      "phase": 1,
+      "requirement": "Especificar delegação de Runtime Keys e política de grants de Project recém-criado.",
+      "status": "done",
+      "evidence": "Woobe PR #177 at 77c53832f0e5b35488d1574b3cf62777486f5189: seven backend workflows passed; draft remains unmerged. Runtime key scopes/binding/expiry ceilings and on_project_create_permissions materialization are implemented and tested."
+    },
+    {
+      "id": "1.9",
+      "phase": 1,
+      "requirement": "Definir revisão/controle de concorrência para grants e alterações sem mecanismo existente.",
+      "status": "done",
+      "evidence": "Woobe PR #177 at 77c53832f0e5b35488d1574b3cf62777486f5189: seven backend workflows passed; draft remains unmerged. Strong ETag preconditions and PostgreSQL authority serialization cover Control Keys, categories and human assignments."
+    },
+    {
+      "id": "1.10",
+      "phase": 1,
+      "requirement": "Implementar idempotência administrativa nas operações exigidas e consistência entre criação de Project e grant do criador.",
+      "status": "partial",
+      "evidence": "Woobe PR #177 at 77c53832f0e5b35488d1574b3cf62777486f5189: seven backend workflows passed; draft remains unmerged. Transactional idempotency for supported creates/Control Key rotations and atomic Project grant creation delivered. Not every administrative endpoint supports replay."
+    },
+    {
+      "id": "1.11",
+      "phase": 1,
+      "requirement": "Documentar autoridade/expiração dos descendentes e semântica de revogação.",
+      "status": "done",
+      "evidence": "Woobe PR #177 at 77c53832f0e5b35488d1574b3cf62777486f5189: seven backend workflows passed; draft remains unmerged. Delegated expiry ceilings persist through human/machine rotations; lineage and revocation documented in CONTROL_PLANE.md."
+    },
+    {
+      "id": "1.12",
+      "phase": 1,
+      "requirement": "Garantir projeção de segredos no servidor.",
+      "status": "partial",
+      "evidence": "Woobe PR #177 at 77c53832f0e5b35488d1574b3cf62777486f5189: seven backend workflows passed; draft remains unmerged. Normal projections and explicit secret issuance are separated; full endpoint-wide secret projection audit remains."
+    },
+    {
+      "id": "2.1",
+      "phase": 2,
+      "requirement": "Disponibilizar catálogo de permissions/operations/capabilities versionado.",
+      "status": "partial",
+      "evidence": "Woobe PR #177 at 77c53832f0e5b35488d1574b3cf62777486f5189: seven backend workflows passed; draft remains unmerged. Versioned permissions/operations catalog and effective-authority discovery delivered; full capability/dialect compatibility remains."
+    },
+    {
+      "id": "2.2",
+      "phase": 2,
+      "requirement": "Disponibilizar introspecção própria e preflight sem mutação.",
+      "status": "done",
+      "evidence": "Woobe PR #177 at 77c53832f0e5b35488d1574b3cf62777486f5189: seven backend workflows passed; draft remains unmerged. GET access/me and POST access/check tested against real authorized and denied requests without selected-operation mutation."
+    },
+    {
+      "id": "2.3",
+      "phase": 2,
+      "requirement": "Implementar a entrada `cmd/woobe` e a árvore Cobra, com divisão em `internal/cli`, application, controlplane, identity, runtime, contracts, config e output.",
+      "status": "partial",
+      "evidence": "Cobra/controlplane/identity/config/output exist; application/contracts/runtime boundaries are not fully split as proposed."
+    },
+    {
+      "id": "2.4",
+      "phase": 2,
+      "requirement": "Implementar transporte Go, cancelamento, erros tipados, adapters de credenciais e injeção de stdin/stdout/stderr.",
+      "status": "done",
+      "evidence": "internal/controlplane, credentials, output and root support cancellation/typed errors and injected IO; client tests pass."
+    },
+    {
+      "id": "2.5",
+      "phase": 2,
+      "requirement": "Implementar contextos locais e resolução determinística.",
+      "status": "done",
+      "evidence": "Context precedence, named show, explicit empty overrides, Workspace/Project inheritance, strict bounded config and administrative/runtime attachment covered by config and CLI tests; server remains scope authority."
+    },
+    {
+      "id": "2.6",
+      "phase": 2,
+      "requirement": "Implementar login/refresh/logout de sessão com cookies e CSRF.",
+      "status": "partial",
+      "evidence": "Cookie/CSRF fixtures exist; Windows session storage and real login E2E remain."
+    },
+    {
+      "id": "2.7",
+      "phase": 2,
+      "requirement": "Implementar importação e referências protegidas de Control/Runtime Keys.",
+      "status": "partial",
+      "evidence": "Control/Runtime credential references now use private POSIX files or per-user Windows Credential Manager, with create/read/list/delete and restart/isolation tests. CLI Key discovery login is connection-scoped; native Linux desktop/macOS keychain providers remain optional future work."
+    },
+    {
+      "id": "2.8",
+      "phase": 2,
+      "requirement": "Implementar JSON, tabela, stderr e códigos de saída.",
+      "status": "done",
+      "evidence": "internal/output and root implement JSON/table and typed exit/stream error behavior, verified in tests."
+    },
+    {
+      "id": "2.9",
+      "phase": 2,
+      "requirement": "Portar para Go os comportamentos compatíveis de request/control-key, sem dependência de execução do protótipo Python.",
+      "status": "done",
+      "evidence": "Woobe PR #177 at 77c53832f0e5b35488d1574b3cf62777486f5189: seven backend workflows passed; draft remains unmerged. Go CLI Control Key creation/rotation/replay and old-key rejection verified in required live API workflow."
+    },
+    {
+      "id": "2.10",
+      "phase": 2,
+      "requirement": "Implementar doctor/version/help e validação de capacidades.",
+      "status": "done",
+      "evidence": "doctor/version/help and advertised-route diagnostics are implemented with fixtures."
+    },
+    {
+      "id": "2.11",
+      "phase": 2,
+      "requirement": "Implementar help JSON e exportação de schemas a partir do registro único, com compatibilidade e efeito das operações.",
+      "status": "partial",
+      "evidence": "Cobra-derived discovery includes 240 handlers and 190 HTTP operations. Shared advertised body validation, manifest preflight, opt-in before-write checks and snapshot digest pin are delivered; full schema/DTO/path/query semantics remain partial. Request-direction validation now rejects supplied readOnly fields and supports required read-only omission through property references/allOf; UUID/date/date-time formats and advertised dialects are checked, with invalid inputs stopped before mutation. Full path/query, arbitrary directional composition and DTO coverage remain partial. Workspace category import/capture/immutable diff and additional Tool/MCP/Knowledge/publication DTO schemas are implemented; required new live gate is tracked in PR #177."
+    },
+    {
+      "id": "3.1",
+      "phase": 3,
+      "requirement": "Workspace list/get/create/update.",
+      "status": "done",
+      "evidence": "workspace.go provides observed CRUD handlers and operation discovery."
+    },
+    {
+      "id": "3.2",
+      "phase": 3,
+      "requirement": "Membros e convites suportados, com limites de papel.",
+      "status": "partial",
+      "evidence": "Member/invite handlers exist; server role ceilings are unverified."
+    },
+    {
+      "id": "3.3",
+      "phase": 3,
+      "requirement": "Project list/get/create/update/overview.",
+      "status": "done",
+      "evidence": "project.go provides observed CRUD/overview handlers."
+    },
+    {
+      "id": "3.4",
+      "phase": 3,
+      "requirement": "Acesso humano e acesso pendente por convite.",
+      "status": "done",
+      "evidence": "auth/workspace/project handlers cover observed membership/access and invite operations."
+    },
+    {
+      "id": "3.5",
+      "phase": 3,
+      "requirement": "Control Key CRUD/lifecycle e grants por Project.",
+      "status": "done",
+      "evidence": "Woobe PR #177 at 77c53832f0e5b35488d1574b3cf62777486f5189: seven backend workflows passed; draft remains unmerged. Control Key lifecycle and explicit Project grants implemented; real CLI issuance, rotation and replay pass."
+    },
+    {
+      "id": "3.6",
+      "phase": 3,
+      "requirement": "Project API Keys e Runtime Keys.",
+      "status": "done",
+      "evidence": "keys.go supplies observed key lifecycle handlers and exclusive secret issuance outputs."
+    },
+    {
+      "id": "3.7",
+      "phase": 3,
+      "requirement": "Environment keys com valores protegidos.",
+      "status": "done",
+      "evidence": "Environment key handlers use recursive value/secret output redaction and explicit issuance controls."
+    },
+    {
+      "id": "3.8",
+      "phase": 3,
+      "requirement": "Alterações incrementais de grants com proteção de revisão.",
+      "status": "done",
+      "evidence": "Woobe PR #177 at 77c53832f0e5b35488d1574b3cf62777486f5189: seven backend workflows passed; draft remains unmerged. Control Key and human assignment mutation preconditions implemented; missing/stale revisions rejected."
+    },
+    {
+      "id": "3.9",
+      "phase": 3,
+      "requirement": "Testes de reader mínimo e credencial com permissões diferentes por Project.",
+      "status": "partial",
+      "evidence": "Woobe PR #177 at 77c53832f0e5b35488d1574b3cf62777486f5189: seven backend workflows passed; draft remains unmerged. Live reader category key denies writes and is pinned to revision 1; exhaustive multi-Project CLI authority matrix remains."
+    },
+    {
+      "id": "4.1",
+      "phase": 4,
+      "requirement": "Reutilizar ou implementar entidade/versionamento de categoria.",
+      "status": "done",
+      "evidence": "Woobe PR #177 at 77c53832f0e5b35488d1574b3cf62777486f5189: seven backend workflows passed; draft remains unmerged. Workspace-owned categories and immutable revisions implemented."
+    },
+    {
+      "id": "4.2",
+      "phase": 4,
+      "requirement": "Validar permissões primitivas e compatibilidade de scope.",
+      "status": "done",
+      "evidence": "Woobe PR #177 at 77c53832f0e5b35488d1574b3cf62777486f5189: seven backend workflows passed; draft remains unmerged. Primitive permissions, scope compatibility, catalog revision and wildcard materialization validated."
+    },
+    {
+      "id": "4.3",
+      "phase": 4,
+      "requirement": "List/get/create/update/clone/history/archive/delete.",
+      "status": "done",
+      "evidence": "Woobe PR #177 at 77c53832f0e5b35488d1574b3cf62777486f5189: seven backend workflows passed; draft remains unmerged. CLI list/get/create/update/clone/history/archive/delete match backend contracts; live lifecycle and stale-edit refusal verified. Reviewed body pagination now supports all/history."
+    },
+    {
+      "id": "4.4",
+      "phase": 4,
+      "requirement": "Aplicar categoria/revisão a grants, preservando lista concreta.",
+      "status": "done",
+      "evidence": "Woobe PR #177 at 77c53832f0e5b35488d1574b3cf62777486f5189: seven backend workflows passed; draft remains unmerged. Grants materialize concrete permissions from the chosen immutable revision and preserve origin."
+    },
+    {
+      "id": "4.5",
+      "phase": 4,
+      "requirement": "Atribuições humanas, se fizerem parte do modelo existente/escopo integrado.",
+      "status": "done",
+      "evidence": "Woobe PR #177 at 77c53832f0e5b35488d1574b3cf62777486f5189: seven backend workflows passed; draft remains unmerged. Human authority assignments with materialized grants, scope, category revision and preconditions implemented and tested."
+    },
+    {
+      "id": "4.6",
+      "phase": 4,
+      "requirement": "Perfis iniciais versionados de reader/editor/builder/publisher/admin.",
+      "status": "done",
+      "evidence": "Woobe PR #177 at 77c53832f0e5b35488d1574b3cf62777486f5189: seven backend workflows passed; draft remains unmerged. Immutable revision-1 system profiles include project-reader, Agent/Network/Knowledge editors, version-builder, production-publisher and project-administrator and can be cloned."
+    },
+    {
+      "id": "4.7",
+      "phase": 4,
+      "requirement": "Plan/diff de atualização de categoria aplicada.",
+      "status": "partial",
+      "evidence": "workspace authority category diff compares two explicit immutable definitions, using permission/condition sets and read-only evidence. Category manifests also support supplied-field diff and ETag-bound skip-unchanged. Planning affected issued grants/human assignments and migrating their pinned revisions remain unimplemented."
+    },
+    {
+      "id": "4.8",
+      "phase": 4,
+      "requirement": "Subconjunto e condições de delegação após expansão.",
+      "status": "partial",
+      "evidence": "Woobe PR #177 at 77c53832f0e5b35488d1574b3cf62777486f5189: seven backend workflows passed; draft remains unmerged. Materialized category conditions and subset-preserving delegation are tested; exhaustive CLI expanded-condition matrix remains."
+    },
+    {
+      "id": "4.9",
+      "phase": 4,
+      "requirement": "Garantir que nova revisão não amplia automaticamente credenciais.",
+      "status": "done",
+      "evidence": "Woobe PR #177 at 77c53832f0e5b35488d1574b3cf62777486f5189: seven backend workflows passed; draft remains unmerged. Live CLI test edits a category while the reader key retains revision 1 and refuses writes."
+    },
+    {
+      "id": "4.10",
+      "phase": 4,
+      "requirement": "Eventos de auditoria de criação, revisão e aplicação.",
+      "status": "done",
+      "evidence": "Woobe PR #177 at 77c53832f0e5b35488d1574b3cf62777486f5189: seven backend workflows passed; draft remains unmerged. Category create/update/assignment audit records are persisted by the authority service; reviewed audit list command added."
+    },
+    {
+      "id": "5.1",
+      "phase": 5,
+      "requirement": "Agents e configurações principais.",
+      "status": "done",
+      "evidence": "agent.go provides observed Agent configuration CRUD."
+    },
+    {
+      "id": "5.2",
+      "phase": 5,
+      "requirement": "Prompts, contratos e model configs.",
+      "status": "done",
+      "evidence": "agent.go supplies prompt/contract/model configuration handlers; composed fixture passes."
+    },
+    {
+      "id": "5.3",
+      "phase": 5,
+      "requirement": "Bindings de Tools, Skills e Knowledge.",
+      "status": "partial",
+      "evidence": "Knowledge binding route exists; complete typed Tool/Skill/Knowledge bindings are not validated."
+    },
+    {
+      "id": "5.4",
+      "phase": 5,
+      "requirement": "Releases/tests/promotion/activation/rollback.",
+      "status": "done",
+      "evidence": "release.go supplies create/test/promote/activation/rollback handlers with explicit execution/publication confirmation."
+    },
+    {
+      "id": "5.5",
+      "phase": 5,
+      "requirement": "Networks múltiplas por Project.",
+      "status": "done",
+      "evidence": "network.go uses explicit Network IDs under Project; composed fixture covers separate Network creation."
+    },
+    {
+      "id": "5.6",
+      "phase": 5,
+      "requirement": "Draft, nodes/bindings e revisão esperada.",
+      "status": "partial",
+      "evidence": "Draft update/revision headers exist; full nodes/bindings DTO/reconciliation remains."
+    },
+    {
+      "id": "5.7",
+      "phase": 5,
+      "requirement": "Versions, previews, staging e production activations.",
+      "status": "done",
+      "evidence": "network.go provides observed version/promotion/activation commands."
+    },
+    {
+      "id": "5.8",
+      "phase": 5,
+      "requirement": "Ambientes de Agent/Network com política adequada.",
+      "status": "done",
+      "evidence": "Woobe PR #177 at 77c53832f0e5b35488d1574b3cf62777486f5189: seven backend workflows passed; draft remains unmerged. Staging and production authority constraints verified for Agent/Network publication and runtime in live CLI tests."
+    },
+    {
+      "id": "5.9",
+      "phase": 5,
+      "requirement": "Lifecycle de exclusão/arquivamento conforme suporte real.",
+      "status": "partial",
+      "evidence": "Generic requests exist; complete resource lifecycle coverage/semantics remain unverified."
+    },
+    {
+      "id": "5.10",
+      "phase": 5,
+      "requirement": "Diff/export de configurações autorizado.",
+      "status": "partial",
+      "evidence": "Authorized projections/capture/field diff exist; complete semantic export for all configuration is absent."
+    },
+    {
+      "id": "6.1",
+      "phase": 6,
+      "requirement": "Tools HTTP/MCP, lifecycle, uso, testes e execução explícita.",
+      "status": "done",
+      "evidence": "tool.go provides HTTP/MCP lifecycle/test/execute handlers with explicit execution effects."
+    },
+    {
+      "id": "6.2",
+      "phase": 6,
+      "requirement": "Discovery/refresh e autenticação MCP suportada.",
+      "status": "done",
+      "evidence": "Observed MCP discovery/refresh/auth handlers exist; real deployment acceptance remains a separate gate."
+    },
+    {
+      "id": "6.3",
+      "phase": 6,
+      "requirement": "Permissões MCP allow/deny/review.",
+      "status": "done",
+      "evidence": "Canonical allow/deny/review validation is always applied by direct commands, validate-input and resolved manifest writes. DTOs forbid unknown fields, whitespace, duplicate names and unbounded permission lists. Backend refuses undiscovered names atomically and invalid providers; unit tests cover selective/bulk transitions and review exposure. Required live transitions and unknown-name refusal are added to PR #177; exact final CI evidence is maintained there. OAuth discovery/connection success and every-principal phase acceptance are separate gates."
+    },
+    {
+      "id": "6.4",
+      "phase": 6,
+      "requirement": "Segredos e credentials com projeção correta.",
+      "status": "partial",
+      "evidence": "Client redaction/secret issuance is tested; server projection and native storage remain unverified."
+    },
+    {
+      "id": "6.5",
+      "phase": 6,
+      "requirement": "Collections, Documents, upload/search e Vector Snapshots.",
+      "status": "done",
+      "evidence": "knowledge.go/upload.go supply collection/document/search/snapshot handlers and multipart fixture."
+    },
+    {
+      "id": "6.6",
+      "phase": 6,
+      "requirement": "Providers/models e discovery separado da persistência.",
+      "status": "done",
+      "evidence": "catalog.go separates observed provider/model discovery/read/write handlers."
+    },
+    {
+      "id": "6.7",
+      "phase": 6,
+      "requirement": "Catálogos e compatibilidade de ModelSpec/estratégias.",
+      "status": "partial",
+      "evidence": "Catalogs exist; full strategy/ModelSpec compatibility matrix is absent."
+    },
+    {
+      "id": "6.8",
+      "phase": 6,
+      "requirement": "Skills e versões.",
+      "status": "done",
+      "evidence": "surface.go provides Skill/version handlers; resource manifests include typed SkillVersion parents."
+    },
+    {
+      "id": "6.9",
+      "phase": 6,
+      "requirement": "ChatSurfaces, lifecycle e Access Keys.",
+      "status": "done",
+      "evidence": "Surface lifecycle/access-key handlers exist; configuration capture supports ChatSurface updates."
+    },
+    {
+      "id": "6.10",
+      "phase": 6,
+      "requirement": "Paginação/export conforme capacidade real.",
+      "status": "partial",
+      "evidence": "Reviewed pagination for category list/history/audit and Agent sessions, with all four verified in required live CLI run 37386311731 at backend 8ab9d139 and CLI 659baea. Cursor/revision traversal preserves filters, bounded pages/bytes/deadline and partial evidence; sessions enforce effective environment/target conditions. Generic Link traversal does not certify collection completeness; full semantic export remains open."
+    },
+    {
+      "id": "7.1",
+      "phase": 7,
+      "requirement": "Runtime público por SDK/adapter, com credencial própria.",
+      "status": "done",
+      "evidence": "runtime.go uses pinned Go SDK with separately selected runtime credentials."
+    },
+    {
+      "id": "7.2",
+      "phase": 7,
+      "requirement": "Agent e Network Run, HTTP e streaming.",
+      "status": "done",
+      "evidence": "Agent/Network run/stream adapters use pinned SDK; real target E2E is separately unverified."
+    },
+    {
+      "id": "7.3",
+      "phase": 7,
+      "requirement": "Contratos de output/External Context.",
+      "status": "partial",
+      "evidence": "Semantic event output exists; full External Context/output contract validation remains incomplete."
+    },
+    {
+      "id": "7.4",
+      "phase": 7,
+      "requirement": "Active Run, observe/reattach e cancelamento.",
+      "status": "done",
+      "evidence": "SDK ActiveRun/ObserveRun/CancelRun adapters are implemented and discovered."
+    },
+    {
+      "id": "7.5",
+      "phase": 7,
+      "requirement": "Sessions/mensagens e histórico administrativo autorizado.",
+      "status": "done",
+      "evidence": "Observed session/message/admin run handlers are provided."
+    },
+    {
+      "id": "7.6",
+      "phase": 7,
+      "requirement": "Rerun explícito e reset de contexto suportado.",
+      "status": "done",
+      "evidence": "Explicit rerun/reset endpoints are registered; they do not silently retry writes."
+    },
+    {
+      "id": "7.7",
+      "phase": 7,
+      "requirement": "Traces, invocations, snapshots e diagnostics.",
+      "status": "done",
+      "evidence": "Observed trace/invocation/snapshot/diagnostic handlers are provided."
+    },
+    {
+      "id": "7.8",
+      "phase": 7,
+      "requirement": "Usage/metrics existentes.",
+      "status": "done",
+      "evidence": "Observed usage summary/daily handlers are provided."
+    },
+    {
+      "id": "7.9",
+      "phase": 7,
+      "requirement": "Auditoria administrativa, sem confundir com runtime tracing.",
+      "status": "partial",
+      "evidence": "Authority audit is a dedicated scoped GET with cursor-complete pagination, verified through the live CLI workflow at 8ab9d139. Exhaustive audit acceptance across administrative operations remains."
+    },
+    {
+      "id": "7.10",
+      "phase": 7,
+      "requirement": "Interrupção, deadline, gap e degradação sem duplicação de Run.",
+      "status": "partial",
+      "evidence": "Cancellation/deadline are supported; reconnect/gap replay scenarios are not implemented/certified."
+    },
+    {
+      "id": "8.1",
+      "phase": 8,
+      "requirement": "Schema de manifest versionado.",
+      "status": "done",
+      "evidence": "Versioned step v1/resource v2 schemas are packaged and tested."
+    },
+    {
+      "id": "8.2",
+      "phase": 8,
+      "requirement": "Validate/diff/plan/export.",
+      "status": "partial",
+      "evidence": "Validate/plan/field diff/projection/capture are implemented; complete semantic export/import is absent."
+    },
+    {
+      "id": "8.3",
+      "phase": 8,
+      "requirement": "Apply por operação e dependências.",
+      "status": "done",
+      "evidence": "Explicit actions compile to dependency-ordered steps; apply/ref/recovery fixtures pass."
+    },
+    {
+      "id": "8.4",
+      "phase": 8,
+      "requirement": "IDs/revisões esperadas e revalidação antes de mutar.",
+      "status": "partial",
+      "evidence": "Expected If-Match forwarded, optional --validate-body checks resolved bodies before write attempts, schema digest pin and read-only preflight exist. Full route/query/DTO/domain/revision semantics and real-backend revalidation remain partial. Request-direction validation now rejects supplied readOnly fields and supports required read-only omission through property references/allOf; UUID/date/date-time formats and advertised dialects are checked, with invalid inputs stopped before mutation. Full path/query, arbitrary directional composition and DTO coverage remain partial. Workspace category import/capture/immutable diff and additional Tool/MCP/Knowledge/publication DTO schemas are implemented; required new live gate is tracked in PR #177."
+    },
+    {
+      "id": "8.5",
+      "phase": 8,
+      "requirement": "Checkpoint e retomada por reconciliação.",
+      "status": "done",
+      "evidence": "Locked key/context-bound checkpoint resume, strict bounded reads/saves, exact returned numeric references, plan/result/dependency integrity and explicit-ID reconciliation are delivered. Original-write attribution/server idempotency and human principal binding remain partial."
+    },
+    {
+      "id": "8.6",
+      "phase": 8,
+      "requirement": "Relatório parcial/skipped e código de saída próprio.",
+      "status": "done",
+      "evidence": "Partial reports include checkpoint state/counts, stopped step, save status and cause. not_attempted steps are resumable; committed steps skipped and uncertain attempts require reconciliation. Fixture tests prove dependent validation cannot send a refused write."
+    },
+    {
+      "id": "8.7",
+      "phase": 8,
+      "requirement": "Importação de categorias sem concessão implícita.",
+      "status": "done",
+      "evidence": "AuthorityCategory resource import compiles explicit Workspace-scoped create/update definitions, requires ETag for edits, rejects grants/assignments/lifecycle fields and retains checkpoints. Offline/unit/native fixture regressions pass; required live import/resume/pinned-reader acceptance is added to PR #177 and its current CI evidence is tracked there. No implicit authority concession, name upsert or lost-checkpoint create replay is promised."
+    },
+    {
+      "id": "8.8",
+      "phase": 8,
+      "requirement": "Referências protegidas para credenciais.",
+      "status": "done",
+      "evidence": "Exact {$secret_ref:NAME} objects in Tool/provider credential configuration resolve from the selected POSIX private-file store only during apply. Preflight defers without reading values; compile preserves markers; checkpoint hashes bind values, changed/missing credentials refuse resume, outputs redact echoed values, and uncertain writes cannot replay or reconcile from redacted getters. Unit/native-plan fixtures pass and live provider import/resume is required in PR #177. Windows protected credential storage is delivered; native Linux desktop/macOS keychains remain optional future work; environment interpolation/remote secret providers are unsupported."
+    },
+    {
+      "id": "8.9",
+      "phase": 8,
+      "requirement": "Nenhuma publicação/prune implícitos.",
+      "status": "done",
+      "evidence": "Manifest validation rejects publication/execution/key issuance/delete; there is no implicit prune."
+    },
+    {
+      "id": "8.10",
+      "phase": 8,
+      "requirement": "Não usar export incompleto como PATCH destrutivo.",
+      "status": "done",
+      "evidence": "Projection documents are not accepted as manifests; capture selects explicit readable fields and tests preserve omissions/null."
+    },
+    {
+      "id": "9.1",
+      "phase": 9,
+      "requirement": "Build do executável Go `woobe` e versão semântica com revisão identificável.",
+      "status": "done",
+      "evidence": "Go build/version exposes source commit, compiler and OS/architecture; packaging injects release version and commit."
+    },
+    {
+      "id": "9.2",
+      "phase": 9,
+      "requirement": "Instalação limpa a partir de binários publicados e `go install` por tag.",
+      "status": "pending",
+      "evidence": "No published tag/release or fresh go install by tag validated."
+    },
+    {
+      "id": "9.3",
+      "phase": 9,
+      "requirement": "CI do CLI e suites integradas do backend.",
+      "status": "done",
+      "evidence": "Audit correction: this item requires CLI CI and integrated backend suites, not acceptance of every phase. CLI c7209fc7 passed all six jobs in run 37399056624, including native Linux/macOS/Windows smoke; backend 747ee0dd passed seven workflow groups, with required live CLI test suite run 37400698617 and Acceptance 37400698427. Backend pins an immutable client SHA and fails when required live CLI evidence is absent. Current expanded gates and exact SHA results remain in PR #177; no full phase acceptance is claimed."
+    },
+    {
+      "id": "9.4",
+      "phase": 9,
+      "requirement": "Documentação de cada comando, permissão, exemplo e capacidade mínima.",
+      "status": "partial",
+      "evidence": "Generated catalog/usage exist; all domain examples/effective permission/capability contracts are incomplete."
+    },
+    {
+      "id": "9.5",
+      "phase": 9,
+      "requirement": "Completion e smoke de help.",
+      "status": "done",
+      "evidence": "Cobra completion/help discovery and native build smoke pass."
+    },
+    {
+      "id": "9.6",
+      "phase": 9,
+      "requirement": "Matriz de compatibilidade cliente/servidor/protocolo.",
+      "status": "partial",
+      "evidence": "Woobe PR #177 at 77c53832f0e5b35488d1574b3cf62777486f5189: seven backend workflows passed; draft remains unmerged. Backend 77c53832 and CLI a9c6ace are proven compatible by required live tests; broader client/server version matrix remains."
+    },
+    {
+      "id": "9.7",
+      "phase": 9,
+      "requirement": "Binários por sistema/arquitetura declarados, checksums SHA-256 e manifesto dos artefatos.",
+      "status": "done",
+      "evidence": "Six OS/arch packages include schemas, SHA256 and artifact metadata; CI validates and stores archives and exercises packaged executables on three native runner OSes. Artifacts have finite retention and are development builds, not a tagged release."
+    },
+    {
+      "id": "9.8",
+      "phase": 9,
+      "requirement": "Guia de migração do CLI mínimo Python para o CLI Go.",
+      "status": "done",
+      "evidence": "docs/MIGRATION.md maps pinned Python prototype flags, credentials, installation, output, key lifecycle and explicit compatibility gaps to the Go client; no automatic protected-session/checkpoint migration or release is claimed."
+    },
+    {
+      "id": "9.9",
+      "phase": 9,
+      "requirement": "Changelog e notas de release com capabilities realmente entregues.",
+      "status": "partial",
+      "evidence": "PR/status notes exist; final release changelog/capability notes have not been published."
+    },
+    {
+      "id": "9.10",
+      "phase": 9,
+      "requirement": "Smoke em instalação Woobe com infraestrutura real e targets de teste.",
+      "status": "done",
+      "evidence": "Woobe PR #177 at 77c53832f0e5b35488d1574b3cf62777486f5189: seven backend workflows passed; draft remains unmerged. Required live CLI workflow runs API/workers/PostgreSQL/Redis/RabbitMQ/MongoDB with deterministic model provider. Agent/Network creation, publication, rollback and runtime tested; this is not an external-provider qualification."
+    }
+  ],
+  "backend_evidence": {
+    "repository": "A1b3rt0M3rcad0/woobe",
+    "pr": 177,
+    "commit": "747ee0ddcead7fda22ffc6aa7da5f277db0bee50",
+    "cli_commit": "c7209fc7c9026ff03c1d71fd8f9a6459556a212a",
+    "state": "draft, unmerged",
+    "workflow_count": 7
+  },
+  "client_evidence": {
+    "code_commit": "c7209fc7c9026ff03c1d71fd8f9a6459556a212a",
+    "ci_run": 37399056624,
+    "native_os": [
+      "linux",
+      "darwin",
+      "windows"
+    ],
+    "job_count": 6
+  },
+  "backend_continuation": {
+    "commit": "8ab9d13953c1cd77462af85a3a3a957395141edc",
+    "cli_commit": "659baea23458380b84bc7059d2a544c9c06fc1f5",
+    "catalog_revision": "2026-10-05.2",
+    "required_live_cli_run": 37386311731
+  },
+  "current_continuation": {
+    "previous_validated_backend": "747ee0ddcead7fda22ffc6aa7da5f277db0bee50",
+    "previous_validated_cli": "c7209fc7c9026ff03c1d71fd8f9a6459556a212a",
+    "local_backend_tests": 1340,
+    "required_live_contract": "tests/integration/cli/test_control_plane_workflow.py",
+    "current_head_ci_evidence": "https://github.com/A1b3rt0M3rcad0/woobe/pull/177",
+    "new_completed_items": [
+      "6.3",
+      "8.8"
+    ],
+    "audit_corrected_item": "9.3"
+  }
+}

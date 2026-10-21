@@ -197,4 +197,46 @@ describe('Agent runtime terminal response', () => {
       model: 'gpt-test',
     }))
   })
+
+  it('returns exact output Artifact receipts without downloading their bytes', async () => {
+    const output = {
+      schema_version: '1',
+      ref: { artifact_id: 'artifact-1', revision_id: 'revision-9' },
+      path: 'answers/diagram.png',
+      content_type: 'image/png',
+      size_bytes: 128,
+      sha256: 'a'.repeat(64),
+      status: 'available',
+      source_refs: [],
+    }
+    const done = `event: done\ndata: ${JSON.stringify(runtimeTestEnvelope('done', {
+      type: 'done', run_id: 'run-1', answer: 'Created an image.', output_artifacts: [output],
+    }, 'AGENT'))}\n\n`
+    const fetchMock = vi.fn().mockResolvedValue(streamResponse(done))
+    vi.stubGlobal('fetch', fetchMock)
+    const handlers = callbacks()
+
+    await askStreamV1({ project_id: 'project-1', agent_id: 'agent-1', message: 'draw' }, handlers)
+
+    expect(handlers.onDone).toHaveBeenCalledWith(expect.objectContaining({ output_artifacts: [output] }))
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('reconciles output Artifact receipts from a durable run.state snapshot', async () => {
+    const output = {
+      schema_version: '1', ref: { artifact_id: 'artifact-2', revision_id: 'revision-3' },
+      path: 'notes/result.md', content_type: 'text/markdown', size_bytes: 12,
+      sha256: 'b'.repeat(64), status: 'available', source_refs: [],
+    }
+    const state = `event: run.state\ndata: ${JSON.stringify(runtimeTestEnvelope('run.state', {
+      type: 'run.state', run_id: 'run-1', sequence: null, status: 'completed', output: 'Saved',
+      output_artifacts: [output], result: { answer: 'Saved' }, realtime_available: false,
+    }, 'AGENT'))}\n\n`
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(streamResponse(state)))
+    const handlers = callbacks()
+
+    await askStreamV1({ project_id: 'project-1', agent_id: 'agent-1', message: 'save' }, handlers)
+
+    expect(handlers.onDone).toHaveBeenCalledWith(expect.objectContaining({ output_artifacts: [output] }))
+  })
 })

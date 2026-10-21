@@ -99,3 +99,41 @@ describe('ChatSurface Skill resolver regression', () => {
     assert.ok(!message.textContent.includes('private/resource.md'))
   })
 })
+
+describe('ChatSurface Artifact UI', () => {
+  test('builds typed exact-revision references and hides output details without read access', () => {
+    const host = document.createElement('div'); document.body.append(host)
+    let submitted = null
+    const ui = createChatUi(host, DEFAULT_APPEARANCE, { onSubmit: (message, parts) => { submitted = { message, parts } } })
+    ui.setArtifactCapabilities(true, true)
+    ui.addArtifactReference({ artifact_id: 'artifact-1', revision_id: 'revision-7', path: 'report.pdf' })
+    const input = host.querySelector('#woobe-message')
+    input.value = 'Summarize this file'
+    host.querySelector('.chat__composer').dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }))
+    assert.deepEqual(submitted, {
+      message: '',
+      parts: [
+        { type: 'text', text: 'Summarize this file' },
+        { type: 'artifact', ref: { artifact_id: 'artifact-1', revision_id: 'revision-7' } },
+      ],
+    })
+    const message = ui.appendMessage('assistant', 'Ready')
+    const output = { ref: { artifact_id: 'artifact-2', revision_id: 'revision-8' }, path: 'generated.txt', size_bytes: 12 }
+    ui.setArtifactCapabilities(false, false)
+    ui.appendOutputArtifacts(message, [output])
+    assert.equal(message.querySelector('.message__artifact-outputs'), null)
+  })
+
+  test('shows generated Artifact download cards only when the session can read', () => {
+    const host = document.createElement('div'); document.body.append(host)
+    let downloaded = null
+    const ui = createChatUi(host, DEFAULT_APPEARANCE, { onDownloadArtifact: (ref) => { downloaded = ref } })
+    const message = ui.appendMessage('assistant', 'Created a file')
+    ui.setArtifactCapabilities(true, false)
+    ui.appendOutputArtifacts(message, [{ ref: { artifact_id: 'artifact-2', revision_id: 'revision-8' }, path: 'generated.txt', size_bytes: 12 }])
+    const button = message.querySelector('.message__artifact-download')
+    assert.equal(button.textContent, 'Download generated.txt (12 B)')
+    button.click()
+    assert.deepEqual(downloaded, { artifact_id: 'artifact-2', revision_id: 'revision-8', path: 'generated.txt' })
+  })
+})

@@ -132,3 +132,29 @@ describe('Community instance bootstrap', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('bounded binary API bodies', () => {
+  it('sends upload parts as raw bytes with authenticated CSRF and no JSON encoding', async () => {
+    vi.stubEnv('VITE_API_URL', 'http://api.test')
+    const part = new Blob([new Uint8Array([0, 1, 2, 255])], { type: 'application/octet-stream' })
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.endsWith('/identity/auth/csrf')) return apiResponse({ csrf: 'upload-csrf' })
+      if (url.includes('/v1/artifact-workspaces/workspace-1/uploads/upload-1/parts')) {
+        expect(init?.method).toBe('PUT')
+        expect(new Headers(init?.headers).get('X-CSRF-Token')).toBe('upload-csrf')
+        expect(new Headers(init?.headers).get('Content-Type')).not.toBe('application/json')
+        expect(init?.body).toBe(part)
+        return apiResponse({ offset: 4 })
+      }
+      throw new Error(`Unexpected request: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const { put } = await import('./client')
+
+    await expect(put('/v1/artifact-workspaces/workspace-1/uploads/upload-1/parts', part, {
+      params: { offset: 0 }, sensitive: true,
+    })).resolves.toEqual({ offset: 4 })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+})

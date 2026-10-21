@@ -65,6 +65,7 @@ class ProviderModel:
     metadata: dict[str, Any] = field(default_factory=dict)
     created_at: datetime | None = None
     updated_at: datetime | None = None
+    definition_revision: int = 1
 
 
 @dataclass
@@ -326,6 +327,7 @@ class Session:
     mode: RuntimeSessionMode = RuntimeSessionMode.CHAT
     data: dict | None = None
     external_context_snapshot: dict[str, Any] | None = None
+    artifact_workspace_binding: dict[str, Any] | None = None
     last_message_at: datetime | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None

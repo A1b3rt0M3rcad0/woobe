@@ -1,0 +1,23 @@
+{
+  "$id": "urn:woobe:artifacts:v1:artifact-reference",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "artifact_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$",
+      "title": "Artifact Id",
+      "type": "string"
+    },
+    "revision_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$",
+      "title": "Revision Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "artifact_id",
+    "revision_id"
+  ],
+  "title": "ArtifactReference",
+  "type": "object"
+}

@@ -24,6 +24,7 @@ def inspect_portable_network_definition(
                 "label": node.get("label", ""),
                 "capability_description": node.get("capability_description", ""),
                 "position": node.get("position", {}),
+                "artifact_actions": node.get("artifact_actions", []),
                 "binding": {
                     "source": node.get("binding", {}).get("source", "draft"),
                     "release_id": str(
@@ -79,6 +80,7 @@ def compile_imported_network_definition(spec, *, network_id, agents, snapshots):
                 "label": node.get("label", ""),
                 "capability_description": node.get("capability_description", ""),
                 "position": node.get("position", {}),
+                "artifact_actions": node.get("artifact_actions", []),
                 "binding": {
                     "source": source,
                     "release_id": snapshots[key][source] if source != "draft" else None,

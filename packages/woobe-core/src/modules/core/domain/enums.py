@@ -33,6 +33,7 @@ class RuntimeInterface(StrEnum):
     http = auto()
     stream = auto()
     jobs = auto()
+    artifacts = auto()
 
 
 class ApiKeyScope(StrEnum):
