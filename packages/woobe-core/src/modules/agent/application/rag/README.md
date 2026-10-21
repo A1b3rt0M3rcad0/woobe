@@ -65,6 +65,14 @@ Missing `knowledge_strategy` permanently resolves to `rag` for historical
 snapshots. Mutable Agent configuration canonicalizes the selection explicitly.
 Historical Release snapshots are not rewritten merely to add the field.
 
+The explicit `knowledge_strategy: "none"` selection disables automatic
+Knowledge retrieval. It skips preparing a vector binding, embeddings and RAG
+provider dependencies while leaving the stored KnowledgeVersion and Collections
+untouched. Artifact Tools remain independent and still require their own accepted
+Workspace binding and actions. Package 2.0 carries this explicit selection even
+when there is no Knowledge resource; Package 1.0 remains unchanged, and a legacy
+package that omits selection continues to resolve to `rag`.
+
 The current `rag` Knowledge Strategy continues to read `query_mode` and
 `history_turns` from `runtime_config.rag` for compatibility. That location is
 configuration for the built-in RAG-backed Knowledge Strategy; it is not an
