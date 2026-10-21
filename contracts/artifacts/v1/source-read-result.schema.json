@@ -166,6 +166,19 @@
           "default": null,
           "title": "Page Index"
         },
+        "page_label": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Page Label"
+        },
         "page_number": {
           "anyOf": [
             {
@@ -328,6 +341,19 @@
     "offset": {
       "title": "Offset",
       "type": "integer"
+    },
+    "page_label": {
+      "anyOf": [
+        {
+          "maxLength": 128,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Page Label"
     },
     "schema_version": {
       "const": "1",

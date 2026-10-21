@@ -1,17 +1,21 @@
 from dataclasses import asdict
+from datetime import UTC, datetime
+import hashlib
+import json
 import re
 from typing import Annotated
-from urllib.parse import quote
+from typing import Literal
+from urllib.parse import quote, urlencode
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Path, Query, Request
-from fastapi.responses import Response
+from fastapi.responses import Response, StreamingResponse
 
 from modules.artifacts.entrypoint import (
     ArtifactError, ArtifactPage, ArtifactView, BeginUpload, CapabilityDescriptor, ChangeWorkspace, ErrorEnvelope, CreateWorkspace, CreateWorkspaceGrant,
-    Environment, ListFiles, ListWorkspaces, MutateFile, ReadFile, ReadWorkspace,
+    Environment, ListFiles, ListRevisions, ListWorkspaces, MutateFile, ReadFile, ReadWorkspace,
     ResolveWorkspace, RevokeWorkspaceGrant, Scope, UploadCreate, UploadPart, UploadRequest,
-    WorkspaceCreate, WorkspacePage, WorkspaceUpdate, WorkspaceView, WriteText, RevisionView, UploadStatusView, build_file_service, build_upload_service,
+    WorkspaceCreate, WorkspacePage, WorkspaceUpdate, WorkspaceView, WriteText, RevisionView, RevisionHistoryPage, UploadStatusView, build_file_service, build_upload_service,
     create_workspace_composer, create_workspace_grant_composer, get_workspace_composer,
     list_workspaces_composer, resolve_workspace_composer, revoke_workspace_grant_composer,
     update_workspace_composer, ProfileCreate, ProfileDefault, ProfileView, ProfilePage, ProcessingSelection,
@@ -21,10 +25,13 @@ from modules.artifacts.entrypoint import (
     ProcessingRequest, ProcessingJobView, RequestProcessing, ReadProcessingJob,
     request_processing_composer, get_processing_job_composer, cancel_processing_job_composer,
     ReadRepresentation, ListRepresentations, ReadSource, SourceReadDefinition, SourceReadView,
+    ResolveSourceBatch, SourceResolveBatchDefinition, SourceResolveBatchView,
     RepresentationSetView, RepresentationEntryPage, CopyRepresentation, CopyRepresentationDefinition,
     build_representation_service,
     ReadIndex, ReadIndexNode, ListIndexNodes, DocumentIndexView, DocumentNodeView, DocumentNodePage,
-    get_document_index_composer, get_document_node_composer, list_document_nodes_composer,
+    ReadArtifactIndex, get_document_index_composer, get_latest_document_index_composer,
+    get_document_node_composer, list_document_nodes_composer,
+    ArtifactSearchPage, SearchDocuments, search_documents_composer, list_revisions_composer,
 )
 from shared.contracts.object_storage import ObjectStorageError
 from woobe_api.http.artifacts.contracts import FileCreate, FileMove, GrantCreate, Identifier, TextUpdate
@@ -42,6 +49,17 @@ def context(request: Request, project_id: UUID, environment: Environment):
 
 
 Context = Annotated[tuple, Depends(context)]
+
+
+@router.get('/artifact-workspaces/{artifact_workspace_id}/search', response_model=ArtifactSearchPage)
+async def search_documents(artifact_workspace_id: Identifier, ctx: Context,
+        query: str = Query(min_length=2, max_length=256),
+        mode: Literal['text', 'literal'] = Query(default='text'),
+        limit: int = Query(default=20, ge=1, le=50),
+        cursor: str | None = Query(default=None, max_length=4096)):
+    command = SearchDocuments(*ctx, artifact_workspace_id, query=query, mode=mode,
+        limit=limit, cursor=cursor)
+    return await search_documents_composer()(command)
 
 
 @router.post('/artifact-workspaces', status_code=201, response_model=WorkspaceView)
@@ -99,6 +117,163 @@ async def list_files(artifact_workspace_id: Identifier, ctx: Context,
             'has_more': page.has_more, 'next_cursor': page.next_cursor, 'truncated': page.truncated}
 
 
+@router.get('/artifact-workspaces/{artifact_workspace_id}/export-manifest')
+async def export_manifest(artifact_workspace_id: Identifier, ctx: Context):
+    """Stream an authorized NDJSON manifest; content stays on bounded download routes."""
+    principal, scope = ctx
+    workspace = await get_workspace_composer()(ReadWorkspace(principal, scope, artifact_workspace_id))
+    catalog_version = workspace.catalog_version
+    file_service = build_file_service()
+    representation_service = build_representation_service()
+    document_index = get_latest_document_index_composer()
+    query = urlencode({
+        'project_id': scope.project_id,
+        'environment': scope.environment.value,
+        'artifact_workspace_id': artifact_workspace_id,
+    })
+
+    async def records():
+        digest = hashlib.sha256()
+        record_count = 0
+
+        def line(value, *, include_in_digest=True):
+            nonlocal record_count
+            content = json.dumps(value, ensure_ascii=False, sort_keys=True,
+                separators=(',', ':'), allow_nan=False).encode('utf-8') + b'\n'
+            if include_in_digest:
+                digest.update(content)
+                record_count += 1
+            return content
+
+        yield line({
+            'record': 'workspace', 'schema_version': '1', 'format': 'woobe.artifact-export.ndjson.v1',
+            'workspace_id': workspace.id, 'project_id': scope.project_id,
+            'environment': scope.environment.value, 'catalog_version': catalog_version,
+            'created_at': datetime.now(UTC).isoformat(),
+            'content_transfer': 'Each content_url is fetched separately using the same authorized API.',
+        })
+        cursor = None
+        try:
+            while True:
+                page = await file_service.list(ListFiles(
+                    principal, scope, artifact_workspace_id, '', 200, cursor,
+                    catalog_version=catalog_version,
+                ))
+                for artifact in page.items:
+                    if artifact.kind == 'directory':
+                        yield line({
+                            'record': 'directory', 'artifact_id': artifact.id,
+                            'path': artifact.path, 'version': artifact.version,
+                        })
+                        continue
+                    if artifact.revision_id is None:
+                        continue
+                    snapshot = await file_service.resolve(ReadFile(
+                        principal, scope, artifact_workspace_id, artifact.id, artifact.revision_id,
+                        catalog_version=catalog_version,
+                    ))
+                    revision = snapshot.revision
+                    if revision is None:
+                        continue
+                    original_path = (
+                        f'/v1/artifacts/{quote(artifact.id, safe="")}/revisions/'
+                        f'{quote(revision.id, safe="")}/content?{query}'
+                    )
+                    yield line({
+                        'record': 'original', 'workspace_id': workspace.id,
+                        'artifact_id': artifact.id, 'artifact_version': artifact.version,
+                        'revision_id': revision.id, 'path': artifact.path,
+                        'size_bytes': revision.size_bytes, 'sha256': revision.sha256,
+                        'content_type': revision.content_type, 'origin': revision.origin,
+                        'content_url': original_path,
+                    })
+
+                    representation_request = ReadRepresentation(
+                        principal, scope, artifact_workspace_id, artifact.id, revision.id,
+                        catalog_version=catalog_version,
+                    )
+                    try:
+                        representation = await representation_service.resolve(representation_request)
+                    except ArtifactError as error:
+                        if error.code != 'REPRESENTATION_NOT_READY':
+                            raise
+                    else:
+                        generation = representation.generation
+                        yield line({
+                            'record': 'representation_set', 'artifact_id': artifact.id,
+                            'revision_id': revision.id, 'representation_set_id': generation.id,
+                            'source_sha256': generation.source_sha256,
+                            'recipe_fingerprint': generation.recipe_fingerprint,
+                            'processing_fingerprint': generation.processing_fingerprint,
+                            'manifest_sha256': generation.manifest_sha256,
+                            'generation_number': generation.generation_number,
+                            'coverage': generation.coverage, 'entry_count': generation.entry_count,
+                        })
+                        entry_cursor = None
+                        while True:
+                            entries = await representation_service.list_entries(ListRepresentations(
+                                principal, scope, artifact_workspace_id, artifact.id, revision.id,
+                                generation.id, limit=200, cursor=entry_cursor,
+                            ))
+                            for entry in entries.items:
+                                content_url = (
+                                    f'/v1/artifacts/{quote(artifact.id, safe="")}/revisions/'
+                                    f'{quote(revision.id, safe="")}/representations/'
+                                    f'{quote(generation.id, safe="")}/entries/{quote(entry.id, safe="")}'
+                                    f'/content?{query}'
+                                )
+                                yield line({
+                                    'record': 'representation_entry', 'artifact_id': artifact.id,
+                                    'revision_id': revision.id, 'representation_set_id': generation.id,
+                                    'entry_id': entry.id, 'path': entry.path, 'role': entry.kind,
+                                    'size_bytes': entry.size_bytes, 'sha256': entry.sha256,
+                                    'content_type': entry.content_type, 'content_url': content_url,
+                                })
+                            if not entries.has_more:
+                                break
+                            entry_cursor = entries.next_cursor
+
+                    try:
+                        index = await document_index(ReadArtifactIndex(
+                            principal, scope, artifact_workspace_id, artifact.id, revision.id,
+                        ))
+                    except ArtifactError as error:
+                        if error.code != 'SOURCE_UNAVAILABLE':
+                            raise
+                    else:
+                        index_url = (
+                            f'/v1/artifact-workspaces/{quote(artifact_workspace_id, safe="")}/artifacts/'
+                            f'{quote(artifact.id, safe="")}/revisions/{quote(revision.id, safe="")}/'
+                            f'document-index?{query}'
+                        )
+                        yield line({
+                            'record': 'document_index', 'artifact_id': artifact.id,
+                            'revision_id': revision.id, 'document_index_id': index.id,
+                            'engine': index.engine, 'engine_version': index.engine_version,
+                            'tree_kind': index.tree_kind, 'coverage': index.coverage,
+                            'manifest_sha256': index.manifest_sha256,
+                            'node_count': index.node_count, 'content_url': index_url,
+                        })
+                if not page.has_more:
+                    break
+                cursor = page.next_cursor
+        except ArtifactError as error:
+            # A missing end record means the export is incomplete. Preserve a
+            # bounded machine-readable reason without reflecting user data.
+            yield line({'record': 'error', 'code': error.code}, include_in_digest=False)
+            return
+        yield line({
+            'record': 'end', 'records': record_count,
+            'sha256': digest.hexdigest(),
+        }, include_in_digest=False)
+
+    return StreamingResponse(records(), media_type='application/x-ndjson', headers={
+        'Cache-Control': 'private, no-store',
+        'Content-Disposition': 'attachment; filename="woobe-artifact-export.jsonl"',
+        'X-Woobe-Catalog-Version': str(catalog_version),
+    })
+
+
 @router.post('/artifact-workspaces/{artifact_workspace_id}/artifacts', status_code=201, response_model=ArtifactView | UploadStatusView)
 async def create_file(artifact_workspace_id: Identifier, request: Request, body: FileCreate, ctx: Context):
     idempotency(request, body.operation_id)
@@ -113,6 +288,21 @@ async def create_file(artifact_workspace_id: Identifier, request: Request, body:
 @router.get('/artifact-workspaces/{artifact_workspace_id}/artifacts/{artifact_id}', response_model=ArtifactView)
 async def get_file(artifact_workspace_id: Identifier, artifact_id: Identifier, ctx: Context):
     return file_payload(await build_file_service().resolve(ReadFile(*ctx, artifact_workspace_id, artifact_id)))
+
+
+@router.get('/artifact-workspaces/{artifact_workspace_id}/artifacts/{artifact_id}/revisions', response_model=RevisionHistoryPage)
+async def list_revisions(artifact_workspace_id: Identifier, artifact_id: Identifier, ctx: Context,
+                         limit: int = Query(default=50, ge=1, le=200),
+                         cursor: str | None = Query(default=None, max_length=4096)):
+    page = await list_revisions_composer()(ListRevisions(*ctx, artifact_workspace_id, artifact_id, limit, cursor))
+    items = []
+    for entry in page.items:
+        values = asdict(entry.revision)
+        for private_field in ('object_key', 'storage_version_id', 'external_operation_ref', 'source_refs'):
+            values.pop(private_field, None)
+        items.append({'schema_version': '1', **values, 'created_at': entry.created_at})
+    return {'schema_version': '1', 'items': items, 'has_more': page.has_more,
+            'next_cursor': page.next_cursor, 'truncated': page.truncated}
 
 
 @router.patch('/artifact-workspaces/{artifact_workspace_id}/artifacts/{artifact_id}', response_model=ArtifactView)
@@ -332,6 +522,12 @@ async def read_source(body: SourceReadDefinition, artifact_workspace_id: Identif
     return await build_representation_service().read_source(ReadSource(*ctx, artifact_workspace_id, body))
 
 
+@router.post('/artifact-sources/resolve', response_model=SourceResolveBatchView)
+async def resolve_sources(body: SourceResolveBatchDefinition, artifact_workspace_id: Identifier, ctx: Context):
+    return await build_representation_service().resolve_sources(
+        ResolveSourceBatch(*ctx, artifact_workspace_id, body))
+
+
 @router.post('/artifacts/{artifact_id}/revisions/{revision_id}/representations/{representation_set_id}/entries/{entry_id}/copy', response_model=UploadStatusView)
 async def copy_representation(artifact_id: Identifier, revision_id: Identifier, representation_set_id: Identifier,
                               entry_id: Identifier, artifact_workspace_id: Identifier, request: Request,
@@ -389,17 +585,60 @@ async def download_representation(artifact_id: Identifier, revision_id: Identifi
         media_type=entry.content_type, headers=headers)
 
 
+@router.get('/artifacts/{artifact_id}/revisions/{revision_id}/representations/{representation_set_id}/pages/{page_index}/image',
+    response_class=Response, responses={200: {'content': {'image/png': {'schema': {'type': 'string', 'format': 'binary'}}}}})
+async def render_representation_page(artifact_id: Identifier, revision_id: Identifier, representation_set_id: Identifier,
+        artifact_workspace_id: Identifier, ctx: Context, page_index: int = Path(ge=0, le=9999),
+        dpi: int = Query(default=150, ge=72, le=300), max_pixels: int = Query(default=4_000_000, ge=1, le=4_000_000)):
+    service = build_representation_service()
+    command = ReadRepresentation(*ctx, artifact_workspace_id, artifact_id, revision_id, representation_set_id)
+    snapshot = await service.resolve(command)
+    if page_index >= snapshot.public_view.page_count:
+        raise ArtifactError('ARTIFACT_INVALID_RANGE', 'Physical page is out of range for this representation')
+    file_command = ReadFile(*ctx, artifact_workspace_id, artifact_id, revision_id)
+    file_snapshot, stream = await build_file_service().open_content(file_command)
+    if file_snapshot.revision is None or file_snapshot.revision.content_type.split(';', 1)[0].lower() != 'application/pdf':
+        await stream.aclose()
+        raise ArtifactError('PROCESSOR_UNAVAILABLE', 'Page images are available only for PDF revisions')
+    from modules.artifacts.application.contracts.processing import ProcessingRecipe
+    from modules.artifacts.infra.processing.native_pdf import NativePdfProcessor
+
+    recipe = ProcessingRecipe.model_validate({'mode': 'extract', 'processor': {'name': 'native-pdf', 'version': '1'},
+        'limits': {'max_bytes': 536_870_912, 'max_pages': snapshot.public_view.page_count}})
+    try:
+        content = await NativePdfProcessor().render(file_snapshot.revision, stream, recipe,
+            page_index=page_index, dpi=dpi, max_pixels=max_pixels)
+    except ObjectStorageError as error:
+        raise ArtifactError('ARTIFACT_STORAGE_UNAVAILABLE', 'PDF source is unavailable', retryable=True) from error
+    finally:
+        await stream.aclose()
+    digest = hashlib.sha256(content).hexdigest()
+    return Response(content, media_type='image/png', headers={
+        'Cache-Control': 'private, no-store', 'Content-Length': str(len(content)),
+        'ETag': f'"{digest}"', 'X-Content-Type-Options': 'nosniff',
+        'Content-Disposition': 'inline; filename="page.png"',
+        'X-Woobe-Source-Sha256': snapshot.public_view.source_sha256,
+        'X-Woobe-Page-Index': str(page_index), 'X-Woobe-Page-Number': str(page_index + 1),
+    })
+
+
 @router.get('/document-indexes/{document_index_id}', response_model=DocumentIndexView)
 async def get_document_index(document_index_id: Identifier, artifact_workspace_id: Identifier, ctx: Context):
     return await get_document_index_composer()(ReadIndex(*ctx, artifact_workspace_id, document_index_id))
 
 
+@router.get('/artifact-workspaces/{artifact_workspace_id}/artifacts/{artifact_id}/revisions/{revision_id}/document-index', response_model=DocumentIndexView)
+async def latest_document_index(artifact_workspace_id: Identifier, artifact_id: Identifier, revision_id: Identifier, ctx: Context):
+    return await get_latest_document_index_composer()(ReadArtifactIndex(*ctx, artifact_workspace_id, artifact_id, revision_id))
+
+
 @router.get('/document-indexes/{document_index_id}/nodes', response_model=DocumentNodePage)
 async def list_document_nodes(document_index_id: Identifier, artifact_workspace_id: Identifier, ctx: Context,
                                parent_id: Identifier | None = None, limit: int = Query(default=50, ge=1, le=200),
-                               cursor: str | None = Query(default=None, max_length=4096)):
+                               cursor: str | None = Query(default=None, max_length=4096),
+                               title_query: str | None = Query(default=None, min_length=2, max_length=120)):
     return await list_document_nodes_composer()(ListIndexNodes(*ctx, artifact_workspace_id,
-        document_index_id, parent_id, limit, cursor))
+        document_index_id, parent_id, limit, cursor, title_query))
 
 
 @router.get('/document-indexes/{document_index_id}/nodes/{node_id}', response_model=DocumentNodeView)

@@ -156,6 +156,8 @@ async def test_atomic_bundle_sources_readonly_download_editable_copy_and_scoped_
         await uow.session.execute(text('UPDATE artifacts.artifacts SET deleted=true WHERE id=:id'), {'id': ref['artifact_id']})
     assert (await client.get(root, params=params)).status_code == 404
     assert (await client.post('/v1/artifact-sources/read', params=params, json={'source': source})).status_code == 404
+    batch = await client.post('/v1/artifact-sources/resolve', params=params, json={'sources': [source]})
+    assert batch.status_code == 200 and batch.json()['items'][0]['status'] == 'unavailable'
 
 
 async def test_quota_failure_keeps_charged_outputs_invisible_and_never_reports_ready(http_client, engine, object_store, monkeypatch):
@@ -331,6 +333,8 @@ async def test_cancellation_after_sealing_prevents_ready_and_live_authority_is_r
         await uow.session.execute(text("UPDATE core.api_keys SET interfaces='[\"http\"]' WHERE id=:id"), {'id': http_client[3].api_key_id})
     assert (await client.get(base, params=params)).status_code == 403
     assert (await client.post('/v1/artifact-sources/read', params=params, json={'source': source})).status_code == 403
+    assert (await client.post('/v1/artifact-sources/resolve', params=params,
+        json={'sources': [source]})).status_code == 403
 
 
 @pytest.mark.parametrize('indexed', [False, True])

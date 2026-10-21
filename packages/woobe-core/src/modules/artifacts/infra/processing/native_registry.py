@@ -1,10 +1,11 @@
-from importlib.metadata import version
+from importlib.metadata import PackageNotFoundError, version
 import platform
 
 from modules.artifacts.application.contracts.processing import LibraryPin
 from modules.artifacts.application.processing_registry import ComponentDescriptor
 from modules.artifacts.infra.processing.docling_manifest import docling_readiness
 from modules.artifacts.infra.processing.ocr_manifest import ocr_readiness
+from modules.artifacts.infra.indexers.pageindex_adapter import PAGEINDEX_FLASH_SOURCE, PAGEINDEX_FLASH_VERSION
 
 
 MEDIA_TYPES = frozenset({'text/plain', 'text/markdown', 'text/x-markdown', 'application/json', 'text/json', 'text/csv', 'application/csv'})
@@ -65,3 +66,29 @@ def structural_index_descriptor():
     # First-party algorithm version, not an external Python distribution pin.
     return ComponentDescriptor('structural', '1', 'indexer', 'canonical', 'index', frozenset(),
         libraries=(LibraryPin(name='woobe-structural-index', version='1'),), available=True, diagnostic='')
+
+
+def pageindex_flash_descriptor():
+    distributions = ('PyPDF2', 'regex', 'sortedcontainers', 'pypdfium2')
+    installed = {}
+    for name in distributions:
+        try:
+            installed[name] = version(name)
+        except PackageNotFoundError:
+            installed[name] = 'missing'
+    ready = all(value != 'missing' for value in installed.values()) and platform.system() == 'Linux'
+    diagnostic = '' if ready else (
+        'isolated_worker_requires_linux' if platform.system() != 'Linux'
+        else 'pageindex_local_extra_not_installed')
+    libraries = (LibraryPin(name='pageindex-flash-source', version=PAGEINDEX_FLASH_SOURCE),
+                 *(LibraryPin(name=name, version=value) for name, value in installed.items()))
+    return ComponentDescriptor('pageindex-flash', PAGEINDEX_FLASH_VERSION, 'indexer', 'original', 'index',
+        frozenset({'application/pdf'}), libraries=libraries, max_bytes=52_428_800, max_pages=500,
+        timeout_seconds=120, available=ready, diagnostic=diagnostic)
+
+
+def governed_model_descriptor():
+    # Runtime availability is separate from each job's Environment-authorized
+    # model binding. This first-party pin versions payload/schema/budget policy.
+    return ComponentDescriptor('governed-model', '1', 'enricher', 'canonical', 'enrichment', frozenset(),
+        libraries=(LibraryPin(name='woobe-governed-document-model', version='1'),), available=True, diagnostic='')

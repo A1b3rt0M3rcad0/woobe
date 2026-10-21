@@ -39,6 +39,7 @@ class ProcessingParameters(Contract):
     max_line_chars: int = Field(default=65_536, ge=1, le=1_048_576)
     languages: tuple[Annotated[str, Field(pattern=r'^[A-Za-z]{2,3}(?:[-_][A-Za-z]{2,4})?$')], ...] = Field(default=(), max_length=8)
     ocr_dpi: int = Field(default=150, ge=72, le=300)
+    indexer_fallback: Literal['none', 'structural'] = 'none'
 
 
 class ProcessingModelReference(Contract):

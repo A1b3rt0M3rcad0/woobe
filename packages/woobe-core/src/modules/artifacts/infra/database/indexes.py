@@ -5,7 +5,7 @@ from uuid import NAMESPACE_URL, uuid5
 from sqlalchemy import delete, select
 
 from modules.artifacts.application.contracts.api import SourceReference
-from modules.artifacts.application.contracts.indexes import DocumentIndexView, DocumentNodeView
+from modules.artifacts.application.contracts.indexes import DocumentIndexView, DocumentNodeView, ReadIndex
 from modules.artifacts.application.document_codec import serialized_identity
 from modules.artifacts.application.services.structural_index import merge_ranges
 from modules.artifacts.domain.models import ArtifactError, ArtifactRef, DocumentIndex, DocumentNode
@@ -49,11 +49,14 @@ class DocumentIndexRepository:
             or (generation.status == 'building' and generation.job_id != job.id)):
             raise ArtifactError('ARTIFACT_ACCESS_DENIED', 'Document index source generation is unavailable')
         selected = lease.recipe.indexer
+        engines = [selected.name]
+        if lease.recipe.parameters.indexer_fallback == 'structural':
+            engines.append('structural')
         reusable = (await self._uow.session.execute(select(IndexRoot).where(
             IndexRoot.workspace_id == job.workspace_id, IndexRoot.representation_set_id == generation.id,
             IndexRoot.processing_fingerprint == job.processing_fingerprint,
-            IndexRoot.engine == selected.name, IndexRoot.engine_version == selected.version,
-            IndexRoot.status == 'ready').order_by(IndexRoot.id).limit(1))).scalar_one_or_none()
+            IndexRoot.engine.in_(engines), IndexRoot.status == 'ready').order_by(
+                IndexRoot.engine != selected.name, IndexRoot.id).limit(1))).scalar_one_or_none()
         if reusable is not None:
             return {**index_plan(reusable), 'reused': True, 'sealed': True}
         identity = index_identity(lease.id)
@@ -112,6 +115,15 @@ class DocumentIndexRepository:
     async def seal(self, request):
         row = await self._building(request)
         value = request.value
+        selected = request.lease.recipe.indexer
+        actual_engine = value.get('engine', row.engine)
+        actual_version = value.get('engine_version', row.engine_version)
+        selected_engine = (actual_engine, actual_version) == (selected.name, selected.version)
+        authorized_fallback = (actual_engine, actual_version) == ('structural', '1')
+        if not selected_engine and not (authorized_fallback
+                and request.lease.recipe.parameters.indexer_fallback == 'structural'):
+            raise ArtifactError('UPLOAD_INTEGRITY_MISMATCH', 'Document index engine differs from its explicit recipe')
+        row.engine, row.engine_version = actual_engine, actual_version
         generation = await self._uow.session.get(Generation, row.representation_set_id)
         members = (await self._uow.session.execute(select(Node).where(Node.document_index_id == row.id).order_by(Node.id))).scalars().all()
         metadata = [{column.name: getattr(member, column.name) for column in Node.__table__.columns
@@ -142,6 +154,9 @@ class DocumentIndexRepository:
                 if member.block_id is not None or (member.kind == 'page' and (
                     member.page_index is None or not 0 <= member.page_index < generation.page_count)):
                     raise ArtifactError('UPLOAD_INTEGRITY_MISMATCH', 'Structural container has invalid source identity')
+            elif row.engine == 'pageindex-flash' and member.kind == 'section' and member.block_id is None:
+                if member.page_index is None or not 0 <= member.page_index < generation.page_count or member.block_sha256 is not None:
+                    raise ArtifactError('UPLOAD_INTEGRITY_MISMATCH', 'PageIndex section container has invalid source identity')
             else:
                 block = source.get(member.block_id)
                 if block is None or block.sha256 != member.block_sha256 or block.source_locator.get('page_index') != member.page_index:
@@ -212,6 +227,21 @@ class DocumentIndexRepository:
     async def read(self, request):
         return index_view(await self._readable(request))
 
+    async def latest_for_revision(self, request):
+        await self._catalog.workspace_row(request.scope, request.workspace_id)
+        row = (await self._uow.session.execute(select(IndexRoot).where(
+            IndexRoot.project_id == request.scope.project_id,
+            IndexRoot.environment == request.scope.environment.value,
+            IndexRoot.workspace_id == request.workspace_id,
+            IndexRoot.artifact_id == request.artifact_id,
+            IndexRoot.revision_id == request.revision_id,
+            IndexRoot.status == 'ready',
+        ).order_by(IndexRoot.created_at.desc(), IndexRoot.id.desc()).limit(1))).scalar_one_or_none()
+        if row is None:
+            raise ArtifactError('SOURCE_UNAVAILABLE', 'No ready document index exists for this revision')
+        return index_view(await self._readable(ReadIndex(request.principal, request.scope,
+            request.workspace_id, row.id)))
+
     async def _node_view(self, index, node):
         source, has_text, inferred, extraction_method = None, False, False, None
         if node.block_id:
@@ -241,7 +271,12 @@ class DocumentIndexRepository:
             parent = await self._uow.session.get(Node, request.parent_id)
             if parent is None or parent.document_index_id != index.id:
                 raise ArtifactError('SOURCE_UNAVAILABLE', 'Exact index parent is unavailable')
-        statement = select(Node).where(Node.document_index_id == index.id, Node.parent_id == request.parent_id)
+        statement = select(Node).where(Node.document_index_id == index.id)
+        if not request.title_query:
+            statement = statement.where(Node.parent_id == request.parent_id)
+        if request.title_query:
+            pattern = '%' + request.title_query.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_') + '%'
+            statement = statement.where(Node.title.ilike(pattern, escape='\\'))
         if after is not None:
             statement = statement.where(Node.ordinal > after)
         nodes = (await self._uow.session.execute(statement.order_by(Node.ordinal).limit(request.limit + 1))).scalars().all()

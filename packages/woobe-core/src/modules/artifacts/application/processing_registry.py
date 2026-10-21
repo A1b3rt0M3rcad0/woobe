@@ -56,12 +56,16 @@ class ProcessingRegistry:
             if descriptor is None:
                 raise ArtifactError('PROCESSOR_UNAVAILABLE', 'Processing component/version is not registered')
             if ((role in {'processor', 'ocr'} and descriptor.input_kind != 'original')
-                or (role in {'indexer', 'enricher'} and descriptor.input_kind not in {'canonical', 'index'})):
+                or (role in {'indexer', 'enricher'} and descriptor.input_kind not in {'original', 'canonical', 'index'})):
                 raise ValueError('Processing component has an incompatible input contract')
             if (recipe.limits.max_bytes > descriptor.max_bytes
                 or recipe.limits.max_pages > descriptor.max_pages
                 or recipe.limits.timeout_seconds > descriptor.timeout_seconds):
-                raise ArtifactError('ARTIFACT_LIMIT_EXCEEDED', 'Recipe exceeds the selected component limits')
+                fallback_ready = (role == 'indexer' and recipe.parameters.indexer_fallback == 'structural'
+                    and self._components.get(('indexer', 'structural', '1')) is not None
+                    and self._components[('indexer', 'structural', '1')].available)
+                if not fallback_ready:
+                    raise ArtifactError('ARTIFACT_LIMIT_EXCEEDED', 'Recipe exceeds the selected component limits')
             for pin in descriptor.libraries:
                 if pin.name in libraries and libraries[pin.name] != pin:
                     raise ValueError('Processing components require incompatible library versions')
@@ -80,6 +84,7 @@ class ProcessingRegistry:
     def readiness(self, recipe: ProcessingRecipe, *, content_type: str | None = None, model_binding_ready=False):
         recipe = self.normalize(recipe)
         diagnostics = []
+        notes = []
         if recipe.model is not None and not model_binding_ready:
             diagnostics.append('model_binding_not_verified')
         if recipe.ocr is not None:
@@ -91,12 +96,25 @@ class ProcessingRegistry:
             if selected is None:
                 continue
             descriptor = self._components[(role, selected.name, selected.version)]
-            if not descriptor.available:
+            fallback_ready = (role == 'indexer' and recipe.parameters.indexer_fallback == 'structural'
+                and self._components.get(('indexer', 'structural', '1')) is not None
+                and self._components[('indexer', 'structural', '1')].available)
+            if not descriptor.available and not fallback_ready:
                 diagnostics.append(f'{role}:{selected.name}:{descriptor.diagnostic}')
+            elif not descriptor.available and fallback_ready:
+                notes.append(f'{role}:{selected.name}:{descriptor.diagnostic}:structural_fallback')
             if (content_type is not None and role in {'processor', 'ocr'}
                 and content_type.split(';', 1)[0].lower().strip() not in descriptor.media_types):
                 diagnostics.append(f'{role}:{selected.name}:unsupported_media_type')
-        return {'ready': not diagnostics, 'diagnostics': tuple(diagnostics), 'mode': recipe.mode}
+            if (content_type is not None and role == 'indexer' and descriptor.media_types
+                and content_type.split(';', 1)[0].lower().strip() not in descriptor.media_types
+                and recipe.parameters.indexer_fallback != 'structural'):
+                diagnostics.append(f'{role}:{selected.name}:unsupported_media_type')
+            elif (content_type is not None and role == 'indexer' and descriptor.media_types
+                and content_type.split(';', 1)[0].lower().strip() not in descriptor.media_types
+                and recipe.parameters.indexer_fallback == 'structural'):
+                notes.append(f'{role}:{selected.name}:unsupported_media_type:structural_fallback')
+        return {'ready': not diagnostics, 'diagnostics': tuple((*diagnostics, *notes)), 'mode': recipe.mode}
 
     def capabilities(self):
         return tuple({'name': item.name, 'version': item.version, 'role': item.role,
@@ -109,7 +127,7 @@ class ProcessingRegistry:
                      for item in sorted(self._components.values(), key=lambda value: (value.role, value.name, value.version)))
 
 
-def processing_fingerprint(*, sha256: str, size_bytes: int, content_type: str, recipe: ProcessingRecipe):
+def processing_fingerprint(*, sha256: str, size_bytes: int, content_type: str, recipe: ProcessingRecipe, model_binding_fingerprint: str | None = None):
     sha256_digest(sha256)
     if type(size_bytes) is not int or size_bytes < 0:
         raise ValueError('Processing identity requires a nonnegative source size')
@@ -117,4 +135,9 @@ def processing_fingerprint(*, sha256: str, size_bytes: int, content_type: str, r
                'content_type': content_type, 'recipe_fingerprint': recipe.fingerprint()}
     if recipe.mode != 'store_only':
         payload['representation_format_version'] = '1'
+    if recipe.model is not None:
+        if model_binding_fingerprint is None:
+            raise ValueError('Modeled processing requires its frozen scoped binding fingerprint')
+        sha256_digest(model_binding_fingerprint)
+        payload['model_binding_fingerprint'] = model_binding_fingerprint
     return hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(',', ':')).encode()).hexdigest()

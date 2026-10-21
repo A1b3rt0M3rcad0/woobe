@@ -1,3 +1,4 @@
+from modules.artifacts.composition.document_model_bindings import DocumentModelBindingRepository
 from modules.artifacts.application.authorization import ArtifactAuthorization
 from modules.artifacts.application.cursors import CursorCodec
 from modules.artifacts.application.use_cases.jobs import ProcessingJobUseCases
@@ -21,5 +22,6 @@ def request_processing_composer() -> TransactionalHandler:
     authority = ExistingPrincipalAuthority(uow)
     authorization = ArtifactAuthorization(authority, grants)
     profiles = ProfileUseCases(profile_store, authorization, PROCESSING_REGISTRY, CursorCodec(SETTINGS.secret_key.encode()))
-    use_case = ProcessingJobUseCases(jobs, catalog, profiles, authorization, PROCESSING_REGISTRY)
+    use_case = ProcessingJobUseCases(jobs, catalog, profiles, authorization, PROCESSING_REGISTRY,
+        model_bindings=DocumentModelBindingRepository(uow))
     return TransactionalHandler(uow, use_case.request)

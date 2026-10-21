@@ -1,8 +1,8 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import BigInteger, Boolean, CheckConstraint, DateTime, ForeignKeyConstraint, Index, Integer, String, UniqueConstraint, func
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import BigInteger, Boolean, CheckConstraint, Computed, DateTime, ForeignKeyConstraint, Index, Integer, String, Text, UniqueConstraint, func, text
+from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column
 
 from shared.infra.database.base import Base
@@ -61,6 +61,7 @@ class ArtifactRepresentationSetModel(ArtifactRepresentationRecord):
         CheckConstraint("status IN ('building','ready','deletion_pending','purged')", name='ck_artifact_representation_status'),
         CheckConstraint('generation_number >= 0 AND build_fencing_token >= 1 AND publication_fencing_token >= 0', name='ck_artifact_representation_bounds'),
         CheckConstraint('entry_count >= 0 AND block_count >= 0 AND segment_count >= 0 AND page_count >= 0', name='ck_artifact_representation_counts'),
+        CheckConstraint("status <> 'ready' OR published_search_version IS NOT NULL", name='ck_artifact_representation_search_version'),
         CheckConstraint("coverage IN ('complete','partial','needs_ocr','unsupported')", name='ck_artifact_representation_coverage'),
         CheckConstraint("source_sha256 ~ '^[0-9a-f]{64}$' AND recipe_fingerprint ~ '^[0-9a-f]{64}$' AND processing_fingerprint ~ '^[0-9a-f]{64}$'", name='ck_artifact_representation_digests'),
         CheckConstraint('(profile_id IS NULL) = (profile_revision IS NULL)', name='ck_artifact_representation_profile_pair'),
@@ -80,6 +81,7 @@ class ArtifactRepresentationSetModel(ArtifactRepresentationRecord):
     generation_number: Mapped[int] = mapped_column(BigInteger)
     build_fencing_token: Mapped[int] = mapped_column(BigInteger)
     publication_fencing_token: Mapped[int] = mapped_column(BigInteger, default=0)
+    published_search_version: Mapped[int | None] = mapped_column(BigInteger)
     source_sha256: Mapped[str] = mapped_column(String(64))
     recipe_fingerprint: Mapped[str] = mapped_column(String(64))
     processing_fingerprint: Mapped[str] = mapped_column(String(64))
@@ -163,6 +165,9 @@ class ArtifactSourceSegmentModel(ArtifactRepresentationRecord):
             ['artifacts.source_blocks.workspace_id', 'artifacts.source_blocks.representation_set_id', 'artifacts.source_blocks.block_id'], name='fk_artifact_source_segment_block'),
         CheckConstraint('char_start >= 0 AND char_end > char_start AND byte_start >= 0 AND byte_end > byte_start', name='ck_artifact_source_segment_bounds'),
         CheckConstraint("sha256 ~ '^[0-9a-f]{64}$'", name='ck_artifact_source_segment_digest'),
+        Index('ix_artifact_source_segment_search_vector', 'search_vector', postgresql_using='gin'),
+        Index('ix_artifact_source_segment_search_literal', 'search_normalized', postgresql_using='gin',
+              postgresql_ops={'search_normalized': 'gin_trgm_ops'}),
         {'schema': 'artifacts'},
     )
     workspace_id: Mapped[str] = mapped_column(String(128))
@@ -173,6 +178,10 @@ class ArtifactSourceSegmentModel(ArtifactRepresentationRecord):
     byte_start: Mapped[int] = mapped_column(BigInteger)
     byte_end: Mapped[int] = mapped_column(BigInteger)
     sha256: Mapped[str] = mapped_column(String(64))
+    search_text: Mapped[str] = mapped_column(Text, server_default=text("''"))
+    search_normalized: Mapped[str] = mapped_column(Text, server_default=text("''"))
+    search_vector: Mapped[object] = mapped_column(TSVECTOR,
+        Computed("to_tsvector('simple'::regconfig, search_normalized)", persisted=True))
 
 
 class ArtifactRepresentationHeadModel(Base):

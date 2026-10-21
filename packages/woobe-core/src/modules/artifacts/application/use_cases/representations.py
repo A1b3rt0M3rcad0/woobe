@@ -18,7 +18,20 @@ class RepresentationUseCases:
 
     async def source(self, request):
         await self._authorize(request)
+        self._validate_runtime_snapshot(request)
         return await self._store.source(request)
+
+    @staticmethod
+    def _validate_runtime_snapshot(request):
+        if request.run_id is None:
+            if request.catalog_version is not None:
+                raise ArtifactError('SOURCE_UNAVAILABLE', 'Catalog pin requires a Run identity')
+            return
+        opaque_id(request.run_id)
+        if type(request.catalog_version) is not int or request.catalog_version < 0:
+            raise ArtifactError('SOURCE_UNAVAILABLE', 'Run source reads require an accepted catalog snapshot')
+        for node_id in request.output_node_ids:
+            opaque_id(node_id)
 
     async def entries(self, request):
         await self._authorize(request)

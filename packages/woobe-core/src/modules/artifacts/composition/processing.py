@@ -1,3 +1,8 @@
+from modules.artifacts.composition.document_model_usage import model_usage_delivery
+from sqlalchemy.ext.asyncio import async_sessionmaker
+from modules.artifacts.composition.document_model_gateway import GovernedDocumentModelGateway
+from modules.artifacts.infra.database.document_model_calls import DocumentModelCallRepository
+from modules.artifacts.composition.document_model_bindings import DocumentModelBindingRepository
 from modules.artifacts.application.authorization import ArtifactAuthorization
 from modules.artifacts.application.cursors import CursorCodec
 from modules.artifacts.application.services.processing_runner import ProcessingRunner
@@ -6,6 +11,7 @@ from modules.artifacts.infra.processing.native_text import NativeTextProcessor
 from modules.artifacts.infra.processing.native_pdf import NativePdfProcessor
 from modules.artifacts.infra.processing.docling_native import DoclingNativeProcessor
 from modules.artifacts.infra.processing.native_document import NativeDocumentProcessor
+from modules.artifacts.infra.indexers.pageindex_runner import PageIndexRunner
 from shared.infra.object_storage.io import run_blocking
 from modules.artifacts.application.use_cases.jobs import ProcessingJobUseCases
 from modules.artifacts.application.use_cases.profiles import ProfileUseCases
@@ -34,7 +40,8 @@ def _worker_phase(engine, settings, method):
     authorization = ArtifactAuthorization(authority, grants)
     profiles = ProfileUseCases(profile_store, authorization, PROCESSING_REGISTRY,
                               CursorCodec(settings.secret_key.encode()))
-    use_case = ProcessingJobUseCases(jobs, catalog, profiles, authorization, PROCESSING_REGISTRY, RepresentationRepository(uow), DocumentIndexRepository(uow))
+    use_case = ProcessingJobUseCases(jobs, catalog, profiles, authorization, PROCESSING_REGISTRY, RepresentationRepository(uow), DocumentIndexRepository(uow),
+        model_bindings=DocumentModelBindingRepository(uow), model_calls=DocumentModelCallRepository(uow))
     return TransactionalHandler(uow, getattr(use_case, method))
 
 
@@ -43,10 +50,15 @@ def build_processing_runner(engine, settings):
         'reserve_output', 'record_output', 'prepare_bundle', 'metadata_bundle', 'seal_bundle',
         'prepare_index', 'metadata_index', 'seal_index')}
 
+    model_phases = {name: _worker_phase(engine, settings, name) for name in (
+        'admit_model', 'model_configuration', 'dispatch_model', 'observe_model')}
+    model_gateway = GovernedDocumentModelGateway(model_phases,
+        session_factory=async_sessionmaker(engine, expire_on_commit=False), encryption_key=settings.encryption_key)
+
     async def publication_phase(name, request):
         return await phases[name](request)
 
-    return ProcessingRunner(_worker_phase(engine, settings, 'deliver'), _worker_phase(engine, settings, 'claim'),
+    return ProcessingRunner(model_usage_delivery(engine, _worker_phase(engine, settings, 'deliver')), _worker_phase(engine, settings, 'claim'),
         _worker_phase(engine, settings, 'prepare'), _worker_phase(engine, settings, 'heartbeat'),
         _worker_phase(engine, settings, 'checkpoint'), _worker_phase(engine, settings, 'finish'), upload_storage,
         publication_phase=publication_phase,
@@ -57,7 +69,8 @@ def build_processing_runner(engine, settings):
                                        tesseract_executable=settings.artifact_tesseract_executable),
                                    ('docling-native', '2.140.0'): DoclingNativeProcessor(
                                        memory_bytes=settings.artifact_docling_memory_mib * 1_048_576,
-                                       threads=settings.artifact_docling_threads)}, run_blocking),
+                                       threads=settings.artifact_docling_threads)}, run_blocking, model_gateway=model_gateway,
+            indexers={(PageIndexRunner.name, PageIndexRunner.version): PageIndexRunner()}),
         lease_seconds=settings.artifact_processing_lease_seconds,
         project_limit=settings.artifact_processing_project_slots,
         workspace_limit=min(settings.artifact_processing_workspace_slots, settings.artifact_processing_project_slots))

@@ -1,15 +1,18 @@
 import hashlib
 
 from modules.artifacts.application.contracts.api import SourceReference
-from modules.artifacts.application.contracts.representations import SourceReadView
+from modules.artifacts.application.contracts.representations import (
+    SourceReadView, SourceResolveBatchItem, SourceResolveBatchView, SourceReadDefinition, ReadSource,
+)
 from modules.artifacts.domain.models import ArtifactError
 from shared.contracts.object_storage import ObjectStorageError
 
 
 class RepresentationService:
-    def __init__(self, read, entries, source, storage, uploads=None):
+    def __init__(self, read, entries, source, storage, uploads=None, record_source_use=None):
         self.resolve, self.list_entries, self._source, self._storage = read, entries, source, storage
         self._uploads = uploads
+        self._record_source_use = record_source_use
 
     @staticmethod
     def _storage_failure(error):
@@ -20,7 +23,11 @@ class RepresentationService:
 
     async def read_source(self, request):
         try:
-            return await self._read_source(request)
+            result = await self._read_source(request)
+            if request.run_id is not None and self._record_source_use is not None:
+                await self._record_source_use(request.scope, request.workspace_id, request.run_id,
+                    request.catalog_version, result.source)
+            return result
         except ObjectStorageError as error:
             raise self._storage_failure(error) from error
 
@@ -64,13 +71,40 @@ class RepresentationService:
             if proof['low'] != proof['start'] or proof['high'] != proof['end'] or hashlib.sha256(text.encode()).hexdigest() != checksum:
                 raise ArtifactError('SOURCE_UNAVAILABLE', 'Excerpt checksum does not identify this exact interval')
         source = proof['source']
-        source['locator'].update(char_space='canonical_block_text', char_start=proof['start'], char_end=proof['end'])
+        source['locator'].update(char_space='canonical_block_text', char_start=proof['start'], char_end=proof['end'],
+            page_label=proof['page_label'])
         # Source coordinates now describe the canonical block, preserving
         # physical page and original byte/line provenance separately.
         return SourceReadView(source=SourceReference.model_validate(source), text=text,
             offset=request.definition.offset,
             next_offset=proof['high'] - proof['start'] if proof['high'] < proof['end'] else None,
-            truncated=proof['high'] < proof['end'], coverage=proof['coverage'])
+            truncated=proof['high'] < proof['end'], coverage=proof['coverage'], page_label=proof['page_label'])
+
+    async def resolve_sources(self, request):
+        if request.run_id is not None:
+            from modules.artifacts.domain.models import opaque_id
+            opaque_id(request.run_id)
+            if type(request.catalog_version) is not int or request.catalog_version < 0:
+                raise ArtifactError('SOURCE_UNAVAILABLE', 'Run source reads require an accepted catalog snapshot')
+            for node_id in request.output_node_ids:
+                opaque_id(node_id)
+        elif request.catalog_version is not None:
+            raise ArtifactError('SOURCE_UNAVAILABLE', 'Catalog pin requires a Run identity')
+        items = []
+        for index, source in enumerate(request.definition.sources):
+            definition = SourceReadDefinition(source=source, max_chars=request.definition.max_chars)
+            try:
+                preview = await self.read_source(ReadSource(request.principal, request.scope,
+                    request.workspace_id, definition, request.run_id,
+                    request.catalog_version, request.output_node_ids))
+            except ArtifactError as error:
+                if error.code != 'SOURCE_UNAVAILABLE':
+                    raise
+                items.append(SourceResolveBatchItem(index=index, status='unavailable', source=source))
+            else:
+                items.append(SourceResolveBatchItem(index=index, status='resolved',
+                    source=preview.source, preview=preview))
+        return SourceResolveBatchView(items=tuple(items))
 
     async def open_content(self, request, *, start=0, end=None):
         snapshot = await self.resolve(request)

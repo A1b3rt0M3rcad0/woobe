@@ -17,6 +17,7 @@
       "enum": [
         "workspaces",
         "artifacts",
+        "revisions",
         "search",
         "nodes",
         "profiles",
@@ -36,6 +37,32 @@
       "pattern": "^[0-9a-f]{64}$",
       "title": "Scope Fingerprint",
       "type": "string"
+    },
+    "score_rank": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Score Rank"
+    },
+    "search_version": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Search Version"
     }
   },
   "required": [

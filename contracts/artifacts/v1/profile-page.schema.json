@@ -149,6 +149,15 @@
           "title": "Encoding",
           "type": "string"
         },
+        "indexer_fallback": {
+          "default": "none",
+          "enum": [
+            "none",
+            "structural"
+          ],
+          "title": "Indexer Fallback",
+          "type": "string"
+        },
         "json_max_depth": {
           "default": 64,
           "maximum": 128,

@@ -23,6 +23,12 @@ class ReadIndex(FileRequest):
 
 
 @dataclass(frozen=True)
+class ReadArtifactIndex(FileRequest):
+    artifact_id: str
+    revision_id: str
+
+
+@dataclass(frozen=True)
 class ReadIndexNode(ReadIndex):
     node_id: str
 
@@ -32,6 +38,7 @@ class ListIndexNodes(ReadIndex):
     parent_id: str | None = None
     limit: int = 50
     cursor: str | None = None
+    title_query: str | None = None
 
 
 class DocumentIndexView(Contract):

@@ -8,7 +8,7 @@ from modules.artifacts.application.services.structural_index import build_struct
 from modules.artifacts.domain.models import ArtifactError
 
 
-async def build_index(context, blocking_io):
+async def build_index(context, blocking_io, indexers=None):
     bundle = context.checkpoints['build_bundle']
     prepared = await context.publication_phase('prepare_index', IndexPhase(context.lease, bundle['representation_set_id']))
     if prepared.get('sealed') or prepared.get('reused'):
@@ -20,7 +20,33 @@ async def build_index(context, blocking_io):
         document = decode_canonical(await verified_read(context, prepared['canonical'], maximum))
     if (document.revision.artifact_id, document.revision.revision_id) != (context.source.artifact_id, context.source.id):
         raise ArtifactError('UPLOAD_INTEGRITY_MISMATCH', 'Structural index canonical revision differs')
-    tree = await blocking_io(build_structural_index, document, index_id, bundle['representation_set_id'])
+    selected = context.lease.recipe.indexer
+    fallback = context.lease.recipe.parameters.indexer_fallback == 'structural'
+    if selected is None:
+        raise ArtifactError('PROCESSOR_UNAVAILABLE', 'Indexed processing requires an indexer')
+    if (selected.name, selected.version) == ('structural', '1'):
+        tree = await blocking_io(build_structural_index, document, index_id, bundle['representation_set_id'])
+    else:
+        indexer = (indexers or {}).get((selected.name, selected.version))
+        try:
+            if indexer is None:
+                raise ArtifactError('PROCESSOR_UNAVAILABLE', 'Selected document indexer is unavailable')
+            await context.reauthorize()
+            content = context.storage.open(context.source.object_key)
+            try:
+                tree = await indexer.index(document, index_id=index_id,
+                    representation_set_id=bundle['representation_set_id'], profile=context.lease.recipe,
+                    revision=context.source, content=content, model=None)
+            finally:
+                close = getattr(content, 'aclose', None)
+                if close is not None:
+                    await close()
+        except ArtifactError as error:
+            fallback_errors = {'PROCESSOR_UNAVAILABLE', 'ARTIFACT_LIMIT_EXCEEDED',
+                'PDF_INVALID_DOCUMENT', 'PDF_PASSWORD_REQUIRED'}
+            if not fallback or error.code.value not in fallback_errors:
+                raise
+            tree = await blocking_io(build_structural_index, document, index_id, bundle['representation_set_id'])
     counts = Counter(node.parent_id for node in tree.nodes if node.parent_id is not None)
     nodes = [{'id': node.id, 'workspace_id': context.lease.workspace_id,
         'representation_set_id': tree.representation_set_id, 'document_index_id': tree.id,
@@ -69,4 +95,5 @@ async def build_index(context, blocking_io):
     return await context.publication_phase('seal_index', IndexPhase(lease, tree.representation_set_id, tree.id,
         {'manifest_object_id': object_identity(lease.workspace_id, key), 'manifest_sha256': digest,
          'metadata_fingerprint': metadata_digest, 'node_count': len(nodes),
-         'max_depth': max(node.depth for node in tree.nodes), 'tree_kind': tree.tree_kind}))
+         'max_depth': max(node.depth for node in tree.nodes), 'tree_kind': tree.tree_kind,
+         'engine': tree.engine, 'engine_version': tree.engine_version}))

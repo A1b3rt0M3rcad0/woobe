@@ -2,6 +2,7 @@
 from collections import deque
 from dataclasses import asdict
 import hashlib
+import unicodedata
 import json
 from uuid import NAMESPACE_URL, uuid5
 
@@ -102,6 +103,12 @@ async def build_bundle(context):
         return receipt
 
     entry('structure.json', 'structure', extracted)
+    if context.lease.recipe.enricher is not None:
+        summary = context.checkpoints.get('model_enrich')
+        if summary is None or summary.get('binding_fingerprint') != context.lease.model_binding['fingerprint']:
+            raise ArtifactError('MODEL_OUTPUT_INVALID', 'Coherent inferred model summary is unavailable')
+        await verified_read(context, summary, 262144)
+        entry('summary.json', 'summary', summary)
     assets = {}
     if extracted.get('asset_manifest'):
         receipt = extracted['asset_manifest']
@@ -146,6 +153,7 @@ async def build_bundle(context):
         group, group_size, group_number, group_rows = [], 0, group_number + 1, []
 
     source_map, outline = [], []
+    page_labels = {page.page_index: page.label for page in document.pages}
     markdown = []
     for ordinal, block in enumerate(document.blocks):
         encoded = block.text.encode('utf-8')
@@ -155,6 +163,8 @@ async def build_bundle(context):
         group.append(encoded)
         group_size += len(encoded)
         locator = asdict(block.locator)
+        if locator['page_index'] in page_labels:
+            locator['page_label'] = page_labels[locator['page_index']]
         row = {'id': identity(generation, 'block', block.id), 'workspace_id': workspace,
                'representation_set_id': generation, 'block_id': block.id, 'ordinal': ordinal,
                'kind': block.kind, 'parent_block_id': block.parent_id, 'source_locator': locator,
@@ -166,12 +176,14 @@ async def build_bundle(context):
         group_rows.append(row)
         byte_offset = start
         for offset in range(0, len(block.text), 4096):
-            segment = block.text[offset:offset + 4096].encode('utf-8')
+            search_text = block.text[offset:offset + 4096]
+            segment = search_text.encode('utf-8')
             segments.append({'id': identity(generation, 'segment', f'{block.id}:{offset}'),
                 'workspace_id': workspace, 'representation_set_id': generation, 'block_id': block.id,
                 'char_start': offset, 'char_end': min(len(block.text), offset + 4096),
                 'byte_start': byte_offset, 'byte_end': byte_offset + len(segment),
-                'sha256': hashlib.sha256(segment).hexdigest()})
+                'sha256': hashlib.sha256(segment).hexdigest(), 'search_text': search_text,
+                'search_normalized': unicodedata.normalize('NFKC', search_text)})
             byte_offset += len(segment)
         ref = {'artifact_id': context.source.artifact_id, 'revision_id': context.source.id,
             'source_sha256': context.source.sha256, 'representation_set_id': generation,

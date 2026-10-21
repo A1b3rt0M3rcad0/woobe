@@ -109,7 +109,9 @@ class ProcessingRunner:
         except TimeoutError:
             await self._finish(WorkerPhase(lease, status='failed', error_code='PROCESSING_TIMEOUT', retryable=True))
         except ArtifactError as error:
-            await self._finish(WorkerPhase(lease, status='failed', error_code=str(error.code), retryable=error.retryable))
+            await self._finish(WorkerPhase(lease,
+                status='uncertain' if error.code == 'EXTERNAL_OPERATION_UNCERTAIN' else 'failed',
+                error_code=str(error.code), retryable=error.retryable))
         except ObjectStorageError as error:
             await self._finish(WorkerPhase(lease, status='failed',
                 error_code='UPLOAD_INTEGRITY_MISMATCH' if error.code == 'integrity' else 'ARTIFACT_STORAGE_UNAVAILABLE',

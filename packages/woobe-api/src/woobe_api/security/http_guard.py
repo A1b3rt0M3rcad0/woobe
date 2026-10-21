@@ -47,10 +47,10 @@ _CSRF_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
 def is_artifacts_runtime_path(path: str) -> bool:
     return re.fullmatch(
-        r'/v1/(?:artifact-workspaces(?:/[A-Za-z0-9_-]+(?:/(?:artifacts(?:/[A-Za-z0-9_-]+(?:/content)?)?|uploads(?:/[A-Za-z0-9_-]+(?:/(?:parts|finalize))?)?|search|processing-profile))?)?'
-        r'|artifacts/[A-Za-z0-9_-]+/(?:revisions/[A-Za-z0-9_-]+(?:/content|/representations(?:/[A-Za-z0-9_-]+(?:/entries(?:/[A-Za-z0-9_-]+/(?:content|copy))?)?)?)?|processing(?:/[A-Za-z0-9_-]+(?:/cancel)?)?|representations(?:/[A-Za-z0-9_-]+)?)'
+        r'/v1/(?:artifact-workspaces(?:/[A-Za-z0-9_-]+(?:/(?:artifacts(?:/[A-Za-z0-9_-]+(?:/(?:content|revisions(?:/[A-Za-z0-9_-]+/document-index)?))?)?|uploads(?:/[A-Za-z0-9_-]+(?:/(?:parts|finalize))?)?|search|processing-profile))?)?'
+        r'|artifacts/[A-Za-z0-9_-]+/(?:revisions/[A-Za-z0-9_-]+(?:/content|/representations(?:/[A-Za-z0-9_-]+(?:/entries(?:/[A-Za-z0-9_-]+/(?:content|copy))?|/pages/[0-9]+/image)?)?)?|processing(?:/[A-Za-z0-9_-]+(?:/cancel)?)?|representations(?:/[A-Za-z0-9_-]+)?)'
         r'|document-indexes/[A-Za-z0-9_-]+(?:/nodes(?:/[A-Za-z0-9_-]+(?:/content)?)?)?'
-        r'|source-references/resolve|artifact-sources/read|artifact-capabilities|artifact-processing-capabilities'
+        r'|source-references/resolve|artifact-sources/(?:read|resolve)|artifact-capabilities|artifact-processing-capabilities'
         r'|artifact-processing-profiles(?:/[A-Za-z0-9_-]+/revisions/[0-9]+)?)', path,
     ) is not None
 

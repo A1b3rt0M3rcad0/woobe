@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Literal
 
@@ -52,6 +52,9 @@ class ReadRepresentation(FileRequest):
     revision_id: str | None = None
     representation_set_id: str | None = None
     entry_id: str | None = None
+    run_id: str | None = field(default=None, kw_only=True)
+    catalog_version: int | None = field(default=None, kw_only=True)
+    output_node_ids: frozenset[str] = field(default_factory=frozenset, kw_only=True)
 
 
 @dataclass(frozen=True)
@@ -129,6 +132,23 @@ class SourceReadDefinition(Contract):
 @dataclass(frozen=True)
 class ReadSource(FileRequest):
     definition: SourceReadDefinition
+    # Runtime-only provenance fields; public source-read payloads omit them.
+    run_id: str | None = None
+    catalog_version: int | None = None
+    output_node_ids: frozenset[str] = frozenset()
+
+
+class SourceResolveBatchDefinition(Contract):
+    sources: tuple[SourceReference, ...] = Field(min_length=1, max_length=50)
+    max_chars: int = Field(default=512, ge=1, le=8192)
+
+
+@dataclass(frozen=True)
+class ResolveSourceBatch(FileRequest):
+    definition: SourceResolveBatchDefinition
+    run_id: str | None = None
+    catalog_version: int | None = None
+    output_node_ids: frozenset[str] = frozenset()
 
 
 class SourceReadView(Contract):
@@ -139,6 +159,19 @@ class SourceReadView(Contract):
     next_offset: int | None
     truncated: bool
     coverage: Literal['complete', 'partial', 'needs_ocr', 'unsupported']
+    page_label: str | None = Field(default=None, max_length=128)
+
+
+class SourceResolveBatchItem(Contract):
+    index: int = Field(ge=0, le=49)
+    status: Literal['resolved', 'unavailable']
+    source: SourceReference
+    preview: SourceReadView | None = None
+
+
+class SourceResolveBatchView(Contract):
+    schema_version: Literal['1'] = '1'
+    items: tuple[SourceResolveBatchItem, ...] = Field(max_length=50)
 
 
 class CopyRepresentationDefinition(Contract):

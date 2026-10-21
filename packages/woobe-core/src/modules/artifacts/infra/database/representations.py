@@ -10,6 +10,7 @@ from modules.artifacts.application.document_codec import serialized_identity
 from modules.artifacts.infra.database.catalog import CatalogRepository
 from modules.artifacts.infra.database.index_models import ArtifactDocumentIndexModel, ArtifactDocumentNodeModel
 from modules.artifacts.infra.database.models import ArtifactEventModel, ProcessingJobModel
+from modules.artifacts.infra.database.models import HeadHistoryModel
 from modules.artifacts.infra.database.representation_models import (
     ArtifactRepresentationEntryModel as Entry,
     ArtifactRepresentationHeadModel as Head,
@@ -183,7 +184,7 @@ class RepresentationRepository:
             members = (await self._uow.session.execute(select(model).where(
                 model.representation_set_id == row.id).order_by(model.id))).scalars().all()
             metadata[kind] = [{column.name: getattr(member, column.name) for column in model.__table__.columns
-                              if column.name != 'created_at'} for member in members]
+                              if column.name not in {'created_at', 'search_vector'}} for member in members]
         _, digest = serialized_identity(metadata, 2_147_483_648)
         if digest != value['metadata_fingerprint']:
             raise ArtifactError('UPLOAD_INTEGRITY_MISMATCH', 'Representation metadata fingerprint differs')
@@ -228,6 +229,7 @@ class RepresentationRepository:
             'diagnostics': row.diagnostics[:32], 'reused': False}
 
     async def commit_ready(self, lease, publication, result):
+        workspace = await self._catalog.workspace_row(lease.scope, lease.workspace_id, lock=True)
         row = await self._uow.session.get(Generation, publication['representation_set_id'], with_for_update=True)
         job = await self._job(lease)
         if row is None or (row.workspace_id, row.artifact_id, row.revision_id, row.processing_fingerprint) != (
@@ -244,7 +246,9 @@ class RepresentationRepository:
         if row.status == 'building':
             if row.job_id != lease.id:
                 raise ArtifactError('ARTIFACT_ACCESS_DENIED', 'Unpublished representation belongs to another job')
+            workspace.search_version += 1
             row.status, row.publication_fencing_token = 'ready', lease.fencing_token
+            row.published_search_version = workspace.search_version
             await self._uow.session.flush()
             object_ids = select(Entry.object_id).where(Entry.representation_set_id == row.id)
             objects = (await self._uow.session.execute(select(StoredObject).where(
@@ -272,9 +276,13 @@ class RepresentationRepository:
 
     async def resolve(self, request):
         workspace = await self._catalog.workspace_row(request.scope, request.workspace_id)
-        artifact = await self._catalog.artifact_row(request.scope, request.workspace_id, request.artifact_id)
+        artifact = await self._catalog.artifact_row(request.scope, request.workspace_id,
+            request.artifact_id,
+            include_deleted=request.revision_id is not None and request.catalog_version is not None)
         revision_id = request.revision_id or artifact.revision_id
-        source = await self._catalog.revision(request.scope, request.workspace_id, ArtifactRef(artifact.id, revision_id))
+        source = await self._catalog.revision(request.scope, request.workspace_id,
+            ArtifactRef(artifact.id, revision_id),
+            include_deleted=request.revision_id is not None and request.catalog_version is not None)
         generation_id = request.representation_set_id
         if generation_id is None:
             head = await self._uow.session.get(Head, (workspace.id, source.id))
@@ -319,10 +327,33 @@ class RepresentationRepository:
         from modules.artifacts.application.contracts.representations import ReadRepresentation
         ref = request.definition.source
         lookup = ReadRepresentation(request.principal, request.scope, request.workspace_id,
-            ref.artifact_id, ref.revision_id, ref.representation_set_id)
+            ref.artifact_id, ref.revision_id, ref.representation_set_id,
+            run_id=request.run_id, catalog_version=request.catalog_version,
+            output_node_ids=request.output_node_ids)
         workspace, source, generation = await self.resolve(lookup)
         if ref.representation_set_id is None or source.sha256 != ref.source_sha256:
             raise ArtifactError('SOURCE_UNAVAILABLE', 'Source reference requires its exact published generation')
+        if request.run_id is not None:
+            if request.catalog_version is None or request.catalog_version > workspace.catalog_version:
+                raise ArtifactError('SOURCE_UNAVAILABLE', 'Run source catalog snapshot is unavailable')
+            from modules.artifacts.infra.database.models import RevisionModel
+            revision_row = (await self._uow.session.execute(select(RevisionModel).where(
+                RevisionModel.workspace_id == workspace.id,
+                RevisionModel.artifact_id == ref.artifact_id,
+                RevisionModel.id == ref.revision_id))).scalar_one_or_none()
+            is_output_overlay = bool(revision_row and revision_row.run_id == request.run_id
+                and (revision_row.node_id is None or revision_row.node_id in request.output_node_ids))
+            visible_at_acceptance = (await self._uow.session.execute(select(HeadHistoryModel.id).where(
+                HeadHistoryModel.workspace_id == workspace.id,
+                HeadHistoryModel.artifact_id == ref.artifact_id,
+                HeadHistoryModel.revision_id == ref.revision_id,
+                HeadHistoryModel.from_catalog_version <= request.catalog_version,
+                (HeadHistoryModel.until_catalog_version.is_(None)
+                    | (HeadHistoryModel.until_catalog_version > request.catalog_version)),
+                HeadHistoryModel.deleted.is_(False),
+            ).limit(1))).scalar_one_or_none() is not None
+            if not visible_at_acceptance and not is_output_overlay:
+                raise ArtifactError('SOURCE_UNAVAILABLE', 'Source revision was not visible to this Run')
         locator = ref.locator
         if locator is None or locator.block_id is None:
             raise ArtifactError('SOURCE_UNAVAILABLE', 'Source reference requires an exact block')
@@ -342,6 +373,12 @@ class RepresentationRepository:
                     raise ArtifactError('SOURCE_UNAVAILABLE', 'Source block is outside its exact index node')
         supplied = locator.model_dump(mode='json')
         original = block.source_locator
+        page_label = None
+        if locator.page_index is not None:
+            page_label = (generation.pages[locator.page_index].get('label')
+                if locator.page_index < len(generation.pages) else None)
+            if locator.page_label is not None and locator.page_label != page_label:
+                raise ArtifactError('SOURCE_UNAVAILABLE', 'Source page label does not match its exact generation')
         canonical = supplied['char_space'] == 'canonical_block_text'
         for name in ('page_index', 'page_number', 'bbox', 'image_bbox', 'line_start', 'line_end', 'byte_start', 'byte_end',
                      'source_encoding', 'text_normalization'):
@@ -374,4 +411,4 @@ class RepresentationRepository:
             'block_sha256': block.sha256, 'block_char_length': block.char_length, 'block_id': block.block_id,
             'segments': [{name: getattr(segment, name) for name in ('char_start', 'char_end', 'byte_start', 'byte_end', 'sha256')} for segment in segments],
             'low': low, 'high': high, 'start': start, 'end': end, 'coverage': generation.coverage,
-            'source': ref.model_dump(mode='json')}
+            'page_label': page_label, 'source': ref.model_dump(mode='json')}

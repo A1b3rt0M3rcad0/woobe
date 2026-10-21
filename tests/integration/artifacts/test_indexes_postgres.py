@@ -17,11 +17,11 @@ from tests.integration.artifacts.test_uploads_postgres import object_store as ob
 from woobe_workers.settings import WorkerSettings
 
 
-async def prepared_index(http_client, engine, store, monkeypatch, *, content=None, media='text/markdown', processor='native-text'):
+async def prepared_index(http_client, engine, store, monkeypatch, *, content=None, media='text/markdown', processor='native-text', indexer=None):
     client, wid, ref, original, path, body, job, params = await prepared(http_client, engine, store, monkeypatch)
     cancelled = await client.post(path + '/' + job['id'] + '/cancel', params=params)
     assert cancelled.status_code == 202
-    for name in ('get_document_index', 'get_document_node', 'list_document_nodes'):
+    for name in ('get_document_index', 'get_latest_document_index', 'get_document_node', 'list_document_nodes'):
         module = importlib.import_module('modules.artifacts.composition.composers.' + name)
         monkeypatch.setattr(module, 'DATABASE_ENGINE', engine)
     text = content or '# 章一 😀\n\nIntrodução com ação.\n\n### Repetido\n\nTexto A.\n\n### Repetido\n\nTexto B.\n\n## Outra seção\n\nConclusão.\n'
@@ -38,7 +38,7 @@ async def prepared_index(http_client, engine, store, monkeypatch, *, content=Non
     assert published.status_code == 200, published.text
     ref = published.json()['receipt']
     recipe = {'mode': 'extract_index', 'processor': {'name': processor, 'version': '1'},
-              'indexer': {'name': 'structural', 'version': '1'}}
+              'indexer': indexer or {'name': 'structural', 'version': '1'}}
     profile = await create_profile(client, http_client[4], recipe=recipe)
     assert profile.status_code == 201 and profile.json()['ready'], profile.text
     path = '/v1/artifacts/' + ref['artifact_id'] + '/processing'
@@ -73,6 +73,8 @@ async def test_real_structural_worker_tree_signed_pages_exact_sources_reprocess_
     response = await client.get(base, params=params)
     assert response.status_code == 200, response.text
     index = response.json()
+    latest = await client.get(f"/v1/artifact-workspaces/{wid}/artifacts/{ref['artifact_id']}/revisions/{ref['revision_id']}/document-index", params=params)
+    assert latest.status_code == 200 and latest.json()['id'] == index['id'], latest.text
     assert index['engine'] == 'structural' and index['tree_kind'] == 'headings' and index['read_only']
     assert index['source_sha256'] == hashlib.sha256(original.encode()).hexdigest()
     assert 'object_key' not in response.text and 'fencing_token' not in response.text
@@ -83,6 +85,8 @@ async def test_real_structural_worker_tree_signed_pages_exact_sources_reprocess_
     assert (await client.get(base + '/nodes/' + root['id'] + '/content', params=params)).status_code == 404
     chapters = await page_children(client, base, params, root['id'])
     assert len(chapters) == 1 and chapters[0]['title'] == '章一 😀'
+    title_matches = await client.get(base + '/nodes', params={**params, 'title_query': 'Repetido'})
+    assert title_matches.status_code == 200 and len(title_matches.json()['items']) == 2, title_matches.text
     children = await page_children(client, base, params, chapters[0]['id'], limit=1)
     repeated = [node for node in children if node['title'] == 'Repetido']
     assert len(repeated) == 2 and repeated[0]['id'] != repeated[1]['id']
@@ -128,10 +132,17 @@ async def test_real_structural_worker_tree_signed_pages_exact_sources_reprocess_
     changed = await client.put(f"/v1/artifact-workspaces/{wid}/artifacts/{ref['artifact_id']}/content", json={
         'operation_id': uuid4().hex, 'path': 'manual.md', 'expected_revision': ref['revision_id'], 'text': 'Nova revisão.'})
     assert changed.status_code == 200, changed.text
+    moved = await client.patch(f"/v1/artifact-workspaces/{wid}/artifacts/{ref['artifact_id']}", json={
+        'operation_id': uuid4().hex, 'expected_version': 2, 'path': 'moved.md'})
+    assert moved.status_code == 200, moved.text
     assert (await client.get(base, params=params)).status_code == 200
     historic = await client.get(base + '/nodes/' + leaf['id'] + '/content', params=params)
     assert historic.status_code == 200 and 'Texto A.' in historic.json()['text'], historic.text
     assert historic.json()['source']['revision_id'] == ref['revision_id']
+    batch_historic = await client.post('/v1/artifact-sources/resolve', params=params,
+        json={'sources': [source], 'max_chars': 64})
+    assert batch_historic.status_code == 200 and batch_historic.json()['items'][0]['status'] == 'resolved'
+    assert batch_historic.json()['items'][0]['preview']['source']['revision_id'] == ref['revision_id']
 
 
 async def test_large_native_leaf_reads_only_bounded_unicode_segments_without_whole_document_load(http_client, engine, object_store, monkeypatch):
@@ -261,4 +272,40 @@ async def test_real_native_pdf_uses_explicit_physical_page_fallback_including_em
     assert all(node['source']['locator']['page_number'] == 12 for node in textual)
     read = await client.get(base + '/nodes/' + textual[0]['id'] + '/content', params=params)
     assert read.status_code == 200 and 'física 12' in read.json()['text'], read.text
+    assert read.json()['page_label'] == '10'
+    assert read.json()['source']['locator']['page_label'] == '10'
+    from modules.artifacts.application.contracts.representations import ReadSource, SourceReadDefinition
+    from modules.artifacts.composition.representations import build_representation_service
+    from modules.artifacts.domain.models import Scope
+    direct = await build_representation_service().read_source(ReadSource(http_client[3],
+        Scope(str(client.params['project_id']), client.params['environment']), wid,
+        SourceReadDefinition(source=textual[0]['source'])))
+    assert direct.model_dump(mode='json') == read.json()
+
+    one = await client.post('/v1/artifact-sources/read', params=params, json={
+        'source': textual[0]['source'], 'max_chars': 128})
+    assert one.status_code == 200, one.text
+
+    batch = await client.post('/v1/artifact-sources/resolve', params=params, json={
+        'sources': [textual[0]['source'], textual[-1]['source']], 'max_chars': 128})
+    assert batch.status_code == 200, batch.text
+    assert [item['status'] for item in batch.json()['items']] == ['resolved', 'resolved']
+    assert all(item['preview']['page_label'] == '10' for item in batch.json()['items'])
+    invalid_batch = await client.post('/v1/artifact-sources/resolve', params=params,
+        json={'sources': [textual[0]['source']] * 51})
+    assert invalid_batch.status_code == 422
+
+    representation_set_id = complete['result']['representation_set_id']
+    image_url = (f"/v1/artifacts/{ref['artifact_id']}/revisions/{ref['revision_id']}"
+        f"/representations/{representation_set_id}/pages/11/image")
+    image = await client.get(image_url, params=params)
+    assert image.status_code == 200 and image.headers['content-type'] == 'image/png'
+    assert image.content.startswith(b'\x89PNG\r\n\x1a\n')
+    assert image.headers['x-woobe-page-number'] == '12'
+    assert image.headers['x-woobe-source-sha256'] == hashlib.sha256(original).hexdigest()
+    out_of_range = await client.get(image_url.replace('/pages/11/', '/pages/12/'), params=params)
+    assert out_of_range.status_code == 416, out_of_range.text
+    foreign_image = await client.get(image_url, params={**params, 'artifact_workspace_id': uuid4().hex})
+    assert foreign_image.status_code == 403, foreign_image.text
+
     assert (await page_children(client, base, params, pages[3]['id'])) == []

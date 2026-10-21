@@ -471,6 +471,7 @@ _REVIEWED += [
     ('GET', '/v1/artifact-workspaces/{artifact_workspace_id}/artifacts', 'artifacts:read'),
     ('POST', '/v1/artifact-workspaces/{artifact_workspace_id}/artifacts', 'artifacts:write'),
     ('GET', '/v1/artifact-workspaces/{artifact_workspace_id}/artifacts/{artifact_id}', 'artifacts:read'),
+    ('GET', '/v1/artifact-workspaces/{artifact_workspace_id}/artifacts/{artifact_id}/revisions', 'artifacts:read'),
     ('PATCH', '/v1/artifact-workspaces/{artifact_workspace_id}/artifacts/{artifact_id}', 'artifacts:write'),
     ('PUT', '/v1/artifact-workspaces/{artifact_workspace_id}/artifacts/{artifact_id}/content', 'artifacts:write'),
     ('DELETE', '/v1/artifact-workspaces/{artifact_workspace_id}/artifacts/{artifact_id}', 'artifacts:delete'),
@@ -503,9 +504,12 @@ _REVIEWED += [
     ('GET', '/v1/artifacts/{artifact_id}/revisions/{revision_id}/representations/{representation_set_id}/entries/{entry_id}/content', 'artifacts:read'),
     ('POST', '/v1/artifacts/{artifact_id}/revisions/{revision_id}/representations/{representation_set_id}/entries/{entry_id}/copy', 'artifacts:write'),
     ('POST', '/v1/artifact-sources/read', 'artifacts:read'),
+    ('POST', '/v1/artifact-sources/resolve', 'artifacts:read'),
+    ('GET', '/v1/artifacts/{artifact_id}/revisions/{revision_id}/representations/{representation_set_id}/pages/{page_index}/image', 'artifacts:read'),
 ]
 _REVIEWED += [
     ('GET', '/v1/document-indexes/{document_index_id}', 'artifacts:read'),
+    ('GET', '/v1/artifact-workspaces/{artifact_workspace_id}/artifacts/{artifact_id}/revisions/{revision_id}/document-index', 'artifacts:read'),
     ('GET', '/v1/document-indexes/{document_index_id}/nodes', 'artifacts:read'),
     ('GET', '/v1/document-indexes/{document_index_id}/nodes/{node_id}', 'artifacts:read'),
     ('GET', '/v1/document-indexes/{document_index_id}/nodes/{node_id}/content', 'artifacts:read'),

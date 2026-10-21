@@ -23,11 +23,13 @@ from modules.artifacts.application.contracts.jobs import ProcessingRequest, Proc
 
 from modules.artifacts.application.contracts.representations import (  # noqa: E402
     RepresentationSetView, RepresentationEntryView, RepresentationEntryPage,
-    SourceReadDefinition, SourceReadView, CopyRepresentationDefinition,
+    SourceReadDefinition, SourceReadView, SourceResolveBatchDefinition, SourceResolveBatchView,
+    CopyRepresentationDefinition,
 )
 
 
 from modules.artifacts.application.contracts.indexes import DocumentIndexView, DocumentNodeView, DocumentNodePage  # noqa: E402
+from modules.artifacts.application.contracts.search import ArtifactSearchPage  # noqa: E402
 
 
 def generate(*, check=False):
@@ -36,6 +38,7 @@ def generate(*, check=False):
         destination.mkdir(parents=True, exist_ok=True)
     for filename, model in {
         'document-index': DocumentIndexView,
+        'search-page': ArtifactSearchPage,
         'document-node': DocumentNodeView,
         'document-node-page': DocumentNodePage,
         'representation-set': RepresentationSetView,
@@ -43,6 +46,8 @@ def generate(*, check=False):
         'representation-entry-page': RepresentationEntryPage,
         'source-read': SourceReadDefinition,
         'source-read-result': SourceReadView,
+        'source-resolve': SourceResolveBatchDefinition,
+        'source-resolve-result': SourceResolveBatchView,
         'representation-copy': CopyRepresentationDefinition,
         'artifact-reference': ArtifactReference,
         'source-reference': SourceReference,

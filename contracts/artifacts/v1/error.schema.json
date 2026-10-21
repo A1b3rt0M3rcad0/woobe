@@ -23,7 +23,10 @@
         "ARTIFACT_STORAGE_UNAVAILABLE",
         "PDF_PASSWORD_REQUIRED",
         "PDF_INVALID_DOCUMENT",
-        "DOCUMENT_CONVERSION_FAILED"
+        "DOCUMENT_CONVERSION_FAILED",
+        "MODEL_BINDING_UNAVAILABLE",
+        "MODEL_BUDGET_EXCEEDED",
+        "MODEL_OUTPUT_INVALID"
       ],
       "title": "ErrorCode",
       "type": "string"

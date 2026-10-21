@@ -84,6 +84,16 @@
           "title": "Artifact Id",
           "type": "string"
         },
+        "content_state": {
+          "default": "available",
+          "enum": [
+            "available",
+            "deletion_pending",
+            "purged"
+          ],
+          "title": "Content State",
+          "type": "string"
+        },
         "content_type": {
           "title": "Content Type",
           "type": "string"
