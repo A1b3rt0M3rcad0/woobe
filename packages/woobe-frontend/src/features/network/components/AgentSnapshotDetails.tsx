@@ -1,6 +1,7 @@
 import { AgentBehaviorDetails } from '@/features/agents/components/AgentBehaviorDetails'
 import { executionStrategyFromRuntimeConfig } from '@/features/agents/executionStrategy'
 import { SkillSnapshotSummary } from '@/features/skills/SkillSnapshotSummary'
+import { ArtifactCapabilitySummary } from '@/features/artifacts/components/ArtifactCapabilitySummary'
 import { ChevronDown } from 'lucide-react'
 
 import type { AgentRelease } from '@/features/agents/types'
@@ -73,6 +74,7 @@ export function AgentSnapshotDetails({ release }: { release: AgentRelease }) {
   return (
     <div className="space-y-5">
       <SkillSnapshotSummary runtimeConfig={release.runtime_config} />
+      <ArtifactCapabilitySummary runtimeConfig={release.runtime_config} label="Artifact capability in this snapshot" />
       <section>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           <SnapshotField label="Environment" value={release.snapshot_kind === 'release' ? 'Release' : release.snapshot_kind ?? release.status} />

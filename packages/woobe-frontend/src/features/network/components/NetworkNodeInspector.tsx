@@ -9,6 +9,7 @@ import type { NetworkAgentBindingSelector, NetworkDefinition, NetworkNode } from
 import { delegationToolName } from '../editor/networkGraphValidation'
 import type { NetworkDefinitionChange } from '../editor/types'
 import type { NetworkBinding } from './networkWorkspaceTypes'
+import { ArtifactCapabilitySummary } from '@/features/artifacts/components/ArtifactCapabilitySummary'
 import { NetworkInspectorModal, networkInspectorAction, networkInspectorInput } from './NetworkInspectorModal'
 
 function snapshotKind(release: AgentRelease): 'draft' | 'staging' | 'release' {
@@ -112,6 +113,9 @@ export function NetworkNodeInspector({
   onLocateOnCanvas?: () => void
 }) {
   const rootMustBeReassigned = definition.root_node_id === node.id && definition.nodes.length > 1
+  const capturedRuntime = binding?.snapshotOverride?.runtime_config
+  const currentRuntime = agent?.settings?.runtime_config ?? agent?.settings
+  const runtimeConfig = capturedRuntime ?? currentRuntime
 
   return (
     <>
@@ -148,6 +152,8 @@ export function NetworkNodeInspector({
         </section>
 
         {agent ? <AgentBindingPicker key={node.id} node={node} agent={agent} resolvedVersion={binding?.version} readOnly={readOnly} onChange={(next) => onChange({ type: 'set-binding', nodeId: node.id, binding: next })} /> : null}
+
+        {agent ? <ArtifactCapabilitySummary runtimeConfig={runtimeConfig} label="Artifacts for this Node" /> : null}
 
         <section className="rounded-container border border-border bg-background/30 p-ui-md">
           <div className="flex items-center gap-ui-md">

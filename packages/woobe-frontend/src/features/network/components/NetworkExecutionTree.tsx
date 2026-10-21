@@ -1,13 +1,16 @@
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState, type ReactNode } from 'react'
 import { CheckCircle2, ChevronDown, ChevronRight, Loader2, XCircle } from 'lucide-react'
 
 import type { ChatMessage as PlaygroundChatMessage, SourceInfo, ToolCallInfo } from '@/features/playground/types'
+import type { ArtifactComposerContext } from '@/features/artifacts/types'
+import { ArtifactOutputCard } from '@/features/artifacts/components/ArtifactOutputCard'
 import { formatCurrency } from '@/lib/formatters/number'
 
 import type { LiveNetworkAgent, LiveNetworkDelegation } from './networkLiveExecution'
 import type { AgentNodeId } from './networkWorkspaceTypes'
 import {
   delegationCount,
+  flattenOutputArtifacts,
   invocationCount,
   operationalTools,
   type NetworkAgentInvocation,
@@ -192,18 +195,38 @@ export function networkTurnChatMessage(turn: NetworkTurn): PlaygroundChatMessage
     trace_id: turn.execution.traceId,
     parsed_output: turn.parsedOutput ?? null,
     output_parse_error: turn.outputParseError ?? null,
+    output_artifacts: flattenOutputArtifacts(turn.execution.root),
   }
 }
 
-export function NetworkTurnDetails({ turn, onSelectAgent }: {
+export function NetworkTurnDetails({ turn, onSelectAgent, artifactContext }: {
   turn: NetworkTurn
   onSelectAgent: (nodeId: AgentNodeId) => void
+  artifactContext?: ArtifactComposerContext | null
 }) {
   const delegations = delegationCount(turn.execution.root)
+  const renderNodeOutputs = (invocation: NetworkAgentInvocation): ReactNode => {
+    const ownOutputs = invocation.outputArtifacts ?? []
+    return <Fragment key={invocation.spanId}>
+      {ownOutputs.length > 0 && artifactContext ? <section className="mt-ui-xs space-y-ui-xs rounded-control border border-border/70 bg-background/25 p-ui-sm" aria-label={`Artifacts produced by ${invocation.agentName}`}>
+        <p className="font-mono text-system-meta text-muted-foreground">{invocation.agentName} · {ownOutputs.length} output{ownOutputs.length === 1 ? '' : 's'}</p>
+        {ownOutputs.map(output => <ArtifactOutputCard
+          key={`${output.ref.artifact_id}:${output.ref.revision_id}`}
+          output={output}
+          projectId={artifactContext.projectId}
+          environment={artifactContext.environment}
+          workspaceId={artifactContext.workspaceId}
+          accountWorkspaceId={artifactContext.accountWorkspaceId}
+        />)}
+      </section> : null}
+      {invocation.children.map(renderNodeOutputs)}
+    </Fragment>
+  }
   return (
     <div className="space-y-ui-xs">
       {delegations > 0 ? <div className="pl-16 font-mono text-system-micro text-primary-light">Delegations ({delegations}) · completed in this Run</div> : null}
       <AgentsCalled root={turn.execution.root} onSelectAgent={onSelectAgent} />
+      {artifactContext ? renderNodeOutputs(turn.execution.root) : null}
     </div>
   )
 }

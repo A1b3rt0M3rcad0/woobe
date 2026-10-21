@@ -941,12 +941,13 @@ export default function NetworkPage() {
       key={environment}
       networkId={network?.id || ''}
       projectId={projectId!}
+      accountWorkspaceId={workspaceId}
       networkName={`${currentProject?.name || 'Project'} Network`}
       environment={environment}
       versionLabel={versionLabel}
       currentVersionId={currentVersionId}
       bindings={runtimeBindings}
-      draftDefinition={editorDefinition}
+      runtimeDefinition={visibleDefinition}
       agents={projectAgents}
       liveDraftContractsByAgentId={draftExternalContextContractsByAgentId}
       historyBindings={historyBindings}

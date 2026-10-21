@@ -9,12 +9,14 @@ import {
   acceptRuntimeFrameSequence,
   parseRuntimeFrame,
   reconcileRuntimeOutput,
+  runtimeRunStateSnapshot,
   runtimeTerminalStatus,
   waitForRuntimeRetry,
   type ParsedRuntimeFrame,
   type RuntimeSequenceState,
 } from '@/lib/runtime-stream'
 import { createUuid } from '@/lib/uuid'
+import type { RuntimeContentPart } from '@/features/playground/types'
 
 import type { NetworkRuntimeEvent } from './types'
 
@@ -28,6 +30,7 @@ export interface NetworkStreamInput {
   lastEventId?: number
   expectedDraftRevision?: number
   externalContext?: Record<string, unknown>
+  contentParts?: RuntimeContentPart[]
 }
 
 type PreparedNetworkStreamInput = Omit<NetworkStreamInput, 'idempotencyKey'> & {
@@ -259,7 +262,7 @@ function applyRunState(
   callbacks: NetworkStreamCallbacks,
   streamState: NetworkStreamState,
 ): boolean {
-  const data = eventData(event)
+  const data = runtimeRunStateSnapshot(runtime) ?? eventData(event)
   const output = typeof data.output === 'string' ? data.output : ''
   const reconciliation = reconcileRuntimeOutput(streamState.output, output)
   if (reconciliation.changed) {
@@ -426,7 +429,8 @@ async function requestInitialStream(
     body: JSON.stringify({
       project_id: input.projectId,
       network_session_id: input.networkSessionId,
-      message: input.message,
+      message: input.contentParts ? '' : input.message,
+      content_parts: input.contentParts,
       idempotency_key: input.idempotencyKey,
       expected_draft_revision: input.expectedDraftRevision,
       external_context: input.externalContext,
