@@ -4,9 +4,12 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import model_validator, BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+from typing import Any
 
 from modules.agent.domain.enums import MessageRole, RuntimeSessionMode as SessionMode, SessionStatus
+from shared.contracts.content_parts import ContentPart, normalize_message_parts
+from shared.contracts.artifact_output import ArtifactOutput
 
 RuntimeEnvironment = Literal["draft", "staging", "production"]
 
@@ -43,8 +46,14 @@ class CreateSessionOutput(BaseModel):
 class SendMessageInput(BaseModel):
     session_id: UUID
     role: MessageRole = MessageRole.USER
-    content: str = Field(..., min_length=1)
+    content: str = Field(default='', max_length=32_768)
+    content_parts: tuple[ContentPart, ...] | None = Field(default=None, max_length=32)
     data: dict | None = None
+
+    @model_validator(mode='after')
+    def normalize_content(self):
+        self.content, _ = normalize_message_parts(self.content, self.content_parts)
+        return self
 
 
 class MessageResponse(BaseModel):
@@ -116,7 +125,9 @@ class ListAgentSessionsPageOutput(BaseModel):
 class AskInput(BaseModel):
     project_id: UUID
     agent_id: UUID
-    message: str = Field(..., min_length=1)
+    message: str = Field(default='', max_length=32_768)
+    content_parts: tuple[ContentPart, ...] | None = Field(default=None, max_length=32)
+    resolved_content_parts: tuple[dict[str, Any], ...] = Field(default_factory=tuple, exclude=True)
     session_id: UUID | None = None
     tenant_id: str | None = None
     user_id: str | None = None
@@ -125,6 +136,15 @@ class AskInput(BaseModel):
     execution_context: str = "production"
     loaded_release_id: UUID | None = None
     snapshot_override: dict | None = None
+    runtime_principal: Any = Field(default=None, exclude=True)
+
+    @model_validator(mode='after')
+    def normalize_content(self):
+        self.message, _ = normalize_message_parts(self.message, self.content_parts)
+        # This field is populated only after the runtime has authorized each exact
+        # revision; never accept a provider-prepared projection from the caller.
+        self.resolved_content_parts = ()
+        return self
 
 
 class UsageInfo(BaseModel):
@@ -165,6 +185,8 @@ class AskOutput(BaseModel):
     message_id: UUID | None = None
     usage: UsageInfo | None = None
     sources: list[SourceInfo] = Field(default_factory=list)
+    output_artifacts: list[ArtifactOutput] = Field(default_factory=list)
+    source_refs: list[dict[str, Any]] = Field(default_factory=list)
     tool_calls: list[ToolCallInfo] = Field(default_factory=list)
     trace_id: UUID | None = None
     model: str | None = None
@@ -187,13 +209,19 @@ class AskOutput(BaseModel):
 class CreateAskJobInput(BaseModel):
     project_id: UUID
     agent_id: UUID
-    message: str = Field(..., min_length=1)
+    message: str = Field(default='', max_length=32_768)
+    content_parts: tuple[ContentPart, ...] | None = Field(default=None, max_length=32)
     session_id: UUID | None = None
     tenant_id: str | None = None
     user_id: str | None = None
     metadata: dict | None = None
     external_context: dict | None = None
     execution_context: str = "production"
+
+    @model_validator(mode='after')
+    def normalize_content(self):
+        self.message, _ = normalize_message_parts(self.message, self.content_parts)
+        return self
 
 
 class CreateAskJobOutput(BaseModel):

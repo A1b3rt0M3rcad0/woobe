@@ -276,6 +276,8 @@ def _configured_knowledge_strategy(
 ) -> str | None:
     if prepared.knowledge_strategy is not None:
         name = getattr(prepared.knowledge_strategy, "name", None)
+        if str(name).strip().lower() == "none":
+            return None
         return str(name).strip() if name else "configured"
     if prepared.knowledge_retrieve is not None:
         return "legacy"

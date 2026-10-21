@@ -1,3 +1,4 @@
+from modules.core.composition.public_api import build_operation_configuration_runtime_resolver as build_operation_configuration_runtime_resolver
 from modules.core.composition.public_api import build_portable_environment_reader as build_portable_environment_reader
 from modules.core.composition.public_api import (
     create_imported_environment_composer,
@@ -82,3 +83,5 @@ __all__ += ["build_configuration_process_registration", "configure_configuration
 
 from modules.core.composition.public_api import declare_imported_configuration_composer, inspect_configuration_declarations
 __all__ += ["declare_imported_configuration_composer", "inspect_configuration_declarations"]
+
+__all__.append('build_operation_configuration_runtime_resolver')

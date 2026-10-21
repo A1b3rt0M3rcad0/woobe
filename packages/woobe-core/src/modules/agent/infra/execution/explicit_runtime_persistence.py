@@ -9,6 +9,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from modules.agent.application.dtos.runtime_dtos import AskInput, AskOutput, SourceInfo
+from modules.agent.application.interfaces.artifact_output_projection import project_artifact_outputs
 from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.application.interfaces.outbox import OutboxEventWriter
 from modules.agent.application.interfaces.run_persistence import AgentRunPersistencePort
@@ -129,6 +130,7 @@ class ExplicitRuntimePersistenceMixin:
             attempt=context.run_attempt,
         )
         context.run_event_recorder = recorder
+        from modules.agent.application.interfaces.runtime_identity import artifact_binding_snapshot
         await recorder.emit(
             "run.attempt.started",
             {
@@ -138,6 +140,9 @@ class ExplicitRuntimePersistenceMixin:
                 "input_message": input_dto.message,
                 "execution_snapshot": execution_snapshot,
                 "runtime_identity": context.runtime_identity,
+                "artifact_workspace_binding": artifact_binding_snapshot(
+                    context.artifact_workspace_binding
+                ),
                 "agent_release_id": str(context.agent_release_id) if context.agent_release_id else None,
                 "agent_release_version": context.agent_release_version,
             },
@@ -361,6 +366,7 @@ class ExplicitRuntimePersistenceMixin:
                     session,
                     input_dto.message,
                     agent,
+                    input_dto.content_parts,
                 )
                 input_message_id = getattr(created_user, "id", None)
 
@@ -381,6 +387,15 @@ class ExplicitRuntimePersistenceMixin:
                 release_version=release_version,
                 tool_to_snapshot=tool_to_release_snapshot,
             )
+            if input_dto.content_parts is not None:
+                from shared.contracts.content_parts import serialize_message_content_parts
+
+                execution_snapshot["input_content_parts"] = serialize_message_content_parts(
+                    input_dto.message, input_dto.content_parts
+                )
+                context = current_execution.get()
+                if context is not None:
+                    context.input_content_parts = execution_snapshot["input_content_parts"]
 
             def credential_revision(credential):
                 if credential is None:
@@ -538,7 +553,8 @@ class ExplicitRuntimePersistenceMixin:
             from modules.agent.application.interfaces.runtime_identity import accepted_agent_identity
             context.runtime_identity = accepted_agent_identity(project_id=input_dto.project_id,
                 agent_id=agent.id,session_id=session.id,environment=normalize_runtime_environment(input_dto.execution_context),
-                snapshot=execution_snapshot,continuity_policy=execution_snapshot["continuity_policy"])
+                snapshot=execution_snapshot,continuity_policy=execution_snapshot["continuity_policy"],
+                artifact_binding=context.artifact_workspace_binding)
 
         stream = current_runtime_stream.get()
         if stream is not None:
@@ -674,6 +690,17 @@ class ExplicitRuntimePersistenceMixin:
             outbox: OutboxEventWriter,
         ) -> AskOutput:
             message_id = None
+            output_artifacts, source_refs = project_artifact_outputs(
+                tool_calls_recorded,
+                run_id=str(run_id) if run_id else None,
+                node_id=(
+                    str(context.network_node_id)
+                    if context and context.network_node_id else None
+                ),
+            )
+            output_artifact_payloads = [
+                item.model_dump(mode="json") for item in output_artifacts
+            ]
             if session:
                 assistant = await self._do_save_assistant_message(
                     repositories.messages,
@@ -684,6 +711,9 @@ class ExplicitRuntimePersistenceMixin:
                     usage,
                     agent,
                     tool_calls=tool_calls_recorded,
+                    content_parts=input_dto.content_parts,
+                    output_artifacts=output_artifact_payloads,
+                    source_refs=source_refs,
                 )
                 message_id = assistant.id
 
@@ -739,6 +769,8 @@ class ExplicitRuntimePersistenceMixin:
                 "parsed_output": parsed_output,
                 "output_parse_error": output_parse_error,
                 "tool_calls": [item.model_dump() for item in tool_calls_recorded] if tool_calls_recorded else [],
+                "output_artifacts": output_artifact_payloads,
+                "source_refs": source_refs,
             }
             if fallback_info_result:
                 completion_payload["fallback_info"] = fallback_info_result
@@ -774,6 +806,8 @@ class ExplicitRuntimePersistenceMixin:
                 message_id=message_id,
                 usage=usage,
                 sources=sources,
+                output_artifacts=output_artifacts,
+                source_refs=source_refs,
                 tool_calls=tool_calls_recorded,
                 trace_id=trace_id,
                 model=response_model,

@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import ForeignKey, Index, Integer, String, UniqueConstraint, select
+from sqlalchemy import BigInteger, CheckConstraint, FetchedValue, ForeignKey, Index, Integer, String, UniqueConstraint, select, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, add_mapped_attribute, mapped_column
 
@@ -28,8 +28,11 @@ from shared.infra.repositories.base_repository import BaseSQLAlchemyRepository
 
 
 class ProviderModelModel(BaseModel):
+    __mapper_args__ = {'eager_defaults': True}
+    definition_revision: Mapped[int] = mapped_column(BigInteger, server_default=text('1'), server_onupdate=FetchedValue())
     __tablename__ = "provider_models"
     __table_args__ = (
+        CheckConstraint('definition_revision >= 1', name='ck_provider_model_definition_revision'),
         UniqueConstraint(
             "project_id",
             "provider_credential_id",
@@ -87,6 +90,7 @@ def _to_entity(model: ProviderModelModel) -> ProviderModel:
         metadata=model.meta or {},
         created_at=model.created_at,
         updated_at=model.updated_at,
+        definition_revision=model.definition_revision,
     )
 
 

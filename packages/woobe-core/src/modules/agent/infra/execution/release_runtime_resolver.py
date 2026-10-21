@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 from copy import deepcopy
+from dataclasses import replace
 from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
@@ -27,14 +28,18 @@ from modules.agent.domain.external_context_contract import (
     normalize_external_context_contract,
     resolve_scoped_external_context,
 )
+from shared.contracts.artifact_capability import ArtifactCapability
 from modules.agent.infra.execution.ask_use_case import AskAgentUseCase
 from modules.agent.infra.execution.runtime_preparation import prefer_live_tools_for_run
-from shared.contracts.errors import ConflictError, ValidationError
+from shared.contracts.errors import AuthorizationError, ConflictError, ValidationError
+from shared.security.principal import ChatSurfaceRuntimePrincipal
 from shared.contracts.llm_cost import provider_model_pricing_snapshot
 from shared.runtime_environment import normalize_runtime_environment
 
 
 RuntimeToolReader = Callable[[list[UUID]], Awaitable[list[Any]]]
+ArtifactWorkspaceBindingResolver = Callable[..., Awaitable[Any]]
+ArtifactReferenceValidator = Callable[..., Awaitable[tuple[dict[str, Any], ...]]]
 
 
 def _value(value: object) -> object:
@@ -62,9 +67,19 @@ def _session_release_id(data: dict[str, Any]) -> UUID | None:
 
 class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
     _runtime_tool_reader: RuntimeToolReader | None = None
+    _artifact_workspace_binding_resolver: ArtifactWorkspaceBindingResolver | None = None
+    _artifact_reference_validator: ArtifactReferenceValidator | None = None
 
     def configure_runtime_tool_reader(self, reader: RuntimeToolReader) -> None:
         self._runtime_tool_reader = reader
+
+    def configure_artifact_workspace_binding_resolver(
+        self, resolver: ArtifactWorkspaceBindingResolver
+    ) -> None:
+        self._artifact_workspace_binding_resolver = resolver
+
+    def configure_artifact_reference_validator(self, validator: ArtifactReferenceValidator) -> None:
+        self._artifact_reference_validator = validator
 
     @staticmethod
     def _is_network_runtime(input_dto: AskInput) -> bool:
@@ -105,7 +120,7 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
             raise ConflictError("Agent Session is pinned to a different Release")
         return bound_release_id
 
-    def _resolve_external_context(
+    async def _resolve_external_context(
         self,
         *,
         agent: Agent,
@@ -142,7 +157,112 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
             session.external_context_snapshot = deepcopy(resolved.session_snapshot)
 
         context = current_execution.get()
+        runtime_config = settings.get("runtime_config")
+        runtime_config = runtime_config if isinstance(runtime_config, dict) else {}
+        raw_capability = runtime_config.get("artifacts")
+        capability = ArtifactCapability.model_validate(raw_capability or {})
+        artifact_binding = None
+        if capability.enabled:
+            metadata = input_dto.metadata if isinstance(input_dto.metadata, dict) else {}
+            is_network_runtime = self._is_network_runtime(input_dto)
+            network_artifact = metadata.get("__network_artifact_runtime__")
+            should_bind = True
+            effective_actions = set(capability.actions)
+            if is_network_runtime:
+                if not isinstance(network_artifact, dict) or network_artifact.get("enabled") is not True:
+                    # Network policy is the outer ceiling. Child Agent capability
+                    # cannot activate access when the Network did not bind a Workspace.
+                    should_bind = False
+                else:
+                    policy = network_artifact.get("policy")
+                    binding_snapshot = network_artifact.get("binding")
+                    node_actions = network_artifact.get("node_actions")
+                    binding = capability.workspace_binding
+                    if (
+                        not isinstance(policy, dict)
+                        or not isinstance(binding_snapshot, dict)
+                        or binding is None
+                        or not isinstance(node_actions, list)
+                        or binding.field != policy.get("field")
+                        or binding.namespace != policy.get("namespace")
+                        or binding.scope != policy.get("scope")
+                    ):
+                        raise AuthorizationError("Network Artifact binding is incompatible with this Agent")
+                    effective_actions &= (
+                        set(capability.actions)
+                        & set(policy.get("actions") or ())
+                        & set(node_actions)
+                    )
+                    if not effective_actions:
+                        should_bind = False
+            if should_bind:
+                if self._artifact_workspace_binding_resolver is None:
+                    raise ValidationError("Artifact Workspace binding resolver is unavailable")
+                binding = capability.workspace_binding
+                if binding is None:
+                    raise ValidationError("Artifact capability has no Workspace binding")
+                if isinstance(input_dto.runtime_principal, ChatSurfaceRuntimePrincipal) and binding.scope != "session":
+                    raise AuthorizationError("ChatSurface Artifact access requires a Session-scoped Workspace binding")
+                external_key = resolved.snapshot.get(binding.field)
+                if not isinstance(external_key, str) or not external_key.strip():
+                    raise ValidationError("Artifact Workspace key is missing or invalid")
+                if input_dto.runtime_principal is None:
+                    raise AuthorizationError("Artifact Workspace access is denied")
+                try:
+                    artifact_binding = await self._artifact_workspace_binding_resolver(
+                        principal=input_dto.runtime_principal,
+                        project_id=input_dto.project_id,
+                        environment=normalize_runtime_environment(input_dto.execution_context),
+                        external_namespace=binding.namespace,
+                        external_key=external_key,
+                        actions=tuple(sorted(effective_actions)),
+                        binding_scope=binding.scope,
+                    )
+                except Exception as error:
+                    if getattr(error, "code", None) == "ARTIFACT_ACCESS_DENIED":
+                        raise AuthorizationError("Artifact Workspace access is denied") from error
+                    raise ValidationError("Artifact Workspace binding is unavailable") from error
+                if is_network_runtime:
+                    expected_workspace_id = network_artifact["binding"].get("workspace_id")
+                    if not expected_workspace_id or str(artifact_binding.workspace_id) != str(expected_workspace_id):
+                        raise AuthorizationError("Network Artifact Workspace binding changed")
+                    if (network_artifact["binding"].get("binding_scope") == "session"
+                        and binding.scope == "session"):
+                        pinned_version = network_artifact["binding"].get("catalog_version")
+                        if type(pinned_version) is not int or pinned_version < 0:
+                            raise AuthorizationError("Network Artifact catalog snapshot is invalid")
+                        artifact_binding = replace(artifact_binding, catalog_version=pinned_version)
+                if session is not None:
+                    prior = getattr(session, "artifact_workspace_binding", None)
+                    prior_workspace = prior.get("workspace_id") if isinstance(prior, dict) else None
+                    current_workspace = getattr(artifact_binding, "workspace_id", None)
+                    if (
+                        prior_workspace is not None
+                        and prior_workspace != current_workspace
+                        and (binding.scope == "session" or getattr(session, "last_message_at", None) is not None)
+                    ):
+                        raise ConflictError(
+                            "Agent Session cannot switch Artifact Workspaces after acceptance"
+                        )
+                    if (binding.scope == "session" and isinstance(prior, dict)
+                        and prior_workspace == current_workspace
+                        and prior.get("binding_scope") == "session"):
+                        # Session-scoped runs keep the catalog snapshot accepted by
+                        # the Session, while the resolver above still checks current grants.
+                        artifact_binding = replace(
+                            artifact_binding,
+                            catalog_version=int(prior.get("catalog_version", artifact_binding.catalog_version)),
+                        )
+                    session.artifact_workspace_binding = {
+                        "schema_version": 1,
+                        "workspace_id": current_workspace,
+                        "catalog_version": int(getattr(artifact_binding, "catalog_version", 0)),
+                        "binding_scope": binding.scope,
+                        "actions": sorted(action.value if hasattr(action, "value") else str(action)
+                                          for action in getattr(artifact_binding, "actions", effective_actions)),
+                    }
         if context is not None:
+            context.runtime_principal = input_dto.runtime_principal
             context.external_context_contract = deepcopy(contract)
             context.external_context_session_snapshot = deepcopy(
                 resolved.session_snapshot
@@ -150,12 +270,140 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
             context.external_context_run_snapshot = deepcopy(resolved.run_snapshot)
             context.external_context_snapshot = deepcopy(resolved.snapshot)
             context.model_external_context = deepcopy(exposed) if exposed else None
+            context.artifact_workspace_binding = artifact_binding
+            if artifact_binding is not None:
+                run_id = (
+                    context.network_execution_id
+                    or context.run_id
+                    or context.trace_id
+                )
+                if run_id is not None:
+                    image_generation_spec = None
+                    raw_model_spec = (agent.settings or {}).get("model_spec")
+                    if isinstance(raw_model_spec, dict):
+                        from modules.agent.domain.model_spec import ModelCapabilityNames, ModelSpec
+
+                        spec = ModelSpec.from_dict(raw_model_spec)
+                        capability = spec.capability(ModelCapabilityNames.IMAGE_GENERATION)
+                        if capability is not None and capability.supported:
+                            image_generation_spec = spec.as_dict()
+                            context.image_generation_model = {
+                                "provider": spec.provider,
+                                "model": spec.model_id,
+                                "spec": image_generation_spec,
+                            }
+                    if any(
+                        getattr(action, "value", action) == "read"
+                        for action in artifact_binding.actions
+                    ):
+                        from shared.composition.artifact_runtime import (
+                            configure_runtime_artifact_vision_input_resolver,
+                        )
+
+                        context.artifact_vision_input_resolver = configure_runtime_artifact_vision_input_resolver(
+                            principal=input_dto.runtime_principal,
+                            binding=artifact_binding,
+                            run_id=run_id,
+                            node_id=context.network_node_id,
+                        )
+                    from shared.composition.artifact_runtime import (
+                        configure_runtime_artifact_tools,
+                        configure_runtime_artifact_transfer_resolver,
+                        configure_runtime_artifact_transfer_url_resolver,
+                    )
+
+                    if context.artifact_tool_budget is None:
+                        context.artifact_tool_budget = {"calls": 0, "read_bytes": 0}
+                    definitions, name_to_id, handlers = configure_runtime_artifact_tools(
+                        principal=input_dto.runtime_principal,
+                        binding=artifact_binding,
+                        run_id=run_id,
+                        node_id=context.network_node_id,
+                        budget=context.artifact_tool_budget,
+                        event_recorder_provider=lambda: context.run_event_recorder,
+                        image_generation_spec=image_generation_spec,
+                    )
+                    existing_names = set(context.internal_tool_name_to_id or {})
+                    collisions = existing_names.intersection(name_to_id)
+                    if collisions:
+                        raise ValidationError(
+                            "Internal Artifact Tool name collision: "
+                            + ", ".join(sorted(collisions))
+                        )
+                    context.internal_tool_definitions = [
+                        *(context.internal_tool_definitions or []), *definitions,
+                    ]
+                    context.internal_tool_name_to_id = {
+                        **(context.internal_tool_name_to_id or {}), **name_to_id,
+                    }
+                    context.internal_tool_handlers = {
+                        **(context.internal_tool_handlers or {}), **handlers,
+                    }
+                    if any(
+                        getattr(action, "value", action) == "transfer"
+                        for action in artifact_binding.actions
+                    ):
+                        context.artifact_transfer_resolver = (
+                            configure_runtime_artifact_transfer_resolver(
+                                principal=input_dto.runtime_principal,
+                                binding=artifact_binding,
+                                run_id=run_id,
+                                node_id=context.network_node_id,
+                            )
+                        )
+                    if any(
+                        getattr(action, "value", action) == "write"
+                        for action in artifact_binding.actions
+                    ):
+                        from shared.composition.artifact_runtime import (
+                            configure_runtime_artifact_output_ingestor,
+                        )
+
+                        context.external_output_ingestor = configure_runtime_artifact_output_ingestor(
+                            principal=input_dto.runtime_principal,
+                            binding=artifact_binding,
+                            run_id=run_id,
+                            node_id=context.network_node_id,
+                            event_recorder_provider=lambda: context.run_event_recorder,
+                        )
+                        context.artifact_transfer_url_resolver = (
+                            configure_runtime_artifact_transfer_url_resolver(
+                                principal=input_dto.runtime_principal,
+                                binding=artifact_binding,
+                                run_id=run_id,
+                                node_id=context.network_node_id,
+                            )
+                        )
+        artifact_references = tuple(
+            part.ref for part in (input_dto.content_parts or ())
+            if getattr(part, 'type', None) == 'artifact'
+        )
+        if artifact_references:
+            if artifact_binding is None or self._artifact_reference_validator is None:
+                raise AuthorizationError('Artifact input is not available to this Agent Run')
+            resolved_parts = await self._artifact_reference_validator(
+                principal=input_dto.runtime_principal,
+                binding=artifact_binding,
+                references=artifact_references,
+            )
+            artifact_parts = tuple(
+                part for part in (input_dto.content_parts or ())
+                if getattr(part, 'type', None) == 'artifact'
+            )
+            if len(artifact_parts) != len(resolved_parts):
+                raise ValidationError('Artifact input references could not be resolved')
+            for part, resolved_part in zip(artifact_parts, resolved_parts, strict=True):
+                if (part.media_type_hint is not None
+                    and part.media_type_hint.split(';', 1)[0].strip().lower()
+                    != resolved_part['content_type']):
+                    raise ValidationError('Artifact input media type does not match the exact revision')
+            input_dto.resolved_content_parts = tuple(resolved_parts)
         return resolved
 
     async def _resolve_session(self, session_repo: Any, input_dto: AskInput, agent: Agent):
         session = await super()._resolve_session(session_repo, input_dto, agent)
         if session is None:
-            self._resolve_external_context(
+            await self._resolve_external_context(
                 agent=agent,
                 input_dto=input_dto,
             )
@@ -212,13 +460,18 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
                 if resolved_release_version:
                     next_data["release_version"] = resolved_release_version
 
-        external_context = self._resolve_external_context(
+        previous_artifact_binding = getattr(session, "artifact_workspace_binding", None)
+        external_context = await self._resolve_external_context(
             agent=agent,
             input_dto=input_dto,
             session=session,
             allow_session_replay=self._is_network_runtime(input_dto),
         )
-        if next_data != data or external_context.session_changed:
+        if (
+            next_data != data
+            or external_context.session_changed
+            or previous_artifact_binding != getattr(session, "artifact_workspace_binding", None)
+        ):
             session.data = next_data
             await session_repo.update(session)
         return session

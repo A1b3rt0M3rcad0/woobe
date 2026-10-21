@@ -6,15 +6,14 @@ import logging
 import re
 import socket
 import time
+from collections.abc import AsyncIterable
 from urllib.parse import urlparse
-from uuid import UUID
 
 import httpx
 
 from modules.agent.application.interfaces.ports import (
     ExecutionResult,
     ToolExecutionPort,
-    ToolSecretResolverPort,
 )
 from shared.security.redaction import redact_sensitive_data, redact_text, redact_url
 
@@ -205,8 +204,37 @@ class HttpToolExecutor(ToolExecutionPort):
         method: str,
         url: str,
         headers: dict[str, str] | None = None,
-        body: str | None = None,
+        body: str | AsyncIterable[bytes] | None = None,
         timeout_ms: int = 30000,
+    ) -> ExecutionResult:
+        return await self._execute(
+            method, url, headers=headers, body=body, timeout_ms=timeout_ms,
+            capture_response_content=False,
+        )
+
+    async def execute_with_response_content(
+        self,
+        method: str,
+        url: str,
+        headers: dict[str, str] | None = None,
+        body: str | AsyncIterable[bytes] | None = None,
+        timeout_ms: int = 30000,
+    ) -> ExecutionResult:
+        """Retain bounded response bytes only for a configured output binding."""
+        return await self._execute(
+            method, url, headers=headers, body=body, timeout_ms=timeout_ms,
+            capture_response_content=True,
+        )
+
+    async def _execute(
+        self,
+        method: str,
+        url: str,
+        headers: dict[str, str] | None = None,
+        body: str | AsyncIterable[bytes] | None = None,
+        timeout_ms: int = 30000,
+        *,
+        capture_response_content: bool,
     ) -> ExecutionResult:
         normalized_method = method.upper().strip()
         if normalized_method not in ALLOWED_HTTP_METHODS:
@@ -252,7 +280,7 @@ class HttpToolExecutor(ToolExecutionPort):
                 method=normalized_method,
                 url=url,
                 headers=headers,
-                content=body.encode("utf-8") if body else None,
+                content=(body.encode("utf-8") if isinstance(body, str) else body),
                 timeout=httpx.Timeout(effective_timeout / 1000),
             )
             # A shared HTTP client's defaults and cookie jar are not a Tool's
@@ -353,18 +381,45 @@ class HttpToolExecutor(ToolExecutionPort):
                 output=output,
                 duration_ms=round((time.monotonic() - started_at) * 1000),
                 error=None if response.is_success else f"HTTP {response.status_code}",
+                response_content=bytes(payload) if capture_response_content else None,
+                response_content_type=(
+                    response.headers.get("content-type") if capture_response_content else None
+                ),
             )
         except httpx.TimeoutException:
             return ExecutionResult(
                 success=False,
                 duration_ms=round((time.monotonic() - started_at) * 1000),
                 error=f"Request timed out after {effective_timeout}ms",
+                output=(
+                    {"effect_state": "uncertain"}
+                    if body is not None and not isinstance(body, str)
+                    else None
+                ),
             )
         except httpx.RequestError as exc:
             return ExecutionResult(
                 success=False,
                 duration_ms=round((time.monotonic() - started_at) * 1000),
                 error="Configured Tool request failed" if private_headers else f"Request failed: {_sanitize_error(str(exc))}",
+                output=(
+                    {"effect_state": "uncertain"}
+                    if body is not None and not isinstance(body, str)
+                    else None
+                ),
+            )
+        except Exception as exc:
+            if body is None or isinstance(body, str):
+                raise
+            logger.warning(
+                "HTTP artifact transfer outcome is uncertain error_type=%s",
+                type(exc).__name__,
+            )
+            return ExecutionResult(
+                success=False,
+                duration_ms=round((time.monotonic() - started_at) * 1000),
+                error="Artifact transfer outcome could not be confirmed",
+                output={"effect_state": "uncertain"},
             )
         finally:
             if request is not None:
@@ -373,5 +428,11 @@ class HttpToolExecutor(ToolExecutionPort):
             private_headers.clear()
             if response is not None:
                 await response.aclose()
+            close_body = getattr(body, "aclose", None)
+            if callable(close_body):
+                try:
+                    await close_body()
+                except (RuntimeError, ValueError):
+                    pass
 
 

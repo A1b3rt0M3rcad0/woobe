@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import AsyncIterable
 from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
@@ -15,6 +16,8 @@ class ExecutionResult:
     duration_ms: float | None = None
     error: str | None = None
     output: dict | None = None
+    response_content: bytes | None = None
+    response_content_type: str | None = None
 
 
 class ToolExecutionPort(ABC):
@@ -30,7 +33,7 @@ class ToolExecutionPort(ABC):
         method: str,
         url: str,
         headers: dict[str, str] | None = None,
-        body: str | None = None,
+        body: str | AsyncIterable[bytes] | None = None,
         timeout_ms: int = 30000,
     ) -> ExecutionResult:
         ...

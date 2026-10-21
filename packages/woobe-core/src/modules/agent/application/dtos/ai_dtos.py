@@ -142,6 +142,7 @@ class ProviderModelOutput(BaseModel):
     spec: dict[str, Any] | None = None
     spec_version: int | None = None
     spec_hash: str | None = None
+    definition_revision: int = Field(default=1, ge=1)
     status: ProviderModelStatus
     metadata: dict[str, Any] = {}
     created_at: datetime | None = None

@@ -179,3 +179,14 @@ def declare_imported_configuration_composer():
 
 from modules.core.infra.services.configuration_package import inspect_configuration_declarations
 __all__ += ["declare_imported_configuration_composer", "inspect_configuration_declarations"]
+
+
+def build_operation_configuration_runtime_resolver(*, operation_verifier, session_factory=None, encryption_key=None):
+    from modules.core.infra.services.configuration_runtime_resolver import OperationConfigurationRuntimeResolver
+    from shared.composition_resources import SESSION_FACTORY, SETTINGS
+    return OperationConfigurationRuntimeResolver(session_factory if session_factory is not None else SESSION_FACTORY,
+        encryption_key=encryption_key if encryption_key is not None else SETTINGS.encryption_key,
+        operation_verifier=operation_verifier)
+
+
+__all__.append('build_operation_configuration_runtime_resolver')

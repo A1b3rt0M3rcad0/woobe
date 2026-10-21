@@ -608,3 +608,22 @@ __all__ += ["inventory_configuration_sources", "migrate_configuration_source"]
 
 from modules.agent.infra.database.configuration_targets import configuration_targets
 __all__.append('configuration_targets')
+
+
+def build_operation_model_bindings(session, *, configuration=None):
+    from modules.agent.application.use_cases.operation_model_bindings import OperationModelBindings
+    from modules.agent.infra.database.operation_model_bindings import OperationModelBindingRepository
+    from modules.agent.application.interfaces.project_configuration import configuration_for_session
+    return OperationModelBindings(OperationModelBindingRepository(session),
+        configuration if configuration is not None else configuration_for_session(session))
+
+
+__all__.append('build_operation_model_bindings')
+
+
+def build_operation_model_runtime(*, model_factory=None):
+    from modules.agent.infra.models.operation_runtime import OperationModelRuntime
+    return OperationModelRuntime(model_factory=model_factory)
+
+
+__all__.append('build_operation_model_runtime')

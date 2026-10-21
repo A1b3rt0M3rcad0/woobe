@@ -54,6 +54,27 @@ class ProjectApiPrincipal(BaseModel):
         return interface in self.interfaces
 
 
+class ChatSurfaceRuntimePrincipal(BaseModel):
+    """Short-lived server principal derived from a verified ChatSurface session."""
+
+    model_config = ConfigDict(frozen=True)
+
+    api_key_id: UUID
+    project_id: UUID
+    surface_id: UUID
+    session_id: UUID
+    target_type: str
+    target_id: UUID
+    target_release_id: UUID
+    token_epoch: int
+    expires_at: datetime
+    environment: str = "production"
+    interfaces: frozenset[str] = Field(default_factory=lambda: frozenset({"artifacts"}))
+
+    def allows_interface(self, interface: str) -> bool:
+        return interface in self.interfaces
+
+
 SecurityPrincipal: TypeAlias = (
-    AuthenticatedPrincipal | ProjectApiPrincipal | ControlPlanePrincipal
+    AuthenticatedPrincipal | ProjectApiPrincipal | ControlPlanePrincipal | ChatSurfaceRuntimePrincipal
 )

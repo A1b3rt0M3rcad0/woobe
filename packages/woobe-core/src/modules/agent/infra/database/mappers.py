@@ -532,6 +532,7 @@ def session_to_model(entity: Session) -> SessionModel:
         mode=entity.mode.value if isinstance(entity.mode, RuntimeSessionMode) else entity.mode,
         data=entity.data,
         external_context_snapshot=entity.external_context_snapshot,
+        artifact_workspace_binding=entity.artifact_workspace_binding,
         last_message_at=entity.last_message_at,
     )
 
@@ -548,6 +549,7 @@ def model_to_session(model: SessionModel) -> Session:
         mode=RuntimeSessionMode(model.mode),
         data=model.data,
         external_context_snapshot=model.external_context_snapshot,
+        artifact_workspace_binding=model.artifact_workspace_binding,
         last_message_at=model.last_message_at,
         created_at=model.created_at,
         updated_at=model.updated_at,

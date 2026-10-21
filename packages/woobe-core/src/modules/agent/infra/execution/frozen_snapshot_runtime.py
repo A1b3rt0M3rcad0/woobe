@@ -10,6 +10,10 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from modules.agent.application.dtos.behavior_dtos import canonicalize_behavior_spec
 from modules.agent.application.dtos.runtime_dtos import UsageInfo
+from shared.contracts.content_parts import validate_stored_content_parts
+from modules.agent.application.interfaces.tool_result_context import (
+    tool_result_context_metadata,
+)
 from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.infra.execution.trace_event_builder import build_execution_timeline_events
 from modules.agent.domain.enums import Provider, SessionMode
@@ -78,10 +82,18 @@ def _messages_to_history(messages: list[Any]) -> list[Any]:
         role = _role_value(message)
         message_metadata = _session_context_metadata(message)
         if role == "user":
+            stored_parts = validate_stored_content_parts(
+                (getattr(message, "data", None) or {}).get("content_parts")
+            )
             history.append(
                 HumanMessage(
                     content=message.content,
                     additional_kwargs=message_metadata,
+                    response_metadata=(
+                        {"woobe_content_parts": stored_parts}
+                        if stored_parts is not None
+                        else {}
+                    ),
                 )
             )
             continue
@@ -116,16 +128,12 @@ def _messages_to_history(messages: list[Any]) -> list[Any]:
                     ToolMessage(
                         content=json.dumps(tool_call["output"]),
                         tool_call_id=tool_call["tool_call_id"],
-                        additional_kwargs={
-                            "woobe_context": {
-                                "source_type": "TOOL",
-                                "source_ref": str(tool_call["tool_call_id"]),
-                                "parent_ref": str(message.id),
-                                "selection_method": "session_tool_history",
-                                "trust": "session_history",
-                                "sensitivity": "internal",
-                            }
-                        },
+                        additional_kwargs=tool_result_context_metadata(
+                            tool_name=tool_call.get("tool_name", ""),
+                            tool_call_id=str(tool_call["tool_call_id"]),
+                            parent_ref=str(message.id),
+                            selection_method="session_tool_history",
+                        ),
                     )
                 )
     return history
@@ -177,6 +185,7 @@ class FrozenSnapshotStructuredOutputRuntime(TransactionBoundedStructuredOutputRu
         session,
         content,
         agent,
+        content_parts=None,
     ):
         reuse_message_id = _rerun_input_message_id.get()
         if reuse_message_id is None:
@@ -186,6 +195,7 @@ class FrozenSnapshotStructuredOutputRuntime(TransactionBoundedStructuredOutputRu
                 session,
                 content,
                 agent,
+                content_parts,
             )
 
         original = await message_repo.get_by_id(reuse_message_id)

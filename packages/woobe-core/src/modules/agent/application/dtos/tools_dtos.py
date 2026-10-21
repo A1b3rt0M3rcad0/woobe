@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
@@ -44,6 +45,101 @@ class ToolPermissionConfig(BaseModel):
     risk_level: RiskLevel | None = None
 
 
+class HttpArtifactFileBinding(BaseModel):
+    """A model argument that names one exact authorized Artifact revision."""
+
+    input_name: str = Field(..., min_length=1, max_length=128, pattern=r"^[A-Za-z_][A-Za-z0-9_]*$")
+    mode: Literal["bytes", "multipart", "url"]
+    part_name: str = Field(default="file", min_length=1, max_length=128, pattern=r"^[A-Za-z0-9_.-]+$")
+    content_types: list[str] = Field(..., min_length=1, max_length=32)
+    max_bytes: int = Field(default=25 * 1024 * 1024, ge=1, le=50 * 1024 * 1024)
+    idempotency_header: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=128,
+        pattern=r"^[!#$%&'*+.^_`|~0-9A-Za-z-]+$",
+    )
+
+    @model_validator(mode="after")
+    def validate_file_contract(self):
+        normalized = [value.strip().lower() for value in self.content_types]
+        if any(
+            re.fullmatch(r"[a-z0-9!#$&^_.+-]+/[a-z0-9!#$&^_.+-]+", value) is None
+            for value in normalized
+        ):
+            raise ValueError("Artifact transfer content_types must be valid media types")
+        if self.idempotency_header and self.idempotency_header.lower() in {
+            "authorization", "connection", "content-length", "content-type", "cookie",
+            "host", "proxy-authorization", "transfer-encoding",
+        }:
+            raise ValueError("Idempotency header cannot override a reserved HTTP header")
+        self.content_types = normalized
+        return self
+
+
+class ToolArtifactOutputBinding(BaseModel):
+    """Explicit bounded projection of one external Tool result into Artifacts."""
+
+    name: str = Field(..., min_length=1, max_length=64, pattern=r"^[A-Za-z_][A-Za-z0-9_]*$")
+    mode: Literal["response_body", "json_base64", "mcp_resource"]
+    path: str = Field(..., min_length=1, max_length=1024)
+    content_types: list[str] = Field(..., min_length=1, max_length=16)
+    max_bytes: int = Field(default=1024 * 1024, ge=1, le=8 * 1024 * 1024)
+    data_pointer: str | None = Field(default=None, max_length=1024)
+    content_type_pointer: str | None = Field(default=None, max_length=1024)
+    sha256_pointer: str | None = Field(default=None, max_length=1024)
+    operation_ref_pointer: str | None = Field(default=None, max_length=1024)
+    status_pointer: str | None = Field(default=None, max_length=1024)
+    pending_statuses: list[str] = Field(default_factory=list, max_length=8)
+    success_pointer: str | None = Field(default=None, max_length=1024)
+    resource_name: str | None = Field(default=None, min_length=1, max_length=128)
+
+    @model_validator(mode="after")
+    def validate_output_binding(self) -> "ToolArtifactOutputBinding":
+        path_parts = self.path.split("/")
+        if ("\\" in self.path or any(part in {"", ".", ".."} for part in path_parts)
+                or any(ord(char) < 32 or ord(char) == 127 for char in self.path)):
+            raise ValueError("External Artifact output path must be a logical Workspace path")
+        media_types = [item.strip().lower() for item in self.content_types]
+        if any(
+            re.fullmatch(r"[a-z0-9!#$&^_.+-]+/[a-z0-9!#$&^_.+-]+", item) is None
+            for item in media_types
+        ):
+            raise ValueError("External Artifact output requires valid media types")
+        self.content_types = media_types
+        for pointer in (
+            self.data_pointer,
+            self.content_type_pointer,
+            self.sha256_pointer,
+            self.operation_ref_pointer,
+            self.status_pointer,
+            self.success_pointer,
+        ):
+            if pointer is not None and (not pointer.startswith("/") or "\x00" in pointer):
+                raise ValueError("External Artifact output JSON pointers must be absolute")
+        if self.mode == "json_base64" and self.data_pointer is None:
+            raise ValueError("JSON output binding requires a base64 data pointer")
+        if self.status_pointer is not None and (self.mode != "json_base64" or self.operation_ref_pointer is None):
+            raise ValueError("External operation status requires a JSON output binding and operation reference")
+        statuses = [status.strip().lower() for status in self.pending_statuses]
+        if any(not status or len(status) > 64 for status in statuses) or len(set(statuses)) != len(statuses):
+            raise ValueError("External operation pending statuses must be short, unique strings")
+        if statuses and self.status_pointer is None:
+            raise ValueError("Pending statuses require an external operation status pointer")
+        self.pending_statuses = statuses
+        if self.mode == "mcp_resource" and not self.resource_name:
+            raise ValueError("MCP resource output binding requires a negotiated resource name")
+        if self.mode != "mcp_resource" and self.resource_name is not None:
+            raise ValueError("Only MCP resource output bindings accept a resource name")
+        if self.mode != "json_base64" and any(
+            pointer is not None for pointer in (
+                self.data_pointer, self.content_type_pointer, self.sha256_pointer, self.status_pointer,
+            )
+        ):
+            raise ValueError("Only JSON base64 output bindings accept content pointers")
+        return self
+
+
 class HttpRouteConfig(BaseModel):
     authentication: dict[str, Any] | None = None
     id: str = Field(..., min_length=1)
@@ -56,6 +152,8 @@ class HttpRouteConfig(BaseModel):
     body: str | dict[str, Any] | list[Any] | None = None
     variables: dict[str, Any] = Field(default_factory=dict)
     bindings: dict[str, ToolInputBinding] = Field(default_factory=dict)
+    file_bindings: list["HttpArtifactFileBinding"] = Field(default_factory=list)
+    output_bindings: list[ToolArtifactOutputBinding] = Field(default_factory=list, max_length=3)
     input_schema: dict[str, Any] | None = None
     output_schema: dict[str, Any] | None = None
     risk_level: Literal["low", "medium", "high", "critical"] = "low"
@@ -65,6 +163,16 @@ class HttpRouteConfig(BaseModel):
     timeout_ms: int | None = Field(default=None, ge=1)
     contract_version: int | None = None
     contract_hash: str | None = None
+
+    @model_validator(mode="after")
+    def validate_output_bindings(self) -> "HttpRouteConfig":
+        if len({item.name for item in self.output_bindings}) != len(self.output_bindings):
+            raise ValueError("HTTP route output binding names must be unique")
+        if len({item.path for item in self.output_bindings}) != len(self.output_bindings):
+            raise ValueError("HTTP route output binding paths must be unique")
+        if any(item.mode == "mcp_resource" for item in self.output_bindings):
+            raise ValueError("HTTP routes cannot bind MCP resource outputs")
+        return self
 
 
 class HttpToolConfig(BaseModel):
@@ -81,6 +189,8 @@ class HttpToolConfig(BaseModel):
     body: str | dict[str, Any] | list[Any] | None = None
     variables: dict[str, Any] = Field(default_factory=dict)
     bindings: dict[str, ToolInputBinding] = Field(default_factory=dict)
+    file_bindings: list["HttpArtifactFileBinding"] = Field(default_factory=list)
+    output_bindings: list[ToolArtifactOutputBinding] = Field(default_factory=list, max_length=3)
     auth: HttpAuthConfig | None = None
     timeout_ms: int | None = Field(default=None, ge=1)
 
@@ -90,6 +200,12 @@ class HttpToolConfig(BaseModel):
         # Private compatibility references are verified against the exact Tool
         # owner by persistence; accepting their shape grants no use authority.
         validate_tool_authentication(self.model_dump(exclude_none=True), allow_legacy=True)
+        if any(binding.mode == "mcp_resource" for binding in self.output_bindings):
+            raise ValueError("HTTP Tools cannot bind MCP resource outputs")
+        if len({item.name for item in self.output_bindings}) != len(self.output_bindings):
+            raise ValueError("HTTP output binding names must be unique")
+        if len({item.path for item in self.output_bindings}) != len(self.output_bindings):
+            raise ValueError("HTTP output binding paths must be unique")
         if self.mode == "group":
             if not self.base_url:
                 raise ValueError("HTTP API base_url is required for group mode")
@@ -119,6 +235,26 @@ class McpDiscoveredToolConfig(BaseModel):
     permission: dict[str, Any] | None = None
 
 
+class McpArtifactFileBinding(BaseModel):
+    """A schema-negotiated exact Artifact value for one MCP argument."""
+
+    input_name: str = Field(..., min_length=1, max_length=128, pattern=r"^[A-Za-z_][A-Za-z0-9_]*$")
+    mode: Literal["base64", "url"]
+    content_types: list[str] = Field(..., min_length=1, max_length=32)
+    max_bytes: int = Field(default=4 * 1024 * 1024, ge=1, le=4 * 1024 * 1024)
+
+    @model_validator(mode="after")
+    def validate_media_types(self) -> "McpArtifactFileBinding":
+        normalized = [value.strip().lower() for value in self.content_types]
+        if any(
+            re.fullmatch(r"[a-z0-9!#$&^_.+-]+/[a-z0-9!#$&^_.+-]+", value) is None
+            for value in normalized
+        ):
+            raise ValueError("MCP Artifact bindings require valid media types")
+        self.content_types = normalized
+        return self
+
+
 class McpToolConfig(BaseModel):
     authentication: dict[str, Any] | None = None
     permission: ToolPermissionConfig | None = None
@@ -132,6 +268,8 @@ class McpToolConfig(BaseModel):
     discovered_input_schema: dict[str, Any] | None = None
     discovered_tools: list[McpDiscoveredToolConfig] = Field(default_factory=list)
     bindings: dict[str, ToolInputBinding] = Field(default_factory=dict)
+    file_bindings: list[McpArtifactFileBinding] = Field(default_factory=list)
+    output_bindings: list[ToolArtifactOutputBinding] = Field(default_factory=list, max_length=3)
     discovery_cache_ttl_seconds: int | None = Field(default=None, ge=0)
     timeout_ms: int | None = Field(default=None, ge=1)
 
@@ -139,10 +277,41 @@ class McpToolConfig(BaseModel):
     def validate_transport_target(self) -> "McpToolConfig":
         from modules.agent.domain.tool_configuration import validate_tool_authentication
         validate_tool_authentication(self.model_dump(exclude_none=True), allow_legacy=True)
+        if any(binding.mode == "response_body" for binding in self.output_bindings):
+            raise ValueError("MCP Tools cannot bind raw HTTP response bodies")
+        if len({item.name for item in self.output_bindings}) != len(self.output_bindings):
+            raise ValueError("MCP output binding names must be unique")
+        if len({item.path for item in self.output_bindings}) != len(self.output_bindings):
+            raise ValueError("MCP output binding paths must be unique")
+        if self.output_bindings and (self.mode == "server" or self.exposure == "all_discovered"):
+            raise ValueError("MCP output bindings require a single selected remote Tool")
         if not self.server.url:
             raise ValueError("MCP server.url is required for streamable_http transport")
         if self.mode != "server" and self.exposure != "all_discovered" and not self.tool_name:
             raise ValueError("MCP tool_name is required when exposing a single MCP tool")
+        if self.file_bindings:
+            if self.mode == "server" or self.exposure == "all_discovered":
+                raise ValueError("MCP Artifact file bindings require a single selected remote Tool")
+            schema = self.discovered_input_schema
+            if not isinstance(schema, dict):
+                raise ValueError("MCP Artifact file bindings require the discovered input schema")
+            seen: set[str] = set()
+            properties = schema.get("properties")
+            if not isinstance(properties, dict):
+                raise ValueError("MCP Artifact file bindings require object input properties")
+            for binding in self.file_bindings:
+                name = binding.input_name
+                prop = properties.get(name)
+                if name in seen or not isinstance(prop, dict) or prop.get("type") != "string":
+                    raise ValueError("MCP Artifact binding must match a unique string property")
+                expected = (
+                    prop.get("format") == "byte" or prop.get("contentEncoding") == "base64"
+                    if binding.mode == "base64"
+                    else prop.get("format") == "uri"
+                )
+                if not expected:
+                    raise ValueError("MCP Artifact binding mode does not match the negotiated input schema")
+                seen.add(name)
         return self
 
 
