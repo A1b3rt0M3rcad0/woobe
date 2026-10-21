@@ -69,6 +69,18 @@ class RequestExecutionContext:
     external_context_run_snapshot: dict[str, Any] | None = None
     external_context_snapshot: dict[str, Any] | None = None
     model_external_context: dict[str, Any] | None = None
+    # Authorized Workspace plus the catalog version observed at Acceptance.
+    # This binding is runtime-only and never enters model-facing context.
+    artifact_workspace_binding: Any | None = None
+    runtime_principal: Any | None = None
+    artifact_tool_budget: dict[str, Any] | None = None
+    artifact_transfer_resolver: Callable[[str, str], Awaitable[Any]] | None = None
+    artifact_transfer_url_resolver: Callable[[str, str, str], Awaitable[Any]] | None = None
+    artifact_vision_input_resolver: Callable[[str, str], Awaitable[Any]] | None = None
+    external_output_ingestor: Callable[..., Awaitable[Any]] | None = None
+    image_generation_invoker: Callable[..., Awaitable[Any]] | None = None
+    image_generation_model: dict[str, Any] | None = None
+    input_content_parts: list[dict[str, Any]] | None = None
 
     # Durable Run journal state. The recorder is runtime-only and is never serialized.
     storage_version: str = "legacy_v1"
